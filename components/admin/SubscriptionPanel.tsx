@@ -80,7 +80,7 @@ export default function SubscriptionPanel() {
       {/* KPI 카드 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         {[
-          { label: "구독 중", val: `${active.length}몜`, color: "#0052CC", bg: "#DEEBFF" },
+          { label: "구독 중", val: `${active.length}개`, color: "#0052CC", bg: "#DEEBFF" },
           { label: "월 환산 (KRW)", val: `₩${Math.round(totalMonthlyKRW).toLocaleString()}`, color: "#E34234", bg: "#FFEBE6" },
           { label: "연간 총비용 (USD)", val: `$${totalAnnualUSD.toFixed(0)}`, color: "#6554C0", bg: "#EAE6FF" },
           { label: "해지됨", val: `${subs.filter(s => s.status === "구독 해지").length}개`, color: "#6B778C", bg: "#F4F5F7" },
@@ -142,7 +142,7 @@ export default function SubscriptionPanel() {
                     <div className="font-medium text-gray-800">{s.team}</div>
                     {s.user && (
                       <div className="text-xs text-gray-400">
-                        {s.user}{s.userCount > 1 ? ` 외 ${s.userCount - 1}箪��� : ""}
+                        {s.user}{s.userCount > 1 ? ` 외 ${s.userCount - 1}명` : ""}
                       </div>
                     )}
                   </td>
