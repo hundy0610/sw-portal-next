@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 
 // 동적 임포트로 클라이언트 컴포넌트 로딩
@@ -22,6 +23,12 @@ const MENU: { id: PageId; icon: string; label: string }[] = [
 
 export default function AdminPage() {
   const [page, setPage] = useState<PageId>("overview");
+  const router = useRouter();
+
+  async function handleLogout() {
+    await fetch("/api/admin/auth", { method: "DELETE" });
+    router.push("/admin/login");
+  }
 
   const panels: Record<PageId, React.ReactNode> = {
     overview:  <OverviewPanel />,
@@ -68,6 +75,19 @@ export default function AdminPage() {
               <div className="text-gray-400" style={{ fontSize: 10 }}>IT 자산관리파트</div>
             </div>
           </div>
+          {/* 로그아웃 */}
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 px-2 py-1.5 rounded hover:bg-gray-100 transition-colors"
+            title="로그아웃"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            로그아웃
+          </button>
         </div>
       </header>
 
