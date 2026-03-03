@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 
+// 관리자 비밀 키 — 환경변수 미설정 시 기본값 3589 사용
+const ADMIN_KEY = process.env.ADMIN_SECRET_KEY ?? "3589";
+
 export async function POST(request: Request) {
   try {
     const { key } = await request.json();
-    const secretKey = process.env.ADMIN_SECRET_KEY;
 
-    if (!secretKey || key !== secretKey) {
+    if (!key || key !== ADMIN_KEY) {
       return NextResponse.json({ error: "Invalid key" }, { status: 401 });
     }
 
@@ -17,7 +19,6 @@ export async function POST(request: Request) {
       maxAge: 60 * 60 * 24 * 7, // 7일
       path: "/",
     });
-
     return response;
   } catch {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
