@@ -72,6 +72,16 @@ function getPropPeople(props: NotionProps, key: string): string {
     .join(", ");
 }
 
+function getPropFile(props: NotionProps, key: string): string {
+  const p = props[key];
+  if (!p || p.type !== "files") return "";
+  if (p.files.length === 0) return "";
+  const file = p.files[0];
+  if (file.type === "external") return file.external.url;
+  if (file.type === "file") return file.file.url;
+  return "";
+}
+
 function getPageUrl(pageId: string): string {
   return `https://www.notion.so/${pageId.replace(/-/g, "")}`;
 }
@@ -150,20 +160,24 @@ export async function fetchSubscriptions(): Promise<Subscription[]> {
 
   return pages.map((page) => {
     const p = page.properties;
+    // 실제 Notion DB 컬럼명(한국어) 우선 매핑
+    const logoFile = getPropFile(p, "로고") || getPropFile(p, "Logo");
+    const krwVal = getPropNumber(p, "결제 금액(KRW)") || getPropNumber(p, "KRW") || getPropNumber(p, "금액(원)");
+    const usdVal = getPropNumber(p, "결제 금액(USD)") || getPropNumber(p, "USD");
     return {
       id: page.id,
-      name: getPropText(p, "Name") || getPropText(p, "서비스명"),
-      logo: getPropText(p, "Logo") || getPropText(p, "로고") || "📦",
-      version: getPropText(p, "Version") || getPropText(p, "버전"),
-      status: (getPropSelect(p, "Status") || getPropSelect(p, "상태") || "구독 중") as Subscription["status"],
-      team: getPropText(p, "Team") || getPropSelect(p, "Team") || getPropText(p, "팀"),
-      user: getPropText(p, "User") || getPropPeople(p, "User") || getPropText(p, "담당자"),
-      userCount: getPropNumber(p, "Count") || getPropNumber(p, "인원수") || 1,
-      cycle: (getPropSelect(p, "Cycle") || getPropSelect(p, "결제 주기") || "월") as Subscription["cycle"],
-      krw: getPropNumber(p, "KRW") || getPropNumber(p, "금액(원)") || undefined,
-      usd: getPropNumber(p, "USD") || undefined,
-      paymentMethod: getPropSelect(p, "Payment") || getPropSelect(p, "결제 방식") || "법인카드",
-      startDate: getPropDate(p, "Start Date") || getPropDate(p, "시작일") || "",
+      name: getPropText(p, "이름") || getPropText(p, "Name") || getPropText(p, "서비스명"),
+      logo: logoFile || getPropText(p, "Logo") || getPropText(p, "로고") || "📦",
+      version: getPropText(p, "버전") || getPropText(p, "Version"),
+      status: (getPropSelect(p, "상태") || getPropSelect(p, "Status") || "구독 중") as Subscription["status"],
+      team: getPropText(p, "팀명") || getPropSelect(p, "팀명") || getPropText(p, "Team") || getPropSelect(p, "Team"),
+      user: getPropPeople(p, "사용자") || getPropText(p, "사용자") || getPropText(p, "User") || getPropPeople(p, "User") || getPropText(p, "담당자"),
+      userCount: getPropNumber(p, "개수") || getPropNumber(p, "Count") || getPropNumber(p, "인원수") || 1,
+      cycle: (getPropSelect(p, "결제 주기") || getPropSelect(p, "Cycle") || "월") as Subscription["cycle"],
+      krw: krwVal || undefined,
+      usd: usdVal || undefined,
+      paymentMethod: getPropSelect(p, "결재 방식") || getPropSelect(p, "결제 방식") || getPropSelect(p, "Payment") || "법인카드",
+      startDate: getPropDate(p, "결제 시작일") || getPropDate(p, "Start Date") || getPropDate(p, "시작일") || "",
       notionUrl: getPageUrl(page.id),
     };
   });
