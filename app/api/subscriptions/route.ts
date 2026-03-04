@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+상태구독중이름상태구독중결제금액결제금액결제주기팀명사업부개수사용자결제시작일버전결재방식import { NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
