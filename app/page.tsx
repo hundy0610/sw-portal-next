@@ -75,7 +75,7 @@ function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
     <div className="space-y-6">
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-8 text-white">
         <h2 className="text-2xl font-bold mb-2">SW 자산 관리 포털에 오신 것을 환영합니다</h2>
-        <p className="text-blue-100 text-sm">사내 소프트웨어 정책을 확인하고, 교육 자료와 가이드를 춴용하세요.</p>
+        <p className="text-blue-100 text-sm">사내 소프트웨어 정책을 확인하고, 교육 자료와 가이드를 이용하세요.</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -262,14 +262,22 @@ function ResourcesTab() {
 function SearchTab() {
   const [query, setQuery] = useState("");
   const [swList, setSwList] = useState<SW[]>([]);
+  const [subscriptions, setSubscriptions] = useState<{ name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "approved" | "conditional" | "banned">("all");
 
   useEffect(() => {
-    fetch("/api/sw-db")
-      .then((r) => r.json())
-      .then((data) => {
-        setSwList(Array.isArray(data) ? data : []);
+    Promise.all([
+      fetch("/api/sw-db").then((r) => r.json()),
+      fetch("/api/subscriptions").then((r) => r.json()),
+    ])
+      .then(([swData, subData]) => {
+        setSwList(Array.isArray(swData) ? swData : []);
+        setSubscriptions(
+          Array.isArray(subData)
+            ? subData.map((s: any) => ({ name: s.name ?? "" })).filter((s: { name: string }) => s.name)
+            : []
+        );
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -284,6 +292,13 @@ function SearchTab() {
     const matchFilter = filter === "all" || s.status === filter;
     return matchQuery && matchFilter;
   });
+
+  // 검색어가 사내 구독 SW 이름과 일치하는지 확인
+  const matchedSubscriptions = query.trim()
+    ? subscriptions.filter((s) =>
+        s.name.toLowerCase().includes(query.trim().toLowerCase())
+      )
+    : [];
 
   const statusConfig = {
     approved:    { label: "✅ 승인",     bg: "bg-green-100",  text: "text-green-700",  border: "border-green-200" },
@@ -336,6 +351,32 @@ function SearchTab() {
         ))}
       </div>
 
+      {/* 사내 구독 SW 안내 배너 */}
+      {matchedSubscriptions.length > 0 && (
+        <div className="bg-blue-50 border border-blue-300 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl shrink-0">🛒</span>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-blue-900 text-sm">
+                사내 구매 사용 중인 SW입니다
+              </p>
+              <p className="text-xs text-blue-700 mt-1 mb-3">
+                <strong>{matchedSubscriptions.map((s) => s.name).join(", ")}</strong>은(는) 회사에서 이미 구매하여 사용 중인 SW입니다.
+                아래 문의 접수 링크를 통해 사용 신청을 해주세요.
+              </p>
+              <a
+                href="https://assetify-desk.vercel.app/inquiry"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                📋 문의 접수하기 →
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Results */}
       {loading ? (
         <div className="text-center py-12 text-gray-400">불러오는 중...</div>
@@ -343,6 +384,20 @@ function SearchTab() {
         <div className="text-center py-12 text-gray-400">
           <p className="text-3xl mb-2">🔍</p>
           <p>검색 결과가 없습니다.</p>
+          {query && (
+            <p className="text-xs mt-2 text-gray-400">
+              SW 사용이 필요하다면{" "}
+              <a
+                href="https://assetify-desk.vercel.app/inquiry"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-500 hover:underline"
+              >
+                문의 접수
+              </a>
+              를 통해 IT팀에 요청하세요.
+            </p>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
