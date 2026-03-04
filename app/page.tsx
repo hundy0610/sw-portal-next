@@ -19,24 +19,24 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center gap-3">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">SW</div>
-          <div>
-            <h1 className="text-lg font-bold text-gray-900">SW 자산 관리 포털</h1>
-            <p className="text-xs text-gray-500">소프트웨어 정책 · 교육 · 자료실</p>
+      <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
+        <div className="w-full max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center gap-3">
+          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-sm shrink-0">SW</div>
+          <div className="min-w-0">
+            <h1 className="text-lg font-bold text-gray-900 truncate">SW 자산 관리 포털</h1>
+            <p className="text-xs text-gray-500 hidden sm:block">소프트웨어 정책 · 교육 · 자료실</p>
           </div>
           <a
             href="/admin"
-            className="ml-auto text-gray-200 hover:text-gray-400 transition-colors select-none"
+            className="ml-auto text-gray-200 hover:text-gray-400 transition-colors select-none shrink-0"
             style={{ fontSize: 8, lineHeight: 1 }}
             title=""
-          >●</a>
+          >◿</a>
         </div>
 
         {/* Tab Nav */}
-        <div className="max-w-5xl mx-auto px-4">
-          <nav className="flex gap-1">
+        <div className="w-full max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
+          <nav className="flex gap-1 overflow-x-auto scrollbar-hide">
             {([
               { id: "home",      label: "🏠 홈" },
               { id: "education", label: "📚 교육 센터" },
@@ -46,7 +46,7 @@ export default function Home() {
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
-                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                   tab === t.id
                     ? "border-blue-600 text-blue-600"
                     : "border-transparent text-gray-500 hover:text-gray-700"
@@ -59,7 +59,7 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 py-8">
+      <main className="w-full max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {tab === "home"      && <HomeTab onNavigate={setTab} />}
         {tab === "education" && <EducationTab />}
         {tab === "resources" && <ResourcesTab />}
@@ -75,14 +75,14 @@ function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
     <div className="space-y-6">
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-8 text-white">
         <h2 className="text-2xl font-bold mb-2">SW 자산 관리 포털에 오신 것을 환영합니다</h2>
-        <p className="text-blue-100 text-sm">사내 소프트웨어 정책을 확인하고, 교육 자료와 가이드를 이용하세요.</p>
+        <p className="text-blue-100 text-sm">사내 소프트웨어 정책을 확인하고, 교육 자료와 가이드를 춴용하세요.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
-          { icon: "📚", title: "교육 센터", desc: "필수 이수 교육 및 SW 활용 교육 자료", tab: "education" as Tab, color: "blue" },
-          { icon: "📁", title: "자료실", desc: "설치 가이드, 정책 지침, 양식 서식", tab: "resources" as Tab, color: "green" },
-          { icon: "🔍", title: "SW 검색", desc: "사내 승인/금지 소프트웨어 정책 확인", tab: "search" as Tab, color: "purple" },
+          { icon: "📚", title: "교육 센터", desc: "필수 이수 교육 및 SW 활용 교육 자료", tab: "education" as Tab },
+          { icon: "📁", title: "자료실", desc: "설치 가이드, 정책 지침, 양식 서식", tab: "resources" as Tab },
+          { icon: "🔍", title: "SW 검색", desc: "사내 승인/금지 소프트웨어 정책 확인", tab: "search" as Tab },
         ].map((card) => (
           <button
             key={card.tab}
@@ -114,7 +114,6 @@ function EducationTab() {
     {
       title: "필수 이수 교육",
       icon: "📋",
-      color: "red",
       items: [
         { title: "정보보안 인식 교육", duration: "30분", deadline: "매년 12월", tag: "필수" },
         { title: "개인정보 보호 교육", duration: "20분", deadline: "매년 6월", tag: "필수" },
@@ -124,7 +123,6 @@ function EducationTab() {
     {
       title: "SW 활용 교육",
       icon: "💻",
-      color: "blue",
       items: [
         { title: "Microsoft 365 기본 활용", duration: "1시간", deadline: "상시", tag: "권장" },
         { title: "Slack 업무 활용법", duration: "30분", deadline: "상시", tag: "권장" },
@@ -135,7 +133,6 @@ function EducationTab() {
     {
       title: "IT 정책 교육",
       icon: "🛡️",
-      color: "green",
       items: [
         { title: "사내 IT 보안 정책 안내", duration: "25분", deadline: "상시", tag: "참고" },
         { title: "외부 소프트웨어 설치 절차", duration: "15분", deadline: "상시", tag: "참고" },
@@ -159,12 +156,12 @@ function EducationTab() {
           </div>
           <div className="divide-y divide-gray-100">
             {cat.items.map((item) => (
-              <div key={item.title} className="px-5 py-4 flex items-center justify-between hover:bg-gray-50">
-                <div>
+              <div key={item.title} className="px-5 py-4 flex items-center justify-between hover:bg-gray-50 gap-2">
+                <div className="min-w-0">
                   <p className="font-medium text-gray-800">{item.title}</p>
                   <p className="text-xs text-gray-500 mt-0.5">소요 시간: {item.duration} · 이수 기한: {item.deadline}</p>
                 </div>
-                <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                <span className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-medium ${
                   item.tag === "필수" ? "bg-red-100 text-red-700" :
                   item.tag === "권장" ? "bg-blue-100 text-blue-700" :
                   "bg-gray-100 text-gray-600"
@@ -233,17 +230,17 @@ function ResourcesTab() {
           </div>
           <div className="divide-y divide-gray-100">
             {sec.items.map((item) => (
-              <div key={item.title} className="px-5 py-3 flex items-center justify-between hover:bg-gray-50">
-                <div className="flex items-center gap-3">
-                  <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${
+              <div key={item.title} className="px-5 py-3 flex items-center justify-between hover:bg-gray-50 gap-2">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className={`shrink-0 px-1.5 py-0.5 rounded text-xs font-bold ${
                     item.format === "PDF" ? "bg-red-100 text-red-600" : "bg-blue-100 text-blue-600"
                   }`}>
                     {item.format}
                   </span>
-                  <span className="text-sm text-gray-800">{item.title}</span>
+                  <span className="text-sm text-gray-800 truncate">{item.title}</span>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-gray-400">{item.size}</span>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="text-xs text-gray-400 hidden sm:block">{item.size}</span>
                   <button className="text-xs text-blue-600 hover:text-blue-700 font-medium px-3 py-1 rounded border border-blue-200 hover:bg-blue-50 transition-colors">
                     다운로드
                   </button>
@@ -355,8 +352,8 @@ function SearchTab() {
             return (
               <div key={s.id} className={`bg-white rounded-xl border ${cfg.border} p-5`}>
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span className="font-semibold text-gray-900">{s.name}</span>
                       {s.vendor && (
                         <span className="text-xs text-gray-400">by {s.vendor}</span>
@@ -376,7 +373,7 @@ function SearchTab() {
                   </span>
                 </div>
 
-                {/* Status notice — NO usage/inventory data shown */}
+                {/* Status notice */}
                 <div className="mt-3">
                   {s.status === "approved" && (
                     <div className={`text-xs ${cfg.text} ${cfg.bg} rounded-lg px-3 py-2`}>
