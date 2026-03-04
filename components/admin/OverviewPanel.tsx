@@ -1,166 +1,225 @@
 "use client";
-
 import { useEffect, useState } from "react";
-import type { SwItem, Ticket, Subscription } from "@/types";
-import { ProgressBar } from "@/components/ui/ProgressBar";
 
-function daysUntil(dateStr?: string): number | null {
-  if (!dateStr) return null;
-  const diff = new Date(dateStr).getTime() - Date.now();
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+interface SwItem {
+  id: string;
+  name: string;
+  category?: string;
+  status: string;
+  totalLicenses?: number;
+  usedLicenses?: number;
+}
+
+interface SubItem {
+  id: string;
+  name: string;
+  status: string;
+  team?: string;
+  user?: string;
+  userCount?: number;
+  krw?: number;
+  usd?: number;
+  cycle?: string;
+  nextPayment?: string;
 }
 
 export default function OverviewPanel() {
-  const [swDb, setSwDb] = useState<SwItem[]>([]);
-  const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [subs, setSubs] = useState<Subscription[]>([]);
+  const [swList, setSwList]   = useState<SwItem[]>([]);
+  const [subs, setSubs]       = useState<SubItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/sw-db").then(r => r.json()),
-      fetch("/api/tickets").then(r => r.json()),
-      fetch("/api/subscriptions").then(r => r.json()),
-    ]).then(([sw, tk, sub]) => {
-      setSwDb(sw.data ?? []);
-      setTickets(tk.data ?? []);
-      setSubs(sub.data ?? []);
-    }).finally(() => setLoading(false));
+      fetch("/api/sw-db").then((r) => r.json()),
+      fetch("/api/subscriptions").then((r) => r.json()),
+    ])
+      .then(([sw, sub]) => {
+        setSwList(Array.isArray(sw)  ? sw  : []);
+        setSubs(Array.isArray(sub) ? sub : []);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   }, []);
 
-  const approved = swDb.filter(s => s.status === "approved").length;
-  const saturated = swDb.filter(s => s.totalLicenses < 999 && s.usedLicenses / s.totalLicenses >= 0.9).length;
-  const pending = tickets.filter(t => t.status !== "완료").length;
-  const activeSubs = subs.filter(s => s.status === "구독 중").length;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64 text-gray-400">
+        데이터 불러오는 중...
+      </div>
+    );
+  }
+
+  const activeSubs   = subs.filter((s) => s.status === "구독 중");
+  const licenseItems = swList.filter((s) => (s.totalLicenses ?? 0) > 0);
+  const warningItems = licenseItems.filter(
+    (s) => (s.totalLicenses ?? 0) > 0 && (s.usedLicenses ?? 0) / (s.totalLicenses ?? 1) >= 0.8
+  );
+
+  const totalMonthlyKRW = activeSubs.reduce((acc, s) => {
+    const krw = s.krw ?? (s.usd ? Math.round(s.usd * 1350) : 0);
+    return acc + (s.cycle === "연" ? Math.round(krw / 12) : krw);
+  }, 0);
+
+  const today = new Date();
+  const urgentSubs = activeSubs.filter((s) => {
+    if (!s.nextPayment) return false;
+    const diff = (new Date(s.nextPayment).getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
+    return diff >= 0 && diff <= 30;
+  });
 
   const kpis = [
-    { label: "관리 소프트웨어", val: `${swDb.length}종`, sub: `승인 ${approved}종`, color: "#0052CC", bg: "#EBF0FF" },
-    { label: "라이선스 포화 경고", val: `${saturated}종`, sub: "90% 이상 사용 중", color: "#FF991F", bg: "#FFFAE6" },
-    { label: "미처리 티켓", val: `${pending}건`, sub: "전체 티켓 기준", color: "#6554C0", bg: "#EAE6FF" },
-    { label: "구독 중인 SW", val: `${activeSubs}개`, sub: "구독 관리 DB 기준", color: "#00875A", bg: "#E3FCEF" },
+    { icon: "🗄",  label: "관리 SW 총 수",      value: swList.length,                  unit: "개",  color: "blue"   },
+    { icon: "⚠️", label: "라이선스 포화 경고",   value: warningItems.length,            unit: "개",  color: "red"    },
+    { icon: "💳", label: "구독 중인 SW",          value: activeSubs.length,              unit: "개",  color: "green"  },
+    { icon: "💰", label: "월 구독 비용 (추산)",   value: totalMonthlyKRW.toLocaleString(), unit: "원", color: "purple" },
   ];
 
-  // 만료 임박 (30일 이내)
-  const expiringSoon = swDb
-    .filter(s => s.totalLicenses > 0)
-    .flatMap(s => []) as { name: string; days: number }[];
-
-  if (loading) return <div className="text-center py-20 text-gray-400">노션 데이터 로딩 중...</div>;
-
   return (
-    <div className="fade-in">
-      <div className="mb-5">
-        <h2 className="text-xl font-bold text-gray-900 mb-0.5">대시보드</h2>
-        <p className="text-sm text-gray-500">전사 소프트웨어 자산 현황 (실시간 Notion 연동)</p>
-      </div>
-
-      {/* KPI 카드 */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+    <div className="space-y-6">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {kpis.map((k) => (
-          <div key={k.label} className="bg-white border border-gray-200 rounded-lg p-4" style={{ borderLeft: `3px solid ${k.color}` }}>
-            <div className="text-2xl font-extrabold mb-1" style={{ color: k.color }}>{k.val}</div>
-            <div className="text-sm font-semibold text-gray-800 mb-0.5">{k.label}</div>
-            <div className="text-xs text-gray-500">{k.sub}</div>
+          <div key={k.label} className="bg-white rounded-xl border border-gray-200 p-5">
+            <div className="text-2xl mb-2">{k.icon}</div>
+            <p className="text-xs text-gray-500 mb-1">{k.label}</p>
+            <p className="text-2xl font-bold text-gray-900">
+              {k.value}
+              <span className="text-sm font-normal text-gray-500 ml-1">{k.unit}</span>
+            </p>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-        {/* 라이선스 사용률 */}
-        <div className="bg-white border border-gray-200 rounded-lg p-5">
-          <div className="font-bold text-sm text-gray-900 mb-4">주요 라이선스 사용률</div>
-          {swDb.filter(s => s.totalLicenses > 0 && s.totalLicenses < 999).length === 0 ? (
-            <div className="text-sm text-gray-400 text-center py-6">라이선스 데이터 없음</div>
-          ) : (
-            <div className="flex flex-col gap-3">
-              {swDb.filter(s => s.totalLicenses > 0 && s.totalLicenses < 999).map(s => {
-                const pct = Math.round((s.usedLicenses / s.totalLicenses) * 100);
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* 라이선스 재고 현황 */}
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+            <span>🔑</span>
+            <h3 className="font-semibold text-gray-900">라이선스 재고 현황</h3>
+          </div>
+          <div className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
+            {licenseItems.length === 0 ? (
+              <p className="px-5 py-8 text-center text-sm text-gray-400">라이선스 정보 없음</p>
+            ) : (
+              licenseItems.map((s) => {
+                const used  = s.usedLicenses ?? 0;
+                const total = s.totalLicenses ?? 0;
+                const ratio = total > 0 ? used / total : 0;
+                const remaining = total - used;
+                const isWarning = ratio >= 0.8;
                 return (
-                  <div key={s.id}>
-                    <div className="flex justify-between mb-1">
-                      <span className="text-xs font-medium text-gray-800 truncate max-w-40">{s.name}</span>
-                      <span className="text-xs font-semibold ml-2" style={{ color: pct >= 90 ? "#DE350B" : pct >= 75 ? "#FF991F" : "#0052CC" }}>
-                        {pct}%
+                  <div key={s.id} className="px-5 py-3">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-sm font-medium text-gray-800">{s.name}</span>
+                      <span className={`text-xs font-medium ${isWarning ? "text-red-600" : "text-gray-500"}`}>
+                        {used} / {total}석
+                        {isWarning && " ⚠️"}
                       </span>
                     </div>
-                    <ProgressBar value={pct} height={5} />
+                    <div className="w-full bg-gray-100 rounded-full h-1.5">
+                      <div
+                        className={`h-1.5 rounded-full transition-all ${
+                          isWarning ? "bg-red-500" : ratio >= 0.5 ? "bg-yellow-400" : "bg-green-400"
+                        }`}
+                        style={{ width: `${Math.min(ratio * 100, 100)}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">잔여 {remaining}석</p>
                   </div>
                 );
-              })}
-            </div>
-          )}
+              })
+            )}
+          </div>
         </div>
 
-        {/* 최근 티켓 */}
-        <div className="bg-white border border-gray-200 rounded-lg p-5">
-          <div className="font-bold text-sm text-gray-900 mb-4">최근 미처리 티켓</div>
-          {tickets.filter(t => t.status !== "완료").length === 0 ? (
-            <div className="text-sm text-gray-400 text-center py-6">미처리 티켓 없음 ✓</div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {tickets.filter(t => t.status !== "완료").slice(0, 6).map(t => (
-                <div key={t.id} className="flex items-start gap-2 p-2 rounded-lg hover:bg-gray-50">
-                  <div className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${t.priority === "높음" ? "bg-red-500" : t.priority === "중간" ? "bg-yellow-500" : "bg-gray-400"}`} />
-                  <div className="flex-1 overflow-hidden">
-                    <div className="text-xs font-medium text-gray-900 truncate">{t.title}</div>
-                    <div className="text-xs text-gray-400">{t.requester} · {t.createdAt}</div>
+        {/* 실제 사용 현황 */}
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+            <span>👥</span>
+            <h3 className="font-semibold text-gray-900">실제 사용 현황 (팀별 구독)</h3>
+          </div>
+          <div className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
+            {activeSubs.length === 0 ? (
+              <p className="px-5 py-8 text-center text-sm text-gray-400">구독 중인 SW 없음</p>
+            ) : (
+              activeSubs.map((s) => (
+                <div key={s.id} className="px-5 py-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">{s.name}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {s.team && <span className="mr-2">🏢 {s.team}</span>}
+                      {s.user && <span>👤 {s.user}</span>}
+                    </p>
                   </div>
-                  <span className={`text-xs font-medium px-1.5 py-0.5 rounded shrink-0 ${
-                    t.status === "처리중" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600"
-                  }`}>{t.status}</span>
+                  {s.userCount != null && (
+                    <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
+                      {s.userCount}명
+                    </span>
+                  )}
                 </div>
-              ))}
-            </div>
-          )}
+              ))
+            )}
+          </div>
         </div>
       </div>
 
-      {/* 구독 결제 임박 */}
-      <div className="bg-white border border-gray-200 rounded-lg p-5">
-        <div className="font-bold text-sm text-gray-900 mb-4">결제 임박 구독 (30일 이내)</div>
-        {(() => {
-          const urgent = subs.filter(s => {
-            if (s.status !== "구독 중" || !s.startDate) return false;
-            const d = new Date(s.startDate);
-            const now = new Date();
-            if (s.cycle === "월") {
-              while (d <= now) d.setMonth(d.getMonth() + 1);
-            } else {
-              while (d <= now) d.setFullYear(d.getFullYear() + 1);
-            }
-            const diff = Math.ceil((d.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-            return diff <= 30;
-          });
-          if (urgent.length === 0)
-            return <div className="text-sm text-gray-400 text-center py-4">30일 이내 결제 임박 없음</div>;
-          return (
-            <div className="flex flex-col gap-2">
-              {urgent.map(s => {
-                const d = new Date(s.startDate);
-                const now = new Date();
-                if (s.cycle === "월") {
-                  while (d <= now) d.setMonth(d.getMonth() + 1);
-                } else {
-                  while (d <= now) d.setFullYear(d.getFullYear() + 1);
-                }
-                const days = Math.ceil((d.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-                return (
-                  <div key={s.id} className="flex items-center gap-3 p-2 rounded-lg bg-red-50 border border-red-100">
-                    <span className="text-xl">{s.logo}</span>
-                    <div className="flex-1">
-                      <div className="text-sm font-semibold text-gray-900">{s.name}</div>
-                      <div className="text-xs text-gray-500">{s.team}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-bold text-red-600">D-{days}</div>
-                      <div className="text-xs text-gray-500">{s.krw ? `₩${s.krw.toLocaleString()}` : `$${s.usd}`}</div>
-                    </div>
+      {/* 결제 임박 */}
+      {urgentSubs.length > 0 && (
+        <div className="bg-white rounded-xl border border-orange-200 overflow-hidden">
+          <div className="px-5 py-4 border-b border-orange-100 flex items-center gap-2 bg-orange-50">
+            <span>🔔</span>
+            <h3 className="font-semibold text-orange-900">결제 임박 구독 (30일 이내)</h3>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {urgentSubs.map((s) => {
+              const krw = s.krw ?? (s.usd ? Math.round(s.usd * 1350) : 0);
+              const diff = Math.round(
+                (new Date(s.nextPayment!).getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+              );
+              return (
+                <div key={s.id} className="px-5 py-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">{s.name}</p>
+                    <p className="text-xs text-gray-500">
+                      {s.nextPayment} ({diff}일 후)
+                    </p>
                   </div>
-                );
-              })}
-            </div>
-          );
-        })()}
+                  <span className="text-sm font-semibold text-orange-700">
+                    {krw > 0 ? `₩${krw.toLocaleString()}` : "-"}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 포털 관리 */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+          <span>🛠</span>
+          <h3 className="font-semibold text-gray-900">포털 관리</h3>
+        </div>
+        <div className="p-5 grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            { icon: "🗄",  label: "SW DB 편집",     href: "https://notion.so", desc: "승인/금지 목록" },
+            { icon: "💳", label: "구독 관리",         href: "https://notion.so", desc: "구독 SW 목록"   },
+            { icon: "🔑", label: "라이선스 관리",     href: "https://notion.so", desc: "시트 현황"       },
+            { icon: "📋", label: "티켓 처리 (Notion)", href: "https://notion.so", desc: "요청 처리"       },
+          ].map((link) => (
+            <a
+              key={link.label}
+              href={link.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex flex-col items-center gap-1 p-4 rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors text-center"
+            >
+              <span className="text-2xl">{link.icon}</span>
+              <p className="text-xs font-medium text-gray-800">{link.label}</p>
+              <p className="text-xs text-gray-400">{link.desc}</p>
+            </a>
+          ))}
+        </div>
       </div>
     </div>
   );
