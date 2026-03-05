@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { fetchLicenses } from "@/lib/notion";
+import { fetchLicenseRecords } from "@/lib/notion";
 
 export const revalidate = 60;
 
 export async function GET() {
   try {
-    const data = await fetchLicenses();
+    const data = await fetchLicenseRecords();
     return NextResponse.json({
       data,
       lastSynced: new Date().toISOString(),
