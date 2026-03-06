@@ -3,7 +3,7 @@ import type {
   PageObjectResponse,
   QueryDatabaseParameters,
 } from "@notionhq/client/build/src/api-endpoints";
-import type { SwItem, Subscription, LicenseItem, Ticket } from "@/types";
+import type { SwItem, Subscription, LicenseItem, LicenseRecord, Ticket } from "@/types";
 
 // ────────────────────────────────────────────────────────────
 // Notion 클라이언트 싱글톤
@@ -70,6 +70,16 @@ function getPropPeople(props: NotionProps, key: string): string {
     })
     .filter(Boolean)
     .join(", ");
+}
+
+function getPropFile(props: NotionProps, key: string): string {
+  const p = props[key];
+  if (!p || p.type !== "files") return "";
+  if (p.files.length === 0) return "";
+  const file = p.files[0];
+  if (file.type === "external") return file.external.url;
+  if (file.type === "file") return file.file.url;
+  return "";
 }
 
 function getPageUrl(pageId: string): string {
@@ -150,20 +160,24 @@ export async function fetchSubscriptions(): Promise<Subscription[]> {
 
   return pages.map((page) => {
     const p = page.properties;
+    // 실제 Notion DB 컬럼명(한국어) 우선 매핑
+    const logoFile = getPropFile(p, "로고") || getPropFile(p, "Logo");
+    const krwVal = getPropNumber(p, "결제 금액(KRW)") || getPropNumber(p, "KRW") || getPropNumber(p, "금액(원)");
+    const usdVal = getPropNumber(p, "결제 금액(USD)") || getPropNumber(p, "USD");
     return {
       id: page.id,
-      name: getPropText(p, "Name") || getPropText(p, "서비스명"),
-      logo: getPropText(p, "Logo") || getPropText(p, "로고") || "📦",
-      version: getPropText(p, "Version") || getPropText(p, "버전"),
-      status: (getPropSelect(p, "Status") || getPropSelect(p, "상태") || "구독 중") as Subscription["status"],
-      team: getPropText(p, "Team") || getPropSelect(p, "Team") || getPropText(p, "팀"),
-      user: getPropText(p, "User") || getPropPeople(p, "User") || getPropText(p, "담당자"),
-      userCount: getPropNumber(p, "Count") || getPropNumber(p, "인원수") || 1,
-      cycle: (getPropSelect(p, "Cycle") || getPropSelect(p, "결제 주기") || "월") as Subscription["cycle"],
-      krw: getPropNumber(p, "KRW") || getPropNumber(p, "금액(원)") || undefined,
-      usd: getPropNumber(p, "USD") || undefined,
-      paymentMethod: getPropSelect(p, "Payment") || getPropSelect(p, "결제 방식") || "법인카드",
-      startDate: getPropDate(p, "Start Date") || getPropDate(p, "시작일") || "",
+      name: getPropText(p, "이름") || getPropText(p, "Name") || getPropText(p, "서비스명"),
+      logo: logoFile || getPropText(p, "Logo") || getPropText(p, "로고") || "📦",
+      version: getPropText(p, "버전") || getPropText(p, "Version"),
+      status: (getPropSelect(p, "상태") || getPropSelect(p, "Status") || "구독 중") as Subscription["status"],
+      team: getPropText(p, "팀명") || getPropSelect(p, "팀명") || getPropText(p, "Team") || getPropSelect(p, "Team"),
+      user: getPropPeople(p, "사용자") || getPropText(p, "사용자") || getPropText(p, "User") || getPropPeople(p, "User") || getPropText(p, "담당자"),
+      userCount: getPropNumber(p, "개수") || getPropNumber(p, "Count") || getPropNumber(p, "인원수") || 1,
+      cycle: (getPropSelect(p, "결제 주기") || getPropSelect(p, "Cycle") || "월") as Subscription["cycle"],
+      krw: krwVal || undefined,
+      usd: usdVal || undefined,
+      paymentMethod: getPropSelect(p, "결재 방식") || getPropSelect(p, "결제 방식") || getPropSelect(p, "Payment") || "법인카드",
+      startDate: getPropDate(p, "결제 시작일") || getPropDate(p, "Start Date") || getPropDate(p, "시작일") || "",
       notionUrl: getPageUrl(page.id),
     };
   });
@@ -194,6 +208,59 @@ export async function fetchLicenses(): Promise<LicenseItem[]> {
       notionUrl: getPageUrl(page.id),
     };
   });
+}
+
+// ────────────────────────────────────────────────────────────
+// 라이선스 트래커 - 전체 개별 레코드 조회 (13개 DB 병렬 쿼리)
+// ────────────────────────────────────────────────────────────
+const LICENSE_TRACKER_DBS = [
+  { id: "29867f4bfdac8155977efa02c6f299dc", name: "MS Office",           icon: "📄" },
+  { id: "29867f4bfdac81a5a684df2f8205b5f6", name: "MS Office 365",       icon: "🪟" },
+  { id: "29867f4bfdac8128b8c4fd623a02ec0c", name: "한컴",                icon: "🇰🇷" },
+  { id: "29867f4bfdac8165a19fe66af94f3d6e", name: "ezPDF",               icon: "📑" },
+  { id: "29867f4bfdac81e3ab03d278047ebf20", name: "Adobe PDF",           icon: "🔖" },
+  { id: "29867f4bfdac81f2bea1fd7fd1ba58f0", name: "Adobe Creative Cloud",icon: "🎨" },
+  { id: "29867f4bfdac8188ba1fea4b14df4454", name: "Adobe Photoshop",     icon: "🎨" },
+  { id: "29867f4bfdac818f8d16f36ffb6c9fe7", name: "Adobe Illustrator",   icon: "🎨" },
+  { id: "29867f4bfdac818b8981e981128ec333", name: "Adobe Premiere Pro",  icon: "🎬" },
+  { id: "29867f4bfdac81779122ccd2196c9908", name: "AUTO CAD",            icon: "🔳" },
+  { id: "29867f4bfdac81dcb9ffc637c217f1ab", name: "MAC Office",          icon: "🍎" },
+  { id: "29867f4bfdac8168872bce19f14d9c75", name: "MAC 한컴",            icon: "🍎" },
+  { id: "29867f4bfdac816ab66dd11a967042cd", name: "기타",                icon: "✨" },
+];
+
+export async function fetchLicenseRecords(): Promise<LicenseRecord[]> {
+  const results = await Promise.allSettled(
+    LICENSE_TRACKER_DBS.map(async (db) => {
+      const pages = await queryAllPages(db.id);
+      return pages.map((page): LicenseRecord => {
+        const p = page.properties;
+        return {
+          id: page.id,
+          userName: getPropText(p, "사용자명"),
+          software: db.name,
+          softwareDetail: getPropText(p, "소프트웨어"),
+          version: getPropSelect(p, "버전"),
+          usageStatus: getPropSelect(p, "사용현황") || "재고",
+          company: getPropSelect(p, "법인명"),
+          department: getPropText(p, "부서"),
+          email: getPropText(p, "이메일"),
+          licenseStartDate: getPropDate(p, "라이센스 시작일"),
+          licenseExpiryDate: getPropDate(p, "라이센스 만료일"),
+          usageStartDate: getPropDate(p, "사용시작일 / 반납일자"),
+          vendor: getPropSelect(p, "구매처"),
+          serialNumber: getPropText(p, "시리얼넘버"),
+          notionUrl: getPageUrl(page.id),
+        };
+      });
+    })
+  );
+
+  const all: LicenseRecord[] = [];
+  for (const r of results) {
+    if (r.status === "fulfilled") all.push(...r.value);
+  }
+  return all;
 }
 
 // ────────────────────────────────────────────────────────────
