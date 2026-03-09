@@ -1,4 +1,32 @@
 // ────────────────────────────────────────────────────────────
+// SW 데이터베이스(수정중) 통합 레코드
+// 구독 + 라이선스 모두 이 타입으로 통합
+// ────────────────────────────────────────────────────────────
+export interface SwDbRecord {
+  id: string;
+  user: string;                           // 사용자 (title)
+  swCategory: string;                     // SW대분류
+  swDetail: string;                       // SW소분류
+  version: string[];                      // version (multi_select)
+  status: string;                         // 사용/재고/만료/갱신필요/신규등록
+  company: string;                        // 법인명
+  licenseType: "영구" | "구독(업체)" | "구독(웹)" | string; // 영구 / 구독
+  department: string;                     // 부서
+  usageDate: string;                      // 사용일자 YYYY-MM-DD
+  renewalDate: string;                    // 갱신필요일 YYYY-MM-DD
+  purchaseDate: string;                   // 구매일자 YYYY-MM-DD
+  returnDate: string;                     // 반납일자 YYYY-MM-DD
+  returnScheduledDate: string;            // 반납예정일 YYYY-MM-DD
+  returnReason: string;                   // 반납사유
+  licenseKey: string;                     // 인증키 / 인증계정
+  vendor: string;                         // 구매처
+  usageCount: number;                     // 사용횟수
+  certificate: string;                    // 증서 (file URL)
+  workType: string;                       // SW사용직군
+  notionUrl: string;
+}
+
+// ────────────────────────────────────────────────────────────
 // SW DB (화이트/블랙리스트)
 // ────────────────────────────────────────────────────────────
 export interface SwItem {
