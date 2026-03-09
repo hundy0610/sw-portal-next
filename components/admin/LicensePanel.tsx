@@ -1,13 +1,19 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import type { LicenseRecord } from "@/types";
+import type { SwDbRecord } from "@/types";
 
+// ── 상태별 뱃지 색상 ──────────────────────────────────────────
 const STATUS_STYLE: Record<string, { bg: string; text: string; dot: string }> = {
-  "사용중":   { bg: "bg-blue-50",   text: "text-blue-700",   dot: "bg-blue-500"   },
-  "재고":     { bg: "bg-green-50",  text: "text-green-700",  dot: "bg-green-500"  },
-  "지급대기": { bg: "bg-orange-50", text: "text-orange-700", dot: "bg-orange-400" },
-  "만료":     { bg: "bg-gray-100",  text: "text-gray-500",   dot: "bg-gray-400"   },
+  "사용중":     { bg: "bg-blue-50",   text: "text-blue-700",   dot: "bg-blue-500"   },
+  "재고":       { bg: "bg-green-50",  text: "text-green-700",  dot: "bg-green-500"  },
+  "출고준비중": { bg: "bg-orange-50", text: "text-orange-700", dot: "bg-orange-400" },
+  "만료":       { bg: "bg-gray-100",  text: "text-gray-500",   dot: "bg-gray-400"   },
+  "갱신필요":   { bg: "bg-red-50",    text: "text-red-600",    dot: "bg-red-500"    },
+  "반납예정":   { bg: "bg-yellow-50", text: "text-yellow-700", dot: "bg-yellow-400" },
+  "신규등록":   { bg: "bg-purple-50", text: "text-purple-700", dot: "bg-purple-500" },
+  "임시지급":   { bg: "bg-sky-50",    text: "text-sky-700",    dot: "bg-sky-400"    },
+  "미확인":     { bg: "bg-gray-50",   text: "text-gray-400",   dot: "bg-gray-300"   },
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -15,27 +21,26 @@ function StatusBadge({ status }: { status: string }) {
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${s.bg} ${s.text}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
-      {status}
+      {status || "—"}
     </span>
   );
 }
 
-const SW_ICONS: Record<string, string> = {
-  "MS Office": "📄",
-  "MS Office 365": "🪟",
-  "한컴": "🇰🇷",
-  "ezPDF": "📑",
-  "Adobe PDF": "🔖",
-  "Adobe Creative Cloud": "🎨",
-  "Adobe Photoshop": "🖼️",
-  "Adobe Illustrator": "✏️",
-  "Adobe Premiere Pro": "🎬",
-  "AUTO CAD": "📐",
-  "MAC Office": "🍎",
-  "MAC 한컴": "🍏",
-  "기타": "✨",
-};
+// 라이선스 유형 뱃지
+function TypeBadge({ type }: { type: string }) {
+  const styles: Record<string, string> = {
+    "영구":       "bg-blue-50 text-blue-700",
+    "구독(업체)": "bg-purple-50 text-purple-700",
+    "구독(웹)":   "bg-cyan-50 text-cyan-700",
+  };
+  return (
+    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${styles[type] ?? "bg-gray-100 text-gray-500"}`}>
+      {type || "—"}
+    </span>
+  );
+}
 
+// 날짜 포맷
 function fmtDate(d?: string) {
   if (!d) return "—";
   return d.slice(0, 10);
@@ -46,7 +51,12 @@ function daysLeft(d?: string): number | null {
   return Math.ceil((new Date(d).getTime() - Date.now()) / 86400000);
 }
 
-function SummaryCard({ label, value, sub, color }: { label: string; value: number; sub?: string; color: string }) {
+// 요약 카드
+function SummaryCard({
+  label, value, sub, color,
+}: {
+  label: string; value: number; sub?: string; color: string;
+}) {
   return (
     <div className={`bg-white border rounded-xl p-5 flex flex-col gap-1 shadow-sm border-l-4 ${color}`}>
       <div className="text-xs text-gray-500 font-medium">{label}</div>
@@ -56,18 +66,23 @@ function SummaryCard({ label, value, sub, color }: { label: string; value: numbe
   );
 }
 
-function SwStatusCard({ name, total, using, stock, waiting, expired }: {
-  name: string; total: number; using: number; stock: number; waiting: number; expired: number;
+// SW별 현황 카드
+function SwStatusCard({
+  name, total, using, stock, expired, renewing,
+}: {
+  name: string; total: number; using: number; stock: number; expired: number; renewing: number;
 }) {
-  const icon = SW_ICONS[name] ?? "📦";
   const usePct = total > 0 ? Math.round((using / total) * 100) : 0;
-  const barColor = usePct >= 90 ? "bg-red-500" : usePct >= 70 ? "bg-orange-400" : "bg-blue-500";
+  const barColor =
+    usePct >= 90 ? "bg-red-500" :
+    usePct >= 70 ? "bg-orange-400" :
+    "bg-blue-500";
+
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow">
       <div className="flex items-center gap-2 mb-3">
-        <span className="text-xl">{icon}</span>
-        <span className="font-bold text-sm text-gray-900 truncate">{name}</span>
-        <span className="ml-auto text-xs text-gray-400 font-medium">{total}개</span>
+        <span className="font-bold text-sm text-gray-900 truncate flex-1">{name}</span>
+        <span className="text-xs text-gray-400 font-medium shrink-0">{total}개</span>
       </div>
       <div className="mb-3">
         <div className="flex justify-between text-xs text-gray-500 mb-1">
@@ -75,7 +90,10 @@ function SwStatusCard({ name, total, using, stock, waiting, expired }: {
           <span>{usePct}%</span>
         </div>
         <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-          <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${usePct}%` }} />
+          <div
+            className={`h-full rounded-full transition-all ${barColor}`}
+            style={{ width: `${usePct}%` }}
+          />
         </div>
       </div>
       <div className="grid grid-cols-3 gap-1 text-center">
@@ -83,9 +101,9 @@ function SwStatusCard({ name, total, using, stock, waiting, expired }: {
           <div className="text-sm font-bold text-green-700">{stock}</div>
           <div className="text-xs text-green-600">재고</div>
         </div>
-        <div className="bg-orange-50 rounded-lg py-1.5">
-          <div className="text-sm font-bold text-orange-600">{waiting}</div>
-          <div className="text-xs text-orange-500">지급대기</div>
+        <div className="bg-red-50 rounded-lg py-1.5">
+          <div className="text-sm font-bold text-red-600">{renewing}</div>
+          <div className="text-xs text-red-500">갱신필요</div>
         </div>
         <div className="bg-gray-50 rounded-lg py-1.5">
           <div className="text-sm font-bold text-gray-500">{expired}</div>
@@ -96,19 +114,23 @@ function SwStatusCard({ name, total, using, stock, waiting, expired }: {
   );
 }
 
+// ── 메인 컴포넌트 ─────────────────────────────────────────────
 export default function LicensePanel() {
-  const [records, setRecords] = useState<LicenseRecord[]>([]);
+  const [records, setRecords] = useState<SwDbRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastSynced, setLastSynced] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  // 필터 상태
   const [search, setSearch] = useState("");
+  const [filterType, setFilterType] = useState("전체");
   const [filterSw, setFilterSw] = useState("전체");
   const [filterStatus, setFilterStatus] = useState("전체");
   const [filterCompany, setFilterCompany] = useState("전체");
   const [tab, setTab] = useState<"dashboard" | "detail">("dashboard");
 
   useEffect(() => {
-    fetch("/api/licenses")
+    fetch("/api/sw-records")
       .then((r) => r.json())
       .then((res) => {
         setRecords(res.data ?? []);
@@ -119,66 +141,80 @@ export default function LicensePanel() {
       .finally(() => setLoading(false));
   }, []);
 
+  // 집계
   const summary = useMemo(() => {
-    const total   = records.length;
-    const using   = records.filter((r) => r.usageStatus === "사용중").length;
-    const stock   = records.filter((r) => r.usageStatus === "재고").length;
-    const waiting = records.filter((r) => r.usageStatus === "지급대기").length;
-    const expired = records.filter((r) => r.usageStatus === "만료").length;
-    const expiring = records.filter((r) => { const d = daysLeft(r.licenseExpiryDate); return d !== null && d >= 0 && d <= 30; }).length;
-    return { total, using, stock, waiting, expired, expiring };
+    const total    = records.length;
+    const using    = records.filter((r) => r.status === "사용중").length;
+    const stock    = records.filter((r) => r.status === "재고").length;
+    const expired  = records.filter((r) => r.status === "만료").length;
+    const renewing = records.filter((r) => r.status === "갱신필요").length;
+    const expiring = records.filter((r) => {
+      const d = daysLeft(r.renewalDate);
+      return d !== null && d >= 0 && d <= 30 && r.status !== "갱신필요";
+    }).length;
+    return { total, using, stock, expired, renewing, expiring };
   }, [records]);
 
+  // SW별 대시보드 집계
   const swList = useMemo(() => {
-    const names = [...new Set(records.map((r) => r.software))].sort();
+    const names = [...new Set(records.map((r) => r.swCategory).filter(Boolean))].sort();
     return names.map((name) => {
-      const recs = records.filter((r) => r.software === name);
+      const recs = records.filter((r) => r.swCategory === name);
       return {
-        name, total: recs.length,
-        using:   recs.filter((r) => r.usageStatus === "사용중").length,
-        stock:   recs.filter((r) => r.usageStatus === "재고").length,
-        waiting: recs.filter((r) => r.usageStatus === "지급대기").length,
-        expired: recs.filter((r) => r.usageStatus === "만료").length,
+        name,
+        total:    recs.length,
+        using:    recs.filter((r) => r.status === "사용중").length,
+        stock:    recs.filter((r) => r.status === "재고").length,
+        expired:  recs.filter((r) => r.status === "만료").length,
+        renewing: recs.filter((r) => r.status === "갱신필요").length,
       };
     });
   }, [records]);
 
-  const swOptions   = useMemo(() => ["전체", ...new Set(records.map((r) => r.software)).values()], [records]);
-  const companyOptions = useMemo(() => ["전체", ...new Set(records.map((r) => r.company).filter(Boolean)).values()], [records]);
+  // 필터 옵션
+  const typeOptions    = useMemo(() => ["전체", "영구", "구독(업체)", "구독(웹)"], []);
+  const swOptions      = useMemo(() => ["전체", ...new Set(records.map((r) => r.swCategory).filter(Boolean))], [records]);
+  const companyOptions = useMemo(() => ["전체", ...new Set(records.map((r) => r.company).filter(Boolean))], [records]);
+  const statusOptions  = useMemo(() => ["전체", ...new Set(records.map((r) => r.status).filter(Boolean))], [records]);
 
+  // 필터된 레코드
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return records.filter((r) => {
-      if (filterSw !== "전체" && r.software !== filterSw) return false;
-      if (filterStatus !== "전체" && r.usageStatus !== filterStatus) return false;
+      if (filterType !== "전체" && r.licenseType !== filterType) return false;
+      if (filterSw !== "전체" && r.swCategory !== filterSw) return false;
+      if (filterStatus !== "전체" && r.status !== filterStatus) return false;
       if (filterCompany !== "전체" && r.company !== filterCompany) return false;
-      if (q) return (
-        r.userName.toLowerCase().includes(q) ||
-        r.department.toLowerCase().includes(q) ||
-        r.email.toLowerCase().includes(q) ||
-        r.software.toLowerCase().includes(q) ||
-        r.softwareDetail.toLowerCase().includes(q) ||
-        r.company.toLowerCase().includes(q)
-      );
+      if (q) {
+        return (
+          r.user.toLowerCase().includes(q) ||
+          r.swCategory.toLowerCase().includes(q) ||
+          r.swDetail.toLowerCase().includes(q) ||
+          r.department.toLowerCase().includes(q) ||
+          r.company.toLowerCase().includes(q) ||
+          r.licenseKey.toLowerCase().includes(q)
+        );
+      }
       return true;
     });
-  }, [records, search, filterSw, filterStatus, filterCompany]);
+  }, [records, search, filterType, filterSw, filterStatus, filterCompany]);
 
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4">
         <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-        <div className="text-gray-400 text-sm">노션에서 라이선스 데이터를 불러오는 중…</div>
+        <div className="text-gray-400 text-sm">노션에서 SW 데이터를 불러오는 중…</div>
       </div>
     );
   }
 
   return (
     <div className="fade-in">
+      {/* 헤더 */}
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <div>
           <h2 className="text-xl font-bold text-gray-900 mb-0.5">라이선스 현황</h2>
-          <p className="text-sm text-gray-500">전사 소프트웨어 라이선스 사용 / 재고 현황 (Notion 연동)</p>
+          <p className="text-sm text-gray-500">전사 SW 라이선스 현황 — SW 데이터베이스(수정중) 기준</p>
         </div>
         <div className="flex items-center gap-2 text-xs text-gray-400">
           <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
@@ -192,111 +228,169 @@ export default function LicensePanel() {
         </div>
       )}
 
+      {/* 요약 카드 */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-        <SummaryCard label="전체 라이선스" value={summary.total}   color="border-l-gray-300" />
-        <SummaryCard label="사용중"         value={summary.using}   color="border-l-blue-500" sub={`${summary.total > 0 ? Math.round((summary.using / summary.total) * 100) : 0}% 사용`} />
-        <SummaryCard label="재고"           value={summary.stock}   color="border-l-green-500" />
-        <SummaryCard label="지급대기"       value={summary.waiting} color="border-l-orange-400" />
-        <SummaryCard label="만료"           value={summary.expired} color="border-l-gray-400" />
-        <SummaryCard label="만료 임박 (30일)" value={summary.expiring} color="border-l-red-500" sub="주의 필요" />
+        <SummaryCard label="전체 레코드"     value={summary.total}    color="border-l-gray-300"   />
+        <SummaryCard label="사용중"           value={summary.using}    color="border-l-blue-500"   sub={`${summary.total > 0 ? Math.round((summary.using / summary.total) * 100) : 0}% 사용`} />
+        <SummaryCard label="재고"             value={summary.stock}    color="border-l-green-500"  />
+        <SummaryCard label="갱신 필요"        value={summary.renewing} color="border-l-red-500"    sub="갱신 처리 필요" />
+        <SummaryCard label="만료"             value={summary.expired}  color="border-l-gray-400"   />
+        <SummaryCard label="갱신 임박 (30일)" value={summary.expiring} color="border-l-orange-400" sub="주의 필요" />
       </div>
 
+      {/* 탭 */}
       <div className="flex gap-1 mb-5 border-b border-gray-200">
         {([["dashboard", "📊 SW별 현황"], ["detail", "🔍 상세 검색"]] as const).map(([id, label]) => (
-          <button key={id} onClick={() => setTab(id)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${tab === id ? "border-blue-600 text-blue-700" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              tab === id
+                ? "border-blue-600 text-blue-700"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
             {label}
           </button>
         ))}
       </div>
 
+      {/* 탭: SW별 현황 */}
       {tab === "dashboard" && (
         <div>
           {swList.length === 0 ? (
             <div className="text-center py-20 text-gray-400">데이터가 없습니다</div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {swList.map((sw) => <SwStatusCard key={sw.name} {...sw} />)}
+              {swList.map((sw) => (
+                <SwStatusCard key={sw.name} {...sw} />
+              ))}
             </div>
           )}
         </div>
       )}
 
+      {/* 탭: 상세 검색 */}
       {tab === "detail" && (
         <div>
+          {/* 검색 & 필터 */}
           <div className="flex flex-wrap gap-3 mb-4">
-            <input type="text" placeholder="이름, 부서, 이메일, SW명 검색…" value={search}
+            <input
+              type="text"
+              placeholder="이름, 부서, SW명, 인증키 검색…"
+              value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="flex-1 min-w-[220px] px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-            <select value={filterSw} onChange={(e) => setFilterSw(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+              className="flex-1 min-w-[200px] px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {typeOptions.map((s) => <option key={s}>{s}</option>)}
+            </select>
+            <select
+              value={filterSw}
+              onChange={(e) => setFilterSw(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
               {swOptions.map((s) => <option key={s}>{s}</option>)}
             </select>
-            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-              {["전체", "사용중", "재고", "지급대기", "만료"].map((s) => <option key={s}>{s}</option>)}
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {statusOptions.map((s) => <option key={s}>{s}</option>)}
             </select>
-            <select value={filterCompany} onChange={(e) => setFilterCompany(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <select
+              value={filterCompany}
+              onChange={(e) => setFilterCompany(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
               {companyOptions.map((s) => <option key={s}>{s}</option>)}
             </select>
             <div className="flex items-center text-xs text-gray-400 font-medium">{filtered.length}건</div>
           </div>
 
+          {/* 테이블 */}
           <div className="bg-white border border-gray-200 rounded-xl overflow-auto shadow-sm">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
-                  {["SW", "버전", "사용자명", "부서", "법인명", "사용현황", "라이센스 만료일", "노션"].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
+                  {["SW", "유형", "버전", "사용자 / 부서", "법인명", "상태", "갱신 필요일", "사용일자", "노션"].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">
+                      {h}
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={8} className="text-center py-12 text-gray-400">검색 결과가 없습니다</td></tr>
-                ) : filtered.map((r) => {
-                  const days = daysLeft(r.licenseExpiryDate);
-                  const isExpiring = days !== null && days >= 0 && days <= 30;
-                  const isExpired  = days !== null && days < 0;
-                  return (
-                    <tr key={r.id} className="border-b border-gray-50 hover:bg-blue-50/40 transition-colors">
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="flex items-center gap-1.5">
-                          <span>{SW_ICONS[r.software] ?? "📦"}</span>
-                          <div>
-                            <div className="font-semibold text-gray-900 text-xs">{r.software}</div>
-                            {r.softwareDetail && <div className="text-xs text-gray-400">{r.softwareDetail}</div>}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-xs text-gray-600">{r.version || "—"}</td>
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-gray-900 text-xs">{r.userName || "재고"}</div>
-                        {r.email && <div className="text-xs text-gray-400">{r.email}</div>}
-                      </td>
-                      <td className="px-4 py-3 text-xs text-gray-600">{r.department || "—"}</td>
-                      <td className="px-4 py-3 text-xs text-gray-600">{r.company || "—"}</td>
-                      <td className="px-4 py-3"><StatusBadge status={r.usageStatus} /></td>
-                      <td className="px-4 py-3 text-xs whitespace-nowrap">
-                        {r.licenseExpiryDate ? (
-                          <span className={isExpired ? "text-gray-400 line-through" : isExpiring ? "text-red-600 font-semibold" : "text-gray-600"}>
-                            {fmtDate(r.licenseExpiryDate)}
-                            {isExpiring && days !== null && (
-                              <span className="ml-1 text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">D-{days}</span>
-                            )}
-                            {isExpired && (
-                              <span className="ml-1 text-xs bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded-full">만료</span>
-                            )}
-                          </span>
-                        ) : "—"}
-                      </td>
-                      <td className="px-4 py-3">
-                        <a href={r.notionUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700 text-xs underline">보기</a>
-                      </td>
-                    </tr>
-                  );
-                })}
+                  <tr>
+                    <td colSpan={9} className="text-center py-12 text-gray-400">
+                      검색 결과가 없습니다
+                    </td>
+                  </tr>
+                ) : (
+                  filtered.map((r) => {
+                    const days = daysLeft(r.renewalDate);
+                    const isExpiring = days !== null && days >= 0 && days <= 30;
+                    const isExpired  = r.status === "만료";
+                    return (
+                      <tr
+                        key={r.id}
+                        className="border-b border-gray-50 hover:bg-blue-50/40 transition-colors"
+                      >
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="font-semibold text-gray-900 text-xs">{r.swCategory || "—"}</div>
+                          {r.swDetail && <div className="text-xs text-gray-400">{r.swDetail}</div>}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <TypeBadge type={r.licenseType} />
+                        </td>
+                        <td className="px-4 py-3 text-xs text-gray-600">
+                          {r.version.length > 0 ? r.version.join(", ") : "—"}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="font-medium text-gray-900 text-xs">{r.user || "재고"}</div>
+                          <div className="text-xs text-gray-400">{r.department || "—"}</div>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-gray-600">{r.company || "—"}</td>
+                        <td className="px-4 py-3">
+                          <StatusBadge status={r.status} />
+                        </td>
+                        <td className="px-4 py-3 text-xs whitespace-nowrap">
+                          {r.renewalDate ? (
+                            <span className={
+                              isExpired  ? "text-gray-400" :
+                              isExpiring ? "text-red-600 font-semibold" :
+                              "text-gray-600"
+                            }>
+                              {fmtDate(r.renewalDate)}
+                              {isExpiring && days !== null && (
+                                <span className="ml-1 text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">
+                                  D-{days}
+                                </span>
+                              )}
+                            </span>
+                          ) : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-gray-500">{fmtDate(r.usageDate)}</td>
+                        <td className="px-4 py-3">
+                          <a
+                            href={r.notionUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-500 hover:text-blue-700 text-xs underline"
+                          >
+                            보기
+                          </a>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
