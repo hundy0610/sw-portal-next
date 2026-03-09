@@ -1,8 +1,34 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import type { SwItem, SwDbRecord } from "@/types";
 import { ProgressBar } from "@/components/ui/ProgressBar";
+
+// ── 수평 막대 차트 아이템 ──────────────────────────────────────
+function HBarItem({
+  label, value, max, color, sub,
+}: {
+  label: string; value: number; max: number; color: string; sub?: string;
+}) {
+  const pct = max > 0 ? Math.max(2, Math.round((value / max) * 100)) : 0;
+  return (
+    <div className="flex items-center gap-3 group">
+      <div className="w-28 shrink-0 truncate text-xs text-gray-700 font-medium text-right" title={label}>
+        {label}
+      </div>
+      <div className="flex-1 h-5 bg-gray-100 rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all duration-500 ${color}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <div className="w-14 shrink-0 text-right">
+        <span className="text-xs font-semibold text-gray-800">{value}</span>
+        {sub && <span className="text-xs text-gray-400 ml-1">{sub}</span>}
+      </div>
+    </div>
+  );
+}
 
 export default function OverviewPanel() {
   const [swDb,    setSwDb]    = useState<SwItem[]>([]);
@@ -22,7 +48,7 @@ export default function OverviewPanel() {
   const approved  = swDb.filter(s => s.status === "approved").length;
   const banned    = swDb.filter(s => s.status === "banned").length;
 
-  // 구독 레코드 (구독(업체) + 구독(웹))
+  // 구독 레코드
   const subRecs    = swRecs.filter(r => r.licenseType === "구독(업체)" || r.licenseType === "구독(웹)");
   const activeSubs = subRecs.filter(r => r.status === "사용중" || r.status === "신규등록").length;
 
@@ -61,6 +87,43 @@ export default function OverviewPanel() {
     },
   ];
 
+  // ── 부서별 현황 (상위 10) ─────────────────────────────────────
+  const deptStats = useMemo(() => {
+    const map: Record<string, { total: number; using: number }> = {};
+    for (const r of swRecs) {
+      const key = r.department || "기타";
+      if (!map[key]) map[key] = { total: 0, using: 0 };
+      map[key].total++;
+      if (r.status === "사용중" || r.status === "신규등록") map[key].using++;
+    }
+    return Object.entries(map)
+      .map(([name, v]) => ({ name, ...v }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10);
+  }, [swRecs]);
+
+  // ── 법인별 현황 (상위 8) ──────────────────────────────────────
+  const companyStats = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const r of swRecs) {
+      const key = r.company || "미지정";
+      map[key] = (map[key] ?? 0) + 1;
+    }
+    return Object.entries(map)
+      .map(([name, total]) => ({ name, total }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 8);
+  }, [swRecs]);
+
+  const deptMax    = deptStats[0]?.total ?? 1;
+  const companyMax = companyStats[0]?.total ?? 1;
+
+  // 법인별 색상 순환
+  const COMPANY_COLORS = [
+    "bg-blue-500", "bg-purple-500", "bg-emerald-500", "bg-orange-400",
+    "bg-sky-500",  "bg-pink-500",   "bg-yellow-500",  "bg-indigo-500",
+  ];
+
   if (loading) return <div className="text-center py-20 text-gray-400">노션 데이터 로딩 중...</div>;
 
   return (
@@ -85,9 +148,10 @@ export default function OverviewPanel() {
         ))}
       </div>
 
+      {/* ── 1행: SW 상태별 + 구독 현황 ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
 
-        {/* ── SW 상태별 현황 ── */}
+        {/* SW 상태별 현황 */}
         <div className="bg-white border border-gray-200 rounded-lg p-5">
           <div className="font-bold text-sm text-gray-900 mb-4">🗂 SW 상태별 현황</div>
           {swRecs.length === 0 ? (
@@ -121,7 +185,7 @@ export default function OverviewPanel() {
           })()}
         </div>
 
-        {/* ── 구독 현황 ── */}
+        {/* 구독 SW 현황 */}
         <div className="bg-white border border-gray-200 rounded-lg p-5">
           <div className="font-bold text-sm text-gray-900 mb-4">💳 구독 SW 현황</div>
           {subRecs.length === 0 ? (
@@ -191,6 +255,57 @@ export default function OverviewPanel() {
             </div>
           );
         })()}
+      </div>
+
+      {/* ── 2행: 부서별 현황 + 법인별 현황 ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+
+        {/* 부서별 SW 현황 (상위 10) */}
+        <div className="bg-white border border-gray-200 rounded-lg p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="font-bold text-sm text-gray-900">🏢 부서별 SW 현황</div>
+            <div className="text-xs text-gray-400">상위 10개 부서</div>
+          </div>
+          {deptStats.length === 0 ? (
+            <div className="text-sm text-gray-400 text-center py-6">데이터 없음</div>
+          ) : (
+            <div className="flex flex-col gap-2.5">
+              {deptStats.map((d) => (
+                <HBarItem
+                  key={d.name}
+                  label={d.name}
+                  value={d.total}
+                  max={deptMax}
+                  color="bg-blue-500"
+                  sub={d.using > 0 ? `(사용 ${d.using})` : undefined}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 법인별 SW 현황 (상위 8) */}
+        <div className="bg-white border border-gray-200 rounded-lg p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="font-bold text-sm text-gray-900">🏭 법인별 SW 현황</div>
+            <div className="text-xs text-gray-400">상위 8개 법인</div>
+          </div>
+          {companyStats.length === 0 ? (
+            <div className="text-sm text-gray-400 text-center py-6">데이터 없음</div>
+          ) : (
+            <div className="flex flex-col gap-2.5">
+              {companyStats.map((c, i) => (
+                <HBarItem
+                  key={c.name}
+                  label={c.name}
+                  value={c.total}
+                  max={companyMax}
+                  color={COMPANY_COLORS[i % COMPANY_COLORS.length]}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── 포털 관리 빠른 링크 ── */}
