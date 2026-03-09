@@ -3,7 +3,7 @@ import type {
   PageObjectResponse,
   QueryDatabaseParameters,
 } from "@notionhq/client/build/src/api-endpoints";
-import type { SwItem, Subscription, LicenseItem, LicenseRecord, Ticket } from "@/types";
+import type { SwItem, SwDbRecord, Subscription, LicenseItem, LicenseRecord, Ticket } from "@/types";
 
 // ────────────────────────────────────────────────────────────
 // Notion 클라이언트 싱글톤
@@ -120,6 +120,7 @@ async function queryAllPages(
 
 // ────────────────────────────────────────────────────────────
 // SW DB 조회
+// Notion 컬럼명 매핑 (실제 DB 컬럼명과 다를 경우 여기서 수정)
 // ────────────────────────────────────────────────────────────
 export async function fetchSwDb(): Promise<SwItem[]> {
   const dbId = process.env.NOTION_DB_SWDB;
@@ -149,7 +150,48 @@ export async function fetchSwDb(): Promise<SwItem[]> {
 }
 
 // ────────────────────────────────────────────────────────────
-// 구독 관리 DB 조회
+// SW 데이터베이스(수정중) 통합 조회
+// 구독 + 영구 라이선스 모두 단일 DB에서 가져옴
+// NOTION_DB_SW_UNIFIED 환경변수 사용
+// ────────────────────────────────────────────────────────────
+export async function fetchSwDatabase(): Promise<SwDbRecord[]> {
+  const dbId = process.env.NOTION_DB_SW_UNIFIED;
+  if (!dbId) throw new Error("NOTION_DB_SW_UNIFIED 환경변수가 설정되지 않았습니다.");
+
+  const pages = await queryAllPages(dbId, undefined, [
+    { timestamp: "created_time", direction: "descending" },
+  ]);
+
+  return pages.map((page): SwDbRecord => {
+    const p = page.properties;
+    return {
+      id: page.id,
+      user: getPropText(p, "사용자"),
+      swCategory: getPropSelect(p, "SW대분류"),
+      swDetail: getPropText(p, "SW소분류"),
+      version: getPropMultiSelect(p, "version"),
+      status: getPropSelect(p, "사용/재고/만료/갱신필요/신규등록"),
+      company: getPropSelect(p, "법인명"),
+      licenseType: getPropSelect(p, "영구 / 구독") as SwDbRecord["licenseType"],
+      department: getPropText(p, "부서"),
+      usageDate: getPropDate(p, "사용일자"),
+      renewalDate: getPropDate(p, "갱신필요일"),
+      purchaseDate: getPropDate(p, "구매일자"),
+      returnDate: getPropDate(p, "반납일자"),
+      returnScheduledDate: getPropDate(p, "반납예정일"),
+      returnReason: getPropSelect(p, "반납사유"),
+      licenseKey: getPropText(p, "인증키 / 인증계정"),
+      vendor: getPropText(p, "구매처"),
+      usageCount: getPropNumber(p, "사용횟수"),
+      certificate: getPropFile(p, "증서"),
+      workType: getPropSelect(p, "SW사용직군"),
+      notionUrl: getPageUrl(page.id),
+    };
+  });
+}
+
+// ────────────────────────────────────────────────────────────
+// 구독 관리 DB 조회 (레거시 - SW 데이터베이스로 통합 예정)
 // ────────────────────────────────────────────────────────────
 export async function fetchSubscriptions(): Promise<Subscription[]> {
   const dbId = process.env.NOTION_DB_SUBSCRIPTIONS;
@@ -182,11 +224,11 @@ export async function fetchSubscriptions(): Promise<Subscription[]> {
 }
 
 // ────────────────────────────────────────────────────────────
-// 라이선스 트래커 DB 조회 (기존 - 단일 DB 요약용)
+// 라이선스 트래커 DB 조회
 // ────────────────────────────────────────────────────────────
 export async function fetchLicenses(): Promise<LicenseItem[]> {
   const dbId = process.env.NOTION_DB_LICENSES;
-  if (!dbId) return [];
+  if (!dbId) throw new Error("NOTION_DB_LICENSES 환경변수가 설정되지 않았습니다.");
 
   const pages = await queryAllPages(dbId, undefined, [
     { property: "Category", direction: "ascending" },
@@ -212,19 +254,19 @@ export async function fetchLicenses(): Promise<LicenseItem[]> {
 // 라이선스 트래커 - 전체 개별 레코드 조회 (13개 DB 병렬 쿼리)
 // ────────────────────────────────────────────────────────────
 const LICENSE_TRACKER_DBS = [
-  { id: "29867f4bfdac8155977efa02c6f299dc", name: "MS Office"            },
-  { id: "29867f4bfdac81a5a684df2f8205b5f6", name: "MS Office 365"        },
-  { id: "29867f4bfdac8128b8c4fd623a02ec0c", name: "한컴"                 },
-  { id: "29867f4bfdac8165a19fe66af94f3d6e", name: "ezPDF"                },
-  { id: "29867f4bfdac81e3ab03d278047ebf20", name: "Adobe PDF"            },
-  { id: "29867f4bfdac81f2bea1fd7fd1ba58f0", name: "Adobe Creative Cloud" },
-  { id: "29867f4bfdac8188ba1fea4b14df4454", name: "Adobe Photoshop"      },
-  { id: "29867f4bfdac818f8d16f36ffb6c9fe7", name: "Adobe Illustrator"    },
-  { id: "29867f4bfdac818b8981e981128ec333", name: "Adobe Premiere Pro"   },
-  { id: "29867f4bfdac81779122ccd2196c9908", name: "AUTO CAD"             },
-  { id: "29867f4bfdac81dcb9ffc637c217f1ab", name: "MAC Office"           },
-  { id: "29867f4bfdac8168872bce19f14d9c75", name: "MAC 한컴"             },
-  { id: "29867f4bfdac816ab66dd11a967042cd", name: "기타"                 },
+  { id: "29867f4bfdac8155977efa02c6f299dc", name: "MS Office",           icon: "📄" },
+  { id: "29867f4bfdac81a5a684df2f8205b5f6", name: "MS Office 365",       icon: "🪟" },
+  { id: "29867f4bfdac8128b8c4fd623a02ec0c", name: "한컴",                icon: "🇰🇷" },
+  { id: "29867f4bfdac8165a19fe66af94f3d6e", name: "ezPDF",               icon: "📑" },
+  { id: "29867f4bfdac81e3ab03d278047ebf20", name: "Adobe PDF",           icon: "🔖" },
+  { id: "29867f4bfdac81f2bea1fd7fd1ba58f0", name: "Adobe Creative Cloud",icon: "🎨" },
+  { id: "29867f4bfdac8188ba1fea4b14df4454", name: "Adobe Photoshop",     icon: "🎨" },
+  { id: "29867f4bfdac818f8d16f36ffb6c9fe7", name: "Adobe Illustrator",   icon: "🎨" },
+  { id: "29867f4bfdac818b8981e981128ec333", name: "Adobe Premiere Pro",  icon: "🎬" },
+  { id: "29867f4bfdac81779122ccd2196c9908", name: "AUTO CAD",            icon: "🔳" },
+  { id: "29867f4bfdac81dcb9ffc637c217f1ab", name: "MAC Office",          icon: "🍎" },
+  { id: "29867f4bfdac8168872bce19f14d9c75", name: "MAC 한컴",            icon: "🍎" },
+  { id: "29867f4bfdac816ab66dd11a967042cd", name: "기타",                icon: "✨" },
 ];
 
 export async function fetchLicenseRecords(): Promise<LicenseRecord[]> {
