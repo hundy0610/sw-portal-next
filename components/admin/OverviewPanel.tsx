@@ -1,222 +1,243 @@
 "use client";
+
 import { useEffect, useState } from "react";
-
-interface SwItem {
-  id: string;
-  name: string;
-  category?: string;
-  status: string;
-  totalLicenses?: number;
-  usedLicenses?: number;
-}
-
-interface SubItem {
-  id: string;
-  name: string;
-  status: string;
-  team?: string;
-  user?: string;
-  userCount?: number;
-  krw?: number;
-  usd?: number;
-  cycle?: string;
-  nextPayment?: string;
-}
+import type { SwItem, SwDbRecord } from "@/types";
+import { ProgressBar } from "@/components/ui/ProgressBar";
 
 export default function OverviewPanel() {
-  const [swList, setSwList]   = useState<SwItem[]>([]);
-  const [subs, setSubs]       = useState<SubItem[]>([]);
+  const [swDb,    setSwDb]    = useState<SwItem[]>([]);
+  const [swRecs,  setSwRecs]  = useState<SwDbRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/sw-db").then((r) => r.json()),
-      fetch("/api/subscriptions").then((r) => r.json()),
-    ])
-      .then(([sw, sub]) => {
-        setSwList(Array.isArray(sw)  ? sw  : []);
-        setSubs(Array.isArray(sub) ? sub : []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+      fetch("/api/sw-db").then(r => r.json()),
+      fetch("/api/sw-records").then(r => r.json()),
+    ]).then(([sw, recs]) => {
+      setSwDb(sw.data ?? []);
+      setSwRecs(recs.data ?? []);
+    }).finally(() => setLoading(false));
   }, []);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64 text-gray-400">
-        데이터 불러오는 중...
-      </div>
-    );
-  }
+  const approved  = swDb.filter(s => s.status === "approved").length;
+  const banned    = swDb.filter(s => s.status === "banned").length;
 
-  const activeSubs   = subs.filter((s) => s.status === "구독 중");
-  const licenseItems = swList.filter((s) => (s.totalLicenses ?? 0) > 0);
-  const warningItems = licenseItems.filter(
-    (s) => (s.totalLicenses ?? 0) > 0 && (s.usedLicenses ?? 0) / (s.totalLicenses ?? 1) >= 0.8
-  );
+  // 구독 레코드 (구독(업체) + 구독(웹))
+  const subRecs    = swRecs.filter(r => r.licenseType === "구독(업체)" || r.licenseType === "구독(웹)");
+  const activeSubs = subRecs.filter(r => r.status === "사용중" || r.status === "신규등록").length;
 
-  const totalMonthlyKRW = activeSubs.reduce((acc, s) => {
-    const krw = s.krw ?? (s.usd ? Math.round(s.usd * 1350) : 0);
-    return acc + (s.cycle === "연" ? Math.round(krw / 12) : krw);
-  }, 0);
-
-  const today = new Date();
-  const urgentSubs = activeSubs.filter((s) => {
-    if (!s.nextPayment) return false;
-    const diff = (new Date(s.nextPayment).getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
-    return diff >= 0 && diff <= 30;
-  });
+  // 갱신 임박 (30일)
+  const renewingSoon = swRecs.filter(r => {
+    if (!r.renewalDate) return false;
+    const d = Math.ceil((new Date(r.renewalDate).getTime() - Date.now()) / 86400000);
+    return d >= 0 && d <= 30;
+  }).length;
 
   const kpis = [
-    { icon: "🗄",  label: "관리 SW 총 수",      value: swList.length,                  unit: "개",  color: "blue"   },
-    { icon: "⚠️", label: "라이선스 포화 경고",   value: warningItems.length,            unit: "개",  color: "red"    },
-    { icon: "💳", label: "구독 중인 SW",          value: activeSubs.length,              unit: "개",  color: "green"  },
-    { icon: "💰", label: "월 구독 비용 (추산)",   value: totalMonthlyKRW.toLocaleString(), unit: "원", color: "purple" },
+    {
+      label: "전체 SW 레코드",
+      val: `${swRecs.length}건`,
+      sub: `영구 ${swRecs.filter(r => r.licenseType === "영구").length} · 구독 ${subRecs.length}`,
+      color: "#0052CC", bg: "#EBF0FF",
+    },
+    {
+      label: "구독 중인 SW",
+      val: `${activeSubs}개`,
+      sub: "SW 데이터베이스 기준",
+      color: "#00875A", bg: "#E3FCEF",
+    },
+    {
+      label: "갱신 임박 (30일)",
+      val: `${renewingSoon}건`,
+      sub: "갱신 필요일 기준",
+      color: renewingSoon > 0 ? "#DE350B" : "#6B778C",
+      bg: renewingSoon > 0 ? "#FFEBE6" : "#F4F5F7",
+    },
+    {
+      label: "SW DB 관리",
+      val: `${swDb.length}종`,
+      sub: `승인 ${approved} · 금지 ${banned}`,
+      color: "#6554C0", bg: "#EAE6FF",
+    },
   ];
 
+  if (loading) return <div className="text-center py-20 text-gray-400">노션 데이터 로딩 중...</div>;
+
   return (
-    <div className="space-y-6">
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="fade-in">
+      <div className="mb-5">
+        <h2 className="text-xl font-bold text-gray-900 mb-0.5">관리자 대시보드</h2>
+        <p className="text-sm text-gray-500">전사 소프트웨어 자산 현황 (실시간 Notion 연동)</p>
+      </div>
+
+      {/* KPI 카드 */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         {kpis.map((k) => (
-          <div key={k.label} className="bg-white rounded-xl border border-gray-200 p-5">
-            <div className="text-2xl mb-2">{k.icon}</div>
-            <p className="text-xs text-gray-500 mb-1">{k.label}</p>
-            <p className="text-2xl font-bold text-gray-900">
-              {k.value}
-              <span className="text-sm font-normal text-gray-500 ml-1">{k.unit}</span>
-            </p>
+          <div
+            key={k.label}
+            className="bg-white border border-gray-200 rounded-lg p-4"
+            style={{ borderLeft: `3px solid ${k.color}` }}
+          >
+            <div className="text-2xl font-extrabold mb-1" style={{ color: k.color }}>{k.val}</div>
+            <div className="text-sm font-semibold text-gray-800 mb-0.5">{k.label}</div>
+            <div className="text-xs text-gray-500">{k.sub}</div>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* 라이선스 재고 현황 */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-            <span>🔑</span>
-            <h3 className="font-semibold text-gray-900">라이선스 재고 현황</h3>
-          </div>
-          <div className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
-            {licenseItems.length === 0 ? (
-              <p className="px-5 py-8 text-center text-sm text-gray-400">라이선스 정보 없음</p>
-            ) : (
-              licenseItems.map((s) => {
-                const used  = s.usedLicenses ?? 0;
-                const total = s.totalLicenses ?? 0;
-                const ratio = total > 0 ? used / total : 0;
-                const remaining = total - used;
-                const isWarning = ratio >= 0.8;
-                return (
-                  <div key={s.id} className="px-5 py-3">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-sm font-medium text-gray-800">{s.name}</span>
-                      <span className={`text-xs font-medium ${isWarning ? "text-red-600" : "text-gray-500"}`}>
-                        {used} / {total}석
-                        {isWarning && " ⚠️"}
-                      </span>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+
+        {/* ── SW 상태별 현황 ── */}
+        <div className="bg-white border border-gray-200 rounded-lg p-5">
+          <div className="font-bold text-sm text-gray-900 mb-4">🗂 SW 상태별 현황</div>
+          {swRecs.length === 0 ? (
+            <div className="text-sm text-gray-400 text-center py-6">데이터 없음</div>
+          ) : (() => {
+            const groups = [
+              { label: "사용중",   color: "bg-blue-500",   count: swRecs.filter(r => r.status === "사용중").length },
+              { label: "재고",     color: "bg-green-500",  count: swRecs.filter(r => r.status === "재고").length },
+              { label: "갱신필요", color: "bg-red-500",    count: swRecs.filter(r => r.status === "갱신필요").length },
+              { label: "만료",     color: "bg-gray-400",   count: swRecs.filter(r => r.status === "만료").length },
+              { label: "반납예정", color: "bg-yellow-400", count: swRecs.filter(r => r.status === "반납예정").length },
+              { label: "기타",     color: "bg-gray-300",   count: swRecs.filter(r => !["사용중","재고","갱신필요","만료","반납예정"].includes(r.status)).length },
+            ];
+            const total = swRecs.length;
+            return (
+              <div className="flex flex-col gap-3">
+                {groups.filter(g => g.count > 0).map(g => {
+                  const pct = Math.round((g.count / total) * 100);
+                  return (
+                    <div key={g.label}>
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-xs font-medium text-gray-800">{g.label}</span>
+                        <span className="text-xs text-gray-400">{g.count}건 ({pct}%)</span>
+                      </div>
+                      <ProgressBar value={pct} height={5} />
                     </div>
-                    <div className="w-full bg-gray-100 rounded-full h-1.5">
-                      <div
-                        className={`h-1.5 rounded-full transition-all ${
-                          isWarning ? "bg-red-500" : ratio >= 0.5 ? "bg-yellow-400" : "bg-green-400"
-                        }`}
-                        style={{ width: `${Math.min(ratio * 100, 100)}%` }}
-                      />
-                    </div>
-                    <p className="text-xs text-gray-400 mt-1">잔여 {remaining}석</p>
-                  </div>
-                );
-              })
-            )}
-          </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
 
-        {/* 실제 사용 현황 */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-            <span>👥</span>
-            <h3 className="font-semibold text-gray-900">실제 사용 현황 (팀별 구독)</h3>
-          </div>
-          <div className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
-            {activeSubs.length === 0 ? (
-              <p className="px-5 py-8 text-center text-sm text-gray-400">구독 중인 SW 없음</p>
-            ) : (
-              activeSubs.map((s) => (
-                <div key={s.id} className="px-5 py-3 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">{s.name}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {s.team && <span className="mr-2">🏢 {s.team}</span>}
-                      {s.user && <span>👤 {s.user}</span>}
-                    </p>
+        {/* ── 구독 현황 ── */}
+        <div className="bg-white border border-gray-200 rounded-lg p-5">
+          <div className="font-bold text-sm text-gray-900 mb-4">💳 구독 SW 현황</div>
+          {subRecs.length === 0 ? (
+            <div className="text-sm text-gray-400 text-center py-6">구독 데이터 없음</div>
+          ) : (
+            <div className="flex flex-col gap-1.5 overflow-y-auto" style={{ maxHeight: 280 }}>
+              {subRecs
+                .filter(r => r.status === "사용중" || r.status === "신규등록")
+                .map(r => (
+                  <div key={r.id} className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-gray-50">
+                    <span className="text-lg shrink-0">📦</span>
+                    <div className="flex-1 overflow-hidden">
+                      <div className="text-xs font-semibold text-gray-900 truncate">
+                        {r.swCategory}{r.swDetail ? ` · ${r.swDetail}` : ""}
+                      </div>
+                      <div className="text-xs text-gray-400 truncate">
+                        {r.department || "—"} · {r.user || "—"}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-xs text-gray-400">{r.licenseType}</div>
+                    </div>
                   </div>
-                  {s.userCount != null && (
-                    <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
-                      {s.userCount}명
-                    </span>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
+                ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* 결제 임박 */}
-      {urgentSubs.length > 0 && (
-        <div className="bg-white rounded-xl border border-orange-200 overflow-hidden">
-          <div className="px-5 py-4 border-b border-orange-100 flex items-center gap-2 bg-orange-50">
-            <span>🔔</span>
-            <h3 className="font-semibold text-orange-900">결제 임박 구독 (30일 이내)</h3>
-          </div>
-          <div className="divide-y divide-gray-50">
-            {urgentSubs.map((s) => {
-              const krw = s.krw ?? (s.usd ? Math.round(s.usd * 1350) : 0);
-              const diff = Math.round(
-                (new Date(s.nextPayment!).getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-              );
-              return (
-                <div key={s.id} className="px-5 py-3 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">{s.name}</p>
-                    <p className="text-xs text-gray-500">
-                      {s.nextPayment} ({diff}일 후)
-                    </p>
-                  </div>
-                  <span className="text-sm font-semibold text-orange-700">
-                    {krw > 0 ? `₩${krw.toLocaleString()}` : "-"}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {/* ── 갱신 임박 ── */}
+      <div className="bg-white border border-gray-200 rounded-lg p-5 mb-4">
+        <div className="font-bold text-sm text-gray-900 mb-4">⏰ 갱신 임박 (30일 이내)</div>
+        {(() => {
+          const urgent = swRecs.filter(r => {
+            if (!r.renewalDate) return false;
+            const d = Math.ceil((new Date(r.renewalDate).getTime() - Date.now()) / 86400000);
+            return d >= 0 && d <= 30;
+          });
 
-      {/* 포털 관리 */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-          <span>🛠</span>
-          <h3 className="font-semibold text-gray-900">포털 관리</h3>
-        </div>
-        <div className="p-5 grid grid-cols-2 md:grid-cols-4 gap-3">
+          if (urgent.length === 0)
+            return <div className="text-sm text-gray-400 text-center py-4">30일 이내 갱신 임박 없음 ✓</div>;
+
+          return (
+            <div className="flex flex-col gap-2">
+              {urgent.map(r => {
+                const days = Math.ceil((new Date(r.renewalDate).getTime() - Date.now()) / 86400000);
+                return (
+                  <div key={r.id} className="flex items-center gap-3 p-3 rounded-lg bg-red-50 border border-red-100">
+                    <span className="text-xl shrink-0">
+                      {r.licenseType === "영구" ? "🔑" : "💳"}
+                    </span>
+                    <div className="flex-1 overflow-hidden">
+                      <div className="text-sm font-semibold text-gray-900">
+                        {r.swCategory}{r.swDetail ? ` · ${r.swDetail}` : ""}
+                      </div>
+                      <div className="text-xs text-gray-500 truncate">
+                        {r.department || "—"} · {r.user || "—"} · {r.licenseType}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-sm font-bold text-red-600">D-{days}</div>
+                      <div className="text-xs text-gray-500">{r.renewalDate.slice(0, 10)}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* ── 포털 관리 빠른 링크 ── */}
+      <div className="bg-white border border-gray-200 rounded-lg p-5">
+        <div className="font-bold text-sm text-gray-900 mb-1">⚙️ 포털 관리</div>
+        <p className="text-xs text-gray-400 mb-4">Notion에서 직접 데이터를 편집할 수 있습니다.</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { icon: "🗄",  label: "SW DB 편집",     href: "https://notion.so", desc: "승인/금지 목록" },
-            { icon: "💳", label: "구독 관리",         href: "https://notion.so", desc: "구독 SW 목록"   },
-            { icon: "🔑", label: "라이선스 관리",     href: "https://notion.so", desc: "시트 현황"       },
-            { icon: "📋", label: "티켓 처리 (Notion)", href: "https://notion.so", desc: "요청 처리"       },
+            {
+              label: "SW DB 편집",
+              icon: "🗄",
+              url: process.env.NEXT_PUBLIC_NOTION_TRACKER_URL || "#",
+              desc: "화이트/블랙리스트",
+              color: "hover:border-blue-300 hover:bg-blue-50",
+            },
+            {
+              label: "SW 데이터베이스",
+              icon: "📋",
+              url: process.env.NEXT_PUBLIC_NOTION_SW_UNIFIED_URL || "#",
+              desc: "라이선스/구독 통합편집",
+              color: "hover:border-green-300 hover:bg-green-50",
+            },
+            {
+              label: "라이선스 현황",
+              icon: "🔑",
+              url: process.env.NEXT_PUBLIC_NOTION_SW_UNIFIED_URL || "#",
+              desc: "라이선스 추가/수정",
+              color: "hover:border-yellow-300 hover:bg-yellow-50",
+            },
+            {
+              label: "티켓 처리",
+              icon: "🎫",
+              url: "#",
+              desc: "Notion에서 처리",
+              color: "hover:border-purple-300 hover:bg-purple-50",
+            },
           ].map((link) => (
             <a
               key={link.label}
-              href={link.href}
+              href={link.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex flex-col items-center gap-1 p-4 rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors text-center"
+              className={`flex flex-col items-center gap-2 p-4 rounded-xl border border-gray-200 transition-all text-center ${link.color}`}
             >
               <span className="text-2xl">{link.icon}</span>
-              <p className="text-xs font-medium text-gray-800">{link.label}</p>
-              <p className="text-xs text-gray-400">{link.desc}</p>
+              <div className="text-xs font-semibold text-gray-800">{link.label}</div>
+              <div className="text-xs text-gray-400">{link.desc}</div>
             </a>
           ))}
         </div>
