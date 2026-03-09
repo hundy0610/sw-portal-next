@@ -3,7 +3,7 @@ import type {
   PageObjectResponse,
   QueryDatabaseParameters,
 } from "@notionhq/client/build/src/api-endpoints";
-import type { SwItem, Subscription, LicenseItem, LicenseRecord, Ticket } from "@/types";
+import type { SwItem, SwDbRecord, Subscription, LicenseItem, LicenseRecord, Ticket } from "@/types";
 
 // ────────────────────────────────────────────────────────────
 // Notion 클라이언트 싱글톤
@@ -150,7 +150,48 @@ export async function fetchSwDb(): Promise<SwItem[]> {
 }
 
 // ────────────────────────────────────────────────────────────
-// 구독 관리 DB 조회
+// SW 데이터베이스(수정중) 통합 조회
+// 구독 + 영구 라이선스 모두 단일 DB에서 가져옴
+// NOTION_DB_SW_UNIFIED 환경변수 사용
+// ────────────────────────────────────────────────────────────
+export async function fetchSwDatabase(): Promise<SwDbRecord[]> {
+  const dbId = process.env.NOTION_DB_SW_UNIFIED;
+  if (!dbId) throw new Error("NOTION_DB_SW_UNIFIED 환경변수가 설정되지 않았습니다.");
+
+  const pages = await queryAllPages(dbId, undefined, [
+    { timestamp: "created_time", direction: "descending" },
+  ]);
+
+  return pages.map((page): SwDbRecord => {
+    const p = page.properties;
+    return {
+      id: page.id,
+      user: getPropText(p, "사용자"),
+      swCategory: getPropSelect(p, "SW대분류"),
+      swDetail: getPropText(p, "SW소분류"),
+      version: getPropMultiSelect(p, "version"),
+      status: getPropSelect(p, "사용/재고/만료/갱신필요/신규등록"),
+      company: getPropSelect(p, "법인명"),
+      licenseType: getPropSelect(p, "영구 / 구독") as SwDbRecord["licenseType"],
+      department: getPropText(p, "부서"),
+      usageDate: getPropDate(p, "사용일자"),
+      renewalDate: getPropDate(p, "갱신필요일"),
+      purchaseDate: getPropDate(p, "구매일자"),
+      returnDate: getPropDate(p, "반납일자"),
+      returnScheduledDate: getPropDate(p, "반납예정일"),
+      returnReason: getPropSelect(p, "반납사유"),
+      licenseKey: getPropText(p, "인증키 / 인증계정"),
+      vendor: getPropText(p, "구매처"),
+      usageCount: getPropNumber(p, "사용횟수"),
+      certificate: getPropFile(p, "증서"),
+      workType: getPropSelect(p, "SW사용직군"),
+      notionUrl: getPageUrl(page.id),
+    };
+  });
+}
+
+// ────────────────────────────────────────────────────────────
+// 구독 관리 DB 조회 (레거시 - SW 데이터베이스로 통합 예정)
 // ────────────────────────────────────────────────────────────
 export async function fetchSubscriptions(): Promise<Subscription[]> {
   const dbId = process.env.NOTION_DB_SUBSCRIPTIONS;

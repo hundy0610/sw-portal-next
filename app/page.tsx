@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import type { SwItem } from "@/types";
 import { Badge } from "@/components/ui/Badge";
 
-// ── 직원 포털 탭 타입
-type Tab = "home" | "search" | "request" | "ticket";
+// ── 사용자 포털 탭 타입 (티켓/신청 제거)
+type Tab = "home" | "education" | "resources" | "search";
 
 export default function PortalPage() {
   const [tab, setTab] = useState<Tab>("home");
+
   return (
     <div className="min-h-screen" style={{ background: "#F4F5F7" }}>
       {/* 헤더 */}
@@ -27,10 +28,10 @@ export default function PortalPage() {
           {/* 탭 */}
           <nav className="flex gap-1 ml-6">
             {([
-              { id: "home", label: "홈" },
-              { id: "search", label: "SW 검색" },
-              { id: "request", label: "SW 신청" },
-              { id: "ticket", label: "티켓 접수" },
+              { id: "home",      label: "홈" },
+              { id: "education", label: "교육 센터" },
+              { id: "resources", label: "자료실" },
+              { id: "search",    label: "SW 검색" },
             ] as { id: Tab; label: string }[]).map(({ id, label }) => (
               <button
                 key={id}
@@ -46,41 +47,44 @@ export default function PortalPage() {
             ))}
           </nav>
 
+          {/* 숨겨진 관리자 접근 포인트 (우측 하단 점) */}
           <a
             href="/admin"
-            className="ml-auto text-xs text-gray-400 hover:text-gray-700 flex items-center gap-1"
+            className="ml-auto text-gray-200 hover:text-gray-400 transition-colors select-none"
+            style={{ fontSize: 8, lineHeight: 1 }}
+            title=""
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-            </svg>
-            관리자
+            ●
           </a>
         </div>
       </header>
 
       {/* 콘텐츠 */}
       <main className="max-w-5xl mx-auto px-6 py-8">
-        {tab === "home" && <HomeTab onNavigate={setTab} />}
-        {tab === "search" && <SearchTab />}
-        {tab === "request" && <RequestTab />}
-        {tab === "ticket" && <TicketTab />}
+        {tab === "home"      && <HomeTab onNavigate={setTab} />}
+        {tab === "education" && <EducationTab />}
+        {tab === "resources" && <ResourcesTab />}
+        {tab === "search"    && <SearchTab />}
       </main>
     </div>
   );
 }
 
-// ── 홈 탭
+/* ═══════════════════════════════════════════════════════
+   홈 탭
+═══════════════════════════════════════════════════════ */
 function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
   const shortcuts = [
-    { icon: "🔍", title: "SW 검색", desc: "사용 가능한 소프트웨어를 검색하세요", tab: "search" as Tab },
-    { icon: "📋", title: "SW 신청", desc: "필요한 소프트웨어를 신청하세요", tab: "request" as Tab },
-    { icon: "🎫", title: "IT 지원 요청", desc: "설치 오류, 라이선스 문제를 접수하세요", tab: "ticket" as Tab },
+    { icon: "🎓", title: "교육 센터",  desc: "필수 교육 이수 및 SW 교육 자료",    tab: "education" as Tab },
+    { icon: "📁", title: "자료실",     desc: "설치 가이드, 정책 문서, 양식 모음",  tab: "resources" as Tab },
+    { icon: "🔍", title: "SW 검색",    desc: "승인 SW · 금지 SW 여부 즉시 확인",  tab: "search"    as Tab },
   ];
 
   const notices = [
-    { title: "Q1 필수 교육 마감 안내", date: "2026-03-31", urgent: true },
-    { title: "어도비 CC 라이선스 갱신 완료", date: "2026-02-20", urgent: false },
-    { title: "보안 SW 필수 설치 공지", date: "2026-02-10", urgent: true },
+    { title: "Q1 필수 보안 교육 마감 안내",           date: "2026-03-31", urgent: true  },
+    { title: "어도비 CC 라이선스 갱신 완료",           date: "2026-02-20", urgent: false },
+    { title: "보안 SW 필수 설치 공지",                date: "2026-02-10", urgent: true  },
+    { title: "SW 사용 정책 개정 안내 (v2.0)",         date: "2026-01-15", urgent: false },
   ];
 
   return (
@@ -88,7 +92,9 @@ function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
       {/* 배너 */}
       <div className="bg-gradient-to-r from-blue-700 to-blue-500 rounded-xl p-6 mb-6 text-white">
         <div className="text-xl font-bold mb-1">안녕하세요 👋</div>
-        <div className="text-sm opacity-85 mb-4">필요한 소프트웨어를 신청하거나 IT 지원을 요청하세요.</div>
+        <div className="text-sm opacity-85 mb-4">
+          사용 가능한 SW를 검색하거나, 교육 자료 및 문서를 확인하세요.
+        </div>
         <button
           onClick={() => onNavigate("search")}
           className="bg-white text-blue-700 text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors"
@@ -131,11 +137,202 @@ function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
   );
 }
 
-// ── SW 검색 탭
+/* ═══════════════════════════════════════════════════════
+   교육 센터 탭
+═══════════════════════════════════════════════════════ */
+function EducationTab() {
+  const categories = [
+    {
+      title: "필수 이수 교육",
+      icon: "🔴",
+      items: [
+        { title: "개인정보보호 및 정보보안 교육 2026",  type: "온라인", duration: "2시간", deadline: "2026-03-31", required: true  },
+        { title: "SW 라이선스 준수 및 저작권 교육",    type: "온라인", duration: "1시간", deadline: "2026-03-31", required: true  },
+        { title: "악성코드·랜섬웨어 예방 교육",        type: "온라인", duration: "30분",  deadline: "2026-04-30", required: true  },
+        { title: "피싱 메일 대응 훈련",                type: "실습",   duration: "1시간", deadline: "2026-04-30", required: true  },
+      ],
+    },
+    {
+      title: "SW 활용 교육",
+      icon: "💻",
+      items: [
+        { title: "Microsoft 365 업무 활용 가이드",    type: "자료", duration: "자율", deadline: "", required: false },
+        { title: "Adobe CC 기초 사용법",              type: "자료", duration: "자율", deadline: "", required: false },
+        { title: "협업 도구 (Jira / Notion) 입문",    type: "자료", duration: "자율", deadline: "", required: false },
+        { title: "보안 솔루션(V3/DLP) 사용 매뉴얼",   type: "자료", duration: "자율", deadline: "", required: false },
+        { title: "원격접속(VPN) 사용 가이드",          type: "자료", duration: "자율", deadline: "", required: false },
+      ],
+    },
+    {
+      title: "IT 정책 교육",
+      icon: "📋",
+      items: [
+        { title: "SW 구매 및 신청 절차 안내",          type: "자료", duration: "자율", deadline: "", required: false },
+        { title: "인터넷 · 이메일 보안 수칙",          type: "자료", duration: "자율", deadline: "", required: false },
+        { title: "클라우드 서비스 이용 정책",           type: "자료", duration: "자율", deadline: "", required: false },
+        { title: "오픈소스 SW 사용 허가 기준",          type: "자료", duration: "자율", deadline: "", required: false },
+      ],
+    },
+  ];
+
+  return (
+    <div className="fade-in">
+      <div className="mb-5">
+        <h2 className="text-lg font-bold text-gray-900 mb-1">교육 센터</h2>
+        <p className="text-sm text-gray-500">IT 필수 교육 이수 현황과 SW 교육 자료를 확인하세요.</p>
+      </div>
+
+      <div className="flex flex-col gap-5">
+        {categories.map((cat) => (
+          <div key={cat.title} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+              <span>{cat.icon}</span>
+              <span className="font-bold text-sm text-gray-900">{cat.title}</span>
+            </div>
+            <div className="divide-y divide-gray-100">
+              {cat.items.map((item) => (
+                <div
+                  key={item.title}
+                  className="px-5 py-3.5 flex items-center gap-3 hover:bg-gray-50 cursor-pointer group"
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-medium text-gray-900 group-hover:text-blue-700 transition-colors">
+                        {item.title}
+                      </span>
+                      {item.required && (
+                        <span className="text-xs font-bold bg-red-50 text-red-600 px-1.5 py-0.5 rounded">필수</span>
+                      )}
+                    </div>
+                    {item.deadline && (
+                      <span className="text-xs text-red-500 mt-0.5 block">마감: {item.deadline}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-gray-400 shrink-0">
+                    <span className="bg-gray-100 px-2 py-0.5 rounded">{item.type}</span>
+                    <span>{item.duration}</span>
+                    <svg
+                      className="text-gray-300 group-hover:text-blue-400 transition-colors"
+                      width="14" height="14" viewBox="0 0 24 24"
+                      fill="none" stroke="currentColor" strokeWidth="2"
+                    >
+                      <path d="M9 18l6-6-6-6"/>
+                    </svg>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   자료실 탭
+═══════════════════════════════════════════════════════ */
+function ResourcesTab() {
+  const categories = [
+    {
+      title: "설치 가이드",
+      icon: "📦",
+      items: [
+        { title: "사내 필수 SW 일괄 설치 가이드",         type: "PDF",  size: "2.1MB",  date: "2026-02-01" },
+        { title: "VPN 클라이언트 설치 및 설정 방법",       type: "PDF",  size: "1.3MB",  date: "2026-01-20" },
+        { title: "보안 솔루션(V3/DLP) 설치 가이드",        type: "PDF",  size: "890KB",  date: "2026-01-10" },
+        { title: "Microsoft 365 초기 설정 가이드",         type: "PDF",  size: "3.5MB",  date: "2025-12-15" },
+        { title: "Adobe Creative Cloud 설치 방법",         type: "PDF",  size: "1.7MB",  date: "2025-12-01" },
+      ],
+    },
+    {
+      title: "정책 및 지침서",
+      icon: "📋",
+      items: [
+        { title: "SW 자산관리 정책서 v2.0",               type: "PDF",  size: "1.8MB",  date: "2026-01-01" },
+        { title: "개인정보보호 지침서",                    type: "PDF",  size: "2.4MB",  date: "2025-11-01" },
+        { title: "클라우드 서비스 이용 지침",              type: "PDF",  size: "1.1MB",  date: "2025-10-15" },
+        { title: "오픈소스 SW 사용 정책",                  type: "PDF",  size: "760KB",  date: "2025-09-01" },
+        { title: "사내 승인 SW 목록 (최신)",               type: "XLSX", size: "120KB",  date: "2026-02-15" },
+      ],
+    },
+    {
+      title: "양식 및 서식",
+      icon: "📝",
+      items: [
+        { title: "SW 구매 신청서 양식",                   type: "XLSX", size: "45KB",   date: "2026-01-01" },
+        { title: "IT 자산 반납 확인서",                   type: "DOCX", size: "38KB",   date: "2025-12-01" },
+        { title: "라이선스 이관 신청서",                  type: "DOCX", size: "42KB",   date: "2025-11-01" },
+        { title: "개인정보 처리 동의서",                  type: "DOCX", size: "55KB",   date: "2025-10-01" },
+      ],
+    },
+  ];
+
+  const typeColors: Record<string, string> = {
+    PDF:  "bg-red-50 text-red-600",
+    XLSX: "bg-green-50 text-green-600",
+    DOCX: "bg-blue-50 text-blue-600",
+  };
+
+  return (
+    <div className="fade-in">
+      <div className="mb-5">
+        <h2 className="text-lg font-bold text-gray-900 mb-1">자료실</h2>
+        <p className="text-sm text-gray-500">설치 가이드, 정책 문서, 각종 양식을 확인하세요.</p>
+      </div>
+
+      <div className="flex flex-col gap-5">
+        {categories.map((cat) => (
+          <div key={cat.title} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+              <span>{cat.icon}</span>
+              <span className="font-bold text-sm text-gray-900">{cat.title}</span>
+            </div>
+            <div className="divide-y divide-gray-100">
+              {cat.items.map((item) => (
+                <div
+                  key={item.title}
+                  className="px-5 py-3.5 flex items-center gap-3 hover:bg-gray-50 cursor-pointer group"
+                >
+                  <div className="flex-1">
+                    <span className="text-sm font-medium text-gray-900 group-hover:text-blue-700 transition-colors">
+                      {item.title}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-gray-400 shrink-0">
+                    <span className={`px-2 py-0.5 rounded font-semibold ${typeColors[item.type] || "bg-gray-100 text-gray-600"}`}>
+                      {item.type}
+                    </span>
+                    <span>{item.size}</span>
+                    <span>{item.date}</span>
+                    <svg
+                      className="text-gray-300 group-hover:text-blue-400 transition-colors"
+                      width="14" height="14" viewBox="0 0 24 24"
+                      fill="none" stroke="currentColor" strokeWidth="2"
+                    >
+                      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                      <polyline points="7 10 12 15 17 10"/>
+                      <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SW 검색 탭  ─  승인/금지 여부만 표시 (재고·사용 현황 비공개)
+═══════════════════════════════════════════════════════ */
 function SearchTab() {
-  const [items, setItems] = useState<SwItem[]>([]);
-  const [query, setQuery] = useState("");
+  const [items, setItems]   = useState<SwItem[]>([]);
+  const [query, setQuery]   = useState("");
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<"all" | "approved" | "banned" | "conditional">("all");
   const [selected, setSelected] = useState<SwItem | null>(null);
 
   useEffect(() => {
@@ -146,6 +343,7 @@ function SearchTab() {
   }, []);
 
   const filtered = items.filter((s) => {
+    if (filter !== "all" && s.status !== filter) return false;
     if (!query) return true;
     const q = query.toLowerCase();
     return [s.name, s.vendor, s.category, ...s.alternatives].some((v) =>
@@ -153,17 +351,44 @@ function SearchTab() {
     );
   });
 
+  const counts = {
+    all:         items.length,
+    approved:    items.filter(s => s.status === "approved").length,
+    conditional: items.filter(s => s.status === "conditional").length,
+    banned:      items.filter(s => s.status === "banned").length,
+  };
+
   return (
     <div className="fade-in">
       <div className="mb-5">
         <h2 className="text-lg font-bold text-gray-900 mb-1">SW 검색</h2>
-        <p className="text-sm text-gray-500">회사에서 사용 가능한 소프트웨어를 검색하세요.</p>
+        <p className="text-sm text-gray-500">
+          사내 승인된 SW와 사용이 금지된 SW 여부를 확인하세요.
+        </p>
+      </div>
+
+      {/* 안내 배너 */}
+      <div className="flex gap-3 mb-4">
+        <div className="flex-1 bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-xs text-green-800">
+          <span className="font-bold">✅ 승인</span> — 회사에서 공식 승인된 SW입니다.
+        </div>
+        <div className="flex-1 bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3 text-xs text-yellow-800">
+          <span className="font-bold">⚠️ 조건부</span> — IT팀 사전 승인 후 사용 가능합니다.
+        </div>
+        <div className="flex-1 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-xs text-red-800">
+          <span className="font-bold">🚫 금지</span> — 사용 금지 SW입니다. 즉시 삭제 바랍니다.
+        </div>
       </div>
 
       {/* 검색창 */}
-      <div className="relative mb-5">
-        <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      <div className="relative mb-4">
+        <svg
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+          width="16" height="16" viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" strokeWidth="2"
+        >
+          <circle cx="11" cy="11" r="8"/>
+          <path d="m21 21-4.35-4.35"/>
         </svg>
         <input
           className="form-input pl-10"
@@ -174,6 +399,33 @@ function SearchTab() {
         />
       </div>
 
+      {/* 상태 필터 */}
+      <div className="flex gap-2 mb-5 overflow-x-auto pb-1">
+        {([
+          { key: "all",         label: "전체",        count: counts.all         },
+          { key: "approved",    label: "✅ 승인",      count: counts.approved    },
+          { key: "conditional", label: "⚠️ 조건부",    count: counts.conditional },
+          { key: "banned",      label: "🚫 금지",      count: counts.banned      },
+        ] as { key: typeof filter; label: string; count: number }[]).map(({ key, label, count }) => (
+          <button
+            key={key}
+            onClick={() => setFilter(key)}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+              filter === key
+                ? "bg-blue-600 text-white"
+                : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+            }`}
+          >
+            {label}
+            <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+              filter === key ? "bg-white/25 text-white" : "bg-gray-100 text-gray-500"
+            }`}>
+              {count}
+            </span>
+          </button>
+        ))}
+      </div>
+
       {loading ? (
         <div className="text-center py-20 text-gray-400">불러오는 중...</div>
       ) : (
@@ -181,7 +433,7 @@ function SearchTab() {
           {filtered.length === 0 ? (
             <div className="text-center py-16 text-gray-400">
               <div className="text-3xl mb-2">🔍</div>
-              <div>"{query}"에 대한 검색 결과가 없습니다.</div>
+              <div>검색 결과가 없습니다.</div>
             </div>
           ) : filtered.map((s) => (
             <div
@@ -191,11 +443,13 @@ function SearchTab() {
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 overflow-hidden">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <span className="font-bold text-gray-900">{s.name}</span>
                     <Badge value={s.status} />
                     {s.mandatory && (
-                      <span className="text-xs bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded font-semibold">필수</span>
+                      <span className="text-xs bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded font-semibold">
+                        필수
+                      </span>
                     )}
                   </div>
                   <div className="text-sm text-gray-500">{s.vendor} · {s.category}</div>
@@ -209,34 +463,26 @@ function SearchTab() {
               </div>
 
               {selected?.id === s.id && (
-                <div className="mt-3 pt-3 border-t border-gray-100 text-sm">
-                  <div className="grid grid-cols-2 gap-2 mb-3">
-                    <div>
-                      <div className="text-xs text-gray-400 mb-0.5">라이선스</div>
-                      <div className="font-medium text-gray-800">
-                        {s.totalLicenses < 999 ? `${s.usedLicenses}/${s.totalLicenses}석 사용 중` : "무제한"}
-                      </div>
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  {s.alternatives.length > 0 && (
+                    <div className="mb-2.5 text-sm">
+                      <span className="text-xs text-gray-400 mr-1">대체 가능 SW:</span>
+                      <span className="font-medium text-gray-700">{s.alternatives.join(", ")}</span>
                     </div>
-                    {s.alternatives.length > 0 && (
-                      <div>
-                        <div className="text-xs text-gray-400 mb-0.5">대체 가능</div>
-                        <div className="font-medium text-gray-800">{s.alternatives.join(", ")}</div>
-                      </div>
-                    )}
-                  </div>
+                  )}
                   {s.status === "approved" && (
-                    <div className="text-xs text-green-700 bg-green-50 px-3 py-2 rounded-lg">
-                      ✓ 이 소프트웨어는 회사에서 공식 승인된 제품입니다.
+                    <div className="text-xs text-green-800 bg-green-50 border border-green-100 px-3 py-2.5 rounded-lg">
+                      ✅ 사내 공식 승인된 소프트웨어입니다. 자유롭게 사용할 수 있습니다.
                     </div>
                   )}
                   {s.status === "banned" && (
-                    <div className="text-xs text-red-700 bg-red-50 px-3 py-2 rounded-lg">
-                      ✕ 이 소프트웨어는 사용이 금지되어 있습니다. IT 부서에 문의하세요.
+                    <div className="text-xs text-red-800 bg-red-50 border border-red-100 px-3 py-2.5 rounded-lg">
+                      🚫 사용이 <strong>금지된</strong> 소프트웨어입니다. 설치되어 있다면 즉시 삭제하고 IT팀(내선: 1234)에 보고해주세요.
                     </div>
                   )}
                   {s.status === "conditional" && (
-                    <div className="text-xs text-yellow-700 bg-yellow-50 px-3 py-2 rounded-lg">
-                      ⚠ 조건부 승인 소프트웨어입니다. 사용 전 IT 부서 승인이 필요합니다.
+                    <div className="text-xs text-yellow-800 bg-yellow-50 border border-yellow-100 px-3 py-2.5 rounded-lg">
+                      ⚠️ 조건부 승인 소프트웨어입니다. 사용 전 반드시 IT팀의 사전 승인을 받아야 합니다.
                     </div>
                   )}
                 </div>
@@ -244,239 +490,6 @@ function SearchTab() {
             </div>
           ))}
         </div>
-      )}
-    </div>
-  );
-}
-
-// ── SW 신청 탭
-function RequestTab() {
-  const [swDb, setSwDb] = useState<SwItem[]>([]);
-  const [form, setForm] = useState({ swName: "", requester: "", reason: "", urgency: "중간" });
-  const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    fetch("/api/sw-db").then(r => r.json()).then(res => setSwDb(res.data ?? []));
-  }, []);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.swName || !form.requester || !form.reason) {
-      setError("모든 필수 항목을 입력해주세요.");
-      return;
-    }
-    setSubmitting(true);
-    setError("");
-    try {
-      const res = await fetch("/api/sw-request", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      if (!res.ok) throw new Error("신청 실패");
-      setSuccess(true);
-      setForm({ swName: "", requester: "", reason: "", urgency: "중간" });
-    } catch {
-      setError("신청 처리 중 오류가 발생했습니다. 다시 시도해주세요.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="fade-in">
-      <div className="mb-5">
-        <h2 className="text-lg font-bold text-gray-900 mb-1">SW 신청</h2>
-        <p className="text-sm text-gray-500">필요한 소프트웨어 구매 또는 라이선스를 신청합니다.</p>
-      </div>
-
-      {success ? (
-        <div className="bg-green-50 border border-green-200 rounded-xl p-8 text-center">
-          <div className="text-4xl mb-3">✅</div>
-          <div className="font-bold text-green-800 text-lg mb-1">신청이 접수되었습니다!</div>
-          <div className="text-sm text-green-600 mb-4">담당자 검토 후 노션에서 처리 현황을 확인할 수 있습니다.</div>
-          <button onClick={() => setSuccess(false)} className="text-sm font-medium bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
-            추가 신청하기
-          </button>
-        </div>
-      ) : (
-        <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-xl p-6 max-w-xl">
-          <div className="flex flex-col gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">소프트웨어명 <span className="text-red-500">*</span></label>
-              <input
-                className="form-input"
-                placeholder="예: Adobe Photoshop, VS Code"
-                value={form.swName}
-                onChange={e => setForm({ ...form, swName: e.target.value })}
-                list="sw-suggestions"
-              />
-              <datalist id="sw-suggestions">
-                {swDb.filter(s => s.status === "approved").map(s => (
-                  <option key={s.id} value={s.name} />
-                ))}
-              </datalist>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">신청자 <span className="text-red-500">*</span></label>
-              <input
-                className="form-input"
-                placeholder="이름 (예: 홍길동)"
-                value={form.requester}
-                onChange={e => setForm({ ...form, requester: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">긴급도</label>
-              <select
-                className="form-input"
-                value={form.urgency}
-                onChange={e => setForm({ ...form, urgency: e.target.value })}
-              >
-                {["높음", "중간", "낮음"].map(v => <option key={v} value={v}>{v}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">신청 사유 <span className="text-red-500">*</span></label>
-              <textarea
-                className="form-input"
-                rows={4}
-                placeholder="업무에 필요한 이유, 예상 사용 기간 등을 설명해주세요."
-                value={form.reason}
-                onChange={e => setForm({ ...form, reason: e.target.value })}
-                style={{ resize: "vertical" }}
-              />
-            </div>
-            {error && <div className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</div>}
-            <button
-              type="submit"
-              disabled={submitting}
-              className="bg-blue-600 text-white font-semibold py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-            >
-              {submitting ? "신청 중..." : "신청 제출"}
-            </button>
-          </div>
-        </form>
-      )}
-    </div>
-  );
-}
-
-// ── 티켓 접수 탭
-function TicketTab() {
-  const [form, setForm] = useState({
-    title: "",
-    category: "설치/실행 오류",
-    priority: "중간",
-    description: "",
-    requester: "",
-  });
-  const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState("");
-
-  const categories = [
-    "설치/실행 오류", "라이선스 문제", "SW 신청", "사용법 문의", "네트워크 오류", "기타"
-  ];
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.title || !form.description || !form.requester) {
-      setError("필수 항목을 모두 입력해주세요.");
-      return;
-    }
-    setSubmitting(true);
-    setError("");
-    try {
-      const res = await fetch("/api/tickets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      if (!res.ok) throw new Error("접수 실패");
-      setSuccess(true);
-      setForm({ title: "", category: "설치/실행 오류", priority: "중간", description: "", requester: "" });
-    } catch {
-      setError("접수 중 오류가 발생했습니다. 다시 시도해주세요.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="fade-in">
-      <div className="mb-5">
-        <h2 className="text-lg font-bold text-gray-900 mb-1">IT 지원 티켓 접수</h2>
-        <p className="text-sm text-gray-500">설치 오류, 라이선스 문제 등 IT 지원이 필요한 사항을 접수하세요.</p>
-      </div>
-
-      {success ? (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-8 text-center">
-          <div className="text-4xl mb-3">🎫</div>
-          <div className="font-bold text-blue-800 text-lg mb-1">티켓이 접수되었습니다!</div>
-          <div className="text-sm text-blue-600 mb-4">담당자 배정 후 처리가 시작됩니다.</div>
-          <button onClick={() => setSuccess(false)} className="text-sm font-medium bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
-            추가 접수하기
-          </button>
-        </div>
-      ) : (
-        <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-xl p-6 max-w-xl">
-          <div className="flex flex-col gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">제목 <span className="text-red-500">*</span></label>
-              <input
-                className="form-input"
-                placeholder="예: VS Code 라이선스 인증 실패"
-                value={form.title}
-                onChange={e => setForm({ ...form, title: e.target.value })}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">카테고리</label>
-                <select className="form-input" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
-                  {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">우선순위</label>
-                <select className="form-input" value={form.priority} onChange={e => setForm({ ...form, priority: e.target.value })}>
-                  {["높음", "중간", "낮음"].map(v => <option key={v} value={v}>{v}</option>)}
-                </select>
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">요청자 <span className="text-red-500">*</span></label>
-              <input
-                className="form-input"
-                placeholder="이름 (예: 홍길동)"
-                value={form.requester}
-                onChange={e => setForm({ ...form, requester: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">내용 <span className="text-red-500">*</span></label>
-              <textarea
-                className="form-input"
-                rows={5}
-                placeholder="증상, 발생 시점, 오류 메시지, 스크린샷 경로 등을 입력해주세요."
-                value={form.description}
-                onChange={e => setForm({ ...form, description: e.target.value })}
-                style={{ resize: "vertical" }}
-              />
-            </div>
-            {error && <div className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</div>}
-            <button
-              type="submit"
-              disabled={submitting}
-              className="bg-blue-600 text-white font-semibold py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-            >
-              {submitting ? "접수 중..." : "티켓 접수"}
-            </button>
-          </div>
-        </form>
       )}
     </div>
   );

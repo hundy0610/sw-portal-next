@@ -1,42 +1,57 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import type { Subscription } from "@/types";
-import { Badge } from "@/components/ui/Badge";
+import { useEffect, useState, useMemo } from "react";
+import type { SwDbRecord } from "@/types";
 import { SyncBanner } from "@/components/ui/SyncBanner";
 
-const USD_RATE = 1380;
+// 구독 유형
+type SubType = "전체" | "구독(업체)" | "구독(웹)";
 
-function calcNextPayment(start: string, cycle: "월" | "연"): string {
-  if (!start) return "—";
-  const d = new Date(start);
-  const now = new Date();
-  if (cycle === "월") {
-    while (d <= now) d.setMonth(d.getMonth() + 1);
-  } else {
-    while (d <= now) d.setFullYear(d.getFullYear() + 1);
-  }
-  return d.toISOString().split("T")[0];
+// 상태 뱃지 색상
+const STATUS_STYLE: Record<string, { bg: string; text: string }> = {
+  "사용중":     { bg: "bg-blue-50",   text: "text-blue-700"   },
+  "갱신필요":   { bg: "bg-red-50",    text: "text-red-600"    },
+  "만료":       { bg: "bg-gray-100",  text: "text-gray-500"   },
+  "재고":       { bg: "bg-green-50",  text: "text-green-700"  },
+  "신규등록":   { bg: "bg-purple-50", text: "text-purple-700" },
+  "반납예정":   { bg: "bg-orange-50", text: "text-orange-600" },
+};
+
+function StatusBadge({ status }: { status: string }) {
+  const s = STATUS_STYLE[status] ?? { bg: "bg-gray-100", text: "text-gray-500" };
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${s.bg} ${s.text}`}>
+      {status || "—"}
+    </span>
+  );
 }
 
 function daysUntil(dateStr: string): number | null {
-  if (!dateStr || dateStr === "—") return null;
-  const diff = new Date(dateStr).getTime() - Date.now();
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  if (!dateStr) return null;
+  return Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000);
+}
+
+function fmtDate(d: string) {
+  if (!d) return "—";
+  return d.slice(0, 10);
 }
 
 export default function SubscriptionPanel() {
-  const [subs, setSubs] = useState<Subscription[]>([]);
+  const [records, setRecords] = useState<SwDbRecord[]>([]);
   const [lastSynced, setLastSynced] = useState("");
-  const [filter, setFilter] = useState<"all" | "구독 중" | "구독 해지">("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // 필터 상태
+  const [typeFilter, setTypeFilter] = useState<SubType>("전체");
+  const [statusFilter, setStatusFilter] = useState("전체");
+  const [search, setSearch] = useState("");
+
   useEffect(() => {
-    fetch("/api/subscriptions")
+    fetch("/api/sw-records")
       .then((r) => r.json())
       .then((res) => {
-        setSubs(res.data ?? []);
+        setRecords(res.data ?? []);
         setLastSynced(res.lastSynced ?? "");
         if (res.error) setError(res.error);
       })
@@ -44,24 +59,51 @@ export default function SubscriptionPanel() {
       .finally(() => setLoading(false));
   }, []);
 
-  const active = subs.filter((s) => s.status === "구독 중");
+  // 구독 레코드만 필터 (영구 제외)
+  const subRecords = useMemo(
+    () => records.filter((r) => r.licenseType === "구독(업체)" || r.licenseType === "구독(웹)"),
+    [records]
+  );
 
-  const totalMonthlyKRW = active.reduce((acc, s) => {
-    if (s.krw && s.cycle === "월") return acc + s.krw * (s.userCount || 1);
-    if (s.usd && s.cycle === "월") return acc + s.usd * USD_RATE * (s.userCount || 1);
-    if (s.krw && s.cycle === "연") return acc + (s.krw * (s.userCount || 1)) / 12;
-    if (s.usd && s.cycle === "연") return acc + (s.usd * USD_RATE * (s.userCount || 1)) / 12;
-    return acc;
-  }, 0);
+  // 갱신 임박 (30일 이내)
+  const renewingSoon = useMemo(
+    () =>
+      subRecords.filter((r) => {
+        const d = daysUntil(r.renewalDate);
+        return d !== null && d >= 0 && d <= 30;
+      }),
+    [subRecords]
+  );
 
-  const totalAnnualUSD = active.reduce((acc, s) => {
-    const count = s.userCount || 1;
-    if (s.usd) return acc + (s.cycle === "연" ? s.usd : s.usd * 12) * count;
-    if (s.krw) return acc + (s.cycle === "연" ? s.krw : s.krw * 12) * count / USD_RATE;
-    return acc;
-  }, 0);
+  // 활성 구독 (사용중 / 신규등록 / 재고)
+  const activeCount = useMemo(
+    () => subRecords.filter((r) => r.status === "사용중" || r.status === "신규등록").length,
+    [subRecords]
+  );
 
-  const list = filter === "all" ? subs : subs.filter((s) => s.status === filter);
+  // 필터된 목록
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return subRecords.filter((r) => {
+      if (typeFilter !== "전체" && r.licenseType !== typeFilter) return false;
+      if (statusFilter !== "전체" && r.status !== statusFilter) return false;
+      if (q) {
+        return (
+          r.swCategory.toLowerCase().includes(q) ||
+          r.swDetail.toLowerCase().includes(q) ||
+          r.user.toLowerCase().includes(q) ||
+          r.department.toLowerCase().includes(q) ||
+          r.company.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+  }, [subRecords, typeFilter, statusFilter, search]);
+
+  const statusOptions = useMemo(
+    () => ["전체", ...new Set(subRecords.map((r) => r.status).filter(Boolean))],
+    [subRecords]
+  );
 
   if (loading) return <div className="text-center py-20 text-gray-400">노션에서 불러오는 중...</div>;
   if (error) return <div className="text-center py-20 text-red-500">오류: {error}</div>;
@@ -71,113 +113,226 @@ export default function SubscriptionPanel() {
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <div>
           <h2 className="text-xl font-bold text-gray-900 mb-0.5">구독 관리</h2>
-          <p className="text-sm text-gray-500">전사 구독형 SW의 결제 현황과 계정 정보</p>
+          <p className="text-sm text-gray-500">전사 구독형 SW 현황 — SW 데이터베이스(수정중) 기준</p>
         </div>
       </div>
 
-      <SyncBanner lastSynced={lastSynced} notionUrl={process.env.NEXT_PUBLIC_NOTION_SUBSCRIBE_URL} />
+      <SyncBanner lastSynced={lastSynced} notionUrl={process.env.NEXT_PUBLIC_NOTION_SW_UNIFIED_URL} />
 
       {/* KPI 카드 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         {[
-          { label: "구독 중", val: `${active.length}개`, color: "#0052CC", bg: "#DEEBFF" },
-          { label: "월 환산 (KRW)", val: `₩${Math.round(totalMonthlyKRW).toLocaleString()}`, color: "#E34234", bg: "#FFEBE6" },
-          { label: "연간 총비용 (USD)", val: `$${totalAnnualUSD.toFixed(0)}`, color: "#6554C0", bg: "#EAE6FF" },
-          { label: "해지됨", val: `${subs.filter(s => s.status === "구독 해지").length}개`, color: "#6B778C", bg: "#F4F5F7" },
+          {
+            label: "전체 구독",
+            val: `${subRecords.length}개`,
+            color: "#0052CC",
+            bg: "#DEEBFF",
+          },
+          {
+            label: "구독 중 (활성)",
+            val: `${activeCount}개`,
+            color: "#00875A",
+            bg: "#E3FCEF",
+          },
+          {
+            label: "갱신 임박 (30일)",
+            val: `${renewingSoon.length}개`,
+            color: renewingSoon.length > 0 ? "#DE350B" : "#6B778C",
+            bg: renewingSoon.length > 0 ? "#FFEBE6" : "#F4F5F7",
+          },
+          {
+            label: "업체 구독",
+            val: `${subRecords.filter((r) => r.licenseType === "구독(업체)").length}개`,
+            color: "#6554C0",
+            bg: "#EAE6FF",
+          },
         ].map((k) => (
-          <div key={k.label} className="bg-white border border-gray-200 rounded-lg p-4">
+          <div
+            key={k.label}
+            className="bg-white border border-gray-200 rounded-lg p-4"
+            style={{ borderLeft: `3px solid ${k.color}` }}
+          >
             <div className="text-xs text-gray-500 mb-1">{k.label}</div>
-            <div className="text-lg font-extrabold" style={{ color: k.color }}>{k.val}</div>
+            <div className="text-lg font-extrabold" style={{ color: k.color }}>
+              {k.val}
+            </div>
           </div>
         ))}
       </div>
 
-      {/* 필터 */}
-      <div className="flex gap-2 mb-4">
-        {(["all", "구독 중", "구독 해지"] as const).map((f) => (
+      {/* 갱신 임박 알림 */}
+      {renewingSoon.length > 0 && (
+        <div className="mb-5 bg-red-50 border border-red-200 rounded-xl p-4">
+          <div className="font-semibold text-sm text-red-700 mb-3">⚠️ 갱신 임박 (30일 이내)</div>
+          <div className="flex flex-col gap-2">
+            {renewingSoon.map((r) => {
+              const d = daysUntil(r.renewalDate);
+              return (
+                <div key={r.id} className="flex items-center gap-3">
+                  <span className="text-sm font-semibold text-gray-900 flex-1 truncate">
+                    {r.swCategory}{r.swDetail ? ` · ${r.swDetail}` : ""}
+                  </span>
+                  <span className="text-xs text-gray-500 shrink-0">
+                    {r.user || "—"} · {r.department || "—"}
+                  </span>
+                  <span className="text-xs font-bold text-red-600 shrink-0">
+                    D-{d} ({fmtDate(r.renewalDate)})
+                  </span>
+                  {r.notionUrl && (
+                    <a
+                      href={r.notionUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-500 hover:underline shrink-0"
+                    >
+                      보기
+                    </a>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 검색 & 필터 */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        <input
+          type="text"
+          placeholder="SW명, 사용자, 부서, 법인명 검색…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="flex-1 min-w-[200px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        {(["전체", "구독(업체)", "구독(웹)"] as SubType[]).map((t) => (
           <button
-            key={f}
-            onClick={() => setFilter(f)}
+            key={t}
+            onClick={() => setTypeFilter(t)}
             className={`text-xs font-medium px-3 py-1.5 rounded border transition-colors ${
-              filter === f
+              typeFilter === t
                 ? "bg-gray-800 text-white border-gray-800"
                 : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"
             }`}
           >
-            {f === "all" ? "전체" : f}
+            {t}
           </button>
         ))}
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          {statusOptions.map((s) => (
+            <option key={s}>{s}</option>
+          ))}
+        </select>
+        <span className="flex items-center text-xs text-gray-400 font-medium">{filtered.length}건</span>
       </div>
 
       {/* 테이블 */}
-      <div className="bg-white border border-gray-200 rounded-lg overflow-auto">
-        <table className="data-table" style={{ minWidth: 900 }}>
+      <div className="bg-white border border-gray-200 rounded-xl overflow-auto shadow-sm">
+        <table className="w-full text-sm" style={{ minWidth: 900 }}>
           <thead>
-            <tr>
-              {["서비스", "상태", "팀 / 사용자", "주기", "금액", "결제 방식", "다음 결제일", "노션"].map((h) => (
-                <th key={h}>{h}</th>
+            <tr className="border-b border-gray-100 bg-gray-50">
+              {[
+                "SW명",
+                "구독 유형",
+                "상태",
+                "사용자 / 부서",
+                "법인명",
+                "갱신 필요일",
+                "인증키 / 계정",
+                "버전",
+                "노션",
+              ].map((h) => (
+                <th
+                  key={h}
+                  className="px-4 py-3 text-left text-xs font-semibold text-gray-500 whitespace-nowrap"
+                >
+                  {h}
+                </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {list.length === 0 ? (
-              <tr><td colSpan={8} className="text-center text-gray-400 py-10">데이터 없음</td></tr>
-            ) : list.map((s) => {
-              const next = calcNextPayment(s.startDate, s.cycle);
-              const d = daysUntil(next);
-              const isUrgent = d !== null && d < 30;
-              return (
-                <tr key={s.id}>
-                  <td>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl">{s.logo}</span>
-                      <div>
-                        <div className="font-semibold text-gray-900">{s.name}</div>
-                        {s.version && <div className="text-xs text-gray-400">{s.version}</div>}
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={9} className="text-center py-12 text-gray-400">
+                  데이터 없음
+                </td>
+              </tr>
+            ) : (
+              filtered.map((r) => {
+                const days = daysUntil(r.renewalDate);
+                const isUrgent = days !== null && days >= 0 && days <= 30;
+                return (
+                  <tr
+                    key={r.id}
+                    className="border-b border-gray-50 hover:bg-blue-50/30 transition-colors"
+                  >
+                    <td className="px-4 py-3">
+                      <div className="font-semibold text-gray-900 text-xs">
+                        {r.swCategory}
                       </div>
-                    </div>
-                  </td>
-                  <td><Badge value={s.status} /></td>
-                  <td>
-                    <div className="font-medium text-gray-800">{s.team}</div>
-                    {s.user && (
-                      <div className="text-xs text-gray-400">
-                        {s.user}{s.userCount > 1 ? ` 외 ${s.userCount - 1}명` : ""}
-                      </div>
-                    )}
-                  </td>
-                  <td>
-                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${s.cycle === "연" ? "bg-purple-50 text-purple-700" : "bg-green-50 text-green-700"}`}>
-                      {s.cycle === "연" ? "연간" : "월간"}
-                    </span>
-                  </td>
-                  <td className="font-bold text-gray-900">
-                    {s.krw ? `₩${(s.krw).toLocaleString()}` : s.usd ? `$${s.usd}` : "—"}
-                    {s.userCount > 1 && <span className="font-normal text-xs text-gray-400"> ×{s.userCount}</span>}
-                  </td>
-                  <td>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${s.paymentMethod.includes("개인") ? "bg-yellow-50 text-yellow-700" : "bg-green-50 text-green-700"}`}>
-                      {s.paymentMethod}
-                    </span>
-                  </td>
-                  <td>
-                    <div className={`font-medium ${isUrgent ? "text-red-500" : "text-gray-800"}`}>{next}</div>
-                    {d !== null && <div className={`text-xs ${isUrgent ? "text-red-400" : "text-gray-400"}`}>D-{d}</div>}
-                  </td>
-                  <td>
-                    {s.notionUrl && (
-                      <a href={s.notionUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 text-xs flex items-center gap-1 hover:underline">
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
-                          <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-                        </svg>
-                        보기
-                      </a>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
+                      {r.swDetail && (
+                        <div className="text-xs text-gray-400">{r.swDetail}</div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                          r.licenseType === "구독(업체)"
+                            ? "bg-purple-50 text-purple-700"
+                            : "bg-cyan-50 text-cyan-700"
+                        }`}
+                      >
+                        {r.licenseType}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={r.status} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-gray-900 text-xs">{r.user || "—"}</div>
+                      <div className="text-xs text-gray-400">{r.department || "—"}</div>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-600">{r.company || "—"}</td>
+                    <td className="px-4 py-3 text-xs whitespace-nowrap">
+                      {r.renewalDate ? (
+                        <span className={isUrgent ? "text-red-600 font-semibold" : "text-gray-600"}>
+                          {fmtDate(r.renewalDate)}
+                          {isUrgent && days !== null && (
+                            <span className="ml-1 bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">
+                              D-{days}
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-600 max-w-[160px] truncate">
+                      {r.licenseKey || "—"}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-600">
+                      {r.version.length > 0 ? r.version.join(", ") : "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      {r.notionUrl && (
+                        <a
+                          href={r.notionUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-500 hover:text-blue-700 text-xs underline"
+                        >
+                          보기
+                        </a>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
