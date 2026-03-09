@@ -4,18 +4,20 @@ import { useEffect, useState } from "react";
 import type { SwItem } from "@/types";
 import { Badge } from "@/components/ui/Badge";
 
-// ── 사용자 포털 탭 타입 (티켓/신청 제거)
 type Tab = "home" | "education" | "resources" | "search";
+
+const INQUIRY_URL = "https://assetify-desk.vercel.app/inquiry";
 
 export default function PortalPage() {
   const [tab, setTab] = useState<Tab>("home");
 
   return (
     <div className="min-h-screen" style={{ background: "#F4F5F7" }}>
-      {/* 헤더 */}
+      {/* ── 헤더 ── */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
         <div className="max-w-5xl mx-auto px-6 h-14 flex items-center gap-4">
-          <div className="flex items-center gap-2">
+          {/* 로고 */}
+          <div className="flex items-center gap-2 shrink-0">
             <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
               <span className="text-white font-extrabold text-xs">SW</span>
             </div>
@@ -26,36 +28,45 @@ export default function PortalPage() {
           </div>
 
           {/* 탭 */}
-          <nav className="flex gap-1 ml-6">
+          <nav className="flex gap-0.5 ml-6">
             {([
-              { id: "home",      label: "홈" },
-              { id: "education", label: "교육 센터" },
-              { id: "resources", label: "자료실" },
-              { id: "search",    label: "SW 검색" },
-            ] as { id: Tab; label: string }[]).map(({ id, label }) => (
+              { id: "home",      label: "홈",      icon: "🏠" },
+              { id: "education", label: "교육 센터", icon: "🎓" },
+              { id: "resources", label: "자료실",   icon: "📁" },
+              { id: "search",    label: "SW 검색",  icon: "🔍" },
+            ] as { id: Tab; label: string; icon: string }[]).map(({ id, label, icon }) => (
               <button
                 key={id}
                 onClick={() => setTab(id)}
-                className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
                   tab === id
                     ? "bg-blue-50 text-blue-700"
                     : "text-gray-500 hover:text-gray-800 hover:bg-gray-100"
                 }`}
               >
+                <span style={{ fontSize: 13 }}>{icon}</span>
                 {label}
               </button>
             ))}
           </nav>
 
-          {/* 숨겨진 관리자 접근 포인트 (우측 하단 점) */}
-          <a
-            href="/admin"
-            className="ml-auto text-gray-200 hover:text-gray-400 transition-colors select-none"
-            style={{ fontSize: 8, lineHeight: 1 }}
-            title=""
-          >
-            ●
-          </a>
+          {/* 우측: 문의하기 + 숨겨진 관리자 링크 */}
+          <div className="ml-auto flex items-center gap-3">
+            <a
+              href={INQUIRY_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition-colors shadow-sm"
+            >
+              💬 IT 지원 문의
+            </a>
+            <a
+              href="/admin"
+              className="text-gray-200 hover:text-gray-400 transition-colors select-none"
+              style={{ fontSize: 8, lineHeight: 1 }}
+              title=""
+            >●</a>
+          </div>
         </div>
       </header>
 
@@ -71,64 +82,156 @@ export default function PortalPage() {
 }
 
 /* ═══════════════════════════════════════════════════════
-   홈 탭
+   홈 탭 (리디자인)
 ═══════════════════════════════════════════════════════ */
 function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
   const shortcuts = [
-    { icon: "🎓", title: "교육 센터",  desc: "필수 교육 이수 및 SW 교육 자료",    tab: "education" as Tab },
-    { icon: "📁", title: "자료실",     desc: "설치 가이드, 정책 문서, 양식 모음",  tab: "resources" as Tab },
-    { icon: "🔍", title: "SW 검색",    desc: "승인 SW · 금지 SW 여부 즉시 확인",  tab: "search"    as Tab },
+    {
+      icon: "🎓", title: "교육 센터",
+      desc: "필수 이수 교육 및 SW 활용 자료",
+      tab: "education" as Tab,
+      iconBg: "bg-purple-100",
+      color: "hover:border-purple-200 hover:bg-purple-50",
+    },
+    {
+      icon: "📁", title: "자료실",
+      desc: "설치 가이드, 정책 지침, 양식 서식",
+      tab: "resources" as Tab,
+      iconBg: "bg-amber-100",
+      color: "hover:border-amber-200 hover:bg-amber-50",
+    },
+    {
+      icon: "🔍", title: "SW 검색",
+      desc: "사내 승인·금지 SW 여부 즉시 확인",
+      tab: "search" as Tab,
+      iconBg: "bg-blue-100",
+      color: "hover:border-blue-200 hover:bg-blue-50",
+    },
   ];
 
   const notices = [
-    { title: "Q1 필수 보안 교육 마감 안내",           date: "2026-03-31", urgent: true  },
-    { title: "어도비 CC 라이선스 갱신 완료",           date: "2026-02-20", urgent: false },
-    { title: "보안 SW 필수 설치 공지",                date: "2026-02-10", urgent: true  },
-    { title: "SW 사용 정책 개정 안내 (v2.0)",         date: "2026-01-15", urgent: false },
+    { title: "Q1 필수 보안 교육 마감 안내",     date: "2026-03-31", tag: "긴급", urgent: true  },
+    { title: "어도비 CC 라이선스 갱신 완료",     date: "2026-02-20", tag: "안내", urgent: false },
+    { title: "보안 SW 필수 설치 공지",           date: "2026-02-10", tag: "긴급", urgent: true  },
+    { title: "SW 사용 정책 개정 안내 (v2.0)",   date: "2026-01-15", tag: "안내", urgent: false },
   ];
 
   return (
     <div className="fade-in">
-      {/* 배너 */}
-      <div className="bg-gradient-to-r from-blue-700 to-blue-500 rounded-xl p-6 mb-6 text-white">
-        <div className="text-xl font-bold mb-1">안녕하세요 👋</div>
-        <div className="text-sm opacity-85 mb-4">
-          사용 가능한 SW를 검색하거나, 교육 자료 및 문서를 확인하세요.
+      {/* ── 메인 배너 ── */}
+      <div
+        className="rounded-2xl p-7 mb-6 text-white relative overflow-hidden"
+        style={{ background: "linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 50%, #3b82f6 100%)" }}
+      >
+        {/* 배경 데코 */}
+        <div className="absolute -top-16 -right-16 w-72 h-72 rounded-full bg-white opacity-5 pointer-events-none" />
+        <div className="absolute -bottom-20 left-1/3 w-56 h-56 rounded-full bg-white opacity-5 pointer-events-none" />
+
+        <div className="relative flex flex-col sm:flex-row items-start justify-between gap-6">
+          <div>
+            <div className="text-2xl font-bold mb-1">안녕하세요 👋</div>
+            <div className="text-sm opacity-80 mb-5 leading-relaxed max-w-md">
+              SW 자산관리 포털에 오신 것을 환영합니다.<br />
+              SW 사용 정책을 확인하고, 교육 자료와 가이드를 이용하세요.
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => onNavigate("search")}
+                className="bg-white text-blue-700 text-xs font-bold px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors shadow-sm"
+              >
+                🔍 SW 정책 확인하기
+              </button>
+              <a
+                href={INQUIRY_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-white/20 text-white border border-white/30 text-xs font-semibold px-4 py-2 rounded-lg hover:bg-white/30 transition-colors"
+              >
+                💬 IT 지원 문의하기
+              </a>
+            </div>
+          </div>
+
+          {/* 퀵 스탯 칩 */}
+          <div className="flex gap-3 shrink-0">
+            {[
+              { label: "보안 교육", value: "D-21", sub: "3월 31일 마감" },
+              { label: "SW 정책",   value: "v2.0", sub: "2026.01 개정" },
+            ].map((s) => (
+              <div key={s.label} className="bg-white/15 backdrop-blur-sm rounded-xl px-4 py-3 text-center min-w-[88px] border border-white/10">
+                <div className="text-xl font-extrabold">{s.value}</div>
+                <div className="text-xs font-semibold mt-0.5">{s.label}</div>
+                <div className="text-xs opacity-60 mt-0.5">{s.sub}</div>
+              </div>
+            ))}
+          </div>
         </div>
-        <button
-          onClick={() => onNavigate("search")}
-          className="bg-white text-blue-700 text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors"
-        >
-          SW 검색하기 →
-        </button>
       </div>
 
-      {/* 바로가기 */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      {/* ── 바로가기 카드 (4개) ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {shortcuts.map((s) => (
           <button
             key={s.tab}
             onClick={() => onNavigate(s.tab)}
-            className="bg-white border border-gray-200 rounded-xl p-5 text-left hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer"
+            className={`bg-white border border-gray-200 rounded-2xl p-5 text-left hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer ${s.color}`}
           >
-            <div className="text-2xl mb-2">{s.icon}</div>
-            <div className="font-bold text-gray-900 mb-1">{s.title}</div>
-            <div className="text-sm text-gray-500">{s.desc}</div>
+            <div className={`w-10 h-10 rounded-xl ${s.iconBg} flex items-center justify-center text-xl mb-3`}>
+              {s.icon}
+            </div>
+            <div className="font-bold text-sm text-gray-900 mb-1">{s.title}</div>
+            <div className="text-xs text-gray-500 leading-relaxed">{s.desc}</div>
           </button>
         ))}
+
+        {/* 문의하기 카드 */}
+        <a
+          href={INQUIRY_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="bg-white border border-gray-200 rounded-2xl p-5 text-left hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer hover:border-emerald-200 hover:bg-emerald-50"
+        >
+          <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-xl mb-3">
+            💬
+          </div>
+          <div className="font-bold text-sm text-gray-900 mb-1">IT 지원 문의</div>
+          <div className="text-xs text-gray-500 leading-relaxed mb-2">SW 신청, 오류 신고, 기타 문의</div>
+          <div className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
+            문의 접수 바로가기
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </div>
+        </a>
       </div>
 
-      {/* 공지사항 */}
-      <div className="bg-white border border-gray-200 rounded-xl p-5">
-        <div className="font-bold text-sm text-gray-900 mb-3">📢 공지사항</div>
-        <div className="flex flex-col gap-2">
+      {/* ── 공지사항 ── */}
+      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div className="font-bold text-sm text-gray-900">📢 공지사항</div>
+          <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">
+            {notices.length}건
+          </span>
+        </div>
+        <div className="divide-y divide-gray-50">
           {notices.map((n) => (
-            <div key={n.title} className="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0">
-              {n.urgent && (
-                <span className="text-xs font-bold bg-red-50 text-red-600 px-1.5 py-0.5 rounded shrink-0">긴급</span>
-              )}
-              <span className="text-sm text-gray-800 flex-1">{n.title}</span>
+            <div
+              key={n.title}
+              className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors cursor-pointer group"
+            >
+              <span className={`text-xs font-bold px-2 py-0.5 rounded shrink-0 ${
+                n.urgent ? "bg-red-50 text-red-600" : "bg-gray-100 text-gray-500"
+              }`}>
+                {n.tag}
+              </span>
+              <span className="text-sm text-gray-800 flex-1 group-hover:text-blue-700 transition-colors">
+                {n.title}
+              </span>
               <span className="text-xs text-gray-400 shrink-0">{n.date}</span>
+              <svg className="text-gray-300 group-hover:text-gray-400 shrink-0 transition-colors"
+                width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 18l6-6-6-6"/>
+              </svg>
             </div>
           ))}
         </div>
@@ -184,7 +287,7 @@ function EducationTab() {
 
       <div className="flex flex-col gap-5">
         {categories.map((cat) => (
-          <div key={cat.title} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div key={cat.title} className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
             <div className="px-5 py-3.5 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
               <span>{cat.icon}</span>
               <span className="font-bold text-sm text-gray-900">{cat.title}</span>
@@ -211,11 +314,8 @@ function EducationTab() {
                   <div className="flex items-center gap-3 text-xs text-gray-400 shrink-0">
                     <span className="bg-gray-100 px-2 py-0.5 rounded">{item.type}</span>
                     <span>{item.duration}</span>
-                    <svg
-                      className="text-gray-300 group-hover:text-blue-400 transition-colors"
-                      width="14" height="14" viewBox="0 0 24 24"
-                      fill="none" stroke="currentColor" strokeWidth="2"
-                    >
+                    <svg className="text-gray-300 group-hover:text-blue-400 transition-colors"
+                      width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M9 18l6-6-6-6"/>
                     </svg>
                   </div>
@@ -224,6 +324,10 @@ function EducationTab() {
             </div>
           </div>
         ))}
+      </div>
+
+      <div className="mt-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
+        💡 교육 자료 접근 및 이수 확인은 IT팀 또는 Notion 교육 페이지를 통해 진행됩니다.
       </div>
     </div>
   );
@@ -283,7 +387,7 @@ function ResourcesTab() {
 
       <div className="flex flex-col gap-5">
         {categories.map((cat) => (
-          <div key={cat.title} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div key={cat.title} className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
             <div className="px-5 py-3.5 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
               <span>{cat.icon}</span>
               <span className="font-bold text-sm text-gray-900">{cat.title}</span>
@@ -305,11 +409,8 @@ function ResourcesTab() {
                     </span>
                     <span>{item.size}</span>
                     <span>{item.date}</span>
-                    <svg
-                      className="text-gray-300 group-hover:text-blue-400 transition-colors"
-                      width="14" height="14" viewBox="0 0 24 24"
-                      fill="none" stroke="currentColor" strokeWidth="2"
-                    >
+                    <svg className="text-gray-300 group-hover:text-blue-400 transition-colors"
+                      width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
                       <polyline points="7 10 12 15 17 10"/>
                       <line x1="12" y1="15" x2="12" y2="3"/>
@@ -326,13 +427,13 @@ function ResourcesTab() {
 }
 
 /* ═══════════════════════════════════════════════════════
-   SW 검색 탭  ─  승인/금지 여부만 표시 (재고·사용 현황 비공개)
+   SW 검색 탭
 ═══════════════════════════════════════════════════════ */
 function SearchTab() {
-  const [items, setItems]   = useState<SwItem[]>([]);
-  const [query, setQuery]   = useState("");
+  const [items, setItems]     = useState<SwItem[]>([]);
+  const [query, setQuery]     = useState("");
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"all" | "approved" | "banned" | "conditional">("all");
+  const [filter, setFilter]   = useState<"all" | "approved" | "banned" | "conditional">("all");
   const [selected, setSelected] = useState<SwItem | null>(null);
 
   useEffect(() => {
@@ -368,30 +469,26 @@ function SearchTab() {
       </div>
 
       {/* 안내 배너 */}
-      <div className="flex gap-3 mb-4">
-        <div className="flex-1 bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-xs text-green-800">
-          <span className="font-bold">✅ 승인</span> — 회사에서 공식 승인된 SW입니다.
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-xs text-green-800">
+          <span className="font-bold">✅ 승인</span><br/>회사에서 공식 승인된 SW입니다.
         </div>
-        <div className="flex-1 bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3 text-xs text-yellow-800">
-          <span className="font-bold">⚠️ 조건부</span> — IT팀 사전 승인 후 사용 가능합니다.
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-xs text-yellow-800">
+          <span className="font-bold">⚠️ 조건부</span><br/>IT팀 사전 승인 후 사용 가능합니다.
         </div>
-        <div className="flex-1 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-xs text-red-800">
-          <span className="font-bold">🚫 금지</span> — 사용 금지 SW입니다. 즉시 삭제 바랍니다.
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-xs text-red-800">
+          <span className="font-bold">🚫 금지</span><br/>사용 금지 SW입니다. 즉시 삭제 바랍니다.
         </div>
       </div>
 
       {/* 검색창 */}
       <div className="relative mb-4">
-        <svg
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-          width="16" height="16" viewBox="0 0 24 24"
-          fill="none" stroke="currentColor" strokeWidth="2"
-        >
-          <circle cx="11" cy="11" r="8"/>
-          <path d="m21 21-4.35-4.35"/>
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+          width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
         </svg>
         <input
-          className="form-input pl-10"
+          className="form-input pl-10 w-full"
           style={{ height: 42 }}
           placeholder="소프트웨어명, 벤더, 카테고리 검색... (예: Photoshop, 7-Zip)"
           value={query}
@@ -402,10 +499,10 @@ function SearchTab() {
       {/* 상태 필터 */}
       <div className="flex gap-2 mb-5 overflow-x-auto pb-1">
         {([
-          { key: "all",         label: "전체",        count: counts.all         },
-          { key: "approved",    label: "✅ 승인",      count: counts.approved    },
-          { key: "conditional", label: "⚠️ 조건부",    count: counts.conditional },
-          { key: "banned",      label: "🚫 금지",      count: counts.banned      },
+          { key: "all",         label: "전체",     count: counts.all         },
+          { key: "approved",    label: "✅ 승인",   count: counts.approved    },
+          { key: "conditional", label: "⚠️ 조건부", count: counts.conditional },
+          { key: "banned",      label: "🚫 금지",   count: counts.banned      },
         ] as { key: typeof filter; label: string; count: number }[]).map(({ key, label, count }) => (
           <button
             key={key}
@@ -433,7 +530,15 @@ function SearchTab() {
           {filtered.length === 0 ? (
             <div className="text-center py-16 text-gray-400">
               <div className="text-3xl mb-2">🔍</div>
-              <div>검색 결과가 없습니다.</div>
+              <div className="mb-3">검색 결과가 없습니다.</div>
+              <a
+                href={INQUIRY_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium"
+              >
+                💬 찾는 SW가 없으신가요? IT팀에 문의하기 →
+              </a>
             </div>
           ) : filtered.map((s) => (
             <div
@@ -447,9 +552,7 @@ function SearchTab() {
                     <span className="font-bold text-gray-900">{s.name}</span>
                     <Badge value={s.status} />
                     {s.mandatory && (
-                      <span className="text-xs bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded font-semibold">
-                        필수
-                      </span>
+                      <span className="text-xs bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded font-semibold">필수</span>
                     )}
                   </div>
                   <div className="text-sm text-gray-500">{s.vendor} · {s.category}</div>
@@ -477,18 +580,43 @@ function SearchTab() {
                   )}
                   {s.status === "banned" && (
                     <div className="text-xs text-red-800 bg-red-50 border border-red-100 px-3 py-2.5 rounded-lg">
-                      🚫 사용이 <strong>금지된</strong> 소프트웨어입니다. 설치되어 있다면 즉시 삭제하고 IT팀(내선: 1234)에 보고해주세요.
+                      🚫 사용이 <strong>금지된</strong> 소프트웨어입니다. 즉시 삭제하고
+                      <a href={INQUIRY_URL} target="_blank" rel="noopener noreferrer" className="underline ml-1 font-semibold">IT팀에 신고</a>해주세요.
                     </div>
                   )}
                   {s.status === "conditional" && (
-                    <div className="text-xs text-yellow-800 bg-yellow-50 border border-yellow-100 px-3 py-2.5 rounded-lg">
-                      ⚠️ 조건부 승인 소프트웨어입니다. 사용 전 반드시 IT팀의 사전 승인을 받아야 합니다.
+                    <div className="text-xs text-yellow-800 bg-yellow-50 border border-yellow-100 px-3 py-2.5 rounded-lg flex items-start justify-between gap-3">
+                      <span>⚠️ 조건부 승인 소프트웨어입니다. 사용 전 반드시 IT팀의 사전 승인을 받아야 합니다.</span>
+                      <a
+                        href={INQUIRY_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0 text-xs font-bold text-yellow-700 underline hover:text-yellow-900"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        승인 요청 →
+                      </a>
                     </div>
                   )}
                 </div>
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* 하단 문의 유도 */}
+      {!loading && filtered.length > 0 && (
+        <div className="mt-6 text-center py-4 border-t border-gray-200">
+          <p className="text-sm text-gray-500 mb-2">원하는 SW를 찾지 못하셨나요?</p>
+          <a
+            href={INQUIRY_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 font-semibold"
+          >
+            💬 IT팀에 문의하기 →
+          </a>
         </div>
       )}
     </div>
