@@ -217,41 +217,64 @@ export default function OverviewPanel() {
 
       {/* ── 갱신 임박 ── */}
       <div className="bg-white border border-gray-200 rounded-lg p-5 mb-4">
-        <div className="font-bold text-sm text-gray-900 mb-4">⏰ 갱신 임박 (30일 이내)</div>
+        <div className="flex items-center justify-between mb-3">
+          <div className="font-bold text-sm text-gray-900">⏰ 갱신 임박 (30일 이내)</div>
+          {renewingSoon > 0 && (
+            <span className="text-xs font-semibold bg-red-100 text-red-600 px-2 py-0.5 rounded-full">
+              {renewingSoon}건
+            </span>
+          )}
+        </div>
         {(() => {
-          const urgent = swRecs.filter(r => {
-            if (!r.renewalDate) return false;
-            const d = Math.ceil((new Date(r.renewalDate).getTime() - Date.now()) / 86400000);
-            return d >= 0 && d <= 30;
-          });
+          const urgent = swRecs
+            .filter(r => {
+              if (!r.renewalDate) return false;
+              const d = Math.ceil((new Date(r.renewalDate).getTime() - Date.now()) / 86400000);
+              return d >= 0 && d <= 30;
+            })
+            .sort((a, b) => {
+              const da = Math.ceil((new Date(a.renewalDate).getTime() - Date.now()) / 86400000);
+              const db = Math.ceil((new Date(b.renewalDate).getTime() - Date.now()) / 86400000);
+              return da - db;
+            });
 
           if (urgent.length === 0)
-            return <div className="text-sm text-gray-400 text-center py-4">30일 이내 갱신 임박 없음 ✓</div>;
+            return <div className="text-sm text-gray-400 text-center py-3">30일 이내 갱신 임박 없음 ✓</div>;
+
+          const shown = urgent.slice(0, 10);
+          const remaining = urgent.length - shown.length;
 
           return (
-            <div className="flex flex-col gap-2">
-              {urgent.map(r => {
-                const days = Math.ceil((new Date(r.renewalDate).getTime() - Date.now()) / 86400000);
-                return (
-                  <div key={r.id} className="flex items-center gap-3 p-3 rounded-lg bg-red-50 border border-red-100">
-                    <span className="text-xl shrink-0">
-                      {r.licenseType === "영구" ? "🔑" : "💳"}
-                    </span>
-                    <div className="flex-1 overflow-hidden">
-                      <div className="text-sm font-semibold text-gray-900">
-                        {r.swCategory}{r.swDetail ? ` · ${r.swDetail}` : ""}
+            <div className="overflow-y-auto" style={{ maxHeight: 280 }}>
+              <div className="flex flex-col divide-y divide-gray-100">
+                {shown.map(r => {
+                  const days = Math.ceil((new Date(r.renewalDate).getTime() - Date.now()) / 86400000);
+                  const urgColor = days <= 7 ? "bg-red-500" : days <= 14 ? "bg-orange-400" : "bg-yellow-400";
+                  return (
+                    <div key={r.id} className="flex items-center gap-2.5 py-2">
+                      <span className={`shrink-0 text-xs font-bold text-white ${urgColor} rounded px-1.5 py-0.5 min-w-[40px] text-center`}>
+                        D-{days}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-semibold text-gray-900 truncate block">
+                          {r.swCategory}{r.swDetail ? ` · ${r.swDetail}` : ""}
+                        </span>
                       </div>
-                      <div className="text-xs text-gray-500 truncate">
-                        {r.department || "—"} · {r.user || "—"} · {r.licenseType}
+                      <div className="text-xs text-gray-400 shrink-0 truncate max-w-[140px] text-right">
+                        {r.department || "—"} · {r.user || "—"}
+                      </div>
+                      <div className="text-xs text-gray-400 shrink-0 hidden sm:block">
+                        {r.renewalDate.slice(0, 10)}
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <div className="text-sm font-bold text-red-600">D-{days}</div>
-                      <div className="text-xs text-gray-500">{r.renewalDate.slice(0, 10)}</div>
-                    </div>
+                  );
+                })}
+                {remaining > 0 && (
+                  <div className="pt-2 text-xs text-gray-400 text-center">
+                    + {remaining}건 더 있음 (라이선스 현황에서 확인)
                   </div>
-                );
-              })}
+                )}
+              </div>
             </div>
           );
         })()}
