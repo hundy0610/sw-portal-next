@@ -429,11 +429,18 @@ function ResourcesTab() {
 /* ═══════════════════════════════════════════════════════
    SW 검색 탭
 ═══════════════════════════════════════════════════════ */
+const QUICK_SEARCHES = ["Photoshop", "Teams", "Notion", "7-Zip", "ChatGPT", "VSCode", "Zoom", "Figma"];
+const QUICK_CATS = [
+  { label: "✅ 승인 SW 보기",   filter: "approved"    as const },
+  { label: "🚫 금지 SW 보기",   filter: "banned"      as const },
+  { label: "⚠️ 조건부 SW 보기", filter: "conditional" as const },
+];
+
 function SearchTab() {
-  const [items, setItems]     = useState<SwItem[]>([]);
-  const [query, setQuery]     = useState("");
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter]   = useState<"all" | "approved" | "banned" | "conditional">("all");
+  const [items, setItems]       = useState<SwItem[]>([]);
+  const [query, setQuery]       = useState("");
+  const [loading, setLoading]   = useState(true);
+  const [filter, setFilter]     = useState<"all" | "approved" | "banned" | "conditional">("all");
   const [selected, setSelected] = useState<SwItem | null>(null);
 
   useEffect(() => {
@@ -443,14 +450,17 @@ function SearchTab() {
       .finally(() => setLoading(false));
   }, []);
 
-  const filtered = items.filter((s) => {
+  // search-first: only show results when user has typed or selected non-"all" filter
+  const hasInput = query.trim().length >= 1 || filter !== "all";
+
+  const filtered = hasInput ? items.filter((s) => {
     if (filter !== "all" && s.status !== filter) return false;
-    if (!query) return true;
+    if (!query.trim()) return true;
     const q = query.toLowerCase();
     return [s.name, s.vendor, s.category, ...s.alternatives].some((v) =>
       v.toLowerCase().includes(q)
     );
-  });
+  }) : [];
 
   const counts = {
     all:         items.length,
@@ -474,7 +484,7 @@ function SearchTab() {
           <span className="font-bold">✅ 승인</span><br/>회사에서 공식 승인된 SW입니다.
         </div>
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-xs text-yellow-800">
-          <span className="font-bold">⚠️ 조건부</span><br/>IT팀 사전 승인 훈 사용 가능합니다.
+          <span className="font-bold">⚠️ 조건부</span><br/>IT팀 사전 승인 후 사용 가능합니다.
         </div>
         <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-xs text-red-800">
           <span className="font-bold">🚫 금지</span><br/>사용 금지 SW입니다. 즉시 삭제 바랍니다.
@@ -490,10 +500,19 @@ function SearchTab() {
         <input
           className="form-input pl-10 w-full"
           style={{ height: 42 }}
-          placeholder="소프트웨어명, 벤더, 카테고리 검색... (예: Photoshop, 7-Zip)"
+          placeholder="소프트웨어명 검색... (예: Photoshop, 7-Zip, Teams)"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => { setQuery(e.target.value); setSelected(null); }}
+          autoFocus
         />
+        {query && (
+          <button
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            onClick={() => { setQuery(""); setFilter("all"); setSelected(null); }}
+          >
+            ✕
+          </button>
+        )}
       </div>
 
       {/* 상태 필터 */}
@@ -506,7 +525,24 @@ function SearchTab() {
         ] as { key: typeof filter; label: string; count: number }[]).map(({ key, label, count }) => (
           <button
             key={key}
-            onClick={() => setFilter(key)}
+            onClick={() => { setFilter(key); setSelected(null); }}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+              filter === key
+                ? "bg-blue-600 text-white"
+                : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+            }`}
+          >
+            {label}
+            <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+              filter === key ? "bg-white/25 text-white" : "bg-gray-100 text-gray-500"
+            }`}>unts.all         },
+          { key: "approved",    label: "✅ 승인",   count: counts.approved    },
+          { key: "conditional", label: "⚠️ 조건부", count: counts.conditional },
+          { key: "banned",      label: "🚫 금지",   count: counts.banned      },
+        ] as { key: typeof filter; label: string; count: number }[]).map(({ key, label, count }) => (
+          <button
+            key={key}
+            onClick={() => { setFilter(key); setSelected(null); }}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 ${
               filter === key
                 ? "bg-blue-600 text-white"
@@ -525,98 +561,149 @@ function SearchTab() {
 
       {loading ? (
         <div className="text-center py-20 text-gray-400">불러오는 중...</div>
+      ) : !hasInput ? (
+        /* ── 랜딩 상태 (검색 전) ── */
+        <div className="text-center py-10">
+          <div className="text-5xl mb-4">🔍</div>
+          <div className="text-base font-semibold text-gray-700 mb-1">SW 사용 가능 여부를 검색해보세요</div>
+          <div className="text-sm text-gray-400 mb-8">소프트웨어 이름을 입력하면 즉시 승인/금지 여부를 확인할 수 있습니다</div>
+
+          {/* 빠른 검색 예시 */}
+          <div className="mb-6">
+            <div className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">자주 찾는 SW</div>
+            <div className="flex flex-wrap justify-center gap-2">
+              {QUICK_SEARCHES.map((q) => (
+                <button
+                  key={q}
+                  onClick={() => setQuery(q)}
+                  className="px-3 py-1.5 bg-white border border-gray-200 rounded-full text-sm text-gray-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-colors"
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 카테고리별 빠른 접근 */}
+          <div>
+            <div className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">카테고리별 보기</div>
+            <div className="flex justify-center gap-3 flex-wrap">
+              {QUICK_CATS.map((c) => (
+                <button
+                  key={c.filter}
+                  onClick={() => setFilter(c.filter)}
+                  className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 hover:shadow-sm transition-all"
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       ) : (
+        /* ── 검색 결과 ── */
         <div className="grid gap-3">
           {filtered.length === 0 ? (
             <div className="text-center py-16 text-gray-400">
-              <div className="text-3xl mb-2">🔍</div>
-              <div className="mb-3">검색 결과가 없습니다.</div>
+              <div className="text-3xl mb-2">😕</div>
+              <div className="mb-1 font-semibold text-gray-600">
+                &apos;{query}&apos;에 대한 검색 결과가 없습니다
+              </div>
+              <div className="text-sm text-gray-400 mb-4">
+                오타가 없는지 확인하거나 IT팀에 승인 요청을 보내세요.
+              </div>
               <a
                 href={INQUIRY_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium"
+                className="inline-flex items-center gap-1.5 text-sm bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
               >
-                💬 찾는 SW가 없으신가요? IT팀에 문의하기 →
+                💬 IT팀에 사용 승인 요청하기
               </a>
             </div>
-          ) : filtered.map((s) => (
-            <div
-              key={s.id}
-              className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer"
-              onClick={() => setSelected(selected?.id === s.id ? null : s)}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 overflow-hidden">
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <span className="font-bold text-gray-900">{s.name}</span>
-                    <Badge value={s.status} />
-                    {s.mandatory && (
-                      <span className="text-xs bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded font-semibold">필수</span>
-                    )}
-                  </div>
-                  <div className="text-sm text-gray-500">{s.vendor} · {s.category}</div>
-                  {s.description && (
-                    <div className="text-xs text-gray-400 mt-1 truncate">{s.description}</div>
-                  )}
-                </div>
-                <div className="text-gray-400 text-xs shrink-0">
-                  {selected?.id === s.id ? "▲" : "▼"}
-                </div>
+          ) : (
+            <>
+              <div className="text-xs text-gray-400 mb-1">
+                {filtered.length}개 결과
+                {query && <span> — &quot;{query}&quot;</span>}
               </div>
+              {filtered.map((s) => (
+                <div
+                  key={s.id}
+                  className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer"
+                  onClick={() => setSelected(selected?.id === s.id ? null : s)}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 overflow-hidden">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="font-bold text-gray-900">{s.name}</span>
+                        <Badge value={s.status} />
+                        {s.mandatory && (
+                          <span className="text-xs bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded font-semibold">필수</span>
+                        )}
+                      </div>
+                      <div className="text-sm text-gray-500">{s.vendor} · {s.category}</div>
+                      {s.description && (
+                        <div className="text-xs text-gray-400 mt-1 truncate">{s.description}</div>
+                      )}
+                    </div>
+                    <div className="text-gray-400 text-xs shrink-0">
+                      {selected?.id === s.id ? "▲" : "▼"}
+                    </div>
+                  </div>
 
-              {selected?.id === s.id && (
-                <div className="mt-3 pt-3 border-t border-gray-100">
-                  {s.alternatives.length > 0 && (
-                    <div className="mb-2.5 text-sm">
-                      <span className="text-xs text-gray-400 mr-1">대체 가능 SW:</span>
-                      <span className="font-medium text-gray-700">{s.alternatives.join(", ")}</span>
-                    </div>
-                  )}
-                  {s.status === "approved" && (
-                    <div className="text-xs text-green-800 bg-green-50 border border-green-100 px-3 py-2.5 rounded-lg">
-                      ✅ 사내 공식 승인된 소프트웨어입니다. 자유롭게 사용할 수 있습니다.
-                    </div>
-                  )}
-                  {s.status === "banned" && (
-                    <div className="text-xs text-red-800 bg-red-50 border border-red-100 px-3 py-2.5 rounded-lg">
-                      🚫 사용이 <strong>금지된</strong> 소프트웨어입니다. 즉시 삭제하고
-                      <a href={INQUIRY_URL} target="_blank" rel="noopener noreferrer" className="underline ml-1 font-semibold">IT팀에 신고</a>해주세요.
-                    </div>
-                  )}
-                  {s.status === "conditional" && (
-                    <div className="text-xs text-yellow-800 bg-yellow-50 border border-yellow-100 px-3 py-2.5 rounded-lg flex items-start justify-between gap-3">
-                      <span>⚠️ 조건부 승인 소프트웨어입니다. 사용 전 반드시 IT팀의 사전 승인을 받아야 합니다.</span>
-                      <a
-                        href={INQUIRY_URL}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="shrink-0 text-xs font-bold text-yellow-700 underline hover:text-yellow-900"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        승인 요청 →
-                      </a>
+                  {selected?.id === s.id && (
+                    <div className="mt-3 pt-3 border-t border-gray-100">
+                      {s.alternatives.length > 0 && (
+                        <div className="mb-2.5 text-sm">
+                          <span className="text-xs text-gray-400 mr-1">대체 가능 SW:</span>
+                          <span className="font-medium text-gray-700">{s.alternatives.join(", ")}</span>
+                        </div>
+                      )}
+                      {s.status === "approved" && (
+                        <div className="text-xs text-green-800 bg-green-50 border border-green-100 px-3 py-2.5 rounded-lg">
+                          ✅ 사내 공식 승인된 소프트웨어입니다. 자유롭게 사용할 수 있습니다.
+                        </div>
+                      )}
+                      {s.status === "banned" && (
+                        <div className="text-xs text-red-800 bg-red-50 border border-red-100 px-3 py-2.5 rounded-lg">
+                          🚫 사용이 <strong>금지된</strong> 소프트웨어입니다. 즉시 삭제하고
+                          <a href={INQUIRY_URL} target="_blank" rel="noopener noreferrer" className="underline ml-1 font-semibold">IT팀에 신고</a>해주세요.
+                        </div>
+                      )}
+                      {s.status === "conditional" && (
+                        <div className="text-xs text-yellow-800 bg-yellow-50 border border-yellow-100 px-3 py-2.5 rounded-lg flex items-start justify-between gap-3">
+                          <span>⚠️ 조건부 승인 소프트웨어입니다. 사용 전 반드시 IT팀의 사전 승인을 받아야 합니다.</span>
+                          <a
+                            href={INQUIRY_URL}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="shrink-0 text-xs font-bold text-yellow-700 underline hover:text-yellow-900"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            승인 요청 →
+                          </a>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+              ))}
 
-      {/* 하단 문의 유도 */}
-      {!loading && filtered.length > 0 && (
-        <div className="mt-6 text-center py-4 border-t border-gray-200">
-          <p className="text-sm text-gray-500 mb-2">원하는 SW를 찾지 못하셨나요?</p>
-          <a
-            href={INQUIRY_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 font-semibold"
-          >
-            💬 IT팀에 문의하기 →
-          </a>
+              {/* 하단 문의 유도 */}
+              <div className="mt-4 text-center py-4 border-t border-gray-200">
+                <p className="text-sm text-gray-500 mb-2">원하는 SW를 찾지 못하셨나요?</p>
+                <a
+                  href={INQUIRY_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 font-semibold"
+                >
+                  💬 IT팀에 문의하기 →
+                </a>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
