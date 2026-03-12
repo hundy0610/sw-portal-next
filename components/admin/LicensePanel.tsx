@@ -273,9 +273,9 @@ function CategoryView({ records }: { records: SwDbRecord[] }) {
                           const days = daysLeft(r.renewalDate);
                           const isUrgent = days !== null && days >= 0 && days <= 30;
                           const isPermanent = r.licenseType === "영구";
-                            {/* use Permanent var to silence lint */void iPermanent}
                              return (
-                              className={`flex flex-col gap-1.5 px-3 py-2.5 rounded-lg text-xs ${isUrgent ? "bg-red-50 border border-red-100" : "bg-white border border-gray-100"}`}>
+                              <div
+                                className={`flex flex-col gap-1.5 px-3 py-2.5 rounded-lg text-xs ${isUrgent ? "bg-red-50 border border-red-100" : "bg-white border border-gray-100"}`}>
                               <div className="flex items-center gap-2 flex-wrap">
                                 <StatusBadge status={r.status} />
                                 <TypeBadge type={r.licenseType} />
