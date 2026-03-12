@@ -4,6 +4,26 @@ import { useEffect, useState, useMemo } from "react";
 import type { SwItem, SwDbRecord } from "@/types";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 
+// ── SW 매크로 카테고리 규칙 ──────────────────────────────────────
+const SW_CAT_RULES: { label: string; icon: string; keywords: string[] }[] = [
+  { label: "문서작업용", icon: "📝", keywords: ["office","word","excel","powerpoint","365","한글","hwp","acrobat","pdf","한셀","한쇼","thinkfree","docs","sheets","slides","hancom","libreoffice","foxit"] },
+  { label: "AI 툴",    icon: "🤖", keywords: ["copilot","chatgpt","gpt","claude","midjourney","cursor","tabnine","gemini","codeium","stable diffusion","ai","wrtn"] },
+  { label: "개발 툴",  icon: "💻", keywords: ["vscode","vs code","intellij","pycharm","eclipse","xcode","git","github","gitlab","docker","postman","dbeaver","sourcetree","datagrip","rider","goland","webstorm"] },
+  { label: "협업 툴",  icon: "🤝", keywords: ["notion","slack","teams","zoom","webex","google meet","trello","asana","monday","카카오워크","miro","confluence","jira","dooray"] },
+  { label: "디자인 툴",icon: "🎨", keywords: ["figma","photoshop","illustrator","indesign","adobe cc","adobe creative","sketch","after effects","premiere","lightroom","canva","zeplin","invision"] },
+  { label: "보안/관리",icon: "🛡️", keywords: ["v3","ahnlab","알약","antivirus","vpn","dlp","endpoint","mcafee","symantec","fortinet","crowdstrike","wireshark","nessus"] },
+];
+const EXTRA_CAT = "기타";
+
+function getMacroCategory(swName?: string): string {
+  if (!swName) return EXTRA_CAT;
+  const lower = swName.toLowerCase();
+  for (const rule of SW_CAT_RULES) {
+    if (rule.keywords.some(kw => lower.includes(kw))) return rule.label;
+  }
+  return EXTRA_CAT;
+}
+
 // ── 수평 막대 차트 아이템 ──────────────────────────────────────
 function HBarItem({
   label, value, max, color, sub,
@@ -13,7 +33,7 @@ function HBarItem({
   const pct = max > 0 ? Math.max(2, Math.round((value / max) * 100)) : 0;
   return (
     <div className="flex items-center gap-3 group">
-      <div className="w-28 shrink-0 truncate text-xs text-gray-700 font-medium text-right" title={label}>
+      <div className="w-32 shrink-0 truncate text-xs text-gray-700 font-medium text-right" title={label}>
         {label}
       </div>
       <div className="flex-1 h-5 bg-gray-100 rounded-full overflow-hidden">
@@ -22,7 +42,7 @@ function HBarItem({
           style={{ width: `${pct}%` }}
         />
       </div>
-      <div className="w-14 shrink-0 text-right">
+      <div className="w-16 shrink-0 text-right">
         <span className="text-xs font-semibold text-gray-800">{value}</span>
         {sub && <span className="text-xs text-gray-400 ml-1">{sub}</span>}
       </div>
@@ -30,10 +50,17 @@ function HBarItem({
   );
 }
 
+const CAT_COLORS  = ["bg-blue-500","bg-violet-500","bg-emerald-500","bg-orange-400","bg-pink-500","bg-red-500","bg-gray-400"];
+const CORP_COLORS = ["bg-blue-500","bg-purple-500","bg-emerald-500","bg-orange-400","bg-sky-500","bg-pink-500","bg-yellow-500","bg-indigo-500"];
+
 export default function OverviewPanel() {
   const [swDb,    setSwDb]    = useState<SwItem[]>([]);
   const [swRecs,  setSwRecs]  = useState<SwDbRecord[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // 글로벌 필터
+  const [filterCompany, setFilterCompany] = useState("전체");
+  const [filterSwName,  setFilterSwName]  = useState("전체");
 
   useEffect(() => {
     Promise.all([
@@ -45,25 +72,47 @@ export default function OverviewPanel() {
     }).finally(() => setLoading(false));
   }, []);
 
+  // ── 필터 옵션 ─────────────────────────────────────────────────
+  const companyOptions = useMemo(() => {
+    const set = new Set(swRecs.map(r => r.company).filter(Boolean));
+    return ["전체", ...Array.from(set).sort()];
+  }, [swRecs]);
+
+  const swNameOptions = useMemo(() => {
+    const set = new Set(swRecs.map(r => r.swCategory).filter(Boolean));
+    return ["전체", ...Array.from(set).sort()];
+  }, [swRecs]);
+
+  // ── 필터 적용 레코드 ──────────────────────────────────────────
+  const filteredRecs = useMemo(() => {
+    return swRecs.filter(r => {
+      if (filterCompany !== "전체" && r.company     !== filterCompany) return false;
+      if (filterSwName  !== "전체" && r.swCategory  !== filterSwName)  return false;
+      return true;
+    });
+  }, [swRecs, filterCompany, filterSwName]);
+
+  const isFiltered = filterCompany !== "전체" || filterSwName !== "전체";
+
+  // ── 기본 통계 ─────────────────────────────────────────────────
   const approved  = swDb.filter(s => s.status === "approved").length;
   const banned    = swDb.filter(s => s.status === "banned").length;
 
-  // 구독 레코드
-  const subRecs    = swRecs.filter(r => r.licenseType === "구독(업체)" || r.licenseType === "구독(웹)");
+  const subRecs    = filteredRecs.filter(r => r.licenseType === "구독(업체)" || r.licenseType === "구독(웹)");
   const activeSubs = subRecs.filter(r => r.status === "사용중" || r.status === "신규등록").length;
 
-  // 갱신 임박 (30일)
-  const renewingSoon = swRecs.filter(r => {
+  const renewingSoonRecs = useMemo(() => filteredRecs.filter(r => {
     if (!r.renewalDate) return false;
     const d = Math.ceil((new Date(r.renewalDate).getTime() - Date.now()) / 86400000);
     return d >= 0 && d <= 30;
-  }).length;
+  }), [filteredRecs]);
+  const renewingSoon = renewingSoonRecs.length;
 
   const kpis = [
     {
       label: "전체 SW 레코드",
-      val: `${swRecs.length}건`,
-      sub: `영구 ${swRecs.filter(r => r.licenseType === "영구").length} · 구독 ${subRecs.length}`,
+      val: `${filteredRecs.length}건`,
+      sub: `영구 ${filteredRecs.filter(r => r.licenseType === "영구").length} · 구독 ${subRecs.length}`,
       color: "#0052CC", bg: "#EBF0FF",
     },
     {
@@ -77,7 +126,7 @@ export default function OverviewPanel() {
       val: `${renewingSoon}건`,
       sub: "갱신 필요일 기준",
       color: renewingSoon > 0 ? "#DE350B" : "#6B778C",
-      bg: renewingSoon > 0 ? "#FFEBE6" : "#F4F5F7",
+      bg:    renewingSoon > 0 ? "#FFEBE6" : "#F4F5F7",
     },
     {
       label: "SW DB 관리",
@@ -87,25 +136,28 @@ export default function OverviewPanel() {
     },
   ];
 
-  // ── 부서별 현황 (상위 10) ─────────────────────────────────────
-  const deptStats = useMemo(() => {
-    const map: Record<string, { total: number; using: number }> = {};
-    for (const r of swRecs) {
-      const key = r.department || "기타";
-      if (!map[key]) map[key] = { total: 0, using: 0 };
-      map[key].total++;
-      if (r.status === "사용중" || r.status === "신규등록") map[key].using++;
+  // ── SW 카테고리별 수량 ────────────────────────────────────────
+  const catStats = useMemo(() => {
+    const map: Record<string, { total: number; using: number; icon: string }> = {};
+    for (const rule of SW_CAT_RULES) map[rule.label] = { total: 0, using: 0, icon: rule.icon };
+    map[EXTRA_CAT] = { total: 0, using: 0, icon: "📦" };
+
+    for (const r of filteredRecs) {
+      const cat = getMacroCategory(r.swCategory);
+      if (!map[cat]) map[cat] = { total: 0, using: 0, icon: "📦" };
+      map[cat].total++;
+      if (r.status === "사용중" || r.status === "신규등록") map[cat].using++;
     }
     return Object.entries(map)
+      .filter(([, v]) => v.total > 0)
       .map(([name, v]) => ({ name, ...v }))
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 10);
-  }, [swRecs]);
+      .sort((a, b) => b.total - a.total);
+  }, [filteredRecs]);
 
-  // ── 법인별 현황 (상위 8) ──────────────────────────────────────
+  // ── 법인별 현황 (상위 8) ─────────────────────────────────────
   const companyStats = useMemo(() => {
     const map: Record<string, number> = {};
-    for (const r of swRecs) {
+    for (const r of filteredRecs) {
       const key = r.company || "미지정";
       map[key] = (map[key] ?? 0) + 1;
     }
@@ -113,16 +165,10 @@ export default function OverviewPanel() {
       .map(([name, total]) => ({ name, total }))
       .sort((a, b) => b.total - a.total)
       .slice(0, 8);
-  }, [swRecs]);
+  }, [filteredRecs]);
 
-  const deptMax    = deptStats[0]?.total ?? 1;
+  const catMax     = catStats[0]?.total ?? 1;
   const companyMax = companyStats[0]?.total ?? 1;
-
-  // 법인별 색상 순환
-  const COMPANY_COLORS = [
-    "bg-blue-500", "bg-purple-500", "bg-emerald-500", "bg-orange-400",
-    "bg-sky-500",  "bg-pink-500",   "bg-yellow-500",  "bg-indigo-500",
-  ];
 
   if (loading) return <div className="text-center py-20 text-gray-400">노션 데이터 로딩 중...</div>;
 
@@ -133,7 +179,58 @@ export default function OverviewPanel() {
         <p className="text-sm text-gray-500">전사 소프트웨어 자산 현황 (실시간 Notion 연동)</p>
       </div>
 
-      {/* KPI 카드 */}
+      {/* ── 글로벌 필터 ─────────────────────────────────────── */}
+      <div className="bg-white border border-gray-200 rounded-xl p-4 mb-5 flex flex-wrap items-center gap-3">
+        <span className="text-xs font-semibold text-gray-500">🔍 데이터 필터</span>
+
+        {/* 법인 선택 */}
+        <div className="relative">
+          <label className="sr-only">법인 선택</label>
+          <select
+            value={filterCompany}
+            onChange={e => setFilterCompany(e.target.value)}
+            className={`appearance-none pl-3 pr-7 py-2 border rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer transition-colors ${
+              filterCompany !== "전체"
+                ? "bg-blue-50 border-blue-300 text-blue-700"
+                : "bg-white border-gray-300 text-gray-600"
+            }`}
+          >
+            {companyOptions.map(c => <option key={c} value={c}>{c === "전체" ? "🏭 전체 법인" : c}</option>)}
+          </select>
+          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">▾</span>
+        </div>
+
+        {/* SW명 선택 */}
+        <div className="relative">
+          <label className="sr-only">SW명 선택</label>
+          <select
+            value={filterSwName}
+            onChange={e => setFilterSwName(e.target.value)}
+            className={`appearance-none pl-3 pr-7 py-2 border rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer transition-colors ${
+              filterSwName !== "전체"
+                ? "bg-purple-50 border-purple-300 text-purple-700"
+                : "bg-white border-gray-300 text-gray-600"
+            }`}
+          >
+            {swNameOptions.map(n => <option key={n} value={n}>{n === "전체" ? "💾 전체 SW명" : n}</option>)}
+          </select>
+          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">▾</span>
+        </div>
+
+        {isFiltered && (
+          <button
+            onClick={() => { setFilterCompany("전체"); setFilterSwName("전체"); }}
+            className="text-xs text-gray-500 border border-gray-200 px-3 py-2 rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors"
+          >
+            × 초기화
+          </button>
+        )}
+        <span className={`text-xs font-semibold ml-auto ${isFiltered ? "text-blue-600" : "text-gray-400"}`}>
+          {isFiltered ? `필터 적용 · ${filteredRecs.length}건` : `전체 ${filteredRecs.length}건`}
+        </span>
+      </div>
+
+      {/* ── KPI 카드 ────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         {kpis.map((k) => (
           <div
@@ -148,24 +245,24 @@ export default function OverviewPanel() {
         ))}
       </div>
 
-      {/* ── 1행: SW 상태별 + 구독 현황 ── */}
+      {/* ── 1행: SW 상태별 현황 + 구독 SW 현황 ─────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
 
         {/* SW 상태별 현황 */}
         <div className="bg-white border border-gray-200 rounded-lg p-5">
           <div className="font-bold text-sm text-gray-900 mb-4">🗂 SW 상태별 현황</div>
-          {swRecs.length === 0 ? (
+          {filteredRecs.length === 0 ? (
             <div className="text-sm text-gray-400 text-center py-6">데이터 없음</div>
           ) : (() => {
             const groups = [
-              { label: "사용중",   color: "bg-blue-500",   count: swRecs.filter(r => r.status === "사용중").length },
-              { label: "재고",     color: "bg-green-500",  count: swRecs.filter(r => r.status === "재고").length },
-              { label: "갱신필요", color: "bg-red-500",    count: swRecs.filter(r => r.status === "갱신필요").length },
-              { label: "만료",     color: "bg-gray-400",   count: swRecs.filter(r => r.status === "만료").length },
-              { label: "반납예정", color: "bg-yellow-400", count: swRecs.filter(r => r.status === "반납예정").length },
-              { label: "기타",     color: "bg-gray-300",   count: swRecs.filter(r => !["사용중","재고","갱신필요","만료","반납예정"].includes(r.status)).length },
+              { label: "사용중",   color: "bg-blue-500",   count: filteredRecs.filter(r => r.status === "사용중").length },
+              { label: "재고",     color: "bg-green-500",  count: filteredRecs.filter(r => r.status === "재고").length },
+              { label: "갱신필요", color: "bg-red-500",    count: filteredRecs.filter(r => r.status === "갱신필요").length },
+              { label: "만료",     color: "bg-gray-400",   count: filteredRecs.filter(r => r.status === "만료").length },
+              { label: "반납예정", color: "bg-yellow-400", count: filteredRecs.filter(r => r.status === "반납예정").length },
+              { label: "기타",     color: "bg-gray-300",   count: filteredRecs.filter(r => !["사용중","재고","갱신필요","만료","반납예정"].includes(r.status)).length },
             ];
-            const total = swRecs.length;
+            const total = filteredRecs.length;
             return (
               <div className="flex flex-col gap-3">
                 {groups.filter(g => g.count > 0).map(g => {
@@ -215,7 +312,7 @@ export default function OverviewPanel() {
         </div>
       </div>
 
-      {/* ── 갱신 임박 ── */}
+      {/* ── 갱신 임박 ───────────────────────────────────────── */}
       <div className="bg-white border border-gray-200 rounded-lg p-5 mb-4">
         <div className="flex items-center justify-between mb-3">
           <div className="font-bold text-sm text-gray-900">⏰ 갱신 임박 (30일 이내)</div>
@@ -226,29 +323,21 @@ export default function OverviewPanel() {
           )}
         </div>
         {(() => {
-          const urgent = swRecs
-            .filter(r => {
-              if (!r.renewalDate) return false;
-              const d = Math.ceil((new Date(r.renewalDate).getTime() - Date.now()) / 86400000);
-              return d >= 0 && d <= 30;
-            })
-            .sort((a, b) => {
-              const da = Math.ceil((new Date(a.renewalDate).getTime() - Date.now()) / 86400000);
-              const db = Math.ceil((new Date(b.renewalDate).getTime() - Date.now()) / 86400000);
-              return da - db;
-            });
-
+          const urgent = [...renewingSoonRecs].sort((a, b) => {
+            const da = Math.ceil((new Date(a.renewalDate).getTime() - Date.now()) / 86400000);
+            const db = Math.ceil((new Date(b.renewalDate).getTime() - Date.now()) / 86400000);
+            return da - db;
+          });
           if (urgent.length === 0)
             return <div className="text-sm text-gray-400 text-center py-3">30일 이내 갱신 임박 없음 ✓</div>;
 
-          const shown = urgent.slice(0, 10);
+          const shown     = urgent.slice(0, 10);
           const remaining = urgent.length - shown.length;
-
           return (
             <div className="overflow-y-auto" style={{ maxHeight: 280 }}>
               <div className="flex flex-col divide-y divide-gray-100">
                 {shown.map(r => {
-                  const days = Math.ceil((new Date(r.renewalDate).getTime() - Date.now()) / 86400000);
+                  const days     = Math.ceil((new Date(r.renewalDate).getTime() - Date.now()) / 86400000);
                   const urgColor = days <= 7 ? "bg-red-500" : days <= 14 ? "bg-orange-400" : "bg-yellow-400";
                   return (
                     <div key={r.id} className="flex items-center gap-2.5 py-2">
@@ -280,27 +369,27 @@ export default function OverviewPanel() {
         })()}
       </div>
 
-      {/* ── 2행: 부서별 현황 + 법인별 현황 ── */}
+      {/* ── 2행: SW 카테고리별 수량 + 법인별 현황 ────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
 
-        {/* 부서별 SW 현황 (상위 10) */}
+        {/* SW 카테고리별 수량 */}
         <div className="bg-white border border-gray-200 rounded-lg p-5">
           <div className="flex items-center justify-between mb-4">
-            <div className="font-bold text-sm text-gray-900">🏢 부서별 SW 현황</div>
-            <div className="text-xs text-gray-400">상위 10개 부서</div>
+            <div className="font-bold text-sm text-gray-900">📂 SW 카테고리별 수량</div>
+            <div className="text-xs text-gray-400">전체 {filteredRecs.length}건</div>
           </div>
-          {deptStats.length === 0 ? (
+          {catStats.length === 0 ? (
             <div className="text-sm text-gray-400 text-center py-6">데이터 없음</div>
           ) : (
             <div className="flex flex-col gap-2.5">
-              {deptStats.map((d) => (
+              {catStats.map((c, i) => (
                 <HBarItem
-                  key={d.name}
-                  label={d.name}
-                  value={d.total}
-                  max={deptMax}
-                  color="bg-blue-500"
-                  sub={d.using > 0 ? `(사용 ${d.using})` : undefined}
+                  key={c.name}
+                  label={`${c.icon} ${c.name}`}
+                  value={c.total}
+                  max={catMax}
+                  color={CAT_COLORS[i % CAT_COLORS.length]}
+                  sub={c.using > 0 ? `(사용 ${c.using})` : undefined}
                 />
               ))}
             </div>
@@ -323,7 +412,7 @@ export default function OverviewPanel() {
                   label={c.name}
                   value={c.total}
                   max={companyMax}
-                  color={COMPANY_COLORS[i % COMPANY_COLORS.length]}
+                  color={CORP_COLORS[i % CORP_COLORS.length]}
                 />
               ))}
             </div>
@@ -331,40 +420,16 @@ export default function OverviewPanel() {
         </div>
       </div>
 
-      {/* ── 포털 관리 빠른 링크 ── */}
+      {/* ── 포털 관리 빠른 링크 ─────────────────────────────── */}
       <div className="bg-white border border-gray-200 rounded-lg p-5">
         <div className="font-bold text-sm text-gray-900 mb-1">⚙️ 포털 관리</div>
         <p className="text-xs text-gray-400 mb-4">Notion에서 직접 데이터를 편집할 수 있습니다.</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            {
-              label: "SW DB 편집",
-              icon: "🗄",
-              url: process.env.NEXT_PUBLIC_NOTION_TRACKER_URL || "#",
-              desc: "화이트/블랙리스트",
-              color: "hover:border-blue-300 hover:bg-blue-50",
-            },
-            {
-              label: "SW 데이터베이스",
-              icon: "📋",
-              url: process.env.NEXT_PUBLIC_NOTION_SW_UNIFIED_URL || "#",
-              desc: "라이선스/구독 통합편집",
-              color: "hover:border-green-300 hover:bg-green-50",
-            },
-            {
-              label: "라이선스 현황",
-              icon: "🔑",
-              url: process.env.NEXT_PUBLIC_NOTION_SW_UNIFIED_URL || "#",
-              desc: "라이선스 추가/수정",
-              color: "hover:border-yellow-300 hover:bg-yellow-50",
-            },
-            {
-              label: "티켓 처리",
-              icon: "🎫",
-              url: "#",
-              desc: "Notion에서 처리",
-              color: "hover:border-purple-300 hover:bg-purple-50",
-            },
+            { label: "SW DB 편집",     icon: "🗄",  url: process.env.NEXT_PUBLIC_NOTION_TRACKER_URL    || "#", desc: "화이트/블랙리스트",   color: "hover:border-blue-300 hover:bg-blue-50" },
+            { label: "SW 데이터베이스", icon: "📋", url: process.env.NEXT_PUBLIC_NOTION_SW_UNIFIED_URL || "#", desc: "라이선스/구독 통합편집", color: "hover:border-green-300 hover:bg-green-50" },
+            { label: "라이선스 현황",   icon: "🔑",  url: process.env.NEXT_PUBLIC_NOTION_SW_UNIFIED_URL || "#", desc: "라이선스 추가/수정",   color: "hover:border-yellow-300 hover:bg-yellow-50" },
+            { label: "티켓 처리",       icon: "🎫",  url: "#",                                                   desc: "Notion에서 처리",     color: "hover:border-purple-300 hover:bg-purple-50" },
           ].map((link) => (
             <a
               key={link.label}
