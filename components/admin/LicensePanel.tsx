@@ -52,11 +52,11 @@ const STATUS_STYLE: Record<string, { bg: string; text: string; dot: string }> = 
   "재고":       { bg: "bg-green-50",  text: "text-green-700",  dot: "bg-green-500"  },
   "갱신필요":   { bg: "bg-orange-50", text: "text-orange-700", dot: "bg-orange-400" },
   "만료":       { bg: "bg-gray-100",  text: "text-gray-500",   dot: "bg-gray-400"   },
-  "신규등록":   { bg: "bg-purple-50", text-purple-700", dot: "bg-purple-500" },
-  "반납예정":   { bg: "bg-yellow-50", text-yellow-700", dot: "bg-yellow-400" },
-  "출고준비중": { bg: "bg-cyan-50",   text-cyan-700",   dot: "bg-cyan-400"   },
-  "임시지급":   { bg: "bg-sky-50",    text-sky-700",    dot: "bg-sky-400"    },
-  "미확인":     { bg: "bg-gray-50",   text-gray-400",   dot: "bg-gray-300"   },
+  "신규등록":   { bg: "bg-purple-50", text: "text-purple-700", dot: "bg-purple-500" },
+  "반납예정":   { bg: "bg-yellow-50", text: "text-yellow-700", dot: "bg-yellow-400" },
+  "출고준비중": { bg: "bg-cyan-50",   text: "text-cyan-700",   dot: "bg-cyan-400"   },
+  "임시지급":   { bg: "bg-sky-50",    text: "text-sky-700",    dot: "bg-sky-400"    },
+  "미확인":     { bg: "bg-gray-50",   text: "text-gray-400",   dot: "bg-gray-300"   },
 };
 
 function StatusBadge({ status }: { status: string }) {
