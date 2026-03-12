@@ -7,35 +7,35 @@ const PAGE_SIZE = 30;
 
 // ── SW 매크로 카테고리 ──────────────────────────────────────────────────
 const SW_CAT_RULES: {
-  label: string; icon: string; color: string; bg: string; chartColor: string; keywords: string[];
+  label: string; icon: string; color: string; bg: string; keywords: string[];
 }[] = [
   {
-    label: "문서작업용", icon: "📝", color: "text-blue-700", bg: "bg-blue-50", chartColor: "#3B82F6",
+    label: "문서작업용", icon: "📝", color: "text-blue-700", bg: "bg-blue-50",
     keywords: ["office","word","excel","powerpoint","365","한컴","hwp","acrobat","pdf","한글","한셀","한쇼","thinkfree","docs","sheets","slides"],
   },
   {
-    label: "AI 툴", icon: "🤖", color: "text-violet-700", bg: "bg-violet-50", chartColor: "#8B5CF6",
+    label: "AI 툴", icon: "🤖", color: "text-violet-700", bg: "bg-violet-50",
     keywords: ["copilot","chatgpt","gpt","claude","midjourney","cursor","tabnine","gemini","codeium","ai","stable diffusion"],
   },
   {
-    label: "개발 툴", icon: "💻", color: "text-emerald-700", bg: "bg-emerald-50", chartColor: "#10B981",
+    label: "개발 툴", icon: "💻", color: "text-emerald-700", bg: "bg-emerald-50",
     keywords: ["vscode","vs code","intellij","pycharm","eclipse","xcode","git","github","gitlab","docker","postman","dbeaver","sourcetree","datagrip","rider","goland","clion","webstorm","터미널","terminal"],
   },
   {
-    label: "협업 툴", icon: "🤝", color: "text-orange-700", bg: "bg-orange-50", chartColor: "#F97316",
+    label: "협업 툴", icon: "🤝", color: "text-orange-700", bg: "bg-orange-50",
     keywords: ["notion","slack","teams","zoom","webex","google meet","trello","asana","monday","카카오워크","miro","confluence","jira"],
   },
   {
-    label: "디자인 툴", icon: "🎨", color: "text-pink-700", bg: "bg-pink-50", chartColor: "#EC4899",
+    label: "디자인 툴", icon: "🎨", color: "text-pink-700", bg: "bg-pink-50",
     keywords: ["figma","photoshop","illustrator","indesign","adobe cc","adobe creative","sketch","after effects","premiere","lightroom","xd","canva","blender"],
   },
   {
-    label: "보안/관리", icon: "🛡️", color: "text-red-700", bg: "bg-red-50", chartColor: "#EF4444",
+    label: "보안/관리", icon: "🛡️", color: "text-red-700", bg: "bg-red-50",
     keywords: ["v3","ahnlab","vpn","lastpass","1password","norton","kaspersky","dlp","endpoint","antivirus","백신","보안"],
   },
 ];
 
-const EXTRA_CAT = { label: "기타", icon: "📦", color: "text-gray-700", bg: "bg-gray-50", chartColor: "#9CA3AF" };
+const EXTRA_CAT = { label: "기타", icon: "📦", color: "text-gray-700", bg: "bg-gray-50" };
 
 function getSwMacroCategory(swName: string) {
   if (!swName) return EXTRA_CAT;
@@ -47,20 +47,20 @@ function getSwMacroCategory(swName: string) {
 }
 
 // ── 상태 스타일 ─────────────────────────────────────────────────────────
-const STATUS_STYLE: Record<string, { bg: string; text: string; dot: string; chartColor: string }> = {
-  "사용중":     { bg: "bg-blue-50",   text: "text-blue-700",   dot: "bg-blue-500",   chartColor: "#3B82F6" },
-  "재고":       { bg: "bg-green-50",  text: "text-green-700",  dot: "bg-green-500",  chartColor: "#10B981" },
-  "갱신필요":   { bg: "bg-orange-50", text: "text-orange-700", dot: "bg-orange-400", chartColor: "#F97316" },
-  "만료":       { bg: "bg-gray-100",  text: "text-gray-500",   dot: "bg-gray-400",   chartColor: "#9CA3AF" },
-  "신규등록":   { bg: "bg-purple-50", text: "text-purple-700", dot: "bg-purple-500", chartColor: "#8B5CF6" },
-  "반납예정":   { bg: "bg-yellow-50", text: "text-yellow-700", dot: "bg-yellow-400", chartColor: "#EAB308" },
-  "출고준비중": { bg: "bg-cyan-50",   text: "text-cyan-700",   dot: "bg-cyan-400",   chartColor: "#06B6D4" },
-  "임시지급":   { bg: "bg-sky-50",    text: "text-sky-700",    dot: "bg-sky-400",    chartColor: "#0EA5E9" },
-  "미확인":     { bg: "bg-gray-50",   text: "text-gray-400",   dot: "bg-gray-300",   chartColor: "#D1D5DB" },
+const STATUS_STYLE: Record<string, { bg: string; text: string; dot: string }> = {
+  "사용중":     { bg: "bg-blue-50",   text: "text-blue-700",   dot: "bg-blue-500"   },
+  "재고":       { bg: "bg-green-50",  text: "text-green-700",  dot: "bg-green-500"  },
+  "갱신필요":   { bg: "bg-orange-50", text: "text-orange-700", dot: "bg-orange-400" },
+  "만료":       { bg: "bg-gray-100",  text: "text-gray-500",   dot: "bg-gray-400"   },
+  "신규등록":   { bg: "bg-purple-50", text-purple-700", dot: "bg-purple-500" },
+  "반납예정":   { bg: "bg-yellow-50", text-yellow-700", dot: "bg-yellow-400" },
+  "출고준비중": { bg: "bg-cyan-50",   text-cyan-700",   dot: "bg-cyan-400"   },
+  "임시지급":   { bg: "bg-sky-50",    text-sky-700",    dot: "bg-sky-400"    },
+  "미확인":     { bg: "bg-gray-50",   text-gray-400",   dot: "bg-gray-300"   },
 };
 
 function StatusBadge({ status }: { status: string }) {
-  const s = STATUS_STYLE[status] ?? { bg: "bg-gray-100", text: "text-gray-500", dot: "bg-gray-400", chartColor: "#9CA3AF" };
+  const s = STATUS_STYLE[status] ?? { bg: "bg-gray-100", text: "text-gray-500", dot: "bg-gray-400" };
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${s.bg} ${s.text}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
@@ -88,73 +88,28 @@ function daysLeft(d?: string): number | null {
   return Math.ceil((new Date(d).getTime() - Date.now()) / 86400000);
 }
 
-// ── SVG 도넛 차트 ───────────────────────────────────────────────────────
-interface DonutSegment { label: string; value: number; color: string; icon?: string; }
-
-function DonutChart({ data }: { data: DonutSegment[] }) {
-  const total = data.reduce((s, d) => s + d.value, 0);
-  const r = 50, cx = 60, cy = 60;
-  const C = 2 * Math.PI * r;
-  let cumOffset = 0;
-  const segs = data.filter(d => d.value > 0).map(d => {
-    const len = total > 0 ? (d.value / total) * C : 0;
-    const startOff = cumOffset;
-    cumOffset += len;
-    return { ...d, len, startOff };
-  });
-
+// ── 클립보드 복사 버튼 ──────────────────────────────────────────────────
+function CopyButton({ text, label = "복사" }: { text: string; label?: string }) {
+  const [copied, setCopied] = useState(false);
+  function handleCopy(e: React.MouseEvent) {
+    e.stopPropagation();
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    });
+  }
   return (
-    <div className="flex items-center gap-5 flex-wrap justify-center">
-      <svg width="120" height="120" viewBox="0 0 120 120" className="shrink-0">
-        {total === 0
-          ? <circle cx={cx} cy={cy} r={r} fill="none" stroke="#E5E7EB" strokeWidth="16" />
-          : segs.map(s => (
-              <circle
-                key={s.label} cx={cx} cy={cy} r={r} fill="none" stroke={s.color}
-                strokeWidth="16"
-                strokeDasharray={`${Math.max(0, s.len - 2)} ${C}`}
-                strokeDashoffset={-s.startOff}
-                transform={`rotate(-90 ${cx} ${cy})`}
-              />
-            ))
-        }
-        <text x="60" y="55" textAnchor="middle" fontSize="15" fontWeight="700" fill="#111827">{total.toLocaleString()}</text>
-        <text x="60" y="70" textAnchor="middle" fontSize="9" fill="#9CA3AF">전체</text>
-      </svg>
-      <div className="flex flex-col gap-1.5 min-w-0">
-        {segs.map(s => (
-          <div key={s.label} className="flex items-center gap-2 text-xs">
-            <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: s.color }} />
-            <span className="text-gray-600 flex-1 max-w-[110px] truncate">{s.icon} {s.label}</span>
-            <span className="font-bold text-gray-900 ml-1 shrink-0">{s.value}</span>
-            <span className="text-gray-400 w-8 text-right shrink-0">
-              {total > 0 ? `${Math.round(s.value / total * 100)}%` : "0%"}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── 수평 막대 차트 ──────────────────────────────────────────────────────
-function HorizBarChart({ data }: { data: { label: string; value: number; color: string }[] }) {
-  const max = Math.max(...data.map(d => d.value), 1);
-  return (
-    <div className="flex flex-col gap-2.5">
-      {data.filter(d => d.value > 0).map(d => (
-        <div key={d.label} className="flex items-center gap-2 text-xs">
-          <span className="text-gray-600 w-20 shrink-0 truncate">{d.label}</span>
-          <div className="flex-1 bg-gray-100 rounded-full h-2.5 overflow-hidden">
-            <div
-              className="h-2.5 rounded-full"
-              style={{ width: `${(d.value / max) * 100}%`, background: d.color, transition: "width 0.5s ease" }}
-            />
-          </div>
-          <span className="font-semibold text-gray-800 w-6 text-right shrink-0">{d.value}</span>
-        </div>
-      ))}
-    </div>
+    <button
+      onClick={handleCopy}
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border transition-all ${
+        copied
+          ? "bg-green-50 border-green-300 text-green-700"
+          : "bg-gray-50 border-gray-200 text-gray-500 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700"
+      }`}
+      title={`${label} 복사`}
+    >
+      {copied ? "✓ 복사됨" : `📋 ${label}`}
+    </button>
   );
 }
 
@@ -206,13 +161,16 @@ function Pagination({ total, page, size, onChange }: {
 }
 
 // ── 카테고리 아코디언 뷰 ────────────────────────────────────────────────
-interface SwGroup { swName: string; records: SwDbRecord[]; using: number; stock: number; expired: number; renewal: number; urgent: number; minDays: number | null; }
-interface CatGroup { label: string; icon: string; color: string; bg: string; swGroups: SwGroup[]; totalRecs: number; usingRecs: number; urgentRecs: number; }
+interface SwGroup {
+  swName: string; records: SwDbRecord[];
+  using: number; stock: number; expired: number; renewal: number;
+  urgent: number; minDays: number | null;
+}
 
 function CategoryView({ records }: { records: SwDbRecord[] }) {
   const [expandedSw, setExpandedSw] = useState<string | null>(null);
 
-  const catGroups = useMemo<CatGroup[]>(() => {
+  const catGroups = useMemo(() => {
     const catMap: Record<string, SwDbRecord[]> = {};
     for (const r of records) {
       const { label } = getSwMacroCategory(r.swCategory);
@@ -310,30 +268,45 @@ function CategoryView({ records }: { records: SwDbRecord[] }) {
                   {isExpanded && (
                     <div className="bg-gray-50 border-t border-gray-100 px-4 py-3">
                       <div className="text-xs text-gray-500 font-semibold mb-2.5">📋 세부 내역 ({sw.records.length}건)</div>
-                      <div className="flex flex-col gap-1.5">
+                      <div className="flex flex-col gap-2">
                         {sw.records.map(r => {
                           const days = daysLeft(r.renewalDate);
                           const isUrgent = days !== null && days >= 0 && days <= 30;
-                          return (
-                            <div key={r.id}
-                              className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs ${isUrgent ? "bg-red-50 border border-red-100" : "bg-white border border-gray-100"}`}>
-                              <StatusBadge status={r.status} />
-                              <span className="font-semibold text-gray-800 min-w-[60px]">{r.user || "재고"}</span>
-                              <span className="text-gray-400">{r.department || "—"}</span>
-                              <span className="text-gray-400">{r.company || "—"}</span>
-                              <div className="ml-auto flex items-center gap-2">
-                                {r.swDetail && <span className="text-gray-400">{r.swDetail}</span>}
-                                {r.renewalDate && (
-                                  <span className={isUrgent ? "text-red-600 font-semibold" : "text-gray-400"}>
-                                    {isUrgent && days !== null ? `D-${days} · ` : ""}{fmtDate(r.renewalDate)}
-                                  </span>
-                                )}
-                                {r.notionUrl && (
-                                  <a href={r.notionUrl} target="_blank" rel="noopener noreferrer"
-                                    className="text-blue-500 hover:text-blue-700 underline"
-                                    onClick={e => e.stopPropagation()}>보기</a>
-                                )}
+                          const isPermanent = r.licenseType === "영구";
+                            {/* use Permanent var to silence lint */void iPermanent}
+                             return (
+                              className={`flex flex-col gap-1.5 px-3 py-2.5 rounded-lg text-xs ${isUrgent ? "bg-red-50 border border-red-100" : "bg-white border border-gray-100"}`}>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <StatusBadge status={r.status} />
+                                <TypeBadge type={r.licenseType} />
+                                <span className="font-semibold text-gray-800">{r.user || "재고"}</span>
+                                <span className="text-gray-400">{r.department || "—"}</span>
+                                <span className="text-gray-400">{r.company || "—"}</span>
+                                <div className="ml-auto flex items-center gap-2">
+                                  {r.swDetail && <span className="text-gray-400">{r.swDetail}</span>}
+                                  {r.renewalDate && (
+                                    <span className={isUrgent ? "text-red-600 font-semibold" : "text-gray-400"}>
+                                      {isUrgent && days !== null ? `D-${days} · ` : ""}{fmtDate(r.renewalDate)}
+                                    </span>
+                                  )}
+                                  {r.notionUrl && (
+                                    <a href={r.notionUrl} target="_blank" rel="noopener noreferrer"
+                                      className="text-blue-500 hover:text-blue-700 underline"
+                                      onClick={e => e.stopPropagation()}>노션 보기</a>
+                                  )}
+                                </div>
                               </div>
+                              {/* 영구 라이선스 키 표시 */}
+                              {isPermanent && r.licenseKey && (
+                                <div className="flex items-center gap-2 mt-1 p-2 bg-blue-50 rounded-lg border border-blue-100">
+                                  <span className="text-blue-600 font-semibold text-xs shrink-0">🔑 인증키</span>
+                                  <span className="font-mono text-xs text-gray-700 flex-1 break-all">{r.licenseKey}</span>
+                                  <CopyButton text={r.licenseKey} label="키 복사" />
+                                </div>
+                              )}
+                              {isPermanent && !r.licenseKey && (
+                                <div className="text-xs text-gray-400 italic mt-0.5 pl-1">🔑 인증키 없음</div>
+                              )}
                             </div>
                           );
                         })}
@@ -354,22 +327,21 @@ function CategoryView({ records }: { records: SwDbRecord[] }) {
 export default function LicensePanel() {
   const [records,  setRecords]  = useState<SwDbRecord[]>([]);
   const [loading,  setLoading]  = useState(true);
-  const [mainTab,  setMainTab]  = useState<"analytics" | "search">("analytics");
   const [detailView, setDetailView] = useState<"category" | "list">("category");
 
-  // 필터 상태
-  const [search,          setSearch]          = useState("");
-  const [filterMacrocat,  setFilterMacrocat]  = useState("전체");
-  const [filterStatus,    setFilterStatus]    = useState("전체");
-  const [filterType,      setFilterType]      = useState("전체");
-  const [filterCompany,   setFilterCompany]   = useState("전체");
-  const [filterDept,      setFilterDept]      = useState("전체");
+  // 프터 상태
+  const [search,           setSearch]           = useState("");
+  const [filterMacrocat,   setFilterMacrocat]   = useState("전체");
+  const [filterStatus,     setFilterStatus]     = useState("전체");
+  const [filterType,       setFilterType]       = useState("전체");   // 영구 / 구독(업체) / 구독(웹)
+  const [filterCompany,    setFilterCompany]    = useState("전체");
+  const [filterDept,       setFilterDept]       = useState("전체");
   const [showExpiringSoon, setShowExpiringSoon] = useState(false);
 
   // 정렬 / 페이지
-  const [sortKey,      setSortKey]      = useState<SortKey>("swCategory");
-  const [sortDir,      setSortDir]      = useState<"asc" | "desc">("asc");
-  const [currentPage,  setCurrentPage]  = useState(1);
+  const [sortKey,     setSortKey]     = useState<SortKey>("swCategory");
+  const [sortDir,     setSortDir]     = useState<"asc" | "desc">("asc");
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     fetch("/api/sw-records")
@@ -382,58 +354,9 @@ export default function LicensePanel() {
     setCurrentPage(1);
   }, [search, filterMacrocat, filterStatus, filterType, filterCompany, filterDept, showExpiringSoon]);
 
-  // ── 통계 ────────────────────────────────────────────────────────────
-  const stats = useMemo(() => ({
-    total:    records.length,
-    using:    records.filter(r => r.status === "사용중" || r.status === "신규등록").length,
-    stock:    records.filter(r => r.status === "재고").length,
-    expiring: records.filter(r => { const d = daysLeft(r.renewalDate); return d !== null && d >= 0 && d <= 30; }).length,
-    expired:  records.filter(r => r.status === "만료").length,
-  }), [records]);
-
-  // ── 차트 데이터 ─────────────────────────────────────────────────────
-  const catChartData = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const r of records) {
-      const { label } = getSwMacroCategory(r.swCategory);
-      map[label] = (map[label] ?? 0) + 1;
-    }
-    const ORDER = ["문서작업용", "AI 툴", "개발 툴", "협업 툴", "디자인 툴", "보안/관리", "기타"];
-    return ORDER.filter(l => map[l]).map(l => {
-      const info = l === "기타" ? EXTRA_CAT : (SW_CAT_RULES.find(r => r.label === l) ?? EXTRA_CAT);
-      return { label: l, value: map[l], color: info.chartColor, icon: info.icon };
-    });
-  }, [records]);
-
-  const statusChartData = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const r of records) { map[r.status] = (map[r.status] ?? 0) + 1; }
-    return Object.entries(map).sort((a, b) => b[1] - a[1]).map(([label, value]) => ({
-      label, value, color: STATUS_STYLE[label]?.chartColor ?? "#9CA3AF",
-    }));
-  }, [records]);
-
-  // ── 카테고리 카드 데이터 ─────────────────────────────────────────────
-  const catStats = useMemo(() => {
-    const ORDER = ["문서작업용", "AI 툴", "개발 툴", "협업 툴", "디자인 툴", "보안/관리", "기타"];
-    const map: Record<string, SwDbRecord[]> = {};
-    for (const r of records) {
-      const { label } = getSwMacroCategory(r.swCategory);
-      if (!map[label]) map[label] = [];
-      map[label].push(r);
-    }
-    return ORDER.map(label => {
-      const info = label === "기타" ? EXTRA_CAT : (SW_CAT_RULES.find(r => r.label === label) ?? EXTRA_CAT);
-      const recs = map[label] ?? [];
-      const using  = recs.filter(r => r.status === "사용중" || r.status === "신규등록").length;
-      const urgent = recs.filter(r => { const d = daysLeft(r.renewalDate); return d !== null && d >= 0 && d <= 30; }).length;
-      return { ...info, total: recs.length, using, urgent };
-    }).filter(c => c.total > 0);
-  }, [records]);
-
   // ── 드롭다운 옵션 ───────────────────────────────────────────────────
-  const statusOptions = useMemo(() => ["전체", ...Array.from(new Set(records.map(r => r.status).filter(Boolean)))], [records]);
-  const typeOptions   = useMemo(() => ["전체", ...Array.from(new Set(records.map(r => r.licenseType).filter(Boolean)))], [records]);
+  const statusOptions  = useMemo(() => ["전체", ...Array.from(new Set(records.map(r => r.status).filter(Boolean)))], [records]);
+  const typeOptions    = useMemo(() => ["전체", "영구", "구독(업체)", "구독(웹)"], []);
   const companyOptions = useMemo(() => ["전체", ...Array.from(new Set(records.map(r => r.company).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ko"))], [records]);
   const deptOptions    = useMemo(() => ["전체", ...Array.from(new Set(records.map(r => r.department).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ko"))], [records]);
   const macroCatOptions = useMemo(() => {
@@ -493,6 +416,15 @@ export default function LicensePanel() {
     setFilterStatus("전체"); setFilterCompany("전체"); setFilterDept("전체"); setShowExpiringSoon(false);
   }
 
+  // ── 빠른 통계 ──────────────────────────────────────────────────────
+  const quickStats = useMemo(() => ({
+    total:    records.length,
+    permanent: records.filter(r => r.licenseType === "영구").length,
+    subscribe: records.filter(r => r.licenseType === "구독(업체)" || r.licenseType === "구독(웹)").length,
+    using:    records.filter(r => r.status === "사용중" || r.status === "신규등록").length,
+    expiring: records.filter(r => { const d = daysLeft(r.renewalDate); return d !== null && d >= 0 && d <= 30; }).length,
+  }), [records]);
+
   const thB = "px-3 py-2.5 text-left text-xs font-semibold text-gray-500 select-none cursor-pointer hover:text-blue-600 whitespace-nowrap";
   const thS = "px-3 py-2.5 text-left text-xs font-semibold text-gray-500 whitespace-nowrap";
 
@@ -503,255 +435,197 @@ export default function LicensePanel() {
       {/* ── 헤더 ── */}
       <div className="mb-5">
         <h2 className="text-xl font-bold text-gray-900 mb-0.5">라이선스 현황</h2>
-        <p className="text-sm text-gray-500">SW 라이선스 사용 현황 (Notion 실시간 연동)</p>
+        <p className="text-sm text-gray-500">영구 · 구독 통합 SW 라이선스 검색 (Notion 실시간 연동)</p>
       </div>
 
-      {/* ── KPI 카드 ── */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">
+      {/* ── 빠른 통계 뱃지 ── */}
+      <div className="flex flex-wrap gap-2 mb-5">
         {[
-          { label: "전체",     value: stats.total,    accent: "border-l-gray-400",  txt: "text-gray-900" },
-          { label: "사용중",   value: stats.using,    accent: "border-l-blue-500",  txt: "text-blue-700" },
-          { label: "재고",     value: stats.stock,    accent: "border-l-green-500", txt: "text-green-700" },
-          { label: "갱신임박", value: stats.expiring, accent: "border-l-red-500",   txt: stats.expiring > 0 ? "text-red-600" : "text-gray-400" },
-          { label: "만료",     value: stats.expired,  accent: "border-l-gray-300",  txt: "text-gray-400" },
+          { label: "전체",   value: quickStats.total,     accent: "bg-gray-100 text-gray-700",       active: filterType === "전체" && !showExpiringSoon, onClick: () => { setFilterType("전체"); setShowExpiringSoon(false); } },
+          { label: "영구",   value: quickStats.permanent, accent: "bg-blue-50 text-blue-700",        active: filterType === "영구",                      onClick: () => setFilterType("영구") },
+          { label: "구독",   value: quickStats.subscribe, accent: "bg-purple-50 text-purple-700",    active: filterType === "구독(업체)" || filterType === "구독(웹)", onClick: () => setFilterType("구독(업체)") },
+          { label: "사용중", value: quickStats.using,     accent: "bg-blue-50 text-blue-600",        active: filterStatus === "사용중",                  onClick: () => setFilterStatus("사용중") },
+          { label: "⏰ 갱신임박", value: quickStats.expiring, accent: quickStats.expiring > 0 ? "bg-red-50 text-red-600" : "bg-gray-100 text-gray-400", active: showExpiringSoon, onClick: () => setShowExpiringSoon(v => !v) },
         ].map(s => (
-          <div key={s.label} className={`bg-white border border-gray-200 rounded-xl p-4 border-l-4 ${s.accent}`}>
-            <div className="text-xs text-gray-500 mb-1">{s.label}</div>
-            <div className={`text-2xl font-bold ${s.txt}`}>{s.value.toLocaleString()}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* ── 탭 버튼 ── */}
-      <div className="flex gap-1.5 mb-5">
-        {([["analytics", "📊 현황 분석"], ["search", "🔍 상세 검색"]] as const).map(([tab, label]) => (
-          <button key={tab} onClick={() => setMainTab(tab)}
-            className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all border ${
-              mainTab === tab
-                ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                : "bg-white text-gray-600 border-gray-200 hover:border-blue-300"
-            }`}>
-            {label}
+          <button
+            key={s.label}
+            onClick={s.onClick}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+              s.active
+                ? "border-blue-500 ring-1 ring-blue-400 " + s.accent
+                : "border-transparent " + s.accent + " hover:border-gray-300"
+            }`}
+          >
+            {s.label}
+            <span className="font-bold">{s.value}</span>
           </button>
         ))}
+        {activeFilters.length > 0 && (
+          <button onClick={resetFilters}
+            className="px-3 py-1.5 rounded-full text-xs font-medium text-gray-400 border border-gray-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors">
+            × 초기화
+          </button>
+        )}
       </div>
 
-      {/* ══════════════════════════════════
-          Tab: 현황 분석
-      ══════════════════════════════════ */}
-      {mainTab === "analytics" && (
-        <div className="space-y-5">
-          {/* 차트 2개 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="bg-white border border-gray-200 rounded-xl p-5">
-              <div className="text-sm font-bold text-gray-800 mb-4">📊 카테고리별 분포</div>
-              <DonutChart data={catChartData} />
-            </div>
-            <div className="bg-white border border-gray-200 rounded-xl p-5">
-              <div className="text-sm font-bold text-gray-800 mb-4">📈 상태별 현황</div>
-              <HorizBarChart data={statusChartData} />
-            </div>
-          </div>
-
-          {/* 카테고리 카드 그리드 */}
-          <div>
-            <div className="text-sm font-bold text-gray-800 mb-3">
-              🗂️ 카테고리별 현황
-              <span className="ml-2 text-xs font-normal text-gray-400">카드를 클릭하면 상세 검색으로 이동합니다</span>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
-              {catStats.map(cat => (
-                <button
-                  key={cat.label}
-                  onClick={() => { setMainTab("search"); setFilterMacrocat(cat.label); }}
-                  className={`${cat.bg} rounded-xl p-4 text-left border hover:shadow-md transition-all group`}
-                  style={{ borderColor: "rgba(0,0,0,0.07)" }}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xl">{cat.icon}</span>
-                    <span className={`font-bold text-sm ${cat.color}`}>{cat.label}</span>
-                  </div>
-                  <div className="text-2xl font-extrabold text-gray-900 mb-1">{cat.total}</div>
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className="text-blue-600">사용중 {cat.using}</span>
-                    {cat.urgent > 0 && (
-                      <span className="text-red-600 font-semibold">⚠ {cat.urgent}</span>
-                    )}
-                  </div>
-                  <div className={`mt-2 text-xs ${cat.color} opacity-0 group-hover:opacity-100 transition-opacity font-medium`}>
-                    상세 검색 →
-                  </div>
-                </button>
-              ))}
-            </div>
+      {/* ── 필터 영역 ── */}
+      <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4 space-y-3">
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width="14" height="14"
+              viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+            </svg>
+            <input
+              className="w-full pl-9 pr-8 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="SW명, 사용자, 부서, 법인 검색..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+            {search && (
+              <button onClick={() => setSearch("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-base leading-none">×</button>
+            )}
           </div>
         </div>
-      )}
-
-      {/* ══════════════════════════════════
-          Tab: 상세 검색
-      ══════════════════════════════════ */}
-      {mainTab === "search" && (
-        <div>
-          {/* 필터 영역 */}
-          <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4 space-y-3">
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width="14" height="14"
-                  viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
-                </svg>
-                <input
-                  className="w-full pl-9 pr-8 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="SW명, 사용자, 부서, 법인 검색..."
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                />
-                {search && (
-                  <button onClick={() => setSearch("")}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-base leading-none">×</button>
-                )}
-              </div>
-              <button onClick={() => setShowExpiringSoon(v => !v)}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-all ${
-                  showExpiringSoon
-                    ? "bg-red-600 text-white border-red-600"
-                    : "bg-white text-gray-600 border-gray-300 hover:border-red-400 hover:text-red-600"
+        <div className="flex flex-wrap gap-2">
+          {[
+            { label: "분류",  value: filterMacrocat, options: macroCatOptions, setter: setFilterMacrocat },
+            { label: "유형",  value: filterType,     options: typeOptions,     setter: setFilterType     },
+            { label: "상태",  value: filterStatus,   options: statusOptions,   setter: setFilterStatus   },
+            { label: "법인",  value: filterCompany,  options: companyOptions,  setter: setFilterCompany  },
+            { label: "부서",  value: filterDept,     options: deptOptions,     setter: setFilterDept     },
+          ].map(({ label, value, options, setter }) => (
+            <div key={label} className="relative">
+              <select value={value} onChange={e => setter(e.target.value)}
+                className={`appearance-none pl-3 pr-7 py-2 border rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer transition-colors ${
+                  value !== "전체"
+                    ? "bg-blue-50 border-blue-300 text-blue-700"
+                    : "bg-white border-gray-300 text-gray-600"
                 }`}>
-                ⏰ 갱신임박 30일
-              </button>
+                <option value="전체">{label}: 전체</option>
+                {options.filter(o => o !== "전체").map(o => <option key={o}>{o}</option>)}
+              </select>
+              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">▾</span>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { label: "분류",  value: filterMacrocat, options: macroCatOptions, setter: setFilterMacrocat },
-                { label: "유형",  value: filterType,     options: typeOptions,     setter: setFilterType     },
-                { label: "상태",  value: filterStatus,   options: statusOptions,   setter: setFilterStatus   },
-                { label: "법인",  value: filterCompany,  options: companyOptions,  setter: setFilterCompany  },
-                { label: "부서",  value: filterDept,     options: deptOptions,     setter: setFilterDept     },
-              ].map(({ label, value, options, setter }) => (
-                <div key={label} className="relative">
-                  <select value={value} onChange={e => setter(e.target.value)}
-                    className={`appearance-none pl-3 pr-7 py-2 border rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer transition-colors ${
-                      value !== "전체"
-                        ? "bg-blue-50 border-blue-300 text-blue-700"
-                        : "bg-white border-gray-300 text-gray-600"
-                    }`}>
-                    <option value="전체">{label}: 전체</option>
-                    {options.filter(o => o !== "전체").map(o => <option key={o}>{o}</option>)}
-                  </select>
-                  <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">▾</span>
-                </div>
-              ))}
-              {activeFilters.length > 0 && (
-                <button onClick={resetFilters}
-                  className="px-3 py-2 rounded-lg text-xs font-medium text-gray-500 border border-gray-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors">
-                  × 필터 초기화
-                </button>
-              )}
-            </div>
-            {activeFilters.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-gray-100">
-                <span className="text-xs text-gray-400 mr-1">적용된 필터:</span>
-                {activeFilters.map(f => (
-                  <span key={f.label} className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
-                    {f.label}
-                    <button onClick={f.clear} className="hover:text-blue-900 font-bold text-blue-500">×</button>
-                  </span>
-                ))}
-                <span className="ml-auto text-xs text-gray-400 font-medium">{filtered.length}건</span>
-              </div>
-            )}
-            {activeFilters.length === 0 && (
-              <div className="text-right text-xs text-gray-400">{records.length}건 전체</div>
-            )}
-          </div>
-
-          {/* 뷰 토글 */}
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex gap-1.5">
-              {([["category", "📂 카테고리별"], ["list", "📋 전체 목록"]] as const).map(([v, label]) => (
-                <button key={v} onClick={() => setDetailView(v)}
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all border ${
-                    detailView === v
-                      ? "bg-gray-800 text-white border-gray-800"
-                      : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
-                  }`}>
-                  {label}
-                </button>
-              ))}
-            </div>
-            <span className="text-xs text-gray-400">{filtered.length}건 조회됨</span>
-          </div>
-
-          {/* 카테고리별 뷰 */}
-          {detailView === "category" && <CategoryView records={filtered} />}
-
-          {/* 전체 목록 뷰 */}
-          {detailView === "list" && (
-            <>
-              <div className="bg-white border border-gray-200 rounded-xl overflow-auto shadow-sm">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-100 bg-gray-50">
-                      <th className={thB} onClick={() => toggleSort("swCategory")}>SW <SortIcon col="swCategory" sortKey={sortKey} sortDir={sortDir} /></th>
-                      <th className={thB} onClick={() => toggleSort("licenseType")}>유형 <SortIcon col="licenseType" sortKey={sortKey} sortDir={sortDir} /></th>
-                      <th className={thS}>버전</th>
-                      <th className={thB} onClick={() => toggleSort("user")}>사용자 <SortIcon col="user" sortKey={sortKey} sortDir={sortDir} /></th>
-                      <th className={thB} onClick={() => toggleSort("department")}>부서 <SortIcon col="department" sortKey={sortKey} sortDir={sortDir} /></th>
-                      <th className={thB} onClick={() => toggleSort("company")}>법인 <SortIcon col="company" sortKey={sortKey} sortDir={sortDir} /></th>
-                      <th className={thB} onClick={() => toggleSort("status")}>상태 <SortIcon col="status" sortKey={sortKey} sortDir={sortDir} /></th>
-                      <th className={thB} onClick={() => toggleSort("renewalDate")}>갱신일 <SortIcon col="renewalDate" sortKey={sortKey} sortDir={sortDir} /></th>
-                      <th className={thS}>노션</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginated.length === 0 ? (
-                      <tr>
-                        <td colSpan={9} className="text-center py-12 text-gray-400">검색 결과가 없습니다</td>
-                      </tr>
-                    ) : paginated.map(r => {
-                      const days = daysLeft(r.renewalDate);
-                      const isExpiring = days !== null && days >= 0 && days <= 30;
-                      return (
-                        <tr key={r.id} className="border-b border-gray-50 hover:bg-blue-50/40 transition-colors">
-                          <td className="px-3 py-3 whitespace-nowrap">
-                            <div className="font-semibold text-gray-900 text-xs">{r.swCategory || "—"}</div>
-                            {r.swDetail && <div className="text-xs text-gray-400">{r.swDetail}</div>}
-                          </td>
-                          <td className="px-3 py-3"><TypeBadge type={r.licenseType} /></td>
-                          <td className="px-3 py-3 text-xs text-gray-600">{(r.version ?? []).length > 0 ? r.version.join(", ") : "—"}</td>
-                          <td className="px-3 py-3 text-xs font-medium text-gray-900">{r.user || "재고"}</td>
-                          <td className="px-3 py-3 text-xs text-gray-500">{r.department || "—"}</td>
-                          <td className="px-3 py-3 text-xs text-gray-600">{r.company || "—"}</td>
-                          <td className="px-3 py-3"><StatusBadge status={r.status} /></td>
-                          <td className="px-3 py-3 text-xs whitespace-nowrap">
-                            {r.renewalDate ? (
-                              <span className={
-                                r.status === "만료" ? "text-gray-400" :
-                                isExpiring ? "text-red-600 font-semibold" : "text-gray-600"
-                              }>
-                                {fmtDate(r.renewalDate)}
-                                {isExpiring && days !== null && (
-                                  <span className="ml-1 bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full text-xs">D-{days}</span>
-                                )}
-                              </span>
-                            ) : "—"}
-                          </td>
-                          <td className="px-3 py-3">
-                            {r.notionUrl
-                              ? <a href={r.notionUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700 text-xs underline">보기</a>
-                              : "—"}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <Pagination total={filtered.length} page={currentPage} size={PAGE_SIZE} onChange={setCurrentPage} />
-            </>
+          ))}
+          {activeFilters.length > 0 && (
+            <button onClick={resetFilters}
+              className="px-3 py-2 rounded-lg text-xs font-medium text-gray-500 border border-gray-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors">
+              × 필터 초기화
+            </button>
           )}
         </div>
+        {activeFilters.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-gray-100">
+            <span className="text-xs text-gray-400 mr-1">적용된 필터:</span>
+            {activeFilters.map(f => (
+              <span key={f.label} className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
+                {f.label}
+                <button onClick={f.clear} className="hover:text-blue-900 font-bold text-blue-500">×</button>
+              </span>
+            ))}
+            <span className="ml-auto text-xs text-gray-400 font-medium">{filtered.length}건</span>
+          </div>
+        )}
+        {activeFilters.length === 0 && (
+          <div className="text-right text-xs text-gray-400">{records.length}건 전체</div>
+        )}
+      </div>
+
+      {/* ── 뷰 토글 ── */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex gap-1.5">
+          {([["category", "📂 카테고리별"], ["list", "📋 전체 목록"]] as const).map(([v, label]) => (
+            <button key={v} onClick={() => setDetailView(v)}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all border ${
+                detailView === v
+                  ? "bg-gray-800 text-white border-gray-800"
+                  : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+              }`}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <span className="text-xs text-gray-400">{filtered.length}건 조회됨</span>
+      </div>
+
+      {/* ── 카테고리별 뷰 ── */}
+      {detailView === "category" && <CategoryView records={filtered} />}
+
+      {/* ── 전체 목록 뷰 ── */}
+      {detailView === "list" && (
+        <>
+          <div className="bg-white border border-gray-200 rounded-xl overflow-auto shadow-sm">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50">
+                  <th className={thB} onClick={() => toggleSort("swCategory")}>SW <SortIcon col="swCategory" sortKey={sortKey} sortDir={sortDir} /></th>
+                  <th className={thB} onClick={() => toggleSort("licenseType")}>유형 <SortIcon col="licenseType" sortKey={sortKey} sortDir={sortDir} /></th>
+                  <th className={thS}>버전</th>
+                  <th className={thB} onClick={() => toggleSort("user")}>사용자 <SortIcon col="user" sortKey={sortKey} sortDir={sortDir} /></th>
+                  <th className={thB} onClick={() => toggleSort("department")}>부서 <SortIcon col="department" sortKey={sortKey} sortDir={sortDir} /></th>
+                  <th className={thB} onClick={() => toggleSort("company")}>법인 <SortIcon col="company" sortKey={sortKey} sortDir={sortDir} /></th>
+                  <th className={thB} onClick={() => toggleSort("status")}>상태 <SortIcon col="status" sortKey={sortKey} sortDir={sortDir} /></th>
+                  <th className={thB} onClick={() => toggleSort("renewalDate")}>갱신일 <SortIcon col="renewalDate" sortKey={sortKey} sortDir={sortDir} /></th>
+                  <th className={thS}>인증키</th>
+                  <th className={thS}>노션</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginated.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="text-center py-12 text-gray-400">검색 결과가 없습니다</td>
+                  </tr>
+                ) : paginated.map(r => {
+                  const days = daysLeft(r.renewalDate);
+                  const isExpiring = days !== null && days >= 0 && days <= 30;
+                  const isPermanent = r.licenseType === "영구";
+                  return (
+                    <tr key={r.id} className="border-b border-gray-50 hover:bg-blue-50/40 transition-colors">
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        <div className="font-semibold text-gray-900 text-xs">{r.swCategory || "—"}</div>
+                        {r.swDetail && <div className="text-xs text-gray-400">{r.swDetail}</div>}
+                      </td>
+                      <td className="px-3 py-3"><TypeBadge type={r.licenseType} /></td>
+                      <td className="px-3 py-3 text-xs text-gray-600">{(r.version ?? []).length > 0 ? r.version.join(", ") : "—"}</td>
+                      <td className="px-3 py-3 text-xs font-medium text-gray-900">{r.user || "재고"}</td>
+                      <td className="px-3 py-3 text-xs text-gray-500">{r.department || "—"}</td>
+                      <td className="px-3 py-3 text-xs text-gray-600">{r.company || "—"}</td>
+                      <td className="px-3 py-3"><StatusBadge status={r.status} /></td>
+                      <td className="px-3 py-3 text-xs whitespace-nowrap">
+                        {r.renewalDate ? (
+                          <span className={
+                            r.status === "만료" ? "text-gray-400" :
+                            isExpiring ? "text-red-600 font-semibold" : "text-gray-600"
+                          }>
+                            {fmtDate(r.renewalDate)}
+                            {isExpiring && days !== null && (
+                              <span className="ml-1 bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full text-xs">D-{days}</span>
+                            )}
+                          </span>
+                        ) : "—"}
+                      </td>
+                      <td className="px-3 py-3">
+                        {isPermanent && r.licenseKey ? (
+                          <CopyButton text={r.licenseKey} label="키" />
+                        ) : isPermanent ? (
+                          <span className="text-xs text-gray-300">없음</span>
+                        ) : "—"}
+                      </td>
+                      <td className="px-3 py-3">
+                        {r.notionUrl
+                          ? <a href={r.notionUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700 text-xs underline">보기</a>
+                          : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <Pagination total={filtered.length} page={currentPage} size={PAGE_SIZE} onChange={setCurrentPage} />
+        </>
       )}
     </div>
   );
