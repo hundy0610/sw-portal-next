@@ -7,17 +7,17 @@ import dynamic from "next/dynamic";
 // 서버사이드 렌더링 없이 클라이언트에서만 로드
 const OverviewPanel     = dynamic(() => import("@/components/admin/OverviewPanel"),     { ssr: false });
 const LicensePanel      = dynamic(() => import("@/components/admin/LicensePanel"),      { ssr: false });
-const SubscriptionPanel = dynamic(() => import("@/components/admin/SubscriptionPanel"), { ssr: false });
+const CredentialsPanel  = dynamic(() => import("@/components/admin/CredentialsPanel"),  { ssr: false });
 const SwDbPanel         = dynamic(() => import("@/components/admin/SwDbPanel"),         { ssr: false });
 
-// 티켓 패널 제거 — 티켓 처리는 Notion에서 직접 진행
-type PageId = "overview" | "license" | "subscribe" | "swdb";
+// 구독 관리는 라이선스 현황에 통합됨 (유형 필터로 영구/구독 선택)
+type PageId = "overview" | "license" | "credentials" | "swdb";
 
 const MENU: { id: PageId; icon: string; label: string; desc: string }[] = [
-  { id: "overview",  icon: "⚡", label: "대시보드",      desc: "현황 요약"        },
-  { id: "license",   icon: "🔑", label: "라이선스 현황", desc: "사용 / 재고"      },
-  { id: "subscribe", icon: "💳", label: "구독 관리",     desc: "구독 SW 목록"     },
-  { id: "swdb",      icon: "🗄", label: "SW DB 관리",    desc: "승인 / 금지 목록" },
+  { id: "overview",     icon: "⚡", label: "대시보드",      desc: "현황 요약"        },
+  { id: "license",      icon: "🔑", label: "라이선스 현황", desc: "영구 · 구독 통합" },
+  { id: "credentials",  icon: "🔐", label: "계정 관리",     desc: "ID / PW 목록"     },
+  { id: "swdb",         icon: "🗄", label: "SW DB 관리",    desc: "승인 / 금지 목록" },
 ];
 
 export default function AdminPage() {
@@ -30,10 +30,10 @@ export default function AdminPage() {
   }
 
   const panels: Record<PageId, React.ReactNode> = {
-    overview:  <OverviewPanel />,
-    license:   <LicensePanel />,
-    subscribe: <SubscriptionPanel />,
-    swdb:      <SwDbPanel />,
+    overview:    <OverviewPanel />,
+    license:     <LicensePanel />,
+    credentials: <CredentialsPanel />,
+    swdb:        <SwDbPanel />,
   };
 
   return (
@@ -134,7 +134,7 @@ export default function AdminPage() {
           </div>
 
           <div className="px-4 pt-2">
-            <div className="text-xs text-white/30">v2.0.0 · Notion 연동</div>
+            <div className="text-xs text-white/30">v2.1.0 · Notion 연동</div>
           </div>
         </aside>
 
