@@ -2,8 +2,11 @@ import { Client } from "@notionhq/client";
 import type {
   PageObjectResponse,
   QueryDatabaseParameters,
+  BlockObjectResponse,
+  PartialBlockObjectResponse,
 } from "@notionhq/client/build/src/api-endpoints";
 import type { SwItem, SwDbRecord, Subscription, LicenseItem, LicenseRecord, Ticket } from "@/types";
+import type { SwCredential } from "@/components/admin/CredentialsPanel";
 
 // ────────────────────────────────────────────────────────────
 // Notion 클라이언트 싱글톤
@@ -330,6 +333,91 @@ export async function fetchTickets(): Promise<Ticket[]> {
       notionUrl: getPageUrl(page.id),
     };
   });
+}
+
+// ────────────────────────────────────────────────────────────
+// Notion 일반 페이지 블록에서 table 파싱 → SwCredential[]
+// 테이블 첫 행을 헤더로 인식. 컬럼명 예시:
+//   SW명 | 사이트 | ID / 계정 | 비밀번호 | 비고
+// 컬럼명은 대소문자·공백 무관하게 keyword 매칭합니다.
+// ────────────────────────────────────────────────────────────
+type NotionBlock = BlockObjectResponse | PartialBlockObjectResponse;
+
+async function getAllBlocks(blockId: string): Promise<NotionBlock[]> {
+  const blocks: NotionBlock[] = [];
+  let cursor: string | undefined;
+  do {
+    const res = await notion.blocks.children.list({
+      block_id: blockId,
+      start_cursor: cursor,
+      page_size: 100,
+    });
+    blocks.push(...res.results);
+    cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined;
+  } while (cursor);
+  return blocks;
+}
+
+function getCellText(cell: { plain_text: string }[]): string {
+  return cell.map(c => c.plain_text).join("").trim();
+}
+
+function matchCol(header: string, keywords: string[]): boolean {
+  const lower = header.toLowerCase().replace(/\s+/g, "");
+  return keywords.some(k => lower.includes(k));
+}
+
+export async function fetchCredentialsPage(): Promise<SwCredential[]> {
+  const pageId = process.env.NOTION_PAGE_CREDENTIALS;
+  if (!pageId) throw new Error("NOTION_PAGE_CREDENTIALS 환경변수가 설정되지 않았습니다.");
+
+  const blocks = await getAllBlocks(pageId);
+  const credentials: SwCredential[] = [];
+
+  for (const block of blocks) {
+    if (!("type" in block) || block.type !== "table") continue;
+
+    // 테이블 행 가져오기
+    const rowBlocks = await getAllBlocks(block.id);
+    if (rowBlocks.length < 2) continue;   // 헤더만 있으면 스킵
+
+    // 첫 행 = 헤더
+    const headerBlock = rowBlocks[0];
+    if (!("type" in headerBlock) || headerBlock.type !== "table_row") continue;
+    const headers: string[] = (headerBlock as any).table_row.cells.map((cell: any[]) =>
+      cell.map((c: any) => c.plain_text).join("").trim()
+    );
+
+    // 컬럼 인덱스 매핑
+    const idxSwName  = headers.findIndex(h => matchCol(h, ["sw명","sw명칭","소프트웨어","서비스","서비스명","이름","name"]));
+    const idxSite    = headers.findIndex(h => matchCol(h, ["사이트","url","링크","site","접속","주소"]));
+    const idxId      = headers.findIndex(h => matchCol(h, ["id","아이디","계정","account","이메일","email"]));
+    const idxPw      = headers.findIndex(h => matchCol(h, ["pw","비밀번호","패스워드","password","pass"]));
+    const idxMemo    = headers.findIndex(h => matchCol(h, ["비고","메모","note","memo","참고","remark"]));
+
+    // 데이터 행 파싱
+    for (let i = 1; i < rowBlocks.length; i++) {
+      const rowBlock = rowBlocks[i];
+      if (!("type" in rowBlock) || rowBlock.type !== "table_row") continue;
+      const cells: string[] = (rowBlock as any).table_row.cells.map((cell: any[]) =>
+        cell.map((c: any) => c.plain_text).join("").trim()
+      );
+
+      const swName = idxSwName >= 0 ? cells[idxSwName] ?? "" : cells[0] ?? "";
+      if (!swName) continue;   // SW명 없는 행 스킵
+
+      credentials.push({
+        id:        rowBlock.id,
+        swName,
+        siteUrl:   idxSite >= 0 ? cells[idxSite]  ?? "" : "",
+        accountId: idxId   >= 0 ? cells[idxId]    ?? "" : "",
+        password:  idxPw   >= 0 ? cells[idxPw]    ?? "" : "",
+        memo:      idxMemo >= 0 ? cells[idxMemo]  ?? "" : "",
+      });
+    }
+  }
+
+  return credentials;
 }
 
 // ────────────────────────────────────────────────────────────
