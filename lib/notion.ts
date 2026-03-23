@@ -188,6 +188,10 @@ export async function fetchSwDatabase(): Promise<SwDbRecord[]> {
       usageCount: getPropNumber(p, "사용횟수"),
       certificate: getPropFile(p, "증서"),
       workType: getPropSelect(p, "SW사용직군"),
+      billingType: getPropSelect(p, "결제방식"),
+      monthlyKrw: getPropNumber(p, "월 금액") || getPropNumber(p, "월간 금액") || getPropNumber(p, "월 비용") || getPropNumber(p, "구독료") || getPropNumber(p, "월구독료") || 0,
+      annualUsd:  getPropNumber(p, "연 비용 (USD)") || getPropNumber(p, "연비용(USD)") || getPropNumber(p, "연간비용(USD)") || getPropNumber(p, "1회 결제사 금액(USD)") || 0,
+      annualKrw:  getPropNumber(p, "연 비용 (KRW)") || getPropNumber(p, "연비용(KRW)") || getPropNumber(p, "연간비용(KRW)") || getPropNumber(p, "1회 결제사 금액(KRW)") || 0,
       notionUrl: getPageUrl(page.id),
     };
   });

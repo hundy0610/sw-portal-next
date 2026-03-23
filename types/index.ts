@@ -23,6 +23,10 @@ export interface SwDbRecord {
   usageCount: number;                     // 사용횟수
   certificate: string;                    // 증서 (file URL)
   workType: string;                       // SW사용직군
+  billingType?: string;                   // 결제방식 (대웅 등)
+  monthlyKrw: number;                     // 월 구독 금액 (KRW, 0이면 미입력) — legacy fallback
+  annualUsd: number;                      // 연 비용 (USD, 0이면 KRW 결제)
+  annualKrw: number;                      // 연 비용 (KRW, 0이면 USD 결제)
   notionUrl: string;
 }
 
