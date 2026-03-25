@@ -1,14 +1,34 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { fetchSwDatabase } from "@/lib/notion";
+import { kvGet, kvSet } from "@/lib/kv-store";
+import type { SwDbRecord } from "@/types";
 
-export const revalidate = 60; // 60초마다 캐시 갱신
+export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const data = await fetchSwDatabase();
+    const { searchParams } = new URL(request.url);
+    const filterCompany = searchParams.get("company")?.trim() || "";
+
+    // ✅ KV에서 즉시 읽기 (1~5ms)
+    let data = await kvGet<SwDbRecord[]>("sw:all");
+
+    if (!data) {
+      // KV 미스: Notion fetch 후 KV 저장
+      data = await fetchSwDatabase();
+      await kvSet("sw:all", data);
+    }
+
+    // 메모리 필터링
+    if (filterCompany) {
+      data = data.filter(r => r.company === filterCompany);
+    }
+
     return NextResponse.json({
       data,
       lastSynced: new Date().toISOString(),
+    }, {
+      headers: { "Cache-Control": "s-maxage=60, stale-while-revalidate=30" },
     });
   } catch (e: any) {
     console.error("[sw-records] fetch error:", e?.message);

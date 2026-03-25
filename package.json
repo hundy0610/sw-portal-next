@@ -10,9 +10,11 @@
   },
   "dependencies": {
     "@notionhq/client": "^2.2.15",
+    "@vercel/kv": "^3.0.0",
     "next": "14.2.5",
     "react": "^18",
-    "react-dom": "^18"
+    "react-dom": "^18",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "^20",
