@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchSwDatabase, fetchLicenseRecords } from "@/lib/notion";
-import { fetchAllHwRecords } from "@/lib/hw";
+import { fetchAllHwRecords, computeHwStats } from "@/lib/hw";
 import { kvSet } from "@/lib/kv-store";
 
 /**
@@ -31,10 +31,14 @@ export async function GET(request: Request) {
       fetchLicenseRecords(),
     ]);
 
+    // 대시보드용 집계 통계 계산 (수 KB → 즉시 로딩)
+    const hwStats = computeHwStats(hw);
+
     // Vercel KV에 저장 (이후 API 요청은 KV에서 즉시 응답)
     await Promise.all([
-      kvSet("hw:all", hw),
-      kvSet("sw:all", sw),
+      kvSet("hw:all",    hw),
+      kvSet("hw:stats",  hwStats),
+      kvSet("sw:all",    sw),
       kvSet("licenses:all", licenses),
     ]);
 

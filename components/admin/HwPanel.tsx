@@ -1,0 +1,1174 @@
+"use client";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import type { HwStats } from "@/lib/hw";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 타입
+// ─────────────────────────────────────────────────────────────────────────────
+interface HwRecord {
+  id: string; notionUrl: string;
+  user: string; assetNo: string; model: string; serial: string;
+  maker: string; cpu: string; ram: string;
+  company: string; dept: string; location: string;
+  status: string; shipStatus: string; returnStatus: string;
+  returnDue: string; returnDate: string; returnReason: string;
+  purchaseDate: string; useDate: string;
+  price: number; missing: string[]; note: string; docNo: string;
+  repairStatus: string; warranty: string; verified: boolean; duplicated: boolean;
+}
+
+// 탭 공통 props (중앙 데이터 전달)
+interface TabProps {
+  records: HwRecord[];
+  loading: boolean;
+  onRefresh: () => void;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 상수
+// ─────────────────────────────────────────────────────────────────────────────
+const COMPANIES = [
+  "대웅제약","대웅바이오","대웅","대웅개발","대웅이엔지","대웅펫",
+  "한올바이오파마","시지바이오","시지메드텍","IdsTrust","디엔컴퍼니",
+  "디엔코스메틱스","더편한샵","페이지원","엠서클","애디테라","노바메디텍",
+  "에이하나","다나아데이터","클리슈어리서치","유와이즈원","DNC",
+  "석천나눔재단","HR코리아","힐코","블루넷",
+];
+
+const STATUSES = [
+  "사용중","재고","반납예정","출고준비중","출고준비완료",
+  "수리","렌탈","임시지급","폐기","폐기확정(리스트화)","폐기완료",
+  "3층문서고/매각","3층문서고/폐기","지하창고/폐기","지하창고/매각",
+  "신규","미확인","기타",
+];
+
+const STATUS_COLOR: Record<string, string> = {
+  "사용중":               "bg-blue-100 text-blue-700",
+  "재고":                 "bg-purple-100 text-purple-700",
+  "반납예정":             "bg-yellow-100 text-yellow-700",
+  "출고준비중":           "bg-orange-100 text-orange-700",
+  "출고준비완료":         "bg-amber-100 text-amber-700",
+  "수리":                 "bg-pink-100 text-pink-700",
+  "렌탈":                 "bg-cyan-100 text-cyan-700",
+  "임시지급":             "bg-indigo-100 text-indigo-700",
+  "폐기":                 "bg-red-100 text-red-700",
+  "폐기확정(리스트화)":   "bg-red-50 text-red-500",
+  "폐기완료":             "bg-red-200 text-red-800",
+  "신규":                 "bg-green-100 text-green-700",
+  "미확인":               "bg-orange-100 text-orange-600",
+};
+
+const PALETTE = [
+  "#6366f1","#f59e0b","#10b981","#ef4444","#3b82f6","#8b5cf6",
+  "#ec4899","#14b8a6","#f97316","#84cc16","#06b6d4","#a855f7",
+  "#64748b","#e11d48","#059669","#d97706",
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 유틸
+// ─────────────────────────────────────────────────────────────────────────────
+function dDay(dateStr: string): { label: string; cls: string } {
+  if (!dateStr) return { label: "", cls: "" };
+  const diff = Math.ceil(
+    (new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+  );
+  if (diff < 0)   return { label: `D+${Math.abs(diff)}`, cls: "text-red-600 font-bold" };
+  if (diff === 0) return { label: "D-Day",                cls: "text-red-600 font-bold" };
+  if (diff <= 7)  return { label: `D-${diff}`,            cls: "text-red-500 font-semibold" };
+  if (diff <= 30) return { label: `D-${diff}`,            cls: "text-orange-500 font-semibold" };
+  return              { label: `D-${diff}`,               cls: "text-gray-500" };
+}
+function fmtDate(s: string) { return s ? s.slice(0, 10) : "-"; }
+function fmtKrw(n: number)  { return n > 0 ? `₩${n.toLocaleString("ko-KR")}` : "-"; }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SVG 도넛 차트
+// ─────────────────────────────────────────────────────────────────────────────
+interface ChartSlice { label: string; value: number; color: string; }
+
+function DonutChart({ data, title, centerLabel }: {
+  data: ChartSlice[];
+  title: string;
+  centerLabel?: string;
+}) {
+  const [hovered, setHovered] = useState<number | null>(null);
+  const total = data.reduce((s, d) => s + d.value, 0);
+  if (total === 0) return null;
+
+  const r = 68, strokeWidth = 22;
+  const circumference = 2 * Math.PI * r;
+
+  let accumulated = 0;
+  const segments = data.map((d, i) => {
+    const length = (d.value / total) * circumference;
+    const offset = circumference - accumulated;
+    accumulated += length;
+    return { ...d, length, offset, index: i };
+  });
+
+  const displayTotal = hovered !== null ? data[hovered].value : total;
+  const displayLabel = hovered !== null ? data[hovered].label : (centerLabel ?? "총계");
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <p className="text-sm font-bold text-gray-700 mb-4">{title}</p>
+      <div className="flex items-start gap-5">
+        <div className="shrink-0">
+          <svg width={180} height={180}>
+            <circle cx={90} cy={90} r={r} fill="none" stroke="#f3f4f6" strokeWidth={strokeWidth} />
+            {segments.map(seg => (
+              <circle key={seg.index} cx={90} cy={90} r={r} fill="none"
+                stroke={seg.color}
+                strokeWidth={hovered === seg.index ? strokeWidth + 4 : strokeWidth}
+                strokeDasharray={`${seg.length} ${circumference - seg.length}`}
+                strokeDashoffset={seg.offset}
+                transform="rotate(-90 90 90)"
+                style={{ cursor: "pointer", transition: "stroke-width 0.15s" }}
+                onMouseEnter={() => setHovered(seg.index)}
+                onMouseLeave={() => setHovered(null)}
+              />
+            ))}
+            <text x={90} y={82} textAnchor="middle" fontSize="22" fontWeight="700"
+              fill={hovered !== null ? data[hovered].color : "#111827"}>{displayTotal}</text>
+            <text x={90} y={102} textAnchor="middle" fontSize="10" fill="#9ca3af">{displayLabel}</text>
+          </svg>
+        </div>
+        <div className="flex-1 space-y-1.5 overflow-hidden">
+          {segments.map(seg => (
+            <div key={seg.index}
+              className={`flex items-center gap-2 rounded-lg px-2 py-1 cursor-pointer transition-colors ${hovered === seg.index ? "bg-gray-50" : ""}`}
+              onMouseEnter={() => setHovered(seg.index)}
+              onMouseLeave={() => setHovered(null)}
+            >
+              <span className="shrink-0 w-2.5 h-2.5 rounded-full" style={{ background: seg.color }} />
+              <span className="text-xs text-gray-600 truncate flex-1">{seg.label}</span>
+              <span className="text-xs font-bold text-gray-800 shrink-0">{seg.value}</span>
+              <span className="text-[10px] text-gray-400 shrink-0">
+                {Math.round((seg.value / total) * 100)}%
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 대시보드 탭 (stats 기반 — 전체 레코드 불필요, KV에서 즉시 로드)
+// ─────────────────────────────────────────────────────────────────────────────
+function DashboardTab({ stats, loading, onRefresh }: { stats: HwStats | null; loading: boolean; onRefresh: () => void }) {
+  const coData = useMemo<ChartSlice[]>(() => {
+    if (!stats) return [];
+    return Object.entries(stats.byCompany).sort((a,b)=>b[1]-a[1]).slice(0,14)
+      .map(([label,value],i)=>({ label, value, color: PALETTE[i%PALETTE.length] }));
+  }, [stats]);
+
+  const stData = useMemo<ChartSlice[]>(() => {
+    if (!stats) return [];
+    return Object.entries(stats.byStatus).sort((a,b)=>b[1]-a[1]).slice(0,10)
+      .map(([label,value],i)=>({ label, value, color: PALETTE[i%PALETTE.length] }));
+  }, [stats]);
+
+  const mkData = useMemo<ChartSlice[]>(() => {
+    if (!stats) return [];
+    return Object.entries(stats.byMaker).sort((a,b)=>b[1]-a[1]).slice(0,12)
+      .map(([label,value],i)=>({ label, value, color: PALETTE[i%PALETTE.length] }));
+  }, [stats]);
+
+  const StatCard = ({ label, value, sub, icon, cls }: {
+    label:string; value:string|number; sub?:string; icon:string; cls:string;
+  }) => (
+    <div className={`rounded-xl p-4 border flex items-start gap-3 ${cls}`}>
+      <span className="text-xl">{icon}</span>
+      <div>
+        <p className="text-xl font-bold text-current leading-tight">{value}</p>
+        <p className="text-xs font-semibold opacity-80 mt-0.5">{label}</p>
+        {sub && <p className="text-[11px] opacity-60 mt-0.5">{sub}</p>}
+      </div>
+    </div>
+  );
+
+  const { total=0, activeCount=0, stockCount=0, shipCount=0, repairCount=0,
+          rentalCount=0, tempCount=0, returnCount=0, disposalCount=0,
+          verifiedCount=0, totalValue=0, companyTable=[] } = stats ?? {};
+
+  return (
+    <div className="space-y-5">
+      <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-gray-700">전체 자산 현황 대시보드</p>
+          {!loading && stats && <p className="text-xs text-gray-400 mt-0.5">노션 등록 전체 {total}건 기준</p>}
+        </div>
+        <button onClick={onRefresh} disabled={loading}
+          className="px-4 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+          {loading ? "불러오는 중…" : "새로고침"}
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="py-20 text-center text-gray-300 text-sm">불러오는 중…</div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <StatCard icon="💻" label="총 자산"   value={total}        sub={totalValue>0 ? `₩${Math.round(totalValue/1000000)}M` : undefined} cls="bg-indigo-50 text-indigo-700 border-indigo-100" />
+            <StatCard icon="✅" label="사용중"    value={activeCount}   sub={total>0 ? `${Math.round(activeCount/total*100)}%` : undefined}    cls="bg-blue-50 text-blue-700 border-blue-100" />
+            <StatCard icon="📦" label="재고"      value={stockCount}    cls="bg-purple-50 text-purple-700 border-purple-100" />
+            <StatCard icon="📤" label="출고 대기" value={shipCount}     cls="bg-orange-50 text-orange-700 border-orange-100" />
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <StatCard icon="🔧" label="수리 중"   value={repairCount}   cls="bg-pink-50 text-pink-700 border-pink-100" />
+            <StatCard icon="🚗" label="렌탈"      value={rentalCount}   cls="bg-cyan-50 text-cyan-700 border-cyan-100" />
+            <StatCard icon="📋" label="임시지급"  value={tempCount}     cls="bg-indigo-50 text-indigo-700 border-indigo-100" />
+            <StatCard icon="📅" label="반납 예정" value={returnCount}   cls="bg-yellow-50 text-yellow-700 border-yellow-100" />
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <StatCard icon="🗑️" label="폐기 대상" value={disposalCount} cls="bg-red-50 text-red-700 border-red-100" />
+            <StatCard icon="✓"  label="실사 확인" value={verifiedCount} sub={total>0 ? `확인율 ${Math.round(verifiedCount/total*100)}%` : undefined} cls="bg-green-50 text-green-700 border-green-100" />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <DonutChart data={coData} title="법인별 자산 분포" centerLabel="법인" />
+            <DonutChart data={stData} title="상태별 자산 분포" centerLabel="상태" />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <DonutChart data={mkData} title="제조사별 분포" centerLabel="제조사" />
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-5 py-3 border-b border-gray-100">
+                <p className="text-sm font-bold text-gray-700">법인별 자산 수</p>
+              </div>
+              <div className="overflow-y-auto max-h-[280px]">
+                <table className="w-full text-xs">
+                  <thead className="bg-gray-50 text-gray-500 font-semibold sticky top-0">
+                    <tr>
+                      <th className="px-4 py-2.5 text-left">법인명</th>
+                      <th className="px-4 py-2.5 text-right">총계</th>
+                      <th className="px-4 py-2.5 text-right">사용중</th>
+                      <th className="px-4 py-2.5 text-right">재고</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {companyTable.map(({ company, total: t, active, stock }) => (
+                      <tr key={company} className="hover:bg-gray-50">
+                        <td className="px-4 py-2 font-medium text-gray-800">{company}</td>
+                        <td className="px-4 py-2 text-right font-bold text-gray-900">{t}</td>
+                        <td className="px-4 py-2 text-right text-blue-600 font-semibold">{active||"-"}</td>
+                        <td className="px-4 py-2 text-right text-purple-600 font-semibold">{stock||"-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 출고 현황 탭
+// ─────────────────────────────────────────────────────────────────────────────
+function ShipmentTab({ records, loading, onRefresh }: TabProps) {
+  const [company, setCompany] = useState("");
+
+  const filtered      = useMemo(() => company ? records.filter(r => r.company === company) : records, [records, company]);
+  const pendingShip   = useMemo(() => filtered.filter(r => r.status === "출고준비중"),    [filtered]);
+  const readyShip     = useMemo(() => filtered.filter(r => r.status === "출고준비완료"),  [filtered]);
+
+  const SectionTable = ({ title, items, headerCls }: { title:string; items:HwRecord[]; headerCls:string }) => {
+    if (items.length === 0) return null;
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className={`px-5 py-3 border-b border-gray-100 flex items-center gap-2 ${headerCls}`}>
+          <span className="text-sm font-bold">{title}</span>
+          <span className="text-xs opacity-70">{items.length}건</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="bg-gray-50 text-gray-500 font-semibold">
+              <tr>{["자산번호","사용자","법인명","부서","모델명","상태","사용일자","위치",""].map(h=><th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}</tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {items.map(r => (
+                <tr key={r.id} className="hover:bg-gray-50">
+                  <td className="px-3 py-2.5 font-mono text-gray-700 whitespace-nowrap">{r.assetNo||"-"}</td>
+                  <td className="px-3 py-2.5 font-medium text-gray-900 whitespace-nowrap">{r.user||"-"}</td>
+                  <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{r.company||"-"}</td>
+                  <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.dept||"-"}</td>
+                  <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap max-w-[130px] truncate">{r.model||"-"}</td>
+                  <td className="px-3 py-2.5 whitespace-nowrap">
+                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${STATUS_COLOR[r.status]??"bg-gray-100 text-gray-600"}`}>{r.status||"-"}</span>
+                  </td>
+                  <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{fmtDate(r.useDate)}</td>
+                  <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.location||"-"}</td>
+                  <td className="px-3 py-2.5">{r.notionUrl && <a href={r.notionUrl} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-600 underline underline-offset-2">Notion ↗</a>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap items-center gap-3">
+        <div className="w-44">
+          <label className="block text-xs font-semibold text-gray-500 mb-1">법인명 필터</label>
+          <select value={company} onChange={e => setCompany(e.target.value)}
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300">
+            <option value="">전체 법인</option>
+            {COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div className="mt-5">
+          <button onClick={onRefresh} disabled={loading}
+            className="px-4 py-2 rounded-lg bg-orange-500 text-white text-sm font-semibold hover:bg-orange-600 disabled:opacity-50 transition-colors">
+            {loading ? "불러오는 중…" : "새로고침"}
+          </button>
+        </div>
+        {!loading && (
+          <div className="mt-5 flex gap-4 text-xs">
+            <span className="text-orange-600 font-semibold">출고준비중: {pendingShip.length}건</span>
+            <span className="text-amber-600 font-semibold">출고준비완료: {readyShip.length}건</span>
+          </div>
+        )}
+      </div>
+      {loading ? (
+        <div className="py-16 text-center text-gray-300 text-sm">불러오는 중…</div>
+      ) : pendingShip.length === 0 && readyShip.length === 0 ? (
+        <div className="py-16 text-center text-gray-300 text-sm"><p className="text-4xl mb-3">📤</p><p>출고 대상 자산이 없습니다</p></div>
+      ) : (
+        <>
+          <SectionTable title="📤 출고준비중" items={pendingShip} headerCls="bg-orange-50 text-orange-700" />
+          <SectionTable title="✅ 출고준비완료" items={readyShip} headerCls="bg-amber-50 text-amber-700" />
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 수리 현황 탭
+// ─────────────────────────────────────────────────────────────────────────────
+function RepairTab({ records, loading, onRefresh }: TabProps) {
+  const [company, setCompany] = useState("");
+  const filtered = useMemo(() => company ? records.filter(r => r.company === company) : records, [records, company]);
+  const repairRecords = useMemo(() => filtered.filter(r => r.status === "수리" || (r.repairStatus && r.repairStatus !== "완료")), [filtered]);
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap items-center gap-3">
+        <div className="w-44">
+          <label className="block text-xs font-semibold text-gray-500 mb-1">법인명 필터</label>
+          <select value={company} onChange={e => setCompany(e.target.value)}
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300">
+            <option value="">전체 법인</option>
+            {COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div className="mt-5">
+          <button onClick={onRefresh} disabled={loading}
+            className="px-4 py-2 rounded-lg bg-pink-600 text-white text-sm font-semibold hover:bg-pink-700 disabled:opacity-50 transition-colors">
+            {loading ? "불러오는 중…" : "새로고침"}
+          </button>
+        </div>
+        {!loading && <p className="mt-5 text-xs text-gray-500">🔧 수리 대상: <span className="font-bold text-pink-700">{repairRecords.length}건</span></p>}
+      </div>
+      {loading ? (
+        <div className="py-16 text-center text-gray-300 text-sm">불러오는 중…</div>
+      ) : repairRecords.length === 0 ? (
+        <div className="py-16 text-center text-gray-300 text-sm"><p className="text-4xl mb-3">🔧</p><p>수리 대상 자산이 없습니다</p></div>
+      ) : (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-100 bg-pink-50">
+            <p className="text-sm font-bold text-pink-700">수리 진행 중 — {repairRecords.length}건</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-gray-50 text-gray-500 font-semibold">
+                <tr>{["자산번호","사용자","법인명","부서","모델명","수리상황","보증여부","위치","비고",""].map(h=><th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}</tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {repairRecords.map(r => (
+                  <tr key={r.id} className="hover:bg-gray-50">
+                    <td className="px-3 py-2.5 font-mono text-gray-700 whitespace-nowrap">{r.assetNo||"-"}</td>
+                    <td className="px-3 py-2.5 font-medium text-gray-900 whitespace-nowrap">{r.user||"-"}</td>
+                    <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{r.company||"-"}</td>
+                    <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.dept||"-"}</td>
+                    <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap max-w-[130px] truncate">{r.model||"-"}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-pink-100 text-pink-700">{r.repairStatus||r.status||"-"}</span>
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      {r.warranty ? <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-green-100 text-green-700">{r.warranty}</span> : <span className="text-gray-300">-</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.location||"-"}</td>
+                    <td className="px-3 py-2.5 text-gray-400 whitespace-nowrap max-w-[120px] truncate">{r.note||"-"}</td>
+                    <td className="px-3 py-2.5">{r.notionUrl && <a href={r.notionUrl} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-600 underline underline-offset-2">Notion ↗</a>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 렌탈 / 임시지급 탭 (신규)
+// ─────────────────────────────────────────────────────────────────────────────
+function RentalTempTab({ records, loading, onRefresh }: TabProps) {
+  const [company, setCompany] = useState("");
+  const filtered      = useMemo(() => company ? records.filter(r => r.company === company) : records, [records, company]);
+  const rentalRecords = useMemo(() => filtered.filter(r => r.status === "렌탈"),      [filtered]);
+  const tempRecords   = useMemo(() => filtered.filter(r => r.status === "임시지급"),  [filtered]);
+
+  const SectionTable = ({ title, items, headerCls }: { title:string; items:HwRecord[]; headerCls:string }) => {
+    if (items.length === 0) return null;
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className={`px-5 py-3 border-b border-gray-100 flex items-center gap-2 ${headerCls}`}>
+          <span className="text-sm font-bold">{title}</span>
+          <span className="text-xs opacity-70">{items.length}건</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="bg-gray-50 text-gray-500 font-semibold">
+              <tr>{["자산번호","사용자","법인명","부서","모델명","상태","사용일자","위치","비고",""].map(h=><th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}</tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {items.map(r => (
+                <tr key={r.id} className="hover:bg-gray-50">
+                  <td className="px-3 py-2.5 font-mono text-gray-700 whitespace-nowrap">{r.assetNo||"-"}</td>
+                  <td className="px-3 py-2.5 font-medium text-gray-900 whitespace-nowrap">{r.user||"-"}</td>
+                  <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{r.company||"-"}</td>
+                  <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.dept||"-"}</td>
+                  <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap max-w-[130px] truncate">{r.model||"-"}</td>
+                  <td className="px-3 py-2.5 whitespace-nowrap">
+                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${STATUS_COLOR[r.status]??"bg-gray-100 text-gray-600"}`}>{r.status||"-"}</span>
+                  </td>
+                  <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{fmtDate(r.useDate)}</td>
+                  <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.location||"-"}</td>
+                  <td className="px-3 py-2.5 text-gray-400 whitespace-nowrap max-w-[120px] truncate">{r.note||"-"}</td>
+                  <td className="px-3 py-2.5">{r.notionUrl && <a href={r.notionUrl} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-600 underline underline-offset-2">Notion ↗</a>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap items-center gap-3">
+        <div className="w-44">
+          <label className="block text-xs font-semibold text-gray-500 mb-1">법인명 필터</label>
+          <select value={company} onChange={e => setCompany(e.target.value)}
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-300">
+            <option value="">전체 법인</option>
+            {COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div className="mt-5">
+          <button onClick={onRefresh} disabled={loading}
+            className="px-4 py-2 rounded-lg bg-cyan-600 text-white text-sm font-semibold hover:bg-cyan-700 disabled:opacity-50 transition-colors">
+            {loading ? "불러오는 중…" : "새로고침"}
+          </button>
+        </div>
+        {!loading && (
+          <div className="mt-5 flex gap-4 text-xs">
+            <span className="text-cyan-600 font-semibold">🚗 렌탈: {rentalRecords.length}건</span>
+            <span className="text-indigo-600 font-semibold">📋 임시지급: {tempRecords.length}건</span>
+          </div>
+        )}
+      </div>
+      {loading ? (
+        <div className="py-16 text-center text-gray-300 text-sm">불러오는 중…</div>
+      ) : rentalRecords.length === 0 && tempRecords.length === 0 ? (
+        <div className="py-16 text-center text-gray-300 text-sm"><p className="text-4xl mb-3">🚗</p><p>렌탈/임시지급 자산이 없습니다</p></div>
+      ) : (
+        <>
+          <SectionTable title="🚗 렌탈" items={rentalRecords} headerCls="bg-cyan-50 text-cyan-700" />
+          <SectionTable title="📋 임시지급" items={tempRecords} headerCls="bg-indigo-50 text-indigo-700" />
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 반납 대상자 탭
+// ─────────────────────────────────────────────────────────────────────────────
+function ReturnTab({ records, loading, onRefresh }: TabProps) {
+  const [company, setCompany] = useState("");
+  const today = Date.now();
+
+  const returnRecords = useMemo(() => {
+    const base = records.filter(r => r.returnDue);
+    return company ? base.filter(r => r.company === company) : base;
+  }, [records, company]);
+
+  const urgent = useMemo(() => returnRecords.filter(r => new Date(r.returnDue).getTime() - today <= 7*86400000), [returnRecords]);
+  const soon   = useMemo(() => returnRecords.filter(r => { const t = new Date(r.returnDue).getTime()-today; return t>7*86400000&&t<=30*86400000; }), [returnRecords]);
+  const later  = useMemo(() => returnRecords.filter(r => new Date(r.returnDue).getTime()-today > 30*86400000), [returnRecords]);
+
+  const ReturnRow = ({ r }: { r: HwRecord }) => {
+    const dd = dDay(r.returnDue);
+    return (
+      <tr className={`hover:bg-gray-50 transition-colors ${new Date(r.returnDue).getTime()<today ? "bg-red-50/40" : ""}`}>
+        <td className="px-3 py-2.5 whitespace-nowrap"><span className={`text-sm font-bold ${dd.cls}`}>{dd.label}</span></td>
+        <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap text-xs">{fmtDate(r.returnDue)}</td>
+        <td className="px-3 py-2.5 font-medium text-gray-900 whitespace-nowrap text-xs">{r.user||"-"}</td>
+        <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap text-xs">{r.company||"-"}</td>
+        <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap text-xs">{r.dept||"-"}</td>
+        <td className="px-3 py-2.5 font-mono text-gray-600 whitespace-nowrap text-xs">{r.assetNo||"-"}</td>
+        <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap max-w-[130px] truncate text-xs">{r.model||"-"}</td>
+        <td className="px-3 py-2.5 whitespace-nowrap text-xs">
+          <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${STATUS_COLOR[r.status]??"bg-gray-100 text-gray-600"}`}>{r.status||"-"}</span>
+        </td>
+        <td className="px-3 py-2.5 text-gray-400 whitespace-nowrap text-xs">{r.returnReason||"-"}</td>
+        <td className="px-3 py-2.5 text-xs">{r.notionUrl && <a href={r.notionUrl} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-600 underline underline-offset-2">Notion ↗</a>}</td>
+      </tr>
+    );
+  };
+
+  const TableSection = ({ title, items, cls }: { title:string; items:HwRecord[]; cls:string }) => {
+    if (items.length === 0) return null;
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className={`px-5 py-3 border-b border-gray-100 flex items-center gap-2 ${cls}`}>
+          <span className="text-sm font-bold">{title}</span>
+          <span className="text-xs opacity-70">{items.length}건</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 text-gray-500 font-semibold text-xs">
+              <tr>{["D-Day","반납예정일","사용자","법인명","부서","자산번호","모델명","현재상태","반납사유",""].map(h=><th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}</tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">{items.map(r => <ReturnRow key={r.id} r={r} />)}</tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap items-center gap-3">
+        <div className="w-44">
+          <label className="block text-xs font-semibold text-gray-500 mb-1">법인명 필터</label>
+          <select value={company} onChange={e => setCompany(e.target.value)}
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-300">
+            <option value="">전체 법인</option>
+            {COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div className="mt-5">
+          <button onClick={onRefresh} disabled={loading}
+            className="px-4 py-2 rounded-lg bg-yellow-500 text-white text-sm font-semibold hover:bg-yellow-600 disabled:opacity-50 transition-colors">
+            {loading ? "불러오는 중…" : "새로고침"}
+          </button>
+        </div>
+        {!loading && (
+          <div className="mt-5 flex gap-3 text-xs">
+            <span className="text-red-500 font-semibold">🔴 D-7 이내: {urgent.length}건</span>
+            <span className="text-orange-500 font-semibold">🟡 D-30 이내: {soon.length}건</span>
+            <span className="text-gray-500">◽ 그 외: {later.length}건</span>
+          </div>
+        )}
+      </div>
+      {loading ? (
+        <div className="py-16 text-center text-gray-300 text-sm">불러오는 중…</div>
+      ) : returnRecords.length === 0 ? (
+        <div className="py-16 text-center text-gray-300 text-sm"><p className="text-4xl mb-3">✅</p><p>반납 예정 자산이 없습니다</p></div>
+      ) : (
+        <>
+          <TableSection title="🔴 D-7 이내 — 즉시 확인 필요" items={urgent} cls="bg-red-50 text-red-700" />
+          <TableSection title="🟡 D-30 이내 — 반납 임박"     items={soon}   cls="bg-yellow-50 text-yellow-700" />
+          <TableSection title="◽ D-30 초과"                   items={later}  cls="bg-gray-50 text-gray-700" />
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 자산 검색 탭 (자체 on-demand fetch)
+// ─────────────────────────────────────────────────────────────────────────────
+function SearchTab({ companyLock = "" }: { companyLock?: string }) {
+  const [records,  setRecords]  = useState<HwRecord[]>([]);
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState("");
+  const [search,   setSearch]   = useState("");
+  const [company,  setCompany]  = useState(companyLock);
+  const [status,   setStatus]   = useState("");
+  const [location, setLocation] = useState("");
+  const [searched, setSearched] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true); setError(""); setSearched(true);
+    try {
+      const q = new URLSearchParams();
+      if (search)   q.set("search",   search);
+      if (company)  q.set("company",  company);
+      if (status)   q.set("status",   status);
+      if (location) q.set("location", location);
+      const res  = await fetch(`/api/hw?${q}`);
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error);
+      setRecords(json.records);
+    } catch (e) { setError(String(e)); }
+    finally { setLoading(false); }
+  }, [search, company, status, location]);
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="flex-1 min-w-[180px]">
+            <label className="block text-xs font-semibold text-gray-500 mb-1">사용자 / 자산번호 / 모델명</label>
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && load()}
+              placeholder="검색어 입력 후 Enter"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+            />
+          </div>
+          {!companyLock && (
+            <div className="w-40">
+              <label className="block text-xs font-semibold text-gray-500 mb-1">법인명</label>
+              <select value={company} onChange={e => setCompany(e.target.value)}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+                <option value="">전체</option>
+                {COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          )}
+          <div className="w-44">
+            <label className="block text-xs font-semibold text-gray-500 mb-1">위치</label>
+            <select value={location} onChange={e => setLocation(e.target.value)}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+              <option value="">전체</option>
+              {["횡성센터","본사","향남","용인","성수","신사","오송"].map(l=><option key={l} value={l}>{l}</option>)}
+            </select>
+          </div>
+          <div className="w-48">
+            <label className="block text-xs font-semibold text-gray-500 mb-1">상태</label>
+            <select value={status} onChange={e => setStatus(e.target.value)}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+              <option value="">전체</option>
+              {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <button onClick={load} disabled={loading}
+            className="px-5 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors">
+            {loading ? "검색 중…" : "🔍 검색"}
+          </button>
+          <button onClick={() => { setSearch(""); setCompany(""); setLocation(""); setStatus(""); setRecords([]); setSearched(false); }}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-gray-600 text-sm hover:bg-gray-50 transition-colors">
+            초기화
+          </button>
+        </div>
+      </div>
+      {error && <div className="px-4 py-3 bg-red-50 rounded-xl text-sm text-red-600">{error}</div>}
+      {searched && !loading && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+            <span className="text-sm font-semibold text-gray-700">검색 결과</span>
+            <span className="text-xs text-gray-400">{records.length}건</span>
+          </div>
+          {records.length === 0 ? (
+            <div className="py-12 text-center text-gray-400 text-sm">조회된 자산이 없습니다</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-gray-50 text-gray-500 font-semibold">
+                  <tr>{["자산번호","사용자","법인명","부서","모델명","제조사","상태","사용일자","반납예정일","단가","누락","실사",""].map(h=><th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}</tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {records.map(r => (
+                    <tr key={r.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-3 py-2.5 font-mono text-gray-700 whitespace-nowrap">{r.assetNo||"-"}</td>
+                      <td className="px-3 py-2.5 font-medium text-gray-900 whitespace-nowrap">{r.user||"-"}</td>
+                      <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{r.company||"-"}</td>
+                      <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.dept||"-"}</td>
+                      <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap max-w-[140px] truncate">{r.model||"-"}</td>
+                      <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.maker||"-"}</td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${STATUS_COLOR[r.status]??"bg-gray-100 text-gray-600"}`}>{r.status||"-"}</span>
+                      </td>
+                      <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{fmtDate(r.useDate)}</td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        {r.returnDue ? <span className="flex items-center gap-1.5"><span className="text-gray-600">{fmtDate(r.returnDue)}</span><span className={`text-[11px] ${dDay(r.returnDue).cls}`}>{dDay(r.returnDue).label}</span></span> : "-"}
+                      </td>
+                      <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{fmtKrw(r.price)}</td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        {r.missing.length > 0 ? <span className="px-2 py-1 rounded-full text-[11px] font-semibold bg-orange-100 text-orange-700">{r.missing.join(", ")}</span> : "-"}
+                      </td>
+                      <td className="px-3 py-2.5 whitespace-nowrap text-center">
+                        {r.verified ? <span className="text-green-600 font-bold">✓</span> : <span className="text-gray-300">−</span>}
+                      </td>
+                      <td className="px-3 py-2.5">{r.notionUrl && <a href={r.notionUrl} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-600 underline underline-offset-2">Notion ↗</a>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+      {!searched && (
+        <div className="py-16 text-center text-gray-300 text-sm">
+          <p className="text-4xl mb-3">💻</p><p>조건을 선택하고 검색 버튼을 눌러주세요</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 엑셀 업로드 탭
+// ─────────────────────────────────────────────────────────────────────────────
+interface ExcelRow {
+  assetNo:string; model:string; serial:string; maker:string; cpu:string; ram:string;
+  company:string; user:string; dept:string; location:string;
+  purchaseDate:string|number; price:number; useDate:string|number;
+}
+function excelDateToStr(val:string|number|undefined):string {
+  if (!val) return "";
+  if (typeof val==="number") return new Date((val-25569)*86400*1000).toISOString().slice(0,10);
+  return String(val).trim().replace(/[./]/g,"-").slice(0,10);
+}
+const COL_MAP:{key:keyof ExcelRow;aliases:string[]}[]=[
+  {key:"assetNo",aliases:["관리번호","자산번호","assetno","asset_no"]},
+  {key:"model",aliases:["모델명","model"]},
+  {key:"serial",aliases:["시리얼","시리얼넘버","serial","serial_number","s/n"]},
+  {key:"maker",aliases:["제조사","maker","manufacturer"]},
+  {key:"cpu",aliases:["cpu","프로세서"]},
+  {key:"ram",aliases:["램","ram","memory"]},
+  {key:"company",aliases:["법인","법인명","company"]},
+  {key:"user",aliases:["사용자","user","name"]},
+  {key:"dept",aliases:["부서","department","dept"]},
+  {key:"location",aliases:["위치","location"]},
+  {key:"purchaseDate",aliases:["구매년도","구매일자","구매날짜","purchasedate","purchase_date"]},
+  {key:"price",aliases:["구매가격","단가","가격","price"]},
+  {key:"useDate",aliases:["사용일자","사용날짜","usedate","use_date"]},
+];
+function buildColIndex(headers:string[]):Partial<Record<keyof ExcelRow,number>>{
+  const idx:Partial<Record<keyof ExcelRow,number>>={};
+  headers.forEach((h,i)=>{
+    const norm=h.toLowerCase().replace(/\s+/g,"");
+    for(const{key,aliases}of COL_MAP){if(aliases.some(a=>a.replace(/\s+/g,"")=== norm)){idx[key]=i;break;}}
+  });
+  return idx;
+}
+type UploadResult={index:number;user:string;assetNo:string;ok:boolean;error?:string};
+interface DupItem{excelRow:ExcelRow;matchedBy:"serial"|"assetNo";existingUser:string;existingModel:string;existingStatus:string;existingNotionUrl:string;}
+
+function DuplicateModal({dups,cleanCount,onSkipDups,onUploadAll,onCancel}:{
+  dups:DupItem[];cleanCount:number;onSkipDups:()=>void;onUploadAll:()=>void;onCancel:()=>void;
+}){
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel}/>
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden">
+        <div className="px-6 py-4 bg-amber-50 border-b border-amber-200 flex items-start gap-3">
+          <span className="text-2xl mt-0.5">⚠️</span>
+          <div>
+            <p className="font-bold text-amber-800 text-base">중복 데이터 감지됨</p>
+            <p className="text-xs text-amber-700 mt-1">엑셀 {dups.length+cleanCount}건 중 <strong>{dups.length}건</strong>이 Notion에 이미 등록되어 있습니다.</p>
+          </div>
+          <button onClick={onCancel} className="ml-auto text-amber-400 hover:text-amber-700 text-xl font-bold">✕</button>
+        </div>
+        <div className="overflow-y-auto flex-1">
+          <table className="w-full text-xs">
+            <thead className="bg-gray-50 text-gray-500 font-semibold sticky top-0">
+              <tr>{["중복기준","엑셀 사용자","엑셀 모델명","기존 사용자","기존 상태","Notion"].map(h=><th key={h} className="px-4 py-2.5 text-left whitespace-nowrap">{h}</th>)}</tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {dups.map((d,i)=>(
+                <tr key={i} className="bg-amber-50/40 hover:bg-amber-50">
+                  <td className="px-4 py-2.5 whitespace-nowrap">
+                    <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-700">
+                      {d.matchedBy==="serial"?`시리얼: ${d.excelRow.serial}`:`자산번호: ${d.excelRow.assetNo}`}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2.5 font-medium text-gray-800 whitespace-nowrap">{d.excelRow.user||"-"}</td>
+                  <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap max-w-[110px] truncate">{d.excelRow.model||"-"}</td>
+                  <td className="px-4 py-2.5 text-gray-700 font-medium whitespace-nowrap">{d.existingUser||"-"}</td>
+                  <td className="px-4 py-2.5 whitespace-nowrap">
+                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${STATUS_COLOR[d.existingStatus]??"bg-gray-100 text-gray-600"}`}>{d.existingStatus||"-"}</span>
+                  </td>
+                  <td className="px-4 py-2.5">{d.existingNotionUrl&&<a href={d.existingNotionUrl} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-600 underline underline-offset-2">열기 ↗</a>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex flex-col sm:flex-row gap-3">
+          {cleanCount>0&&<button onClick={onSkipDups} className="flex-1 py-2.5 rounded-xl bg-teal-600 text-white text-sm font-bold hover:bg-teal-700 transition-colors">✅ 중복 제외하고 {cleanCount}건만 등록</button>}
+          <button onClick={onUploadAll} className="flex-1 py-2.5 rounded-xl bg-gray-700 text-white text-sm font-bold hover:bg-gray-800 transition-colors">전체 {dups.length+cleanCount}건 등록 (중복 포함)</button>
+          <button onClick={onCancel} className="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-600 text-sm hover:bg-gray-100">취소</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ExcelUploadTab(){
+  const fileRef=useRef<HTMLInputElement>(null);
+  const [rows,setRows]=useState<ExcelRow[]>([]);
+  const [fileName,setFile]=useState("");
+  const [parseErr,setPErr]=useState("");
+  const [uploading,setUploading]=useState(false);
+  const [checking,setChecking]=useState(false);
+  const [progress,setProgress]=useState(0);
+  const [results,setResults]=useState<UploadResult[]|null>(null);
+  const [summary,setSummary]=useState<{success:number;failed:number}|null>(null);
+  const [showDupModal,setShowDupModal]=useState(false);
+  const [dupItems,setDupItems]=useState<DupItem[]>([]);
+  const [cleanRows,setCleanRows]=useState<ExcelRow[]>([]);
+
+  const handleFile=async(file:File)=>{
+    setPErr("");setRows([]);setResults(null);setSummary(null);
+    setShowDupModal(false);setDupItems([]);setCleanRows([]);setFile(file.name);
+    try{
+      const XLSX=await import("xlsx");
+      const buf=await file.arrayBuffer();
+      const wb=XLSX.read(buf,{type:"array",cellDates:false});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const raw:(string|number|undefined)[][]=XLSX.utils.sheet_to_json(ws,{header:1,defval:"",blankrows:false}) as (string|number|undefined)[][];
+      if(raw.length<2) throw new Error("데이터 행이 없습니다 (헤더 + 최소 1행 필요)");
+      const headers=raw[0].map(h=>String(h??""));
+      const colIdx=buildColIndex(headers);
+      const parsed:ExcelRow[]=[];
+      for(let i=1;i<raw.length;i++){
+        const r=raw[i];
+        const user=String(r[colIdx.user??-1]??"").trim();
+        const assetNo=String(r[colIdx.assetNo??-1]??"").trim();
+        if(!user&&!assetNo) continue;
+        parsed.push({assetNo,user,
+          model:String(r[colIdx.model??-1]??"").trim(),serial:String(r[colIdx.serial??-1]??"").trim(),
+          maker:String(r[colIdx.maker??-1]??"").trim(),cpu:String(r[colIdx.cpu??-1]??"").trim(),
+          ram:String(r[colIdx.ram??-1]??"").trim(),company:String(r[colIdx.company??-1]??"").trim(),
+          dept:String(r[colIdx.dept??-1]??"").trim(),location:String(r[colIdx.location??-1]??"").trim(),
+          purchaseDate:r[colIdx.purchaseDate??-1]??"",
+          price:Number(String(r[colIdx.price??-1]??"").replace(/[^\d.]/g,""))||0,
+          useDate:r[colIdx.useDate??-1]??"",
+        });
+      }
+      if(parsed.length===0) throw new Error("유효한 데이터가 없습니다. 헤더 이름을 확인하세요.");
+      setRows(parsed);
+    }catch(e){setPErr(String(e));}
+  };
+  const handleDrop=(e:React.DragEvent)=>{e.preventDefault();const f=e.dataTransfer.files[0];if(f)handleFile(f);};
+  const handleCheckAndUpload=async()=>{
+    setChecking(true);setPErr("");
+    try{
+      const res=await fetch("/api/hw");const json=await res.json();
+      if(!json.ok) throw new Error(json.error);
+      const notionRecords:HwRecord[]=json.records;
+      const serialSet=new Map<string,HwRecord>();
+      const assetNoSet=new Map<string,HwRecord>();
+      for(const nr of notionRecords){
+        if(nr.serial) serialSet.set(nr.serial.trim().toLowerCase(),nr);
+        if(nr.assetNo) assetNoSet.set(nr.assetNo.trim().toLowerCase(),nr);
+      }
+      const dups:DupItem[]=[];const clean:ExcelRow[]=[];
+      for(const row of rows){
+        const sk=row.serial?.trim().toLowerCase();const ak=row.assetNo?.trim().toLowerCase();
+        let matched:HwRecord|undefined;let matchedBy:"serial"|"assetNo"="serial";
+        if(sk&&serialSet.has(sk)){matched=serialSet.get(sk);matchedBy="serial";}
+        else if(ak&&assetNoSet.has(ak)){matched=assetNoSet.get(ak);matchedBy="assetNo";}
+        if(matched){dups.push({excelRow:row,matchedBy,existingUser:matched.user,existingModel:matched.model,existingStatus:matched.status,existingNotionUrl:matched.notionUrl});}
+        else{clean.push(row);}
+      }
+      if(dups.length===0){await doUpload(rows);}else{setDupItems(dups);setCleanRows(clean);setShowDupModal(true);}
+    }catch(e){setPErr(String(e));}finally{setChecking(false);}
+  };
+  const doUpload=async(targetRows:ExcelRow[])=>{
+    setShowDupModal(false);setUploading(true);setProgress(0);setResults(null);setSummary(null);
+    try{
+      const timer=setInterval(()=>setProgress(p=>Math.min(p+Math.random()*12,88)),400);
+      const res=await fetch("/api/hw/upload",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({rows:targetRows.map(r=>({...r,purchaseDate:excelDateToStr(r.purchaseDate as string|number),useDate:excelDateToStr(r.useDate as string|number)}))})});
+      const json=await res.json();clearInterval(timer);setProgress(100);
+      if(!json.ok) throw new Error(json.error);
+      setResults(json.results);setSummary({success:json.success,failed:json.failed});
+    }catch(e){setPErr(String(e));}finally{setUploading(false);}
+  };
+  const reset=()=>{setRows([]);setFile("");setPErr("");setResults(null);setSummary(null);setProgress(0);setShowDupModal(false);setDupItems([]);setCleanRows([]);if(fileRef.current)fileRef.current.value="";};
+
+  return(
+    <div className="space-y-4">
+      {showDupModal&&<DuplicateModal dups={dupItems} cleanCount={cleanRows.length} onSkipDups={()=>doUpload(cleanRows)} onUploadAll={()=>doUpload(rows)} onCancel={()=>setShowDupModal(false)}/>}
+      <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 text-xs text-teal-700 space-y-1">
+        <p className="font-semibold text-sm text-teal-800">📋 업체 제공 엑셀 → Notion 자동 등록</p>
+        <p>업체가 제공한 엑셀 파일을 업로드하면 <strong>사용중</strong> 상태로 NT/DT 트래커에 자동 등록됩니다.</p>
+        <p className="text-teal-600">지원 컬럼: 관리번호 · 모델명 · 시리얼 · 제조사 · CPU · 램 · 법인 · 사용자 · 부서 · 위치 · 구매년도 · 구매가격 · 사용일자</p>
+      </div>
+      {rows.length===0&&!parseErr&&(
+        <div onDrop={handleDrop} onDragOver={e=>e.preventDefault()}
+          className="bg-white border-2 border-dashed border-gray-300 rounded-xl p-10 text-center hover:border-teal-400 hover:bg-teal-50/30 transition-colors cursor-pointer"
+          onClick={()=>fileRef.current?.click()}>
+          <div className="text-4xl mb-3">📂</div>
+          <p className="text-sm font-semibold text-gray-700">엑셀 파일을 드래그하거나 클릭하여 선택</p>
+          <p className="text-xs text-gray-400 mt-1">.xlsx · .xls 지원</p>
+          <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={e=>{const f=e.target.files?.[0];if(f)handleFile(f);}}/>
+        </div>
+      )}
+      {parseErr&&(
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700 flex items-start gap-3">
+          <span className="text-xl">⚠️</span>
+          <div><p className="font-semibold">파일 파싱 오류</p><p className="mt-1 text-xs">{parseErr}</p><button onClick={reset} className="mt-2 text-xs underline text-red-600">다시 선택</button></div>
+        </div>
+      )}
+      {rows.length>0&&!summary&&(
+        <>
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+              <div><span className="text-sm font-semibold text-gray-800">📄 {fileName}</span><span className="ml-2 text-xs text-gray-400">{rows.length}개 행 파싱 완료</span></div>
+              <button onClick={reset} className="text-xs text-gray-400 hover:text-gray-700 underline">취소</button>
+            </div>
+            <div className="overflow-x-auto max-h-80">
+              <table className="w-full text-xs">
+                <thead className="bg-gray-50 text-gray-500 font-semibold sticky top-0">
+                  <tr>{["#","관리번호","사용자","법인","부서","모델명","제조사","시리얼","구매가격","사용일자"].map(h=><th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}</tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {rows.map((r,i)=>(
+                    <tr key={i} className="hover:bg-gray-50">
+                      <td className="px-3 py-2 text-gray-400">{i+1}</td>
+                      <td className="px-3 py-2 font-mono text-gray-700 whitespace-nowrap">{r.assetNo||"-"}</td>
+                      <td className="px-3 py-2 font-medium text-gray-900 whitespace-nowrap">{r.user||"-"}</td>
+                      <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{r.company||"-"}</td>
+                      <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{r.dept||"-"}</td>
+                      <td className="px-3 py-2 text-gray-600 whitespace-nowrap max-w-[120px] truncate">{r.model||"-"}</td>
+                      <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{r.maker||"-"}</td>
+                      <td className="px-3 py-2 font-mono text-gray-400 text-[11px] whitespace-nowrap">{r.serial||"-"}</td>
+                      <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{r.price>0?`₩${r.price.toLocaleString("ko-KR")}`:"-"}</td>
+                      <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{excelDateToStr(r.useDate as string|number)||"-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          {!uploading&&!checking&&(
+            <div className="flex gap-3">
+              <button onClick={handleCheckAndUpload} className="flex-1 py-3 rounded-xl bg-teal-600 text-white text-sm font-bold hover:bg-teal-700 transition-colors shadow-sm">
+                🔍 중복 확인 후 Notion 등록 ({rows.length}건)
+              </button>
+              <button onClick={reset} className="px-5 py-3 rounded-xl border border-gray-300 text-gray-600 text-sm hover:bg-gray-50">취소</button>
+            </div>
+          )}
+          {checking&&(
+            <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-3">
+              <svg className="animate-spin w-5 h-5 text-teal-500 shrink-0" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+              </svg>
+              <div><p className="text-sm font-semibold text-gray-700">Notion 데이터와 중복 여부 확인 중…</p><p className="text-xs text-gray-400 mt-0.5">시리얼 번호 · 자산번호 기준으로 비교합니다</p></div>
+            </div>
+          )}
+          {uploading&&(
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <p className="text-sm font-semibold text-gray-700 mb-3">Notion 등록 중… {Math.round(progress)}%</p>
+              <div className="w-full bg-gray-100 rounded-full h-2.5"><div className="bg-teal-500 h-2.5 rounded-full transition-all duration-500" style={{width:`${progress}%`}}/></div>
+              <p className="text-xs text-gray-400 mt-2">Notion API 제한으로 순차 처리됩니다.</p>
+            </div>
+          )}
+        </>
+      )}
+      {summary&&results&&(
+        <div className="space-y-4">
+          <div className={`rounded-xl p-5 border ${summary.failed===0?"bg-green-50 border-green-200":"bg-yellow-50 border-yellow-200"}`}>
+            <p className={`text-base font-bold mb-1 ${summary.failed===0?"text-green-800":"text-yellow-800"}`}>{summary.failed===0?"✅ 전체 등록 완료!":"⚠️ 등록 완료 (일부 실패)"}</p>
+            <p className="text-sm text-gray-700">성공 <span className="font-bold text-green-700">{summary.success}</span>건 · 실패 <span className="font-bold text-red-600">{summary.failed}</span>건</p>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="px-5 py-3 border-b border-gray-100"><p className="text-sm font-semibold text-gray-700">등록 상세 결과</p></div>
+            <div className="overflow-x-auto max-h-72">
+              <table className="w-full text-xs">
+                <thead className="bg-gray-50 text-gray-500 font-semibold sticky top-0">
+                  <tr>{["#","사용자","관리번호","결과","오류 내용"].map(h=><th key={h} className="px-3 py-2.5 text-left">{h}</th>)}</tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {results.map((r,i)=>(
+                    <tr key={i} className={r.ok?"":"bg-red-50/40"}>
+                      <td className="px-3 py-2 text-gray-400">{r.index+1}</td>
+                      <td className="px-3 py-2 font-medium text-gray-800">{r.user||"-"}</td>
+                      <td className="px-3 py-2 font-mono text-gray-600">{r.assetNo||"-"}</td>
+                      <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${r.ok?"bg-green-100 text-green-700":"bg-red-100 text-red-700"}`}>{r.ok?"✓ 성공":"✗ 실패"}</span></td>
+                      <td className="px-3 py-2 text-red-500 text-[11px]">{r.error||""}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <button onClick={reset} className="w-full py-2.5 rounded-xl border border-gray-300 text-gray-600 text-sm hover:bg-gray-50">새 파일 업로드</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 메인 HwPanel — 데이터 1회 fetch, 모든 탭에 props 전달
+// ─────────────────────────────────────────────────────────────────────────────
+type Tab = "dashboard"|"shipment"|"repair"|"rental"|"return"|"search"|"upload";
+
+export default function HwPanel({ company = "", initialStats }: { company?: string; initialStats?: HwStats | null }) {
+  const [tab, setTab] = useState<Tab>("dashboard");
+
+  // ── 대시보드 전용 경량 통계 (즉시 로드) ──────────────────────────────────
+  const [stats,       setStats]       = useState<HwStats | null>(initialStats ?? null);
+  const [statsLoading, setStatsLoading] = useState(!initialStats);
+  const [statsError,  setStatsError]  = useState("");
+
+  // ── 목록 탭용 전체 레코드 (필요 시 lazy load) ─────────────────────────────
+  const [records,      setRecords]      = useState<HwRecord[]>([]);
+  const [recordsLoading, setRecordsLoading] = useState(false);
+  const [recordsReady,   setRecordsReady]   = useState(false);
+  const [recordsError,   setRecordsError]   = useState("");
+
+  // stats 로드 (대시보드 진입 시)
+  const loadStats = useCallback(async () => {
+    setStatsLoading(true); setStatsError("");
+    try {
+      const res  = await fetch("/api/hw/stats");
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error);
+      setStats(json.stats);
+    } catch (e) { setStatsError(String(e)); }
+    finally { setStatsLoading(false); }
+  }, []);
+
+  // 전체 레코드 로드 (목록 탭 진입 시)
+  const loadAll = useCallback(async () => {
+    if (recordsReady) return; // 이미 로드됨
+    setRecordsLoading(true); setRecordsError("");
+    try {
+      const url  = company ? `/api/hw?company=${encodeURIComponent(company)}` : "/api/hw";
+      const res  = await fetch(url);
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error);
+      setRecords(json.records);
+      setRecordsReady(true);
+    } catch (e) { setRecordsError(String(e)); }
+    finally { setRecordsLoading(false); }
+  }, [company, recordsReady]);
+
+  // 새로고침: stats + records 모두 갱신
+  const handleRefreshStats = useCallback(async () => {
+    setStatsLoading(true); setStatsError("");
+    try {
+      const res  = await fetch("/api/hw/stats");
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error);
+      setStats(json.stats);
+    } catch (e) { setStatsError(String(e)); }
+    finally { setStatsLoading(false); }
+  }, []);
+
+  const handleRefreshAll = useCallback(async () => {
+    setRecordsLoading(true); setRecordsError("");
+    try {
+      const url  = company ? `/api/hw?company=${encodeURIComponent(company)}` : "/api/hw";
+      const res  = await fetch(url);
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error);
+      setRecords(json.records);
+      setRecordsReady(true);
+    } catch (e) { setRecordsError(String(e)); }
+    finally { setRecordsLoading(false); }
+  }, [company]);
+
+  // 초기 stats 로드 (initialStats 없을 때)
+  useEffect(() => {
+    if (!initialStats) loadStats();
+  }, [initialStats, loadStats]);
+
+  // 목록 탭 전환 시 레코드 lazy load
+  useEffect(() => {
+    if (tab !== "dashboard" && tab !== "search" && tab !== "upload") {
+      loadAll();
+    }
+  }, [tab, loadAll]);
+
+  const TABS: { id: Tab; label: string; icon: string }[] = [
+    { id: "dashboard", label: "대시보드",   icon: "📊" },
+    { id: "shipment",  label: "출고 현황",  icon: "📤" },
+    { id: "repair",    label: "수리 현황",  icon: "🔧" },
+    { id: "rental",    label: "렌탈/임시",  icon: "🚗" },
+    { id: "return",    label: "반납 대상자",icon: "📅" },
+    { id: "search",    label: "자산 검색",  icon: "🔍" },
+    { id: "upload",    label: "엑셀 등록",  icon: "📂" },
+  ];
+
+  const recordsTabProps: TabProps = { records, loading: recordsLoading, onRefresh: handleRefreshAll };
+  const isRecordsTab = tab !== "dashboard" && tab !== "search" && tab !== "upload";
+
+  return (
+    <div className="space-y-4">
+      {/* 패널 헤더 */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center shrink-0">
+            <span className="text-white text-lg">💻</span>
+          </div>
+          <div>
+            <h2 className="font-bold text-gray-900 text-sm">HW 자산 관리</h2>
+            <p className="text-xs text-gray-400 mt-0.5">
+              NT/DT/MOT 트래커 연동
+              {stats && (
+                <span className="ml-1 text-indigo-500 font-semibold">· 총 {stats.total}개</span>
+              )}
+            </p>
+          </div>
+        </div>
+        {(statsLoading || (isRecordsTab && recordsLoading)) && (
+          <div className="flex items-center gap-1.5 text-xs text-gray-400">
+            <svg className="animate-spin w-3.5 h-3.5 text-indigo-400" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+            </svg>
+            {statsLoading ? "통계 불러오는 중…" : "데이터 불러오는 중…"}
+          </div>
+        )}
+      </div>
+
+      {statsError  && <div className="px-4 py-3 bg-red-50 rounded-xl text-sm text-red-600">⚠️ {statsError}</div>}
+      {recordsError && <div className="px-4 py-3 bg-red-50 rounded-xl text-sm text-red-600">⚠️ {recordsError}</div>}
+
+      {/* 탭 */}
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 overflow-x-auto">
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap min-w-0 ${
+              tab === t.id ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+            }`}>
+            <span>{t.icon}</span>
+            <span className="hidden sm:inline">{t.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {tab === "dashboard" && <DashboardTab  stats={stats} loading={statsLoading} onRefresh={handleRefreshStats} />}
+      {tab === "shipment"  && <ShipmentTab   {...recordsTabProps} />}
+      {tab === "repair"    && <RepairTab     {...recordsTabProps} />}
+      {tab === "rental"    && <RentalTempTab {...recordsTabProps} />}
+      {tab === "return"    && <ReturnTab     {...recordsTabProps} />}
+      {tab === "search"    && <SearchTab companyLock={company} />}
+      {tab === "upload"    && <ExcelUploadTab />}
+    </div>
+  );
+}

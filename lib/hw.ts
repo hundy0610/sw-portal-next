@@ -78,6 +78,75 @@ function mapPage(page: PageObjectResponse) {
 
 export type HwRecord = ReturnType<typeof mapPage>;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 대시보드용 집계 통계 (전체 레코드 대신 이걸 KV에 별도 저장)
+// ─────────────────────────────────────────────────────────────────────────────
+export interface HwStats {
+  total: number;
+  byStatus: Record<string, number>;
+  byCompany: Record<string, number>;
+  byMaker: Record<string, number>;
+  activeCount: number;
+  stockCount: number;
+  shipCount: number;
+  repairCount: number;
+  rentalCount: number;
+  tempCount: number;
+  returnCount: number;
+  disposalCount: number;
+  verifiedCount: number;
+  totalValue: number;
+  companyTable: { company: string; total: number; active: number; stock: number }[];
+}
+
+const DISPOSAL_STATUSES = [
+  "폐기","폐기확정(리스트화)","폐기완료","3층문서고/폐기","지하창고/폐기",
+];
+
+export function computeHwStats(records: HwRecord[]): HwStats {
+  const byStatus: Record<string, number>  = {};
+  const byCompany: Record<string, number> = {};
+  const byMaker: Record<string, number>   = {};
+  const coMap: Record<string, { total: number; active: number; stock: number }> = {};
+  let totalValue = 0;
+  let verifiedCount = 0;
+
+  for (const r of records) {
+    const st = r.status  || "미분류";
+    const co = r.company || "미분류";
+    const mk = r.maker   || "기타";
+    byStatus[st]  = (byStatus[st]  || 0) + 1;
+    byCompany[co] = (byCompany[co] || 0) + 1;
+    byMaker[mk]   = (byMaker[mk]   || 0) + 1;
+    if (!coMap[co]) coMap[co] = { total: 0, active: 0, stock: 0 };
+    coMap[co].total++;
+    if (r.status === "사용중") coMap[co].active++;
+    if (r.status === "재고")   coMap[co].stock++;
+    totalValue += r.price || 0;
+    if (r.verified) verifiedCount++;
+  }
+
+  return {
+    total:          records.length,
+    byStatus,
+    byCompany,
+    byMaker,
+    activeCount:    byStatus["사용중"]       || 0,
+    stockCount:     byStatus["재고"]         || 0,
+    shipCount:      (byStatus["출고준비중"]   || 0) + (byStatus["출고준비완료"] || 0),
+    repairCount:    byStatus["수리"]         || 0,
+    rentalCount:    byStatus["렌탈"]         || 0,
+    tempCount:      byStatus["임시지급"]      || 0,
+    returnCount:    byStatus["반납예정"]      || 0,
+    disposalCount:  DISPOSAL_STATUSES.reduce((s, k) => s + (byStatus[k] || 0), 0),
+    verifiedCount,
+    totalValue,
+    companyTable: Object.entries(coMap)
+      .sort((a, b) => b[1].total - a[1].total)
+      .map(([company, v]) => ({ company, ...v })),
+  };
+}
+
 export async function fetchAllHwRecords(): Promise<HwRecord[]> {
   const records: HwRecord[] = [];
   let cursor: string | undefined;
