@@ -22,6 +22,7 @@ interface TabProps {
   records: HwRecord[];
   loading: boolean;
   onRefresh: () => void;
+  onUpdate: (id: string, fields: Partial<HwRecord>) => Promise<void>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -270,8 +271,9 @@ function DashboardTab({ stats, loading, onRefresh }: { stats: HwStats | null; lo
 // ─────────────────────────────────────────────────────────────────────────────
 // 출고 현황 탭
 // ─────────────────────────────────────────────────────────────────────────────
-function ShipmentTab({ records, loading, onRefresh }: TabProps) {
+function ShipmentTab({ records, loading, onRefresh, onUpdate }: TabProps) {
   const [company, setCompany] = useState("");
+  const [editRecord, setEditRecord] = useState<HwRecord | null>(null);
 
   const filtered      = useMemo(() => company ? records.filter(r => r.company === company) : records, [records, company]);
   const pendingShip   = useMemo(() => filtered.filter(r => r.status === "출고준비중"),    [filtered]);
@@ -288,7 +290,7 @@ function ShipmentTab({ records, loading, onRefresh }: TabProps) {
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead className="bg-gray-50 text-gray-500 font-semibold">
-              <tr>{["자산번호","사용자","법인명","부서","모델명","상태","사용일자","위치",""].map(h=><th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}</tr>
+              <tr>{["자산번호","사용자","법인명","부서","모델명","상태","출고진행상황","사용일자","위치",""].map(h=><th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}</tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {items.map(r => (
@@ -301,9 +303,15 @@ function ShipmentTab({ records, loading, onRefresh }: TabProps) {
                   <td className="px-3 py-2.5 whitespace-nowrap">
                     <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${STATUS_COLOR[r.status]??"bg-gray-100 text-gray-600"}`}>{r.status||"-"}</span>
                   </td>
+                  <td className="px-3 py-2.5 whitespace-nowrap">
+                    {r.shipStatus ? <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-orange-100 text-orange-700">{r.shipStatus}</span> : <span className="text-gray-300">-</span>}
+                  </td>
                   <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{fmtDate(r.useDate)}</td>
                   <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.location||"-"}</td>
-                  <td className="px-3 py-2.5">{r.notionUrl && <a href={r.notionUrl} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-600 underline underline-offset-2">Notion ↗</a>}</td>
+                  <td className="px-3 py-2.5 flex items-center gap-2">
+                    {r.notionUrl && <a href={r.notionUrl} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-600 underline underline-offset-2">Notion ↗</a>}
+                    <button onClick={() => setEditRecord(r)} className="px-2 py-0.5 rounded text-[11px] font-medium bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors">수정</button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -347,159 +355,171 @@ function ShipmentTab({ records, loading, onRefresh }: TabProps) {
           <SectionTable title="✅ 출고준비완료" items={readyShip} headerCls="bg-amber-50 text-amber-700" />
         </>
       )}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 수리 현황 탭
-// ─────────────────────────────────────────────────────────────────────────────
-function RepairTab({ records, loading, onRefresh }: TabProps) {
-  const [company, setCompany] = useState("");
-  const filtered = useMemo(() => company ? records.filter(r => r.company === company) : records, [records, company]);
-  const repairRecords = useMemo(() => filtered.filter(r => r.status === "수리" || (r.repairStatus && r.repairStatus !== "완료")), [filtered]);
-
-  return (
-    <div className="space-y-4">
-      <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap items-center gap-3">
-        <div className="w-44">
-          <label className="block text-xs font-semibold text-gray-500 mb-1">법인명 필터</label>
-          <select value={company} onChange={e => setCompany(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300">
-            <option value="">전체 법인</option>
-            {COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
-        <div className="mt-5">
-          <button onClick={onRefresh} disabled={loading}
-            className="px-4 py-2 rounded-lg bg-pink-600 text-white text-sm font-semibold hover:bg-pink-700 disabled:opacity-50 transition-colors">
-            {loading ? "불러오는 중…" : "새로고침"}
-          </button>
-        </div>
-        {!loading && <p className="mt-5 text-xs text-gray-500">🔧 수리 대상: <span className="font-bold text-pink-700">{repairRecords.length}건</span></p>}
-      </div>
-      {loading ? (
-        <div className="py-16 text-center text-gray-300 text-sm">불러오는 중…</div>
-      ) : repairRecords.length === 0 ? (
-        <div className="py-16 text-center text-gray-300 text-sm"><p className="text-4xl mb-3">🔧</p><p>수리 대상 자산이 없습니다</p></div>
-      ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-100 bg-pink-50">
-            <p className="text-sm font-bold text-pink-700">수리 진행 중 — {repairRecords.length}건</p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead className="bg-gray-50 text-gray-500 font-semibold">
-                <tr>{["자산번호","사용자","법인명","부서","모델명","수리상황","보증여부","위치","비고",""].map(h=><th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}</tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {repairRecords.map(r => (
-                  <tr key={r.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-2.5 font-mono text-gray-700 whitespace-nowrap">{r.assetNo||"-"}</td>
-                    <td className="px-3 py-2.5 font-medium text-gray-900 whitespace-nowrap">{r.user||"-"}</td>
-                    <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{r.company||"-"}</td>
-                    <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.dept||"-"}</td>
-                    <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap max-w-[130px] truncate">{r.model||"-"}</td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">
-                      <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-pink-100 text-pink-700">{r.repairStatus||r.status||"-"}</span>
-                    </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">
-                      {r.warranty ? <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-green-100 text-green-700">{r.warranty}</span> : <span className="text-gray-300">-</span>}
-                    </td>
-                    <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.location||"-"}</td>
-                    <td className="px-3 py-2.5 text-gray-400 whitespace-nowrap max-w-[120px] truncate">{r.note||"-"}</td>
-                    <td className="px-3 py-2.5">{r.notionUrl && <a href={r.notionUrl} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-600 underline underline-offset-2">Notion ↗</a>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      {editRecord && (
+        <EditModal
+          record={editRecord}
+          fields={["status","shipStatus","user","company","dept","location","note"]}
+          onSave={onUpdate}
+          onClose={() => setEditRecord(null)}
+        />
       )}
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 렌탈 / 임시지급 탭 (신규)
+// 편집 모달
 // ─────────────────────────────────────────────────────────────────────────────
-function RentalTempTab({ records, loading, onRefresh }: TabProps) {
-  const [company, setCompany] = useState("");
-  const filtered      = useMemo(() => company ? records.filter(r => r.company === company) : records, [records, company]);
-  const rentalRecords = useMemo(() => filtered.filter(r => r.status === "렌탈"),      [filtered]);
-  const tempRecords   = useMemo(() => filtered.filter(r => r.status === "임시지급"),  [filtered]);
+const SHIP_STATUSES  = ["","출고준비중","출고준비완료","출고완료","보류","취소"];
+const RETURN_STATUSES = ["","반납예정","반납진행중","반납완료","반납취소","회수불가"];
+const RETURN_REASONS  = ["","퇴사","계약만료","부서이동","장기출장","기타"];
 
-  const SectionTable = ({ title, items, headerCls }: { title:string; items:HwRecord[]; headerCls:string }) => {
-    if (items.length === 0) return null;
-    return (
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className={`px-5 py-3 border-b border-gray-100 flex items-center gap-2 ${headerCls}`}>
-          <span className="text-sm font-bold">{title}</span>
-          <span className="text-xs opacity-70">{items.length}건</span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead className="bg-gray-50 text-gray-500 font-semibold">
-              <tr>{["자산번호","사용자","법인명","부서","모델명","상태","사용일자","위치","비고",""].map(h=><th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}</tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {items.map(r => (
-                <tr key={r.id} className="hover:bg-gray-50">
-                  <td className="px-3 py-2.5 font-mono text-gray-700 whitespace-nowrap">{r.assetNo||"-"}</td>
-                  <td className="px-3 py-2.5 font-medium text-gray-900 whitespace-nowrap">{r.user||"-"}</td>
-                  <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{r.company||"-"}</td>
-                  <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.dept||"-"}</td>
-                  <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap max-w-[130px] truncate">{r.model||"-"}</td>
-                  <td className="px-3 py-2.5 whitespace-nowrap">
-                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${STATUS_COLOR[r.status]??"bg-gray-100 text-gray-600"}`}>{r.status||"-"}</span>
-                  </td>
-                  <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{fmtDate(r.useDate)}</td>
-                  <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.location||"-"}</td>
-                  <td className="px-3 py-2.5 text-gray-400 whitespace-nowrap max-w-[120px] truncate">{r.note||"-"}</td>
-                  <td className="px-3 py-2.5">{r.notionUrl && <a href={r.notionUrl} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-600 underline underline-offset-2">Notion ↗</a>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
+type EditField = "status"|"shipStatus"|"returnStatus"|"returnDue"|"returnReason"|"user"|"company"|"dept"|"location"|"note";
+
+interface EditModalProps {
+  record: HwRecord;
+  fields: EditField[];
+  onSave: (id: string, fields: Partial<HwRecord>) => Promise<void>;
+  onClose: () => void;
+}
+
+function EditModal({ record, fields, onSave, onClose }: EditModalProps) {
+  const [form, setForm] = useState<Partial<HwRecord>>({});
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  // 초기값 세팅
+  useEffect(() => {
+    const init: Partial<HwRecord> = {};
+    fields.forEach(f => { (init as Record<string, unknown>)[f] = (record as Record<string, unknown>)[f] ?? ""; });
+    setForm(init);
+  }, [record, fields]);
+
+  const set = (f: string, v: string) => setForm(prev => ({ ...prev, [f]: v }));
+
+  const handleSave = async () => {
+    setSaving(true); setError("");
+    try {
+      await onSave(record.id, form);
+      onClose();
+    } catch (e) { setError(String(e)); }
+    finally { setSaving(false); }
+  };
+
+  const labelMap: Record<string, string> = {
+    status: "상태", shipStatus: "출고진행상황", returnStatus: "반납 진행 상황",
+    returnDue: "반납예정일", returnReason: "반납사유",
+    user: "사용자", company: "법인명", dept: "부서", location: "위치", note: "비고",
   };
 
   return (
-    <div className="space-y-4">
-      <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap items-center gap-3">
-        <div className="w-44">
-          <label className="block text-xs font-semibold text-gray-500 mb-1">법인명 필터</label>
-          <select value={company} onChange={e => setCompany(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-300">
-            <option value="">전체 법인</option>
-            {COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6 space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-gray-900 text-sm">자산 정보 수정</h3>
+            <p className="text-xs text-gray-400 mt-0.5">{record.assetNo || record.model || record.id}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
         </div>
-        <div className="mt-5">
-          <button onClick={onRefresh} disabled={loading}
-            className="px-4 py-2 rounded-lg bg-cyan-600 text-white text-sm font-semibold hover:bg-cyan-700 disabled:opacity-50 transition-colors">
-            {loading ? "불러오는 중…" : "새로고침"}
+
+        <div className="space-y-3">
+          {fields.includes("status") && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">{labelMap.status}</label>
+              <select value={String(form.status ?? "")} onChange={e => set("status", e.target.value)}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                {STATUSES.map(s => <option key={s} value={s}>{s || "— 선택 —"}</option>)}
+              </select>
+            </div>
+          )}
+          {fields.includes("shipStatus") && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">{labelMap.shipStatus}</label>
+              <select value={String(form.shipStatus ?? "")} onChange={e => set("shipStatus", e.target.value)}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300">
+                {SHIP_STATUSES.map(s => <option key={s} value={s}>{s || "— 선택 —"}</option>)}
+              </select>
+            </div>
+          )}
+          {fields.includes("returnStatus") && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">{labelMap.returnStatus}</label>
+              <select value={String(form.returnStatus ?? "")} onChange={e => set("returnStatus", e.target.value)}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-300">
+                {RETURN_STATUSES.map(s => <option key={s} value={s}>{s || "— 선택 —"}</option>)}
+              </select>
+            </div>
+          )}
+          {fields.includes("returnDue") && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">{labelMap.returnDue}</label>
+              <input type="date" value={String(form.returnDue ?? "")} onChange={e => set("returnDue", e.target.value)}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-300" />
+            </div>
+          )}
+          {fields.includes("returnReason") && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">{labelMap.returnReason}</label>
+              <select value={String(form.returnReason ?? "")} onChange={e => set("returnReason", e.target.value)}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-300">
+                {RETURN_REASONS.map(s => <option key={s} value={s}>{s || "— 선택 —"}</option>)}
+              </select>
+            </div>
+          )}
+          {fields.includes("user") && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">{labelMap.user}</label>
+              <input value={String(form.user ?? "")} onChange={e => set("user", e.target.value)}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+            </div>
+          )}
+          {fields.includes("company") && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">{labelMap.company}</label>
+              <select value={String(form.company ?? "")} onChange={e => set("company", e.target.value)}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+                <option value="">— 선택 —</option>
+                {COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          )}
+          {fields.includes("dept") && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">{labelMap.dept}</label>
+              <input value={String(form.dept ?? "")} onChange={e => set("dept", e.target.value)}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+            </div>
+          )}
+          {fields.includes("location") && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">{labelMap.location}</label>
+              <input value={String(form.location ?? "")} onChange={e => set("location", e.target.value)}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+            </div>
+          )}
+          {fields.includes("note") && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">{labelMap.note}</label>
+              <textarea value={String(form.note ?? "")} onChange={e => set("note", e.target.value)}
+                rows={2} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none" />
+            </div>
+          )}
+        </div>
+
+        {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">⚠️ {error}</p>}
+
+        <div className="flex gap-2 pt-1">
+          <button onClick={handleSave} disabled={saving}
+            className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+            {saving ? "저장 중…" : "✅ Notion에 저장"}
+          </button>
+          <button onClick={onClose}
+            className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm hover:bg-gray-50 transition-colors">
+            취소
           </button>
         </div>
-        {!loading && (
-          <div className="mt-5 flex gap-4 text-xs">
-            <span className="text-cyan-600 font-semibold">🚗 렌탈: {rentalRecords.length}건</span>
-            <span className="text-indigo-600 font-semibold">📋 임시지급: {tempRecords.length}건</span>
-          </div>
-        )}
       </div>
-      {loading ? (
-        <div className="py-16 text-center text-gray-300 text-sm">불러오는 중…</div>
-      ) : rentalRecords.length === 0 && tempRecords.length === 0 ? (
-        <div className="py-16 text-center text-gray-300 text-sm"><p className="text-4xl mb-3">🚗</p><p>렌탈/임시지급 자산이 없습니다</p></div>
-      ) : (
-        <>
-          <SectionTable title="🚗 렌탈" items={rentalRecords} headerCls="bg-cyan-50 text-cyan-700" />
-          <SectionTable title="📋 임시지급" items={tempRecords} headerCls="bg-indigo-50 text-indigo-700" />
-        </>
-      )}
     </div>
   );
 }
@@ -507,8 +527,9 @@ function RentalTempTab({ records, loading, onRefresh }: TabProps) {
 // ─────────────────────────────────────────────────────────────────────────────
 // 반납 대상자 탭
 // ─────────────────────────────────────────────────────────────────────────────
-function ReturnTab({ records, loading, onRefresh }: TabProps) {
+function ReturnTab({ records, loading, onRefresh, onUpdate }: TabProps) {
   const [company, setCompany] = useState("");
+  const [editRecord, setEditRecord] = useState<HwRecord | null>(null);
   const today = Date.now();
 
   const returnRecords = useMemo(() => {
@@ -532,10 +553,13 @@ function ReturnTab({ records, loading, onRefresh }: TabProps) {
         <td className="px-3 py-2.5 font-mono text-gray-600 whitespace-nowrap text-xs">{r.assetNo||"-"}</td>
         <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap max-w-[130px] truncate text-xs">{r.model||"-"}</td>
         <td className="px-3 py-2.5 whitespace-nowrap text-xs">
-          <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${STATUS_COLOR[r.status]??"bg-gray-100 text-gray-600"}`}>{r.status||"-"}</span>
+          {r.returnStatus ? <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-yellow-100 text-yellow-700">{r.returnStatus}</span> : <span className="text-gray-300">-</span>}
         </td>
         <td className="px-3 py-2.5 text-gray-400 whitespace-nowrap text-xs">{r.returnReason||"-"}</td>
-        <td className="px-3 py-2.5 text-xs">{r.notionUrl && <a href={r.notionUrl} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-600 underline underline-offset-2">Notion ↗</a>}</td>
+        <td className="px-3 py-2.5 text-xs flex items-center gap-2">
+          {r.notionUrl && <a href={r.notionUrl} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-600 underline underline-offset-2">Notion ↗</a>}
+          <button onClick={() => setEditRecord(r)} className="px-2 py-0.5 rounded text-[11px] font-medium bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors">수정</button>
+        </td>
       </tr>
     );
   };
@@ -551,7 +575,7 @@ function ReturnTab({ records, loading, onRefresh }: TabProps) {
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 text-gray-500 font-semibold text-xs">
-              <tr>{["D-Day","반납예정일","사용자","법인명","부서","자산번호","모델명","현재상태","반납사유",""].map(h=><th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}</tr>
+              <tr>{["D-Day","반납예정일","사용자","법인명","부서","자산번호","모델명","반납진행상황","반납사유",""].map(h=><th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}</tr>
             </thead>
             <tbody className="divide-y divide-gray-100">{items.map(r => <ReturnRow key={r.id} r={r} />)}</tbody>
           </table>
@@ -596,6 +620,14 @@ function ReturnTab({ records, loading, onRefresh }: TabProps) {
           <TableSection title="◽ D-30 초과"                   items={later}  cls="bg-gray-50 text-gray-700" />
         </>
       )}
+      {editRecord && (
+        <EditModal
+          record={editRecord}
+          fields={["returnStatus","returnDue","returnReason","status","note"]}
+          onSave={onUpdate}
+          onClose={() => setEditRecord(null)}
+        />
+      )}
     </div>
   );
 }
@@ -603,12 +635,13 @@ function ReturnTab({ records, loading, onRefresh }: TabProps) {
 // ─────────────────────────────────────────────────────────────────────────────
 // 자산 검색 탭 (자체 on-demand fetch)
 // ─────────────────────────────────────────────────────────────────────────────
-function SearchTab({ companyLock = "" }: { companyLock?: string }) {
-  const [records,  setRecords]  = useState<HwRecord[]>([]);
-  const [loading,  setLoading]  = useState(false);
-  const [error,    setError]    = useState("");
-  const [search,   setSearch]   = useState("");
-  const [company,  setCompany]  = useState(companyLock);
+function SearchTab({ companyLock = "", onUpdate }: { companyLock?: string; onUpdate?: (id: string, fields: Partial<HwRecord>) => Promise<void> }) {
+  const [records,     setRecords]     = useState<HwRecord[]>([]);
+  const [loading,     setLoading]     = useState(false);
+  const [error,       setError]       = useState("");
+  const [search,      setSearch]      = useState("");
+  const [company,     setCompany]     = useState(companyLock);
+  const [editRecord,  setEditRecord]  = useState<HwRecord | null>(null);
   const [status,   setStatus]   = useState("");
   const [location, setLocation] = useState("");
   const [searched, setSearched] = useState(false);
@@ -715,7 +748,10 @@ function SearchTab({ companyLock = "" }: { companyLock?: string }) {
                       <td className="px-3 py-2.5 whitespace-nowrap text-center">
                         {r.verified ? <span className="text-green-600 font-bold">✓</span> : <span className="text-gray-300">−</span>}
                       </td>
-                      <td className="px-3 py-2.5">{r.notionUrl && <a href={r.notionUrl} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-600 underline underline-offset-2">Notion ↗</a>}</td>
+                      <td className="px-3 py-2.5 flex items-center gap-2">
+                        {r.notionUrl && <a href={r.notionUrl} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-600 underline underline-offset-2">Notion ↗</a>}
+                        {onUpdate && <button onClick={() => setEditRecord(r)} className="px-2 py-0.5 rounded text-[11px] font-medium bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors">수정</button>}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -728,6 +764,18 @@ function SearchTab({ companyLock = "" }: { companyLock?: string }) {
         <div className="py-16 text-center text-gray-300 text-sm">
           <p className="text-4xl mb-3">💻</p><p>조건을 선택하고 검색 버튼을 눌러주세요</p>
         </div>
+      )}
+      {editRecord && onUpdate && (
+        <EditModal
+          record={editRecord}
+          fields={["status","shipStatus","returnStatus","returnDue","returnReason","user","company","dept","location","note"]}
+          onSave={async (id, fields) => {
+            await onUpdate(id, fields);
+            setRecords(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r));
+            setEditRecord(null);
+          }}
+          onClose={() => setEditRecord(null)}
+        />
       )}
     </div>
   );
@@ -1024,7 +1072,7 @@ function ExcelUploadTab(){
 // ─────────────────────────────────────────────────────────────────────────────
 // 메인 HwPanel — 데이터 1회 fetch, 모든 탭에 props 전달
 // ─────────────────────────────────────────────────────────────────────────────
-type Tab = "dashboard"|"shipment"|"repair"|"rental"|"return"|"search"|"upload";
+type Tab = "dashboard"|"shipment"|"return"|"search"|"upload";
 
 export default function HwPanel({ company = "", initialStats }: { company?: string; initialStats?: HwStats | null }) {
   const [tab, setTab] = useState<Tab>("dashboard");
@@ -1104,17 +1152,28 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
     }
   }, [tab, loadAll]);
 
+  // Notion 실시간 업데이트 — 저장 후 로컬 상태도 즉시 반영
+  const handleUpdate = useCallback(async (id: string, fields: Partial<HwRecord>) => {
+    const res = await fetch("/api/hw/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, fields }),
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error ?? "Notion 업데이트 실패");
+    // 로컬 상태 즉시 반영
+    setRecords(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r));
+  }, []);
+
   const TABS: { id: Tab; label: string; icon: string }[] = [
     { id: "dashboard", label: "대시보드",   icon: "📊" },
     { id: "shipment",  label: "출고 현황",  icon: "📤" },
-    { id: "repair",    label: "수리 현황",  icon: "🔧" },
-    { id: "rental",    label: "렌탈/임시",  icon: "🚗" },
     { id: "return",    label: "반납 대상자",icon: "📅" },
     { id: "search",    label: "자산 검색",  icon: "🔍" },
     { id: "upload",    label: "엑셀 등록",  icon: "📂" },
   ];
 
-  const recordsTabProps: TabProps = { records, loading: recordsLoading, onRefresh: handleRefreshAll };
+  const recordsTabProps: TabProps = { records, loading: recordsLoading, onRefresh: handleRefreshAll, onUpdate: handleUpdate };
   const isRecordsTab = tab !== "dashboard" && tab !== "search" && tab !== "upload";
 
   return (
@@ -1164,10 +1223,8 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
 
       {tab === "dashboard" && <DashboardTab  stats={stats} loading={statsLoading} onRefresh={handleRefreshStats} />}
       {tab === "shipment"  && <ShipmentTab   {...recordsTabProps} />}
-      {tab === "repair"    && <RepairTab     {...recordsTabProps} />}
-      {tab === "rental"    && <RentalTempTab {...recordsTabProps} />}
       {tab === "return"    && <ReturnTab     {...recordsTabProps} />}
-      {tab === "search"    && <SearchTab companyLock={company} />}
+      {tab === "search"    && <SearchTab companyLock={company} onUpdate={handleUpdate} />}
       {tab === "upload"    && <ExcelUploadTab />}
     </div>
   );
