@@ -15,18 +15,20 @@ export interface SwDbRecord {
   usageDate: string;                      // 사용일자 YYYY-MM-DD
   renewalDate: string;                    // 갱신필요일 YYYY-MM-DD
   purchaseDate: string;                   // 구매일자 YYYY-MM-DD
-  returnDate: string;                     // 반납일자 YYYY-MM-DD
-  returnScheduledDate: string;            // 반납예정일 YYYY-MM-DD
-  returnReason: string;                   // 반납사유
+  returnDate: string;                     // 회수일자 YYYY-MM-DD
+  shipStatus: string;                     // 출고진행상황 (status)
+  accountType: string;                    // 계정유형 (공용/법인/개인)
+  renewalCycle: string;                   // 갱신주기 (연/월)
   licenseKey: string;                     // 인증키 / 인증계정
   vendor: string;                         // 구매처
   usageCount: number;                     // 사용횟수
   certificate: string;                    // 증서 (file URL)
   workType: string;                       // SW사용직군
   billingType?: string;                   // 결제방식 (대웅 등)
-  monthlyKrw: number;                     // 월 구독 금액 (KRW, 0이면 미입력) — legacy fallback
-  annualUsd: number;                      // 연 비용 (USD, 0이면 KRW 결제)
-  annualKrw: number;                      // 연 비용 (KRW, 0이면 USD 결제)
+  monthlyUsd: number;                     // 월 비용 (USD)
+  monthlyKrw: number;                     // 월 비용 (KRW)
+  annualUsd: number;                      // 연 비용 (USD) — formula 또는 monthlyUsd×12
+  annualKrw: number;                      // 연 비용 (KRW) — formula 또는 monthlyKrw×12
   notionUrl: string;
 }
 

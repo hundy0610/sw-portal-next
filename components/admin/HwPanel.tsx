@@ -10,11 +10,11 @@ interface HwRecord {
   user: string; assetNo: string; model: string; serial: string;
   maker: string; cpu: string; ram: string;
   company: string; dept: string; location: string;
-  status: string; shipStatus: string; returnStatus: string;
-  returnDue: string; returnDate: string; returnReason: string;
+  status: string;
+  returnDue: string; returnDate: string;
   purchaseDate: string; useDate: string;
-  price: number; missing: string[]; note: string; docNo: string;
-  repairStatus: string; warranty: string; verified: boolean; duplicated: boolean;
+  price: number; note: string; docNo: string;
+  verified: boolean; duplicated: boolean;
 }
 
 // 탭 공통 props (중앙 데이터 전달)
@@ -290,7 +290,7 @@ function ShipmentTab({ records, loading, onRefresh, onUpdate }: TabProps) {
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead className="bg-gray-50 text-gray-500 font-semibold">
-              <tr>{["자산번호","사용자","법인명","부서","모델명","상태","출고진행상황","사용일자","위치",""].map(h=><th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}</tr>
+              <tr>{["자산번호","사용자","법인명","부서","모델명","상태","사용일자","위치",""].map(h=><th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}</tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {items.map(r => (
@@ -302,9 +302,6 @@ function ShipmentTab({ records, loading, onRefresh, onUpdate }: TabProps) {
                   <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap max-w-[130px] truncate">{r.model||"-"}</td>
                   <td className="px-3 py-2.5 whitespace-nowrap">
                     <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${STATUS_COLOR[r.status]??"bg-gray-100 text-gray-600"}`}>{r.status||"-"}</span>
-                  </td>
-                  <td className="px-3 py-2.5 whitespace-nowrap">
-                    {r.shipStatus ? <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-orange-100 text-orange-700">{r.shipStatus}</span> : <span className="text-gray-300">-</span>}
                   </td>
                   <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{fmtDate(r.useDate)}</td>
                   <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.location||"-"}</td>
@@ -358,7 +355,7 @@ function ShipmentTab({ records, loading, onRefresh, onUpdate }: TabProps) {
       {editRecord && (
         <EditModal
           record={editRecord}
-          fields={["status","shipStatus","user","company","dept","location","note"]}
+          fields={["status","user","company","dept","location","note"]}
           onSave={onUpdate}
           onClose={() => setEditRecord(null)}
         />
@@ -370,11 +367,7 @@ function ShipmentTab({ records, loading, onRefresh, onUpdate }: TabProps) {
 // ─────────────────────────────────────────────────────────────────────────────
 // 편집 모달
 // ─────────────────────────────────────────────────────────────────────────────
-const SHIP_STATUSES  = ["","출고준비중","출고준비완료","출고완료","보류","취소"];
-const RETURN_STATUSES = ["","반납예정","반납진행중","반납완료","반납취소","회수불가"];
-const RETURN_REASONS  = ["","퇴사","계약만료","부서이동","장기출장","기타"];
-
-type EditField = "status"|"shipStatus"|"returnStatus"|"returnDue"|"returnReason"|"user"|"company"|"dept"|"location"|"note";
+type EditField = "status"|"returnDue"|"user"|"company"|"dept"|"location"|"note";
 
 interface EditModalProps {
   record: HwRecord;
@@ -407,8 +400,8 @@ function EditModal({ record, fields, onSave, onClose }: EditModalProps) {
   };
 
   const labelMap: Record<string, string> = {
-    status: "상태", shipStatus: "출고진행상황", returnStatus: "반납 진행 상황",
-    returnDue: "반납예정일", returnReason: "반납사유",
+    status: "상태",
+    returnDue: "반납예정일",
     user: "사용자", company: "법인명", dept: "부서", location: "위치", note: "비고",
   };
 
@@ -433,38 +426,11 @@ function EditModal({ record, fields, onSave, onClose }: EditModalProps) {
               </select>
             </div>
           )}
-          {fields.includes("shipStatus") && (
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1">{labelMap.shipStatus}</label>
-              <select value={String(form.shipStatus ?? "")} onChange={e => set("shipStatus", e.target.value)}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300">
-                {SHIP_STATUSES.map(s => <option key={s} value={s}>{s || "— 선택 —"}</option>)}
-              </select>
-            </div>
-          )}
-          {fields.includes("returnStatus") && (
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1">{labelMap.returnStatus}</label>
-              <select value={String(form.returnStatus ?? "")} onChange={e => set("returnStatus", e.target.value)}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-300">
-                {RETURN_STATUSES.map(s => <option key={s} value={s}>{s || "— 선택 —"}</option>)}
-              </select>
-            </div>
-          )}
           {fields.includes("returnDue") && (
             <div>
               <label className="block text-xs font-semibold text-gray-500 mb-1">{labelMap.returnDue}</label>
               <input type="date" value={String(form.returnDue ?? "")} onChange={e => set("returnDue", e.target.value)}
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-300" />
-            </div>
-          )}
-          {fields.includes("returnReason") && (
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1">{labelMap.returnReason}</label>
-              <select value={String(form.returnReason ?? "")} onChange={e => set("returnReason", e.target.value)}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-300">
-                {RETURN_REASONS.map(s => <option key={s} value={s}>{s || "— 선택 —"}</option>)}
-              </select>
             </div>
           )}
           {fields.includes("user") && (
@@ -552,10 +518,6 @@ function ReturnTab({ records, loading, onRefresh, onUpdate }: TabProps) {
         <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap text-xs">{r.dept||"-"}</td>
         <td className="px-3 py-2.5 font-mono text-gray-600 whitespace-nowrap text-xs">{r.assetNo||"-"}</td>
         <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap max-w-[130px] truncate text-xs">{r.model||"-"}</td>
-        <td className="px-3 py-2.5 whitespace-nowrap text-xs">
-          {r.returnStatus ? <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-yellow-100 text-yellow-700">{r.returnStatus}</span> : <span className="text-gray-300">-</span>}
-        </td>
-        <td className="px-3 py-2.5 text-gray-400 whitespace-nowrap text-xs">{r.returnReason||"-"}</td>
         <td className="px-3 py-2.5 text-xs flex items-center gap-2">
           {r.notionUrl && <a href={r.notionUrl} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-600 underline underline-offset-2">Notion ↗</a>}
           <button onClick={() => setEditRecord(r)} className="px-2 py-0.5 rounded text-[11px] font-medium bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors">수정</button>
@@ -575,7 +537,7 @@ function ReturnTab({ records, loading, onRefresh, onUpdate }: TabProps) {
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 text-gray-500 font-semibold text-xs">
-              <tr>{["D-Day","반납예정일","사용자","법인명","부서","자산번호","모델명","반납진행상황","반납사유",""].map(h=><th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}</tr>
+              <tr>{["D-Day","반납예정일","사용자","법인명","부서","자산번호","모델명",""].map(h=><th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}</tr>
             </thead>
             <tbody className="divide-y divide-gray-100">{items.map(r => <ReturnRow key={r.id} r={r} />)}</tbody>
           </table>
@@ -623,7 +585,7 @@ function ReturnTab({ records, loading, onRefresh, onUpdate }: TabProps) {
       {editRecord && (
         <EditModal
           record={editRecord}
-          fields={["returnStatus","returnDue","returnReason","status","note"]}
+          fields={["returnDue","status","note"]}
           onSave={onUpdate}
           onClose={() => setEditRecord(null)}
         />
@@ -768,7 +730,7 @@ function SearchTab({ companyLock = "", onUpdate }: { companyLock?: string; onUpd
       {editRecord && onUpdate && (
         <EditModal
           record={editRecord}
-          fields={["status","shipStatus","returnStatus","returnDue","returnReason","user","company","dept","location","note"]}
+          fields={["status","returnDue","user","company","dept","location","note"]}
           onSave={async (id, fields) => {
             await onUpdate(id, fields);
             setRecords(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r));
@@ -1070,9 +1032,317 @@ function ExcelUploadTab(){
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 행낭 발송지 출력 탭
+// ─────────────────────────────────────────────────────────────────────────────
+interface LabelEntry {
+  id: string;
+  recipientOrg: string;
+  recipientName: string;
+  user: string;
+  assetNo: string;
+  shipType: string;
+}
+
+function LabelPrintTab({
+  records,
+  recordsReady,
+  onLoadRecords,
+}: {
+  records: HwRecord[];
+  recordsReady: boolean;
+  onLoadRecords: () => void;
+}) {
+  const [senderInfo, setSenderInfo] = useState("idsTrust 자산관리파트 백승윤");
+  const [labels, setLabels] = useState<LabelEntry[]>([
+    { id: "1", recipientOrg: "", recipientName: "", user: "", assetNo: "", shipType: "신규지급" },
+  ]);
+  const [showPicker, setShowPicker] = useState(false);
+  const [pickerTarget, setPickerTarget] = useState<string>("");
+  const [pickerSearch, setPickerSearch] = useState("");
+
+  useEffect(() => {
+    if (!recordsReady) onLoadRecords();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const filteredRecords = useMemo(() => {
+    if (!pickerSearch.trim()) return records.slice(0, 50);
+    const q = pickerSearch.toLowerCase();
+    return records
+      .filter(r =>
+        (r.user || "").toLowerCase().includes(q) ||
+        (r.assetNo || "").toLowerCase().includes(q) ||
+        (r.company || "").toLowerCase().includes(q) ||
+        (r.dept || "").toLowerCase().includes(q)
+      )
+      .slice(0, 40);
+  }, [records, pickerSearch]);
+
+  function updateLabel(id: string, field: keyof LabelEntry, val: string) {
+    setLabels(prev => prev.map(l => l.id === id ? { ...l, [field]: val } : l));
+  }
+
+  function addLabel() {
+    setLabels(prev => [...prev, {
+      id: Date.now().toString(),
+      recipientOrg: "", recipientName: "", user: "", assetNo: "", shipType: "신규지급",
+    }]);
+  }
+
+  function removeLabel(id: string) {
+    if (labels.length <= 1) return;
+    setLabels(prev => prev.filter(l => l.id !== id));
+  }
+
+  function pickRecord(r: HwRecord) {
+    setLabels(prev => prev.map(l => l.id === pickerTarget ? {
+      ...l,
+      recipientOrg: r.company || "",
+      recipientName: r.user || "",
+      user: r.user || "",
+      assetNo: r.assetNo || "",
+    } : l));
+    setShowPicker(false);
+    setPickerTarget("");
+    setPickerSearch("");
+  }
+
+  function printLabels() {
+    const warnBar = `<div class="warning">♦파손주의♦&nbsp;&nbsp;&nbsp;♦상하주의♦&nbsp;&nbsp;&nbsp;♦취급주의♦</div>`;
+    const labelHtml = labels.map((label, idx) => `
+<div class="label">
+  ${warnBar}
+  <div class="body">
+    <div class="from-to">
+      <div>발신 : ${label.recipientOrg ? senderInfo : senderInfo}</div>
+      <div>수신 : ${label.recipientOrg || "&nbsp;"}</div>
+    </div>
+    <div class="to-name">${label.recipientName || "&nbsp;"} 님 앞</div>
+    <div class="ship-box">[ ${label.shipType} - 0 실사용자 : ${label.user || "&nbsp;"} 님 ]</div>
+    <div class="contents">내용 : ${label.assetNo || "&nbsp;"}</div>
+  </div>
+  ${warnBar}
+  <div class="page-num">${idx + 1} 페이지</div>
+  ${warnBar}
+</div>`).join("\n");
+
+    const html = `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: A4 portrait; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Malgun Gothic', '맑은 고딕', AppleGothic, sans-serif; width: 210mm; }
+  .label {
+    width: 210mm;
+    height: 148.5mm;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-bottom: 2px dashed #aaa;
+    page-break-inside: avoid;
+  }
+  .label:last-child { border-bottom: none; }
+  .warning {
+    background: #cc0000;
+    color: white;
+    font-size: 19pt;
+    font-weight: 900;
+    text-align: center;
+    padding: 5.5mm 0;
+    letter-spacing: 5px;
+    flex-shrink: 0;
+  }
+  .body {
+    flex: 1;
+    padding: 5mm 18mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+  }
+  .from-to { font-size: 13pt; line-height: 2; }
+  .to-name {
+    font-size: 26pt;
+    font-weight: 900;
+    text-align: center;
+  }
+  .ship-box {
+    border: 2.5px solid #222;
+    text-align: center;
+    padding: 2.5mm 0;
+    font-size: 12pt;
+    font-weight: bold;
+  }
+  .contents { font-size: 16pt; font-weight: bold; }
+  .page-num {
+    text-align: center;
+    font-size: 15pt;
+    color: #999;
+    font-weight: bold;
+    padding: 1.5mm 0;
+    flex-shrink: 0;
+  }
+</style>
+</head>
+<body>
+${labelHtml}
+<script>window.onload=function(){window.print();}<\/script>
+</body>
+</html>`;
+
+    const w = window.open("", "_blank", "width=900,height=750");
+    if (w) { w.document.write(html); w.document.close(); }
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* 발신자 정보 */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <h3 className="text-sm font-bold text-gray-700 mb-3">📮 발신자 정보</h3>
+        <div>
+          <label className="text-xs text-gray-500 font-semibold block mb-1">발신 (회사/부서/이름)</label>
+          <input
+            value={senderInfo}
+            onChange={e => setSenderInfo(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            placeholder="예: idsTrust 자산관리파트 홍길동"
+          />
+        </div>
+      </div>
+
+      {/* 라벨 목록 */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-gray-700">🏷️ 발송 라벨 ({labels.length}장)</h3>
+          <button
+            onClick={addLabel}
+            className="text-xs font-semibold text-indigo-600 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors"
+          >
+            + 라벨 추가
+          </button>
+        </div>
+
+        {labels.map((label, idx) => (
+          <div key={label.id} className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-gray-400">{idx + 1}번 라벨</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { setPickerTarget(label.id); setPickerSearch(""); setShowPicker(true); }}
+                  className="text-xs text-blue-600 border border-blue-200 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg font-semibold transition-colors"
+                >
+                  📋 자산에서 불러오기
+                </button>
+                {labels.length > 1 && (
+                  <button onClick={() => removeLabel(label.id)} className="text-xs text-red-400 hover:text-red-600">✕</button>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-gray-500 font-semibold block mb-1">수신 (회사/부서)</label>
+                <input value={label.recipientOrg} onChange={e => updateLabel(label.id, "recipientOrg", e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  placeholder="예: 시지바이오 인체품질팀" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 font-semibold block mb-1">수신자 이름</label>
+                <input value={label.recipientName} onChange={e => updateLabel(label.id, "recipientName", e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  placeholder="예: 임진규" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 font-semibold block mb-1">실사용자</label>
+                <input value={label.user} onChange={e => updateLabel(label.id, "user", e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  placeholder="예: 임진규" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 font-semibold block mb-1">내용 (자산번호)</label>
+                <input value={label.assetNo} onChange={e => updateLabel(label.id, "assetNo", e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  placeholder="예: 04-N3439" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 font-semibold block mb-1">지급 유형</label>
+                <select value={label.shipType} onChange={e => updateLabel(label.id, "shipType", e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                  <option>신규지급</option>
+                  <option>반납</option>
+                  <option>교환</option>
+                  <option>수리</option>
+                  <option>대여</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* 출력 버튼 */}
+      <button
+        onClick={printLabels}
+        className="w-full py-3 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition-colors shadow-sm"
+      >
+        🖨️ 행낭 발송지 출력 ({labels.length}장) — A4 1매에 2장
+      </button>
+
+      {/* 자산 검색 피커 모달 */}
+      {showPicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+          onClick={() => setShowPicker(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[70vh] flex flex-col"
+            onClick={e => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b flex items-center justify-between shrink-0">
+              <div>
+                <div className="font-bold text-gray-800 text-sm">HW 자산에서 불러오기</div>
+                <div className="text-xs text-gray-400 mt-0.5">선택하면 수신자 정보가 자동 입력됩니다</div>
+              </div>
+              <button onClick={() => setShowPicker(false)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            <div className="p-4 border-b shrink-0">
+              <input
+                value={pickerSearch}
+                onChange={e => setPickerSearch(e.target.value)}
+                autoFocus
+                placeholder="사용자명, 자산번호, 법인명으로 검색..."
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
+              {!recordsReady && (
+                <div className="text-xs text-gray-400 mt-2 text-center animate-pulse">자산 데이터 불러오는 중…</div>
+              )}
+            </div>
+            <div className="overflow-y-auto flex-1">
+              {filteredRecords.map(r => (
+                <button key={r.id} onClick={() => pickRecord(r)}
+                  className="w-full text-left px-5 py-3 hover:bg-indigo-50 border-b border-gray-50 last:border-0 transition-colors">
+                  <div className="text-sm font-semibold text-gray-800">{r.user || "사용자 없음"}</div>
+                  <div className="text-xs text-gray-400 mt-0.5 flex gap-2">
+                    {r.assetNo && <span className="font-mono">{r.assetNo}</span>}
+                    {r.company && <span>{r.company}</span>}
+                    {r.dept && <span>· {r.dept}</span>}
+                    {r.model && <span className="text-gray-300">· {r.model}</span>}
+                  </div>
+                </button>
+              ))}
+              {recordsReady && filteredRecords.length === 0 && (
+                <div className="text-center py-8 text-gray-400 text-sm">
+                  {pickerSearch ? "검색 결과 없음" : "자산 없음"}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 메인 HwPanel — 데이터 1회 fetch, 모든 탭에 props 전달
 // ─────────────────────────────────────────────────────────────────────────────
-type Tab = "dashboard"|"shipment"|"return"|"search"|"upload";
+type Tab = "dashboard"|"shipment"|"return"|"search"|"upload"|"label";
 
 export default function HwPanel({ company = "", initialStats }: { company?: string; initialStats?: HwStats | null }) {
   const [tab, setTab] = useState<Tab>("dashboard");
@@ -1171,10 +1441,11 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
     { id: "return",    label: "반납 대상자",icon: "📅" },
     { id: "search",    label: "자산 검색",  icon: "🔍" },
     { id: "upload",    label: "엑셀 등록",  icon: "📂" },
+    { id: "label",     label: "행낭 발송지",icon: "🏷️" },
   ];
 
   const recordsTabProps: TabProps = { records, loading: recordsLoading, onRefresh: handleRefreshAll, onUpdate: handleUpdate };
-  const isRecordsTab = tab !== "dashboard" && tab !== "search" && tab !== "upload";
+  const isRecordsTab = tab !== "dashboard" && tab !== "search" && tab !== "upload" && tab !== "label";
 
   return (
     <div className="space-y-4">
@@ -1226,6 +1497,7 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
       {tab === "return"    && <ReturnTab     {...recordsTabProps} />}
       {tab === "search"    && <SearchTab companyLock={company} onUpdate={handleUpdate} />}
       {tab === "upload"    && <ExcelUploadTab />}
+      {tab === "label"     && <LabelPrintTab records={records} recordsReady={recordsReady} onLoadRecords={loadAll} />}
     </div>
   );
 }

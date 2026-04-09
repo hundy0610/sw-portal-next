@@ -35,8 +35,10 @@ function getPropText(props: NotionProps, key: string): string {
 
 function getPropSelect(props: NotionProps, key: string): string {
   const p = props[key];
-  if (!p || p.type !== "select") return "";
-  return p.select?.name || "";
+  if (!p) return "";
+  if (p.type === "select") return p.select?.name || "";
+  if (p.type === "status") return p.status?.name || "";
+  return "";
 }
 
 function getPropMultiSelect(props: NotionProps, key: string): string[] {
@@ -47,8 +49,17 @@ function getPropMultiSelect(props: NotionProps, key: string): string[] {
 
 function getPropNumber(props: NotionProps, key: string): number {
   const p = props[key];
-  if (!p || p.type !== "number") return 0;
-  return p.number ?? 0;
+  if (!p) return 0;
+  if (p.type === "number")  return p.number ?? 0;
+  if (p.type === "formula") {
+    if (p.formula.type === "number") return p.formula.number ?? 0;
+    return 0;
+  }
+  if (p.type === "rollup") {
+    if (p.rollup.type === "number") return p.rollup.number ?? 0;
+    return 0;
+  }
+  return 0;
 }
 
 function getPropCheckbox(props: NotionProps, key: string): boolean {
@@ -180,18 +191,20 @@ export async function fetchSwDatabase(): Promise<SwDbRecord[]> {
       usageDate: getPropDate(p, "사용일자"),
       renewalDate: getPropDate(p, "갱신필요일"),
       purchaseDate: getPropDate(p, "구매일자"),
-      returnDate: getPropDate(p, "반납일자"),
-      returnScheduledDate: getPropDate(p, "반납예정일"),
-      returnReason: getPropSelect(p, "반납사유"),
+      returnDate: getPropDate(p, "회수일자"),
+      shipStatus: getPropSelect(p, "출고진행상황"),
+      accountType: getPropSelect(p, "계정유형"),
+      renewalCycle: getPropSelect(p, "갱신주기"),
       licenseKey: getPropText(p, "인증키 / 인증계정"),
       vendor: getPropText(p, "구매처"),
       usageCount: getPropNumber(p, "사용횟수"),
       certificate: getPropFile(p, "증서"),
       workType: getPropSelect(p, "SW사용직군"),
-      billingType: getPropSelect(p, "결제방식"),
-      monthlyKrw: getPropNumber(p, "월 금액") || getPropNumber(p, "월간 금액") || getPropNumber(p, "월 비용") || getPropNumber(p, "구독료") || getPropNumber(p, "월구독료") || 0,
-      annualUsd:  getPropNumber(p, "연 비용 (USD)") || getPropNumber(p, "연비용(USD)") || getPropNumber(p, "연간비용(USD)") || getPropNumber(p, "1회 결제사 금액(USD)") || 0,
-      annualKrw:  getPropNumber(p, "연 비용 (KRW)") || getPropNumber(p, "연비용(KRW)") || getPropNumber(p, "연간비용(KRW)") || getPropNumber(p, "1회 결제사 금액(KRW)") || 0,
+      billingType: getPropSelect(p, "결재방식"),
+      monthlyUsd: getPropNumber(p, "월 비용 (USD)") || 0,
+      monthlyKrw: getPropNumber(p, "월 비용 (KRW)") || getPropNumber(p, "월 금액") || getPropNumber(p, "월간 금액") || getPropNumber(p, "월 비용") || 0,
+      annualUsd:  getPropNumber(p, "연 비용 (USD)") || getPropNumber(p, "연비용(USD)") || 0,
+      annualKrw:  getPropNumber(p, "연 비용 (KRW)") || getPropNumber(p, "연비용(KRW)") || 0,
       notionUrl: getPageUrl(page.id),
     };
   });

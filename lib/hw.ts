@@ -24,11 +24,6 @@ const sel = (p: Props, k: string) => {
   return "";
 };
 
-const multiSel = (p: Props, k: string): string[] => {
-  const v = p[k];
-  if (!v || v.type !== "multi_select") return [];
-  return v.multi_select.map(s => s.name);
-};
 
 const date = (p: Props, k: string) => {
   const v = p[k];
@@ -58,20 +53,14 @@ function mapPage(page: PageObjectResponse) {
     dept:         txt(p, "부서"),
     location:     txt(p, "위치"),
     status:       sel(p, "사용/재고/폐기/기타"),
-    shipStatus:   sel(p, "출고진행상황"),
-    returnStatus: sel(p, "반납 진행 상황"),
     returnDue:    date(p, "반납예정일"),
     returnDate:   date(p, "반납일자"),
-    returnReason: sel(p, "반납사유"),
     purchaseDate: date(p, "구매일자"),
     useDate:      date(p, "사용일자"),
     price:        num(p, "단가"),
-    missing:      multiSel(p, "누락 사항"),
     note:         txt(p, "기타"),
     docNo:        txt(p, "결재문서번호"),
     verified:     p["실사확인"]?.type === "checkbox" ? p["실사확인"].checkbox : false,
-    repairStatus: sel(p, "수리진행상황"),
-    warranty:     sel(p, "보증"),
     duplicated:   p["중복"]?.type === "checkbox" ? p["중복"].checkbox : false,
   };
 }
