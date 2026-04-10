@@ -685,7 +685,7 @@ function SearchTab({ companyLock = "", onUpdate }: { companyLock?: string; onUpd
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead className="bg-gray-50 text-gray-500 font-semibold">
-                  <tr>{["자산번호","사용자","법인명","부서","모델명","제조사","상태","사용일자","반납예정일","단가","누락","실사",""].map(h=><th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}</tr>
+                  <tr>{["자산번호","사용자","법인명","부서","모델명","제조사","상태","사용일자","반납예정일","단가","실사",""].map(h=><th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}</tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {records.map(r => (
@@ -704,9 +704,6 @@ function SearchTab({ companyLock = "", onUpdate }: { companyLock?: string; onUpd
                         {r.returnDue ? <span className="flex items-center gap-1.5"><span className="text-gray-600">{fmtDate(r.returnDue)}</span><span className={`text-[11px] ${dDay(r.returnDue).cls}`}>{dDay(r.returnDue).label}</span></span> : "-"}
                       </td>
                       <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{fmtKrw(r.price)}</td>
-                      <td className="px-3 py-2.5 whitespace-nowrap">
-                        {r.missing.length > 0 ? <span className="px-2 py-1 rounded-full text-[11px] font-semibold bg-orange-100 text-orange-700">{r.missing.join(", ")}</span> : "-"}
-                      </td>
                       <td className="px-3 py-2.5 whitespace-nowrap text-center">
                         {r.verified ? <span className="text-green-600 font-bold">✓</span> : <span className="text-gray-300">−</span>}
                       </td>
