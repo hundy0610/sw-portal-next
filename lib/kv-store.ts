@@ -26,3 +26,15 @@ export async function kvSet<T>(key: string, value: T): Promise<void> {
     console.warn("[KV] set failed:", key, e);
   }
 }
+
+/**
+ * KV 캐시 삭제. Notion 업데이트 후 캐시 무효화에 사용
+ */
+export async function kvDel(...keys: string[]): Promise<void> {
+  try {
+    if (!process.env.KV_REST_API_URL) return;
+    await Promise.all(keys.map(k => kv.del(k)));
+  } catch (e) {
+    console.warn("[KV] del failed:", keys, e);
+  }
+}

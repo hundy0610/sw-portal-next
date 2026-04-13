@@ -1,0 +1,30 @@
+name: Cache Warming
+
+on:
+  schedule:
+    # 매 1분마다 실행 (UTC 기준)
+    - cron: "* * * * *"
+  workflow_dispatch: # 수동 실행 버튼
+
+jobs:
+  warm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Warm Notion cache
+        run: |
+          echo "🔥 캐시 워밍 시작: $(date)"
+
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X GET "${{ secrets.NEXT_PUBLIC_BASE_URL }}/api/cron/warm-cache" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            --max-time 30)
+
+          echo "응답 상태: $RESPONSE"
+
+          if [ "$RESPONSE" = "200" ]; then
+            echo "✅ 캐시 워밍 완료"
+          else
+            echo "⚠️ 응답 코드: $RESPONSE (첫 실행이거나 일시적 오류)"
+          fi

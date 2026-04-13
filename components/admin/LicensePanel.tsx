@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import type { SwDbRecord } from "@/types";
 
 const PAGE_SIZE = 30;
@@ -160,6 +160,161 @@ function Pagination({ total, page, size, onChange }: {
   );
 }
 
+// ── SW 인라인 편집 모달 ─────────────────────────────────────────────────
+const SW_STATUS_OPTIONS = ["사용중","재고","갱신필요","만료","신규등록","반납예정","출고준비중","임시지급","미확인"];
+const SW_LICENSE_OPTIONS = ["영구","구독(업체)","구독(웹)"];
+const SW_RETURN_REASON_OPTIONS = ["퇴사","부서이동","계약종료","기기불량","기타"];
+
+function SwEditModal({
+  record,
+  onSave,
+  onClose,
+}: {
+  record: SwDbRecord;
+  onSave: (id: string, fields: Partial<SwDbRecord>) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [form, setForm] = useState<Partial<SwDbRecord>>({});
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    setForm({
+      status:              record.status,
+      user:                record.user,
+      department:          record.department,
+      company:             record.company,
+      licenseType:         record.licenseType,
+      licenseKey:          record.licenseKey,
+      swDetail:            record.swDetail,
+      renewalDate:         record.renewalDate,
+      returnScheduledDate: record.returnScheduledDate,
+      returnReason:        record.returnReason,
+      vendor:              record.vendor,
+    });
+  }, [record]);
+
+  function set<K extends keyof SwDbRecord>(key: K, val: SwDbRecord[K]) {
+    setForm(prev => ({ ...prev, [key]: val }));
+  }
+
+  async function handleSave() {
+    setSaving(true); setError("");
+    try {
+      await onSave(record.id, form);
+      onClose();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+      onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden"
+        onClick={e => e.stopPropagation()}>
+        {/* 헤더 */}
+        <div className="px-5 py-4 bg-blue-600 text-white flex items-start justify-between shrink-0">
+          <div>
+            <div className="font-bold text-base">SW 정보 수정</div>
+            <div className="text-xs opacity-80 mt-0.5">{record.swCategory} · {record.user || "재고"}</div>
+          </div>
+          <button onClick={onClose} className="text-white/70 hover:text-white text-2xl leading-none ml-4">✕</button>
+        </div>
+
+        {/* 본문 */}
+        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
+          {/* 상태 */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">상태</label>
+            <select value={String(form.status ?? "")} onChange={e => set("status", e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+              {SW_STATUS_OPTIONS.map(o => <option key={o}>{o}</option>)}
+            </select>
+          </div>
+          {/* 사용자 */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">사용자</label>
+            <input value={String(form.user ?? "")} onChange={e => set("user", e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          </div>
+          {/* 부서 */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">부서</label>
+            <input value={String(form.department ?? "")} onChange={e => set("department", e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          </div>
+          {/* 법인명 */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">법인명</label>
+            <input value={String(form.company ?? "")} onChange={e => set("company", e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          </div>
+          {/* 라이선스 유형 */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">라이선스 유형</label>
+            <select value={String(form.licenseType ?? "")} onChange={e => set("licenseType", e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+              {SW_LICENSE_OPTIONS.map(o => <option key={o}>{o}</option>)}
+            </select>
+          </div>
+          {/* SW 소분류 */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">SW 소분류 (버전/에디션)</label>
+            <input value={String(form.swDetail ?? "")} onChange={e => set("swDetail", e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          </div>
+          {/* 인증키 */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">인증키 / 인증계정</label>
+            <input value={String(form.licenseKey ?? "")} onChange={e => set("licenseKey", e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          </div>
+          {/* 갱신필요일 */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">갱신필요일</label>
+            <input type="date" value={String(form.renewalDate ?? "")} onChange={e => set("renewalDate", e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          </div>
+          {/* 반납예정일 */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">반납예정일</label>
+            <input type="date" value={String(form.returnScheduledDate ?? "")} onChange={e => set("returnScheduledDate", e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          </div>
+          {/* 반납사유 */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">반납사유</label>
+            <select value={String(form.returnReason ?? "")} onChange={e => set("returnReason", e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+              <option value="">—</option>
+              {SW_RETURN_REASON_OPTIONS.map(o => <option key={o}>{o}</option>)}
+            </select>
+          </div>
+          {/* 구매처 */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">구매처</label>
+            <input value={String(form.vendor ?? "")} onChange={e => set("vendor", e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          </div>
+          {error && <div className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</div>}
+        </div>
+
+        {/* 푸터 */}
+        <div className="px-5 py-4 border-t flex gap-2 shrink-0">
+          <button onClick={onClose} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50">취소</button>
+          <button onClick={handleSave} disabled={saving}
+            className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 transition-colors">
+            {saving ? "저장 중…" : "✓ Notion에 저장"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── 카테고리 아코디언 뷰 ────────────────────────────────────────────────
 interface SwGroup {
   swName: string; records: SwDbRecord[];
@@ -167,7 +322,7 @@ interface SwGroup {
   urgent: number; minDays: number | null;
 }
 
-function CategoryView({ records }: { records: SwDbRecord[] }) {
+function CategoryView({ records, onEdit }: { records: SwDbRecord[]; onEdit: (r: SwDbRecord) => void }) {
   const [expandedSw, setExpandedSw] = useState<string | null>(null);
 
   const catGroups = useMemo(() => {
@@ -294,6 +449,11 @@ function CategoryView({ records }: { records: SwDbRecord[] }) {
                                       className="text-blue-500 hover:text-blue-700 underline"
                                       onClick={e => e.stopPropagation()}>노션 보기</a>
                                   )}
+                                  <button
+                                    onClick={e => { e.stopPropagation(); onEdit(r); }}
+                                    className="text-xs text-gray-400 hover:text-blue-600 border border-gray-200 hover:border-blue-300 px-2 py-0.5 rounded transition-colors"
+                                    title="수정"
+                                  >✏️ 수정</button>
                                 </div>
                               </div>
                               {/* 영구 라이선스 키 표시 */}
@@ -324,17 +484,29 @@ function CategoryView({ records }: { records: SwDbRecord[] }) {
 }
 
 // ── 메인 컴포넌트 ───────────────────────────────────────────────────────
-export default function LicensePanel() {
+export default function LicensePanel({ company = "" }: { company?: string }) {
   const [records,  setRecords]  = useState<SwDbRecord[]>([]);
   const [loading,  setLoading]  = useState(true);
   const [detailView, setDetailView] = useState<"category" | "list">("category");
+  const [editRecord, setEditRecord] = useState<SwDbRecord | null>(null);
+
+  const handleUpdate = useCallback(async (id: string, fields: Partial<SwDbRecord>) => {
+    const res  = await fetch("/api/sw/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, fields }),
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error ?? "Notion 업데이트 실패");
+    setRecords(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r));
+  }, []);
 
   // 필터 상태
   const [search,           setSearch]           = useState("");
   const [filterMacrocat,   setFilterMacrocat]   = useState("전체");
   const [filterStatus,     setFilterStatus]     = useState("전체");
   const [filterType,       setFilterType]       = useState("전체");   // 영구 / 구독(업체) / 구독(웹)
-  const [filterCompany,    setFilterCompany]    = useState("전체");
+  const [filterCompany,    setFilterCompany]    = useState("전체");   // company prop 있으면 데이터가 이미 필터됨
   const [filterDept,       setFilterDept]       = useState("전체");
   const [showExpiringSoon, setShowExpiringSoon] = useState(false);
 
@@ -344,11 +516,12 @@ export default function LicensePanel() {
   const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
-    fetch("/api/sw-records")
+    const url = company ? `/api/sw-records?company=${encodeURIComponent(company)}` : "/api/sw-records";
+    fetch(url)
       .then(r => r.json())
       .then(res => setRecords(res.data ?? []))
       .finally(() => setLoading(false));
-  }, []);
+  }, [company]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -490,12 +663,12 @@ export default function LicensePanel() {
         </div>
         <div className="flex flex-wrap gap-2">
           {[
-            { label: "분류",  value: filterMacrocat, options: macroCatOptions, setter: setFilterMacrocat },
-            { label: "유형",  value: filterType,     options: typeOptions,     setter: setFilterType     },
-            { label: "상태",  value: filterStatus,   options: statusOptions,   setter: setFilterStatus   },
-            { label: "법인",  value: filterCompany,  options: companyOptions,  setter: setFilterCompany  },
-            { label: "부서",  value: filterDept,     options: deptOptions,     setter: setFilterDept     },
-          ].map(({ label, value, options, setter }) => (
+            { label: "분류",  value: filterMacrocat, options: macroCatOptions, setter: setFilterMacrocat, show: true     },
+            { label: "유형",  value: filterType,     options: typeOptions,     setter: setFilterType,     show: true     },
+            { label: "상태",  value: filterStatus,   options: statusOptions,   setter: setFilterStatus,   show: true     },
+            { label: "법인",  value: filterCompany,  options: companyOptions,  setter: setFilterCompany,  show: !company },
+            { label: "부서",  value: filterDept,     options: deptOptions,     setter: setFilterDept,     show: true     },
+          ].filter(f => f.show).map(({ label, value, options, setter }) => (
             <div key={label} className="relative">
               <select value={value} onChange={e => setter(e.target.value)}
                 className={`appearance-none pl-3 pr-7 py-2 border rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer transition-colors ${
@@ -550,8 +723,17 @@ export default function LicensePanel() {
         <span className="text-xs text-gray-400">{filtered.length}건 조회됨</span>
       </div>
 
+      {/* ── 수정 모달 ── */}
+      {editRecord && (
+        <SwEditModal
+          record={editRecord}
+          onSave={handleUpdate}
+          onClose={() => setEditRecord(null)}
+        />
+      )}
+
       {/* ── 카테고리별 뷰 ── */}
-      {detailView === "category" && <CategoryView records={filtered} />}
+      {detailView === "category" && <CategoryView records={filtered} onEdit={setEditRecord} />}
 
       {/* ── 전체 목록 뷰 ── */}
       {detailView === "list" && (
@@ -617,6 +799,12 @@ export default function LicensePanel() {
                         {r.notionUrl
                           ? <a href={r.notionUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700 text-xs underline">보기</a>
                           : "—"}
+                      </td>
+                      <td className="px-3 py-3">
+                        <button
+                          onClick={() => setEditRecord(r)}
+                          className="text-xs text-gray-400 hover:text-blue-600 border border-gray-100 hover:border-blue-300 px-2 py-0.5 rounded transition-colors"
+                        >✏️</button>
                       </td>
                     </tr>
                   );

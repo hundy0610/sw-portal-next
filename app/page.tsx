@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import type { SwItem } from "@/types";
 import { Badge } from "@/components/ui/Badge";
+import DeclarationPanel from "@/components/DeclarationPanel";
 
-type Tab = "home" | "education" | "resources" | "search";
+type Tab = "home" | "education" | "resources" | "search" | "declaration";
 
 const INQUIRY_URL = "https://assetify-desk.vercel.app/inquiry";
 
@@ -30,10 +31,11 @@ export default function PortalPage() {
           {/* 탭 */}
           <nav className="flex gap-0.5 ml-6">
             {([
-              { id: "home",      label: "홈",      icon: "🏠" },
-              { id: "education", label: "교육 센터", icon: "🎓" },
-              { id: "resources", label: "자료실",   icon: "📁" },
-              { id: "search",    label: "SW 검색",  icon: "🔍" },
+              { id: "home",        label: "홈",      icon: "🏠" },
+              { id: "education",   label: "교육 센터", icon: "🎓" },
+              { id: "resources",   label: "자료실",   icon: "📁" },
+              { id: "search",      label: "SW 검색",  icon: "🔍" },
+              { id: "declaration", label: "자산 실사", icon: "📋" },
             ] as { id: Tab; label: string; icon: string }[]).map(({ id, label, icon }) => (
               <button
                 key={id}
@@ -72,10 +74,11 @@ export default function PortalPage() {
 
       {/* 콘텐츠 */}
       <main className="max-w-5xl mx-auto px-6 py-8">
-        {tab === "home"      && <HomeTab onNavigate={setTab} />}
-        {tab === "education" && <EducationTab />}
-        {tab === "resources" && <ResourcesTab />}
-        {tab === "search"    && <SearchTab />}
+        {tab === "home"        && <HomeTab onNavigate={setTab} />}
+        {tab === "education"   && <EducationTab />}
+        {tab === "resources"   && <ResourcesTab />}
+        {tab === "search"      && <SearchTab />}
+        {tab === "declaration" && <DeclarationPanel />}
       </main>
     </div>
   );

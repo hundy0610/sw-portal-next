@@ -12,6 +12,7 @@ const SwDbPanel         = dynamic(() => import("@/components/admin/SwDbPanel"), 
 const ReportPanel       = dynamic(() => import("@/components/admin/ReportPanel"),       { ssr: false });
 const HwPanel           = dynamic(() => import("@/components/admin/HwPanel"),           { ssr: false });
 const AccountsPanel     = dynamic(() => import("@/components/admin/AccountsPanel"),     { ssr: false });
+const AssetMapPanel     = dynamic(() => import("@/components/admin/AssetMapPanel"),     { ssr: false });
 
 // ── 세션 타입 ──────────────────────────────────────────────────
 interface SessionInfo {
@@ -22,7 +23,7 @@ interface SessionInfo {
   mustChangePassword?: boolean;
 }
 
-type PageId = "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "accounts";
+type PageId = "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "accounts" | "assetmap";
 
 // ── 메뉴 정의 ──────────────────────────────────────────────────
 const SUPER_MENU: { id: PageId; icon: string; label: string; desc: string }[] = [
@@ -32,6 +33,7 @@ const SUPER_MENU: { id: PageId; icon: string; label: string; desc: string }[] = 
   { id: "swdb",       icon: "🗄", label: "SW DB 관리",    desc: "승인 / 금지 목록"       },
   { id: "report",     icon: "📊", label: "구독 리포트",   desc: "현황 분석 · 만료 알림"  },
   { id: "hw",         icon: "💻", label: "HW 자산 관리",  desc: "NT/DT 재고 · 반납 관리" },
+  { id: "assetmap",   icon: "🗺", label: "스마트오피스 모니터 관리", desc: "인터랙티브 자산 맵"    },
   { id: "accounts",   icon: "👤", label: "계정 설정",     desc: "담당자 계정 관리"       },
 ];
 
@@ -141,6 +143,7 @@ export default function AdminPage() {
       case "swdb":        return isSuper ? <SwDbPanel /> : null;
       case "report":      return <ReportPanel company={company} />;
       case "hw":          return <HwPanel company={company} initialStats={hwStatsPrefetch} />;
+      case "assetmap":    return <AssetMapPanel />;
       case "accounts":    return isSuper ? <AccountsPanel /> : null;
       default:            return null;
     }
@@ -297,8 +300,11 @@ export default function AdminPage() {
         </aside>
 
         {/* 메인 콘텐츠 */}
-        <main className="flex-1 overflow-y-auto p-7" style={{ background: "#F4F5F7" }}>
-          <div className="slide-in">{renderPanel()}</div>
+        <main
+          className={`flex-1 overflow-y-auto ${page === "assetmap" ? "p-0" : "p-7"}`}
+          style={{ background: page === "assetmap" ? "#F9FAFB" : "#F4F5F7" }}
+        >
+          <div className={page === "assetmap" ? "h-full" : "slide-in"}>{renderPanel()}</div>
         </main>
       </div>
     </div>
