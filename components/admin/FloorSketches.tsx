@@ -1,0 +1,683 @@
+"use client";
+import React from "react";
+
+// ─── 타입: AssetMapPanel과 느슨 결합 ─────────────────────────────
+export type MonitorType = "std27" | "std24" | "dev34" | "none" | "unk";
+export interface SketchSeat { id: string; type: MonitorType; }
+export interface SketchZone { id: string; label: string; seats: SketchSeat[]; }
+
+export interface SketchCtx {
+  zones: SketchZone[];
+  filter: MonitorType | "all";
+  selectedId: string | null;
+  onSelect: (seatId: string) => void;
+  colorOf: (t: MonitorType) => { color: string; pale: string };
+}
+
+// ─── 공용 1-좌석 컴포넌트 (책상 + 의자 + 모니터 상태 색) ────────
+function Seat({
+  x, y, w = 22, h = 12, orient, seat, ctx,
+}: {
+  x: number; y: number; w?: number; h?: number;
+  orient: "down" | "up" | "left" | "right"; // 의자가 어느 방향에 있는지
+  seat: SketchSeat | undefined; ctx: SketchCtx;
+}) {
+  if (!seat) return null;
+  const meta = ctx.colorOf(seat.type);
+  const dimmed = ctx.filter !== "all" && seat.type !== ctx.filter;
+  const isSel = ctx.selectedId === seat.id;
+  const fill = dimmed ? "#E5E7EB" : meta.color + (seat.type === "unk" ? "66" : "D9");
+  const stroke = dimmed ? "#D1D5DB" : "#1F2937";
+
+  // 의자 위치 (책상에서 의자 방향으로 약간 떨어뜨림)
+  const chairR = Math.min(w, h) * 0.55;
+  let cx = x + w / 2, cy = y + h / 2;
+  if (orient === "down")  cy = y + h + chairR * 0.55;
+  if (orient === "up")    cy = y - chairR * 0.55;
+  if (orient === "right") cx = x + w + chairR * 0.55;
+  if (orient === "left")  cx = x - chairR * 0.55;
+
+  return (
+    <g style={{ cursor: "pointer" }} onClick={() => !dimmed && ctx.onSelect(seat.id)}>
+      {/* 의자 (반원으로 그려 책상 방향을 알 수 있게) */}
+      <circle cx={cx} cy={cy} r={chairR} fill="#F3F4F6" stroke="#94A3B8" strokeWidth={0.6} />
+      {/* 책상 (모니터 상태 색) */}
+      <rect
+        x={x} y={y} width={w} height={h} rx={1.5}
+        fill={fill} stroke={stroke} strokeWidth={isSel ? 1.4 : 0.6}
+      />
+      {/* 모니터 미설치 X */}
+      {seat.type === "none" && !dimmed && (
+        <>
+          <line x1={x + 2} y1={y + 2} x2={x + w - 2} y2={y + h - 2} stroke="white" strokeWidth={1.2} />
+          <line x1={x + w - 2} y1={y + 2} x2={x + 2} y2={y + h - 2} stroke="white" strokeWidth={1.2} />
+        </>
+      )}
+      {isSel && (
+        <rect x={x - 2} y={y - 2} width={w + 4} height={h + 4} rx={2.5}
+          fill="none" stroke={meta.color} strokeWidth={1.6} opacity={0.9}
+          style={{ pointerEvents: "none" }} />
+      )}
+      <title>{seat.id} · {seat.type}</title>
+    </g>
+  );
+}
+
+// ─── 해치(빗금) 패턴 - 벽/코어 블록용 ───────────────────────────
+const HATCH = (
+  <defs>
+    <pattern id="hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="5" stroke="#64748B" strokeWidth="0.6" />
+    </pattern>
+    <pattern id="hatchLight" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#CBD5E1" strokeWidth="0.5" />
+    </pattern>
+  </defs>
+);
+
+// ─── 본관 2F 서편 — 실제 도면 기반 손 스케치 ───────────────────
+// 좌측: 스마트오피스 4개 클러스터 × 13석 = 52석
+// 중앙: 미팅룸 A / B / C / 쇼룸 (수직 배치)
+// 중앙-우: 계단·엘리베이터 홀
+// 우: EPS·화장실·창고·VOID
+export function BW_2F_Sketch(ctx: SketchCtx) {
+  const zone = ctx.zones.find(z => z.id === "SO");
+  if (!zone) return null;
+  const seatAt = (i: number) => zone.seats[i];
+
+  // 클러스터 4개. 각 13석 = 7(상단 행) + 6(하단 행, 의자가 아래)
+  const clusterAt = (cx: number, cy: number, base: number) => {
+    const topY = cy;
+    const botY = cy + 30;
+    const dx = 23, dw = 20, dh = 11;
+    const topXs = [0, 1, 2, 3, 4, 5, 6].map(i => cx + i * dx);
+    const botXs = [0, 1, 2, 3, 4, 5].map(i => cx + 11 + i * dx);
+    return (
+      <g key={`cl${base}`}>
+        {/* 클러스터 테두리(블록 힌트) */}
+        <rect x={cx - 6} y={cy - 12} width={7 * dx + 4} height={60} rx={4}
+          fill="#F8FAFC" stroke="#CBD5E1" strokeDasharray="3,2" strokeWidth={0.6} />
+        {/* 중앙 공용 라인 (책상 사이 칸막이 느낌) */}
+        <line x1={cx - 2} y1={topY + dh + 4} x2={cx + 7 * dx - 4} y2={topY + dh + 4}
+          stroke="#94A3B8" strokeWidth={0.5} />
+        {/* 상단 행 - 의자 위쪽 (orient up) */}
+        {topXs.map((x, i) => (
+          <Seat key={`t${base + i}`} x={x} y={topY} w={dw} h={dh}
+            orient="up" seat={seatAt(base + i)} ctx={ctx} />
+        ))}
+        {/* 하단 행 - 의자 아래쪽 (orient down) */}
+        {botXs.map((x, i) => (
+          <Seat key={`b${base + 7 + i}`} x={x} y={botY} w={dw} h={dh}
+            orient="down" seat={seatAt(base + 7 + i)} ctx={ctx} />
+        ))}
+      </g>
+    );
+  };
+
+  // 미팅룸 내부 가구(간단 스케치)
+  const MeetingRoom = ({ x, y, w, h, name, sub, kind }: {
+    x: number; y: number; w: number; h: number; name: string; sub: string;
+    kind: "small" | "long" | "lounge";
+  }) => (
+    <g>
+      {/* 방 벽 (굵게) */}
+      <rect x={x} y={y} width={w} height={h} fill="#ECFDF5" stroke="#047857" strokeWidth={1.4} />
+      {/* 문 호(door arc) — 좌측에서 열림 */}
+      <path d={`M ${x} ${y + h - 14} A 14 14 0 0 1 ${x + 14} ${y + h}`}
+        fill="none" stroke="#047857" strokeWidth={0.8} />
+      <line x1={x} y1={y + h - 14} x2={x} y2={y + h - 4} stroke="#047857" strokeWidth={1} />
+      {/* 가구 */}
+      {kind === "small" && (
+        <>
+          <rect x={x + w / 2 - 16} y={y + h / 2 - 10} width={32} height={20} rx={2}
+            fill="#FDF6B2" stroke="#92400E" strokeWidth={0.6} />
+          {[-20, 0, 20].map(dx => (
+            <circle key={dx} cx={x + w / 2 + dx} cy={y + h / 2 - 16} r={3.5}
+              fill="#F3F4F6" stroke="#94A3B8" strokeWidth={0.5} />
+          ))}
+          {[-20, 0, 20].map(dx => (
+            <circle key={dx + "b"} cx={x + w / 2 + dx} cy={y + h / 2 + 16} r={3.5}
+              fill="#F3F4F6" stroke="#94A3B8" strokeWidth={0.5} />
+          ))}
+        </>
+      )}
+      {kind === "long" && (
+        <>
+          <rect x={x + w / 2 - 32} y={y + h / 2 - 8} width={64} height={16} rx={2}
+            fill="#FDF6B2" stroke="#92400E" strokeWidth={0.6} />
+          {[-28, -14, 0, 14, 28].map(dx => (
+            <circle key={dx} cx={x + w / 2 + dx} cy={y + h / 2 - 14} r={3.5}
+              fill="#F3F4F6" stroke="#94A3B8" strokeWidth={0.5} />
+          ))}
+          {[-28, -14, 0, 14, 28].map(dx => (
+            <circle key={dx + "b"} cx={x + w / 2 + dx} cy={y + h / 2 + 14} r={3.5}
+              fill="#F3F4F6" stroke="#94A3B8" strokeWidth={0.5} />
+          ))}
+        </>
+      )}
+      {kind === "lounge" && (
+        <>
+          {/* 소파 L자 */}
+          <rect x={x + 10} y={y + 20} width={40} height={10} rx={3}
+            fill="#D1FAE5" stroke="#047857" strokeWidth={0.6} />
+          <rect x={x + 10} y={y + 20} width={10} height={h - 30} rx={3}
+            fill="#D1FAE5" stroke="#047857" strokeWidth={0.6} />
+          <circle cx={x + 40} cy={y + h / 2 + 10} r={6}
+            fill="#FEF3C7" stroke="#92400E" strokeWidth={0.6} />
+        </>
+      )}
+      {/* 라벨 */}
+      <text x={x + w / 2} y={y + 12} fontSize={8.5} fontWeight={700}
+        textAnchor="middle" fill="#065F46">{name}</text>
+      <text x={x + w / 2} y={y + h - 4} fontSize={7}
+        textAnchor="middle" fill="#047857" opacity={0.85}>{sub}</text>
+    </g>
+  );
+
+  return (
+    <svg viewBox="0 0 820 540" style={{ width: "100%", maxWidth: 960, height: "auto", display: "block" }}>
+      {HATCH}
+
+      {/* 건물 외벽 */}
+      <rect x={12} y={20} width={796} height={510} fill="#FAFAFA" stroke="#1F2937" strokeWidth={2} />
+      {/* 창문(상·하 외벽 힌트) */}
+      {Array.from({ length: 24 }, (_, i) => (
+        <line key={`wt${i}`} x1={30 + i * 32} y1={20} x2={30 + i * 32} y2={28}
+          stroke="#60A5FA" strokeWidth={2} opacity={0.55} />
+      ))}
+      {Array.from({ length: 24 }, (_, i) => (
+        <line key={`wb${i}`} x1={30 + i * 32} y1={530} x2={30 + i * 32} y2={522}
+          stroke="#60A5FA" strokeWidth={2} opacity={0.55} />
+      ))}
+
+      {/* ── 좌측 스마트오피스 전체 프레임 ───────── */}
+      <rect x={20} y={32} width={300} height={486} rx={4}
+        fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="6,3" />
+      <text x={170} y={46} fontSize={10} fontWeight={800} fill="#1E3A8A" textAnchor="middle">
+        스마트오피스 (서편) — 90평 / 52석
+      </text>
+
+      {/* 4개 클러스터 */}
+      {clusterAt(32, 80,  0)}
+      {clusterAt(32, 200, 13)}
+      {clusterAt(32, 320, 26)}
+      {clusterAt(32, 440, 39)}
+
+      {/* ── 중앙: 미팅룸 4개 (수직) ───────────── */}
+      <MeetingRoom x={335} y={55}  w={120} h={95}  name="미팅룸 A" sub="13.5㎡ · 4.1평" kind="small" />
+      <MeetingRoom x={335} y={165} w={120} h={120} name="미팅룸 B" sub="21.1㎡ · 6.4평" kind="long" />
+      <MeetingRoom x={335} y={300} w={120} h={105} name="미팅룸 C" sub="18.8㎡ · 5.7평" kind="small" />
+      <MeetingRoom x={335} y={420} w={120} h={95}  name="쇼룸"     sub="15.2㎡ · 4.6평" kind="lounge" />
+
+      {/* ── ELEV HALL + 계단 ─────────────────── */}
+      {/* 상단 계단 */}
+      <g>
+        <rect x={475} y={55} width={90} height={90} fill="url(#hatchLight)" stroke="#475569" strokeWidth={1.2} />
+        {Array.from({ length: 7 }, (_, i) => (
+          <line key={i} x1={475} y1={65 + i * 11} x2={565} y2={65 + i * 11}
+            stroke="#475569" strokeWidth={0.6} />
+        ))}
+        <text x={482} y={68} fontSize={7} fill="#475569">UP</text>
+        <text x={548} y={142} fontSize={7} fill="#475569">DN</text>
+      </g>
+      {/* 엘리베이터 (2기) */}
+      <g>
+        <rect x={475} y={155} width={42} height={56} fill="#E2E8F0" stroke="#475569" strokeWidth={1.2} />
+        <line x1={475} y1={155} x2={517} y2={211} stroke="#475569" strokeWidth={0.5} />
+        <line x1={517} y1={155} x2={475} y2={211} stroke="#475569" strokeWidth={0.5} />
+        <text x={496} y={185} fontSize={7} fill="#475569" textAnchor="middle">EV</text>
+        <rect x={523} y={155} width={42} height={56} fill="#E2E8F0" stroke="#475569" strokeWidth={1.2} />
+        <line x1={523} y1={155} x2={565} y2={211} stroke="#475569" strokeWidth={0.5} />
+        <line x1={565} y1={155} x2={523} y2={211} stroke="#475569" strokeWidth={0.5} />
+        <text x={544} y={185} fontSize={7} fill="#475569" textAnchor="middle">EV</text>
+      </g>
+      {/* ELEV HALL 홀 */}
+      <g>
+        <rect x={475} y={220} width={90} height={85} fill="#FAFAF9" stroke="#475569" strokeWidth={1.2} />
+        <text x={520} y={245} fontSize={8} fontWeight={700} fill="#475569" textAnchor="middle">ELEV</text>
+        <text x={520} y={256} fontSize={8} fontWeight={700} fill="#475569" textAnchor="middle">HALL</text>
+        {/* 소파 */}
+        <rect x={485} y={275} width={20} height={22} rx={3} fill="#D1FAE5" stroke="#047857" strokeWidth={0.6} />
+        <rect x={540} y={275} width={20} height={22} rx={3} fill="#D1FAE5" stroke="#047857" strokeWidth={0.6} />
+      </g>
+      {/* 하단 엘리베이터 + 계단 */}
+      <g>
+        <rect x={475} y={315} width={42} height={56} fill="#E2E8F0" stroke="#475569" strokeWidth={1.2} />
+        <line x1={475} y1={315} x2={517} y2={371} stroke="#475569" strokeWidth={0.5} />
+        <line x1={517} y1={315} x2={475} y2={371} stroke="#475569" strokeWidth={0.5} />
+        <rect x={523} y={315} width={42} height={56} fill="#E2E8F0" stroke="#475569" strokeWidth={1.2} />
+        <line x1={523} y1={315} x2={565} y2={371} stroke="#475569" strokeWidth={0.5} />
+        <line x1={565} y1={315} x2={523} y2={371} stroke="#475569" strokeWidth={0.5} />
+      </g>
+      <g>
+        <rect x={475} y={380} width={90} height={90} fill="url(#hatchLight)" stroke="#475569" strokeWidth={1.2} />
+        {Array.from({ length: 7 }, (_, i) => (
+          <line key={i} x1={475} y1={390 + i * 11} x2={565} y2={390 + i * 11}
+            stroke="#475569" strokeWidth={0.6} />
+        ))}
+        <text x={482} y={393} fontSize={7} fill="#475569">UP</text>
+        <text x={548} y={467} fontSize={7} fill="#475569">DN</text>
+      </g>
+
+      {/* ── 우측: EPS / 화장실 / 창고 ──────────── */}
+      {/* EPS 박스 */}
+      <g>
+        <rect x={575} y={155} width={35} height={56} fill="url(#hatch)" stroke="#475569" strokeWidth={1} />
+        <text x={593} y={186} fontSize={7} fill="#1F2937" textAnchor="middle" fontWeight={700}>EPS</text>
+        <rect x={575} y={315} width={35} height={56} fill="url(#hatch)" stroke="#475569" strokeWidth={1} />
+        <text x={593} y={346} fontSize={7} fill="#1F2937" textAnchor="middle" fontWeight={700}>EPS</text>
+      </g>
+      {/* 화장실 (상·하) */}
+      <g>
+        <rect x={575} y={55} width={95} height={90} fill="#F5F3FF" stroke="#475569" strokeWidth={1.2} />
+        <text x={622} y={100} fontSize={8} textAnchor="middle" fill="#6B21A8" fontWeight={700}>여자화장실</text>
+        {/* 변기 칸 */}
+        {[0, 1, 2].map(i => (
+          <rect key={i} x={582 + i * 26} y={62} width={20} height={16} rx={2}
+            fill="#EDE9FE" stroke="#6B21A8" strokeWidth={0.5} />
+        ))}
+        <rect x={575} y={380} width={95} height={90} fill="#EFF6FF" stroke="#475569" strokeWidth={1.2} />
+        <text x={622} y={425} fontSize={8} textAnchor="middle" fill="#1D4ED8" fontWeight={700}>남자화장실</text>
+        {[0, 1, 2].map(i => (
+          <rect key={i} x={582 + i * 26} y={387} width={20} height={16} rx={2}
+            fill="#DBEAFE" stroke="#1D4ED8" strokeWidth={0.5} />
+        ))}
+      </g>
+      {/* 창고 2평 */}
+      <g>
+        <rect x={620} y={220} width={50} height={85} fill="#F1F5F9" stroke="#475569" strokeWidth={1.2} />
+        <text x={645} y={260} fontSize={8} textAnchor="middle" fill="#475569" fontWeight={700}>창고</text>
+        <text x={645} y={272} fontSize={7} textAnchor="middle" fill="#64748B">2평</text>
+      </g>
+
+      {/* ── 최우측: VOID (엘리베이터 샤프트/공조) ── */}
+      <g>
+        <rect x={685} y={55} width={113} height={415} fill="url(#hatchLight)" stroke="#94A3B8" strokeWidth={1} />
+        <line x1={685} y1={55} x2={798} y2={470} stroke="#CBD5E1" strokeWidth={0.8} />
+        <line x1={798} y1={55} x2={685} y2={470} stroke="#CBD5E1" strokeWidth={0.8} />
+        <text x={741} y={260} fontSize={11} textAnchor="middle" fill="#475569" fontWeight={700}>VOID</text>
+      </g>
+
+      {/* 외부 라벨 */}
+      <text x={30} y={16} fontSize={10} fontWeight={800} fill="#1F2937">← 서편 (WEST)</text>
+      <text x={790} y={16} fontSize={10} fontWeight={800} fill="#1F2937" textAnchor="end">동편 (EAST) →</text>
+      <text x={170} y={530 - 4} fontSize={7} fill="#94A3B8" textAnchor="middle">책상=모니터 상태 / 원=의자 / 초록방=회의실 / 빗금=코어·서비스</text>
+    </svg>
+  );
+}
+
+// ─── 공통 헬퍼 ─────────────────────────────────────────────────
+// 좌석 그리드 위치 계산
+function gridPositions(
+  startX: number, startY: number,
+  cols: number, rows: number,
+  sw: number, sh: number,
+  gx: number, gy: number,
+  rowGroups: number[], aisle: number
+): { x: number; y: number; row: number; col: number }[] {
+  const out: { x:number; y:number; row:number; col:number }[] = [];
+  let rowY = startY, gi = 0, ri = 0;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) out.push({ x: startX + c*(sw+gx), y: rowY, row: r, col: c });
+    ri++;
+    const gs = rowGroups[gi] || 2;
+    if (ri >= gs && r < rows-1) { rowY += sh+gy+aisle; gi++; ri = 0; } else rowY += sh+gy;
+  }
+  return out;
+}
+// 그룹 내 row 인덱스에 따라 의자 방향 결정 (상단 행 → 아래 의자, 하단 행 → 위 의자)
+function orientOf(row: number, rowGroups: number[]): "down"|"up" {
+  let gi = 0, ri = 0;
+  for (let i = 0; i < row; i++) { ri++; if (ri >= (rowGroups[gi]||2)) { gi++; ri = 0; } }
+  return ri === 0 ? "down" : "up";
+}
+
+// 재사용 DeskGrid
+function DeskGrid({ zone, startX, startY, cols, rows, sw, sh, gx, gy, rowGroups, aisle, ctx }: {
+  zone: SketchZone; startX:number; startY:number; cols:number; rows:number;
+  sw:number; sh:number; gx:number; gy:number; rowGroups:number[]; aisle:number; ctx:SketchCtx;
+}) {
+  const positions = gridPositions(startX, startY, cols, rows, sw, sh, gx, gy, rowGroups, aisle);
+  return (
+    <g>
+      {positions.map((p, i) => {
+        const seat = zone.seats[i];
+        if (!seat) return null;
+        return <Seat key={seat.id} x={p.x} y={p.y} w={sw} h={sh}
+          orient={orientOf(p.row, rowGroups)} seat={seat} ctx={ctx} />;
+      })}
+    </g>
+  );
+}
+
+// 공통 코어 블록 (계단+EV+화장실)
+function CoreBlock({ x, y, w, h, hasStairs=true }: { x:number;y:number;w:number;h:number;hasStairs?:boolean }) {
+  return (
+    <g>
+      <rect x={x} y={y} width={w} height={h} fill="#F1F5F9" stroke="#475569" strokeWidth={1.2}/>
+      {/* 계단 UP */}
+      {hasStairs && <g>
+        <rect x={x+4} y={y+8} width={w/2-8} height={h*0.18} fill="url(#hatchLight)" stroke="#475569" strokeWidth={0.8}/>
+        {Array.from({length:5},(_,i)=><line key={i} x1={x+4} y1={y+12+i*7} x2={x+w/2-4} y2={y+12+i*7} stroke="#475569" strokeWidth={0.5}/>)}
+        <text x={x+8} y={y+13} fontSize={7} fill="#475569">UP</text>
+      </g>}
+      {/* 엘리베이터 박스 */}
+      <rect x={x+w/4} y={y+h*0.3} width={w/2} height={h*0.18} fill="#E2E8F0" stroke="#475569" strokeWidth={0.8}/>
+      <line x1={x+w/4} y1={y+h*0.3} x2={x+3*w/4} y2={y+h*0.48} stroke="#475569" strokeWidth={0.5}/>
+      <line x1={x+3*w/4} y1={y+h*0.3} x2={x+w/4} y2={y+h*0.48} stroke="#475569" strokeWidth={0.5}/>
+      <text x={x+w/2} y={y+h*0.4} fontSize={7} fill="#475569" textAnchor="middle">EV</text>
+      {/* 계단 DN */}
+      {hasStairs && <g>
+        <rect x={x+4} y={y+h*0.75} width={w/2-8} height={h*0.18} fill="url(#hatchLight)" stroke="#475569" strokeWidth={0.8}/>
+        {Array.from({length:5},(_,i)=><line key={i} x1={x+4} y1={y+h*0.76+i*7} x2={x+w/2-4} y2={y+h*0.76+i*7} stroke="#475569" strokeWidth={0.5}/>)}
+        <text x={x+8} y={y+h*0.77} fontSize={7} fill="#475569">DN</text>
+      </g>}
+      {/* EPS */}
+      <rect x={x+w/2+4} y={y+h*0.5} width={w/2-8} height={h*0.18} fill="url(#hatch)" stroke="#475569" strokeWidth={0.7}/>
+      <text x={x+3*w/4} y={y+h*0.6} fontSize={7} fill="#475569" textAnchor="middle">EPS</text>
+    </g>
+  );
+}
+
+// 공통 미팅룸
+function MeetingBox({ x, y, w, h, name, sub }: { x:number;y:number;w:number;h:number;name:string;sub?:string }) {
+  return (
+    <g>
+      <rect x={x} y={y} width={w} height={h} fill="#ECFDF5" stroke="#047857" strokeWidth={1.2}/>
+      <path d={`M ${x} ${y+h-10} A 10 10 0 0 1 ${x+10} ${y+h}`} fill="none" stroke="#047857" strokeWidth={0.7}/>
+      <text x={x+w/2} y={y+14} fontSize={8.5} fontWeight={700} textAnchor="middle" fill="#065F46">{name}</text>
+      {sub && <text x={x+w/2} y={y+h-4} fontSize={7} textAnchor="middle" fill="#047857" opacity={0.8}>{sub}</text>}
+    </g>
+  );
+}
+
+// 공통 빌딩 외곽 + 창문
+function BuildingShell({ vw, vy=20, vh=510, windows=24 }: { vw:number; vy?:number; vh?:number; windows?:number }) {
+  return (
+    <g>
+      {HATCH}
+      <rect x={12} y={vy} width={vw-24} height={vh} fill="#FAFAFA" stroke="#1F2937" strokeWidth={2}/>
+      {Array.from({length:windows},(_,i)=>(<>
+        <line key={`t${i}`} x1={30+i*32} y1={vy} x2={30+i*32} y2={vy+8} stroke="#60A5FA" strokeWidth={2} opacity={0.45}/>
+        <line key={`b${i}`} x1={30+i*32} y1={vy+vh} x2={30+i*32} y2={vy+vh-8} stroke="#60A5FA" strokeWidth={2} opacity={0.45}/>
+      </>))}
+    </g>
+  );
+}
+
+// ─── 본관 3F ─── 서편+동편, 협업존, 미팅룸 2개 ────────────────────
+export function BW_3F_Sketch(ctx: SketchCtx) {
+  const zW = ctx.zones.find(z=>z.id==="W");
+  const zE = ctx.zones.find(z=>z.id==="E");
+  if (!zW||!zE) return null;
+  return (
+    <svg viewBox="0 0 820 540" style={{ width:"100%", maxWidth:960, height:"auto", display:"block" }}>
+      <BuildingShell vw={820}/>
+      {/* 협업 공간 (녹색 특수 구역) */}
+      <rect x={20} y={28} width={90} height={85} fill="#F0FDF4" stroke="#86EFAC" strokeWidth={1.2} rx={3}/>
+      <text x={65} y={64} fontSize={8} textAnchor="middle" fill="#15803D" fontWeight={700}>협업</text>
+      <text x={65} y={74} fontSize={7} textAnchor="middle" fill="#15803D">공간</text>
+
+      {/* 서편 업무 구역 */}
+      <rect x={20} y={120} width={285} height={270} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2" rx={3}/>
+      <text x={38} y={134} fontSize={9} fontWeight={800} fill="#1E3A8A">서편 (WEST)</text>
+      {zW && <DeskGrid zone={zW} startX={30} startY={145} cols={6} rows={8}
+        sw={21} sh={12} gx={6} gy={3} rowGroups={[2,2,2,2]} aisle={18} ctx={ctx}/>}
+
+      {/* 미팅룸 (하단 좌) */}
+      <MeetingBox x={20} y={405} w={135} h={80} name="미팅룸" sub="18.5m²"/>
+      <MeetingBox x={163} y={405} w={140} h={80} name="미팅룸" sub="16.1m²"/>
+
+      {/* 코어 */}
+      <CoreBlock x={318} y={28} w={185} h={490}/>
+
+      {/* 동편 협업 + 특수 구역 */}
+      <rect x={715} y={28} width={95} height={85} fill="#F0FDF4" stroke="#86EFAC" strokeWidth={1.2} rx={3}/>
+      <text x={763} y={64} fontSize={8} textAnchor="middle" fill="#15803D" fontWeight={700}>G/B</text>
+
+      {/* 동편 업무 구역 */}
+      <rect x={515} y={120} width={295} height={270} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2" rx={3}/>
+      <text x={533} y={134} fontSize={9} fontWeight={800} fill="#1E3A8A">동편 (EAST)</text>
+      {zE && <DeskGrid zone={zE} startX={525} startY={145} cols={9} rows={7}
+        sw={21} sh={12} gx={5} gy={3} rowGroups={[2,2,3]} aisle={18} ctx={ctx}/>}
+
+      <text x={30} y={16} fontSize={9} fontWeight={800} fill="#1F2937">← 서편 (WEST · 삼성역 방면)</text>
+      <text x={790} y={16} fontSize={9} fontWeight={800} fill="#1F2937" textAnchor="end">동편 (EAST · 탄천 방면) →</text>
+    </svg>
+  );
+}
+
+// ─── 본관 4F ─── 서편(미설치 多)+동편, 스마트2/3/라운지 ─────────
+export function BW_4F_Sketch(ctx: SketchCtx) {
+  const zW = ctx.zones.find(z=>z.id==="W");
+  const zE = ctx.zones.find(z=>z.id==="E");
+  if (!zW||!zE) return null;
+  const wNone = zW.seats.filter(s=>s.type==="none").length;
+  return (
+    <svg viewBox="0 0 820 540" style={{ width:"100%", maxWidth:960, height:"auto", display:"block" }}>
+      <BuildingShell vw={820}/>
+
+      {/* 서편 업무 구역 (미설치 많아 붉은 배경) */}
+      <rect x={20} y={28} width={285} height={365} fill="#FFF1F2" stroke="#FCA5A5" strokeWidth={1.2} strokeDasharray="5,2" rx={3}/>
+      <text x={38} y={44} fontSize={9} fontWeight={800} fill="#B91C1C">서편 — 미설치 {wNone}석</text>
+      {zW && <DeskGrid zone={zW} startX={30} startY={55} cols={5} rows={8}
+        sw={24} sh={12} gx={6} gy={3} rowGroups={[2,2,2,2]} aisle={18} ctx={ctx}/>}
+
+      {/* 서편 하단 미팅룸 */}
+      <MeetingBox x={20} y={405} w={90} h={100} name="스마트2" sub="5.6평"/>
+      <MeetingBox x={118} y={405} w={90} h={100} name="스마트3" sub="5.6평"/>
+      <MeetingBox x={216} y={405} w={90} h={100} name="라운지" sub="10.7평"/>
+
+      {/* 코어 (중앙) */}
+      <CoreBlock x={318} y={28} w={185} h={490}/>
+      {/* 여자화장실 상단 */}
+      <rect x={318+45} y={35} width={95} height={60} fill="#F5F3FF" stroke="#6B21A8" strokeWidth={0.8}/>
+      <text x={318+92} y={62} fontSize={7.5} textAnchor="middle" fill="#6B21A8" fontWeight={700}>여자화장실</text>
+      {/* 남자화장실 하단 */}
+      <rect x={318+45} y={450} width={95} height={60} fill="#EFF6FF" stroke="#1D4ED8" strokeWidth={0.8}/>
+      <text x={318+92} y={477} fontSize={7.5} textAnchor="middle" fill="#1D4ED8" fontWeight={700}>남자화장실</text>
+
+      {/* 동편 업무 구역 */}
+      <rect x={515} y={28} width={295} height={365} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2" rx={3}/>
+      <text x={533} y={44} fontSize={9} fontWeight={800} fill="#1E3A8A">동편 (EAST)</text>
+      {zE && <DeskGrid zone={zE} startX={525} startY={55} cols={8} rows={7}
+        sw={24} sh={12} gx={5} gy={3} rowGroups={[2,2,3]} aisle={18} ctx={ctx}/>}
+      {/* 동편 하단 8인 미팅룸 */}
+      <MeetingBox x={620} y={405} w={190} h={100} name="8인 미팅룸" sub=""/>
+
+      <text x={30} y={16} fontSize={9} fontWeight={800} fill="#B91C1C">← 서편 (미설치 주의)</text>
+      <text x={790} y={16} fontSize={9} fontWeight={800} fill="#1F2937" textAnchor="end">동편 →</text>
+    </svg>
+  );
+}
+
+// ─── 본관 5F ─── 서편+동편(상단 라운지), 소규모 미팅룸 ─────────
+export function BW_5F_Sketch(ctx: SketchCtx) {
+  const zW = ctx.zones.find(z=>z.id==="W");
+  const zE = ctx.zones.find(z=>z.id==="E");
+  if (!zW||!zE) return null;
+  return (
+    <svg viewBox="0 0 820 540" style={{ width:"100%", maxWidth:960, height:"auto", display:"block" }}>
+      <BuildingShell vw={820}/>
+
+      {/* 서편 업무 구역 */}
+      <rect x={20} y={28} width={285} height={470} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2" rx={3}/>
+      <text x={38} y={44} fontSize={9} fontWeight={800} fill="#1E3A8A">서편 (WEST)</text>
+      {zW && <DeskGrid zone={zW} startX={30} startY={55} cols={6} rows={7}
+        sw={22} sh={12} gx={6} gy={3} rowGroups={[2,2,3]} aisle={18} ctx={ctx}/>}
+
+      {/* 코어 (중앙, 하단에 미팅룸) */}
+      <CoreBlock x={318} y={28} w={185} h={380}/>
+      <MeetingBox x={330} y={415} w={162} h={80} name="미팅룸" sub="6.6m²"/>
+
+      {/* 동편: 상단 라운지/바 + 하단 업무 */}
+      <rect x={515} y={28} width={295} height={110} fill="#FEF3C7" stroke="#FCD34D" strokeWidth={1.2} rx={3}/>
+      <text x={663} y={72} fontSize={9} fontWeight={800} textAnchor="middle" fill="#92400E">라운지 / 바 (Bar Table)</text>
+
+      <rect x={515} y={145} width={295} height={350} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2" rx={3}/>
+      <text x={533} y={161} fontSize={9} fontWeight={800} fill="#1E3A8A">동편 (EAST)</text>
+      {zE && <DeskGrid zone={zE} startX={525} startY={172} cols={8} rows={6}
+        sw={24} sh={12} gx={5} gy={3} rowGroups={[2,2,2]} aisle={18} ctx={ctx}/>}
+
+      <text x={30} y={16} fontSize={9} fontWeight={800} fill="#1F2937">← 서편 (WEST)</text>
+      <text x={790} y={16} fontSize={9} fontWeight={800} fill="#1F2937" textAnchor="end">동편 (라운지+업무) →</text>
+    </svg>
+  );
+}
+
+// ─── 본관 6F ─── 서편 개발자(34") 전용 + 동편 ──────────────────
+export function BW_6F_Sketch(ctx: SketchCtx) {
+  const zW = ctx.zones.find(z=>z.id==="W");
+  const zE = ctx.zones.find(z=>z.id==="E");
+  if (!zW||!zE) return null;
+  const wDev = zW.seats.filter(s=>s.type==="dev34").length;
+  return (
+    <svg viewBox="0 0 820 540" style={{ width:"100%", maxWidth:960, height:"auto", display:"block" }}>
+      <BuildingShell vw={820}/>
+
+      {/* 서편 개발자 구역 (보라색 배경) */}
+      <rect x={20} y={28} width={285} height={470} fill="#F5F3FF" stroke="#C4B5FD" strokeWidth={1.5} rx={3}/>
+      <text x={38} y={44} fontSize={9} fontWeight={800} fill="#6D28D9">서편 — 개발자 34" ({wDev}석)</text>
+      {zW && <DeskGrid zone={zW} startX={30} startY={58} cols={7} rows={7}
+        sw={22} sh={12} gx={5} gy={3} rowGroups={[2,2,3]} aisle={18} ctx={ctx}/>}
+
+      {/* 코어 */}
+      <CoreBlock x={318} y={28} w={185} h={490}/>
+
+      {/* 동편 */}
+      <rect x={515} y={28} width={295} height={470} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2" rx={3}/>
+      <text x={533} y={44} fontSize={9} fontWeight={800} fill="#1E3A8A">동편 (EAST)</text>
+      {zE && <DeskGrid zone={zE} startX={525} startY={58} cols={8} rows={7}
+        sw={24} sh={12} gx={5} gy={3} rowGroups={[2,2,3]} aisle={18} ctx={ctx}/>}
+
+      {/* 안내 레이블 */}
+      <text x={30} y={16} fontSize={9} fontWeight={800} fill="#6D28D9">← 서편 (개발자 34" 전용)</text>
+      <text x={790} y={16} fontSize={9} fontWeight={800} fill="#1F2937" textAnchor="end">동편 →</text>
+    </svg>
+  );
+}
+
+// ─── 본관 7F ─── 서편(미설치 多)+동편+로커구역 ──────────────────
+export function BW_7F_Sketch(ctx: SketchCtx) {
+  const zW = ctx.zones.find(z=>z.id==="W");
+  const zE = ctx.zones.find(z=>z.id==="E");
+  if (!zW||!zE) return null;
+  const wNone = zW.seats.filter(s=>s.type==="none").length;
+  return (
+    <svg viewBox="0 0 820 540" style={{ width:"100%", maxWidth:960, height:"auto", display:"block" }}>
+      <BuildingShell vw={820}/>
+
+      {/* 서편 (미설치 많아 붉은 배경) */}
+      <rect x={20} y={28} width={285} height={340} fill="#FFF1F2" stroke="#FCA5A5" strokeWidth={1.2} strokeDasharray="5,2" rx={3}/>
+      <text x={38} y={44} fontSize={9} fontWeight={800} fill="#B91C1C">서편 — 미설치 {wNone}석</text>
+      {zW && <DeskGrid zone={zW} startX={30} startY={58} cols={6} rows={6}
+        sw={24} sh={12} gx={5} gy={3} rowGroups={[2,2,2]} aisle={18} ctx={ctx}/>}
+      {/* 로커 구역 */}
+      <rect x={20} y={378} width={285} height={115} fill="#F1F5F9" stroke="#CBD5E1" strokeWidth={1.2} rx={3}/>
+      <text x={163} y={432} fontSize={9} textAnchor="middle" fill="#475569" fontWeight={700}>LOCKER 구역</text>
+      {/* 로커 박스 심볼 */}
+      {Array.from({length:8},(_,i)=>(
+        <rect key={i} x={32+i*32} y={390} width={22} height={40} fill="#E2E8F0" stroke="#94A3B8" strokeWidth={0.7} rx={1}/>
+      ))}
+
+      {/* 코어 */}
+      <CoreBlock x={318} y={28} w={185} h={490}/>
+
+      {/* 동편 */}
+      <rect x={515} y={28} width={295} height={470} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2" rx={3}/>
+      <text x={533} y={44} fontSize={9} fontWeight={800} fill="#1E3A8A">동편 (EAST)</text>
+      {zE && <DeskGrid zone={zE} startX={525} startY={58} cols={8} rows={7}
+        sw={24} sh={12} gx={5} gy={3} rowGroups={[2,2,3]} aisle={18} ctx={ctx}/>}
+
+      <text x={30} y={16} fontSize={9} fontWeight={800} fill="#B91C1C">← 서편 (미설치 주의)</text>
+      <text x={790} y={16} fontSize={9} fontWeight={800} fill="#1F2937" textAnchor="end">동편 →</text>
+    </svg>
+  );
+}
+
+// ─── 본관 8F ─── 회의실 중심, 소규모 업무공간 ──────────────────
+export function BW_8F_Sketch(ctx: SketchCtx) {
+  const zM = ctx.zones.find(z=>z.id==="M");
+  return (
+    <svg viewBox="0 0 820 540" style={{ width:"100%", maxWidth:960, height:"auto", display:"block" }}>
+      <BuildingShell vw={820}/>
+
+      {/* 좌측 회의실 3개 */}
+      <MeetingBox x={20} y={35} w={155} h={140} name="회의실/미팅룸-1" sub="4.1인"/>
+      <MeetingBox x={20} y={183} w={155} h={140} name="회의실/미팅룸-2" sub="4.1인"/>
+      <MeetingBox x={20} y={330} w={155} h={155} name="미팅룸" sub="7.6인"/>
+
+      {/* 중앙 소규모 업무공간 */}
+      <rect x={185} y={100} width={120} height={200} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2" rx={3}/>
+      <text x={245} y={116} fontSize={8} fontWeight={800} textAnchor="middle" fill="#1E3A8A">업무공간</text>
+      {zM && <DeskGrid zone={zM} startX={192} startY={128} cols={5} rows={5}
+        sw={18} sh={12} gx={4} gy={3} rowGroups={[2,3]} aisle={20} ctx={ctx}/>}
+
+      {/* 코어 (CANTEEN 포함) */}
+      <CoreBlock x={318} y={28} w={185} h={400} hasStairs={true}/>
+      <rect x={330} y={430} width={162} height={75} fill="#FEF9C3" stroke="#EAB308" strokeWidth={1}/>
+      <text x={411} y={463} fontSize={9} textAnchor="middle" fill="#713F12" fontWeight={700}>CANTEEN</text>
+
+      {/* 우측 컨퍼런스룸 3개 */}
+      <MeetingBox x={515} y={35} w={295} h={155} name="Conference-1" sub="17.9인"/>
+      <MeetingBox x={515} y={200} w={295} h={115} name="회의실/멀티룸" sub="13.8인"/>
+      <MeetingBox x={515} y={325} w={295} h={155} name="Conference-2" sub="19.5인"/>
+
+      <text x={30} y={16} fontSize={9} fontWeight={800} fill="#15803D">← 회의실 구역</text>
+      <text x={790} y={16} fontSize={9} fontWeight={800} fill="#15803D" textAnchor="end">컨퍼런스룸 구역 →</text>
+    </svg>
+  );
+}
+
+// ─── 본관 9F ─── 스튜디오(서편) + 홀(동편) ──────────────────────
+export function BW_9F_Sketch(ctx: SketchCtx) {
+  const zW = ctx.zones.find(z=>z.id==="W");
+  const zE = ctx.zones.find(z=>z.id==="E");
+  if (!zW||!zE) return null;
+  return (
+    <svg viewBox="0 0 820 540" style={{ width:"100%", maxWidth:960, height:"auto", display:"block" }}>
+      <BuildingShell vw={820}/>
+
+      {/* 스튜디오/라이브러리 (서편 상단) */}
+      <rect x={20} y={28} width={285} height={135} fill="#FEF3C7" stroke="#F6CE4A" strokeWidth={1.2} rx={3}/>
+      <text x={163} y={52} fontSize={9} fontWeight={800} textAnchor="middle" fill="#92400E">스튜디오 / 도서관</text>
+      {/* 책장 심볼 */}
+      {Array.from({length:6},(_,i)=>(
+        <rect key={i} x={28+i*42} y={62} width={35} height={70} fill="#FDE68A" stroke="#D97706" strokeWidth={0.7} rx={1}/>
+      ))}
+      {/* 스탠딩 데스크 심볼 */}
+      <rect x={20} y={172} width={285} height={80} fill="#FFFBEB" stroke="#FCD34D" strokeWidth={1} strokeDasharray="4,2" rx={3}/>
+      <text x={163} y={210} fontSize={8} textAnchor="middle" fill="#78350F" fontWeight={700}>스탠딩 데스크 구역</text>
+
+      {/* 서편 업무 좌석 */}
+      <rect x={20} y={260} width={285} height={240} fill="#FFF7E6" stroke="#F6CE4A" strokeWidth={1} strokeDasharray="5,2" rx={3}/>
+      <text x={38} y={276} fontSize={9} fontWeight={800} fill="#92400E">스튜디오 (서편)</text>
+      {zW && <DeskGrid zone={zW} startX={30} startY={290} cols={4} rows={5}
+        sw={26} sh={14} gx={8} gy={4} rowGroups={[2,3]} aisle={18} ctx={ctx}/>}
+
+      {/* 코어 */}
+      <CoreBlock x={318} y={28} w={185} h={490}/>
+
+      {/* 동편 홀 (54석) */}
+      <rect x={515} y={28} width={295} height={470} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2" rx={3}/>
+      <text x={533} y={44} fontSize={9} fontWeight={800} fill="#1E3A8A">홀 (동편) — 54석</text>
+      {zE && <DeskGrid zone={zE} startX={525} startY={58} cols={9} rows={6}
+        sw={21} sh={12} gx={5} gy={3} rowGroups={[2,2,2]} aisle={18} ctx={ctx}/>}
+
+      <text x={30} y={16} fontSize={9} fontWeight={800} fill="#92400E">← 서편 (스튜디오/라이브러리)</text>
+      <text x={790} y={16} fontSize={9} fontWeight={800} fill="#1F2937" textAnchor="end">동편 (홀 54석) →</text>
+    </svg>
+  );
+}
+
+// ─── 층별 스케치 레지스트리 ──────────────────────────────────────
+export const FLOOR_SKETCHES: Record<string, (ctx: SketchCtx) => React.ReactNode> = {
+  "bw-2F": BW_2F_Sketch,
+  "bw-3F": BW_3F_Sketch,
+  "bw-4F": BW_4F_Sketch,
+  "bw-5F": BW_5F_Sketch,
+  "bw-6F": BW_6F_Sketch,
+  "bw-7F": BW_7F_Sketch,
+  "bw-8F": BW_8F_Sketch,
+  "bw-9F": BW_9F_Sketch,
+};
