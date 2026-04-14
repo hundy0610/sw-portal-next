@@ -1,788 +1,888 @@
 "use client";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useMemo } from "react";
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
 // TYPES
-// ─────────────────────────────────────────────────────────────────────────────
-type MonitorType = "24" | "27" | "34" | "none" | null;
-// null  = 미확인 (not yet recorded)
-// "24"  = 24인치
-// "27"  = 27인치
-// "34"  = 34인치
-// "none"= 미설치 (no monitor)
+// ══════════════════════════════════════════════════════════════════════════════
+type MonitorType = "std27" | "std24" | "dev34" | "none" | "unk";
+type FilterMode  = "all" | MonitorType;
 
-interface ZoneDef {
-  id: string;
+interface SeatData {
+  id:   string;
+  type: MonitorType;
+  row:  number;
+  col:  number;
+}
+interface ZoneData {
+  id:    string;
   label: string;
-  rows: number;
-  cols: number;
-  totalSeats: number; // may be < rows×cols for irregular zones
+  side:  string;       // "W" | "E" | "S"
+  cols:  number;
+  rows:  number;
+  seats: SeatData[];
+}
+interface FloorData {
+  id:    string;
+  label: string;
+  note:  string;
+  zones: ZoneData[];
+  rooms: string[];
+}
+interface BuildingData {
+  id:     string;
+  label:  string;
+  floors: FloorData[];
 }
 
-interface FloorDef {
-  id: string;
-  label: string;
-  zones: ZoneDef[];
+// SVG 스케치 레이아웃 타입
+interface CoreBlock  { x:number; y:number; w:number; h:number; label:string; fill?:string; stroke?:string; }
+interface RoomBlock  { x:number; y:number; w:number; h:number; label:string; sub?:string; }
+interface DeskBgBlock{ id:string; x:number; y:number; w:number; h:number; label:string; fill:string; stroke:string; }
+interface SeatGrid   { zoneId:string; startX:number; startY:number; cols:number; rows:number; sw:number; sh:number; gx:number; gy:number; rowGroups:number[]; aisle:number; }
+interface SvgLabel   { x:number; y:number; text:string; size?:number; color?:string; anchor?:string; bold?:boolean; }
+interface FloorSvgCfg{
+  vw:number; vh:number;
+  coreBlocks?: CoreBlock[];
+  extraBlocks?: CoreBlock[];
+  rooms?:       RoomBlock[];
+  deskBg?:      DeskBgBlock[];
+  seatGrids?:   SeatGrid[];
+  labels?:      SvgLabel[];
 }
 
-interface BuildingDef {
-  id: string;
-  label: string;
-  color: string; // tailwind bg class for accent
-  floors: FloorDef[];
+// ══════════════════════════════════════════════════════════════════════════════
+// MONITOR META
+// ══════════════════════════════════════════════════════════════════════════════
+const MONITOR = {
+  std27: { label:'27"',  long:'표준형 27"',  color:"#2563EB", pale:"#DBEAFE", border:"#93C5FD" },
+  std24: { label:'24"',  long:'표준형 24"',  color:"#0284C7", pale:"#E0F2FE", border:"#7DD3FC" },
+  dev34: { label:'34"',  long:'개발자 34"',  color:"#7C3AED", pale:"#EDE9FE", border:"#C4B5FD" },
+  none:  { label:"✕",   long:"미설치",      color:"#DC2626", pale:"#FEE2E2", border:"#FCA5A5" },
+  unk:   { label:"·",   long:"미확인",      color:"#94A3B8", pale:"#F1F5F9", border:"#CBD5E1" },
+} as const;
+const TYPES: MonitorType[] = ["std27","std24","dev34","none","unk"];
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DATA HELPERS
+// ══════════════════════════════════════════════════════════════════════════════
+const f = (n:number, t:MonitorType): MonitorType[] => Array(n).fill(t);
+const m = (...pairs:[number,MonitorType][]): MonitorType[] => pairs.flatMap(([n,t]) => f(n,t));
+
+function buildZone(
+  id:string, label:string, side:string,
+  cols:number, rows:number,
+  types:MonitorType[],
+  bldCode:string, flCode:string
+): ZoneData {
+  const seats: SeatData[] = types.map((type, idx) => ({
+    id:   `${bldCode}-${flCode}${side}-${String.fromCharCode(65+Math.floor(idx/cols))}${String(idx%cols+1).padStart(2,"0")}`,
+    type,
+    row:  Math.floor(idx/cols),
+    col:  idx%cols,
+  }));
+  return { id, label, side, cols, rows, seats };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// BUILDING / FLOOR / ZONE DATA  (derived from floor plan analysis)
-// ─────────────────────────────────────────────────────────────────────────────
-const BUILDINGS: BuildingDef[] = [
+function calcStats(zones: ZoneData[]) {
+  const r = { std27:0, std24:0, dev34:0, none:0, unk:0, total:0 };
+  zones.forEach(z => z.seats.forEach(s => { (r as Record<string,number>)[s.type]++; r.total++; }));
+  return r;
+}
+
+function getSeatPositions(sg: SeatGrid): {x:number;y:number;row:number;col:number}[] {
+  const { startX, startY, cols, rows, sw, sh, gx, gy, rowGroups, aisle } = sg;
+  const positions: {x:number;y:number;row:number;col:number}[] = [];
+  let rowY = startY, groupIdx = 0, rowInGroup = 0;
+  for (let r = 0; r < rows; r++) {
+    let colX = startX;
+    for (let c = 0; c < cols; c++) {
+      positions.push({ x:colX, y:rowY, row:r, col:c });
+      colX += sw + gx;
+    }
+    rowInGroup++;
+    const groupSize = (rowGroups && rowGroups[groupIdx]) || 2;
+    if (rowInGroup >= groupSize && r < rows - 1) {
+      rowY += sh + gy + aisle; groupIdx++; rowInGroup = 0;
+    } else {
+      rowY += sh + gy;
+    }
+  }
+  return positions;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// BUILDING DATA  (본관 도면 기반 근사치 / 신관·S빌딩 추후 업데이트)
+// ══════════════════════════════════════════════════════════════════════════════
+const BUILDINGS: BuildingData[] = [
   {
-    id: "bw", label: "본관", color: "bg-sky-600",
+    id:"bw", label:"본관",
     floors: [
-      { id: "bw2",  label: "2층",  zones: [{ id: "main", label: "스마트오피스", rows: 4,  cols: 13, totalSeats: 52 }] },
-      { id: "bw3",  label: "3층",  zones: [
-        { id: "w", label: "서편", rows: 6, cols: 9,  totalSeats: 54 },
-        { id: "e", label: "동편", rows: 6, cols: 10, totalSeats: 60 },
-      ]},
-      { id: "bw4",  label: "4층",  zones: [
-        { id: "w", label: "서편", rows: 5, cols: 11, totalSeats: 52 },
-        { id: "e", label: "동편", rows: 6, cols: 10, totalSeats: 59 },
-      ]},
-      { id: "bw5",  label: "5층",  zones: [
-        { id: "w", label: "서편", rows: 6, cols: 10, totalSeats: 57 },
-        { id: "e", label: "동편", rows: 6, cols: 11, totalSeats: 64 },
-      ]},
-      { id: "bw6",  label: "6층",  zones: [
-        { id: "w", label: "서편", rows: 7, cols: 10, totalSeats: 67 },
-        { id: "e", label: "동편", rows: 7, cols: 10, totalSeats: 65 },
-      ]},
-      { id: "bw7",  label: "7층",  zones: [
-        { id: "w", label: "서편", rows: 6, cols: 10, totalSeats: 57 },
-        { id: "e", label: "동편", rows: 5, cols: 10, totalSeats: 47 },
-      ]},
-      { id: "bw8",  label: "8층",  zones: [{ id: "main", label: "스마트오피스", rows: 4, cols: 7,  totalSeats: 28 }] },
-      { id: "bw9",  label: "9층",  zones: [
-        { id: "w", label: "서편", rows: 6, cols: 9,  totalSeats: 53 },
-        { id: "e", label: "동편", rows: 6, cols: 10, totalSeats: 59 },
-      ]},
+      { id:"2F", label:"2층", note:"서편 스마트오피스",
+        zones:[ buildZone("SO","스마트오피스","W",13,4, f(52,"unk"), "BW","2F") ],
+        rooms:["미팅룸 A (4.1평)","미팅룸 B (6.4평)","미팅룸 C (5.7평)","소등 (4.6평)"] },
+      { id:"3F", label:"3층", note:"서편 · 동편",
+        zones:[
+          buildZone("W","서편","W",6,8, m([12,"std27"],[2,"none"],[14,"std27"],[4,"none"],[10,"std27"],[4,"unk"],[2,"std27"]), "BW","3F"),
+          buildZone("E","동편","E",9,7, m([18,"std27"],[4,"none"],[31,"std27"],[4,"none"],[6,"std27"]), "BW","3F"),
+        ],
+        rooms:["미팅룸 (18.5m²)","미팅룸 (16.1m²)"] },
+      { id:"4F", label:"4층", note:"서편 미설치 다수 · 동편",
+        zones:[
+          buildZone("W","서편","W",5,8, m([4,"std27"],[5,"none"],[5,"none"],[5,"none"],[5,"none"],[4,"none"],[4,"std27"],[4,"unk"],[4,"none"]), "BW","4F"),
+          buildZone("E","동편","E",8,7, m([8,"std27"],[4,"none"],[24,"std27"],[4,"none"],[8,"std27"],[4,"none"],[4,"std27"]), "BW","4F"),
+        ],
+        rooms:["스마트2 (5.6평)","스마트3 (5.6평)","라운지 (10.7평)"] },
+      { id:"5F", label:"5층", note:"서편 · 동편",
+        zones:[
+          buildZone("W","서편","W",6,7, m([30,"std27"],[1,"none"],[11,"std27"]), "BW","5F"),
+          buildZone("E","동편","E",8,6, m([36,"std27"],[1,"none"],[11,"std27"]), "BW","5F"),
+        ],
+        rooms:["미팅룸 (6.6m²)"] },
+      { id:"6F", label:"6층", note:'서편 개발자 34" · 동편 혼합',
+        zones:[
+          buildZone("W",'서편 (개발 34")',"W",7,7, m([28,"dev34"],[6,"none"],[7,"dev34"],[7,"none"],[1,"dev34"]), "BW","6F"),
+          buildZone("E","동편","E",8,7, m([12,"std27"],[8,"none"],[16,"std27"],[12,"none"],[8,"std27"]), "BW","6F"),
+        ],
+        rooms:[] },
+      { id:"7F", label:"7층", note:"서편 미설치 다수 · 동편",
+        zones:[
+          buildZone("W","서편","W",6,6, m([6,"none"],[6,"none"],[6,"none"],[6,"none"],[6,"none"],[6,"std27"]), "BW","7F"),
+          buildZone("E","동편","E",8,7, m([24,"std27"],[8,"unk"],[16,"std27"],[8,"unk"]), "BW","7F"),
+        ],
+        rooms:[] },
+      { id:"8F", label:"8층", note:"회의실 중심",
+        zones:[ buildZone("M","업무공간","W",5,5, m([23,"std27"],[1,"none"],[1,"unk"]), "BW","8F") ],
+        rooms:["회의실/미팅룸-1","회의실/미팅룸-2","미팅룸","Conference-1","회의실/멀티룸","Conference-2"] },
+      { id:"9F", label:"9층", note:"스튜디오 · 홀",
+        zones:[
+          buildZone("W","스튜디오 (서편)","W",4,5, m([16,"std27"],[4,"unk"]), "BW","9F"),
+          buildZone("E","홀 (동편)","E",9,6, m([24,"std27"],[3,"none"],[21,"std27"],[6,"unk"]), "BW","9F"),
+        ],
+        rooms:[] },
     ],
   },
   {
-    id: "ns", label: "신관", color: "bg-emerald-600",
+    id:"ns", label:"신관",
     floors: [
-      { id: "ns2",  label: "2층",  zones: [
-        { id: "e", label: "동편", rows: 6, cols: 8,  totalSeats: 44 },
-        { id: "w", label: "서편", rows: 5, cols: 7,  totalSeats: 35 },
-      ]},
-      { id: "ns3",  label: "3층",  zones: [
-        { id: "e", label: "동편", rows: 6, cols: 10, totalSeats: 60 },
-        { id: "w", label: "서편", rows: 5, cols: 8,  totalSeats: 40 },
-      ]},
-      { id: "ns4",  label: "4층",  zones: [
-        { id: "e", label: "동편", rows: 6, cols: 9,  totalSeats: 51 },
-        { id: "w", label: "서편", rows: 5, cols: 8,  totalSeats: 40 },
-      ]},
-      { id: "ns5",  label: "5층",  zones: [
-        { id: "e", label: "동편", rows: 6, cols: 8,  totalSeats: 48 },
-        { id: "w", label: "서편", rows: 5, cols: 7,  totalSeats: 35 },
-      ]},
+      { id:"2F", label:"2층", note:"(도면 확인 후 업데이트 예정)",
+        zones:[ buildZone("M","메인","W",8,6, f(48,"unk"), "NS","2F") ], rooms:[] },
+      { id:"3F", label:"3층", note:"(도면 확인 후 업데이트 예정)",
+        zones:[ buildZone("M","메인","W",8,6, f(48,"unk"), "NS","3F") ], rooms:[] },
+      { id:"4F", label:"4층", note:"(도면 확인 후 업데이트 예정)",
+        zones:[ buildZone("M","메인","W",8,6, f(48,"unk"), "NS","4F") ], rooms:[] },
+      { id:"5F", label:"5층", note:"(도면 확인 후 업데이트 예정)",
+        zones:[ buildZone("M","메인","W",8,6, f(48,"unk"), "NS","5F") ], rooms:[] },
     ],
   },
   {
-    id: "sb", label: "S빌딩", color: "bg-violet-600",
+    id:"sb", label:"S빌딩",
     floors: [
-      { id: "sb3",  label: "3층",  zones: [{ id: "main", label: "스마트오피스", rows: 3, cols: 17, totalSeats: 51 }] },
-      { id: "sb4",  label: "4층",  zones: [
-        { id: "focus", label: "포커스존",    rows: 3, cols: 7,  totalSeats: 21 },
-        { id: "work",  label: "워크스페이스", rows: 4, cols: 10, totalSeats: 40 },
-      ]},
-      { id: "sb5",  label: "5층",  zones: [{ id: "main", label: "스마트오피스", rows: 3, cols: 12, totalSeats: 36 }] },
+      { id:"3F", label:"3층", note:"(도면 확인 후 업데이트 예정)",
+        zones:[ buildZone("M","메인","W",8,5, f(40,"unk"), "SB","3F") ], rooms:[] },
+      { id:"4F", label:"4층", note:"(도면 확인 후 업데이트 예정)",
+        zones:[ buildZone("M","메인","W",8,5, f(40,"unk"), "SB","4F") ], rooms:[] },
+      { id:"5F", label:"5층", note:"(도면 확인 후 업데이트 예정)",
+        zones:[ buildZone("M","메인","W",8,5, f(40,"unk"), "SB","5F") ], rooms:[] },
     ],
   },
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SEAT ID HELPER
-// ─────────────────────────────────────────────────────────────────────────────
-function seatId(buildingId: string, floorId: string, zoneId: string, n: number): string {
-  return `${buildingId}/${floorId}/${zoneId}/${String(n).padStart(3, "0")}`;
-}
-
-// Get all seat IDs for a zone
-function zoneSeats(b: BuildingDef, f: FloorDef, z: ZoneDef): string[] {
-  return Array.from({ length: z.totalSeats }, (_, i) => seatId(b.id, f.id, z.id, i + 1));
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// COLOR / LABEL MAPS
-// ─────────────────────────────────────────────────────────────────────────────
-const MONITOR_LABEL: Record<NonNullable<MonitorType>, string> = {
-  "24":   '24"',
-  "27":   '27"',
-  "34":   '34"',
-  "none": "미설치",
+// ══════════════════════════════════════════════════════════════════════════════
+// SVG 스케치 도면 설정  (본관 2~9층 도면 기반)
+// ══════════════════════════════════════════════════════════════════════════════
+const FLOOR_SVGS: Record<string, FloorSvgCfg> = {
+  "2F": {
+    vw:800, vh:360,
+    coreBlocks: [{ x:548, y:18, w:130, h:325, label:"계단/EV/화장실" }],
+    extraBlocks:[{ x:686, y:18, w:109, h:325, label:"창고·서비스", fill:"#E2E8F0", stroke:"#94A3B8" }],
+    rooms:[
+      { x:360, y:20, w:180, h:78, label:"미팅룸 A", sub:"4.1평" },
+      { x:360, y:106, w:180, h:90, label:"미팅룸 B", sub:"6.4평" },
+      { x:360, y:204, w:180, h:84, label:"미팅룸 C", sub:"5.7평" },
+      { x:360, y:296, w:180, h:47, label:"소등", sub:"4.6평" },
+    ],
+    deskBg:[{ id:"SO", x:12, y:12, w:340, h:335, label:"스마트오피스 (서편)", fill:"#EFF6FF", stroke:"#93C5FD" }],
+    seatGrids:[{ zoneId:"SO", startX:22, startY:90, cols:13, rows:4, sw:16, sh:13, gx:5, gy:4, rowGroups:[2,2], aisle:28 }],
+    labels:[
+      { x:180, y:32, text:"← 서편 (WEST) →", size:9, color:"#2563EB", anchor:"middle", bold:true },
+      { x:612, y:186, text:"계단\n엘리베이터\n화장실", size:8, color:"#64748B", anchor:"middle" },
+    ],
+  },
+  "3F": {
+    vw:800, vh:380,
+    coreBlocks:[{ x:325, y:18, w:150, h:342, label:"계단/EPS/EV/화장실" }],
+    extraBlocks:[
+      { x:12, y:12, w:95, h:90, label:"협업공간", fill:"#F0FDF4", stroke:"#86EFAC" },
+      { x:570, y:12, w:95, h:90, label:"협업공간", fill:"#F0FDF4", stroke:"#86EFAC" },
+      { x:672, y:12, w:120, h:90, label:"G/B", fill:"#F0FDF4", stroke:"#86EFAC" },
+    ],
+    rooms:[
+      { x:12, y:298, w:145, h:72, label:"미팅룸", sub:"18.5m² / 5.6인" },
+      { x:165, y:298, w:148, h:72, label:"미팅룸", sub:"16.1m² / 4.9인" },
+    ],
+    deskBg:[
+      { id:"W", x:12, y:108, w:305, h:182, label:"서편", fill:"#EFF6FF", stroke:"#93C5FD" },
+      { id:"E", x:483, y:108, w:308, h:182, label:"동편", fill:"#EFF6FF", stroke:"#93C5FD" },
+    ],
+    seatGrids:[
+      { zoneId:"W", startX:22, startY:118, cols:6, rows:8, sw:15, sh:12, gx:5, gy:3, rowGroups:[2,2,2,2], aisle:18 },
+      { zoneId:"E", startX:493, startY:118, cols:9, rows:7, sw:15, sh:12, gx:5, gy:3, rowGroups:[2,2,3], aisle:18 },
+    ],
+    labels:[
+      { x:164, y:28, text:"서편 (WEST)", size:9, color:"#2563EB", anchor:"middle", bold:true },
+      { x:636, y:28, text:"동편 (EAST)", size:9, color:"#2563EB", anchor:"middle", bold:true },
+      { x:398, y:192, text:"계단\nEPS\n화장실", size:8, color:"#64748B", anchor:"middle" },
+    ],
+  },
+  "4F": {
+    vw:800, vh:380,
+    coreBlocks:[{ x:325, y:18, w:150, h:342, label:"계단/EPS/화장실" }],
+    extraBlocks:[{ x:683, y:298, w:112, h:72, label:"8인 미팅룸", fill:"#F0FDF4", stroke:"#86EFAC" }],
+    rooms:[
+      { x:12, y:298, w:100, h:72, label:"스마트2", sub:"5.6평" },
+      { x:120, y:298, w:100, h:72, label:"스마트3", sub:"5.6평" },
+      { x:228, y:298, w:90, h:72, label:"라운지", sub:"10.7평" },
+    ],
+    deskBg:[
+      { id:"W", x:12, y:12, w:305, h:278, label:"서편 (미설치 다수)", fill:"#FFF1F2", stroke:"#FCA5A5" },
+      { id:"E", x:483, y:12, w:308, h:278, label:"동편", fill:"#EFF6FF", stroke:"#93C5FD" },
+    ],
+    seatGrids:[
+      { zoneId:"W", startX:22, startY:22, cols:5, rows:8, sw:18, sh:13, gx:5, gy:3, rowGroups:[2,2,2,2], aisle:18 },
+      { zoneId:"E", startX:493, startY:22, cols:8, rows:7, sw:18, sh:13, gx:5, gy:3, rowGroups:[2,2,3], aisle:18 },
+    ],
+    labels:[
+      { x:164, y:28, text:"서편 (WEST) — 미설치 주의", size:9, color:"#DC2626", anchor:"middle", bold:true },
+      { x:636, y:28, text:"동편 (EAST)", size:9, color:"#2563EB", anchor:"middle", bold:true },
+      { x:398, y:192, text:"계단\nEPS\n화장실", size:8, color:"#64748B", anchor:"middle" },
+    ],
+  },
+  "5F": {
+    vw:800, vh:380,
+    coreBlocks:[
+      { x:325, y:18, w:150, h:250, label:"계단/EPS/화장실" },
+      { x:325, y:276, w:150, h:84, label:"미팅룸", fill:"#F0FDF4", stroke:"#86EFAC" },
+    ],
+    extraBlocks:[{ x:570, y:12, w:222, h:105, label:"라운지 / 바 (Bar Table)", fill:"#FEF3C7", stroke:"#FCD34D" }],
+    rooms:[],
+    deskBg:[
+      { id:"W", x:12, y:12, w:305, h:358, label:"서편", fill:"#EFF6FF", stroke:"#93C5FD" },
+      { id:"E", x:483, y:118, w:308, h:252, label:"동편", fill:"#EFF6FF", stroke:"#93C5FD" },
+    ],
+    seatGrids:[
+      { zoneId:"W", startX:22, startY:22, cols:6, rows:7, sw:17, sh:13, gx:5, gy:3, rowGroups:[2,2,3], aisle:18 },
+      { zoneId:"E", startX:493, startY:128, cols:8, rows:6, sw:17, sh:13, gx:5, gy:3, rowGroups:[2,2,2], aisle:18 },
+    ],
+    labels:[
+      { x:164, y:28, text:"서편 (WEST)", size:9, color:"#2563EB", anchor:"middle", bold:true },
+      { x:636, y:134, text:"동편 (EAST)", size:9, color:"#2563EB", anchor:"middle", bold:true },
+      { x:398, y:152, text:"계단/EPS", size:8, color:"#64748B", anchor:"middle" },
+    ],
+  },
+  "6F": {
+    vw:800, vh:380,
+    coreBlocks:[{ x:325, y:18, w:150, h:342, label:"계단/EPS/화장실" }],
+    extraBlocks:[],
+    rooms:[],
+    deskBg:[
+      { id:"W", x:12, y:12, w:305, h:358, label:'서편 — 개발자 34" 구역', fill:"#F5F3FF", stroke:"#C4B5FD" },
+      { id:"E", x:483, y:12, w:308, h:358, label:"동편", fill:"#EFF6FF", stroke:"#93C5FD" },
+    ],
+    seatGrids:[
+      { zoneId:"W", startX:22, startY:42, cols:7, rows:7, sw:16, sh:13, gx:5, gy:3, rowGroups:[2,2,3], aisle:18 },
+      { zoneId:"E", startX:493, startY:22, cols:8, rows:7, sw:17, sh:13, gx:5, gy:3, rowGroups:[2,2,3], aisle:18 },
+    ],
+    labels:[
+      { x:164, y:28, text:'서편 (WEST) — 개발자 34"', size:9, color:"#7C3AED", anchor:"middle", bold:true },
+      { x:636, y:28, text:"동편 (EAST)", size:9, color:"#2563EB", anchor:"middle", bold:true },
+      { x:398, y:192, text:"계단\nEPS\n화장실", size:8, color:"#64748B", anchor:"middle" },
+    ],
+  },
+  "7F": {
+    vw:800, vh:380,
+    coreBlocks:[{ x:325, y:18, w:150, h:342, label:"계단/EPS/화장실" }],
+    extraBlocks:[{ x:12, y:298, w:305, h:72, label:"로커 구역 (LOCKER)", fill:"#F1F5F9", stroke:"#CBD5E1" }],
+    rooms:[],
+    deskBg:[
+      { id:"W", x:12, y:12, w:305, h:278, label:"서편 (미설치 다수)", fill:"#FFF1F2", stroke:"#FCA5A5" },
+      { id:"E", x:483, y:12, w:308, h:358, label:"동편", fill:"#EFF6FF", stroke:"#93C5FD" },
+    ],
+    seatGrids:[
+      { zoneId:"W", startX:22, startY:22, cols:6, rows:6, sw:17, sh:13, gx:5, gy:3, rowGroups:[2,2,2], aisle:18 },
+      { zoneId:"E", startX:493, startY:22, cols:8, rows:7, sw:17, sh:13, gx:5, gy:3, rowGroups:[2,2,3], aisle:18 },
+    ],
+    labels:[
+      { x:164, y:28, text:"서편 (WEST) — 미설치 주의", size:9, color:"#DC2626", anchor:"middle", bold:true },
+      { x:636, y:28, text:"동편 (EAST)", size:9, color:"#2563EB", anchor:"middle", bold:true },
+      { x:398, y:192, text:"계단\nEPS\n화장실", size:8, color:"#64748B", anchor:"middle" },
+    ],
+  },
+  "8F": {
+    vw:800, vh:380,
+    coreBlocks:[{ x:325, y:18, w:150, h:342, label:"CANTEEN\n계단\n화장실" }],
+    extraBlocks:[],
+    rooms:[
+      { x:12, y:12, w:152, h:120, label:"회의실/미팅룸-1", sub:"4.1인" },
+      { x:12, y:140, w:152, h:120, label:"회의실/미팅룸-2", sub:"4.1인" },
+      { x:12, y:268, w:152, h:102, label:"미팅룸", sub:"7.6인" },
+      { x:483, y:12, w:308, h:138, label:"Conference-1", sub:"17.9인" },
+      { x:483, y:158, w:308, h:105, label:"회의실/멀티룸", sub:"13.8인" },
+      { x:483, y:271, w:308, h:99, label:"Conference-2", sub:"19.5인" },
+    ],
+    deskBg:[{ id:"M", x:172, y:90, w:145, h:200, label:"업무공간", fill:"#EFF6FF", stroke:"#93C5FD" }],
+    seatGrids:[{ zoneId:"M", startX:180, startY:100, cols:5, rows:5, sw:16, sh:13, gx:5, gy:3, rowGroups:[2,3], aisle:20 }],
+    labels:[
+      { x:92, y:28, text:"← 회의실 구역 →", size:9, color:"#15803D", anchor:"middle" },
+      { x:636, y:28, text:"← 컨퍼런스룸 구역 →", size:9, color:"#15803D", anchor:"middle" },
+      { x:244, y:52, text:"업무공간", size:8, color:"#2563EB", anchor:"middle" },
+      { x:398, y:192, text:"CANTEEN\n계단\n화장실", size:8, color:"#64748B", anchor:"middle" },
+    ],
+  },
+  "9F": {
+    vw:800, vh:380,
+    coreBlocks:[{ x:325, y:18, w:150, h:342, label:"계단/창고/화장실" }],
+    extraBlocks:[
+      { x:12, y:12, w:175, h:100, label:"스튜디오 / 도서관", fill:"#FEF3C7", stroke:"#F6CE4A" },
+      { x:12, y:120, w:175, h:80, label:"스탠딩 데스크", fill:"#FEF3C7", stroke:"#F6CE4A" },
+    ],
+    rooms:[],
+    deskBg:[
+      { id:"W", x:12, y:208, w:305, h:162, label:"스튜디오 (서편)", fill:"#FFF7E6", stroke:"#F6CE4A" },
+      { id:"E", x:483, y:12, w:308, h:358, label:"홀 (동편) — 54석", fill:"#EFF6FF", stroke:"#93C5FD" },
+    ],
+    seatGrids:[
+      { zoneId:"W", startX:22, startY:220, cols:4, rows:5, sw:20, sh:14, gx:7, gy:4, rowGroups:[2,3], aisle:18 },
+      { zoneId:"E", startX:493, startY:22, cols:9, rows:6, sw:15, sh:13, gx:4, gy:3, rowGroups:[2,2,2], aisle:18 },
+    ],
+    labels:[
+      { x:164, y:28, text:"서편 — 스튜디오 / 라이브러리", size:9, color:"#92400E", anchor:"middle", bold:true },
+      { x:636, y:28, text:"동편 (EAST) — 홀 54석", size:9, color:"#2563EB", anchor:"middle", bold:true },
+      { x:398, y:192, text:"계단\n화장실\n창고", size:8, color:"#64748B", anchor:"middle" },
+    ],
+  },
 };
 
-const SEAT_BG: Record<string, string> = {
-  "24":   "bg-sky-400   hover:bg-sky-300   text-white",
-  "27":   "bg-indigo-500 hover:bg-indigo-400 text-white",
-  "34":   "bg-violet-600 hover:bg-violet-500 text-white",
-  "none": "bg-rose-400  hover:bg-rose-300  text-white",
-  "null": "bg-gray-200  hover:bg-gray-300  text-gray-500",
+// 미확인 층 fallback SVG (신관/S빌딩 도면 수신 전)
+const FALLBACK_SVG: FloorSvgCfg = {
+  vw:800, vh:360,
+  coreBlocks:[{ x:325, y:18, w:150, h:325, label:"계단/EV/화장실" }],
+  extraBlocks:[],
+  rooms:[],
+  deskBg:[{ id:"M", x:12, y:12, w:305, h:335, label:"업무 구역 (도면 확인 중)", fill:"#F1F5F9", stroke:"#CBD5E1" }],
+  seatGrids:[{ zoneId:"M", startX:22, startY:60, cols:8, rows:6, sw:20, sh:14, gx:6, gy:4, rowGroups:[2,2,2], aisle:18 }],
+  labels:[{ x:400, y:190, text:"도면 업데이트 예정\n신관/S빌딩 도면 수신 후 반영됩니다", size:11, color:"#94A3B8", anchor:"middle" }],
 };
 
-const LEGEND: Array<{ type: MonitorType | "null"; label: string; cls: string }> = [
-  { type: "27",   label: '27"',  cls: "bg-indigo-500" },
-  { type: "34",   label: '34"',  cls: "bg-violet-600" },
-  { type: "24",   label: '24"',  cls: "bg-sky-400" },
-  { type: "none", label: "미설치", cls: "bg-rose-400" },
-  { type: "null", label: "미확인", cls: "bg-gray-300" },
-];
-
-const STORAGE_KEY = "sw-asset-map-v2";
-
-// ─────────────────────────────────────────────────────────────────────────────
-// HELPERS
-// ─────────────────────────────────────────────────────────────────────────────
-function loadStorage(): Record<string, MonitorType> {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch { return {}; }
-}
-
-function saveStorage(data: Record<string, MonitorType>) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch { /* noop */ }
-}
-
-function floorCompletion(b: BuildingDef, f: FloorDef, data: Record<string, MonitorType>): number {
-  let total = 0, done = 0;
-  for (const z of f.zones) {
-    for (const id of zoneSeats(b, f, z)) {
-      total++;
-      if (data[id] !== undefined && data[id] !== null) done++;
-    }
-  }
-  return total === 0 ? 0 : Math.round((done / total) * 100);
-}
-
-function buildingCompletion(b: BuildingDef, data: Record<string, MonitorType>): number {
-  let total = 0, done = 0;
-  for (const f of b.floors) {
-    for (const z of f.zones) {
-      for (const id of zoneSeats(b, f, z)) {
-        total++;
-        if (data[id] !== undefined && data[id] !== null) done++;
-      }
-    }
-  }
-  return total === 0 ? 0 : Math.round((done / total) * 100);
-}
-
-function totalSeatsInZone(z: ZoneDef): number { return z.totalSeats; }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SUB-COMPONENTS
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Small popup that appears when a seat is clicked */
-function MonitorPicker({
-  current,
-  onSelect,
-  onClose,
+// ══════════════════════════════════════════════════════════════════════════════
+// SVG FLOOR PLAN COMPONENT
+// ══════════════════════════════════════════════════════════════════════════════
+function FloorPlanSVG({
+  bldId, floorId, zones, filter, selectedId, onSelect,
 }: {
-  current: MonitorType;
-  onSelect: (t: MonitorType) => void;
-  onClose: () => void;
+  bldId: string;
+  floorId: string;
+  zones: ZoneData[];
+  filter: FilterMode;
+  selectedId: string | null;
+  onSelect: (seat: SeatData, zone: ZoneData) => void;
 }) {
-  const options: Array<{ v: MonitorType; label: string; cls: string }> = [
-    { v: "27",   label: '27"',   cls: "bg-indigo-500 hover:bg-indigo-600 text-white" },
-    { v: "34",   label: '34"',   cls: "bg-violet-600 hover:bg-violet-700 text-white" },
-    { v: "24",   label: '24"',   cls: "bg-sky-400    hover:bg-sky-500    text-white" },
-    { v: "none", label: "미설치", cls: "bg-rose-400   hover:bg-rose-500   text-white" },
-    { v: null,   label: "초기화", cls: "bg-gray-200   hover:bg-gray-300   text-gray-700" },
-  ];
-  return (
-    <div
-      className="absolute z-50 bottom-full mb-1 left-1/2 -translate-x-1/2
-                 bg-white rounded-xl shadow-2xl border border-gray-200 p-2 w-44"
-      onClick={e => e.stopPropagation()}
-    >
-      <p className="text-[10px] font-semibold text-gray-500 mb-1.5 text-center tracking-wide">모니터 종류</p>
-      <div className="flex flex-col gap-1">
-        {options.map(o => (
-          <button
-            key={String(o.v)}
-            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors w-full
-                        ${o.cls} ${current === o.v ? "ring-2 ring-offset-1 ring-gray-900" : ""}`}
-            onClick={() => { onSelect(o.v); onClose(); }}
-          >
-            {o.label}
-          </button>
-        ))}
-      </div>
-      <button
-        className="mt-2 w-full text-[10px] text-gray-400 hover:text-gray-600 text-center"
-        onClick={onClose}
-      >닫기</button>
-    </div>
-  );
-}
+  const cfg: FloorSvgCfg = FLOOR_SVGS[floorId] ?? FALLBACK_SVG;
+  const { vw, vh, coreBlocks=[], extraBlocks=[], rooms=[], deskBg=[], seatGrids=[], labels=[] } = cfg;
 
-/** Single seat button */
-function SeatButton({
-  id, monitor, idx, onUpdate,
-}: {
-  id: string;
-  monitor: MonitorType;
-  idx: number;
-  onUpdate: (id: string, t: MonitorType) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const key = monitor === null ? "null" : monitor;
-  const bgCls = SEAT_BG[key] ?? SEAT_BG["null"];
+  const seatPosMap = useMemo(() => {
+    const map: Record<string, {x:number;y:number;row:number;col:number}[]> = {};
+    seatGrids.forEach(sg => { map[sg.zoneId] = getSeatPositions(sg); });
+    return map;
+  }, [bldId, floorId]);
+
+  const zoneMap = useMemo(() => {
+    const m: Record<string, ZoneData> = {};
+    zones.forEach(z => { m[z.id] = z; });
+    return m;
+  }, [zones]);
+
   return (
-    <div className="relative" onClick={e => { e.stopPropagation(); setOpen(v => !v); }}>
-      <button
-        title={`좌석 ${idx + 1}${monitor ? ` · ${MONITOR_LABEL[monitor as NonNullable<MonitorType>] ?? ""}` : ""}`}
-        className={`w-8 h-8 rounded-md text-[10px] font-bold flex items-center justify-center
-                    transition-all duration-150 select-none cursor-pointer border border-white/30
-                    ${bgCls} ${open ? "ring-2 ring-offset-1 ring-gray-800 scale-110 z-10" : ""}`}
+    <div className="w-full overflow-x-auto">
+      <svg
+        viewBox={`0 0 ${vw} ${vh}`}
+        style={{ width:"100%", minWidth:560, maxWidth:900, height:"auto", display:"block" }}
       >
-        {monitor !== null ? (monitor === "none" ? "✕" : monitor) : String(idx + 1)}
-      </button>
-      {open && (
-        <MonitorPicker
-          current={monitor}
-          onSelect={t => onUpdate(id, t)}
-          onClose={() => setOpen(false)}
-        />
-      )}
-    </div>
-  );
-}
-
-/** Schematic grid for one zone */
-function ZoneGrid({
-  building, floor, zone, data, onUpdate,
-}: {
-  building: BuildingDef;
-  floor: FloorDef;
-  zone: ZoneDef;
-  data: Record<string, MonitorType>;
-  onUpdate: (id: string, t: MonitorType) => void;
-}) {
-  const seats = useMemo(
-    () => zoneSeats(building, floor, zone),
-    [building, floor, zone]
-  );
-
-  // Stats
-  const stats = useMemo(() => {
-    const counts: Record<string, number> = { "27": 0, "34": 0, "24": 0, "none": 0, null: 0 };
-    for (const id of seats) {
-      const m = data[id] ?? null;
-      counts[String(m)] = (counts[String(m)] ?? 0) + 1;
-    }
-    return counts;
-  }, [seats, data]);
-
-  const done = seats.filter(id => data[id] !== undefined && data[id] !== null).length;
-  const pct  = Math.round((done / seats.length) * 100);
-
-  return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-      {/* Zone header */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <h3 className="font-bold text-gray-800 text-base">{zone.label}</h3>
-          <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-            {zone.totalSeats}석
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="text-xs text-gray-400">{done}/{seats.length} 완료</div>
-          <div className="w-24 h-2 bg-gray-100 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-emerald-400 rounded-full transition-all duration-500"
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-          <span className={`text-xs font-bold ${pct === 100 ? "text-emerald-500" : "text-gray-400"}`}>
-            {pct}%
-          </span>
-        </div>
-      </div>
-
-      {/* Seat mini-stats */}
-      <div className="flex flex-wrap gap-2 mb-4">
-        {LEGEND.map(l => {
-          const cnt = stats[l.type === null ? "null" : String(l.type)] ?? 0;
-          if (cnt === 0) return null;
-          return (
-            <span key={String(l.type)}
-              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold text-white ${l.cls}`}>
-              {l.label} <span className="opacity-80">{cnt}</span>
-            </span>
-          );
-        })}
-      </div>
-
-      {/* Seat grid */}
-      <div
-        className="grid gap-1.5"
-        style={{ gridTemplateColumns: `repeat(${zone.cols}, minmax(0, 1fr))` }}
-        onClick={e => e.stopPropagation()}
-      >
-        {seats.map((id, idx) => (
-          <SeatButton
-            key={id}
-            id={id}
-            idx={idx}
-            monitor={data[id] ?? null}
-            onUpdate={onUpdate}
-          />
+        {/* 건물 외곽 */}
+        <rect x={4} y={4} width={vw-8} height={vh-8} rx={8} fill="#FAFAFA" stroke="#94A3B8" strokeWidth={1.5}/>
+        {/* 창문 힌트 (외벽) */}
+        {Array.from({length: Math.floor((vw-50)/30)}, (_,i) => (
+          <line key={`wt${i}`} x1={30+i*30} y1={4} x2={30+i*30} y2={10} stroke="#BAE6FD" strokeWidth={2} opacity={0.6}/>
         ))}
-      </div>
+        {Array.from({length: Math.floor((vw-50)/30)}, (_,i) => (
+          <line key={`wb${i}`} x1={30+i*30} y1={vh-4} x2={30+i*30} y2={vh-10} stroke="#BAE6FD" strokeWidth={2} opacity={0.6}/>
+        ))}
 
-      {/* Row/col label */}
-      <p className="mt-3 text-[10px] text-gray-400 text-right">
-        {zone.rows}행 × {zone.cols}열 · 배치석 {zone.totalSeats}석
-      </p>
-    </div>
-  );
-}
+        {/* 업무 구역 배경 */}
+        {deskBg.map(bg => (
+          <g key={bg.id}>
+            <rect x={bg.x} y={bg.y} width={bg.w} height={bg.h} rx={4}
+              fill={bg.fill} stroke={bg.stroke} strokeWidth={1.5} strokeDasharray="6,3"/>
+            <text x={bg.x+6} y={bg.y+16} fontSize={9} fontWeight="700" fill={bg.stroke}>{bg.label}</text>
+          </g>
+        ))}
 
-// ─────────────────────────────────────────────────────────────────────────────
-// BULK FILL MODAL
-// ─────────────────────────────────────────────────────────────────────────────
-function BulkModal({
-  building, floor, zone, data, onUpdate, onClose,
-}: {
-  building: BuildingDef;
-  floor: FloorDef;
-  zone: ZoneDef;
-  data: Record<string, MonitorType>;
-  onUpdate: (id: string, t: MonitorType) => void;
-  onClose: () => void;
-}) {
-  const [selected, setSelected] = useState<MonitorType>("27");
-  const seats = zoneSeats(building, floor, zone);
-  const unset  = seats.filter(id => data[id] === undefined || data[id] === null);
+        {/* 특수 구역 (라운지, 로커, 협업공간 등) */}
+        {extraBlocks.map((eb, i) => (
+          <g key={`eb${i}`}>
+            <rect x={eb.x} y={eb.y} width={eb.w} height={eb.h} rx={4}
+              fill={eb.fill||"#E2E8F0"} stroke={eb.stroke||"#94A3B8"} strokeWidth={1}/>
+            {eb.label.split("\n").map((line,li) => (
+              <text key={li} x={eb.x+eb.w/2} y={eb.y+eb.h/2-6+li*12}
+                fontSize={8} fill="#475569" textAnchor="middle">{line}</text>
+            ))}
+          </g>
+        ))}
 
-  const applyAll = () => {
-    for (const id of seats) onUpdate(id, selected);
-    onClose();
-  };
-  const applyUnset = () => {
-    for (const id of unset) onUpdate(id, selected);
-    onClose();
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-2xl shadow-2xl p-6 w-80" onClick={e => e.stopPropagation()}>
-        <h3 className="font-bold text-gray-800 mb-1 text-base">일괄 입력</h3>
-        <p className="text-xs text-gray-500 mb-4">
-          <strong>{zone.label}</strong> — 선택한 모니터 종류를 일괄 적용합니다.
-        </p>
-        <div className="flex flex-col gap-2 mb-5">
-          {(["27", "34", "24", "none"] as NonNullable<MonitorType>[]).map(v => (
-            <button
-              key={v}
-              className={`rounded-xl px-4 py-2 text-sm font-bold transition-all border-2
-                ${selected === v ? "border-gray-800 scale-[1.02]" : "border-transparent"}
-                ${SEAT_BG[v]}`}
-              onClick={() => setSelected(v)}
-            >
-              {MONITOR_LABEL[v]}
-            </button>
-          ))}
-        </div>
-        <div className="flex gap-2">
-          <button
-            className="flex-1 rounded-xl bg-gray-800 text-white text-sm font-bold py-2 hover:bg-gray-700"
-            onClick={applyAll}
-          >전체 적용</button>
-          <button
-            className="flex-1 rounded-xl bg-emerald-500 text-white text-sm font-bold py-2 hover:bg-emerald-600"
-            onClick={applyUnset}
-            disabled={unset.length === 0}
-          >
-            미입력만 ({unset.length})
-          </button>
-        </div>
-        <button
-          className="mt-3 w-full text-xs text-gray-400 hover:text-gray-600"
-          onClick={onClose}
-        >취소</button>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// MAIN PANEL
-// ─────────────────────────────────────────────────────────────────────────────
-export default function AssetMapPanel() {
-  const [data, setData] = useState<Record<string, MonitorType>>({});
-  const [selectedBuildingId, setSelectedBuildingId] = useState(BUILDINGS[0].id);
-  const [selectedFloorId,    setSelectedFloorId]    = useState(BUILDINGS[0].floors[0].id);
-  const [selectedZoneId,     setSelectedZoneId]     = useState(BUILDINGS[0].floors[0].zones[0].id);
-  const [bulkTarget,         setBulkTarget]         = useState<{ z: ZoneDef; b: BuildingDef; f: FloorDef } | null>(null);
-  const [filterType,         setFilterType]         = useState<MonitorType | "all">("all");
-
-  // Load from localStorage on mount
-  useEffect(() => {
-    setData(loadStorage());
-  }, []);
-
-  // Persist on change
-  const updateSeat = useCallback((id: string, t: MonitorType) => {
-    setData(prev => {
-      const next = { ...prev, [id]: t };
-      saveStorage(next);
-      return next;
-    });
-  }, []);
-
-  // Derived
-  const building = useMemo(
-    () => BUILDINGS.find(b => b.id === selectedBuildingId) ?? BUILDINGS[0],
-    [selectedBuildingId]
-  );
-  const floor = useMemo(
-    () => building.floors.find(f => f.id === selectedFloorId) ?? building.floors[0],
-    [building, selectedFloorId]
-  );
-  const zone = useMemo(
-    () => floor.zones.find(z => z.id === selectedZoneId) ?? floor.zones[0],
-    [floor, selectedZoneId]
-  );
-
-  // When building changes, reset floor & zone
-  const handleSelectBuilding = (bid: string) => {
-    setSelectedBuildingId(bid);
-    const b = BUILDINGS.find(x => x.id === bid)!;
-    setSelectedFloorId(b.floors[0].id);
-    setSelectedZoneId(b.floors[0].zones[0].id);
-  };
-
-  // When floor changes, reset zone
-  const handleSelectFloor = (fid: string) => {
-    setSelectedFloorId(fid);
-    const f = building.floors.find(x => x.id === fid)!;
-    setSelectedZoneId(f.zones[0].id);
-  };
-
-  // Global stats
-  const globalStats = useMemo(() => {
-    const counts: Record<string, number> = { "27": 0, "34": 0, "24": 0, "none": 0, null: 0 };
-    let total = 0;
-    for (const b of BUILDINGS) {
-      for (const f of b.floors) {
-        for (const z of f.zones) {
-          for (const id of zoneSeats(b, f, z)) {
-            total++;
-            const m = data[id] ?? null;
-            counts[String(m)] = (counts[String(m)] ?? 0) + 1;
-          }
-        }
-      }
-    }
-    const done = total - (counts["null"] ?? 0);
-    return { counts, total, done, pct: total ? Math.round((done / total) * 100) : 0 };
-  }, [data]);
-
-  // Export CSV
-  const handleExport = () => {
-    const rows: string[] = ["건물,층,구역,좌석번호,모니터"];
-    for (const b of BUILDINGS) {
-      for (const f of b.floors) {
-        for (const z of f.zones) {
-          const seats = zoneSeats(b, f, z);
-          seats.forEach((id, idx) => {
-            const m = data[id] ?? null;
-            rows.push(`${b.label},${f.label},${z.label},${idx + 1},${m === null ? "미확인" : (MONITOR_LABEL[m] ?? m)}`);
-          });
-        }
-      }
-    }
-    const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: "text/csv;charset=utf-8;" });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
-    a.href = url; a.download = "smart_office_monitors.csv"; a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // Reset all
-  const handleResetAll = () => {
-    if (!confirm("모든 모니터 현황 데이터를 초기화하시겠습니까?")) return;
-    setData({});
-    saveStorage({});
-  };
-
-  // Close picker when clicking background
-  const handleBackdropClick = useCallback(() => {
-    // Seat buttons handle their own open state; just a passthrough
-  }, []);
-
-  return (
-    <div className="flex h-full min-h-0 bg-gray-50 font-sans" onClick={handleBackdropClick}>
-
-      {/* ── LEFT SIDEBAR ──────────────────────────────────────────────── */}
-      <aside className="w-56 flex-shrink-0 bg-white border-r border-gray-100 flex flex-col overflow-hidden">
-
-        {/* Building tabs */}
-        <div className="flex border-b border-gray-100">
-          {BUILDINGS.map(b => {
-            const pct = buildingCompletion(b, data);
-            return (
-              <button
-                key={b.id}
-                onClick={() => handleSelectBuilding(b.id)}
-                className={`flex-1 py-3 text-xs font-bold transition-colors relative
-                  ${selectedBuildingId === b.id
-                    ? "text-gray-900 bg-gray-50"
-                    : "text-gray-400 hover:text-gray-700"}`}
-              >
-                {b.label}
-                {pct === 100 && (
-                  <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                )}
-                {selectedBuildingId === b.id && (
-                  <div className={`absolute bottom-0 inset-x-0 h-0.5 ${b.color}`} />
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Floor list */}
-        <div className="flex-1 overflow-y-auto py-2">
-          {building.floors.map(f => {
-            const pct    = floorCompletion(building, f, data);
-            const active = f.id === selectedFloorId;
-            return (
-              <button
-                key={f.id}
-                onClick={() => handleSelectFloor(f.id)}
-                className={`w-full flex items-center justify-between px-4 py-2.5 text-sm transition-colors
-                  ${active ? "bg-gray-100 text-gray-900 font-semibold" : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"}`}
-              >
-                <span>{f.label}</span>
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full
-                  ${pct === 100 ? "bg-emerald-100 text-emerald-600"
-                    : pct > 0    ? "bg-amber-100 text-amber-600"
-                    :              "bg-gray-100 text-gray-400"}`}
-                >
-                  {pct}%
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Global progress footer */}
-        <div className="border-t border-gray-100 p-3">
-          <div className="flex justify-between text-[10px] text-gray-500 mb-1">
-            <span>전체 진행률</span>
-            <span className="font-bold">{globalStats.done}/{globalStats.total}</span>
-          </div>
-          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-emerald-400 rounded-full transition-all duration-500"
-              style={{ width: `${globalStats.pct}%` }}
-            />
-          </div>
-          <p className="text-right text-[10px] font-bold text-emerald-600 mt-0.5">
-            {globalStats.pct}%
-          </p>
-        </div>
-      </aside>
-
-      {/* ── MAIN CONTENT ─────────────────────────────────────────────── */}
-      <main className="flex-1 flex flex-col overflow-hidden">
-
-        {/* Top bar */}
-        <div className="bg-white border-b border-gray-100 px-6 py-3 flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <h2 className="font-bold text-gray-900 text-base">
-              {building.label} {floor.label}
-            </h2>
-            {/* Zone tabs */}
-            {floor.zones.length > 1 && (
-              <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
-                {floor.zones.map(z => (
-                  <button
-                    key={z.id}
-                    onClick={() => setSelectedZoneId(z.id)}
-                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all
-                      ${z.id === selectedZoneId
-                        ? "bg-white text-gray-900 shadow-sm"
-                        : "text-gray-500 hover:text-gray-700"}`}
-                  >
-                    {z.label}
-                  </button>
-                ))}
-              </div>
+        {/* 회의실 */}
+        {rooms.map((room, i) => (
+          <g key={`rm${i}`}>
+            <rect x={room.x} y={room.y} width={room.w} height={room.h} rx={3}
+              fill="#F0FDF4" stroke="#86EFAC" strokeWidth={1.5}/>
+            <text x={room.x+room.w/2} y={room.y+room.h/2-(room.sub?6:0)}
+              fontSize={8.5} fontWeight="600" fill="#15803D" textAnchor="middle">{room.label}</text>
+            {room.sub && (
+              <text x={room.x+room.w/2} y={room.y+room.h/2+8}
+                fontSize={7.5} fill="#16A34A" textAnchor="middle" opacity={0.8}>{room.sub}</text>
             )}
-          </div>
+          </g>
+        ))}
 
-          {/* Actions */}
-          <div className="flex items-center gap-2">
-            {/* Filter */}
-            <select
-              value={filterType ?? "all"}
-              onChange={e => setFilterType(e.target.value === "all" ? "all" : e.target.value as MonitorType)}
-              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none"
-            >
-              <option value="all">전체 보기</option>
-              <option value="27">27" 보기</option>
-              <option value="34">34" 보기</option>
-              <option value="24">24" 보기</option>
-              <option value="none">미설치 보기</option>
-            </select>
+        {/* 코어 블록 (계단/EV) */}
+        {coreBlocks.map((core, i) => (
+          <g key={`core${i}`}>
+            <rect x={core.x} y={core.y} width={core.w} height={core.h} rx={4}
+              fill={core.fill||"#E2E8F0"} stroke={core.stroke||"#94A3B8"} strokeWidth={1}/>
+            <line x1={core.x+10} y1={core.y+25} x2={core.x+core.w-10} y2={core.y+25} stroke="#94A3B8" strokeWidth={0.8}/>
+            <line x1={core.x+10} y1={core.y+35} x2={core.x+core.w-10} y2={core.y+35} stroke="#94A3B8" strokeWidth={0.8}/>
+            {core.label.split("\n").map((line,li) => (
+              <text key={li} x={core.x+core.w/2} y={core.y+core.h/2-8+li*14}
+                fontSize={8.5} fill="#64748B" textAnchor="middle">{line}</text>
+            ))}
+          </g>
+        ))}
 
-            <button
-              onClick={() => setBulkTarget({ z: zone, b: building, f: floor })}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-colors"
-            >
-              일괄 입력
-            </button>
-            <button
-              onClick={handleExport}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white text-xs font-semibold rounded-lg hover:bg-emerald-700 transition-colors"
-            >
-              CSV 내보내기
-            </button>
-          </div>
+        {/* 좌석 렌더링 */}
+        {seatGrids.map(sg => {
+          const zone = zoneMap[sg.zoneId];
+          if (!zone) return null;
+          const positions = seatPosMap[sg.zoneId] || [];
+          return positions.map((pos, idx) => {
+            const seat = zone.seats[idx];
+            if (!seat) return null;
+            const type = seat.type;
+            const meta = MONITOR[type];
+            const isSel = seat.id === selectedId;
+            const dimmed = filter !== "all" && type !== filter;
+            return (
+              <g key={seat.id}>
+                <rect
+                  x={pos.x} y={pos.y} width={sg.sw} height={sg.sh} rx={2}
+                  fill={dimmed ? "#E5E7EB" : meta.color+(type==="unk"?"55":"CC")}
+                  stroke={isSel ? meta.color : (dimmed ? "#E5E7EB" : meta.color+"44")}
+                  strokeWidth={isSel ? 2 : 0.5}
+                  style={{ cursor:"pointer" }}
+                  onClick={() => !dimmed && onSelect(seat, zone)}
+                >
+                  <title>{seat.id} — {meta.long}</title>
+                </rect>
+                {/* 미설치 X */}
+                {type === "none" && !dimmed && (
+                  <>
+                    <line x1={pos.x+2} y1={pos.y+2} x2={pos.x+sg.sw-2} y2={pos.y+sg.sh-2}
+                      stroke="white" strokeWidth={1.2} style={{pointerEvents:"none"}}/>
+                    <line x1={pos.x+sg.sw-2} y1={pos.y+2} x2={pos.x+2} y2={pos.y+sg.sh-2}
+                      stroke="white" strokeWidth={1.2} style={{pointerEvents:"none"}}/>
+                  </>
+                )}
+                {/* 선택 링 */}
+                {isSel && (
+                  <rect x={pos.x-2} y={pos.y-2} width={sg.sw+4} height={sg.sh+4} rx={3}
+                    fill="none" stroke={meta.color} strokeWidth={2} opacity={0.7}
+                    style={{pointerEvents:"none"}}/>
+                )}
+              </g>
+            );
+          });
+        })}
+
+        {/* 행 레이블 (A,B,C…) */}
+        {seatGrids.map(sg => {
+          const positions = seatPosMap[sg.zoneId] || [];
+          const seen = new Set<number>();
+          return positions.filter(p => { if(seen.has(p.row)) return false; seen.add(p.row); return true; })
+            .map(pos => (
+              <text key={`rl-${sg.zoneId}-${pos.row}`}
+                x={pos.x-9} y={pos.y+sg.sh/2+1}
+                fontSize={7.5} fill="#D1D5DB" textAnchor="middle" fontWeight="700">
+                {String.fromCharCode(65+pos.row)}
+              </text>
+            ));
+        })}
+
+        {/* 방향 표시 */}
+        <text x={10} y={vh-8} fontSize={7} fill="#CBD5E1">← 서쪽</text>
+        <text x={vw-10} y={vh-8} fontSize={7} fill="#CBD5E1" textAnchor="end">동쪽 →</text>
+
+        {/* 범례 라벨 */}
+        {labels.map((lb, i) => (
+          lb.text.includes("\n")
+            ? lb.text.split("\n").map((line,li) => (
+                <text key={`lb${i}-${li}`} x={lb.x} y={lb.y+li*13}
+                  fontSize={lb.size||9} fill={lb.color||"#64748B"} textAnchor={lb.anchor||"middle"}
+                  fontWeight={lb.bold?"700":"400"}>{line}</text>
+              ))
+            : <text key={`lb${i}`} x={lb.x} y={lb.y}
+                fontSize={lb.size||9} fill={lb.color||"#64748B"} textAnchor={lb.anchor||"middle"}
+                fontWeight={lb.bold?"700":"400"}>{lb.text}</text>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SEAT DETAIL PANEL
+// ══════════════════════════════════════════════════════════════════════════════
+function SeatDetailPanel({
+  seat, zone, floor, building, onClose,
+}: {
+  seat: SeatData; zone: ZoneData; floor: FloorData; building: BuildingData; onClose: () => void;
+}) {
+  const meta = MONITOR[seat.type];
+  const rowLabel = String.fromCharCode(65+seat.row);
+
+  return (
+    <div className="flex flex-col h-full overflow-y-auto text-sm">
+      {/* 헤더 */}
+      <div className="flex items-start justify-between px-4 py-3 bg-slate-800 text-white flex-shrink-0">
+        <div>
+          <div className="text-[10px] opacity-60 mb-0.5">좌석 상세 정보</div>
+          <div className="text-lg font-extrabold tracking-widest leading-tight font-mono">{seat.id}</div>
+          <div className="text-[10px] opacity-60 mt-1">{building.label} · {floor.label} · {zone.label}</div>
         </div>
+        <button onClick={onClose} className="opacity-60 hover:opacity-100 text-lg mt-0.5">✕</button>
+      </div>
 
-        {/* Legend bar */}
-        <div className="bg-white border-b border-gray-100 px-6 py-2 flex items-center gap-4 flex-shrink-0">
-          <span className="text-[11px] text-gray-400 font-medium mr-1">범례</span>
-          {LEGEND.map(l => (
-            <button
-              key={String(l.type)}
-              onClick={() => setFilterType(filterType === l.type ? "all" : (l.type as MonitorType | "all"))}
-              className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-semibold transition-all
-                ${filterType === l.type ? "ring-2 ring-gray-600 scale-105" : "opacity-80 hover:opacity-100"}`}
-            >
-              <span className={`w-3 h-3 rounded-sm ${l.cls}`} />
-              <span className="text-gray-700">{l.label}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* Zone grid content */}
-        <div className="flex-1 overflow-y-auto p-6" onClick={handleBackdropClick}>
-          {/* If filter active, show only matching zones; otherwise show selected zone */}
-          {filterType !== "all" ? (
-            <div className="space-y-6">
-              {building.floors.map(f =>
-                f.zones.map(z => {
-                  const seats = zoneSeats(building, f, z);
-                  const matching = seats.filter(id =>
-                    filterType === null ? (data[id] === undefined || data[id] === null)
-                    : data[id] === filterType
-                  );
-                  if (matching.length === 0) return null;
-                  return (
-                    <div key={`${f.id}-${z.id}`}>
-                      <p className="text-xs font-semibold text-gray-500 mb-2">
-                        {f.label} · {z.label} ({matching.length}석)
-                      </p>
-                      <FilteredSeatList
-                        seatIds={matching}
-                        allSeats={seats}
-                        data={data}
-                        onUpdate={updateSeat}
-                      />
-                    </div>
-                  );
-                })
-              )}
+      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+        {/* 모니터 현황 */}
+        <div className="rounded-xl p-3 border" style={{ background:meta.pale, borderColor:meta.border }}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white text-sm font-black"
+              style={{ background:meta.color }}>{meta.label}</div>
+            <div>
+              <div className="font-bold" style={{ color:meta.color }}>{meta.long}</div>
+              <div className="text-[10px] opacity-70" style={{ color:meta.color }}>
+                {seat.type==="unk"?"미확인 좌석":seat.type==="none"?"모니터 미설치":seat.type==="dev34"?"개발자용 와이드 모니터":"표준형 모니터 설치됨"}
+              </div>
             </div>
-          ) : (
-            <ZoneGrid
-              key={`${building.id}-${floor.id}-${zone.id}`}
-              building={building}
-              floor={floor}
-              zone={zone}
-              data={data}
-              onUpdate={updateSeat}
+          </div>
+        </div>
+
+        {/* 위치 정보 */}
+        <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+          <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">📍 위치</div>
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {[building.label, floor.label, zone.label].map(tag => (
+              <span key={tag} className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-semibold border border-blue-100">{tag}</span>
+            ))}
+          </div>
+          <div className="text-xs text-gray-600 space-y-0.5">
+            <div><span className="text-gray-400">행</span> <strong>{rowLabel}행</strong></div>
+            <div><span className="text-gray-400">열</span> <strong>{seat.col+1}번</strong></div>
+          </div>
+        </div>
+
+        {/* 찾아가는 방법 */}
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+          <div className="text-[10px] font-bold text-amber-700 mb-1.5">🗺 찾아가는 방법</div>
+          <div className="text-[11px] text-amber-700 leading-relaxed">
+            {building.label} 건물 진입<br/>
+            → <strong>{floor.label}</strong> 이동 (계단/엘리베이터)<br/>
+            → <strong>{zone.label}</strong> 구역<br/>
+            → <strong>{rowLabel}행 {seat.col+1}번째 자리</strong>
+          </div>
+        </div>
+
+        {/* 액션 버튼 */}
+        <div className="space-y-2 pt-1">
+          <button className="w-full py-2.5 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 transition-colors">
+            🔧 교체/수리 요청
+          </button>
+          <button
+            className="w-full py-2 rounded-lg border border-gray-200 bg-white text-gray-600 text-xs font-semibold hover:bg-gray-50 transition-colors"
+            onClick={() => navigator.clipboard?.writeText(`${building.label} ${floor.label} ${zone.label} ${rowLabel}행 ${seat.col+1}번 (${seat.id})`)}
+          >
+            📋 위치 텍스트 복사
+          </button>
+          <button className="w-full py-2 rounded-lg border border-gray-200 bg-white text-gray-600 text-xs font-semibold hover:bg-gray-50 transition-colors">
+            ✏️ 모니터 정보 수정
+          </button>
+        </div>
+
+        {/* 범례 */}
+        <div className="bg-white border border-gray-100 rounded-xl p-3">
+          <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">범례</div>
+          <div className="space-y-1.5">
+            {TYPES.map(t => (
+              <div key={t} className="flex items-center gap-2">
+                <div className="w-3.5 h-3 rounded-sm flex-shrink-0"
+                  style={{ background: MONITOR[t].color+(t==="unk"?"55":"CC") }}/>
+                <span className="text-[10px] text-gray-500">{MONITOR[t].long}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// OVERVIEW SIDE PANEL  (좌석 미선택 시)
+// ══════════════════════════════════════════════════════════════════════════════
+function OverviewSidePanel({ building, floor }: { building: BuildingData; floor: FloorData }) {
+  const st = calcStats(floor.zones);
+  const confirmed = st.std27 + st.std24 + st.dev34 + st.none;
+  const pct = st.total > 0 ? Math.round((confirmed/st.total)*100) : 0;
+
+  return (
+    <div className="flex flex-col h-full text-sm overflow-y-auto">
+      <div className="px-4 py-3 bg-slate-800 text-white flex-shrink-0">
+        <div className="text-[10px] opacity-60 mb-0.5">층 현황</div>
+        <div className="font-bold">{building.label} {floor.label}</div>
+      </div>
+
+      <div className="flex-1 p-3 space-y-3 overflow-y-auto">
+        {/* 진행률 */}
+        <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+          <div className="text-[10px] text-gray-400 font-semibold mb-2">확인 진행률</div>
+          <div className="flex items-baseline gap-2 mb-1.5">
+            <span className="text-2xl font-extrabold text-gray-800">{pct}%</span>
+            <span className="text-xs text-gray-400">{confirmed}/{st.total}석 완료</span>
+          </div>
+          <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div className="h-full rounded-full transition-all" style={{ width:`${pct}%`, background: pct===100?"#10B981":"#3B82F6" }}/>
+          </div>
+        </div>
+
+        {/* 타입별 카드 */}
+        <div className="grid grid-cols-1 gap-1.5">
+          {TYPES.map(t => {
+            const cnt = st[t as keyof typeof st] as number;
+            if (!cnt) return null;
+            const meta = MONITOR[t];
+            return (
+              <div key={t} className="rounded-lg p-2.5 border flex items-center gap-2.5"
+                style={{ background:meta.pale, borderColor:meta.border }}>
+                <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ background:meta.color+"CC" }}/>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[10px] font-semibold truncate" style={{ color:meta.color }}>{meta.long}</div>
+                </div>
+                <div className="text-base font-extrabold flex-shrink-0" style={{ color:meta.color }}>{cnt}</div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* 구역별 */}
+        <div className="bg-white border border-gray-100 rounded-xl p-3">
+          <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">구역별 현황</div>
+          {floor.zones.map(z => {
+            const zst = calcStats([z]);
+            const zConfirmed = zst.std27+zst.std24+zst.dev34+zst.none;
+            const zPct = zst.total > 0 ? Math.round((zConfirmed/zst.total)*100) : 0;
+            return (
+              <div key={z.id} className="mb-3 last:mb-0">
+                <div className="flex justify-between items-baseline mb-1">
+                  <span className="text-xs font-semibold text-gray-700 truncate max-w-[120px]">{z.label}</span>
+                  <span className="text-[10px] text-gray-400 flex-shrink-0">{z.seats.length}석 {zPct}%</span>
+                </div>
+                <div className="flex gap-1 flex-wrap">
+                  {TYPES.map(t => {
+                    const cnt = zst[t as keyof typeof zst] as number;
+                    if (!cnt) return null;
+                    const meta = MONITOR[t];
+                    return (
+                      <span key={t} className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                        style={{ background:meta.pale, color:meta.color }}>
+                        {meta.label} {cnt}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* 찾아가기 가이드 */}
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+          <div className="text-[10px] font-bold text-amber-700 mb-1.5">📍 찾아가는 방법</div>
+          <div className="text-[10px] text-amber-600 leading-relaxed space-y-0.5">
+            <p>• <strong>서편</strong> : 삼성역 방면 엘리베이터 이용</p>
+            <p>• <strong>동편</strong> : 탄천 방면 엘리베이터 이용</p>
+            <p>• 좌석 클릭 → 정확한 위치 확인</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MAIN PANEL
+// ══════════════════════════════════════════════════════════════════════════════
+export default function AssetMapPanel() {
+  const [buildingId, setBuildingId] = useState<string>("bw");
+  const [floorId,    setFloorId]    = useState<string>("2F");
+  const [filter,     setFilter]     = useState<FilterMode>("all");
+  const [selected,   setSelected]   = useState<{ seat:SeatData; zone:ZoneData } | null>(null);
+
+  const building = useMemo(() => BUILDINGS.find(b => b.id === buildingId)!, [buildingId]);
+  const floor    = useMemo(
+    () => building.floors.find(f => f.id === floorId) ?? building.floors[0],
+    [building, floorId]
+  );
+
+  const flStats    = useMemo(() => calcStats(floor.zones), [floor]);
+  const selectedId = selected?.seat.id ?? null;
+
+  const handleBldChange = (bid: string) => {
+    setBuildingId(bid);
+    setFloorId(BUILDINGS.find(b => b.id === bid)!.floors[0].id);
+    setSelected(null);
+  };
+  const handleFloorChange = (fid: string) => { setFloorId(fid); setSelected(null); };
+  const handleSelect = (seat: SeatData, zone: ZoneData) => {
+    setSelected(prev => prev?.seat.id === seat.id ? null : { seat, zone });
+  };
+
+  return (
+    <div className="flex flex-col h-full min-h-0 bg-slate-50" style={{ fontFamily:"system-ui,-apple-system,sans-serif" }}>
+
+      {/* ── 상단 바 ───────────────────────────────────────────────── */}
+      <div className="flex-none bg-white border-b px-5 py-3 flex flex-wrap items-center gap-3 shadow-sm">
+        <div className="shrink-0">
+          <div className="text-[10px] text-gray-400">스마트오피스</div>
+          <div className="text-base font-bold text-slate-800">모니터 배치도</div>
+        </div>
+
+        {/* 층 통계 칩 */}
+        <div className="flex gap-1.5 flex-wrap">
+          <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs bg-gray-100 text-gray-600 border border-gray-200">
+            총 {flStats.total}석
+          </span>
+          {TYPES.map(t => {
+            const cnt = flStats[t as keyof typeof flStats] as number;
+            if (!cnt) return null;
+            const meta = MONITOR[t];
+            return (
+              <span key={t} className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border"
+                style={{ background:meta.pale, color:meta.color, borderColor:meta.border }}>
+                <span className="w-2 h-2 rounded-sm" style={{ background:meta.color+"CC" }}/>
+                {meta.long} {cnt}
+              </span>
+            );
+          })}
+        </div>
+
+        {/* 건물 + 층 선택 */}
+        <div className="ml-auto flex items-center gap-2 flex-wrap">
+          <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+            {BUILDINGS.map(b => (
+              <button key={b.id}
+                onClick={() => handleBldChange(b.id)}
+                className={`px-3 py-1.5 text-xs font-medium transition-colors border-r border-gray-200 last:border-0 ${
+                  b.id === buildingId ? "bg-slate-800 text-white" : "text-slate-600 hover:bg-gray-50"
+                }`}>{b.label}</button>
+            ))}
+          </div>
+          <div className="flex gap-1 flex-wrap">
+            {building.floors.map(f => (
+              <button key={f.id}
+                onClick={() => handleFloorChange(f.id)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all ${
+                  f.id === floorId
+                    ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                    : "bg-white text-slate-500 border-gray-200 hover:border-blue-300 hover:text-blue-600"
+                }`}>{f.label.replace("층","F")}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── 필터 바 ───────────────────────────────────────────────── */}
+      <div className="flex-none bg-white border-b px-5 py-2 flex items-center gap-3 flex-wrap">
+        <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
+          <button
+            onClick={() => setFilter("all")}
+            className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+              filter==="all" ? "bg-white shadow text-slate-800 font-semibold" : "text-slate-500 hover:text-slate-700"
+            }`}>전체 보기</button>
+          {TYPES.map(t => {
+            const cnt = flStats[t as keyof typeof flStats] as number;
+            if (!cnt) return null;
+            return (
+              <button key={t}
+                onClick={() => setFilter(filter===t?"all":t)}
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                  filter===t ? "bg-white shadow font-semibold" : "text-slate-500 hover:text-slate-700"
+                }`}
+                style={{ color: filter===t ? MONITOR[t].color : undefined }}>
+                {MONITOR[t].long}만
+              </button>
+            );
+          })}
+        </div>
+        <span className="text-[10px] text-gray-400 ml-2">좌석 클릭 시 위치 정보 · 교체 요청 가능</span>
+      </div>
+
+      {/* ── 메인 콘텐츠 ─────────────────────────────────────────── */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        {/* 도면 영역 */}
+        <div className="flex-1 overflow-auto p-4">
+          <div className="mb-3">
+            <h2 className="text-base font-bold text-slate-800">{floor.label}</h2>
+            {floor.note && <p className="text-xs text-gray-400 mt-0.5">{floor.note}</p>}
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <FloorPlanSVG
+              bldId={buildingId} floorId={floor.id}
+              zones={floor.zones} filter={filter}
+              selectedId={selectedId} onSelect={handleSelect}
             />
+          </div>
+          {/* 범례 */}
+          <div className="flex gap-4 mt-3 px-1 flex-wrap items-center">
+            <span className="text-[10px] font-semibold text-gray-400">범례</span>
+            {TYPES.map(t => (
+              <div key={t} className="flex items-center gap-1.5">
+                <div className="w-3.5 h-3 rounded-sm" style={{ background:MONITOR[t].color+(t==="unk"?"55":"CC") }}/>
+                <span className="text-[11px] text-gray-500">{MONITOR[t].long}</span>
+              </div>
+            ))}
+            <span className="text-[10px] text-gray-300 ml-2">A~Z = 행 / 1,2,3… = 열</span>
+          </div>
+        </div>
+
+        {/* 우측 패널 */}
+        <div className="w-64 flex-shrink-0 border-l border-gray-200 bg-white overflow-hidden">
+          {selected ? (
+            <SeatDetailPanel
+              seat={selected.seat} zone={selected.zone}
+              floor={floor} building={building}
+              onClose={() => setSelected(null)}
+            />
+          ) : (
+            <OverviewSidePanel building={building} floor={floor}/>
           )}
         </div>
-
-        {/* Bottom stats bar */}
-        <div className="bg-white border-t border-gray-100 px-6 py-2 flex items-center gap-6 flex-shrink-0">
-          {LEGEND.map(l => {
-            const cnt = (globalStats.counts[l.type === null ? "null" : String(l.type)] ?? 0);
-            return (
-              <div key={String(l.type)} className="flex items-center gap-1.5">
-                <span className={`w-2.5 h-2.5 rounded-sm ${l.cls}`} />
-                <span className="text-xs text-gray-600">{l.label}</span>
-                <span className="text-xs font-bold text-gray-800">{cnt}</span>
-              </div>
-            );
-          })}
-          <div className="ml-auto flex gap-2">
-            <span className="text-xs text-gray-500">
-              총 {globalStats.total}석 중 {globalStats.done}석 입력완료
-            </span>
-            <button
-              onClick={handleResetAll}
-              className="text-xs text-rose-400 hover:text-rose-600 transition-colors"
-            >
-              전체 초기화
-            </button>
-          </div>
-        </div>
-      </main>
-
-      {/* Bulk fill modal */}
-      {bulkTarget && (
-        <BulkModal
-          building={bulkTarget.b}
-          floor={bulkTarget.f}
-          zone={bulkTarget.z}
-          data={data}
-          onUpdate={updateSeat}
-          onClose={() => setBulkTarget(null)}
-        />
-      )}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// FILTERED LIST (used when a legend filter is active)
-// ─────────────────────────────────────────────────────────────────────────────
-function FilteredSeatList({
-  seatIds, allSeats, data, onUpdate,
-}: {
-  seatIds: string[];
-  allSeats: string[];
-  data: Record<string, MonitorType>;
-  onUpdate: (id: string, t: MonitorType) => void;
-}) {
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {seatIds.map(id => {
-        const idx = allSeats.indexOf(id);
-        return (
-          <SeatButton
-            key={id}
-            id={id}
-            idx={idx}
-            monitor={data[id] ?? null}
-            onUpdate={onUpdate}
-          />
-        );
-      })}
+      </div>
     </div>
   );
 }
