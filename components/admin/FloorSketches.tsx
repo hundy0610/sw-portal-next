@@ -14,49 +14,65 @@ export interface SketchCtx {
   colorOf: (t: MonitorType) => { color: string; pale: string };
 }
 
-// ─── 공용 1-좌석 컴포넌트 (책상 + 의자 + 모니터 상태 색) ────────
+// ─── 공용 1-좌석 컴포넌트 ────────────────────────────────────────
+// 도면 스타일: 책상(직사각형) + 의자(책상보다 약간 좁은 둥근 직사각형)
+// orient: 의자가 책상 기준 어느 방향에 있는지
+//   "up"   = 의자가 책상 위 (의자가 위에, 칸막이는 아래)
+//   "down" = 의자가 책상 아래 (의자가 아래에, 칸막이는 위)
 function Seat({
   x, y, w = 22, h = 12, orient, seat, ctx,
 }: {
   x: number; y: number; w?: number; h?: number;
-  orient: "down" | "up" | "left" | "right"; // 의자가 어느 방향에 있는지
+  orient: "down" | "up" | "left" | "right";
   seat: SketchSeat | undefined; ctx: SketchCtx;
 }) {
   if (!seat) return null;
   const meta = ctx.colorOf(seat.type);
   const dimmed = ctx.filter !== "all" && seat.type !== ctx.filter;
   const isSel = ctx.selectedId === seat.id;
-  const fill = dimmed ? "#E5E7EB" : meta.color + (seat.type === "unk" ? "66" : "D9");
-  const stroke = dimmed ? "#D1D5DB" : "#1F2937";
+  const deskFill   = dimmed ? "#E5E7EB" : meta.color + (seat.type === "unk" ? "66" : "D9");
+  const deskStroke = dimmed ? "#D1D5DB" : "#1F2937";
 
-  // 의자 위치 (책상에서 의자 방향으로 약간 떨어뜨림)
-  const chairR = Math.min(w, h) * 0.55;
-  let cx = x + w / 2, cy = y + h / 2;
-  if (orient === "down")  cy = y + h + chairR * 0.55;
-  if (orient === "up")    cy = y - chairR * 0.55;
-  if (orient === "right") cx = x + w + chairR * 0.55;
-  if (orient === "left")  cx = x - chairR * 0.55;
+  // 의자: 책상보다 살짝 좁은 둥근 직사각형 (도면 표준 심볼)
+  const chairH  = Math.max(6, Math.round(h * 0.65));  // 책상 높이의 65%
+  const chairPad = 2;                                   // 좌우 여백
+  const chairY   = orient === "up"
+    ? y - chairH - 1    // 책상 위쪽에 의자
+    : y + h + 1;        // 책상 아래쪽에 의자
 
   return (
     <g style={{ cursor: "pointer" }} onClick={() => !dimmed && ctx.onSelect(seat.id)}>
-      {/* 의자 (반원으로 그려 책상 방향을 알 수 있게) */}
-      <circle cx={cx} cy={cy} r={chairR} fill="#F3F4F6" stroke="#94A3B8" strokeWidth={0.6} />
+      {/* 의자 (둥근 직사각형 — 도면 표현 방식) */}
+      <rect
+        x={x + chairPad} y={chairY}
+        width={w - chairPad * 2} height={chairH}
+        rx={2.5}
+        fill={dimmed ? "#F3F4F6" : "#E8EAED"}
+        stroke={dimmed ? "#E2E8F0" : "#94A3B8"}
+        strokeWidth={0.7}
+      />
       {/* 책상 (모니터 상태 색) */}
       <rect
         x={x} y={y} width={w} height={h} rx={1.5}
-        fill={fill} stroke={stroke} strokeWidth={isSel ? 1.4 : 0.6}
+        fill={deskFill} stroke={deskStroke}
+        strokeWidth={isSel ? 1.5 : 0.7}
       />
       {/* 모니터 미설치 X */}
       {seat.type === "none" && !dimmed && (
         <>
-          <line x1={x + 2} y1={y + 2} x2={x + w - 2} y2={y + h - 2} stroke="white" strokeWidth={1.2} />
-          <line x1={x + w - 2} y1={y + 2} x2={x + 2} y2={y + h - 2} stroke="white" strokeWidth={1.2} />
+          <line x1={x + 2} y1={y + 2} x2={x + w - 2} y2={y + h - 2} stroke="white" strokeWidth={1.3}/>
+          <line x1={x + w - 2} y1={y + 2} x2={x + 2} y2={y + h - 2} stroke="white" strokeWidth={1.3}/>
         </>
       )}
+      {/* 선택 표시 */}
       {isSel && (
-        <rect x={x - 2} y={y - 2} width={w + 4} height={h + 4} rx={2.5}
-          fill="none" stroke={meta.color} strokeWidth={1.6} opacity={0.9}
-          style={{ pointerEvents: "none" }} />
+        <rect
+          x={x - 2} y={Math.min(chairY, y) - 1}
+          width={w + 4} height={h + chairH + 3}
+          rx={2.5} fill="none" stroke={meta.color}
+          strokeWidth={1.6} opacity={0.9}
+          style={{ pointerEvents: "none" }}
+        />
       )}
       <title>{seat.id} · {seat.type}</title>
     </g>
@@ -89,35 +105,46 @@ export function BW_2F_Sketch(ctx: SketchCtx) {
   const seatAt = (i: number) => zone.seats[i];
 
   // ── 클러스터 렌더러 ──────────────────────────────────────────────
-  // 도면 기준: 윗줄 7석(의자 위) + 아랫줄 6석(의자 아래, 반 칸 오른쪽 오프셋)
-  // dx=46(책상 간격), dw=36(책상 폭), dh=14(책상 높이), 칸막이 gap=22
-  // 클러스터 총 너비: 6×46+36 = 312px (구역 340px의 91.8%)
+  // 도면 구조:
+  //   [윗줄 책상 7개] ← 의자가 아래(칸막이 방향, orient=down)
+  //   ─────────── 칸막이 ──────────
+  //   [아랫줄 책상 6개] → 의자가 위(칸막이 방향, orient=up)
+  //
+  // dx=46(책상 중심간격), dw=36(책상폭), dh=14(책상높이)
+  // 칸막이 포함 클러스터 내부 총 높이: 14(책상)+9(의자)+walkway+9(의자)+14(책상) ≈ 58px
+  // 클러스터 총 너비: 6×46+36 = 312px
   const clusterAt = (cx: number, cy: number, base: number) => {
     const dx = 46, dw = 36, dh = 14;
-    const gap = 22;             // 윗줄-아랫줄 사이 칸막이 공간
+    const chairH  = Math.round(dh * 0.65); // ≈9px
+    const walkway = 16; // 두 의자 사이 복도
+    // botY: 아랫줄 책상 top y
+    // topDesk(14) + topChair(9) + gap(1) + walkway(16) + botChair(9) + gap(1) = 50
     const topY = cy;
-    const botY = cy + dh + gap; // 아랫줄 시작 y
+    const botY = cy + dh + 1 + chairH + walkway + chairH + 1; // = cy + 50
     const topXs = [0,1,2,3,4,5,6].map(i => cx + i * dx);
-    const botXs = [0,1,2,3,4,5].map(i => cx + dx/2 + i * dx); // 정확히 반 칸 오프셋
-    const clW = 6 * dx + dw;    // 클러스터 폭
-    const clH = dh + gap + dh;  // 클러스터 높이 (책상+gap+책상)
+    const botXs = [0,1,2,3,4,5].map(i => cx + dx / 2 + i * dx); // 반 칸 오프셋
+    const clW = 6 * dx + dw;
+
+    // 칸막이 위치: 두 의자의 정가운데
+    const partitionY = topY + dh + 1 + chairH + walkway / 2;
+
     return (
       <g key={`cl${base}`}>
-        {/* 클러스터 배경 (연한 회색) */}
-        <rect x={cx - 6} y={topY - 18} width={clW + 12} height={clH + 36} rx={4}
+        {/* 클러스터 배경 */}
+        <rect x={cx - 6} y={topY - 14} width={clW + 12} height={botY + dh + 14 - (topY - 14)} rx={4}
           fill="#F8FAFC" stroke="#CBD5E1" strokeDasharray="4,2" strokeWidth={0.9}/>
         {/* 중앙 칸막이 라인 */}
-        <line x1={cx - 2} y1={topY + dh + gap/2} x2={cx + clW + 2} y2={topY + dh + gap/2}
-          stroke="#94A3B8" strokeWidth={0.8}/>
-        {/* 윗줄: 의자 위 (orient=up) */}
+        <line x1={cx - 2} y1={partitionY} x2={cx + clW + 2} y2={partitionY}
+          stroke="#94A3B8" strokeWidth={1}/>
+        {/* 윗줄: 의자가 아래(칸막이 방향) orient=down */}
         {topXs.map((x, i) => (
           <Seat key={`t${base+i}`} x={x} y={topY} w={dw} h={dh}
-            orient="up" seat={seatAt(base+i)} ctx={ctx}/>
+            orient="down" seat={seatAt(base+i)} ctx={ctx}/>
         ))}
-        {/* 아랫줄: 의자 아래 (orient=down), 반 칸 오른쪽 오프셋 */}
+        {/* 아랫줄: 의자가 위(칸막이 방향) orient=up, 반 칸 오프셋 */}
         {botXs.map((x, i) => (
           <Seat key={`b${base+7+i}`} x={x} y={botY} w={dw} h={dh}
-            orient="down" seat={seatAt(base+7+i)} ctx={ctx}/>
+            orient="up" seat={seatAt(base+7+i)} ctx={ctx}/>
         ))}
       </g>
     );
@@ -209,11 +236,13 @@ export function BW_2F_Sketch(ctx: SketchCtx) {
         스마트오피스 (서편) — 90평 / 52석
       </text>
 
-      {/* 4개 클러스터 — 등간격 배치 (간격 ≈ 도면 1,000mm 통로 반영) */}
-      {clusterAt(18,  68,  0)}
-      {clusterAt(18, 192, 13)}
-      {clusterAt(18, 316, 26)}
-      {clusterAt(18, 440, 39)}
+      {/* 4개 클러스터 — cy 기준 등간격 126px */}
+      {/* 각 클러스터 총 높이(배경): 14+1+9+16+9+1+14+28 = 92px */}
+      {/* 클러스터 간 통로: 126 - 92 = 34px */}
+      {clusterAt(18,  55,  0)}
+      {clusterAt(18, 181, 13)}
+      {clusterAt(18, 307, 26)}
+      {clusterAt(18, 433, 39)}
 
       {/* ── 미팅룸 4개 (x=358, w=112) ── */}
       {/* 미팅룸 A: 13.5㎡/4.1평 */}
