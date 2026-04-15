@@ -405,85 +405,86 @@ function BuildingShell({ vw, vy=20, vh=510, windows=24 }: { vw:number; vy?:numbe
   );
 }
 
-// ─── 본관 3F ─── 서편+동편, 협업존, 미팅룸 2개 ────────────────────
+// ─── 본관 3F ─── 서편 54석 · 동편 71석 ────────────────────────────
+// 원본 코드 기준: bw3-w=54석, bw3-e=71석
+// 그리드: W(6×9=54), E(8×9=72, 71석 사용)
 export function BW_3F_Sketch(ctx: SketchCtx) {
   const zW = ctx.zones.find(z=>z.id==="W");
   const zE = ctx.zones.find(z=>z.id==="E");
   if (!zW||!zE) return null;
   return (
-    <svg viewBox="0 0 820 540" style={{ width:"100%", maxWidth:960, height:"auto", display:"block" }}>
-      <BuildingShell vw={820}/>
-      {/* 협업 공간 (녹색 특수 구역) */}
-      <rect x={20} y={28} width={90} height={85} fill="#F0FDF4" stroke="#86EFAC" strokeWidth={1.2} rx={3}/>
-      <text x={65} y={64} fontSize={8} textAnchor="middle" fill="#15803D" fontWeight={700}>협업</text>
-      <text x={65} y={74} fontSize={7} textAnchor="middle" fill="#15803D">공간</text>
+    <svg viewBox="0 0 820 560" style={{ width:"100%", maxWidth:960, height:"auto", display:"block" }}>
+      <BuildingShell vw={820} vh={530}/>
+      {/* 협업 공간 */}
+      <rect x={20} y={28} width={90} height={80} fill="#F0FDF4" stroke="#86EFAC" strokeWidth={1.2} rx={3}/>
+      <text x={65} y={62} fontSize={8} textAnchor="middle" fill="#15803D" fontWeight={700}>협업공간</text>
 
-      {/* 서편 업무 구역 */}
-      <rect x={20} y={120} width={285} height={270} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2" rx={3}/>
-      <text x={38} y={134} fontSize={9} fontWeight={800} fill="#1E3A8A">서편 (WEST)</text>
-      {zW && <DeskGrid zone={zW} startX={30} startY={145} cols={6} rows={8}
-        sw={21} sh={12} gx={6} gy={3} rowGroups={[2,2,2,2]} aisle={18} ctx={ctx}/>}
+      {/* 서편 업무 구역 — 54석 (6×9) */}
+      <rect x={20} y={115} width={285} height={325} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2" rx={3}/>
+      <text x={38} y={129} fontSize={9} fontWeight={800} fill="#1E3A8A">서편 — {zW.seats.length}석</text>
+      <DeskGrid zone={zW} startX={30} startY={140} cols={6} rows={9}
+        sw={28} sh={12} gx={8} gy={3} rowGroups={[2,2,2,3]} aisle={18} ctx={ctx}/>
 
       {/* 미팅룸 (하단 좌) */}
-      <MeetingBox x={20} y={405} w={135} h={80} name="미팅룸" sub="18.5m²"/>
-      <MeetingBox x={163} y={405} w={140} h={80} name="미팅룸" sub="16.1m²"/>
+      <MeetingBox x={20} y={452} w={138} h={90} name="미팅룸" sub="18.5m² / 5.6평"/>
+      <MeetingBox x={166} y={452} w={138} h={90} name="미팅룸" sub="16.1m² / 4.9평"/>
 
       {/* 코어 */}
-      <CoreBlock x={318} y={28} w={185} h={490}/>
+      <CoreBlock x={318} y={28} w={185} h={514}/>
 
-      {/* 동편 협업 + 특수 구역 */}
-      <rect x={715} y={28} width={95} height={85} fill="#F0FDF4" stroke="#86EFAC" strokeWidth={1.2} rx={3}/>
-      <text x={763} y={64} fontSize={8} textAnchor="middle" fill="#15803D" fontWeight={700}>G/B</text>
+      {/* 동편 특수 구역 */}
+      <rect x={715} y={28} width={97} height={80} fill="#F0FDF4" stroke="#86EFAC" strokeWidth={1.2} rx={3}/>
+      <text x={763} y={62} fontSize={8} textAnchor="middle" fill="#15803D" fontWeight={700}>G/B</text>
 
-      {/* 동편 업무 구역 */}
-      <rect x={515} y={120} width={295} height={270} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2" rx={3}/>
-      <text x={533} y={134} fontSize={9} fontWeight={800} fill="#1E3A8A">동편 (EAST)</text>
-      {zE && <DeskGrid zone={zE} startX={525} startY={145} cols={9} rows={7}
-        sw={21} sh={12} gx={5} gy={3} rowGroups={[2,2,3]} aisle={18} ctx={ctx}/>}
+      {/* 동편 업무 구역 — 71석 (8×9) */}
+      <rect x={515} y={115} width={297} height={325} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2" rx={3}/>
+      <text x={533} y={129} fontSize={9} fontWeight={800} fill="#1E3A8A">동편 — {zE.seats.length}석</text>
+      <DeskGrid zone={zE} startX={525} startY={140} cols={8} rows={9}
+        sw={24} sh={12} gx={6} gy={3} rowGroups={[2,2,2,3]} aisle={18} ctx={ctx}/>
 
-      <text x={30} y={16} fontSize={9} fontWeight={800} fill="#1F2937">← 서편 (WEST · 삼성역 방면)</text>
-      <text x={790} y={16} fontSize={9} fontWeight={800} fill="#1F2937" textAnchor="end">동편 (EAST · 탄천 방면) →</text>
+      <text x={30} y={16} fontSize={9} fontWeight={800} fill="#1F2937">← 서편 (삼성역 방면)</text>
+      <text x={790} y={16} fontSize={9} fontWeight={800} fill="#1F2937" textAnchor="end">동편 (탄천 방면) →</text>
     </svg>
   );
 }
 
-// ─── 본관 4F ─── 서편(미설치 多)+동편, 스마트2/3/라운지 ─────────
+// ─── 본관 4F ─── 서편 74석 · 동편 49석 ────────────────────────────
+// 원본 코드 기준: bw4-w=74석, bw4-e=49석
+// 그리드: W(7×11=77, 74석 사용), E(7×7=49)
 export function BW_4F_Sketch(ctx: SketchCtx) {
   const zW = ctx.zones.find(z=>z.id==="W");
   const zE = ctx.zones.find(z=>z.id==="E");
   if (!zW||!zE) return null;
   const wNone = zW.seats.filter(s=>s.type==="none").length;
+  const eNone = zE.seats.filter(s=>s.type==="none").length;
   return (
-    <svg viewBox="0 0 820 540" style={{ width:"100%", maxWidth:960, height:"auto", display:"block" }}>
-      <BuildingShell vw={820}/>
+    <svg viewBox="0 0 820 580" style={{ width:"100%", maxWidth:960, height:"auto", display:"block" }}>
+      <BuildingShell vw={820} vh={550}/>
 
-      {/* 서편 업무 구역 (미설치 많아 붉은 배경) */}
-      <rect x={20} y={28} width={285} height={365} fill="#FFF1F2" stroke="#FCA5A5" strokeWidth={1.2} strokeDasharray="5,2" rx={3}/>
-      <text x={38} y={44} fontSize={9} fontWeight={800} fill="#B91C1C">서편 — 미설치 {wNone}석</text>
-      {zW && <DeskGrid zone={zW} startX={30} startY={55} cols={5} rows={8}
-        sw={24} sh={12} gx={6} gy={3} rowGroups={[2,2,2,2]} aisle={18} ctx={ctx}/>}
+      {/* 서편 업무 구역 — 74석 (7×11) */}
+      <rect x={20} y={28} width={285} height={390} fill="#FFF1F2" stroke="#FCA5A5" strokeWidth={1.2} strokeDasharray="5,2" rx={3}/>
+      <text x={38} y={44} fontSize={9} fontWeight={800} fill="#B91C1C">서편 — {zW.seats.length}석{wNone>0?` (미설치 ${wNone})`:""}</text>
+      <DeskGrid zone={zW} startX={30} startY={56} cols={7} rows={11}
+        sw={22} sh={12} gx={6} gy={3} rowGroups={[2,2,2,2,3]} aisle={16} ctx={ctx}/>
 
       {/* 서편 하단 미팅룸 */}
-      <MeetingBox x={20} y={405} w={90} h={100} name="스마트2" sub="5.6평"/>
-      <MeetingBox x={118} y={405} w={90} h={100} name="스마트3" sub="5.6평"/>
-      <MeetingBox x={216} y={405} w={90} h={100} name="라운지" sub="10.7평"/>
+      <MeetingBox x={20} y={430} w={90} h={105} name="스마트2" sub="5.6평"/>
+      <MeetingBox x={118} y={430} w={90} h={105} name="스마트3" sub="5.6평"/>
+      <MeetingBox x={216} y={430} w={90} h={105} name="라운지" sub="10.7평"/>
 
-      {/* 코어 (중앙) */}
-      <CoreBlock x={318} y={28} w={185} h={490}/>
-      {/* 여자화장실 상단 */}
-      <rect x={318+45} y={35} width={95} height={60} fill="#F5F3FF" stroke="#6B21A8" strokeWidth={0.8}/>
-      <text x={318+92} y={62} fontSize={7.5} textAnchor="middle" fill="#6B21A8" fontWeight={700}>여자화장실</text>
-      {/* 남자화장실 하단 */}
-      <rect x={318+45} y={450} width={95} height={60} fill="#EFF6FF" stroke="#1D4ED8" strokeWidth={0.8}/>
-      <text x={318+92} y={477} fontSize={7.5} textAnchor="middle" fill="#1D4ED8" fontWeight={700}>남자화장실</text>
+      {/* 코어 (중앙) + 화장실 */}
+      <CoreBlock x={318} y={28} w={185} h={515}/>
+      <rect x={355} y={35} width={110} height={55} fill="#F5F3FF" stroke="#6B21A8" strokeWidth={0.8}/>
+      <text x={410} y={60} fontSize={7.5} textAnchor="middle" fill="#6B21A8" fontWeight={700}>여자화장실</text>
+      <rect x={355} y={478} width={110} height={55} fill="#EFF6FF" stroke="#1D4ED8" strokeWidth={0.8}/>
+      <text x={410} y={503} fontSize={7.5} textAnchor="middle" fill="#1D4ED8" fontWeight={700}>남자화장실</text>
 
-      {/* 동편 업무 구역 */}
-      <rect x={515} y={28} width={295} height={365} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2" rx={3}/>
-      <text x={533} y={44} fontSize={9} fontWeight={800} fill="#1E3A8A">동편 (EAST)</text>
-      {zE && <DeskGrid zone={zE} startX={525} startY={55} cols={8} rows={7}
-        sw={24} sh={12} gx={5} gy={3} rowGroups={[2,2,3]} aisle={18} ctx={ctx}/>}
-      {/* 동편 하단 8인 미팅룸 */}
-      <MeetingBox x={620} y={405} w={190} h={100} name="8인 미팅룸" sub=""/>
+      {/* 동편 업무 구역 — 49석 (7×7) */}
+      <rect x={515} y={28} width={297} height={260} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2" rx={3}/>
+      <text x={533} y={44} fontSize={9} fontWeight={800} fill="#1E3A8A">동편 — {zE.seats.length}석{eNone>0?` (미설치 ${eNone})`:""}</text>
+      <DeskGrid zone={zE} startX={525} startY={56} cols={7} rows={7}
+        sw={28} sh={12} gx={6} gy={3} rowGroups={[2,2,3]} aisle={18} ctx={ctx}/>
+      <MeetingBox x={620} y={300} w={192} h={110} name="8인 미팅룸" sub=""/>
 
       <text x={30} y={16} fontSize={9} fontWeight={800} fill="#B91C1C">← 서편 (미설치 주의)</text>
       <text x={790} y={16} fontSize={9} fontWeight={800} fill="#1F2937" textAnchor="end">동편 →</text>
@@ -491,33 +492,35 @@ export function BW_4F_Sketch(ctx: SketchCtx) {
   );
 }
 
-// ─── 본관 5F ─── 서편+동편(상단 라운지), 소규모 미팅룸 ─────────
+// ─── 본관 5F ─── 서편 74석 · 동편 49석 ────────────────────────────
+// 원본 코드 기준: bw5-w=74석, bw5-e=49석 (4층과 동일)
+// 그리드: W(7×11=77, 74석 사용), E(7×7=49)
 export function BW_5F_Sketch(ctx: SketchCtx) {
   const zW = ctx.zones.find(z=>z.id==="W");
   const zE = ctx.zones.find(z=>z.id==="E");
   if (!zW||!zE) return null;
   return (
-    <svg viewBox="0 0 820 540" style={{ width:"100%", maxWidth:960, height:"auto", display:"block" }}>
-      <BuildingShell vw={820}/>
+    <svg viewBox="0 0 820 580" style={{ width:"100%", maxWidth:960, height:"auto", display:"block" }}>
+      <BuildingShell vw={820} vh={550}/>
 
-      {/* 서편 업무 구역 */}
-      <rect x={20} y={28} width={285} height={470} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2" rx={3}/>
-      <text x={38} y={44} fontSize={9} fontWeight={800} fill="#1E3A8A">서편 (WEST)</text>
-      {zW && <DeskGrid zone={zW} startX={30} startY={55} cols={6} rows={7}
-        sw={22} sh={12} gx={6} gy={3} rowGroups={[2,2,3]} aisle={18} ctx={ctx}/>}
+      {/* 서편 업무 구역 — 74석 (7×11) */}
+      <rect x={20} y={28} width={285} height={510} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2" rx={3}/>
+      <text x={38} y={44} fontSize={9} fontWeight={800} fill="#1E3A8A">서편 — {zW.seats.length}석</text>
+      <DeskGrid zone={zW} startX={30} startY={56} cols={7} rows={11}
+        sw={22} sh={12} gx={6} gy={3} rowGroups={[2,2,2,2,3]} aisle={16} ctx={ctx}/>
 
       {/* 코어 (중앙, 하단에 미팅룸) */}
-      <CoreBlock x={318} y={28} w={185} h={380}/>
-      <MeetingBox x={330} y={415} w={162} h={80} name="미팅룸" sub="6.6m²"/>
+      <CoreBlock x={318} y={28} w={185} h={400}/>
+      <MeetingBox x={330} y={438} w={162} h={90} name="미팅룸" sub="6.6m² / 2.0평"/>
 
-      {/* 동편: 상단 라운지/바 + 하단 업무 */}
-      <rect x={515} y={28} width={295} height={110} fill="#FEF3C7" stroke="#FCD34D" strokeWidth={1.2} rx={3}/>
-      <text x={663} y={72} fontSize={9} fontWeight={800} textAnchor="middle" fill="#92400E">라운지 / 바 (Bar Table)</text>
+      {/* 동편: 상단 라운지/바 + 하단 업무 49석(7×7) */}
+      <rect x={515} y={28} width={297} height={115} fill="#FEF3C7" stroke="#FCD34D" strokeWidth={1.2} rx={3}/>
+      <text x={663} y={82} fontSize={9} fontWeight={800} textAnchor="middle" fill="#92400E">라운지 / 바 (Bar Table)</text>
 
-      <rect x={515} y={145} width={295} height={350} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2" rx={3}/>
-      <text x={533} y={161} fontSize={9} fontWeight={800} fill="#1E3A8A">동편 (EAST)</text>
-      {zE && <DeskGrid zone={zE} startX={525} startY={172} cols={8} rows={6}
-        sw={24} sh={12} gx={5} gy={3} rowGroups={[2,2,2]} aisle={18} ctx={ctx}/>}
+      <rect x={515} y={150} width={297} height={265} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2" rx={3}/>
+      <text x={533} y={166} fontSize={9} fontWeight={800} fill="#1E3A8A">동편 — {zE.seats.length}석</text>
+      <DeskGrid zone={zE} startX={525} startY={178} cols={7} rows={7}
+        sw={28} sh={12} gx={6} gy={3} rowGroups={[2,2,3]} aisle={18} ctx={ctx}/>
 
       <text x={30} y={16} fontSize={9} fontWeight={800} fill="#1F2937">← 서편 (WEST)</text>
       <text x={790} y={16} fontSize={9} fontWeight={800} fill="#1F2937" textAnchor="end">동편 (라운지+업무) →</text>
@@ -525,77 +528,83 @@ export function BW_5F_Sketch(ctx: SketchCtx) {
   );
 }
 
-// ─── 본관 6F ─── 서편 개발자(34") 전용 + 동편 ──────────────────
+// ─── 본관 6F ─── 서편(개발 34") 67석 · 동편 65석 ──────────────────
+// 원본 코드 기준: bw6-w=67석, bw6-e=65석
+// 그리드: W(7×10=70, 67석 사용), E(8×9=72, 65석 사용)
 export function BW_6F_Sketch(ctx: SketchCtx) {
   const zW = ctx.zones.find(z=>z.id==="W");
   const zE = ctx.zones.find(z=>z.id==="E");
   if (!zW||!zE) return null;
   const wDev = zW.seats.filter(s=>s.type==="dev34").length;
   return (
-    <svg viewBox="0 0 820 540" style={{ width:"100%", maxWidth:960, height:"auto", display:"block" }}>
-      <BuildingShell vw={820}/>
+    <svg viewBox="0 0 820 560" style={{ width:"100%", maxWidth:960, height:"auto", display:"block" }}>
+      <BuildingShell vw={820} vh={530}/>
 
-      {/* 서편 개발자 구역 (보라색 배경) */}
-      <rect x={20} y={28} width={285} height={470} fill="#F5F3FF" stroke="#C4B5FD" strokeWidth={1.5} rx={3}/>
-      <text x={38} y={44} fontSize={9} fontWeight={800} fill="#6D28D9">서편 — 개발자 34" ({wDev}석)</text>
-      {zW && <DeskGrid zone={zW} startX={30} startY={58} cols={7} rows={7}
-        sw={22} sh={12} gx={5} gy={3} rowGroups={[2,2,3]} aisle={18} ctx={ctx}/>}
+      {/* 서편 개발자 구역 — 67석 (7×10) */}
+      <rect x={20} y={28} width={285} height={494} fill="#F5F3FF" stroke="#C4B5FD" strokeWidth={1.5} rx={3}/>
+      <text x={38} y={44} fontSize={9} fontWeight={800} fill="#6D28D9">서편 (개발 34") — {zW.seats.length}석{wDev>0?` / 34" ${wDev}`:""}</text>
+      <DeskGrid zone={zW} startX={30} startY={58} cols={7} rows={10}
+        sw={22} sh={12} gx={6} gy={3} rowGroups={[2,2,2,2,2]} aisle={18} ctx={ctx}/>
 
       {/* 코어 */}
-      <CoreBlock x={318} y={28} w={185} h={490}/>
+      <CoreBlock x={318} y={28} w={185} h={514}/>
 
-      {/* 동편 */}
-      <rect x={515} y={28} width={295} height={470} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2" rx={3}/>
-      <text x={533} y={44} fontSize={9} fontWeight={800} fill="#1E3A8A">동편 (EAST)</text>
-      {zE && <DeskGrid zone={zE} startX={525} startY={58} cols={8} rows={7}
-        sw={24} sh={12} gx={5} gy={3} rowGroups={[2,2,3]} aisle={18} ctx={ctx}/>}
+      {/* 동편 업무 구역 — 65석 (8×9) */}
+      <rect x={515} y={28} width={297} height={494} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2" rx={3}/>
+      <text x={533} y={44} fontSize={9} fontWeight={800} fill="#1E3A8A">동편 — {zE.seats.length}석</text>
+      <DeskGrid zone={zE} startX={525} startY={58} cols={8} rows={9}
+        sw={24} sh={12} gx={6} gy={3} rowGroups={[2,2,2,3]} aisle={18} ctx={ctx}/>
 
-      {/* 안내 레이블 */}
       <text x={30} y={16} fontSize={9} fontWeight={800} fill="#6D28D9">← 서편 (개발자 34" 전용)</text>
       <text x={790} y={16} fontSize={9} fontWeight={800} fill="#1F2937" textAnchor="end">동편 →</text>
     </svg>
   );
 }
 
-// ─── 본관 7F ─── 서편(미설치 多)+동편+로커구역 ──────────────────
+// ─── 본관 7F ─── 서편 19석 · 동편 57석 ────────────────────────────
+// 원본 코드 기준: bw7-w=19석 (좁은 구역), bw7-e=57석
+// 그리드: W(4×5=20, 19석 사용), E(7×9=63, 57석 사용)
+// ※ 7층 서편은 실제 도면에서 매우 좁은 구역 (원본 x2=240, 일반 x2=338 vs)
 export function BW_7F_Sketch(ctx: SketchCtx) {
   const zW = ctx.zones.find(z=>z.id==="W");
   const zE = ctx.zones.find(z=>z.id==="E");
   if (!zW||!zE) return null;
   const wNone = zW.seats.filter(s=>s.type==="none").length;
   return (
-    <svg viewBox="0 0 820 540" style={{ width:"100%", maxWidth:960, height:"auto", display:"block" }}>
-      <BuildingShell vw={820}/>
+    <svg viewBox="0 0 820 560" style={{ width:"100%", maxWidth:960, height:"auto", display:"block" }}>
+      <BuildingShell vw={820} vh={530}/>
 
-      {/* 서편 (미설치 많아 붉은 배경) */}
-      <rect x={20} y={28} width={285} height={340} fill="#FFF1F2" stroke="#FCA5A5" strokeWidth={1.2} strokeDasharray="5,2" rx={3}/>
-      <text x={38} y={44} fontSize={9} fontWeight={800} fill="#B91C1C">서편 — 미설치 {wNone}석</text>
-      {zW && <DeskGrid zone={zW} startX={30} startY={58} cols={6} rows={6}
-        sw={24} sh={12} gx={5} gy={3} rowGroups={[2,2,2]} aisle={18} ctx={ctx}/>}
-      {/* 로커 구역 */}
-      <rect x={20} y={378} width={285} height={115} fill="#F1F5F9" stroke="#CBD5E1" strokeWidth={1.2} rx={3}/>
-      <text x={163} y={432} fontSize={9} textAnchor="middle" fill="#475569" fontWeight={700}>LOCKER 구역</text>
-      {/* 로커 박스 심볼 */}
+      {/* 서편 — 19석 (4×5, 좁은 구역) */}
+      <rect x={20} y={28} width={175} height={200} fill="#FFF1F2" stroke="#FCA5A5" strokeWidth={1.2} strokeDasharray="5,2" rx={3}/>
+      <text x={38} y={44} fontSize={9} fontWeight={800} fill="#B91C1C">서편 — {zW.seats.length}석{wNone>0?` (미설치 ${wNone})`:""}</text>
+      <DeskGrid zone={zW} startX={30} startY={58} cols={4} rows={5}
+        sw={26} sh={12} gx={8} gy={3} rowGroups={[2,3]} aisle={18} ctx={ctx}/>
+
+      {/* 로커 구역 (서편 하단) */}
+      <rect x={20} y={238} width={285} height={115} fill="#F1F5F9" stroke="#CBD5E1" strokeWidth={1.2} rx={3}/>
+      <text x={163} y={292} fontSize={9} textAnchor="middle" fill="#475569" fontWeight={700}>LOCKER 구역</text>
       {Array.from({length:8},(_,i)=>(
-        <rect key={i} x={32+i*32} y={390} width={22} height={40} fill="#E2E8F0" stroke="#94A3B8" strokeWidth={0.7} rx={1}/>
+        <rect key={i} x={30+i*30} y={252} width={22} height={40} fill="#E2E8F0" stroke="#94A3B8" strokeWidth={0.7} rx={1}/>
       ))}
 
       {/* 코어 */}
-      <CoreBlock x={318} y={28} w={185} h={490}/>
+      <CoreBlock x={318} y={28} w={185} h={514}/>
 
-      {/* 동편 */}
-      <rect x={515} y={28} width={295} height={470} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2" rx={3}/>
-      <text x={533} y={44} fontSize={9} fontWeight={800} fill="#1E3A8A">동편 (EAST)</text>
-      {zE && <DeskGrid zone={zE} startX={525} startY={58} cols={8} rows={7}
-        sw={24} sh={12} gx={5} gy={3} rowGroups={[2,2,3]} aisle={18} ctx={ctx}/>}
+      {/* 동편 업무 구역 — 57석 (7×9) */}
+      <rect x={515} y={28} width={297} height={494} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2" rx={3}/>
+      <text x={533} y={44} fontSize={9} fontWeight={800} fill="#1E3A8A">동편 — {zE.seats.length}석</text>
+      <DeskGrid zone={zE} startX={525} startY={58} cols={7} rows={9}
+        sw={28} sh={12} gx={6} gy={3} rowGroups={[2,2,2,3]} aisle={18} ctx={ctx}/>
 
-      <text x={30} y={16} fontSize={9} fontWeight={800} fill="#B91C1C">← 서편 (미설치 주의)</text>
+      <text x={30} y={16} fontSize={9} fontWeight={800} fill="#B91C1C">← 서편 (소규모/미설치 주의)</text>
       <text x={790} y={16} fontSize={9} fontWeight={800} fill="#1F2937" textAnchor="end">동편 →</text>
     </svg>
   );
 }
 
-// ─── 본관 8F ─── 회의실 중심, 소규모 업무공간 ──────────────────
+// ─── 본관 8F ─── 회의실 중심 · 업무공간 28석 ──────────────────────
+// 원본 코드 기준: bw8-w=28석
+// 그리드: M(7×4=28)
 export function BW_8F_Sketch(ctx: SketchCtx) {
   const zM = ctx.zones.find(z=>z.id==="M");
   return (
@@ -603,25 +612,26 @@ export function BW_8F_Sketch(ctx: SketchCtx) {
       <BuildingShell vw={820}/>
 
       {/* 좌측 회의실 3개 */}
-      <MeetingBox x={20} y={35} w={155} h={140} name="회의실/미팅룸-1" sub="4.1인"/>
-      <MeetingBox x={20} y={183} w={155} h={140} name="회의실/미팅룸-2" sub="4.1인"/>
-      <MeetingBox x={20} y={330} w={155} h={155} name="미팅룸" sub="7.6인"/>
+      <MeetingBox x={20} y={35} w={155} h={145} name="회의실/미팅룸-1" sub="13.5㎡ / 4.1인"/>
+      <MeetingBox x={20} y={188} w={155} h={145} name="회의실/미팅룸-2" sub="13.5㎡ / 4.1인"/>
+      <MeetingBox x={20} y={341} w={155} h={145} name="미팅룸" sub="13.5㎡ / 7.6인"/>
 
-      {/* 중앙 소규모 업무공간 */}
-      <rect x={185} y={100} width={120} height={200} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2" rx={3}/>
-      <text x={245} y={116} fontSize={8} fontWeight={800} textAnchor="middle" fill="#1E3A8A">업무공간</text>
-      {zM && <DeskGrid zone={zM} startX={192} startY={128} cols={5} rows={5}
-        sw={18} sh={12} gx={4} gy={3} rowGroups={[2,3]} aisle={20} ctx={ctx}/>}
+      {/* 중앙 소규모 업무공간 — 28석 (7×4) */}
+      <rect x={185} y={88} width={120} height={130} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2" rx={3}/>
+      <text x={245} y={104} fontSize={8} fontWeight={800} textAnchor="middle" fill="#1E3A8A">업무공간</text>
+      <text x={245} y={114} fontSize={7} textAnchor="middle" fill="#64748B">{zM?.seats.length ?? 28}석</text>
+      {zM && <DeskGrid zone={zM} startX={192} startY={124} cols={7} rows={4}
+        sw={13} sh={12} gx={3} gy={3} rowGroups={[2,2]} aisle={18} ctx={ctx}/>}
 
-      {/* 코어 (CANTEEN 포함) */}
-      <CoreBlock x={318} y={28} w={185} h={400} hasStairs={true}/>
-      <rect x={330} y={430} width={162} height={75} fill="#FEF9C3" stroke="#EAB308" strokeWidth={1}/>
-      <text x={411} y={463} fontSize={9} textAnchor="middle" fill="#713F12" fontWeight={700}>CANTEEN</text>
+      {/* 코어 (CANTEEN) */}
+      <CoreBlock x={318} y={28} w={185} h={405} hasStairs={true}/>
+      <rect x={330} y={435} width={162} height={75} fill="#FEF9C3" stroke="#EAB308" strokeWidth={1}/>
+      <text x={411} y={468} fontSize={9} textAnchor="middle" fill="#713F12" fontWeight={700}>CANTEEN</text>
 
-      {/* 우측 컨퍼런스룸 3개 */}
-      <MeetingBox x={515} y={35} w={295} h={155} name="Conference-1" sub="17.9인"/>
-      <MeetingBox x={515} y={200} w={295} h={115} name="회의실/멀티룸" sub="13.8인"/>
-      <MeetingBox x={515} y={325} w={295} h={155} name="Conference-2" sub="19.5인"/>
+      {/* 우측 컨퍼런스룸 */}
+      <MeetingBox x={515} y={35} w={297} h={155} name="Conference-1" sub="13.5㎡ / 17.9인"/>
+      <MeetingBox x={515} y={198} w={297} h={115} name="회의실/멀티룸" sub="13.5㎡ / 13.8인"/>
+      <MeetingBox x={515} y={321} w={297} h={155} name="Conference-2" sub="13.5㎡ / 19.5인"/>
 
       <text x={30} y={16} fontSize={9} fontWeight={800} fill="#15803D">← 회의실 구역</text>
       <text x={790} y={16} fontSize={9} fontWeight={800} fill="#15803D" textAnchor="end">컨퍼런스룸 구역 →</text>
@@ -629,43 +639,44 @@ export function BW_8F_Sketch(ctx: SketchCtx) {
   );
 }
 
-// ─── 본관 9F ─── 스튜디오(서편) + 홀(동편) ──────────────────────
+// ─── 본관 9F ─── 스튜디오 37석 · 홀(동편) 85석 ──────────────────
+// 원본 코드 기준: bw9-w=37석, bw9-e=85석
+// 그리드: W(5×8=40, 37석 사용), E(9×10=90, 85석 사용)
 export function BW_9F_Sketch(ctx: SketchCtx) {
   const zW = ctx.zones.find(z=>z.id==="W");
   const zE = ctx.zones.find(z=>z.id==="E");
   if (!zW||!zE) return null;
   return (
-    <svg viewBox="0 0 820 540" style={{ width:"100%", maxWidth:960, height:"auto", display:"block" }}>
-      <BuildingShell vw={820}/>
+    <svg viewBox="0 0 820 600" style={{ width:"100%", maxWidth:960, height:"auto", display:"block" }}>
+      <BuildingShell vw={820} vh={570}/>
 
       {/* 스튜디오/라이브러리 (서편 상단) */}
-      <rect x={20} y={28} width={285} height={135} fill="#FEF3C7" stroke="#F6CE4A" strokeWidth={1.2} rx={3}/>
-      <text x={163} y={52} fontSize={9} fontWeight={800} textAnchor="middle" fill="#92400E">스튜디오 / 도서관</text>
-      {/* 책장 심볼 */}
+      <rect x={20} y={28} width={285} height={120} fill="#FEF3C7" stroke="#F6CE4A" strokeWidth={1.2} rx={3}/>
+      <text x={163} y={48} fontSize={9} fontWeight={800} textAnchor="middle" fill="#92400E">스튜디오 / 도서관</text>
       {Array.from({length:6},(_,i)=>(
-        <rect key={i} x={28+i*42} y={62} width={35} height={70} fill="#FDE68A" stroke="#D97706" strokeWidth={0.7} rx={1}/>
+        <rect key={i} x={28+i*42} y={56} width={35} height={65} fill="#FDE68A" stroke="#D97706" strokeWidth={0.7} rx={1}/>
       ))}
-      {/* 스탠딩 데스크 심볼 */}
-      <rect x={20} y={172} width={285} height={80} fill="#FFFBEB" stroke="#FCD34D" strokeWidth={1} strokeDasharray="4,2" rx={3}/>
-      <text x={163} y={210} fontSize={8} textAnchor="middle" fill="#78350F" fontWeight={700}>스탠딩 데스크 구역</text>
+      {/* 스탠딩 데스크 */}
+      <rect x={20} y={156} width={285} height={70} fill="#FFFBEB" stroke="#FCD34D" strokeWidth={1} strokeDasharray="4,2" rx={3}/>
+      <text x={163} y={191} fontSize={8} textAnchor="middle" fill="#78350F" fontWeight={700}>스탠딩 데스크</text>
 
-      {/* 서편 업무 좌석 */}
-      <rect x={20} y={260} width={285} height={240} fill="#FFF7E6" stroke="#F6CE4A" strokeWidth={1} strokeDasharray="5,2" rx={3}/>
-      <text x={38} y={276} fontSize={9} fontWeight={800} fill="#92400E">스튜디오 (서편)</text>
-      {zW && <DeskGrid zone={zW} startX={30} startY={290} cols={4} rows={5}
-        sw={26} sh={14} gx={8} gy={4} rowGroups={[2,3]} aisle={18} ctx={ctx}/>}
+      {/* 서편 업무 좌석 — 37석 (5×8) */}
+      <rect x={20} y={234} width={285} height={328} fill="#FFF7E6" stroke="#F6CE4A" strokeWidth={1} strokeDasharray="5,2" rx={3}/>
+      <text x={38} y={250} fontSize={9} fontWeight={800} fill="#92400E">스튜디오 (서편) — {zW.seats.length}석</text>
+      <DeskGrid zone={zW} startX={30} startY={262} cols={5} rows={8}
+        sw={32} sh={12} gx={9} gy={3} rowGroups={[2,2,2,2]} aisle={18} ctx={ctx}/>
 
       {/* 코어 */}
-      <CoreBlock x={318} y={28} w={185} h={490}/>
+      <CoreBlock x={318} y={28} w={185} h={534}/>
 
-      {/* 동편 홀 (54석) */}
-      <rect x={515} y={28} width={295} height={470} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2" rx={3}/>
-      <text x={533} y={44} fontSize={9} fontWeight={800} fill="#1E3A8A">홀 (동편) — 54석</text>
-      {zE && <DeskGrid zone={zE} startX={525} startY={58} cols={9} rows={6}
-        sw={21} sh={12} gx={5} gy={3} rowGroups={[2,2,2]} aisle={18} ctx={ctx}/>}
+      {/* 동편 홀 — 85석 (9×10) */}
+      <rect x={515} y={28} width={297} height={534} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2" rx={3}/>
+      <text x={533} y={44} fontSize={9} fontWeight={800} fill="#1E3A8A">홀 (동편) — {zE.seats.length}석</text>
+      <DeskGrid zone={zE} startX={525} startY={58} cols={9} rows={10}
+        sw={21} sh={12} gx={5} gy={3} rowGroups={[2,2,2,2,2]} aisle={16} ctx={ctx}/>
 
       <text x={30} y={16} fontSize={9} fontWeight={800} fill="#92400E">← 서편 (스튜디오/라이브러리)</text>
-      <text x={790} y={16} fontSize={9} fontWeight={800} fill="#1F2937" textAnchor="end">동편 (홀 54석) →</text>
+      <text x={790} y={16} fontSize={9} fontWeight={800} fill="#1F2937" textAnchor="end">동편 (홀 85석) →</text>
     </svg>
   );
 }
