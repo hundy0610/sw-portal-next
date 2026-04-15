@@ -88,30 +88,36 @@ export function BW_2F_Sketch(ctx: SketchCtx) {
   if (!zone) return null;
   const seatAt = (i: number) => zone.seats[i];
 
-  // 클러스터 — dx/dw를 늘려 실제 도면 비율에 맞게 조정
+  // ── 클러스터 렌더러 ──────────────────────────────────────────────
+  // 도면 기준: 윗줄 7석(의자 위) + 아랫줄 6석(의자 아래, 반 칸 오른쪽 오프셋)
+  // dx=46(책상 간격), dw=36(책상 폭), dh=14(책상 높이), 칸막이 gap=22
+  // 클러스터 총 너비: 6×46+36 = 312px (구역 340px의 91.8%)
   const clusterAt = (cx: number, cy: number, base: number) => {
+    const dx = 46, dw = 36, dh = 14;
+    const gap = 22;             // 윗줄-아랫줄 사이 칸막이 공간
     const topY = cy;
-    const botY = cy + 28;          // 아랫줄은 윗줄+28px (칸막이 포함)
-    const dx = 46, dw = 32, dh = 13; // dx·dw 확대: 도면 비율 반영
+    const botY = cy + dh + gap; // 아랫줄 시작 y
     const topXs = [0,1,2,3,4,5,6].map(i => cx + i * dx);
-    const botXs = [0,1,2,3,4,5].map(i => cx + 23 + i * dx); // 반 칸 offset
+    const botXs = [0,1,2,3,4,5].map(i => cx + dx/2 + i * dx); // 정확히 반 칸 오프셋
+    const clW = 6 * dx + dw;    // 클러스터 폭
+    const clH = dh + gap + dh;  // 클러스터 높이 (책상+gap+책상)
     return (
       <g key={`cl${base}`}>
-        {/* 클러스터 전체 배경 */}
-        <rect x={cx - 8} y={cy - 16} width={6 * dx + dw + 16} height={66} rx={4}
-          fill="#F8FAFC" stroke="#CBD5E1" strokeDasharray="4,2" strokeWidth={0.8} />
-        {/* 칸막이 라인 */}
-        <line x1={cx - 4} y1={topY + dh + 7} x2={cx + 6 * dx + dw + 4} y2={topY + dh + 7}
-          stroke="#94A3B8" strokeWidth={0.7} />
-        {/* 상단 행 (의자 위) */}
+        {/* 클러스터 배경 (연한 회색) */}
+        <rect x={cx - 6} y={topY - 18} width={clW + 12} height={clH + 36} rx={4}
+          fill="#F8FAFC" stroke="#CBD5E1" strokeDasharray="4,2" strokeWidth={0.9}/>
+        {/* 중앙 칸막이 라인 */}
+        <line x1={cx - 2} y1={topY + dh + gap/2} x2={cx + clW + 2} y2={topY + dh + gap/2}
+          stroke="#94A3B8" strokeWidth={0.8}/>
+        {/* 윗줄: 의자 위 (orient=up) */}
         {topXs.map((x, i) => (
           <Seat key={`t${base+i}`} x={x} y={topY} w={dw} h={dh}
-            orient="up" seat={seatAt(base+i)} ctx={ctx} />
+            orient="up" seat={seatAt(base+i)} ctx={ctx}/>
         ))}
-        {/* 하단 행 (의자 아래) */}
+        {/* 아랫줄: 의자 아래 (orient=down), 반 칸 오른쪽 오프셋 */}
         {botXs.map((x, i) => (
           <Seat key={`b${base+7+i}`} x={x} y={botY} w={dw} h={dh}
-            orient="down" seat={seatAt(base+7+i)} ctx={ctx} />
+            orient="down" seat={seatAt(base+7+i)} ctx={ctx}/>
         ))}
       </g>
     );
@@ -203,11 +209,11 @@ export function BW_2F_Sketch(ctx: SketchCtx) {
         스마트오피스 (서편) — 90평 / 52석
       </text>
 
-      {/* 4개 클러스터 — cy를 등간격으로 배치 */}
-      {clusterAt(18,  76,  0)}
-      {clusterAt(18, 195, 13)}
-      {clusterAt(18, 314, 26)}
-      {clusterAt(18, 433, 39)}
+      {/* 4개 클러스터 — 등간격 배치 (간격 ≈ 도면 1,000mm 통로 반영) */}
+      {clusterAt(18,  68,  0)}
+      {clusterAt(18, 192, 13)}
+      {clusterAt(18, 316, 26)}
+      {clusterAt(18, 440, 39)}
 
       {/* ── 미팅룸 4개 (x=358, w=112) ── */}
       {/* 미팅룸 A: 13.5㎡/4.1평 */}
