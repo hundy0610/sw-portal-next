@@ -1124,18 +1124,24 @@ const ENTRY_TYPE_COLORS: Record<HistoryEntryType,string> = {
 
 function SeatDetailModal({
   seat, zone, floor, building, seatState,
-  onClose, onUpdateType, onToggleRepair, onAddHistory, onDeleteHistory,
+  onClose, onUpdateType, onToggleRepair, onAddHistory, onDeleteHistory, onSubmitRequest,
 }: {
   seat: SeatDef; zone: ZoneDef; floor: FloorDef; building: BuildingDef;
   seatState: SeatState; onClose: () => void;
   onUpdateType: (t: MonitorType) => void; onToggleRepair: () => void;
   onAddHistory: (e: Omit<HistoryEntry,"id">) => void;
   onDeleteHistory: (id: string) => void;
+  onSubmitRequest: (type: "repair" | "replace", note: string) => Promise<void>;
 }) {
   const [newContent, setNewContent] = useState("");
   const [newAuthor, setNewAuthor] = useState("");
   const [newType, setNewType] = useState<HistoryEntryType>("note");
   const [deleteConfirm, setDeleteConfirm] = useState<string|null>(null);
+  // 교체·수리 요청 폼 상태
+  const [reqType, setReqType] = useState<"repair"|"replace">("repair");
+  const [reqNote, setReqNote] = useState("");
+  const [reqSubmitting, setReqSubmitting] = useState(false);
+  const [reqDone, setReqDone] = useState(false);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key==="Escape") onClose(); };
@@ -1204,21 +1210,65 @@ function SeatDetailModal({
             </div>
           </div>
 
-          {/* Repair Toggle */}
-          <div className={`px-6 py-3 border-b border-gray-100 flex items-center gap-3 transition-colors ${seatState.isRepairing?"bg-red-50":""}`}>
-            <div className="flex-1">
-              <div className="text-sm font-semibold text-gray-700">수리 요청 (긴급)</div>
-              <div className="text-xs text-gray-400">
-                {seatState.isRepairing && seatState.repairStartedAt
-                  ? `요청: ${new Date(seatState.repairStartedAt).toLocaleDateString("ko-KR",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}`
-                  : "활성화 시 맵에서 붉은색 경고 표시"}
+          {/* 교체·수리 요청 제출 폼 */}
+          <div className="px-6 py-4 border-b border-gray-100">
+            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">교체 · 수리 요청</div>
+            {reqDone ? (
+              <div className="flex items-center gap-2 py-2 px-3 bg-emerald-50 rounded-xl border border-emerald-200 text-sm text-emerald-700 font-medium">
+                ✓ 요청이 접수되었습니다. 총무 관리자에게 알림이 전송됩니다.
               </div>
-            </div>
-            <button onClick={onToggleRepair}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${seatState.isRepairing?"bg-red-500":"bg-gray-200"}`}>
-              <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${seatState.isRepairing?"translate-x-6":"translate-x-1"}`}/>
-            </button>
-            {seatState.isRepairing && <span className="text-xs text-red-600 font-semibold animate-pulse">● 수리 중</span>}
+            ) : (
+              <>
+                {/* 수리 중 상태 표시 */}
+                {seatState.isRepairing && (
+                  <div className="mb-3 flex items-center gap-2 text-xs text-red-600 font-semibold bg-red-50 px-3 py-2 rounded-lg border border-red-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse inline-block"/>
+                    수리 진행 중
+                    {seatState.repairStartedAt && (
+                      <span className="font-normal text-red-400 ml-1">
+                        ({new Date(seatState.repairStartedAt).toLocaleDateString("ko-KR",{month:"2-digit",day:"2-digit"})})
+                      </span>
+                    )}
+                    <button onClick={onToggleRepair} className="ml-auto text-red-400 hover:text-red-600 text-[10px] underline">해제</button>
+                  </div>
+                )}
+                {/* 요청 유형 선택 */}
+                <div className="flex gap-2 mb-3">
+                  {(["repair","replace"] as const).map(t => (
+                    <button key={t} onClick={() => setReqType(t)}
+                      className={`flex-1 py-2 rounded-xl border-2 text-xs font-semibold transition-all ${
+                        reqType===t
+                          ? t==="repair" ? "border-red-500 bg-red-50 text-red-700" : "border-amber-500 bg-amber-50 text-amber-700"
+                          : "border-gray-200 text-gray-400 hover:border-gray-300"
+                      }`}>
+                      {t==="repair" ? "🔧 수리 요청" : "🔄 교체 요청"}
+                    </button>
+                  ))}
+                </div>
+                {/* 비고 입력 */}
+                <textarea rows={2} placeholder="증상 또는 교체 사유 (선택)"
+                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-red-300 mb-2"
+                  value={reqNote} onChange={e => setReqNote(e.target.value)} />
+                <button
+                  disabled={reqSubmitting}
+                  onClick={async () => {
+                    setReqSubmitting(true);
+                    try {
+                      await onSubmitRequest(reqType, reqNote.trim());
+                      setReqDone(true);
+                      setReqNote("");
+                      // 로컬 수리 상태도 반영
+                      if (reqType === "repair" && !seatState.isRepairing) onToggleRepair();
+                    } finally {
+                      setReqSubmitting(false);
+                    }
+                  }}
+                  className="w-full py-2 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-50 transition-colors"
+                >
+                  {reqSubmitting ? "접수 중..." : "요청 접수"}
+                </button>
+              </>
+            )}
           </div>
 
           {/* Add History */}
@@ -1800,6 +1850,29 @@ export default function AssetMapPanel() {
     addToast("이력 삭제 완료", "info");
   }, [addToast]);
 
+  // 교체·수리 요청 API 제출
+  const submitMonitorRequest = useCallback(async (
+    seat: SeatDef, zone: ZoneDef, floor: FloorDef, building: BuildingDef,
+    type: "repair" | "replace", note: string
+  ) => {
+    const body = {
+      seatId:   seat.id,
+      building: building.id,
+      floor:    floor.id,
+      zone:     zone.id,
+      type,
+      note,
+    };
+    const res = await fetch("/api/monitor-requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || "요청 실패");
+    addToast(`${seat.id} ${type === "repair" ? "수리" : "교체"} 요청 접수 완료`);
+  }, [addToast]);
+
   // Navigation
   const building = useMemo(() => BUILDINGS.find(b => b.id === buildingId)!, [buildingId]);
   const floor = useMemo(
@@ -2109,6 +2182,9 @@ export default function AssetMapPanel() {
           onToggleRepair={() => toggleRepair(selected.seat.id, selected.seat.monitor)}
           onAddHistory={e => addHistory(selected.seat.id, selected.seat.monitor, e)}
           onDeleteHistory={id => deleteHistory(selected.seat.id, id)}
+          onSubmitRequest={(type, note) =>
+            submitMonitorRequest(selected.seat, selected.zone, floor, building, type, note)
+          }
         />
       )}
 
