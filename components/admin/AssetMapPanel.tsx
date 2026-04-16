@@ -1768,19 +1768,19 @@ export default function AssetMapPanel() {
     ensureSeatInLayout(seat);
   }, [ensureSeatInLayout]);
 
-  // 새 아이콘 추가
+  // 새 아이콘 추가 — floor.id 대신 floorId 상태값 사용 (floor보다 먼저 선언되므로 TDZ 방지)
   const handleAddSeat = useCallback((x: number, y: number) => {
-    const id = `USR-${floor.id}-${Date.now()}`;
+    const id = `USR-${floorId}-${Date.now()}`;
     setLayout(prev => {
       const next: LayoutStore = {
         ...prev,
-        extra: [...prev.extra, { id, floorId: floor.id, x, y, rot: 0, type: "standard" }],
+        extra: [...prev.extra, { id, floorId, x, y, rot: 0, type: "standard" }],
       };
       persistLayout(next);
       return next;
     });
     addToast("모니터 아이콘 추가됨", "info");
-  }, [floor.id, addToast]);
+  }, [floorId, addToast]);
 
   // 아이콘 삭제
   const handleDeleteSeat = useCallback((seatId: string) => {
