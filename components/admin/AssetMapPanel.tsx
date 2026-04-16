@@ -4,14 +4,14 @@ import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 // =============================================================================
 // TYPES
 // =============================================================================
-export type MonitorType = "large" | "standard" | "empty";
-export type HistoryEntryType = "install" | "repair" | "replace" | "note";
+type MonitorType = "large" | "standard" | "empty";
+type HistoryEntryType = "install" | "repair" | "replace" | "note";
 
-export interface HistoryEntry {
+interface HistoryEntry {
   id: string; date: string;
   entryType: HistoryEntryType; content: string; author: string;
 }
-export interface SeatState {
+interface SeatState {
   seatId: string; monitorType: MonitorType;
   isRepairing: boolean; repairStartedAt?: string;
   history: HistoryEntry[];
