@@ -18,16 +18,32 @@ export interface SeatState {
 }
 
 interface SeatDef { id: string; monitor: MonitorType; x: number; y: number; }
+// 책상 클러스터 — 도면의 실제 데스크 묶음 (대개 back-to-back 2열)
+interface DeskCluster {
+  id: string;
+  x: number; y: number; w: number; h: number;
+  rows: number; cols: number;            // 기본 격자 크기 (행 × 최대 열)
+  rowCols?: number[];                    // 행별 열 수 재정의 — 비대칭 back-to-back용 (예: [5,4]=9석)
+  emptyIdx?: number[];                   // 미설치(X) 좌석 인덱스 (0-base, 행 우선 순번)
+  largeIdx?: number[];                   // 대형(34") 좌석 인덱스 (0-base)
+}
 interface ZoneDef {
   id: string; label: string; dir: "west" | "east" | "single";
   x1: number; y1: number; x2: number; y2: number;
   seats: SeatDef[]; rows: number; cols: number;
   dx: number; dy: number; padX: number; padY: number;
+  desks?: DeskCluster[];                 // 있으면 책상 사각형도 렌더
 }
 interface ElevatorDef { id: string; x: number; y: number; label: string; }
+interface RoomElement {
+  id: string; x: number; y: number; w: number; h: number;
+  kind: "meeting"|"lounge"|"showroom"|"conference"|"storage";
+  label: string; sublabel?: string;
+}
 interface FloorDef {
   id: string; label: string; imageSrc: string;
   zones: ZoneDef[]; elevators: ElevatorDef[]; noImage?: boolean;
+  rooms?: RoomElement[];
 }
 interface BuildingDef { id: string; label: string; floors: FloorDef[]; }
 
@@ -51,7 +67,7 @@ function ToastContainer({ toasts }: { toasts: Toast[] }) {
 }
 
 // =============================================================================
-// LOCAL STORAGE
+// LOCAL STORAGE — 모니터 상태 (타입·수리 이력)
 // =============================================================================
 const STORAGE_KEY = "sw-portal-monitor-v2";
 function loadAllStates(): Record<string, SeatState> {
@@ -62,6 +78,33 @@ function loadAllStates(): Record<string, SeatState> {
 function persistStates(s: Record<string, SeatState>) {
   if (typeof window === "undefined") return;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+}
+
+// =============================================================================
+// LAYOUT STORAGE — 아이콘 위치·회전·추가 좌석 (관리자 직접 배치)
+// =============================================================================
+const LAYOUT_KEY = "sw-portal-layout-v1";
+
+interface SeatLayout { x: number; y: number; rot: number; }   // 드래그 오버라이드
+interface ExtraSeat {                                           // 관리자가 추가한 좌석
+  id: string; floorId: string;
+  x: number; y: number; rot: number; type: MonitorType;
+}
+interface LayoutStore {
+  pos: Record<string, SeatLayout>;  // seatId → 변경된 위치·회전
+  extra: ExtraSeat[];               // 추가 생성된 아이콘
+}
+
+function loadLayout(): LayoutStore {
+  if (typeof window === "undefined") return { pos: {}, extra: [] };
+  try {
+    const r = localStorage.getItem(LAYOUT_KEY);
+    return r ? JSON.parse(r) : { pos: {}, extra: [] };
+  } catch { return { pos: {}, extra: [] }; }
+}
+function persistLayout(l: LayoutStore) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(LAYOUT_KEY, JSON.stringify(l));
 }
 
 // =============================================================================
@@ -97,6 +140,64 @@ function mkZone(
   return { id, label, dir, ...bounds, seats, rows, cols, dx, dy, padX, padY };
 }
 
+// Creates a zone where ALL seats are empty (no monitor installed) — e.g. 나보타개발팀
+function mkZoneAllEmpty(
+  id: string, label: string, dir: ZoneDef["dir"],
+  bounds: { x1: number; y1: number; x2: number; y2: number },
+  total: number, pfx: string
+): ZoneDef {
+  const { seats, rows, cols, dx, dy, padX, padY } = mkSeatsWithGrid(bounds, total, pfx, 0);
+  const emptySeats = seats.map(s => ({ ...s, monitor: "empty" as MonitorType }));
+  return { id, label, dir, ...bounds, seats: emptySeats, rows, cols, dx, dy, padX, padY };
+}
+
+// 클러스터(책상 묶음) 기반 존 생성 — 도면 그대로의 데스크 배치 재현용
+// rowCols 지원: 행마다 열 수가 다른 비대칭 back-to-back 클러스터 (예: [5,4]=9석)
+function mkZoneFromClusters(
+  id: string, label: string, dir: ZoneDef["dir"], pfx: string,
+  clusters: DeskCluster[]
+): ZoneDef {
+  const seats: SeatDef[] = [];
+  let n = 0;
+  for (const c of clusters) {
+    const innerPadX = 8, innerPadY = 9;
+    const cw = c.w - innerPadX * 2;
+    const ch = c.h - innerPadY * 2;
+    const dyC = c.rows > 1 ? ch / (c.rows - 1) : 0;
+    let seatIdx = 0;
+    for (let r = 0; r < c.rows; r++) {
+      // rowCols가 지정된 경우 해당 행의 열 수 사용, 아니면 c.cols
+      const rCols = c.rowCols ? (c.rowCols[r] ?? c.cols) : c.cols;
+      const dxC = rCols > 1 ? cw / (rCols - 1) : 0;
+      for (let col = 0; col < rCols; col++) {
+        const isEmpty = c.emptyIdx?.includes(seatIdx);
+        const isLarge = c.largeIdx?.includes(seatIdx);
+        n++;
+        seats.push({
+          id: `${pfx}${String(n).padStart(2, "0")}`,
+          monitor: isEmpty ? "empty" : isLarge ? "large" : "standard",
+          x: c.x + innerPadX + col * dxC,
+          y: c.y + innerPadY + r * dyC,
+        });
+        seatIdx++;
+      }
+    }
+  }
+  // bounds = clusters를 모두 감싸는 사각형 (마스크/줌용)
+  const x1 = Math.min(...clusters.map(c => c.x));
+  const y1 = Math.min(...clusters.map(c => c.y));
+  const x2 = Math.max(...clusters.map(c => c.x + c.w));
+  const y2 = Math.max(...clusters.map(c => c.y + c.h));
+  const rows = Math.max(...clusters.map(c => c.rows));
+  const cols = Math.max(...clusters.map(c => c.cols));
+  return {
+    id, label, dir, x1, y1, x2, y2,
+    seats, rows, cols,
+    dx: 0, dy: 0, padX: 0, padY: 0,
+    desks: clusters,
+  };
+}
+
 // =============================================================================
 // COORDINATE DATA  (960×600 SVG canvas)
 // =============================================================================
@@ -129,36 +230,142 @@ const BUILDINGS: BuildingDef[] = [
   {
     id: "bw", label: "본관",
     floors: [
+      // ─── 본관 2층 ─────────────────────────────────────────────────────────
+      // 서편 90평: 도면 기준 6개 클러스터 구조 (상단→하단)
+      //   C1: 1행 × 5열 = 5석  (단열, 상단 벽 근처)
+      //   C2: 2행 × 5열 = 10석 (back-to-back)
+      //   C3: 2행, [5,4]열 = 9석 (back-to-back 비대칭, X 마크 포함)
+      //   C4: 2행 × 5열 = 10석
+      //   C5: 2행, [5,4]열 = 9석 (back-to-back 비대칭)
+      //   C6: 2행 × 5열 = 10석
+      // 합계: 5+10+9+10+9+10 = 53석 (X 마크 1석 = 미설치 포함)
       { id:"bw2", label:"2층", imageSrc:"/floor-plans/bongwan-2f.jpg",
-        zones:[mkZone("bw2-w","스마트오피스 (서편)","west",{x1:110,y1:128,x2:448,y2:512},52,"BW2-",20)],
-        elevators:[{id:"ev",x:558,y:328,label:"서/동편 E/V"}] },
+        zones:[mkZoneFromClusters("bw2-w","스마트오피스 (서편)","west","BW2-",[
+          // C1: 1행 × 5열 = 5석 (상단 단열 — 벽 쪽)
+          { id:"c1", x:118, y:136, w:205, h:28,
+            rows:1, cols:5 },
+          // C2: 2행 × 5열 = 10석 (back-to-back)
+          { id:"c2", x:118, y:174, w:205, h:54,
+            rows:2, cols:5 },
+          // C3: 비대칭 9석 — 앞열 5석 + 뒷열 4석 (뒷열 맨왼쪽 = X 마크 미설치)
+          { id:"c3", x:118, y:240, w:205, h:54,
+            rows:2, cols:5, rowCols:[5,4], emptyIdx:[5] },
+          // C4: 2행 × 5열 = 10석
+          { id:"c4", x:118, y:306, w:205, h:54,
+            rows:2, cols:5 },
+          // C5: 비대칭 9석 — 앞열 5석 + 뒷열 4석
+          { id:"c5", x:118, y:372, w:205, h:54,
+            rows:2, cols:5, rowCols:[5,4] },
+          // C6: 2행 × 5열 = 10석 (하단)
+          { id:"c6", x:118, y:438, w:205, h:54,
+            rows:2, cols:5 },
+        ])],
+        elevators:[{id:"ev",x:488,y:302,label:"E/V"}],
+        rooms:[
+          {id:"r1",x:352,y:130,w:96,h: 97,kind:"meeting",   label:"미팅룸 A",sublabel:"13.5㎡/4.1평"},
+          {id:"r2",x:352,y:227,w:96,h:133,kind:"lounge",    label:"미팅룸 B",sublabel:"21.1㎡/6.4평"},
+          {id:"r3",x:352,y:360,w:96,h: 93,kind:"meeting",   label:"미팅룸 C",sublabel:"18.8㎡/5.7평"},
+          {id:"r4",x:352,y:453,w:96,h: 60,kind:"showroom",  label:"쇼룸",    sublabel:"15.2㎡/4.6평"},
+        ]},
+
+      // ─── 본관 3층 ─────────────────────────────────────────────────────────
+      // 서편: 대웅바이오 44석, 동편: 대웅바이오 71석
+      // 서편 하단 미팅룸 2개 (y:438~568 구간) → 좌석 존 y2=432로 축소
       { id:"bw3", label:"3층", imageSrc:"/floor-plans/bongwan-3f.jpg",
-        zones:[mkZone("bw3-w","스마트오피스 (서편)","west",BW_W,54,"BW3W-",22),
+        zones:[mkZone("bw3-w","스마트오피스 (서편)","west",
+          { x1:52, y1:152, x2:338, y2:432 }, 44, "BW3W-", 20),
                mkZone("bw3-e","스마트오피스 (동편)","east",BW_E,71,"BW3E-",32)],
-        elevators:BW_EV },
+        elevators:BW_EV,
+        rooms:[
+          {id:"w-r1",x: 52,y:436,w: 86,h: 66,kind:"meeting",label:"미팅룸", sublabel:"18.5㎡/5.6평"},
+          {id:"w-r2",x: 52,y:502,w: 86,h: 66,kind:"meeting",label:"미팅룸", sublabel:"16.1㎡/4.9평"},
+        ]},
+
+      // ─── 본관 4층 ─────────────────────────────────────────────────────────
+      // 서편: 스마트오피스 74석 + 포커스룸5개(6석), 동편: 49석 + 포커스룸5개(5석)
+      // 서편 상단 미팅룸(3.4평) + 하단 회의실×2·라운지 → 좌석 존 y1=200, y2=408
       { id:"bw4", label:"4층", imageSrc:"/floor-plans/bongwan-4f.jpg",
-        zones:[mkZone("bw4-w","스마트오피스 (서편)","west",BW_W,74,"BW4W-",36),
+        zones:[mkZone("bw4-w","스마트오피스 (서편)","west",
+          { x1:52, y1:200, x2:338, y2:408 }, 74, "BW4W-", 36),
                mkZone("bw4-e","스마트오피스 (동편)","east",BW_E,49,"BW4E-",22)],
-        elevators:BW_EV },
+        elevators:BW_EV,
+        rooms:[
+          {id:"w-t1",x: 52,y:152,w: 88,h: 46,kind:"meeting",   label:"미팅룸",sublabel:"11.2㎡/3.4평"},
+          {id:"w-b1",x: 52,y:410,w: 86,h: 56,kind:"conference",label:"회의실",sublabel:"18.4㎡/5.6평"},
+          {id:"w-b2",x:138,y:410,w: 86,h: 56,kind:"conference",label:"회의실",sublabel:"18.4㎡/5.6평"},
+          {id:"w-b3",x:224,y:410,w:114,h: 56,kind:"lounge",    label:"라운지",sublabel:"35.3㎡/10.7평"},
+        ]},
+
+      // ─── 본관 5층 ─────────────────────────────────────────────────────────
+      // 서편: 74석 + 포커스룸5개(6석), 동편: 49석 + 포커스룸5개(5석)
+      // 층 중앙(엘리베이터 동서 경계) 하단에 소형 미팅룸 2개
       { id:"bw5", label:"5층", imageSrc:"/floor-plans/bongwan-5f.jpg",
         zones:[mkZone("bw5-w","스마트오피스 (서편)","west",BW_W,74,"BW5W-",36),
                mkZone("bw5-e","스마트오피스 (동편)","east",BW_E,49,"BW5E-",22)],
-        elevators:BW_EV },
+        elevators:BW_EV,
+        rooms:[
+          {id:"c-r1",x:352,y:384,w: 88,h: 56,kind:"meeting",label:"미팅룸",sublabel:"6.6㎡/2평"},
+          {id:"c-r2",x:352,y:440,w: 88,h: 56,kind:"meeting",label:"미팅룸",sublabel:"6.6㎡/2평"},
+        ]},
+
+      // ─── 본관 6층 ─────────────────────────────────────────────────────────
+      // 서편: 67석 + 포커스룸3개(3석), 동편: 65석 + 포커스룸5개(7석)
+      // 서편 좌상단: 라운지(14.2평) + 회의실(5.0평)
       { id:"bw6", label:"6층", imageSrc:"/floor-plans/bongwan-6f.jpg",
-        zones:[mkZone("bw6-w","스마트오피스 (서편)","west",BW_W,67,"BW6W-",30),
+        zones:[mkZone("bw6-w","스마트오피스 (서편)","west",
+          { x1:52, y1:245, x2:338, y2:568 }, 67, "BW6W-", 30),
                mkZone("bw6-e","스마트오피스 (동편)","east",BW_E,65,"BW6E-",30)],
-        elevators:BW_EV },
-      { id:"bw7", label:"7층", imageSrc:"/floor-plans/bongwan-6f.jpg", noImage:true,
-        zones:[mkZone("bw7-w","스마트오피스 (서편)","west",{x1:52,y1:152,x2:240,y2:568},19,"BW7W-",8),
-               mkZone("bw7-e","스마트오피스 (동편)","east",BW_E,57,"BW7E-",26)],
-        elevators:BW_EV },
+        elevators:BW_EV,
+        rooms:[
+          {id:"w-t1",x: 52,y:152,w:168,h: 90,kind:"lounge",   label:"라운지",  sublabel:"13.5㎡/14.2평"},
+          {id:"w-t2",x:220,y:152,w:118,h: 90,kind:"conference",label:"회의실",  sublabel:"13.5㎡/5.0평"},
+        ]},
+
+      // ─── 본관 7층 ─────────────────────────────────────────────────────────
+      // 서편: 스마트오피스 19석 (하단) + 나보타개발팀 28석 (중단, 전석 미설치)
+      // 동편: 스마트오피스 57석 + 포커스룸4개(5석)
+      { id:"bw7", label:"7층", imageSrc:"/floor-plans/bongwan-7f.jpg",
+        zones:[
+          mkZone("bw7-w","스마트오피스 (서편)","west",
+            { x1:52, y1:390, x2:290, y2:568 }, 19, "BW7W-", 0),
+          mkZoneAllEmpty("bw7-nb","나보타개발팀","single",
+            { x1:52, y1:210, x2:290, y2:385 }, 28, "BW7N-"),
+          mkZone("bw7-e","스마트오피스 (동편)","east",BW_E,57,"BW7E-",26)],
+        elevators:BW_EV,
+        rooms:[
+          {id:"w-t1",x: 52,y:152,w:176,h: 56,kind:"meeting",   label:"미팅룸",sublabel:"13.5㎡/4.1평"},
+          {id:"w-t2",x:228,y:152,w:110,h: 56,kind:"conference",label:"회의실",sublabel:"13.5㎡/5.1평"},
+          {id:"e-t1",x:528,y:152,w:176,h: 56,kind:"meeting",   label:"미팅룸",sublabel:"13.5㎡/3.7평"},
+          {id:"e-t2",x:704,y:152,w:193,h: 56,kind:"lounge",    label:"라운지", sublabel:"13.5㎡/14.1평"},
+        ]},
+
+      // ─── 본관 8층 ─────────────────────────────────────────────────────────
+      // 서편: 스마트오피스 28석 (중앙 상단), 동편: 컨퍼런스/멀티룸 (업무 좌석 없음)
       { id:"bw8", label:"8층", imageSrc:"/floor-plans/bongwan-8f.jpg",
-        zones:[mkZone("bw8-w","스마트오피스 (서편)","west",BW_W,28,"BW8W-",12)],
-        elevators:BW_EV },
+        zones:[mkZone("bw8-w","스마트오피스 (서편)","west",
+          { x1:158, y1:152, x2:338, y2:295 }, 28, "BW8W-", 12)],
+        elevators:BW_EV,
+        rooms:[
+          {id:"w-m1",x: 52,y:152,w:104,h: 56,kind:"meeting",   label:"미팅룸",sublabel:"13.5㎡/7.6평"},
+          {id:"w-m2",x: 52,y:152+56+4,w:104,h:56,kind:"meeting",label:"미팅룸-1",sublabel:"13.5㎡/4.1평"},
+          {id:"w-m3",x: 52,y:152+56*2+8,w:104,h:56,kind:"meeting",label:"미팅룸-2",sublabel:"13.5㎡/4.1평"},
+          {id:"e-c1",x:528,y:152,w:369,h:130,kind:"conference",label:"Conference-1",sublabel:"13.5㎡/17.9평"},
+          {id:"e-lg",x:528,y:282,w:246,h:130,kind:"lounge",    label:"라운지",    sublabel:"66.3㎡/20평"},
+          {id:"e-mt",x:774,y:282,w:123,h:130,kind:"conference",label:"멀티룸",    sublabel:"13.5㎡/13.8평"},
+          {id:"e-c2",x:528,y:412,w:369,h:130,kind:"conference",label:"Conference-2",sublabel:"13.5㎡/19.5평"},
+        ]},
+
+      // ─── 본관 9층 ─────────────────────────────────────────────────────────
+      // 서편: 35석 + 포커스룸1개(2석) = 37석, 동편: 80석+스탠딩5석+포커스룸2개(3석) = 85석
       { id:"bw9", label:"9층", imageSrc:"/floor-plans/bongwan-9f.jpg",
         zones:[mkZone("bw9-w","스마트오피스 (서편)","west",BW_W,37,"BW9W-",18),
                mkZone("bw9-e","스마트오피스 (동편)","east",BW_E,85,"BW9E-",40)],
-        elevators:BW_EV },
+        elevators:BW_EV,
+        rooms:[
+          {id:"w-l1",x: 52,y:152,w:220,h: 90,kind:"lounge",label:"라운지",sublabel:"13.5㎡/13.8평"},
+          {id:"e-m1",x:528,y:152,w: 92,h: 56,kind:"meeting",label:"미팅룸",sublabel:"13.5㎡/2.4평"},
+          {id:"e-m2",x:620,y:152,w: 92,h: 56,kind:"meeting",label:"미팅룸",sublabel:"13.5㎡/2.2평"},
+        ]},
     ],
   },
   {
@@ -217,21 +424,36 @@ function getSeatGridPos(seat: SeatDef, zone: ZoneDef) {
 // MONITOR ICON (SVG, used in floor overview map)
 // =============================================================================
 function MonitorIcon({
-  x, y, type, selected, faded, isRepairing, showLabel, seatId, onClick,
+  x, y, type, selected, faded, isRepairing, showLabel, seatId,
+  rotation, editMode, onClick, onDragStart,
 }: {
   x: number; y: number; type: MonitorType;
   selected: boolean; faded: boolean; isRepairing: boolean;
-  showLabel: boolean; seatId: string; onClick: () => void;
+  showLabel: boolean; seatId: string;
+  rotation?: number;
+  editMode?: boolean;
+  onClick: () => void;
+  onDragStart?: (e: React.MouseEvent) => void;
 }) {
   const isLarge = type === "large";
   const isEmpty = type === "empty";
   const sw = isLarge ? 18 : 13;
   const sh = 11; const standH = 4; const baseW = isLarge ? 10 : 8;
   const numPart = seatId.split("-").pop() ?? seatId;
+  const rot = rotation ?? 0;
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (editMode && onDragStart) {
+      e.stopPropagation();
+      onDragStart(e);
+    }
+  };
 
   if (isEmpty) {
     return (
-      <g transform={`translate(${x},${y})`} style={{ cursor: "pointer" }} onClick={onClick}>
+      <g transform={`translate(${x},${y}) rotate(${rot})`}
+        style={{ cursor: editMode ? "grab" : "pointer" }}
+        onClick={onClick} onMouseDown={handleMouseDown}>
         <rect x={-sw/2} y={-sh/2-standH} width={sw} height={sh} rx={1.5}
           fill="none" stroke="rgba(239,68,68,0.65)" strokeWidth={1.2} strokeDasharray="3 2"/>
         <line x1={-sw/2+2} y1={-sh/2-standH+2} x2={sw/2-2} y2={-sh/2-standH+sh-2}
@@ -243,6 +465,10 @@ function MonitorIcon({
         <line x1={-baseW/2} y1={sh/2} x2={baseW/2} y2={sh/2}
           stroke="rgba(239,68,68,0.5)" strokeWidth={1.5} strokeLinecap="round"/>
         {selected && <circle cx={0} cy={0} r={sw/2+4} fill="none" stroke="#F59E0B" strokeWidth={2} strokeDasharray="3 2" opacity={0.8}/>}
+        {editMode && selected && (
+          <rect x={-sw/2-3} y={-sh/2-standH-3} width={sw+6} height={sh+standH+6} rx={3}
+            fill="none" stroke="#F59E0B" strokeWidth={1.5} strokeDasharray="4 2"/>
+        )}
         {showLabel && (
           <text x={0} y={sh/2+standH+6} textAnchor="middle" fontSize={5}
             fill="rgba(255,150,150,0.9)" style={{ pointerEvents:"none" }}>{numPart}</text>
@@ -257,9 +483,11 @@ function MonitorIcon({
   const opacity = faded ? 0.15 : 1;
 
   return (
-    <g transform={`translate(${x},${y})`} opacity={opacity}
-      style={{ cursor: faded ? "default" : "pointer", pointerEvents: faded ? "none" : "all" }}
-      onClick={!faded ? onClick : undefined}>
+    <g transform={`translate(${x},${y}) rotate(${rot})`} opacity={opacity}
+      style={{ cursor: editMode ? "grab" : faded ? "default" : "pointer",
+               pointerEvents: faded ? "none" : "all" }}
+      onClick={!faded ? onClick : undefined}
+      onMouseDown={!faded ? handleMouseDown : undefined}>
       {isRepairing && !faded && (
         <>
           <circle cx={0} cy={0} r={sw/2+6} fill="none" stroke="rgba(239,68,68,0.5)" strokeWidth={2}
@@ -267,12 +495,16 @@ function MonitorIcon({
           <circle cx={0} cy={0} r={sw/2+4} fill="none" stroke="rgba(239,68,68,0.85)" strokeWidth={1.8}/>
         </>
       )}
+      {editMode && selected && (
+        <rect x={-sw/2-3} y={-sh/2-standH-3} width={sw+6} height={sh+standH+6} rx={3}
+          fill="none" stroke="#F59E0B" strokeWidth={1.5} strokeDasharray="4 2"/>
+      )}
       <rect x={-sw/2} y={-sh/2-standH} width={sw} height={sh} rx={1.5}
         fill={screenColor} stroke={borderColor} strokeWidth={isRepairing||selected ? 1.8 : 1}/>
       {!faded && <rect x={-sw/2+1.5} y={-sh/2-standH+1.5} width={sw*0.35} height={1.8} rx={0.8} fill="rgba(255,255,255,0.5)"/>}
       <line x1={0} y1={sh/2-standH} x2={0} y2={sh/2} stroke={borderColor} strokeWidth={1.2}/>
       <line x1={-baseW/2} y1={sh/2} x2={baseW/2} y2={sh/2} stroke={borderColor} strokeWidth={1.5} strokeLinecap="round"/>
-      {selected && !isRepairing && (
+      {selected && !isRepairing && !editMode && (
         <circle cx={0} cy={0} r={sw/2+4} fill="none" stroke="#F59E0B" strokeWidth={2} strokeDasharray="3 2" opacity={0.8}/>
       )}
       {isRepairing && !faded && (
@@ -342,19 +574,68 @@ function computeZoneViewBox(z: ZoneDef) {
 
 function FloorMap({
   floor, selectedSeatId, filterMode, searchQuery, seatStates,
-  focusZoneId, onSelect, onOpenZoneDetail,
+  focusZoneId, editMode, layout, onSelect, onOpenZoneDetail,
+  onLayoutChange, onAddSeat, onDeleteSeat,
 }: {
   floor: FloorDef; selectedSeatId: string | null;
   filterMode: "all"|"large"|"standard"|"empty"|"repair";
   searchQuery: string; seatStates: Record<string,SeatState>;
   focusZoneId: string | null;
-  onSelect: (seat: SeatDef, zone: ZoneDef) => void;
+  editMode: boolean;
+  layout: LayoutStore;
+  onSelect: (seat: SeatDef, zone: ZoneDef | null) => void;
   onOpenZoneDetail: (zoneId: string) => void;
+  onLayoutChange: (seatId: string, dx: number, dy: number, rot?: number) => void;
+  onAddSeat: (x: number, y: number) => void;
+  onDeleteSeat: (seatId: string) => void;
 }) {
   const maskId = `mask-${floor.id}`;
+  const svgRef = useRef<SVGSVGElement>(null);
   const [vb, setVb] = useState(FULL_VB);
   const isZoomed = vb.w < 900;
   const zoomFactor = Math.round(960 / vb.w * 10) / 10;
+
+  // 드래그 상태
+  const [drag, setDrag] = useState<{
+    seatId: string; startSvgX: number; startSvgY: number;
+    origX: number; origY: number;
+  } | null>(null);
+
+  // 화면 좌표 → SVG viewBox 좌표 변환
+  const toSVGCoord = useCallback((clientX: number, clientY: number) => {
+    const svg = svgRef.current;
+    if (!svg) return { x: 0, y: 0 };
+    const pt = svg.createSVGPoint();
+    pt.x = clientX; pt.y = clientY;
+    const inv = svg.getScreenCTM()?.inverse();
+    if (!inv) return { x: 0, y: 0 };
+    const p = pt.matrixTransform(inv);
+    return { x: p.x, y: p.y };
+  }, []);
+
+  // 드래그 mousemove / mouseup
+  useEffect(() => {
+    if (!drag) return;
+    const onMove = (e: MouseEvent) => {
+      const { x, y } = toSVGCoord(e.clientX, e.clientY);
+      onLayoutChange(drag.seatId, x - drag.startSvgX, y - drag.startSvgY);
+    };
+    const onUp = () => setDrag(null);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [drag, toSVGCoord, onLayoutChange]);
+
+  // 드래그 시작 핸들러
+  const startDrag = useCallback((seatId: string, origX: number, origY: number,
+      e: React.MouseEvent) => {
+    e.preventDefault();
+    const { x, y } = toSVGCoord(e.clientX, e.clientY);
+    setDrag({ seatId, startSvgX: x, startSvgY: y, origX, origY });
+  }, [toSVGCoord]);
 
   // Auto-zoom when focusZoneId changes
   useEffect(() => {
@@ -374,17 +655,33 @@ function FloorMap({
     return Math.abs(zvb.x-vb.x)<5 && Math.abs(zvb.y-vb.y)<5;
   }) : null;
 
+  const getSeatXY = (seat: SeatDef) => {
+    const ov = layout.pos[seat.id];
+    return ov ? { x: ov.x, y: ov.y } : { x: seat.x, y: seat.y };
+  };
+  const getSeatRot = (seatId: string) => layout.pos[seatId]?.rot ?? 0;
+
   const getEffectiveType = (seat: SeatDef): MonitorType =>
     seatStates[seat.id]?.monitorType ?? seat.monitor;
 
   const isVisible = (seat: SeatDef): boolean => {
+    if (editMode) return true;
     if (searchQuery.trim()) return seat.id.toLowerCase().includes(searchQuery.toLowerCase());
     if (filterMode === "all") return true;
     if (filterMode === "repair") return !!(seatStates[seat.id]?.isRepairing);
     return getEffectiveType(seat) === filterMode;
   };
 
-  const showLabels = isZoomed;
+  const showLabels = isZoomed || editMode;
+
+  // 편집 모드에서 SVG 클릭 → 빈 공간 클릭하면 새 아이콘 추가 (addMode)
+  const handleSvgClick = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (!editMode || drag) return;
+    if ((e.target as SVGElement).tagName !== "svg" &&
+        !(e.target as SVGElement).closest?.("rect[data-floor-bg]")) return;
+  };
+
+  const floorExtraSeats = layout.extra.filter(s => s.floorId === floor.id);
 
   return (
     <div className="relative w-full rounded-xl overflow-hidden border border-gray-200 shadow-inner bg-gray-900"
@@ -404,7 +701,7 @@ function FloorMap({
       )}
 
       {/* Zoom controls overlay */}
-      {isZoomed && (
+      {isZoomed && !editMode && (
         <div className="absolute top-2 left-2 z-20 flex items-center gap-1.5">
           <button onClick={() => setVb(FULL_VB)}
             className="flex items-center gap-1 bg-slate-900/90 hover:bg-slate-700 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-white/20 shadow transition-colors">
@@ -421,9 +718,11 @@ function FloorMap({
         </div>
       )}
 
-      <svg className="absolute inset-0 w-full h-full"
+      <svg ref={svgRef} className="absolute inset-0 w-full h-full"
         viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
-        preserveAspectRatio="xMidYMid meet">
+        preserveAspectRatio="xMidYMid meet"
+        style={{ cursor: editMode ? "crosshair" : "default" }}
+        onClick={handleSvgClick}>
         <defs>
           <mask id={maskId}>
             <rect width="960" height="600" fill="white"/>
@@ -444,59 +743,11 @@ function FloorMap({
           const fillColor = isWest ? "rgba(59,130,246,0.04)" : "rgba(139,92,246,0.04)";
           const labelColor = isWest ? "rgba(147,197,253,0.9)" : "rgba(196,181,253,0.9)";
 
-          // Grid overlay (subtle dashed lines)
-          const gridLines: React.ReactNode[] = [];
-          if (z.cols > 1) {
-            for (let c = 0; c < z.cols; c++) {
-              gridLines.push(
-                <line key={`cl-${c}`}
-                  x1={z.x1+z.padX+c*z.dx} y1={z.y1+z.padY-8}
-                  x2={z.x1+z.padX+c*z.dx} y2={z.y2-z.padY+8}
-                  stroke="rgba(255,255,255,0.04)" strokeWidth={0.6} strokeDasharray="4 4"/>
-              );
-            }
-          }
-          if (z.rows > 1) {
-            for (let r = 0; r < z.rows; r++) {
-              gridLines.push(
-                <line key={`rl-${r}`}
-                  x1={z.x1+z.padX-8} y1={z.y1+z.padY+r*z.dy}
-                  x2={z.x2-z.padX+8} y2={z.y1+z.padY+r*z.dy}
-                  stroke="rgba(255,255,255,0.04)" strokeWidth={0.6} strokeDasharray="4 4"/>
-              );
-            }
-          }
-
-          // Column letters (shown when zoomed)
-          const colLabels: React.ReactNode[] = [];
-          if (showLabels) {
-            for (let c = 0; c < z.cols; c++) {
-              colLabels.push(
-                <text key={`cb-${c}`} x={z.x1+z.padX+c*z.dx} y={z.y1+z.padY-10}
-                  textAnchor="middle" fontSize={7} fill={labelColor} fontWeight="600"
-                  style={{ pointerEvents:"none" }}>
-                  {String.fromCharCode(65+c)}
-                </text>
-              );
-            }
-            for (let r = 0; r < z.rows; r++) {
-              colLabels.push(
-                <text key={`rb-${r}`} x={z.x1+7} y={z.y1+z.padY+r*z.dy+2}
-                  textAnchor="middle" fontSize={7} fill={labelColor} fontWeight="600"
-                  style={{ pointerEvents:"none" }}>
-                  {r+1}
-                </text>
-              );
-            }
-          }
-
           return (
             <g key={z.id}>
               <rect x={z.x1} y={z.y1} width={z.x2-z.x1} height={z.y2-z.y1}
                 fill={fillColor} stroke={borderColor} strokeWidth={2} rx={5}
                 style={{ pointerEvents:"none" }}/>
-              {gridLines}
-              {colLabels}
 
               {/* Zone label */}
               <text x={z.x1+8} y={z.y1+16} fontSize={9.5} fill={labelColor} fontWeight={700}
@@ -504,38 +755,29 @@ function FloorMap({
                 {z.label}  ({z.seats.length}석)
               </text>
 
-              {/* "구역 격자 보기" button — always visible at full, changes to zoom when zoomed */}
-              {!isZoomed && (
-                <g style={{ cursor:"pointer" }} onClick={() => onOpenZoneDetail(z.id)}>
-                  <rect x={z.x2-52} y={z.y1+4} width={48} height={14} rx={3}
-                    fill="rgba(15,23,42,0.75)" stroke={borderColor} strokeWidth={0.8}/>
-                  <text x={z.x2-28} y={z.y1+13} textAnchor="middle" fontSize={7}
-                    fill="rgba(255,255,255,0.85)" fontWeight={600}>
-                    📋 격자 보기
-                  </text>
-                </g>
+              {/* 격자/확대 버튼 — 일반 모드만 */}
+              {!editMode && !isZoomed && (
+                <>
+                  <g style={{ cursor:"pointer" }} onClick={() => onOpenZoneDetail(z.id)}>
+                    <rect x={z.x2-52} y={z.y1+4} width={48} height={14} rx={3}
+                      fill="rgba(15,23,42,0.75)" stroke={borderColor} strokeWidth={0.8}/>
+                    <text x={z.x2-28} y={z.y1+13} textAnchor="middle" fontSize={7}
+                      fill="rgba(255,255,255,0.85)" fontWeight={600}>📋 격자 보기</text>
+                  </g>
+                  <g style={{ cursor:"zoom-in" }} onClick={() => setVb(computeZoneViewBox(z))}>
+                    <rect x={z.x2-104} y={z.y1+4} width={48} height={14} rx={3}
+                      fill="rgba(15,23,42,0.75)" stroke={borderColor} strokeWidth={0.8}/>
+                    <text x={z.x2-80} y={z.y1+13} textAnchor="middle" fontSize={7}
+                      fill="rgba(255,255,255,0.85)" fontWeight={600}>🔍 도면 확대</text>
+                  </g>
+                </>
               )}
-              {isZoomed && (
+              {!editMode && isZoomed && (
                 <g style={{ cursor:"pointer" }} onClick={() => onOpenZoneDetail(z.id)}>
                   <rect x={z.x2-52} y={z.y1+4} width={48} height={14} rx={3}
                     fill="rgba(59,130,246,0.85)" stroke="rgba(147,197,253,0.5)" strokeWidth={0.8}/>
                   <text x={z.x2-28} y={z.y1+13} textAnchor="middle" fontSize={7}
-                    fill="white" fontWeight={600}>
-                    📋 격자 보기
-                  </text>
-                </g>
-              )}
-
-              {/* SVG Zoom button */}
-              {!isZoomed && (
-                <g style={{ cursor:"zoom-in" }}
-                  onClick={() => setVb(computeZoneViewBox(z))}>
-                  <rect x={z.x2-104} y={z.y1+4} width={48} height={14} rx={3}
-                    fill="rgba(15,23,42,0.75)" stroke={borderColor} strokeWidth={0.8}/>
-                  <text x={z.x2-80} y={z.y1+13} textAnchor="middle" fontSize={7}
-                    fill="rgba(255,255,255,0.85)" fontWeight={600}>
-                    🔍 도면 확대
-                  </text>
+                    fill="white" fontWeight={600}>📋 격자 보기</text>
                 </g>
               )}
 
@@ -544,25 +786,131 @@ function FloorMap({
           );
         })}
 
+        {/* ── 방(미팅룸·라운지 등) 오버레이 ─────────────────────────────── */}
+        {(floor.rooms ?? []).map(room => {
+          const fillColor =
+            room.kind === "meeting"    ? "rgba(34,197,94,0.18)"
+            : room.kind === "lounge"   ? "rgba(59,130,246,0.16)"
+            : room.kind === "conference" ? "rgba(168,85,247,0.16)"
+            : room.kind === "showroom" ? "rgba(234,179,8,0.16)"
+            : "rgba(148,163,184,0.14)";
+          const borderColor =
+            room.kind === "meeting"    ? "rgba(34,197,94,0.65)"
+            : room.kind === "lounge"   ? "rgba(96,165,250,0.65)"
+            : room.kind === "conference" ? "rgba(192,132,252,0.65)"
+            : room.kind === "showroom" ? "rgba(250,204,21,0.65)"
+            : "rgba(148,163,184,0.55)";
+          const textColor =
+            room.kind === "meeting"    ? "#86efac"
+            : room.kind === "lounge"   ? "#93c5fd"
+            : room.kind === "conference" ? "#d8b4fe"
+            : room.kind === "showroom" ? "#fde68a"
+            : "#94a3b8";
+          const midY = room.y + room.h / 2;
+          return (
+            <g key={room.id} style={{ pointerEvents:"none" }}>
+              <rect x={room.x} y={room.y} width={room.w} height={room.h} rx={4}
+                fill={fillColor} stroke={borderColor} strokeWidth={1.2}/>
+              <text x={room.x + room.w/2} y={room.sublabel ? midY - 5 : midY + 3}
+                textAnchor="middle" fontSize={8} fill={textColor} fontWeight={700}
+                style={{ pointerEvents:"none" }}>{room.label}</text>
+              {room.sublabel && (
+                <text x={room.x + room.w/2} y={midY + 7}
+                  textAnchor="middle" fontSize={6.5} fill={textColor} opacity={0.75}
+                  style={{ pointerEvents:"none" }}>{room.sublabel}</text>
+              )}
+            </g>
+          );
+        })}
+
+        {/* ── 책상 클러스터 테이블 ─────────────────────────────────────── */}
+        {floor.zones.flatMap(zone => (zone.desks ?? []).map(c => {
+          const isWest = zone.dir === "west";
+          const tableFill = isWest ? "rgba(96,165,250,0.10)" : "rgba(167,139,250,0.10)";
+          const tableStroke = isWest ? "rgba(147,197,253,0.55)" : "rgba(196,181,253,0.55)";
+          return (
+            <g key={`desk-${c.id}`} style={{ pointerEvents:"none" }}>
+              <rect x={c.x} y={c.y} width={c.w} height={c.h} rx={3}
+                fill={tableFill} stroke={tableStroke} strokeWidth={1}/>
+              {c.rows >= 2 && (
+                <line x1={c.x+4} y1={c.y+c.h/2} x2={c.x+c.w-4} y2={c.y+c.h/2}
+                  stroke={tableStroke} strokeWidth={0.6} strokeDasharray="3 2" opacity={0.6}/>
+              )}
+            </g>
+          );
+        }))}
+
         {floor.elevators.map(ev => <ElevatorMarker key={ev.id} ev={ev}/>)}
 
+        {/* ── 기본 좌석 아이콘 ────────────────────────────────────────── */}
         {floor.zones.flatMap(zone =>
           zone.seats.map(seat => {
             const visible = isVisible(seat);
             const effectiveType = getEffectiveType(seat);
             const repairing = !!(seatStates[seat.id]?.isRepairing);
+            const { x, y } = getSeatXY(seat);
+            const rot = getSeatRot(seat.id);
             return (
               <MonitorIcon key={seat.id}
-                x={seat.x} y={seat.y} type={effectiveType}
+                x={x} y={y} type={effectiveType} rotation={rot}
                 selected={seat.id === selectedSeatId}
                 faded={!visible} isRepairing={repairing}
                 showLabel={showLabels && visible}
                 seatId={seat.id}
-                onClick={() => onSelect(seat, zone)}
+                editMode={editMode}
+                onClick={() => !editMode && onSelect(seat, zone)}
+                onDragStart={(e) => startDrag(seat.id, x, y, e)}
               />
             );
           })
         )}
+
+        {/* ── 추가 생성된 아이콘 ─────────────────────────────────────── */}
+        {floorExtraSeats.map(es => (
+          <MonitorIcon key={es.id}
+            x={es.x} y={es.y} type={es.type} rotation={es.rot}
+            selected={es.id === selectedSeatId}
+            faded={false} isRepairing={false}
+            showLabel={showLabels}
+            seatId={es.id}
+            editMode={editMode}
+            onClick={() => !editMode && onSelect(
+              { id: es.id, monitor: es.type, x: es.x, y: es.y },
+              null
+            )}
+            onDragStart={(e) => startDrag(es.id, es.x, es.y, e)}
+          />
+        ))}
+
+        {/* ── 편집 모드: 선택된 아이콘 위에 회전·삭제 버튼 ───────────── */}
+        {editMode && selectedSeatId && (() => {
+          // 선택된 아이콘의 현재 위치 찾기
+          let sx = 0, sy = 0;
+          const regSeat = floor.zones.flatMap(z => z.seats).find(s => s.id === selectedSeatId);
+          const extSeat = floorExtraSeats.find(s => s.id === selectedSeatId);
+          if (regSeat) { const p = getSeatXY(regSeat); sx = p.x; sy = p.y; }
+          else if (extSeat) { sx = extSeat.x; sy = extSeat.y; }
+          else return null;
+          const rot = getSeatRot(selectedSeatId);
+          return (
+            <g>
+              {/* 회전 버튼 ↻ */}
+              <g style={{ cursor:"pointer" }}
+                onClick={(e) => { e.stopPropagation(); onLayoutChange(selectedSeatId, 0, 0, (rot + 90) % 360); }}>
+                <circle cx={sx+18} cy={sy-18} r={9} fill="#3B82F6" stroke="white" strokeWidth={1.2}/>
+                <text x={sx+18} y={sy-14.5} textAnchor="middle" fontSize={11} fill="white" fontWeight="900"
+                  style={{ pointerEvents:"none" }}>↻</text>
+              </g>
+              {/* 삭제 버튼 × */}
+              <g style={{ cursor:"pointer" }}
+                onClick={(e) => { e.stopPropagation(); onDeleteSeat(selectedSeatId); }}>
+                <circle cx={sx-18} cy={sy-18} r={9} fill="#EF4444" stroke="white" strokeWidth={1.2}/>
+                <text x={sx-18} y={sy-14.5} textAnchor="middle" fontSize={11} fill="white" fontWeight="900"
+                  style={{ pointerEvents:"none" }}>×</text>
+              </g>
+            </g>
+          );
+        })()}
       </svg>
     </div>
   );
@@ -1313,6 +1661,91 @@ export default function AssetMapPanel() {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 2500);
   }, []);
 
+  // 편집 모드 + 레이아웃 상태
+  const [editMode, setEditMode] = useState(false);
+  const [layout,   setLayout]   = useState<LayoutStore>({ pos: {}, extra: [] });
+  useEffect(() => { setLayout(loadLayout()); }, []);
+
+  // 좌석 위치/회전 변경 핸들러 (드래그·회전)
+  const handleLayoutChange = useCallback((seatId: string, dx: number, dy: number, rot?: number) => {
+    setLayout(prev => {
+      const existing = prev.pos[seatId];
+      // 추가 아이콘인 경우
+      const isExtra = prev.extra.some(e => e.id === seatId);
+      if (isExtra) {
+        const next: LayoutStore = {
+          ...prev,
+          extra: prev.extra.map(e => e.id === seatId
+            ? { ...e, x: e.x + dx, y: e.y + dy, rot: rot !== undefined ? rot : e.rot }
+            : e),
+        };
+        persistLayout(next);
+        return next;
+      }
+      // 기본 좌석 위치 오버라이드
+      const base = existing ?? { x: 0, y: 0, rot: 0 };
+      const next: LayoutStore = {
+        ...prev,
+        pos: {
+          ...prev.pos,
+          [seatId]: {
+            x: base.x + dx,
+            y: base.y + dy,
+            rot: rot !== undefined ? rot : base.rot,
+          },
+        },
+      };
+      persistLayout(next);
+      return next;
+    });
+  }, []);
+
+  // 첫 드래그 시 기본 좌석의 초기 위치를 layout.pos에 등록
+  const ensureSeatInLayout = useCallback((seat: SeatDef) => {
+    setLayout(prev => {
+      if (prev.pos[seat.id]) return prev;
+      const next: LayoutStore = {
+        ...prev,
+        pos: { ...prev.pos, [seat.id]: { x: seat.x, y: seat.y, rot: 0 } },
+      };
+      persistLayout(next);
+      return next;
+    });
+  }, []);
+
+  // 실제 드래그 시작 시 초기화 후 이동
+  const handleDragStart = useCallback((seat: SeatDef) => {
+    ensureSeatInLayout(seat);
+  }, [ensureSeatInLayout]);
+
+  // 새 아이콘 추가
+  const handleAddSeat = useCallback((x: number, y: number) => {
+    const id = `USR-${floor.id}-${Date.now()}`;
+    setLayout(prev => {
+      const next: LayoutStore = {
+        ...prev,
+        extra: [...prev.extra, { id, floorId: floor.id, x, y, rot: 0, type: "standard" }],
+      };
+      persistLayout(next);
+      return next;
+    });
+    addToast("모니터 아이콘 추가됨", "info");
+  }, [floor.id, addToast]);
+
+  // 아이콘 삭제
+  const handleDeleteSeat = useCallback((seatId: string) => {
+    setLayout(prev => {
+      const isExtra = prev.extra.some(e => e.id === seatId);
+      const next: LayoutStore = isExtra
+        ? { ...prev, extra: prev.extra.filter(e => e.id !== seatId) }
+        : { ...prev, pos: Object.fromEntries(Object.entries(prev.pos).filter(([k]) => k !== seatId)) };
+      persistLayout(next);
+      return next;
+    });
+    setSelected(null);
+    addToast("아이콘 삭제됨", "info");
+  }, [addToast]);
+
   // State management
   const [seatStates, setSeatStates] = useState<Record<string,SeatState>>({});
   useEffect(() => { setSeatStates(loadAllStates()); }, []);
@@ -1389,9 +1822,14 @@ export default function AssetMapPanel() {
     }
   }, []);
 
-  const handleSelect = useCallback((seat: SeatDef, zone: ZoneDef) => {
-    setSelected({ seat, zone }); setModalOpen(true);
-  }, []);
+  const handleSelect = useCallback((seat: SeatDef, zone: ZoneDef | null) => {
+    if (editMode) {
+      // 편집 모드: 클릭으로 선택만 (모달 없음)
+      setSelected(zone ? { seat, zone } : null);
+      return;
+    }
+    if (zone) { setSelected({ seat, zone }); setModalOpen(true); }
+  }, [editMode]);
 
   // Search → auto focus zone on SVG map
   useEffect(() => {
@@ -1542,8 +1980,20 @@ export default function AssetMapPanel() {
               </div>
             )}
 
-            <div className="ml-auto text-xs text-gray-400">
-              {zoneDetail ? "● 자리 클릭 → 상세/편집" : "📋 격자 보기 → 행/열 좌표로 위치 확인"}
+            {/* ── 배치 편집 모드 토글 버튼 ─────────────────────────── */}
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                onClick={() => { setEditMode(em => !em); setZoneDetailId(null); setSelected(null); }}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all ${
+                  editMode
+                    ? "bg-amber-500 text-white border-amber-600 shadow"
+                    : "bg-white text-slate-600 border-gray-200 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-300"
+                }`}>
+                {editMode ? "✏️ 편집 중 (클릭 시 종료)" : "✏️ 배치 편집"}
+              </button>
+              <span className="text-xs text-gray-400">
+                {editMode ? "드래그로 아이콘 이동" : zoneDetail ? "● 자리 클릭 → 상세/편집" : "📋 격자 보기 → 행/열 좌표로 위치 확인"}
+              </span>
             </div>
           </div>
 
@@ -1580,6 +2030,40 @@ export default function AssetMapPanel() {
                       </button>
                     ))}
                   </div>
+                  {/* 편집 모드 툴바 */}
+                  {editMode && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl mb-2 flex-wrap">
+                      <span className="text-xs font-bold text-amber-700">✏️ 배치 편집 모드</span>
+                      <span className="text-xs text-amber-600">아이콘을 드래그해 이동 · ↻/× 버튼으로 회전·삭제</span>
+                      <button
+                        onClick={() => {
+                          const cx = (floor.zones[0]?.x1 ?? 200) + 80;
+                          const cy = (floor.zones[0]?.y1 ?? 200) + 60;
+                          handleAddSeat(cx, cy);
+                        }}
+                        className="ml-auto text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg font-semibold transition-colors">
+                        + 모니터 추가
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm("이 층의 모든 아이콘 위치를 초기 배치로 되돌릴까요?")) {
+                            setLayout(prev => {
+                              const floorSeatIds = new Set(floor.zones.flatMap(z => z.seats.map(s => s.id)));
+                              const next: LayoutStore = {
+                                pos: Object.fromEntries(Object.entries(prev.pos).filter(([k]) => !floorSeatIds.has(k))),
+                                extra: prev.extra.filter(e => e.floorId !== floor.id),
+                              };
+                              persistLayout(next);
+                              return next;
+                            });
+                            addToast("이 층 배치 초기화됨", "info");
+                          }
+                        }}
+                        className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1 rounded-lg font-semibold transition-colors">
+                        이 층 초기화
+                      </button>
+                    </div>
+                  )}
                   <FloorMap
                     floor={floor}
                     selectedSeatId={selected?.seat.id ?? null}
@@ -1587,8 +2071,18 @@ export default function AssetMapPanel() {
                     searchQuery={searchQuery}
                     seatStates={seatStates}
                     focusZoneId={focusZoneId}
+                    editMode={editMode}
+                    layout={layout}
                     onSelect={handleSelect}
                     onOpenZoneDetail={setZoneDetailId}
+                    onLayoutChange={(seatId, dx, dy, rot) => {
+                      // 첫 드래그 시 기본 좌석 초기 위치 등록
+                      const seat = floor.zones.flatMap(z => z.seats).find(s => s.id === seatId);
+                      if (seat && !layout.pos[seatId]) ensureSeatInLayout(seat);
+                      handleLayoutChange(seatId, dx, dy, rot);
+                    }}
+                    onAddSeat={handleAddSeat}
+                    onDeleteSeat={handleDeleteSeat}
                   />
                 </div>
               )}
