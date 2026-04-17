@@ -368,40 +368,174 @@ const BUILDINGS: BuildingDef[] = [
         ]},
     ],
   },
+  // ─── 신관 ───────────────────────────────────────────────────────────────────
+  // mkZoneFromClusters 방식으로 전환: 도면 실측 기준 클러스터 배치
   {
     id: "ns", label: "신관",
     floors: [
+      // ─── 신관 2층 ────────────────────────────────────────────────────────────
       { id:"ns2", label:"2층", imageSrc:"/floor-plans/singwan-2f.jpg",
-        zones:[mkZone("ns2-w","스마트오피스 (서편)","west",SN2_W,31,"NS2W-",14),
-               mkZone("ns2-e","스마트오피스 (동편)","east",SN2_E,48,"NS2E-",22)],
+        zones:[
+          // 서편 31석 (14 large): SN2_W {x1:262,y1:56,x2:578,y2:268}
+          mkZoneFromClusters("ns2-w","스마트오피스 (서편)","west","NS2W-",[
+            { id:"c1", x:300, y:71, w:240, h:52, rows:2, cols:6,
+              rowCols:[6,5], largeIdx:[0,1,2,3,4,5,6,7,8,9,10] },
+            { id:"c2", x:310, y:133, w:200, h:52, rows:2, cols:5,
+              largeIdx:[0,1,2] },
+            { id:"c3", x:310, y:195, w:200, h:52, rows:2, cols:5 },
+          ]),
+          // 동편 48석 (22 large): SN2_E {x1:264,y1:346,x2:732,y2:594}
+          mkZoneFromClusters("ns2-e","스마트오피스 (동편)","east","NS2E-",[
+            { id:"c1", x:278, y:361, w:168, h:52, rows:2, cols:4,
+              largeIdx:[0,1,2,3,4,5,6,7] },
+            { id:"c2", x:462, y:361, w:200, h:52, rows:2, cols:5,
+              largeIdx:[0,1,2,3,4,5,6,7,8,9] },
+            { id:"c3", x:278, y:421, w:168, h:52, rows:2, cols:4,
+              largeIdx:[0,1,2,3] },
+            { id:"c4", x:462, y:421, w:160, h:52, rows:2, cols:4 },
+            { id:"c5", x:278, y:481, w:168, h:52, rows:2, cols:4 },
+            { id:"c6", x:462, y:481, w:120, h:52, rows:2, cols:3 },
+          ]),
+        ],
         elevators:[{id:"ev",x:500,y:296,label:"E/V"}] },
+
+      // ─── 신관 3층 ────────────────────────────────────────────────────────────
       { id:"ns3", label:"3층", imageSrc:"/floor-plans/singwan-3f.jpg",
-        zones:[mkZone("ns3-w","스마트오피스 (서편)","west",SN3_W,40,"NS3W-",18),
-               mkZone("ns3-e","스마트오피스 (동편)","east",SN3_E,60,"NS3E-",28)],
+        zones:[
+          // 서편 40석 (18 large): SN3_W {x1:212,y1:315,x2:442,y2:580}
+          mkZoneFromClusters("ns3-w","스마트오피스 (서편)","west","NS3W-",[
+            { id:"c1", x:227, y:330, w:200, h:52, rows:2, cols:5,
+              largeIdx:[0,1,2,3,4,5,6,7,8,9] },
+            { id:"c2", x:227, y:391, w:200, h:52, rows:2, cols:5,
+              largeIdx:[0,1,2,3,4,5,6,7] },
+            { id:"c3", x:227, y:452, w:200, h:52, rows:2, cols:5 },
+            { id:"c4", x:227, y:513, w:200, h:52, rows:2, cols:5 },
+          ]),
+          // 동편 60석 (28 large): SN3_E {x1:398,y1:96,x2:778,y2:298}
+          mkZoneFromClusters("ns3-e","스마트오피스 (동편)","east","NS3E-",[
+            { id:"c1", x:408, y:113, w:170, h:52, rows:2, cols:5,
+              largeIdx:[0,1,2,3,4,5,6,7,8,9] },
+            { id:"c2", x:408, y:173, w:170, h:52, rows:2, cols:5,
+              largeIdx:[0,1,2,3,4,5,6,7,8,9] },
+            { id:"c3", x:408, y:233, w:170, h:52, rows:2, cols:5,
+              largeIdx:[0,1,2,3,4,5,6,7] },
+            { id:"c4", x:590, y:113, w:170, h:52, rows:2, cols:5 },
+            { id:"c5", x:590, y:173, w:170, h:52, rows:2, cols:5 },
+            { id:"c6", x:590, y:233, w:170, h:52, rows:2, cols:5 },
+          ]),
+        ],
         elevators:[{id:"ev",x:300,y:258,label:"E/V"}] },
+
+      // ─── 신관 4층 ────────────────────────────────────────────────────────────
       { id:"ns4", label:"4층", imageSrc:"/floor-plans/singwan-4f.jpg",
-        zones:[mkZone("ns4-w","스마트오피스 (서편)","west",SN4_W,40,"NS4W-",18),
-               mkZone("ns4-e","스마트오피스 (동편)","east",SN4_E,51,"NS4E-",24)],
+        zones:[
+          // 서편 40석 (18 large): SN4_W {x1:260,y1:56,x2:585,y2:275}
+          mkZoneFromClusters("ns4-w","스마트오피스 (서편)","west","NS4W-",[
+            { id:"c1", x:322, y:71, w:200, h:44, rows:2, cols:5,
+              largeIdx:[0,1,2,3,4,5,6,7,8,9] },
+            { id:"c2", x:322, y:120, w:200, h:44, rows:2, cols:5,
+              largeIdx:[0,1,2,3,4,5,6,7] },
+            { id:"c3", x:322, y:169, w:200, h:44, rows:2, cols:5 },
+            { id:"c4", x:322, y:218, w:200, h:44, rows:2, cols:5 },
+          ]),
+          // 동편 51석 (24 large): SN4_E {x1:262,y1:358,x2:734,y2:598}
+          mkZoneFromClusters("ns4-e","스마트오피스 (동편)","east","NS4E-",[
+            { id:"c1", x:313, y:373, w:240, h:40, rows:2, cols:6,
+              rowCols:[6,5], largeIdx:[0,1,2,3,4,5,6,7,8,9,10] },
+            { id:"c2", x:323, y:415, w:210, h:40, rows:2, cols:5,
+              largeIdx:[0,1,2,3,4,5,6,7,8,9] },
+            { id:"c3", x:323, y:457, w:210, h:40, rows:2, cols:5,
+              largeIdx:[0,1,2] },
+            { id:"c4", x:323, y:499, w:210, h:40, rows:2, cols:5 },
+            { id:"c5", x:323, y:541, w:210, h:40, rows:2, cols:5 },
+          ]),
+        ],
         elevators:[{id:"ev",x:500,y:302,label:"E/V"}] },
+
+      // ─── 신관 5층 ────────────────────────────────────────────────────────────
       { id:"ns5", label:"5층", imageSrc:"/floor-plans/singwan-5f.jpg",
-        zones:[mkZone("ns5-w","스마트오피스 (서편)","west",SN5_W,35,"NS5W-",16),
-               mkZone("ns5-e","스마트오피스 (동편)","east",SN5_E,48,"NS5E-",22)],
+        zones:[
+          // 서편 35석 (16 large): SN5_W {x1:253,y1:52,x2:582,y2:272}
+          mkZoneFromClusters("ns5-w","스마트오피스 (서편)","west","NS5W-",[
+            { id:"c1", x:317, y:67, w:200, h:26, rows:1, cols:5,
+              largeIdx:[0,1,2,3,4] },
+            { id:"c2", x:317, y:101, w:200, h:44, rows:2, cols:5,
+              largeIdx:[0,1,2,3,4,5,6,7,8,9] },
+            { id:"c3", x:317, y:153, w:200, h:44, rows:2, cols:5,
+              largeIdx:[0] },
+            { id:"c4", x:317, y:205, w:200, h:44, rows:2, cols:5 },
+          ]),
+          // 동편 48석 (22 large): SN5_E {x1:255,y1:352,x2:739,y2:598}
+          mkZoneFromClusters("ns5-e","스마트오피스 (동편)","east","NS5E-",[
+            { id:"c1", x:377, y:367, w:240, h:52, rows:2, cols:6,
+              largeIdx:[0,1,2,3,4,5,6,7,8,9,10,11] },
+            { id:"c2", x:377, y:421, w:240, h:52, rows:2, cols:6,
+              largeIdx:[0,1,2,3,4,5,6,7,8,9] },
+            { id:"c3", x:377, y:475, w:240, h:52, rows:2, cols:6 },
+            { id:"c4", x:377, y:529, w:240, h:52, rows:2, cols:6 },
+          ]),
+        ],
         elevators:[{id:"ev",x:494,y:298,label:"E/V"}] },
     ],
   },
+
+  // ─── S빌딩 ──────────────────────────────────────────────────────────────────
   {
     id: "sb", label: "S빌딩",
     floors: [
+      // ─── S빌딩 3층 ───────────────────────────────────────────────────────────
       { id:"sb3", label:"3층", imageSrc:"/floor-plans/sbldg-3f.jpg",
-        zones:[mkZone("sb3-a","Smart Office 1","west",SB3_A,15,"SB3A-",6),
-               mkZone("sb3-b","Smart Office 2","east",SB3_B,32,"SB3B-",16)],
+        zones:[
+          // Smart Office 1: 15석 (6 large): SB3_A {x1:222,y1:246,x2:450,y2:518}
+          mkZoneFromClusters("sb3-a","Smart Office 1","west","SB3A-",[
+            { id:"c1", x:236, y:338, w:200, h:52, rows:2, cols:5,
+              largeIdx:[0,1,2,3,4,5] },
+            { id:"c2", x:236, y:400, w:200, h:26, rows:1, cols:5 },
+          ]),
+          // Smart Office 2: 32석 (16 large): SB3_B {x1:454,y1:196,x2:814,y2:540}
+          mkZoneFromClusters("sb3-b","Smart Office 2","east","SB3B-",[
+            { id:"c1", x:534, y:218, w:200, h:52, rows:2, cols:5,
+              largeIdx:[0,1,2,3,4,5,6,7,8,9] },
+            { id:"c2", x:534, y:280, w:200, h:52, rows:2, cols:5,
+              largeIdx:[0,1,2,3,4,5] },
+            { id:"c3", x:514, y:342, w:240, h:52, rows:2, cols:6 },
+          ]),
+        ],
         elevators:SB_EV3 },
+
+      // ─── S빌딩 4층 ───────────────────────────────────────────────────────────
       { id:"sb4", label:"4층", imageSrc:"/floor-plans/sbldg-4f.jpg",
-        zones:[mkZone("sb4-w","Casual Work Space","west",SB4_W,21,"SB4W-",10),
-               mkZone("sb4-e","Open Office","east",SB4_E,40,"SB4E-",20)],
+        zones:[
+          // Casual Work Space: 21석 (10 large): SB4_W {x1:132,y1:262,x2:462,y2:543}
+          mkZoneFromClusters("sb4-w","Casual Work Space","west","SB4W-",[
+            { id:"c1", x:177, y:285, w:240, h:52, rows:2, cols:6,
+              rowCols:[6,5], largeIdx:[0,1,2,3,4,5,6,7,8,9] },
+            { id:"c2", x:187, y:347, w:210, h:52, rows:2, cols:5 },
+          ]),
+          // Open Office: 40석 (20 large): SB4_E {x1:496,y1:148,x2:886,y2:543}
+          mkZoneFromClusters("sb4-e","Open Office","east","SB4E-",[
+            { id:"c1", x:591, y:163, w:200, h:52, rows:2, cols:5,
+              largeIdx:[0,1,2,3,4,5,6,7,8,9] },
+            { id:"c2", x:591, y:225, w:200, h:52, rows:2, cols:5,
+              largeIdx:[0,1,2,3,4,5,6,7,8,9] },
+            { id:"c3", x:591, y:287, w:200, h:52, rows:2, cols:5 },
+            { id:"c4", x:591, y:349, w:200, h:52, rows:2, cols:5 },
+          ]),
+        ],
         elevators:SB_EV4 },
+
+      // ─── S빌딩 5층 ───────────────────────────────────────────────────────────
       { id:"sb5", label:"5층", imageSrc:"/floor-plans/sbldg-5f.jpg",
-        zones:[mkZone("sb5-so","스마트오피스","single",SB5,36,"SB5-",18)],
+        zones:[
+          // 스마트오피스: 36석 (18 large): SB5 {x1:396,y1:158,x2:886,y2:535}
+          mkZoneFromClusters("sb5-so","스마트오피스","single","SB5-",[
+            { id:"c1", x:521, y:178, w:240, h:52, rows:2, cols:6,
+              largeIdx:[0,1,2,3,4,5,6,7,8,9,10,11] },
+            { id:"c2", x:521, y:240, w:240, h:52, rows:2, cols:6,
+              largeIdx:[0,1,2,3,4,5] },
+            { id:"c3", x:521, y:302, w:240, h:52, rows:2, cols:6 },
+          ]),
+        ],
         elevators:SB_EV4 },
     ],
   },
@@ -1691,9 +1825,20 @@ function OverviewSidePanel({ building, floor, seatStates }: {
 // MAIN PANEL
 // =============================================================================
 export default function AssetMapPanel() {
-  const [view,       setView]       = useState<"map"|"dashboard">("map");
+  // ── Navigation state (must be declared first) ────────────────────────────
   const [buildingId, setBuildingId] = useState("bw");
   const [floorId,    setFloorId]    = useState("bw3");
+
+  // ── Derived navigation — declared early to prevent TDZ in production build ──
+  // These MUST come before any useCallback/useEffect that might reference them.
+  const building = useMemo(() => BUILDINGS.find(b => b.id === buildingId)!, [buildingId]);
+  const floor = useMemo(
+    () => building.floors.find(f => f.id === floorId) ?? building.floors[0],
+    [building, floorId]
+  );
+
+  // ── UI state ──────────────────────────────────────────────────────────────
+  const [view,       setView]       = useState<"map"|"dashboard">("map");
   const [filterMode, setFilterMode] = useState<"all"|"large"|"standard"|"empty"|"repair">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selected,   setSelected]   = useState<{ seat: SeatDef; zone: ZoneDef } | null>(null);
@@ -1873,13 +2018,6 @@ export default function AssetMapPanel() {
     addToast(`${seat.id} ${type === "repair" ? "수리" : "교체"} 요청 접수 완료`);
   }, [addToast]);
 
-  // Navigation
-  const building = useMemo(() => BUILDINGS.find(b => b.id === buildingId)!, [buildingId]);
-  const floor = useMemo(
-    () => building.floors.find(f => f.id === floorId) ?? building.floors[0],
-    [building, floorId]
-  );
-
   const handleBuildingChange = useCallback((bid: string, fid?: string, zid?: string) => {
     setBuildingId(bid);
     const b = BUILDINGS.find(x => x.id === bid)!;
@@ -1924,6 +2062,33 @@ export default function AssetMapPanel() {
   // Reset zone detail when floor changes
   useEffect(() => { setZoneDetailId(null); setFocusZoneId(null); }, [floor.id]);
 
+  // ── 총무 관리자 알림: 대기 중인 수리/교체 요청 폴링 ──────────────────────
+  const [pendingRequests, setPendingRequests] = useState<Array<{
+    id: string; seatId: string; building: string; floor: string;
+    zone: string; type: "repair"|"replace"; note?: string; createdAt: string;
+  }>>([]);
+  const [showPendingBanner, setShowPendingBanner] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchPending = async () => {
+      try {
+        const res = await fetch("/api/monitor-requests");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.ok || cancelled) return;
+        const pending = (data.requests ?? []).filter((r: { status: string }) => r.status === "pending");
+        if (!cancelled) {
+          setPendingRequests(pending);
+          if (pending.length > 0) setShowPendingBanner(true);
+        }
+      } catch { /* ignore */ }
+    };
+    fetchPending();
+    const interval = setInterval(fetchPending, 60_000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
   // Floor stats
   const allSeats   = useMemo(() => floor.zones.flatMap(z => z.seats), [floor]);
   const largeCount  = allSeats.filter(s => (seatStates[s.id]?.monitorType??s.monitor)==="large").length;
@@ -1936,6 +2101,28 @@ export default function AssetMapPanel() {
 
   return (
     <div className="flex flex-col h-full min-h-0 bg-slate-50" style={{ fontFamily:"system-ui,-apple-system,sans-serif" }}>
+
+      {/* ── 총무 관리자 알림 배너 ── */}
+      {showPendingBanner && pendingRequests.length > 0 && (
+        <div className="flex-none bg-red-600 text-white px-4 py-2 flex items-center gap-3 text-sm z-30">
+          <span className="text-base">🔔</span>
+          <span className="font-semibold">
+            대기 중인 수리/교체 요청 {pendingRequests.length}건
+          </span>
+          <div className="flex gap-1.5 flex-wrap flex-1">
+            {pendingRequests.slice(0,5).map(r => (
+              <span key={r.id} className="bg-white/20 rounded-full px-2 py-0.5 text-xs font-mono">
+                {r.seatId} ({r.type==="repair"?"수리":"교체"})
+              </span>
+            ))}
+            {pendingRequests.length > 5 && (
+              <span className="text-xs opacity-80">외 {pendingRequests.length-5}건</span>
+            )}
+          </div>
+          <button onClick={() => setShowPendingBanner(false)}
+            className="ml-auto text-white/70 hover:text-white text-lg leading-none">✕</button>
+        </div>
+      )}
 
       {/* TOP BAR */}
       <div className="flex-none bg-white border-b px-5 py-3 flex flex-wrap items-center gap-3 shadow-sm">
