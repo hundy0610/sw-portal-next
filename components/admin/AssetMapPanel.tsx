@@ -1,5 +1,6 @@
 "use client";
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { FLOOR_SKETCHES, SketchCtx, SketchZone } from "./FloorSketches";
 
 // =============================================================================
 // TYPES
@@ -41,7 +42,7 @@ interface RoomElement {
   label: string; sublabel?: string;
 }
 interface FloorDef {
-  id: string; label: string; imageSrc: string;
+  id: string; label: string;
   zones: ZoneDef[]; elevators: ElevatorDef[]; noImage?: boolean;
   rooms?: RoomElement[];
 }
@@ -239,7 +240,7 @@ const BUILDINGS: BuildingDef[] = [
       //   C5: 2행, [5,4]열 = 9석 (back-to-back 비대칭)
       //   C6: 2행 × 5열 = 10석
       // 합계: 5+10+9+10+9+10 = 53석 (X 마크 1석 = 미설치 포함)
-      { id:"bw2", label:"2층", imageSrc:"/floor-plans/bongwan-2f.jpg",
+      { id:"bw2", label:"2층",
         zones:[mkZoneFromClusters("bw2-w","스마트오피스 (서편)","west","BW2-",[
           // C1: 1행 × 5열 = 5석 (상단 단열 — 벽 쪽)
           { id:"c1", x:118, y:136, w:205, h:28,
@@ -271,7 +272,7 @@ const BUILDINGS: BuildingDef[] = [
       // ─── 본관 3층 ─────────────────────────────────────────────────────────
       // 서편: 대웅바이오 44석, 동편: 대웅바이오 71석
       // 서편 하단 미팅룸 2개 (y:438~568 구간) → 좌석 존 y2=432로 축소
-      { id:"bw3", label:"3층", imageSrc:"/floor-plans/bongwan-3f.jpg",
+      { id:"bw3", label:"3층",
         zones:[mkZone("bw3-w","스마트오피스 (서편)","west",
           { x1:52, y1:152, x2:338, y2:432 }, 44, "BW3W-", 20),
                mkZone("bw3-e","스마트오피스 (동편)","east",BW_E,71,"BW3E-",32)],
@@ -284,7 +285,7 @@ const BUILDINGS: BuildingDef[] = [
       // ─── 본관 4층 ─────────────────────────────────────────────────────────
       // 서편: 스마트오피스 74석 + 포커스룸5개(6석), 동편: 49석 + 포커스룸5개(5석)
       // 서편 상단 미팅룸(3.4평) + 하단 회의실×2·라운지 → 좌석 존 y1=200, y2=408
-      { id:"bw4", label:"4층", imageSrc:"/floor-plans/bongwan-4f.jpg",
+      { id:"bw4", label:"4층",
         zones:[mkZone("bw4-w","스마트오피스 (서편)","west",
           { x1:52, y1:200, x2:338, y2:408 }, 74, "BW4W-", 36),
                mkZone("bw4-e","스마트오피스 (동편)","east",BW_E,49,"BW4E-",22)],
@@ -299,7 +300,7 @@ const BUILDINGS: BuildingDef[] = [
       // ─── 본관 5층 ─────────────────────────────────────────────────────────
       // 서편: 74석 + 포커스룸5개(6석), 동편: 49석 + 포커스룸5개(5석)
       // 층 중앙(엘리베이터 동서 경계) 하단에 소형 미팅룸 2개
-      { id:"bw5", label:"5층", imageSrc:"/floor-plans/bongwan-5f.jpg",
+      { id:"bw5", label:"5층",
         zones:[mkZone("bw5-w","스마트오피스 (서편)","west",BW_W,74,"BW5W-",36),
                mkZone("bw5-e","스마트오피스 (동편)","east",BW_E,49,"BW5E-",22)],
         elevators:BW_EV,
@@ -311,7 +312,7 @@ const BUILDINGS: BuildingDef[] = [
       // ─── 본관 6층 ─────────────────────────────────────────────────────────
       // 서편: 67석 + 포커스룸3개(3석), 동편: 65석 + 포커스룸5개(7석)
       // 서편 좌상단: 라운지(14.2평) + 회의실(5.0평)
-      { id:"bw6", label:"6층", imageSrc:"/floor-plans/bongwan-6f.jpg",
+      { id:"bw6", label:"6층",
         zones:[mkZone("bw6-w","스마트오피스 (서편)","west",
           { x1:52, y1:245, x2:338, y2:568 }, 67, "BW6W-", 30),
                mkZone("bw6-e","스마트오피스 (동편)","east",BW_E,65,"BW6E-",30)],
@@ -324,7 +325,7 @@ const BUILDINGS: BuildingDef[] = [
       // ─── 본관 7층 ─────────────────────────────────────────────────────────
       // 서편: 스마트오피스 19석 (하단) + 나보타개발팀 28석 (중단, 전석 미설치)
       // 동편: 스마트오피스 57석 + 포커스룸4개(5석)
-      { id:"bw7", label:"7층", imageSrc:"/floor-plans/bongwan-7f.jpg",
+      { id:"bw7", label:"7층",
         zones:[
           mkZone("bw7-w","스마트오피스 (서편)","west",
             { x1:52, y1:390, x2:290, y2:568 }, 19, "BW7W-", 0),
@@ -341,7 +342,7 @@ const BUILDINGS: BuildingDef[] = [
 
       // ─── 본관 8층 ─────────────────────────────────────────────────────────
       // 서편: 스마트오피스 28석 (중앙 상단), 동편: 컨퍼런스/멀티룸 (업무 좌석 없음)
-      { id:"bw8", label:"8층", imageSrc:"/floor-plans/bongwan-8f.jpg",
+      { id:"bw8", label:"8층",
         zones:[mkZone("bw8-w","스마트오피스 (서편)","west",
           { x1:158, y1:152, x2:338, y2:295 }, 28, "BW8W-", 12)],
         elevators:BW_EV,
@@ -357,7 +358,7 @@ const BUILDINGS: BuildingDef[] = [
 
       // ─── 본관 9층 ─────────────────────────────────────────────────────────
       // 서편: 35석 + 포커스룸1개(2석) = 37석, 동편: 80석+스탠딩5석+포커스룸2개(3석) = 85석
-      { id:"bw9", label:"9층", imageSrc:"/floor-plans/bongwan-9f.jpg",
+      { id:"bw9", label:"9층",
         zones:[mkZone("bw9-w","스마트오피스 (서편)","west",BW_W,37,"BW9W-",18),
                mkZone("bw9-e","스마트오피스 (동편)","east",BW_E,85,"BW9E-",40)],
         elevators:BW_EV,
@@ -374,7 +375,7 @@ const BUILDINGS: BuildingDef[] = [
     id: "ns", label: "신관",
     floors: [
       // ─── 신관 2층 ────────────────────────────────────────────────────────────
-      { id:"ns2", label:"2층", imageSrc:"/floor-plans/singwan-2f.jpg",
+      { id:"ns2", label:"2층",
         zones:[
           // 서편 31석 (14 large): SN2_W {x1:262,y1:56,x2:578,y2:268}
           mkZoneFromClusters("ns2-w","스마트오피스 (서편)","west","NS2W-",[
@@ -400,7 +401,7 @@ const BUILDINGS: BuildingDef[] = [
         elevators:[{id:"ev",x:500,y:296,label:"E/V"}] },
 
       // ─── 신관 3층 ────────────────────────────────────────────────────────────
-      { id:"ns3", label:"3층", imageSrc:"/floor-plans/singwan-3f.jpg",
+      { id:"ns3", label:"3층",
         zones:[
           // 서편 40석 (18 large): SN3_W {x1:212,y1:315,x2:442,y2:580}
           mkZoneFromClusters("ns3-w","스마트오피스 (서편)","west","NS3W-",[
@@ -427,7 +428,7 @@ const BUILDINGS: BuildingDef[] = [
         elevators:[{id:"ev",x:300,y:258,label:"E/V"}] },
 
       // ─── 신관 4층 ────────────────────────────────────────────────────────────
-      { id:"ns4", label:"4층", imageSrc:"/floor-plans/singwan-4f.jpg",
+      { id:"ns4", label:"4층",
         zones:[
           // 서편 40석 (18 large): SN4_W {x1:260,y1:56,x2:585,y2:275}
           mkZoneFromClusters("ns4-w","스마트오피스 (서편)","west","NS4W-",[
@@ -453,7 +454,7 @@ const BUILDINGS: BuildingDef[] = [
         elevators:[{id:"ev",x:500,y:302,label:"E/V"}] },
 
       // ─── 신관 5층 ────────────────────────────────────────────────────────────
-      { id:"ns5", label:"5층", imageSrc:"/floor-plans/singwan-5f.jpg",
+      { id:"ns5", label:"5층",
         zones:[
           // 서편 35석 (16 large): SN5_W {x1:253,y1:52,x2:582,y2:272}
           mkZoneFromClusters("ns5-w","스마트오피스 (서편)","west","NS5W-",[
@@ -484,7 +485,7 @@ const BUILDINGS: BuildingDef[] = [
     id: "sb", label: "S빌딩",
     floors: [
       // ─── S빌딩 3층 ───────────────────────────────────────────────────────────
-      { id:"sb3", label:"3층", imageSrc:"/floor-plans/sbldg-3f.jpg",
+      { id:"sb3", label:"3층",
         zones:[
           // Smart Office 1: 15석 (6 large): SB3_A {x1:222,y1:246,x2:450,y2:518}
           mkZoneFromClusters("sb3-a","Smart Office 1","west","SB3A-",[
@@ -504,7 +505,7 @@ const BUILDINGS: BuildingDef[] = [
         elevators:SB_EV3 },
 
       // ─── S빌딩 4층 ───────────────────────────────────────────────────────────
-      { id:"sb4", label:"4층", imageSrc:"/floor-plans/sbldg-4f.jpg",
+      { id:"sb4", label:"4층",
         zones:[
           // Casual Work Space: 21석 (10 large): SB4_W {x1:132,y1:262,x2:462,y2:543}
           mkZoneFromClusters("sb4-w","Casual Work Space","west","SB4W-",[
@@ -525,7 +526,7 @@ const BUILDINGS: BuildingDef[] = [
         elevators:SB_EV4 },
 
       // ─── S빌딩 5층 ───────────────────────────────────────────────────────────
-      { id:"sb5", label:"5층", imageSrc:"/floor-plans/sbldg-5f.jpg",
+      { id:"sb5", label:"5층",
         zones:[
           // 스마트오피스: 36석 (18 large): SB5 {x1:396,y1:158,x2:886,y2:535}
           mkZoneFromClusters("sb5-so","스마트오피스","single","SB5-",[
@@ -707,11 +708,11 @@ function computeZoneViewBox(z: ZoneDef) {
 }
 
 function FloorMap({
-  floor, selectedSeatId, filterMode, searchQuery, seatStates,
+  floor, buildingId, selectedSeatId, filterMode, searchQuery, seatStates,
   focusZoneId, editMode, layout, onSelect, onOpenZoneDetail,
   onLayoutChange, onAddSeat, onDeleteSeat,
 }: {
-  floor: FloorDef; selectedSeatId: string | null;
+  floor: FloorDef; buildingId: string; selectedSeatId: string | null;
   filterMode: "all"|"large"|"standard"|"empty"|"repair";
   searchQuery: string; seatStates: Record<string,SeatState>;
   focusZoneId: string | null;
@@ -817,6 +818,49 @@ function FloorMap({
 
   const floorExtraSeats = layout.extra.filter(s => s.floorId === floor.id);
 
+  // Build SketchCtx if a FloorSketch exists
+  const sketchKey = `${buildingId}-${floor.id}`;
+  const sketchRender = FLOOR_SKETCHES[sketchKey];
+
+  if (sketchRender) {
+    const sketchZones: SketchZone[] = floor.zones.map(z => ({
+      id: z.id, label: z.label,
+      seats: z.seats.map(s => ({
+        id: s.id,
+        type: (seatStates[s.id]?.monitorType ?? s.monitor) as import("./FloorSketches").MonitorType,
+      })),
+    }));
+    const sketchCtx: SketchCtx = {
+      zones: sketchZones,
+      filter: filterMode === "all" ? "all" : filterMode as import("./FloorSketches").MonitorType,
+      selectedId: selectedSeatId,
+      onSelect: (seatId) => {
+        for (const z of floor.zones) {
+          const s = z.seats.find(x => x.id === seatId);
+          if (s) { onSelect(s, z); return; }
+        }
+      },
+      colorOf: (t) => {
+        const colorMap: Record<string, { color: string; pale: string }> = {
+          std27: { color: "#60A5FA", pale: "#EFF6FF" },
+          std24: { color: "#34D399", pale: "#ECFDF5" },
+          dev34: { color: "#A78BFA", pale: "#F5F3FF" },
+          none:  { color: "#F87171", pale: "#FEF2F2" },
+          unk:   { color: "#94A3B8", pale: "#F1F5F9" },
+          large:    { color: "#A78BFA", pale: "#F5F3FF" },
+          standard: { color: "#60A5FA", pale: "#EFF6FF" },
+          empty:    { color: "#F87171", pale: "#FEF2F2" },
+        };
+        return colorMap[t] ?? { color: "#94A3B8", pale: "#F1F5F9" };
+      },
+    };
+    return (
+      <div className="w-full overflow-x-auto rounded-xl border border-gray-200 shadow-inner bg-white">
+        {sketchRender(sketchCtx)}
+      </div>
+    );
+  }
+
   return (
     <div className="relative w-full rounded-xl overflow-hidden border border-gray-200 shadow-inner bg-gray-900"
       style={{ aspectRatio:"960/600" }}>
@@ -824,9 +868,10 @@ function FloorMap({
         @keyframes ping { 75%,100%{transform:scale(2);opacity:0;} }
       `}</style>
 
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={floor.imageSrc} alt={`${floor.label} 도면`}
-        className="absolute inset-0 w-full h-full object-cover select-none" draggable={false}/>
+      {/* No floor plan image — code-drawn sketch not available for this floor */}
+      <div className="absolute inset-0 bg-slate-800 flex items-center justify-center">
+        <span className="text-slate-400 text-sm">도면 준비 중</span>
+      </div>
 
       {floor.noImage && (
         <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 bg-amber-500/90 text-white text-xs font-semibold px-3 py-1 rounded-full shadow">
@@ -2326,6 +2371,7 @@ export default function AssetMapPanel() {
                   )}
                   <FloorMap
                     floor={floor}
+                    buildingId={building.id}
                     selectedSeatId={selected?.seat.id ?? null}
                     filterMode={filterMode}
                     searchQuery={searchQuery}
