@@ -143,43 +143,52 @@ export function BW_2F_Sketch(ctx: SketchCtx) {
   const zone = ctx.zones.find(z => z.id === "SO");
   if (!zone) return null;
 
-  // 도면 기준: 가로 5석, 세로 패턴 5/10/9/10/9/10 (총 53 슬롯, 실제 52석)
-  const dw=40, dh=12, chairH=8, dx=50;
-  const x0=22;
-  const xs=[0,1,2,3,4].map(i=>x0+i*dx);
+  // 공유 테이블 단위: 큰 테이블 rect 하나 + 그 위에 모니터들
+  // 의자는 테이블 바깥(Seat 컴포넌트가 orient에 따라 자동 배치)
+  const dw=38, dh=11, dx=48, tpad=4, igap=14, chairH=8;
+  const x0=20;
+  const maxCols=5;
+  const tw=2*tpad+(maxCols-1)*dx+dw; // =238
 
-  // n개 데스크 행 렌더 (base: seats 시작 인덱스, orient: 의자 방향)
-  const deskRow=(y:number,orient:"down"|"up",base:number,n=5)=>
-    xs.slice(0,n).map((x,i)=>{
-      const seat=zone.seats[base+i];
-      if(!seat) return null;
-      return <Seat key={seat.id} x={x} y={y} w={dw} h={dh} orient={orient} seat={seat} ctx={ctx}/>;
-    });
+  // tableGroup: 단면(topBase만) 또는 양면(botBase 포함) 공유 테이블
+  // y0 = 테이블 rect 상단, topBase/botBase = zone.seats 시작 인덱스
+  const tableGroup=(y0:number,topBase:number,topN:number,botBase?:number,botN?:number)=>{
+    const isDouble=botBase!==undefined;
+    const th=isDouble?2*dh+2*tpad+igap:dh+2*tpad;  // 단=19, 양=44
+    const topY=y0+tpad;
+    const botY=isDouble?y0+th-dh-tpad:0;
+    const topOrient:("up"|"down")=isDouble?"up":"down";
+    const xs=(n:number)=>Array.from({length:n},(_,i)=>x0+tpad+i*dx);
+    return (<g>
+      {/* 테이블 면 (공유 테이블 하나) */}
+      <rect x={x0} y={y0} width={tw} height={th} rx={3}
+        fill="#F5F0E8" stroke="#8B7355" strokeWidth={1.4}/>
+      {/* 양면일 때 중앙 분리선 */}
+      {isDouble&&<line x1={x0+4} y1={y0+tpad+dh+igap/2} x2={x0+tw-4} y2={y0+tpad+dh+igap/2}
+        stroke="#C4B49A" strokeWidth={0.8}/>}
+      {/* 상단 모니터 + 의자 */}
+      {xs(topN).map((x,i)=>{
+        const seat=zone.seats[topBase+i];
+        if(!seat) return null;
+        return <Seat key={seat.id} x={x} y={topY} w={dw} h={dh} orient={topOrient} seat={seat} ctx={ctx}/>;
+      })}
+      {/* 하단 모니터 + 의자 (양면만) */}
+      {isDouble&&xs(botN!).map((x,i)=>{
+        const seat=zone.seats[botBase!+i];
+        if(!seat) return null;
+        return <Seat key={seat.id} x={x} y={botY} w={dw} h={dh} orient="down" seat={seat} ctx={ctx}/>;
+      })}
+    </g>);
+  };
 
-  // 페이싱 클러스터 상하 오프셋: 상단 데스크 → 의자 → 통로 → 의자 → 하단 데스크
-  const walkway=14;
-  const botOff=dh+1+chairH+walkway+chairH+1; // =44
-
-  // Y 좌표 계산
-  const r0y=58;    // 단독 상단 행
-  const gap=14;
-  const clAy=r0y+dh+1+chairH+gap; // =93
-  const clBy=clAy+botOff+dh+gap;  // =93+44+12+14=163
-  const clCy=clBy+botOff+dh+gap;  // =163+70=233
-  const clDy=clCy+botOff+dh+gap;  // =233+70=303
-  const clEy=clDy+botOff+dh+gap;  // =303+70=373
-
-  // 클러스터 배경 rect (5컬럼 전체 포함)
-  const bgW=4*dx+dw+12;
-  const clBg=(y:number)=>(
-    <rect x={x0-6} y={y-3} width={bgW} height={botOff+dh+6} rx={4}
-      fill="#F8FAFC" stroke="#CBD5E1" strokeDasharray="4,2" strokeWidth={0.9}/>
-  );
-  // 중앙 구분선
-  const clLine=(y:number)=>(
-    <line x1={x0-2} y1={y+dh+1+chairH+walkway/2} x2={x0+bgW-6} y2={y+dh+1+chairH+walkway/2}
-      stroke="#CBD5E1" strokeWidth={0.8}/>
-  );
+  // Y 레이아웃 (각 그룹 사이 간격: 의자 포함 영역 기준 gap=14)
+  // 단면 tableH=19, 양면 tableH=44, chairH=8
+  // T1 단독5석: table y=54..73, 의자아래 y=73+1+8=82
+  // T2 10석양면: top-chair at clAy-9; want ≥82+14=96 → clAy=105; bottom y=105+44+9=158
+  // T3  9석양면: clBy-9≥158+14=172 → clBy=181; bottom=181+44+9=234
+  // T4 10석양면: clCy-9≥234+14=248 → clCy=257; bottom=257+44+9=310
+  // T5  9석양면: clDy-9≥310+14=324 → clDy=333; bottom=333+44+9=386
+  // T6 10석양면: clEy-9≥386+14=400 → clEy=409; bottom=409+44+9=462
 
   return (
     <svg viewBox="0 0 820 540" style={{width:"100%",maxWidth:960,height:"auto",display:"block"}}>
@@ -191,33 +200,23 @@ export function BW_2F_Sketch(ctx: SketchCtx) {
       <rect x={14} y={28} width={340} height={492} rx={4} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1.2} strokeDasharray="6,3"/>
       <text x={184} y={44} fontSize={9.5} fontWeight={800} fill="#1E3A8A" textAnchor="middle">스마트오피스 (서편) — 52석</text>
 
-      {/* 단독 상단 행: 5석 (seats 0-4) */}
-      {deskRow(r0y,"down",0)}
+      {/* 테이블1: 단독 5석 (seats 0-4, 단면) */}
+      {tableGroup(54, 0, 5)}
 
-      {/* 클러스터 A: 5+5=10석 (seats 5-14) */}
-      {clBg(clAy)}{clLine(clAy)}
-      {deskRow(clAy,"down",5)}
-      {deskRow(clAy+botOff,"up",10)}
+      {/* 테이블2: 10석 5+5 (seats 5-14, 양면) */}
+      {tableGroup(105, 5, 5, 10, 5)}
 
-      {/* 클러스터 B: 5+4=9석 (seats 15-23) */}
-      {clBg(clBy)}{clLine(clBy)}
-      {deskRow(clBy,"down",15)}
-      {deskRow(clBy+botOff,"up",20,4)}
+      {/* 테이블3: 9석 5+4 (seats 15-23, 양면) */}
+      {tableGroup(181, 15, 5, 20, 4)}
 
-      {/* 클러스터 C: 5+5=10석 (seats 24-33) */}
-      {clBg(clCy)}{clLine(clCy)}
-      {deskRow(clCy,"down",24)}
-      {deskRow(clCy+botOff,"up",29)}
+      {/* 테이블4: 10석 5+5 (seats 24-33, 양면) */}
+      {tableGroup(257, 24, 5, 29, 5)}
 
-      {/* 클러스터 D: 5+4=9석 (seats 34-42) */}
-      {clBg(clDy)}{clLine(clDy)}
-      {deskRow(clDy,"down",34)}
-      {deskRow(clDy+botOff,"up",39,4)}
+      {/* 테이블5: 9석 5+4 (seats 34-42, 양면) */}
+      {tableGroup(333, 34, 5, 39, 4)}
 
-      {/* 클러스터 E: 5+4=9석 (seats 43-51, 52번째 슬롯 없음) */}
-      {clBg(clEy)}{clLine(clEy)}
-      {deskRow(clEy,"down",43)}
-      {deskRow(clEy+botOff,"up",48,4)}
+      {/* 테이블6: 10석 5+5 (seats 43-51+빈슬롯, 양면) */}
+      {tableGroup(409, 43, 5, 48, 5)}
       {/* 미팅룸 */}
       <MeetingBox x={358} y={28}  w={112} h={100} name="미팅룸 A" sub="13.5㎡"/>
       <MeetingBox x={358} y={133} w={112} h={130} name="미팅룸 B" sub="21.1㎡"/>
