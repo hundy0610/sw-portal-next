@@ -142,21 +142,45 @@ function BW_Core({y0=20,y1=548}:{y0?:number;y1?:number}) {
 export function BW_2F_Sketch(ctx: SketchCtx) {
   const zone = ctx.zones.find(z => z.id === "SO");
   if (!zone) return null;
-  const seatAt = (i: number) => zone.seats[i];
-  const clusterAt = (cx: number, cy: number, base: number) => {
-    const dx=46,dw=36,dh=14,chairH=Math.round(dh*0.65),walkway=16;
-    const topY=cy, botY=cy+dh+1+chairH+walkway+chairH+1;
-    const topXs=[0,1,2,3,4,5,6].map(i=>cx+i*dx);
-    const botXs=[0,1,2,3,4,5].map(i=>cx+dx/2+i*dx);
-    const clW=6*dx+dw, partitionY=topY+dh+1+chairH+walkway/2;
-    return (<g key={`cl${base}`}>
-      <rect x={cx-6} y={topY-14} width={clW+12} height={botY+dh+14-(topY-14)} rx={4}
-        fill="#F8FAFC" stroke="#CBD5E1" strokeDasharray="4,2" strokeWidth={0.9}/>
-      <line x1={cx-2} y1={partitionY} x2={cx+clW+2} y2={partitionY} stroke="#94A3B8" strokeWidth={1}/>
-      {topXs.map((x,i)=><Seat key={`t${base+i}`} x={x} y={topY} w={dw} h={dh} orient="down" seat={seatAt(base+i)} ctx={ctx}/>)}
-      {botXs.map((x,i)=><Seat key={`b${base+7+i}`} x={x} y={botY} w={dw} h={dh} orient="up" seat={seatAt(base+7+i)} ctx={ctx}/>)}
-    </g>);
-  };
+
+  // 도면 기준: 가로 5석, 세로 패턴 5/10/9/10/9/10 (총 53 슬롯, 실제 52석)
+  const dw=40, dh=12, chairH=8, dx=50;
+  const x0=22;
+  const xs=[0,1,2,3,4].map(i=>x0+i*dx);
+
+  // n개 데스크 행 렌더 (base: seats 시작 인덱스, orient: 의자 방향)
+  const deskRow=(y:number,orient:"down"|"up",base:number,n=5)=>
+    xs.slice(0,n).map((x,i)=>{
+      const seat=zone.seats[base+i];
+      if(!seat) return null;
+      return <Seat key={seat.id} x={x} y={y} w={dw} h={dh} orient={orient} seat={seat} ctx={ctx}/>;
+    });
+
+  // 페이싱 클러스터 상하 오프셋: 상단 데스크 → 의자 → 통로 → 의자 → 하단 데스크
+  const walkway=14;
+  const botOff=dh+1+chairH+walkway+chairH+1; // =44
+
+  // Y 좌표 계산
+  const r0y=58;    // 단독 상단 행
+  const gap=14;
+  const clAy=r0y+dh+1+chairH+gap; // =93
+  const clBy=clAy+botOff+dh+gap;  // =93+44+12+14=163
+  const clCy=clBy+botOff+dh+gap;  // =163+70=233
+  const clDy=clCy+botOff+dh+gap;  // =233+70=303
+  const clEy=clDy+botOff+dh+gap;  // =303+70=373
+
+  // 클러스터 배경 rect (5컬럼 전체 포함)
+  const bgW=4*dx+dw+12;
+  const clBg=(y:number)=>(
+    <rect x={x0-6} y={y-3} width={bgW} height={botOff+dh+6} rx={4}
+      fill="#F8FAFC" stroke="#CBD5E1" strokeDasharray="4,2" strokeWidth={0.9}/>
+  );
+  // 중앙 구분선
+  const clLine=(y:number)=>(
+    <line x1={x0-2} y1={y+dh+1+chairH+walkway/2} x2={x0+bgW-6} y2={y+dh+1+chairH+walkway/2}
+      stroke="#CBD5E1" strokeWidth={0.8}/>
+  );
+
   return (
     <svg viewBox="0 0 820 540" style={{width:"100%",maxWidth:960,height:"auto",display:"block"}}>
       {HATCH}
@@ -166,10 +190,34 @@ export function BW_2F_Sketch(ctx: SketchCtx) {
       {/* 스마트오피스 프레임 */}
       <rect x={14} y={28} width={340} height={492} rx={4} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1.2} strokeDasharray="6,3"/>
       <text x={184} y={44} fontSize={9.5} fontWeight={800} fill="#1E3A8A" textAnchor="middle">스마트오피스 (서편) — 52석</text>
-      {clusterAt(18, 55, 0)}
-      {clusterAt(18,181,13)}
-      {clusterAt(18,307,26)}
-      {clusterAt(18,433,39)}
+
+      {/* 단독 상단 행: 5석 (seats 0-4) */}
+      {deskRow(r0y,"down",0)}
+
+      {/* 클러스터 A: 5+5=10석 (seats 5-14) */}
+      {clBg(clAy)}{clLine(clAy)}
+      {deskRow(clAy,"down",5)}
+      {deskRow(clAy+botOff,"up",10)}
+
+      {/* 클러스터 B: 5+4=9석 (seats 15-23) */}
+      {clBg(clBy)}{clLine(clBy)}
+      {deskRow(clBy,"down",15)}
+      {deskRow(clBy+botOff,"up",20,4)}
+
+      {/* 클러스터 C: 5+5=10석 (seats 24-33) */}
+      {clBg(clCy)}{clLine(clCy)}
+      {deskRow(clCy,"down",24)}
+      {deskRow(clCy+botOff,"up",29)}
+
+      {/* 클러스터 D: 5+4=9석 (seats 34-42) */}
+      {clBg(clDy)}{clLine(clDy)}
+      {deskRow(clDy,"down",34)}
+      {deskRow(clDy+botOff,"up",39,4)}
+
+      {/* 클러스터 E: 5+4=9석 (seats 43-51, 52번째 슬롯 없음) */}
+      {clBg(clEy)}{clLine(clEy)}
+      {deskRow(clEy,"down",43)}
+      {deskRow(clEy+botOff,"up",48,4)}
       {/* 미팅룸 */}
       <MeetingBox x={358} y={28}  w={112} h={100} name="미팅룸 A" sub="13.5㎡"/>
       <MeetingBox x={358} y={133} w={112} h={130} name="미팅룸 B" sub="21.1㎡"/>
