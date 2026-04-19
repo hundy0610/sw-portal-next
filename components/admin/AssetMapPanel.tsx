@@ -1220,7 +1220,9 @@ export default function AssetMapPanel() {
         </div>
         {editMode ? (
           <span className="text-[10px] text-amber-600 font-semibold ml-2">
-            ✏️ 편집 모드 — 클릭: 집기 · 빈 슬롯 클릭: 이동/추가 · ✕: 삭제 · 빈 곳 클릭: 취소
+            {buildingId==="bw"&&floorId==="2F"
+              ? "✏️ 편집 모드 — ✕: 모니터 슬롯 삭제 · +: 슬롯 추가 · 우클릭: 모니터 종류 변경"
+              : "✏️ 편집 모드 — 클릭: 좌석 집기 · 빈 슬롯: 이동/추가 · ✕: 삭제 · 빈 곳 클릭: 취소"}
           </span>
         ) : (
           <span className="text-[10px] text-gray-400 ml-2">좌석 클릭 시 위치 정보 · 교체 요청 가능</span>

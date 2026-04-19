@@ -534,11 +534,21 @@ export function BW_7F_Sketch(ctx: SketchCtx) {
       <rect x={12} y={20} width={796} height={528} fill="#FAFAFA" stroke="#1F2937" strokeWidth={2}/>
       {Array.from({length:24},(_,i)=><line key={`t${i}`} x1={30+i*32} y1={20} x2={30+i*32} y2={28} stroke="#60A5FA" strokeWidth={2} opacity={0.5}/>)}
       {Array.from({length:24},(_,i)=><line key={`b${i}`} x1={30+i*32} y1={548} x2={30+i*32} y2={540} stroke="#60A5FA" strokeWidth={2} opacity={0.5}/>)}
-      {/* 서편: 미팅룸 다수 + 소규모 스마트오피스 19석 */}
+      {/* 서편: G/B 협업공간 + 스마트오피스 19석 + 미팅룸 */}
       <rect x={14} y={20} width={290} height={528} rx={3} fill="#F8FAFC" stroke="#94A3B8" strokeWidth={1}/>
-      {/* 미팅룸 상단 4개 */}
-      <MeetingBox x={14} y={20}  w={140} h={120} name="미팅룸 A" sub="22.3m²"/>
-      <MeetingBox x={158} y={20}  w={148} h={120} name="미팅룸 B" sub="20.1m²"/>
+      {/* G/B 협업공간 상단 2개 (도면 기준: 원탁 협업 구역) */}
+      <rect x={14} y={20} width={140} height={120} fill="#F0FDF4" stroke="#86EFAC" strokeWidth={1.2} rx={3}/>
+      <text x={84} y={62} fontSize={8} textAnchor="middle" fill="#15803D" fontWeight={700}>G/B 협업 A</text>
+      <text x={84} y={74} fontSize={7} textAnchor="middle" fill="#15803D">22.3m²</text>
+      <circle cx={84} cy={44} r={16} fill="none" stroke="#86EFAC" strokeWidth={1.2}/>
+      <circle cx={84} cy={44} r={7} fill="#D1FAE5" stroke="#86EFAC" strokeWidth={0.8}/>
+      {[-14,0,14].map(d=><rect key={d} x={84+d-5} y={28} width={10} height={10} rx={2} fill="#BBF7D0" stroke="#86EFAC" strokeWidth={0.5}/>)}
+      <rect x={158} y={20} width={148} height={120} fill="#F0FDF4" stroke="#86EFAC" strokeWidth={1.2} rx={3}/>
+      <text x={232} y={62} fontSize={8} textAnchor="middle" fill="#15803D" fontWeight={700}>G/B 협업 B</text>
+      <text x={232} y={74} fontSize={7} textAnchor="middle" fill="#15803D">20.1m²</text>
+      <circle cx={232} cy={44} r={16} fill="none" stroke="#86EFAC" strokeWidth={1.2}/>
+      <circle cx={232} cy={44} r={7} fill="#D1FAE5" stroke="#86EFAC" strokeWidth={0.8}/>
+      {[-14,0,14].map(d=><rect key={d} x={232+d-5} y={28} width={10} height={10} rx={2} fill="#BBF7D0" stroke="#86EFAC" strokeWidth={0.5}/>)}
       <MeetingBox x={14} y={144} w={140} h={110} name="세미나실" sub="35.6m²"/>
       <MeetingBox x={158} y={144} w={148} h={110} name="회의실"   sub="18.4m²"/>
       {/* 스마트오피스 19석 */}
@@ -613,14 +623,19 @@ export function BW_9F_Sketch(ctx: SketchCtx) {
       {/* 서편: 스튜디오 37석 */}
       <rect x={14} y={20} width={290} height={568} rx={3} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2"/>
       <text x={22} y={38} fontSize={8.5} fontWeight={800} fill="#1E3A8A">스튜디오 서편 — {zW.seats.length}석</text>
-      {/* 스튜디오 특수 장비 구역 */}
-      <rect x={14} y={20} width={290} height={90} fill="#F3E8FF" stroke="#9333EA" strokeWidth={1.2} rx={3}/>
-      <text x={159} y={60} fontSize={8} textAnchor="middle" fill="#7E22CE" fontWeight={700}>스튜디오 장비 구역</text>
-      <rect x={30} y={34} width={50} height={36} rx={2} fill="#E9D5FF" stroke="#9333EA" strokeWidth={0.7}/>
-      <text x={55} y={55} fontSize={6} textAnchor="middle" fill="#7E22CE">카메라</text>
-      <rect x={90} y={34} width={50} height={36} rx={2} fill="#E9D5FF" stroke="#9333EA" strokeWidth={0.7}/>
-      <text x={115} y={55} fontSize={6} textAnchor="middle" fill="#7E22CE">조명</text>
-      <DeskGrid zone={zW} startX={18} startY={122} cols={5} rows={8} sw={30} sh={13} gx={9} gy={3} rowGroups={[2,2,2,2]} aisle={14} ctx={ctx}/>
+      {/* 도서관 / 라이브러리 구역 (도면 기준: 무대 높이 단계 + 서가) */}
+      <rect x={14} y={20} width={290} height={96} fill="#FEF9C3" stroke="#D97706" strokeWidth={1.2} rx={3}/>
+      <text x={159} y={36} fontSize={8} textAnchor="middle" fill="#92400E" fontWeight={700}>스튜디오 무대 / 라이브러리</text>
+      {/* 무대 단 (높이 단계 심볼) */}
+      {[0,1,2,3].map(i=>(
+        <rect key={i} x={20+i*16} y={44+i*8} width={258-i*32} height={60-i*8}
+          fill="none" stroke="#D97706" strokeWidth={0.7} rx={1} opacity={0.7}/>
+      ))}
+      <text x={159} y={78} fontSize={6.5} textAnchor="middle" fill="#92400E">▼ 무대 단 / BOOK SHELF</text>
+      {/* 스탠딩 데스크 구역 */}
+      <rect x={14} y={120} width={290} height={28} fill="#FFF7E6" stroke="#F59E0B" strokeWidth={0.8} rx={2}/>
+      <text x={159} y={137} fontSize={7} textAnchor="middle" fill="#92400E">스탠딩 데스크 구역</text>
+      <DeskGrid zone={zW} startX={18} startY={158} cols={5} rows={8} sw={30} sh={13} gx={9} gy={3} rowGroups={[2,2,2,2]} aisle={14} ctx={ctx}/>
       {/* 코어 */}
       <BW_Core y0={20} y1={588}/>
       {/* 동편: 홀 85석 */}
