@@ -23,7 +23,7 @@ export interface Course {
   createdAt: string;
 }
 
-export type ResourceCategory = "install" | "policy" | "forms";
+export type ResourceCategory = "install" | "policy" | "forms" | "other";
 
 export interface Resource {
   id: string;

@@ -476,11 +476,11 @@ function ResourcesTab() {
     DOCX: { bg: "#DBEAFE", color: "#1E40AF" },
   };
 
-  /* C1: 탭 레이블 한국어 */
   const RES_TABS = [
     { key: "install" as ResTab, label: "설치 가이드" },
     { key: "policy"  as ResTab, label: "정책 문서"   },
     { key: "forms"   as ResTab, label: "양식 서식"   },
+    { key: "other"   as ResTab, label: "기타"         },
   ];
 
   return (
