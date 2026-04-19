@@ -477,10 +477,12 @@ function ResourcesTab() {
   };
 
   const RES_TABS = [
-    { key: "install" as ResTab, label: "설치 가이드" },
-    { key: "policy"  as ResTab, label: "정책 문서"   },
-    { key: "forms"   as ResTab, label: "양식 서식"   },
-    { key: "other"   as ResTab, label: "기타"         },
+    { key: "install"   as ResTab, label: "설치 가이드" },
+    { key: "installer" as ResTab, label: "설치 파일"   },
+    { key: "patch"     as ResTab, label: "패치 파일"   },
+    { key: "policy"    as ResTab, label: "정책 문서"   },
+    { key: "forms"     as ResTab, label: "양식 서식"   },
+    { key: "other"     as ResTab, label: "기타"         },
   ];
 
   return (

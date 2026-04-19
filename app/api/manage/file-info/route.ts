@@ -1,19 +1,119 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromCookieHeader } from "@/lib/session";
+import { Client } from "@notionhq/client";
+import type { BlockObjectResponse } from "@notionhq/client/build/src/api-endpoints";
+
+const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
 function formatBytes(bytes: number): string {
-  if (bytes === 0) return "";
+  if (!bytes || bytes <= 0) return "";
   if (bytes < 1024)        return `${bytes} B`;
   if (bytes < 1024 ** 2)   return `${(bytes / 1024).toFixed(1)} KB`;
   if (bytes < 1024 ** 3)   return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
   return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
 }
 
-function guessFileType(url: string): string {
-  const clean = url.split("?")[0].split("#")[0];
-  const ext = clean.split(".").pop()?.toUpperCase() ?? "";
-  const known = ["PDF", "XLSX", "XLS", "DOCX", "DOC", "ZIP", "EXE", "PPT", "PPTX", "HWP", "CSV", "TXT"];
-  return known.includes(ext) ? (ext === "XLS" ? "XLSX" : ext === "DOC" ? "DOCX" : ext === "PPT" ? "PPTX" : ext) : "";
+function guessFileType(filename: string): string {
+  const ext = filename.split("?")[0].split("#")[0].split(".").pop()?.toUpperCase() ?? "";
+  const map: Record<string, string> = { XLS: "XLSX", DOC: "DOCX", PPT: "PPTX" };
+  const known = ["PDF","XLSX","DOCX","ZIP","EXE","PPT","PPTX","HWP","CSV","TXT","PNG","JPG","JPEG"];
+  return map[ext] ?? (known.includes(ext) ? ext : "");
+}
+
+// Notion 페이지 URL에서 ID 추출
+// 예: https://www.notion.so/Title-2b667f4bfdac806483efc2d7d330a308
+function extractNotionPageId(url: string): string | null {
+  const match = url.match(/([a-f0-9]{32})(?:\?|$|#)/i)
+    ?? url.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})(?:\?|$|#)/i);
+  if (!match) return null;
+  const raw = match[1].replace(/-/g, "");
+  // UUID 형식으로 변환
+  return `${raw.slice(0,8)}-${raw.slice(8,12)}-${raw.slice(12,16)}-${raw.slice(16,20)}-${raw.slice(20)}`;
+}
+
+// S3 URL에서 HEAD 요청으로 파일 크기 읽기
+async function fetchSizeFromUrl(fileUrl: string): Promise<number> {
+  try {
+    const res = await fetch(fileUrl, {
+      method: "HEAD",
+      signal: AbortSignal.timeout(8000),
+    });
+    const cl = res.headers.get("content-length");
+    if (cl) return Number(cl);
+
+    // HEAD 미지원 서버: Range 요청
+    const res2 = await fetch(fileUrl, {
+      method: "GET",
+      headers: { Range: "bytes=0-0" },
+      signal: AbortSignal.timeout(8000),
+    });
+    const cr = res2.headers.get("content-range"); // bytes 0-0/전체크기
+    if (cr) {
+      const total = cr.split("/")[1];
+      if (total && total !== "*") return Number(total);
+    }
+  } catch { /* 무시 */ }
+  return 0;
+}
+
+// Notion 페이지 블록에서 첨부파일 정보 추출
+async function getNotionFileInfo(pageId: string): Promise<{ fileSize: string; fileType: string; fileName: string } | null> {
+  try {
+    const blocks = await notion.blocks.children.list({ block_id: pageId, page_size: 50 });
+
+    let bookmarkUrl = "";
+
+    for (const block of blocks.results) {
+      const b = block as BlockObjectResponse;
+
+      // file 블록
+      if (b.type === "file") {
+        const f = b.file;
+        const fileUrl = f.type === "file" ? f.file.url : f.external?.url ?? "";
+        const fileName = (b as any).file?.name ?? "";
+        const fileType = guessFileType(fileName || fileUrl);
+        const bytes = fileUrl ? await fetchSizeFromUrl(fileUrl) : 0;
+        return { fileSize: formatBytes(bytes), fileType, fileName };
+      }
+
+      // pdf 블록
+      if (b.type === "pdf") {
+        const p = (b as any).pdf;
+        const fileUrl = p?.type === "file" ? p.file?.url : p?.external?.url ?? "";
+        const bytes = fileUrl ? await fetchSizeFromUrl(fileUrl) : 0;
+        return { fileSize: formatBytes(bytes), fileType: "PDF", fileName: "" };
+      }
+
+      // bookmark / embed / link_preview 블록 (외부 다운로드 링크)
+      if (!bookmarkUrl) {
+        const u =
+          (b as any).bookmark?.url ??
+          (b as any).embed?.url ??
+          (b as any).link_preview?.url ??
+          "";
+        if (u && !u.includes("notion.so")) bookmarkUrl = u;
+      }
+    }
+
+    // 직접 첨부 블록이 없으면 bookmark URL로 크기 시도
+    if (bookmarkUrl) {
+      const fileType = guessFileType(bookmarkUrl);
+      const bytes = await fetchSizeFromUrl(bookmarkUrl);
+      const fileName = bookmarkUrl.split("/").pop()?.split("?")[0] ?? "";
+      return { fileSize: formatBytes(bytes), fileType, fileName };
+    }
+
+    // 첨부 파일 블록이 없으면 페이지 제목에서 파일형식 추측
+    const page = await notion.pages.retrieve({ page_id: pageId });
+    const props = (page as any).properties;
+    const titleProp = props?.["제목"] ?? props?.["Name"] ?? props?.["이름"];
+    const title = titleProp?.title?.[0]?.plain_text ?? "";
+    return { fileSize: "", fileType: guessFileType(title), fileName: title };
+
+  } catch (e) {
+    console.error("[file-info] Notion error:", e);
+    return null;
+  }
 }
 
 export async function GET(req: NextRequest) {
@@ -25,38 +125,17 @@ export async function GET(req: NextRequest) {
   const url = req.nextUrl.searchParams.get("url");
   if (!url) return NextResponse.json({ error: "url 파라미터가 필요합니다." }, { status: 400 });
 
-  const fileType = guessFileType(url);
-  let fileSize = "";
+  // ── Notion 페이지 링크 처리 ──────────────────────────────────
+  if (url.includes("notion.so") || url.includes("notion.site")) {
+    const pageId = extractNotionPageId(url);
+    if (!pageId) return NextResponse.json({ fileSize: "", fileType: "" });
 
-  try {
-    // HEAD 요청으로 Content-Length 읽기
-    const res = await fetch(url, {
-      method: "HEAD",
-      headers: { "User-Agent": "Mozilla/5.0" },
-      signal: AbortSignal.timeout(6000),
-    });
-
-    const contentLength = res.headers.get("content-length");
-    if (contentLength) {
-      fileSize = formatBytes(Number(contentLength));
-    }
-
-    // HEAD 미지원 서버 대응: GET + 스트림 즉시 중단
-    if (!fileSize) {
-      const res2 = await fetch(url, {
-        method: "GET",
-        headers: { "User-Agent": "Mozilla/5.0", Range: "bytes=0-0" },
-        signal: AbortSignal.timeout(6000),
-      });
-      const cl = res2.headers.get("content-range"); // bytes 0-0/전체크기
-      if (cl) {
-        const total = cl.split("/")[1];
-        if (total && total !== "*") fileSize = formatBytes(Number(total));
-      }
-    }
-  } catch {
-    // 네트워크 오류 시 크기만 빈값으로 반환
+    const info = await getNotionFileInfo(pageId);
+    return NextResponse.json(info ?? { fileSize: "", fileType: "" });
   }
 
-  return NextResponse.json({ fileSize, fileType });
+  // ── 일반 직접 링크 처리 ──────────────────────────────────────
+  const fileType = guessFileType(url);
+  const bytes = await fetchSizeFromUrl(url);
+  return NextResponse.json({ fileSize: formatBytes(bytes), fileType, fileName: "" });
 }

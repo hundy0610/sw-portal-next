@@ -357,7 +357,7 @@ function ResourcesPanel() {
     load();
   }
 
-  const CAT: Record<ResourceCategory, string> = { install: "설치가이드", policy: "정책문서", forms: "양식서식", other: "기타" };
+  const CAT: Record<ResourceCategory, string> = { install: "설치가이드", installer: "설치파일", patch: "패치파일", policy: "정책문서", forms: "양식서식", other: "기타" };
   const FT: Record<string, { bg: string; color: string }> = { PDF: { bg: "#FEE2E2", color: "#B91C1C" }, XLSX: { bg: "#D1FAE5", color: "#065F46" }, DOCX: { bg: "#DBEAFE", color: "#1E40AF" }, ZIP: { bg: "#FEF3C7", color: "#92400E" }, EXE: { bg: "#F3E8FF", color: "#7C3AED" } };
 
   return (
@@ -390,6 +390,8 @@ function ResourcesPanel() {
             <Field label="분류">
               <select style={iStyle} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value as ResourceCategory }))}>
                 <option value="install">설치가이드</option>
+                <option value="installer">설치파일</option>
+                <option value="patch">패치파일</option>
                 <option value="policy">정책문서</option>
                 <option value="forms">양식서식</option>
                 <option value="other">기타</option>
