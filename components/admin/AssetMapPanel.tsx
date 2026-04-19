@@ -451,6 +451,7 @@ const FALLBACK_SVG: FloorSvgCfg = {
 // ══════════════════════════════════════════════════════════════════════════════
 function FloorPlanSVG({
   bldId, floorId, zones, filter, selectedId, onSelect,
+  editMode, pickedId, onPickSeat, onDropToSeat, onDropToSlot, onDeleteSeat, onAddSeat,
 }: {
   bldId: string;
   floorId: string;
@@ -458,6 +459,13 @@ function FloorPlanSVG({
   filter: FilterMode;
   selectedId: string | null;
   onSelect: (seat: SeatData, zone: ZoneData) => void;
+  editMode?: boolean;
+  pickedId?: string | null;
+  onPickSeat?: (id: string | null) => void;
+  onDropToSeat?: (targetId: string) => void;
+  onDropToSlot?: (zoneId: string, idx: number) => void;
+  onDeleteSeat?: (id: string) => void;
+  onAddSeat?: (zoneId: string, idx: number) => void;
 }) {
   // 건물별 층 키 우선, 없으면 본관 기본 키, 그 다음 fallback
   // ① 전용 스케치가 있으면 그것으로 렌더 (실제 도면 기반 손 스케치)
@@ -479,6 +487,8 @@ function FloorPlanSVG({
         }
       },
       colorOf: (t) => ({ color: MONITOR[t].color, pale: MONITOR[t].pale }),
+      editMode, pickedId,
+      onPickSeat, onDropToSeat, onDropToSlot, onDeleteSeat, onAddSeat,
     };
     return (
       <div className="w-full overflow-x-auto">{sketchRender(ctx)}</div>
@@ -873,12 +883,18 @@ export default function AssetMapPanel() {
   const [filter,        setFilter]        = useState<FilterMode>("all");
   const [selected,      setSelected]      = useState<{ seat:SeatData; zone:ZoneData } | null>(null);
   const [seatOverrides, setSeatOverrides] = useState<Record<string, MonitorType>>({});
+  const [editMode,      setEditMode]      = useState(false);
+  const [pickedId,      setPickedId]      = useState<string|null>(null);
+  // 구조 편집: zoneKey → [{id, type}] (삭제/추가/이동 반영)
+  const [layoutEdits,   setLayoutEdits]   = useState<Record<string,Array<{id:string;type:MonitorType}>>>({});
 
   // ── localStorage 초기 로드 ──────────────────────────────────────
   useEffect(() => {
     try {
       const stored = localStorage.getItem("sw-monitor-overrides");
       if (stored) setSeatOverrides(JSON.parse(stored));
+      const layout = localStorage.getItem("sw-layout-edits");
+      if (layout) setLayoutEdits(JSON.parse(layout));
     } catch {}
   }, []);
 
@@ -895,22 +911,128 @@ export default function AssetMapPanel() {
     );
   }, []);
 
+  // ── 편집 모드 콜백 ──────────────────────────────────────────────
+  const saveLayout = useCallback((next: Record<string,Array<{id:string;type:MonitorType}>>) => {
+    setLayoutEdits(next);
+    try { localStorage.setItem("sw-layout-edits", JSON.stringify(next)); } catch {}
+  }, []);
+
+  // 집기 / 취소
+  const handlePickSeat = useCallback((id: string | null) => {
+    setPickedId(id);
+    if (id !== null) setSelected(null);
+  }, []);
+
+  // 이동: 두 좌석의 모니터 타입 교환
+  const handleDropToSeat = useCallback((targetId: string) => {
+    if (!pickedId) return;
+    let fromType: MonitorType = "unk", toType: MonitorType = "unk";
+    for (const z of effectiveZones) {
+      for (const s of z.seats) {
+        if (s.id === pickedId) fromType = s.type as MonitorType;
+        if (s.id === targetId) toType   = s.type as MonitorType;
+      }
+    }
+    setSeatOverrides(prev => {
+      const next = { ...prev, [pickedId]: toType, [targetId]: fromType };
+      try { localStorage.setItem("sw-monitor-overrides", JSON.stringify(next)); } catch {}
+      return next;
+    });
+    setPickedId(null); setSelected(null);
+  }, [pickedId, effectiveZones]);
+
+  // 빈 슬롯으로 이동: 집은 좌석 → 빈 자리에 삽입, 원래 자리는 unk
+  const handleDropToSlot = useCallback((zoneId: string, idx: number) => {
+    if (!pickedId) return;
+    let pickedType: MonitorType = "unk";
+    const zone = floor.zones.find(z => z.id === zoneId);
+    if (!zone) return;
+    for (const z of effectiveZones) {
+      const s = z.seats.find(s => s.id === pickedId);
+      if (s) { pickedType = s.type as MonitorType; break; }
+    }
+    const key = `${buildingId}-${floorId}-${zoneId}`;
+    const base = layoutEdits[key] ?? zone.seats.map(s => ({ id: s.id, type: s.type as MonitorType }));
+    const newId = `NEW-${Date.now()}`;
+    const newSeats = [...base.slice(0, idx), { id: newId, type: pickedType }, ...base.slice(idx)];
+    saveLayout({ ...layoutEdits, [key]: newSeats });
+    // 원래 자리 unk 처리
+    setSeatOverrides(prev => {
+      const next = { ...prev, [pickedId]: "unk" as MonitorType };
+      try { localStorage.setItem("sw-monitor-overrides", JSON.stringify(next)); } catch {}
+      return next;
+    });
+    setPickedId(null);
+  }, [pickedId, floor.zones, effectiveZones, buildingId, floorId, layoutEdits, saveLayout]);
+
+  // 삭제: 해당 좌석을 zone 배열에서 제거
+  const handleDeleteSeat = useCallback((seatId: string) => {
+    for (const z of floor.zones) {
+      const key = `${buildingId}-${floorId}-${z.id}`;
+      const base = layoutEdits[key] ?? z.seats.map(s => ({ id: s.id, type: s.type as MonitorType }));
+      if (base.some(s => s.id === seatId)) {
+        saveLayout({ ...layoutEdits, [key]: base.filter(s => s.id !== seatId) });
+        break;
+      }
+    }
+    setPickedId(null); setSelected(null);
+  }, [floor.zones, buildingId, floorId, layoutEdits, saveLayout]);
+
+  // 생성: 빈 슬롯 위치에 새 unk 좌석 추가
+  const handleAddSeat = useCallback((zoneId: string, idx: number) => {
+    const zone = floor.zones.find(z => z.id === zoneId);
+    if (!zone) return;
+    const key = `${buildingId}-${floorId}-${zoneId}`;
+    const base = layoutEdits[key] ?? zone.seats.map(s => ({ id: s.id, type: s.type as MonitorType }));
+    const newId = `NEW-${Date.now()}`;
+    const newSeats = [...base.slice(0, idx), { id: newId, type: "unk" as MonitorType }, ...base.slice(idx)];
+    saveLayout({ ...layoutEdits, [key]: newSeats });
+  }, [floor.zones, buildingId, floorId, layoutEdits, saveLayout]);
+
+  // 편집 초기화
+  const resetLayout = useCallback(() => {
+    const keysToRemove = floor.zones.map(z => `${buildingId}-${floorId}-${z.id}`);
+    const next = { ...layoutEdits };
+    keysToRemove.forEach(k => delete next[k]);
+    saveLayout(next);
+    setPickedId(null); setEditMode(false);
+  }, [floor.zones, buildingId, floorId, layoutEdits, saveLayout]);
+
   const building = useMemo(() => BUILDINGS.find(b => b.id === buildingId)!, [buildingId]);
   const floor    = useMemo(
     () => building.floors.find(f => f.id === floorId) ?? building.floors[0],
     [building, floorId]
   );
 
-  // override 적용된 zones (렌더링·통계 모두 이걸 사용)
+  // override 적용된 zones (구조 편집 + 타입 오버라이드 모두 적용)
   const effectiveZones = useMemo(() =>
-    floor.zones.map(z => ({
-      ...z,
-      seats: z.seats.map(s => ({
-        ...s,
-        type: (seatOverrides[s.id] ?? s.type) as MonitorType,
-      })),
-    })),
-    [floor.zones, seatOverrides]
+    floor.zones.map(z => {
+      const key = `${buildingId}-${floorId}-${z.id}`;
+      const structEdit = layoutEdits[key];
+      if (structEdit) {
+        const origMap = new Map(z.seats.map(s => [s.id, s]));
+        return {
+          ...z,
+          seats: structEdit.map((e, idx) => {
+            const orig = origMap.get(e.id);
+            return {
+              id:   e.id,
+              type: (seatOverrides[e.id] ?? e.type) as MonitorType,
+              row:  orig?.row ?? Math.floor(idx / Math.max(z.cols, 1)),
+              col:  orig?.col ?? idx % Math.max(z.cols, 1),
+            };
+          }),
+        };
+      }
+      return {
+        ...z,
+        seats: z.seats.map(s => ({
+          ...s,
+          type: (seatOverrides[s.id] ?? s.type) as MonitorType,
+        })),
+      };
+    }),
+    [floor.zones, seatOverrides, layoutEdits, buildingId, floorId]
   );
 
   const flStats    = useMemo(() => calcStats(effectiveZones), [effectiveZones]);
@@ -957,8 +1079,28 @@ export default function AssetMapPanel() {
           })}
         </div>
 
+        {/* 편집 모드 버튼 */}
+        <div className="flex items-center gap-1.5 ml-auto">
+          <button
+            onClick={() => { setEditMode(e => !e); setPickedId(null); setSelected(null); }}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${
+              editMode
+                ? "bg-amber-500 text-white border-amber-500 shadow-sm"
+                : "bg-white text-slate-600 border-gray-200 hover:bg-amber-50 hover:border-amber-300"
+            }`}>
+            {editMode ? "✓ 편집 중" : "✏️ 편집"}
+          </button>
+          {editMode && (
+            <button
+              onClick={resetLayout}
+              className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition-all">
+              ↩ 초기화
+            </button>
+          )}
+        </div>
+
         {/* 건물 + 층 선택 */}
-        <div className="ml-auto flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="flex rounded-lg border border-gray-200 overflow-hidden">
             {BUILDINGS.map(b => (
               <button key={b.id}
@@ -1005,7 +1147,13 @@ export default function AssetMapPanel() {
             );
           })}
         </div>
-        <span className="text-[10px] text-gray-400 ml-2">좌석 클릭 시 위치 정보 · 교체 요청 가능</span>
+        {editMode ? (
+          <span className="text-[10px] text-amber-600 font-semibold ml-2">
+            ✏️ 편집 모드 — 클릭: 집기 · 빈 슬롯 클릭: 이동/추가 · ✕: 삭제 · 빈 곳 클릭: 취소
+          </span>
+        ) : (
+          <span className="text-[10px] text-gray-400 ml-2">좌석 클릭 시 위치 정보 · 교체 요청 가능</span>
+        )}
       </div>
 
       {/* ── 메인 콘텐츠 ─────────────────────────────────────────── */}
@@ -1021,6 +1169,12 @@ export default function AssetMapPanel() {
               bldId={buildingId} floorId={floor.id}
               zones={effectiveZones} filter={filter}
               selectedId={selectedId} onSelect={handleSelect}
+              editMode={editMode} pickedId={pickedId}
+              onPickSeat={handlePickSeat}
+              onDropToSeat={handleDropToSeat}
+              onDropToSlot={handleDropToSlot}
+              onDeleteSeat={handleDeleteSeat}
+              onAddSeat={handleAddSeat}
             />
           </div>
           {/* 범례 */}

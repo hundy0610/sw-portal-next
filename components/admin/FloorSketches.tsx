@@ -10,6 +10,14 @@ export interface SketchCtx {
   selectedId: string | null;
   onSelect: (seatId: string) => void;
   colorOf: (t: MonitorType) => { color: string; pale: string };
+  // ── 편집 모드 ────────────────────────────────────────────────
+  editMode?: boolean;
+  pickedId?: string | null;
+  onPickSeat?: (id: string | null) => void;
+  onDropToSeat?: (targetId: string) => void;
+  onDropToSlot?: (zoneId: string, idx: number) => void;
+  onDeleteSeat?: (id: string) => void;
+  onAddSeat?: (zoneId: string, idx: number) => void;
 }
 
 function Seat({ x, y, w=22, h=12, orient, seat, ctx }: {
@@ -21,25 +29,89 @@ function Seat({ x, y, w=22, h=12, orient, seat, ctx }: {
   const meta = ctx.colorOf(seat.type);
   const dimmed = ctx.filter !== "all" && seat.type !== ctx.filter;
   const isSel = ctx.selectedId === seat.id;
-  const deskFill = dimmed ? "#E5E7EB" : meta.color + (seat.type === "unk" ? "66" : "D9");
-  const deskStroke = dimmed ? "#D1D5DB" : "#1F2937";
+  const em = ctx.editMode ?? false;
+  const isPicked = em && ctx.pickedId === seat.id;
+  const canDrop = em && !!ctx.pickedId && ctx.pickedId !== seat.id;
+
+  const deskFill = dimmed ? "#E5E7EB"
+    : isPicked ? "#FEF3C7"
+    : meta.color + (seat.type === "unk" ? "66" : "D9");
+  const deskStroke = dimmed ? "#D1D5DB"
+    : isPicked ? "#F59E0B"
+    : canDrop ? "#10B981"
+    : "#1F2937";
+  const deskSW = isPicked ? 2 : canDrop ? 1.5 : (isSel ? 1.5 : 0.7);
   const chairH = Math.max(6, Math.round(h * 0.65));
   const chairPad = 2;
   const chairY = orient === "up" ? y - chairH - 1 : y + h + 1;
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (em) {
+      if (!ctx.pickedId)           ctx.onPickSeat?.(seat.id);
+      else if (ctx.pickedId === seat.id) ctx.onPickSeat?.(null);
+      else                         ctx.onDropToSeat?.(seat.id);
+    } else {
+      !dimmed && ctx.onSelect(seat.id);
+    }
+  };
+
   return (
-    <g style={{ cursor:"pointer" }} onClick={() => !dimmed && ctx.onSelect(seat.id)}>
+    <g style={{ cursor: em ? (isPicked ? "grabbing" : "grab") : "pointer" }}
+       onClick={handleClick}>
       <rect x={x+chairPad} y={chairY} width={w-chairPad*2} height={chairH} rx={2.5}
-        fill={dimmed?"#F3F4F6":"#E8EAED"} stroke={dimmed?"#E2E8F0":"#94A3B8"} strokeWidth={0.7}/>
+        fill={dimmed?"#F3F4F6":isPicked?"#FDE68A":"#E8EAED"}
+        stroke={dimmed?"#E2E8F0":isPicked?"#F59E0B":"#94A3B8"} strokeWidth={0.7}/>
       <rect x={x} y={y} width={w} height={h} rx={1.5}
-        fill={deskFill} stroke={deskStroke} strokeWidth={isSel?1.5:0.7}/>
+        fill={deskFill} stroke={deskStroke} strokeWidth={deskSW}
+        strokeDasharray={canDrop ? "3,2" : undefined}/>
       {seat.type==="none" && !dimmed && (<>
         <line x1={x+2} y1={y+2} x2={x+w-2} y2={y+h-2} stroke="white" strokeWidth={1.3}/>
         <line x1={x+w-2} y1={y+2} x2={x+2} y2={y+h-2} stroke="white" strokeWidth={1.3}/>
       </>)}
-      {isSel && <rect x={x-2} y={Math.min(chairY,y)-1} width={w+4} height={h+chairH+3}
+      {isSel && !em && <rect x={x-2} y={Math.min(chairY,y)-1} width={w+4} height={h+chairH+3}
         rx={2.5} fill="none" stroke={meta.color} strokeWidth={1.6} opacity={0.9}
         style={{pointerEvents:"none"}}/>}
+      {isPicked && <rect x={x-2} y={Math.min(chairY,y)-1} width={w+4} height={h+chairH+3}
+        rx={2.5} fill="none" stroke="#F59E0B" strokeWidth={2} opacity={0.9}
+        style={{pointerEvents:"none"}}/>}
+      {/* 삭제 버튼 — 집었을 때만 표시 */}
+      {isPicked && (
+        <g style={{cursor:"pointer"}}
+           onClick={(e)=>{e.stopPropagation();ctx.onDeleteSeat?.(seat.id);}}>
+          <circle cx={x+w} cy={y} r={5.5} fill="#EF4444" stroke="white" strokeWidth={1}/>
+          <line x1={x+w-2.5} y1={y-2.5} x2={x+w+2.5} y2={y+2.5} stroke="white" strokeWidth={1.3}/>
+          <line x1={x+w+2.5} y1={y-2.5} x2={x+w-2.5} y2={y+2.5} stroke="white" strokeWidth={1.3}/>
+        </g>
+      )}
+      {/* 편집 모드 그립 힌트 */}
+      {em && !isPicked && (
+        <text x={x+1.5} y={y+h-1} fontSize={4} fill="#94A3B8" style={{pointerEvents:"none"}}>⠿</text>
+      )}
       <title>{seat.id} · {seat.type}</title>
+    </g>
+  );
+}
+
+// 빈 슬롯 — 편집 모드에서 좌석이 없는 자리에 표시
+function EmptySlot({x,y,w,h,zoneId,idx,ctx}:{
+  x:number;y:number;w:number;h:number;zoneId:string;idx:number;ctx:SketchCtx;
+}) {
+  if (!ctx.editMode) return null;
+  const hasPicked = !!ctx.pickedId;
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (hasPicked) ctx.onDropToSlot?.(zoneId, idx);
+    else           ctx.onAddSeat?.(zoneId, idx);
+  };
+  return (
+    <g style={{cursor:"pointer"}} onClick={handleClick}>
+      <rect x={x} y={y} width={w} height={h} rx={1.5}
+        fill={hasPicked ? "#DCFCE7" : "#F8FAFC"}
+        stroke={hasPicked ? "#16A34A" : "#CBD5E1"}
+        strokeWidth={1} strokeDasharray="3,2"/>
+      <text x={x+w/2} y={y+h/2+2.5} fontSize={hasPicked?9:7} textAnchor="middle"
+        fill={hasPicked?"#16A34A":"#CBD5E1"} style={{pointerEvents:"none"}}>+</text>
     </g>
   );
 }
@@ -169,13 +241,13 @@ export function BW_2F_Sketch(ctx: SketchCtx) {
       {/* 상단 모니터 + 의자 */}
       {xs(topN).map((x,i)=>{
         const seat=zone.seats[topBase+i];
-        if(!seat) return null;
+        if(!seat) return <EmptySlot key={`es-t${topBase+i}`} x={x} y={topY} w={dw} h={dh} zoneId={zone.id} idx={topBase+i} ctx={ctx}/>;
         return <Seat key={seat.id} x={x} y={topY} w={dw} h={dh} orient={topOrient} seat={seat} ctx={ctx}/>;
       })}
       {/* 하단 모니터 + 의자 (양면만) */}
       {isDouble&&xs(botN!).map((x,i)=>{
         const seat=zone.seats[botBase!+i];
-        if(!seat) return null;
+        if(!seat) return <EmptySlot key={`es-b${botBase!+i}`} x={x} y={botY} w={dw} h={dh} zoneId={zone.id} idx={botBase!+i} ctx={ctx}/>;
         return <Seat key={seat.id} x={x} y={botY} w={dw} h={dh} orient="down" seat={seat} ctx={ctx}/>;
       })}
     </g>);
@@ -191,11 +263,16 @@ export function BW_2F_Sketch(ctx: SketchCtx) {
   // T6 10석양면: clEy-9≥386+14=400 → clEy=409; bottom=409+44+9=462
 
   return (
-    <svg viewBox="0 0 820 540" style={{width:"100%",maxWidth:960,height:"auto",display:"block"}}>
+    <svg viewBox="0 0 820 540" style={{width:"100%",maxWidth:960,height:"auto",display:"block"}}
+         onClick={()=>{if(ctx.editMode&&ctx.pickedId) ctx.onPickSeat?.(null);}}>
       {HATCH}
       <rect x={12} y={20} width={796} height={510} fill="#FAFAFA" stroke="#1F2937" strokeWidth={2}/>
       {Array.from({length:24},(_,i)=><line key={`t${i}`} x1={30+i*32} y1={20} x2={30+i*32} y2={28} stroke="#60A5FA" strokeWidth={2} opacity={0.5}/>)}
       {Array.from({length:24},(_,i)=><line key={`b${i}`} x1={30+i*32} y1={530} x2={30+i*32} y2={522} stroke="#60A5FA" strokeWidth={2} opacity={0.5}/>)}
+      {/* 편집 모드 안내 배너 */}
+      {ctx.editMode && (
+        <rect x={14} y={20} width={796} height={8} rx={2} fill="#FEF3C7" opacity={0.8}/>
+      )}
       {/* 스마트오피스 프레임 */}
       <rect x={14} y={28} width={340} height={492} rx={4} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1.2} strokeDasharray="6,3"/>
       <text x={184} y={44} fontSize={9.5} fontWeight={800} fill="#1E3A8A" textAnchor="middle">스마트오피스 (서편) — 52석</text>
