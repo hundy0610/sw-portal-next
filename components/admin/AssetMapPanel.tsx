@@ -911,93 +911,6 @@ export default function AssetMapPanel() {
     );
   }, []);
 
-  // ── 편집 모드 콜백 ──────────────────────────────────────────────
-  const saveLayout = useCallback((next: Record<string,Array<{id:string;type:MonitorType}>>) => {
-    setLayoutEdits(next);
-    try { localStorage.setItem("sw-layout-edits", JSON.stringify(next)); } catch {}
-  }, []);
-
-  // 집기 / 취소
-  const handlePickSeat = useCallback((id: string | null) => {
-    setPickedId(id);
-    if (id !== null) setSelected(null);
-  }, []);
-
-  // 이동: 두 좌석의 모니터 타입 교환
-  const handleDropToSeat = useCallback((targetId: string) => {
-    if (!pickedId) return;
-    let fromType: MonitorType = "unk", toType: MonitorType = "unk";
-    for (const z of effectiveZones) {
-      for (const s of z.seats) {
-        if (s.id === pickedId) fromType = s.type as MonitorType;
-        if (s.id === targetId) toType   = s.type as MonitorType;
-      }
-    }
-    setSeatOverrides(prev => {
-      const next = { ...prev, [pickedId]: toType, [targetId]: fromType };
-      try { localStorage.setItem("sw-monitor-overrides", JSON.stringify(next)); } catch {}
-      return next;
-    });
-    setPickedId(null); setSelected(null);
-  }, [pickedId, effectiveZones]);
-
-  // 빈 슬롯으로 이동: 집은 좌석 → 빈 자리에 삽입, 원래 자리는 unk
-  const handleDropToSlot = useCallback((zoneId: string, idx: number) => {
-    if (!pickedId) return;
-    let pickedType: MonitorType = "unk";
-    const zone = floor.zones.find(z => z.id === zoneId);
-    if (!zone) return;
-    for (const z of effectiveZones) {
-      const s = z.seats.find(s => s.id === pickedId);
-      if (s) { pickedType = s.type as MonitorType; break; }
-    }
-    const key = `${buildingId}-${floorId}-${zoneId}`;
-    const base = layoutEdits[key] ?? zone.seats.map(s => ({ id: s.id, type: s.type as MonitorType }));
-    const newId = `NEW-${Date.now()}`;
-    const newSeats = [...base.slice(0, idx), { id: newId, type: pickedType }, ...base.slice(idx)];
-    saveLayout({ ...layoutEdits, [key]: newSeats });
-    // 원래 자리 unk 처리
-    setSeatOverrides(prev => {
-      const next = { ...prev, [pickedId]: "unk" as MonitorType };
-      try { localStorage.setItem("sw-monitor-overrides", JSON.stringify(next)); } catch {}
-      return next;
-    });
-    setPickedId(null);
-  }, [pickedId, floor.zones, effectiveZones, buildingId, floorId, layoutEdits, saveLayout]);
-
-  // 삭제: 해당 좌석을 zone 배열에서 제거
-  const handleDeleteSeat = useCallback((seatId: string) => {
-    for (const z of floor.zones) {
-      const key = `${buildingId}-${floorId}-${z.id}`;
-      const base = layoutEdits[key] ?? z.seats.map(s => ({ id: s.id, type: s.type as MonitorType }));
-      if (base.some(s => s.id === seatId)) {
-        saveLayout({ ...layoutEdits, [key]: base.filter(s => s.id !== seatId) });
-        break;
-      }
-    }
-    setPickedId(null); setSelected(null);
-  }, [floor.zones, buildingId, floorId, layoutEdits, saveLayout]);
-
-  // 생성: 빈 슬롯 위치에 새 unk 좌석 추가
-  const handleAddSeat = useCallback((zoneId: string, idx: number) => {
-    const zone = floor.zones.find(z => z.id === zoneId);
-    if (!zone) return;
-    const key = `${buildingId}-${floorId}-${zoneId}`;
-    const base = layoutEdits[key] ?? zone.seats.map(s => ({ id: s.id, type: s.type as MonitorType }));
-    const newId = `NEW-${Date.now()}`;
-    const newSeats = [...base.slice(0, idx), { id: newId, type: "unk" as MonitorType }, ...base.slice(idx)];
-    saveLayout({ ...layoutEdits, [key]: newSeats });
-  }, [floor.zones, buildingId, floorId, layoutEdits, saveLayout]);
-
-  // 편집 초기화
-  const resetLayout = useCallback(() => {
-    const keysToRemove = floor.zones.map(z => `${buildingId}-${floorId}-${z.id}`);
-    const next = { ...layoutEdits };
-    keysToRemove.forEach(k => delete next[k]);
-    saveLayout(next);
-    setPickedId(null); setEditMode(false);
-  }, [floor.zones, buildingId, floorId, layoutEdits, saveLayout]);
-
   const building = useMemo(() => BUILDINGS.find(b => b.id === buildingId)!, [buildingId]);
   const floor    = useMemo(
     () => building.floors.find(f => f.id === floorId) ?? building.floors[0],
@@ -1037,6 +950,88 @@ export default function AssetMapPanel() {
 
   const flStats    = useMemo(() => calcStats(effectiveZones), [effectiveZones]);
   const selectedId = selected?.seat.id ?? null;
+
+  // ── 편집 모드 콜백 (effectiveZones / floor 이후에 선언) ──────────
+  const saveLayout = useCallback((next: Record<string,Array<{id:string;type:MonitorType}>>) => {
+    setLayoutEdits(next);
+    try { localStorage.setItem("sw-layout-edits", JSON.stringify(next)); } catch {}
+  }, []);
+
+  const handlePickSeat = useCallback((id: string | null) => {
+    setPickedId(id);
+    if (id !== null) setSelected(null);
+  }, []);
+
+  // 이동: 두 좌석의 모니터 타입 교환
+  const handleDropToSeat = useCallback((targetId: string) => {
+    if (!pickedId) return;
+    let fromType: MonitorType = "unk", toType: MonitorType = "unk";
+    for (const z of effectiveZones) {
+      for (const s of z.seats) {
+        if (s.id === pickedId) fromType = s.type as MonitorType;
+        if (s.id === targetId) toType   = s.type as MonitorType;
+      }
+    }
+    setSeatOverrides(prev => {
+      const next = { ...prev, [pickedId]: toType, [targetId]: fromType };
+      try { localStorage.setItem("sw-monitor-overrides", JSON.stringify(next)); } catch {}
+      return next;
+    });
+    setPickedId(null); setSelected(null);
+  }, [pickedId, effectiveZones]);
+
+  // 빈 슬롯으로 이동
+  const handleDropToSlot = useCallback((zoneId: string, idx: number) => {
+    if (!pickedId) return;
+    let pickedType: MonitorType = "unk";
+    const zone = floor.zones.find(z => z.id === zoneId);
+    if (!zone) return;
+    for (const z of effectiveZones) {
+      const s = z.seats.find(s => s.id === pickedId);
+      if (s) { pickedType = s.type as MonitorType; break; }
+    }
+    const key = `${buildingId}-${floorId}-${zoneId}`;
+    const base = layoutEdits[key] ?? zone.seats.map(s => ({ id: s.id, type: s.type as MonitorType }));
+    const newId = `NEW-${Date.now()}`;
+    saveLayout({ ...layoutEdits, [key]: [...base.slice(0,idx), {id:newId,type:pickedType}, ...base.slice(idx)] });
+    setSeatOverrides(prev => {
+      const next = { ...prev, [pickedId]: "unk" as MonitorType };
+      try { localStorage.setItem("sw-monitor-overrides", JSON.stringify(next)); } catch {}
+      return next;
+    });
+    setPickedId(null);
+  }, [pickedId, floor.zones, effectiveZones, buildingId, floorId, layoutEdits, saveLayout]);
+
+  // 삭제
+  const handleDeleteSeat = useCallback((seatId: string) => {
+    for (const z of floor.zones) {
+      const key = `${buildingId}-${floorId}-${z.id}`;
+      const base = layoutEdits[key] ?? z.seats.map(s => ({ id: s.id, type: s.type as MonitorType }));
+      if (base.some(s => s.id === seatId)) {
+        saveLayout({ ...layoutEdits, [key]: base.filter(s => s.id !== seatId) });
+        break;
+      }
+    }
+    setPickedId(null); setSelected(null);
+  }, [floor.zones, buildingId, floorId, layoutEdits, saveLayout]);
+
+  // 생성
+  const handleAddSeat = useCallback((zoneId: string, idx: number) => {
+    const zone = floor.zones.find(z => z.id === zoneId);
+    if (!zone) return;
+    const key = `${buildingId}-${floorId}-${zoneId}`;
+    const base = layoutEdits[key] ?? zone.seats.map(s => ({ id: s.id, type: s.type as MonitorType }));
+    const newId = `NEW-${Date.now()}`;
+    saveLayout({ ...layoutEdits, [key]: [...base.slice(0,idx), {id:newId,type:"unk"as MonitorType}, ...base.slice(idx)] });
+  }, [floor.zones, buildingId, floorId, layoutEdits, saveLayout]);
+
+  // 편집 초기화
+  const resetLayout = useCallback(() => {
+    const next = { ...layoutEdits };
+    floor.zones.forEach(z => delete next[`${buildingId}-${floorId}-${z.id}`]);
+    saveLayout(next);
+    setPickedId(null); setEditMode(false);
+  }, [floor.zones, buildingId, floorId, layoutEdits, saveLayout]);
 
   const handleBldChange = (bid: string) => {
     setBuildingId(bid);
