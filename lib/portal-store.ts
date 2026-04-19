@@ -4,6 +4,41 @@ import type { Notice, Course, Resource } from "@/types/portal";
 const KV_NOTICES   = "portal:notices";
 const KV_COURSES   = "portal:courses";
 const KV_RESOURCES = "portal:resources";
+const KV_AUDIT     = "portal:audit_log";
+
+// ─── Audit Log ──────────────────────────────────────────
+export interface AuditLog {
+  id: string;
+  adminId: string;
+  adminName: string;
+  action: "create" | "update" | "delete";
+  target: "notices" | "courses" | "resources";
+  itemTitle: string;
+  timestamp: string; // ISO
+}
+
+export async function appendAuditLog(entry: Omit<AuditLog, "id">): Promise<void> {
+  if (!kvAvailable()) return;
+  try {
+    const logs = (await kv.get<AuditLog[]>(KV_AUDIT)) ?? [];
+    const newLog: AuditLog = { id: `al_${Date.now()}`, ...entry };
+    // 최대 500건 유지
+    const trimmed = [newLog, ...logs].slice(0, 500);
+    await kv.set(KV_AUDIT, trimmed);
+  } catch (e) {
+    console.warn("[audit] log failed:", e);
+  }
+}
+
+export async function getAuditLogs(limit = 100): Promise<AuditLog[]> {
+  if (!kvAvailable()) return [];
+  try {
+    const logs = (await kv.get<AuditLog[]>(KV_AUDIT)) ?? [];
+    return logs.slice(0, limit);
+  } catch {
+    return [];
+  }
+}
 
 const kvAvailable = () => !!process.env.KV_REST_API_URL;
 

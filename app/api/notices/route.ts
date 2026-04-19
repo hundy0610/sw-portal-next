@@ -1,34 +1,51 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getNotices, saveNotices } from "@/lib/portal-store";
+import { getNotices, saveNotices, appendAuditLog } from "@/lib/portal-store";
+import { getSessionFromCookieHeader } from "@/lib/session";
 import type { Notice } from "@/types/portal";
 
-function authOk(req: NextRequest) {
-  const key = req.headers.get("x-manage-key");
-  return key && key === process.env.MANAGE_SECRET_KEY;
+function getSuperSession(req: NextRequest) {
+  const session = getSessionFromCookieHeader(req.headers.get("cookie"));
+  if (!session || session.role !== "super") return null;
+  return session;
 }
 
 export async function GET(req: NextRequest) {
   const all = req.nextUrl.searchParams.get("all") === "1";
-  if (all && !authOk(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (all && !getSuperSession(req)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   const notices = await getNotices(!all);
   return NextResponse.json({ data: notices });
 }
 
 export async function POST(req: NextRequest) {
-  if (!authOk(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const session = getSuperSession(req);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
   const all = await getNotices(false);
 
   if (body._action === "delete") {
-    const updated = all.filter(n => n.id !== body.id);
-    await saveNotices(updated);
+    const target = all.find(n => n.id === body.id);
+    await saveNotices(all.filter(n => n.id !== body.id));
+    await appendAuditLog({
+      adminId: session.userId, adminName: session.name,
+      action: "delete", target: "notices",
+      itemTitle: target?.title ?? body.id,
+      timestamp: new Date().toISOString(),
+    });
     return NextResponse.json({ ok: true });
   }
 
   if (body._action === "update") {
-    const updated = all.map(n => n.id === body.id ? { ...n, ...body.data } : n);
-    await saveNotices(updated);
+    const target = all.find(n => n.id === body.id);
+    await saveNotices(all.map(n => n.id === body.id ? { ...n, ...body.data } : n));
+    await appendAuditLog({
+      adminId: session.userId, adminName: session.name,
+      action: "update", target: "notices",
+      itemTitle: body.data?.title ?? target?.title ?? body.id,
+      timestamp: new Date().toISOString(),
+    });
     return NextResponse.json({ ok: true });
   }
 
@@ -44,5 +61,11 @@ export async function POST(req: NextRequest) {
     createdAt: new Date().toISOString(),
   };
   await saveNotices([notice, ...all]);
+  await appendAuditLog({
+    adminId: session.userId, adminName: session.name,
+    action: "create", target: "notices",
+    itemTitle: notice.title,
+    timestamp: new Date().toISOString(),
+  });
   return NextResponse.json({ ok: true, id: notice.id });
 }

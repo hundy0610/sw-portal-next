@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
 import type { Notice, Course, Resource, ResourceCategory } from "@/types/portal";
+import type { AuditLog } from "@/lib/portal-store";
 
-/* ── 색상 (사용자 포털과 동일) ── */
+/* ── 색상 토큰 ── */
 const C = {
   brand:       "#1E3A8A",
   primary:     "#2563EB",
@@ -19,75 +19,16 @@ const C = {
   dangerSoft:  "#FEE2E2",
 } as const;
 
-type ManageTab = "notices" | "courses" | "resources";
+type ManageTab = "notices" | "courses" | "resources" | "audit";
 
-/* ── 인증 세션 키 ── */
-const SESSION_KEY = "portal_manage_auth";
-
-function getManageKey(urlKey: string | null) {
-  if (urlKey) sessionStorage.setItem("manage_url_key", urlKey);
-  return sessionStorage.getItem("manage_url_key") ?? "";
+interface SessionInfo {
+  name: string;
+  userId: string;
+  role: string;
 }
 
 /* ══════════════════════════════════════════════════════
-   인증 화면
-══════════════════════════════════════════════════════ */
-function AuthScreen({ onAuth }: { onAuth: () => void }) {
-  const [pw, setPw]     = useState("");
-  const [err, setErr]   = useState("");
-  const [loading, setLoading] = useState(false);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setErr("");
-    const res = await fetch("/api/manage/auth", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password: pw, key: getManageKey(null) }),
-    });
-    setLoading(false);
-    if (res.ok) {
-      sessionStorage.setItem(SESSION_KEY, "true");
-      onAuth();
-    } else {
-      setErr("비밀번호가 올바르지 않습니다.");
-    }
-  }
-
-  return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: C.bg }}>
-      <div className="bg-white rounded-[24px] p-10 w-full max-w-sm shadow-lg" style={{ border: `1px solid ${C.border}` }}>
-        <div className="flex items-center justify-center mb-6">
-          <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-black text-sm"
-            style={{ background: C.primary }}>SW</div>
-        </div>
-        <h1 className="text-xl font-extrabold text-center mb-1" style={{ color: C.text1 }}>포털 관리모드</h1>
-        <p className="text-sm text-center mb-8" style={{ color: C.text3 }}>비밀번호를 입력하세요</p>
-        <form onSubmit={handleSubmit}>
-          <input
-            type="password"
-            value={pw}
-            onChange={e => setPw(e.target.value)}
-            placeholder="관리 비밀번호"
-            className="w-full px-4 py-3 rounded-xl border text-sm mb-3 outline-none focus:border-blue-500"
-            style={{ borderColor: C.border }}
-            autoFocus
-          />
-          {err && <p className="text-xs mb-3" style={{ color: C.danger }}>{err}</p>}
-          <button type="submit" disabled={loading || !pw}
-            className="w-full py-3 rounded-xl text-white font-bold text-sm transition-opacity disabled:opacity-50"
-            style={{ background: C.primary }}>
-            {loading ? "확인 중..." : "입장하기"}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-/* ══════════════════════════════════════════════════════
-   메인 관리 페이지
+   메인 페이지 (세션 체크)
 ══════════════════════════════════════════════════════ */
 export default function ManagePage() {
   return (
@@ -98,91 +39,112 @@ export default function ManagePage() {
 }
 
 function ManagePageInner() {
-  const params = useSearchParams();
-  const urlKey = params.get("key");
-
-  const [authed,  setAuthed]  = useState(false);
-  const [checked, setChecked] = useState(false);
-  const [tab,     setTab]     = useState<ManageTab>("notices");
+  const [session,  setSession]  = useState<SessionInfo | null>(null);
+  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    if (urlKey) sessionStorage.setItem("manage_url_key", urlKey);
-    const ok = sessionStorage.getItem(SESSION_KEY) === "true";
-    setAuthed(ok);
-    setChecked(true);
-  }, [urlKey]);
+    fetch("/api/admin/auth")
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok && data.role === "super") {
+          setSession({ name: data.name, userId: data.userId, role: data.role });
+        } else {
+          // 슈퍼어드민이 아니거나 미로그인 → 어드민 로그인 페이지로
+          window.location.href = "/admin/login?redirect=/manage";
+        }
+      })
+      .catch(() => {
+        window.location.href = "/admin/login?redirect=/manage";
+      })
+      .finally(() => setChecking(false));
+  }, []);
 
-  if (!checked) return null;
-  if (!authed)  return <AuthScreen onAuth={() => setAuthed(true)} />;
+  if (checking) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: C.bg }}>
+        <div style={{ color: C.text4, fontSize: 14 }}>인증 확인 중...</div>
+      </div>
+    );
+  }
 
-  const TABS: { id: ManageTab; label: string }[] = [
-    { id: "notices",   label: "공지사항" },
-    { id: "courses",   label: "교육과정" },
-    { id: "resources", label: "자료실"   },
+  if (!session) return null;
+
+  return <ManageDashboard session={session} />;
+}
+
+/* ══════════════════════════════════════════════════════
+   관리 대시보드
+══════════════════════════════════════════════════════ */
+function ManageDashboard({ session }: { session: SessionInfo }) {
+  const [tab, setTab] = useState<ManageTab>("notices");
+
+  const TABS: { id: ManageTab; label: string; icon: string }[] = [
+    { id: "notices",   label: "공지사항", icon: "🔔" },
+    { id: "courses",   label: "교육과정", icon: "🎓" },
+    { id: "resources", label: "자료실",   icon: "📁" },
+    { id: "audit",     label: "감사 로그", icon: "🕵️" },
   ];
 
+  async function handleLogout() {
+    await fetch("/api/admin/auth", { method: "DELETE" });
+    window.location.href = "/admin/login";
+  }
+
   return (
-    <div className="min-h-screen" style={{ background: C.bg }}>
+    <div style={{ minHeight: "100vh", background: C.bg }}>
       {/* 헤더 */}
-      <header className="bg-white sticky top-0 z-40" style={{ borderBottom: `1px solid ${C.border}` }}>
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-black text-xs"
-              style={{ background: C.primary }}>SW</div>
-            <span className="font-extrabold text-sm" style={{ color: C.text1 }}>포털 관리모드</span>
+      <header style={{ background: "#fff", position: "sticky", top: 0, zIndex: 40, borderBottom: `1px solid ${C.border}` }}>
+        <div style={{ maxWidth: 1040, margin: "0 auto", padding: "14px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: C.primary, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 900, fontSize: 11 }}>SW</div>
+            <div>
+              <span style={{ fontWeight: 800, fontSize: 13, color: C.text1 }}>포털 관리모드</span>
+              <span style={{ fontSize: 11, color: C.text4, marginLeft: 8 }}>슈퍼어드민: {session.name} ({session.userId})</span>
+            </div>
           </div>
-          <div className="flex gap-1 p-1 rounded-xl" style={{ background: C.bg }}>
+
+          <div style={{ display: "flex", background: C.bg, padding: 6, borderRadius: 12, gap: 2 }}>
             {TABS.map(t => (
               <button key={t.id} onClick={() => setTab(t.id)}
-                className="px-4 py-2 rounded-lg text-sm transition-all"
                 style={{
+                  padding: "8px 14px", borderRadius: 8, border: "none", fontSize: 12, cursor: "pointer",
                   background: tab === t.id ? "#fff" : "transparent",
-                  color:      tab === t.id ? C.brand : C.text3,
+                  color:      tab === t.id ? C.brand  : C.text3,
                   fontWeight: tab === t.id ? 700 : 500,
-                  boxShadow:  tab === t.id ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+                  boxShadow:  tab === t.id ? "0 1px 3px rgba(0,0,0,.08)" : "none",
                 }}>
-                {t.label}
+                {t.icon} {t.label}
               </button>
             ))}
           </div>
-          <button onClick={() => { sessionStorage.removeItem(SESSION_KEY); window.location.reload(); }}
-            className="text-xs px-3 py-1.5 rounded-lg transition-colors"
-            style={{ background: C.dangerSoft, color: C.danger }}>
+
+          <button onClick={handleLogout}
+            style={{ padding: "6px 14px", borderRadius: 8, background: C.dangerSoft, color: C.danger, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
             로그아웃
           </button>
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-6 py-8">
+      <main style={{ maxWidth: 1040, margin: "0 auto", padding: "32px 24px" }}>
         {tab === "notices"   && <NoticesPanel   />}
         {tab === "courses"   && <CoursesPanel   />}
         {tab === "resources" && <ResourcesPanel />}
+        {tab === "audit"     && <AuditPanel     />}
       </main>
     </div>
   );
 }
 
-/* ── 공통 유틸 ── */
-function manageKey() { return sessionStorage.getItem("manage_url_key") ?? ""; }
-
-async function apiFetch(url: string, body: object) {
-  return fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-manage-key": manageKey() },
-    body: JSON.stringify(body),
-  });
-}
-
+/* ── 공통 컴포넌트 ── */
 function SectionHeader({ title, count, onAdd }: { title: string; count: number; onAdd: () => void }) {
   return (
-    <div className="flex items-center justify-between mb-6">
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
       <div>
-        <h2 className="text-xl font-extrabold" style={{ color: C.text1 }}>{title}</h2>
-        <p className="text-sm mt-0.5" style={{ color: C.text3 }}>총 {count}건</p>
+        <h2 style={{ fontSize: 20, fontWeight: 800, color: C.text1, margin: "0 0 4px" }}>{title}</h2>
+        <p style={{ fontSize: 13, color: C.text3, margin: 0 }}>총 {count}건</p>
       </div>
       <button onClick={onAdd}
-        className="px-4 py-2.5 rounded-xl text-white text-sm font-bold transition-opacity hover:opacity-90"
-        style={{ background: C.primary }}>
+        style={{ padding: "10px 16px", borderRadius: 12, background: C.primary, color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
         + 새로 추가
       </button>
     </div>
@@ -192,148 +154,75 @@ function SectionHeader({ title, count, onAdd }: { title: string; count: number; 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-xs font-bold mb-1.5" style={{ color: C.text3 }}>{label}</label>
+      <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: C.text3, marginBottom: 6 }}>{label}</label>
       {children}
     </div>
   );
 }
 
-const inputCls = "w-full px-3 py-2.5 rounded-xl border text-sm outline-none focus:border-blue-500 bg-white";
-const inputStyle = { borderColor: C.border };
+const iStyle: React.CSSProperties = { width: "100%", padding: "10px 12px", borderRadius: 12, border: `1px solid ${C.border}`, fontSize: 13, outline: "none", background: "#fff", fontFamily: "inherit" };
 
 /* ══════════════════════════════════════════════════════
    공지사항 패널
 ══════════════════════════════════════════════════════ */
 function NoticesPanel() {
-  const [items,   setItems]   = useState<Notice[]>([]);
+  const [items,  setItems]  = useState<Notice[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding,  setAdding]  = useState(false);
-  const [form,    setForm]    = useState({ title: "", content: "", date: "", urgent: false, imageUrl: "", visible: true });
   const [saving,  setSaving]  = useState(false);
+  const [form, setForm] = useState({ title: "", content: "", date: "", urgent: false, imageUrl: "", visible: true });
 
   const load = useCallback(() => {
     setLoading(true);
-    fetch("/api/notices?all=1", { headers: { "x-manage-key": manageKey() } })
-      .then(r => r.json())
-      .then(res => setItems(res.data ?? []))
-      .finally(() => setLoading(false));
+    fetch("/api/notices?all=1").then(r => r.json()).then(res => setItems(res.data ?? [])).finally(() => setLoading(false));
   }, []);
-
   useEffect(() => { load(); }, [load]);
 
   async function handleSave() {
     if (!form.title.trim()) return;
     setSaving(true);
-    await apiFetch("/api/notices", { ...form, date: form.date || new Date().toISOString().slice(0, 10) });
-    setSaving(false);
-    setAdding(false);
+    await fetch("/api/notices", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, date: form.date || new Date().toISOString().slice(0, 10) }) });
+    setSaving(false); setAdding(false);
     setForm({ title: "", content: "", date: "", urgent: false, imageUrl: "", visible: true });
     load();
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("삭제하시겠습니까?")) return;
-    await apiFetch("/api/notices", { _action: "delete", id });
+  async function del(id: string, title: string) {
+    if (!confirm(`"${title}" 을(를) 삭제하시겠습니까?`)) return;
+    await fetch("/api/notices", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ _action: "delete", id }) });
     load();
   }
 
   async function toggleVisible(item: Notice) {
-    await apiFetch("/api/notices", { _action: "update", id: item.id, data: { visible: !item.visible } });
+    await fetch("/api/notices", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ _action: "update", id: item.id, data: { visible: !item.visible } }) });
     load();
   }
 
   return (
     <div>
       <SectionHeader title="공지사항 관리" count={items.length} onAdd={() => setAdding(true)} />
-
       {adding && (
-        <div className="bg-white rounded-[20px] p-6 mb-6" style={{ border: `1px solid ${C.border}` }}>
-          <h3 className="font-bold text-sm mb-4" style={{ color: C.text1 }}>새 공지사항</h3>
-          <div className="space-y-4">
-            <Field label="제목 *">
-              <input className={inputCls} style={inputStyle} value={form.title}
-                onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="공지 제목" />
-            </Field>
-            <Field label="내용">
-              <textarea className={inputCls} style={{ ...inputStyle, minHeight: 100, resize: "vertical" }}
-                value={form.content}
-                onChange={e => setForm(f => ({ ...f, content: e.target.value }))} placeholder="공지 내용" />
-            </Field>
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="날짜">
-                <input type="date" className={inputCls} style={inputStyle} value={form.date}
-                  onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
-              </Field>
-              <Field label="이미지 URL (Notion 첨부파일 URL)">
-                <input className={inputCls} style={inputStyle} value={form.imageUrl}
-                  onChange={e => setForm(f => ({ ...f, imageUrl: e.target.value }))} placeholder="https://..." />
-              </Field>
-            </div>
-            <div className="flex gap-6">
-              <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: C.text2 }}>
-                <input type="checkbox" checked={form.urgent}
-                  onChange={e => setForm(f => ({ ...f, urgent: e.target.checked }))} />
-                긴급 공지
-              </label>
-              <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: C.text2 }}>
-                <input type="checkbox" checked={form.visible}
-                  onChange={e => setForm(f => ({ ...f, visible: e.target.checked }))} />
-                즉시 공개
-              </label>
-            </div>
+        <FormCard title="새 공지사항" onCancel={() => setAdding(false)} onSave={handleSave} saving={saving} disabled={!form.title.trim()}>
+          <Field label="제목 *"><input style={iStyle} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="공지 제목" /></Field>
+          <Field label="내용"><textarea style={{ ...iStyle, minHeight: 90, resize: "vertical" }} value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} placeholder="공지 내용" /></Field>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Field label="날짜"><input type="date" style={iStyle} value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} /></Field>
+            <Field label="이미지 URL (Notion 첨부파일 URL)"><input style={iStyle} value={form.imageUrl} onChange={e => setForm(f => ({ ...f, imageUrl: e.target.value }))} placeholder="https://..." /></Field>
           </div>
-          <div className="flex gap-3 mt-5">
-            <button onClick={handleSave} disabled={saving || !form.title.trim()}
-              className="px-5 py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-50"
-              style={{ background: C.primary }}>
-              {saving ? "저장 중..." : "저장"}
-            </button>
-            <button onClick={() => setAdding(false)}
-              className="px-5 py-2.5 rounded-xl text-sm font-bold"
-              style={{ background: C.bg, color: C.text3 }}>
-              취소
-            </button>
+          <div style={{ display: "flex", gap: 24 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.text2, cursor: "pointer" }}><input type="checkbox" checked={form.urgent} onChange={e => setForm(f => ({ ...f, urgent: e.target.checked }))} /> 긴급 공지</label>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.text2, cursor: "pointer" }}><input type="checkbox" checked={form.visible} onChange={e => setForm(f => ({ ...f, visible: e.target.checked }))} /> 즉시 공개</label>
           </div>
-        </div>
+        </FormCard>
       )}
-
-      {loading ? (
-        <div className="text-center py-12" style={{ color: C.text4 }}>불러오는 중...</div>
-      ) : items.length === 0 ? (
-        <div className="text-center py-16 rounded-[20px]" style={{ background: "#fff", border: `1px solid ${C.border}`, color: C.text4 }}>
-          아직 공지사항이 없습니다. 새로 추가해보세요.
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {items.map(n => (
-            <div key={n.id} className="bg-white rounded-[16px] p-5 flex items-center gap-4"
-              style={{ border: `1px solid ${C.border}`, opacity: n.visible ? 1 : 0.5 }}>
-              <span className="text-xs font-bold px-2 py-0.5 rounded-md shrink-0"
-                style={n.urgent ? { background: C.dangerSoft, color: C.danger } : { background: C.bg, color: C.text3 }}>
-                {n.urgent ? "긴급" : "안내"}
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold truncate" style={{ color: C.text1 }}>{n.title}</p>
-                <p className="text-xs mt-0.5" style={{ color: C.text4 }}>{n.date}</p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button onClick={() => toggleVisible(n)}
-                  className="text-xs px-3 py-1.5 rounded-lg font-bold transition-colors"
-                  style={n.visible
-                    ? { background: "#D1FAE5", color: "#065F46" }
-                    : { background: C.bg,      color: C.text3 }}>
-                  {n.visible ? "공개중" : "숨김"}
-                </button>
-                <button onClick={() => handleDelete(n.id)}
-                  className="text-xs px-3 py-1.5 rounded-lg font-bold"
-                  style={{ background: C.dangerSoft, color: C.danger }}>
-                  삭제
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <ItemList loading={loading} empty="아직 공지사항이 없습니다.">
+        {items.map(n => (
+          <ItemRow key={n.id} visible={n.visible}
+            badge={n.urgent ? { text: "긴급", bg: C.dangerSoft, color: C.danger } : { text: "안내", bg: C.bg, color: C.text3 }}
+            title={n.title} sub={n.date}
+            onToggle={() => toggleVisible(n)} onDelete={() => del(n.id, n.title)} />
+        ))}
+      </ItemList>
     </div>
   );
 }
@@ -345,153 +234,71 @@ function CoursesPanel() {
   const [items,   setItems]   = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding,  setAdding]  = useState(false);
-  const [form,    setForm]    = useState({
-    title: "", description: "", deadline: "", duration: "",
-    courseUrl: "", category: "required" as Course["category"],
-    thumbnailUrl: "", order: 0, visible: true,
-  });
-  const [saving, setSaving] = useState(false);
+  const [saving,  setSaving]  = useState(false);
+  const [form, setForm] = useState({ title: "", description: "", deadline: "", duration: "", courseUrl: "", category: "required" as Course["category"], thumbnailUrl: "", order: 0, visible: true });
 
   const load = useCallback(() => {
     setLoading(true);
-    fetch("/api/courses?all=1", { headers: { "x-manage-key": manageKey() } })
-      .then(r => r.json())
-      .then(res => setItems(res.data ?? []))
-      .finally(() => setLoading(false));
+    fetch("/api/courses?all=1").then(r => r.json()).then(res => setItems(res.data ?? [])).finally(() => setLoading(false));
   }, []);
-
   useEffect(() => { load(); }, [load]);
 
   async function handleSave() {
     if (!form.title.trim()) return;
     setSaving(true);
-    await apiFetch("/api/courses", { ...form, order: form.order || items.length });
-    setSaving(false);
-    setAdding(false);
+    await fetch("/api/courses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, order: form.order || items.length }) });
+    setSaving(false); setAdding(false);
     setForm({ title: "", description: "", deadline: "", duration: "", courseUrl: "", category: "required", thumbnailUrl: "", order: 0, visible: true });
     load();
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("삭제하시겠습니까?")) return;
-    await apiFetch("/api/courses", { _action: "delete", id });
+  async function del(id: string, title: string) {
+    if (!confirm(`"${title}" 을(를) 삭제하시겠습니까?`)) return;
+    await fetch("/api/courses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ _action: "delete", id }) });
     load();
   }
 
   async function toggleVisible(item: Course) {
-    await apiFetch("/api/courses", { _action: "update", id: item.id, data: { visible: !item.visible } });
+    await fetch("/api/courses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ _action: "update", id: item.id, data: { visible: !item.visible } }) });
     load();
   }
 
-  const CAT_LABEL: Record<Course["category"], string> = {
-    required: "필수교육", material: "SW활용자료", policy: "IT정책교육",
-  };
+  const CAT: Record<Course["category"], string> = { required: "필수교육", material: "SW활용자료", policy: "IT정책교육" };
 
   return (
     <div>
       <SectionHeader title="교육과정 관리" count={items.length} onAdd={() => setAdding(true)} />
-
       {adding && (
-        <div className="bg-white rounded-[20px] p-6 mb-6" style={{ border: `1px solid ${C.border}` }}>
-          <h3 className="font-bold text-sm mb-4" style={{ color: C.text1 }}>새 교육과정</h3>
-          <div className="space-y-4">
-            <Field label="제목 *">
-              <input className={inputCls} style={inputStyle} value={form.title}
-                onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="과정명" />
+        <FormCard title="새 교육과정" onCancel={() => setAdding(false)} onSave={handleSave} saving={saving} disabled={!form.title.trim()}>
+          <Field label="제목 *"><input style={iStyle} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="과정명" /></Field>
+          <Field label="설명"><textarea style={{ ...iStyle, minHeight: 80, resize: "vertical" }} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="과정 설명" /></Field>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Field label="카테고리">
+              <select style={iStyle} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value as Course["category"] }))}>
+                <option value="required">필수교육</option>
+                <option value="material">SW활용자료</option>
+                <option value="policy">IT정책교육</option>
+              </select>
             </Field>
-            <Field label="설명">
-              <textarea className={inputCls} style={{ ...inputStyle, minHeight: 80, resize: "vertical" }}
-                value={form.description}
-                onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="과정 설명" />
-            </Field>
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="카테고리">
-                <select className={inputCls} style={inputStyle} value={form.category}
-                  onChange={e => setForm(f => ({ ...f, category: e.target.value as Course["category"] }))}>
-                  <option value="required">필수교육</option>
-                  <option value="material">SW활용자료</option>
-                  <option value="policy">IT정책교육</option>
-                </select>
-              </Field>
-              <Field label="소요시간">
-                <input className={inputCls} style={inputStyle} value={form.duration}
-                  onChange={e => setForm(f => ({ ...f, duration: e.target.value }))} placeholder="예: 45분" />
-              </Field>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="마감일">
-                <input type="date" className={inputCls} style={inputStyle} value={form.deadline}
-                  onChange={e => setForm(f => ({ ...f, deadline: e.target.value }))} />
-              </Field>
-              <Field label="순서">
-                <input type="number" className={inputCls} style={inputStyle} value={form.order}
-                  onChange={e => setForm(f => ({ ...f, order: Number(e.target.value) }))} />
-              </Field>
-            </div>
-            <Field label="교육 URL">
-              <input className={inputCls} style={inputStyle} value={form.courseUrl}
-                onChange={e => setForm(f => ({ ...f, courseUrl: e.target.value }))} placeholder="https://..." />
-            </Field>
-            <Field label="썸네일 URL (Notion 첨부파일 URL)">
-              <input className={inputCls} style={inputStyle} value={form.thumbnailUrl}
-                onChange={e => setForm(f => ({ ...f, thumbnailUrl: e.target.value }))} placeholder="https://..." />
-            </Field>
-            <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: C.text2 }}>
-              <input type="checkbox" checked={form.visible}
-                onChange={e => setForm(f => ({ ...f, visible: e.target.checked }))} />
-              즉시 공개
-            </label>
+            <Field label="소요시간"><input style={iStyle} value={form.duration} onChange={e => setForm(f => ({ ...f, duration: e.target.value }))} placeholder="예: 45분" /></Field>
           </div>
-          <div className="flex gap-3 mt-5">
-            <button onClick={handleSave} disabled={saving || !form.title.trim()}
-              className="px-5 py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-50"
-              style={{ background: C.primary }}>
-              {saving ? "저장 중..." : "저장"}
-            </button>
-            <button onClick={() => setAdding(false)}
-              className="px-5 py-2.5 rounded-xl text-sm font-bold"
-              style={{ background: C.bg, color: C.text3 }}>
-              취소
-            </button>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Field label="마감일"><input type="date" style={iStyle} value={form.deadline} onChange={e => setForm(f => ({ ...f, deadline: e.target.value }))} /></Field>
+            <Field label="순서"><input type="number" style={iStyle} value={form.order} onChange={e => setForm(f => ({ ...f, order: Number(e.target.value) }))} /></Field>
           </div>
-        </div>
+          <Field label="교육 URL"><input style={iStyle} value={form.courseUrl} onChange={e => setForm(f => ({ ...f, courseUrl: e.target.value }))} placeholder="https://..." /></Field>
+          <Field label="썸네일 URL (Notion 첨부파일 URL)"><input style={iStyle} value={form.thumbnailUrl} onChange={e => setForm(f => ({ ...f, thumbnailUrl: e.target.value }))} placeholder="https://..." /></Field>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.text2, cursor: "pointer" }}><input type="checkbox" checked={form.visible} onChange={e => setForm(f => ({ ...f, visible: e.target.checked }))} /> 즉시 공개</label>
+        </FormCard>
       )}
-
-      {loading ? (
-        <div className="text-center py-12" style={{ color: C.text4 }}>불러오는 중...</div>
-      ) : items.length === 0 ? (
-        <div className="text-center py-16 rounded-[20px]" style={{ background: "#fff", border: `1px solid ${C.border}`, color: C.text4 }}>
-          아직 등록된 교육과정이 없습니다.
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {items.map(c => (
-            <div key={c.id} className="bg-white rounded-[16px] p-5 flex items-center gap-4"
-              style={{ border: `1px solid ${C.border}`, opacity: c.visible ? 1 : 0.5 }}>
-              <span className="text-xs font-bold px-2 py-0.5 rounded-md shrink-0"
-                style={{ background: C.primarySoft, color: C.primary }}>{CAT_LABEL[c.category]}</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold truncate" style={{ color: C.text1 }}>{c.title}</p>
-                <p className="text-xs mt-0.5" style={{ color: C.text4 }}>
-                  {c.duration && `⏱ ${c.duration}`}{c.deadline && ` · 마감 ${c.deadline}`}
-                </p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button onClick={() => toggleVisible(c)}
-                  className="text-xs px-3 py-1.5 rounded-lg font-bold"
-                  style={c.visible ? { background: "#D1FAE5", color: "#065F46" } : { background: C.bg, color: C.text3 }}>
-                  {c.visible ? "공개중" : "숨김"}
-                </button>
-                <button onClick={() => handleDelete(c.id)}
-                  className="text-xs px-3 py-1.5 rounded-lg font-bold"
-                  style={{ background: C.dangerSoft, color: C.danger }}>
-                  삭제
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <ItemList loading={loading} empty="아직 등록된 교육과정이 없습니다.">
+        {items.map(c => (
+          <ItemRow key={c.id} visible={c.visible}
+            badge={{ text: CAT[c.category], bg: C.primarySoft, color: C.primary }}
+            title={c.title} sub={`${c.duration ? `⏱ ${c.duration}` : ""}${c.deadline ? ` · 마감 ${c.deadline}` : ""}`}
+            onToggle={() => toggleVisible(c)} onDelete={() => del(c.id, c.title)} />
+        ))}
+      </ItemList>
     </div>
   );
 }
@@ -503,171 +310,215 @@ function ResourcesPanel() {
   const [items,   setItems]   = useState<Resource[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding,  setAdding]  = useState(false);
-  const [form,    setForm]    = useState({
-    title: "", category: "install" as ResourceCategory,
-    fileUrl: "", fileType: "PDF", fileSize: "", description: "",
-    updatedAt: "", order: 0, visible: true,
-  });
-  const [saving, setSaving] = useState(false);
+  const [saving,  setSaving]  = useState(false);
+  const [form, setForm] = useState({ title: "", category: "install" as ResourceCategory, fileUrl: "", fileType: "PDF", fileSize: "", description: "", updatedAt: "", order: 0, visible: true });
 
   const load = useCallback(() => {
     setLoading(true);
-    fetch("/api/resources?all=1", { headers: { "x-manage-key": manageKey() } })
-      .then(r => r.json())
-      .then(res => setItems(res.data ?? []))
-      .finally(() => setLoading(false));
+    fetch("/api/resources?all=1").then(r => r.json()).then(res => setItems(res.data ?? [])).finally(() => setLoading(false));
   }, []);
-
   useEffect(() => { load(); }, [load]);
 
   async function handleSave() {
     if (!form.title.trim()) return;
     setSaving(true);
-    await apiFetch("/api/resources", {
-      ...form,
-      updatedAt: form.updatedAt || new Date().toISOString().slice(0, 10),
-      order: form.order || items.length,
-    });
-    setSaving(false);
-    setAdding(false);
+    await fetch("/api/resources", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, updatedAt: form.updatedAt || new Date().toISOString().slice(0, 10), order: form.order || items.length }) });
+    setSaving(false); setAdding(false);
     setForm({ title: "", category: "install", fileUrl: "", fileType: "PDF", fileSize: "", description: "", updatedAt: "", order: 0, visible: true });
     load();
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("삭제하시겠습니까?")) return;
-    await apiFetch("/api/resources", { _action: "delete", id });
+  async function del(id: string, title: string) {
+    if (!confirm(`"${title}" 을(를) 삭제하시겠습니까?`)) return;
+    await fetch("/api/resources", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ _action: "delete", id }) });
     load();
   }
 
   async function toggleVisible(item: Resource) {
-    await apiFetch("/api/resources", { _action: "update", id: item.id, data: { visible: !item.visible } });
+    await fetch("/api/resources", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ _action: "update", id: item.id, data: { visible: !item.visible } }) });
     load();
   }
 
-  const CAT_LABEL: Record<ResourceCategory, string> = {
-    install: "설치가이드", policy: "정책문서", forms: "양식서식",
-  };
-
-  const FILE_TYPE_STYLE: Record<string, { bg: string; color: string }> = {
-    PDF:  { bg: "#FEE2E2", color: "#B91C1C" },
-    XLSX: { bg: "#D1FAE5", color: "#065F46" },
-    DOCX: { bg: "#DBEAFE", color: "#1E40AF" },
-  };
+  const CAT: Record<ResourceCategory, string> = { install: "설치가이드", policy: "정책문서", forms: "양식서식" };
+  const FT: Record<string, { bg: string; color: string }> = { PDF: { bg: "#FEE2E2", color: "#B91C1C" }, XLSX: { bg: "#D1FAE5", color: "#065F46" }, DOCX: { bg: "#DBEAFE", color: "#1E40AF" } };
 
   return (
     <div>
       <SectionHeader title="자료실 관리" count={items.length} onAdd={() => setAdding(true)} />
-
       {adding && (
-        <div className="bg-white rounded-[20px] p-6 mb-6" style={{ border: `1px solid ${C.border}` }}>
-          <h3 className="font-bold text-sm mb-4" style={{ color: C.text1 }}>새 자료 등록</h3>
-          <div className="space-y-4">
-            <Field label="파일명 *">
-              <input className={inputCls} style={inputStyle} value={form.title}
-                onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="파일명" />
+        <FormCard title="새 자료 등록" onCancel={() => setAdding(false)} onSave={handleSave} saving={saving} disabled={!form.title.trim()}>
+          <Field label="파일명 *"><input style={iStyle} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="파일명" /></Field>
+          <Field label="설명"><input style={iStyle} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="파일 설명" /></Field>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+            <Field label="분류">
+              <select style={iStyle} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value as ResourceCategory }))}>
+                <option value="install">설치가이드</option><option value="policy">정책문서</option><option value="forms">양식서식</option>
+              </select>
             </Field>
-            <Field label="설명">
-              <input className={inputCls} style={inputStyle} value={form.description}
-                onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="파일 설명" />
+            <Field label="파일 형식">
+              <select style={iStyle} value={form.fileType} onChange={e => setForm(f => ({ ...f, fileType: e.target.value }))}>
+                <option>PDF</option><option>XLSX</option><option>DOCX</option><option>ZIP</option><option>EXE</option>
+              </select>
             </Field>
-            <div className="grid grid-cols-3 gap-4">
-              <Field label="분류">
-                <select className={inputCls} style={inputStyle} value={form.category}
-                  onChange={e => setForm(f => ({ ...f, category: e.target.value as ResourceCategory }))}>
-                  <option value="install">설치가이드</option>
-                  <option value="policy">정책문서</option>
-                  <option value="forms">양식서식</option>
-                </select>
-              </Field>
-              <Field label="파일 형식">
-                <select className={inputCls} style={inputStyle} value={form.fileType}
-                  onChange={e => setForm(f => ({ ...f, fileType: e.target.value }))}>
-                  <option value="PDF">PDF</option>
-                  <option value="XLSX">XLSX</option>
-                  <option value="DOCX">DOCX</option>
-                  <option value="ZIP">ZIP</option>
-                  <option value="EXE">EXE</option>
-                </select>
-              </Field>
-              <Field label="파일 크기">
-                <input className={inputCls} style={inputStyle} value={form.fileSize}
-                  onChange={e => setForm(f => ({ ...f, fileSize: e.target.value }))} placeholder="예: 2.1 MB" />
-              </Field>
-            </div>
-            <Field label="파일 URL (Notion 첨부파일 URL 또는 공유 링크)">
-              <input className={inputCls} style={inputStyle} value={form.fileUrl}
-                onChange={e => setForm(f => ({ ...f, fileUrl: e.target.value }))} placeholder="https://..." />
-            </Field>
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="업데이트 날짜">
-                <input type="date" className={inputCls} style={inputStyle} value={form.updatedAt}
-                  onChange={e => setForm(f => ({ ...f, updatedAt: e.target.value }))} />
-              </Field>
-              <Field label="순서">
-                <input type="number" className={inputCls} style={inputStyle} value={form.order}
-                  onChange={e => setForm(f => ({ ...f, order: Number(e.target.value) }))} />
-              </Field>
-            </div>
-            <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: C.text2 }}>
-              <input type="checkbox" checked={form.visible}
-                onChange={e => setForm(f => ({ ...f, visible: e.target.checked }))} />
-              즉시 공개
-            </label>
+            <Field label="파일 크기"><input style={iStyle} value={form.fileSize} onChange={e => setForm(f => ({ ...f, fileSize: e.target.value }))} placeholder="예: 2.1 MB" /></Field>
           </div>
-          <div className="flex gap-3 mt-5">
-            <button onClick={handleSave} disabled={saving || !form.title.trim()}
-              className="px-5 py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-50"
-              style={{ background: C.primary }}>
-              {saving ? "저장 중..." : "저장"}
-            </button>
-            <button onClick={() => setAdding(false)}
-              className="px-5 py-2.5 rounded-xl text-sm font-bold"
-              style={{ background: C.bg, color: C.text3 }}>
-              취소
-            </button>
+          <Field label="파일 URL (Notion 첨부파일 URL 또는 공유 링크)"><input style={iStyle} value={form.fileUrl} onChange={e => setForm(f => ({ ...f, fileUrl: e.target.value }))} placeholder="https://..." /></Field>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Field label="업데이트 날짜"><input type="date" style={iStyle} value={form.updatedAt} onChange={e => setForm(f => ({ ...f, updatedAt: e.target.value }))} /></Field>
+            <Field label="순서"><input type="number" style={iStyle} value={form.order} onChange={e => setForm(f => ({ ...f, order: Number(e.target.value) }))} /></Field>
           </div>
-        </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.text2, cursor: "pointer" }}><input type="checkbox" checked={form.visible} onChange={e => setForm(f => ({ ...f, visible: e.target.checked }))} /> 즉시 공개</label>
+        </FormCard>
       )}
+      <ItemList loading={loading} empty="아직 등록된 자료가 없습니다.">
+        {items.map(r => {
+          const ft = FT[r.fileType] ?? { bg: C.bg, color: C.text3 };
+          return (
+            <ItemRow key={r.id} visible={r.visible}
+              badge={{ text: r.fileType, bg: ft.bg, color: ft.color }}
+              title={r.title} sub={`${CAT[r.category]} · ${r.fileSize} · ${r.updatedAt}`}
+              onToggle={() => toggleVisible(r)} onDelete={() => del(r.id, r.title)} />
+          );
+        })}
+      </ItemList>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════
+   감사 로그 패널
+══════════════════════════════════════════════════════ */
+function AuditPanel() {
+  const [logs,    setLogs]    = useState<AuditLog[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/manage/audit-log")
+      .then(r => r.json())
+      .then(res => setLogs(res.data ?? []))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const ACTION_STYLE: Record<AuditLog["action"], { label: string; bg: string; color: string }> = {
+    create: { label: "등록", bg: "#D1FAE5", color: "#065F46" },
+    update: { label: "수정", bg: "#FEF3C7", color: "#92400E" },
+    delete: { label: "삭제", bg: C.dangerSoft, color: C.danger },
+  };
+
+  const TARGET_LABEL: Record<AuditLog["target"], string> = {
+    notices: "공지사항", courses: "교육과정", resources: "자료실",
+  };
+
+  function formatTime(iso: string) {
+    return new Date(iso).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  }
+
+  return (
+    <div>
+      <div style={{ marginBottom: 24 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 800, color: C.text1, margin: "0 0 4px" }}>감사 로그</h2>
+        <p style={{ fontSize: 13, color: C.text3, margin: 0 }}>슈퍼어드민의 포털 콘텐츠 변경 이력 (최근 {logs.length}건)</p>
+      </div>
 
       {loading ? (
-        <div className="text-center py-12" style={{ color: C.text4 }}>불러오는 중...</div>
-      ) : items.length === 0 ? (
-        <div className="text-center py-16 rounded-[20px]" style={{ background: "#fff", border: `1px solid ${C.border}`, color: C.text4 }}>
-          아직 등록된 자료가 없습니다.
+        <div style={{ textAlign: "center", padding: 48, color: C.text4 }}>불러오는 중...</div>
+      ) : logs.length === 0 ? (
+        <div style={{ textAlign: "center", padding: 64, background: "#fff", borderRadius: 20, border: `1px solid ${C.border}`, color: C.text4, fontSize: 13 }}>
+          아직 기록된 활동이 없습니다.
         </div>
       ) : (
-        <div className="space-y-3">
-          {items.map(r => {
-            const ft = FILE_TYPE_STYLE[r.fileType] ?? { bg: C.bg, color: C.text3 };
-            return (
-              <div key={r.id} className="bg-white rounded-[16px] p-5 flex items-center gap-4"
-                style={{ border: `1px solid ${C.border}`, opacity: r.visible ? 1 : 0.5 }}>
-                <span className="text-xs font-bold px-2 py-0.5 rounded-md shrink-0"
-                  style={{ background: ft.bg, color: ft.color }}>{r.fileType}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold truncate" style={{ color: C.text1 }}>{r.title}</p>
-                  <p className="text-xs mt-0.5" style={{ color: C.text4 }}>
-                    {CAT_LABEL[r.category]} · {r.fileSize} · {r.updatedAt}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button onClick={() => toggleVisible(r)}
-                    className="text-xs px-3 py-1.5 rounded-lg font-bold"
-                    style={r.visible ? { background: "#D1FAE5", color: "#065F46" } : { background: C.bg, color: C.text3 }}>
-                    {r.visible ? "공개중" : "숨김"}
-                  </button>
-                  <button onClick={() => handleDelete(r.id)}
-                    className="text-xs px-3 py-1.5 rounded-lg font-bold"
-                    style={{ background: C.dangerSoft, color: C.danger }}>
-                    삭제
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+        <div style={{ background: "#fff", borderRadius: 20, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ borderBottom: `1px solid ${C.border}` }}>
+                {["일시", "관리자", "액션", "대상", "항목"].map(h => (
+                  <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: 11, fontWeight: 700, color: C.text4, textTransform: "uppercase", letterSpacing: ".04em" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {logs.map((log, i) => {
+                const as = ACTION_STYLE[log.action];
+                return (
+                  <tr key={log.id} style={{ borderBottom: i < logs.length - 1 ? `1px solid #f8fafc` : "none" }}>
+                    <td style={{ padding: "12px 16px", fontSize: 12, color: C.text3, whiteSpace: "nowrap" }}>{formatTime(log.timestamp)}</td>
+                    <td style={{ padding: "12px 16px" }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: C.text1 }}>{log.adminName}</span>
+                      <span style={{ fontSize: 11, color: C.text4, marginLeft: 4 }}>({log.adminId})</span>
+                    </td>
+                    <td style={{ padding: "12px 16px" }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: as.bg, color: as.color }}>{as.label}</span>
+                    </td>
+                    <td style={{ padding: "12px 16px", fontSize: 12, color: C.text3 }}>{TARGET_LABEL[log.target]}</td>
+                    <td style={{ padding: "12px 16px", fontSize: 13, color: C.text2, maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{log.itemTitle}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════
+   공통 UI 컴포넌트
+══════════════════════════════════════════════════════ */
+function FormCard({ title, children, onCancel, onSave, saving, disabled }: {
+  title: string; children: React.ReactNode;
+  onCancel: () => void; onSave: () => void; saving: boolean; disabled: boolean;
+}) {
+  return (
+    <div style={{ background: "#fff", borderRadius: 20, padding: 24, marginBottom: 24, border: `1px solid ${C.border}` }}>
+      <h3 style={{ fontSize: 13, fontWeight: 700, color: C.text1, margin: "0 0 16px" }}>{title}</h3>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>{children}</div>
+      <div style={{ display: "flex", gap: 12, marginTop: 20 }}>
+        <button onClick={onSave} disabled={saving || disabled}
+          style={{ padding: "10px 20px", borderRadius: 12, background: C.primary, color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: (saving || disabled) ? 0.5 : 1 }}>
+          {saving ? "저장 중..." : "저장"}
+        </button>
+        <button onClick={onCancel}
+          style={{ padding: "10px 20px", borderRadius: 12, background: C.bg, color: C.text3, border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+          취소
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ItemList({ loading, empty, children }: { loading: boolean; empty: string; children: React.ReactNode }) {
+  if (loading) return <div style={{ textAlign: "center", padding: 48, color: C.text4 }}>불러오는 중...</div>;
+  const count = Array.isArray(children) ? children.length : (children ? 1 : 0);
+  if (!count) return (
+    <div style={{ textAlign: "center", padding: 64, background: "#fff", borderRadius: 20, border: `1px solid ${C.border}`, color: C.text4, fontSize: 13 }}>{empty}</div>
+  );
+  return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>{children}</div>;
+}
+
+function ItemRow({ visible, badge, title, sub, onToggle, onDelete }: {
+  visible: boolean;
+  badge: { text: string; bg: string; color: string };
+  title: string; sub: string;
+  onToggle: () => void; onDelete: () => void;
+}) {
+  return (
+    <div style={{ background: "#fff", borderRadius: 16, padding: 20, display: "flex", alignItems: "center", gap: 16, border: `1px solid ${C.border}`, opacity: visible ? 1 : 0.5 }}>
+      <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: badge.bg, color: badge.color, flexShrink: 0 }}>{badge.text}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: 13, fontWeight: 700, color: C.text1, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</p>
+        {sub && <p style={{ fontSize: 11, color: C.text4, margin: "4px 0 0" }}>{sub}</p>}
+      </div>
+      <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+        <button onClick={onToggle}
+          style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: visible ? "#D1FAE5" : C.bg, color: visible ? "#065F46" : C.text3 }}>
+          {visible ? "공개중" : "숨김"}
+        </button>
+        <button onClick={onDelete}
+          style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: C.dangerSoft, color: C.danger }}>
+          삭제
+        </button>
+      </div>
     </div>
   );
 }

@@ -1,18 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
-
-export async function POST(req: NextRequest) {
-  const { password, key } = await req.json();
-
-  const validKey = process.env.MANAGE_SECRET_KEY;
-  const validPw  = process.env.MANAGE_PASSWORD;
-
-  if (!validKey || !validPw) {
-    return NextResponse.json({ error: "관리모드가 설정되지 않았습니다." }, { status: 503 });
-  }
-
-  if (key !== validKey || password !== validPw) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  return NextResponse.json({ ok: true });
+// 이 엔드포인트는 더 이상 사용하지 않습니다.
+// /manage 페이지는 기존 어드민 로그인(/admin/login)의 admin_session 쿠키로 인증합니다.
+// 슈퍼어드민(role: "super") 계정만 접근 가능합니다.
+import { NextResponse } from "next/server";
+export async function POST() {
+  return NextResponse.json({ error: "Deprecated. Use /admin/login instead." }, { status: 410 });
 }

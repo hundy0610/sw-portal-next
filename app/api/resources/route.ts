@@ -1,34 +1,51 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getResources, saveResources } from "@/lib/portal-store";
+import { getResources, saveResources, appendAuditLog } from "@/lib/portal-store";
+import { getSessionFromCookieHeader } from "@/lib/session";
 import type { Resource } from "@/types/portal";
 
-function authOk(req: NextRequest) {
-  const key = req.headers.get("x-manage-key");
-  return key && key === process.env.MANAGE_SECRET_KEY;
+function getSuperSession(req: NextRequest) {
+  const session = getSessionFromCookieHeader(req.headers.get("cookie"));
+  if (!session || session.role !== "super") return null;
+  return session;
 }
 
 export async function GET(req: NextRequest) {
   const all = req.nextUrl.searchParams.get("all") === "1";
-  if (all && !authOk(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (all && !getSuperSession(req)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   const resources = await getResources(!all);
   return NextResponse.json({ data: resources });
 }
 
 export async function POST(req: NextRequest) {
-  if (!authOk(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const session = getSuperSession(req);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
   const all = await getResources(false);
 
   if (body._action === "delete") {
-    const updated = all.filter(r => r.id !== body.id);
-    await saveResources(updated);
+    const target = all.find(r => r.id === body.id);
+    await saveResources(all.filter(r => r.id !== body.id));
+    await appendAuditLog({
+      adminId: session.userId, adminName: session.name,
+      action: "delete", target: "resources",
+      itemTitle: target?.title ?? body.id,
+      timestamp: new Date().toISOString(),
+    });
     return NextResponse.json({ ok: true });
   }
 
   if (body._action === "update") {
-    const updated = all.map(r => r.id === body.id ? { ...r, ...body.data } : r);
-    await saveResources(updated);
+    const target = all.find(r => r.id === body.id);
+    await saveResources(all.map(r => r.id === body.id ? { ...r, ...body.data } : r));
+    await appendAuditLog({
+      adminId: session.userId, adminName: session.name,
+      action: "update", target: "resources",
+      itemTitle: body.data?.title ?? target?.title ?? body.id,
+      timestamp: new Date().toISOString(),
+    });
     return NextResponse.json({ ok: true });
   }
 
@@ -47,5 +64,11 @@ export async function POST(req: NextRequest) {
     createdAt:   new Date().toISOString(),
   };
   await saveResources([...all, resource]);
+  await appendAuditLog({
+    adminId: session.userId, adminName: session.name,
+    action: "create", target: "resources",
+    itemTitle: resource.title,
+    timestamp: new Date().toISOString(),
+  });
   return NextResponse.json({ ok: true, id: resource.id });
 }
