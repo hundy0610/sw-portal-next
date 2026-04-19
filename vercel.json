@@ -5,5 +5,5 @@
       "schedule": "0 9 * * *"
     }
   ],
-  "ignoreCommand": "exit 0"
+  "ignoreCommand": "exit 1"
 }
