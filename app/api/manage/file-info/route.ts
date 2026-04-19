@@ -56,54 +56,74 @@ async function fetchSizeFromUrl(fileUrl: string): Promise<number> {
   return 0;
 }
 
-// Notion 페이지 블록에서 첨부파일 정보 추출
-async function getNotionFileInfo(pageId: string): Promise<{ fileSize: string; fileType: string; fileName: string } | null> {
-  try {
-    const blocks = await notion.blocks.children.list({ block_id: pageId, page_size: 50 });
+type FileResult = { fileSize: string; fileType: string; fileName: string };
 
-    let bookmarkUrl = "";
+// 블록 목록에서 파일 정보 추출 (재귀로 컨테이너 블록 내부도 탐색)
+async function scanBlocks(blockId: string, depth = 0): Promise<FileResult | string | null> {
+  if (depth > 3) return null; // 최대 3단계 깊이
+  const blocks = await notion.blocks.children.list({ block_id: blockId, page_size: 50 });
 
-    for (const block of blocks.results) {
-      const b = block as BlockObjectResponse;
+  let bookmarkUrl = "";
 
-      // file 블록
-      if (b.type === "file") {
-        const f = b.file;
-        const fileUrl = f.type === "file" ? f.file.url : f.external?.url ?? "";
-        const fileName = (b as any).file?.name ?? "";
-        const fileType = guessFileType(fileName || fileUrl);
-        const bytes = fileUrl ? await fetchSizeFromUrl(fileUrl) : 0;
-        return { fileSize: formatBytes(bytes), fileType, fileName };
-      }
+  for (const block of blocks.results) {
+    const b = block as BlockObjectResponse;
 
-      // pdf 블록
-      if (b.type === "pdf") {
-        const p = (b as any).pdf;
-        const fileUrl = p?.type === "file" ? p.file?.url : p?.external?.url ?? "";
-        const bytes = fileUrl ? await fetchSizeFromUrl(fileUrl) : 0;
-        return { fileSize: formatBytes(bytes), fileType: "PDF", fileName: "" };
-      }
-
-      // bookmark / embed / link_preview 블록 (외부 다운로드 링크)
-      if (!bookmarkUrl) {
-        const u =
-          (b as any).bookmark?.url ??
-          (b as any).embed?.url ??
-          (b as any).link_preview?.url ??
-          "";
-        if (u && !u.includes("notion.so")) bookmarkUrl = u;
-      }
-    }
-
-    // 직접 첨부 블록이 없으면 bookmark URL로 크기 시도
-    if (bookmarkUrl) {
-      const fileType = guessFileType(bookmarkUrl);
-      const bytes = await fetchSizeFromUrl(bookmarkUrl);
-      const fileName = bookmarkUrl.split("/").pop()?.split("?")[0] ?? "";
+    // 직접 첨부 파일 블록
+    if (b.type === "file") {
+      const f = b.file;
+      const fileUrl = f.type === "file" ? f.file.url : f.external?.url ?? "";
+      const fileName = (b as any).file?.name ?? "";
+      const fileType = guessFileType(fileName || fileUrl);
+      const bytes = fileUrl ? await fetchSizeFromUrl(fileUrl) : 0;
       return { fileSize: formatBytes(bytes), fileType, fileName };
     }
 
-    // 첨부 파일 블록이 없으면 페이지 제목에서 파일형식 추측
+    if (b.type === "pdf") {
+      const p = (b as any).pdf;
+      const fileUrl = p?.type === "file" ? p.file?.url : p?.external?.url ?? "";
+      const bytes = fileUrl ? await fetchSizeFromUrl(fileUrl) : 0;
+      return { fileSize: formatBytes(bytes), fileType: "PDF", fileName: "" };
+    }
+
+    // bookmark / embed / link_preview — 첫 번째 것 기억
+    if (!bookmarkUrl) {
+      const u =
+        (b as any).bookmark?.url ??
+        (b as any).embed?.url ??
+        (b as any).link_preview?.url ??
+        "";
+      if (u && !u.includes("notion.so")) bookmarkUrl = u;
+    }
+
+    // 컨테이너 블록(컬럼, 토글, 콜아웃 등) 내부 재귀 탐색
+    const isContainer = ["column_list","column","toggle","callout","quote","bulleted_list_item","numbered_list_item","synced_block","template","table"].includes(b.type);
+    if (isContainer && (b as any).has_children) {
+      const nested = await scanBlocks(b.id, depth + 1);
+      if (nested && typeof nested === "object") return nested; // FileResult 발견
+      if (nested && typeof nested === "string" && !bookmarkUrl) bookmarkUrl = nested;
+    }
+  }
+
+  // bookmark URL을 상위로 전달
+  return bookmarkUrl || null;
+}
+
+// Notion 페이지 블록에서 첨부파일 정보 추출
+async function getNotionFileInfo(pageId: string): Promise<FileResult | null> {
+  try {
+    const result = await scanBlocks(pageId);
+
+    if (result && typeof result === "object") return result;
+
+    // bookmark URL만 찾은 경우
+    if (result && typeof result === "string") {
+      const fileType = guessFileType(result);
+      const bytes = await fetchSizeFromUrl(result);
+      const fileName = result.split("/").pop()?.split("?")[0] ?? "";
+      return { fileSize: formatBytes(bytes), fileType, fileName };
+    }
+
+    // 첨부 블록 없음 → 페이지 제목에서 형식만 추측
     const page = await notion.pages.retrieve({ page_id: pageId });
     const props = (page as any).properties;
     const titleProp = props?.["제목"] ?? props?.["Name"] ?? props?.["이름"];
