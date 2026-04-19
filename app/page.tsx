@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import type { SwItem } from "@/types";
+import type { Notice, Course, Resource, ResourceCategory } from "@/types/portal";
 import DeclarationPanel from "@/components/DeclarationPanel";
 
 type Tab    = "home" | "education" | "resources" | "search" | "declaration";
-type ResTab = "install" | "policy" | "forms";
+type ResTab = ResourceCategory;
 
 const INQUIRY_URL = "https://assetify-desk.vercel.app/inquiry";
 
@@ -161,12 +162,13 @@ export default function PortalPage() {
    홈 탭
 ══════════════════════════════════════════════════════ */
 function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
-  const NOTICES = [
-    { title: "Q1 필수 보안 교육 마감 안내",   date: "2026-03-31", urgent: true  },
-    { title: "어도비 CC 라이선스 갱신 완료",   date: "2026-02-20", urgent: false },
-    { title: "보안 SW 필수 설치 공지",         date: "2026-02-10", urgent: true  },
-    { title: "SW 사용 정책 개정 안내 (v2.0)", date: "2026-01-15", urgent: false },
-  ];
+  const [notices, setNotices] = useState<Notice[]>([]);
+
+  useEffect(() => {
+    fetch("/api/notices")
+      .then(r => r.json())
+      .then(res => setNotices(res.data ?? []));
+  }, []);
 
   /* M5: 4개 균형 그리드 (자산 실사 추가) */
   const SHORTCUTS = [
@@ -260,7 +262,7 @@ function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
         <span style={{ color: C.text4 }}><Icon n="chevron" s={16} /></span>
       </a>
 
-      {/* C4: 공지사항 — 클릭 어포던스 제거 */}
+      {/* 공지사항 */}
       <div className="bg-white rounded-[20px] overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
         <div className="px-6 py-4 flex items-center justify-between"
           style={{ borderBottom: `1px solid ${C.border}` }}>
@@ -269,11 +271,15 @@ function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
             <Icon n="bell" s={15} /> 공지사항
           </div>
           <span className="text-xs font-medium px-2 py-0.5 rounded-full"
-            style={{ background: C.bg, color: C.text3 }}>4건</span>
+            style={{ background: C.bg, color: C.text3 }}>{notices.length}건</span>
         </div>
         <div>
-          {NOTICES.map(n => (
-            <div key={n.title} className="flex items-center gap-3.5 px-6 py-3.5"
+          {notices.length === 0 ? (
+            <div className="px-6 py-8 text-center text-sm" style={{ color: C.text4 }}>
+              등록된 공지사항이 없습니다.
+            </div>
+          ) : notices.map(n => (
+            <div key={n.id} className="flex items-center gap-3.5 px-6 py-3.5"
               style={{ borderBottom: "1px solid #f8fafc" }}>
               <span className="text-xs font-bold px-2 py-0.5 rounded-md shrink-0"
                 style={n.urgent
@@ -294,23 +300,27 @@ function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
 /* ══════════════════════════════════════════════════════
    교육 센터 탭
 ══════════════════════════════════════════════════════ */
-function EducationTab() {
-  const COURSES = [
-    { badge: "D-3",  badgeBg: "#FECACA", badgeColor: "#B91C1C", icon: "shield",
-      title: "2024 상반기 SW 컴플라이언스 준수 교육", duration: "45분", deadline: "2024.06.30", progress: null as number | null },
-    { badge: "D-14", badgeBg: "#FDE68A", badgeColor: "#B45309", icon: "info",
-      title: "개인정보 보호 및 정보보안 실무",         duration: "60분", deadline: "2024.07.15", progress: 20 },
-    { badge: "NEW",  badgeBg: "#E2E8F0", badgeColor: "#475569", icon: "check",
-      title: "AI 도구 활용 가이드 및 윤리 강령",       duration: "30분", deadline: "2024.08.01", progress: null as number | null },
-  ];
+function courseBadge(deadline: string): { text: string; bg: string; color: string } {
+  if (!deadline) return { text: "NEW", bg: "#E2E8F0", color: "#475569" };
+  const diff = Math.ceil((new Date(deadline).getTime() - Date.now()) / 86400000);
+  if (diff < 0)  return { text: "마감", bg: "#E2E8F0", color: "#64748b" };
+  if (diff <= 7) return { text: `D-${diff}`, bg: "#FECACA", color: "#B91C1C" };
+  if (diff <= 30) return { text: `D-${diff}`, bg: "#FDE68A", color: "#B45309" };
+  return { text: "진행중", bg: "#D1FAE5", color: "#065F46" };
+}
 
-  /* C1: 한국어 레이블 */
-  const MATERIALS = [
-    { icon: "users", title: "M365 활용 가이드",  sub: "협업 툴 최적화 가이드"    },
-    { icon: "brush", title: "Adobe CC 기초",     sub: "라이선스 할당 및 설치"    },
-    { icon: "code",  title: "개발 환경 설정",     sub: "개발 환경 표준화 문서"    },
-    { icon: "box",   title: "오픈소스 정책",      sub: "오픈소스 사용 승인 절차"  },
-  ];
+function EducationTab() {
+  const [courses, setCourses] = useState<Course[]>([]);
+
+  useEffect(() => {
+    fetch("/api/courses")
+      .then(r => r.json())
+      .then(res => setCourses(res.data ?? []));
+  }, []);
+
+  const required  = courses.filter(c => c.category === "required");
+  const materials = courses.filter(c => c.category === "material");
+  const policy    = courses.filter(c => c.category === "policy");
 
   return (
     <div className="fade-in">
@@ -320,107 +330,113 @@ function EducationTab() {
         <p className="text-sm" style={{ color: C.text3 }}>소프트웨어 자산 관리 및 IT 보안 지침을 학습하세요.</p>
       </div>
 
-      {/* C1: "Mandatory Education" → "필수 교육" */}
+      {/* 필수 교육 */}
       <section className="mb-12">
         <div className="flex justify-between items-end mb-6">
           <h3 className="text-xl font-bold" style={{ fontFamily: "Manrope, sans-serif" }}>필수 교육</h3>
-          <span className="text-sm font-semibold" style={{ color: C.primary }}>3개 과정 진행 중</span>
+          <span className="text-sm font-semibold" style={{ color: C.primary }}>{required.length}개 과정</span>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {COURSES.map((c, i) => (
-            <div key={i} className="bg-white p-6 rounded-[20px] hover:-translate-y-1 transition-all"
-              style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}>
-              <div className="flex justify-between items-start mb-8">
-                <span className="text-xs font-bold px-3 py-1 rounded-full"
-                  style={{ background: c.badgeBg, color: c.badgeColor }}>{c.badge}</span>
-                <span style={{ color: C.text3 }}><Icon n={c.icon} s={28} /></span>
-              </div>
-              <h4 className="text-base font-bold leading-tight mb-2"
-                style={{ fontFamily: "Manrope, sans-serif", color: C.text1 }}>{c.title}</h4>
-              <div className="flex items-center gap-4 mt-4 text-sm" style={{ color: C.text3 }}>
-                <span>⏱ {c.duration}</span>
-                <span>📅 {c.deadline}</span>
-              </div>
-
-              {/* N3: 진행률 → 프로그레스바 + "이어보기" CTA */}
-              {c.progress !== null ? (
-                <div className="mt-6">
-                  <div className="flex justify-between text-xs mb-1.5" style={{ color: C.text3 }}>
-                    <span>진행률</span>
-                    <span className="font-bold" style={{ color: C.primary }}>{c.progress}%</span>
+        {required.length === 0 ? (
+          <div className="text-center py-12 rounded-[20px]" style={{ background: C.bg, color: C.text4 }}>
+            등록된 교육 과정이 없습니다.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {required.map(c => {
+              const badge = courseBadge(c.deadline);
+              return (
+                <div key={c.id} className="bg-white p-6 rounded-[20px] hover:-translate-y-1 transition-all"
+                  style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}>
+                  <div className="flex justify-between items-start mb-8">
+                    <span className="text-xs font-bold px-3 py-1 rounded-full"
+                      style={{ background: badge.bg, color: badge.color }}>{badge.text}</span>
+                    <span style={{ color: C.text3 }}><Icon n="shield" s={28} /></span>
                   </div>
-                  <div className="h-1.5 rounded-full mb-3" style={{ background: C.border }}>
-                    <div className="h-full rounded-full" style={{ width: `${c.progress}%`, background: C.primary }} />
+                  <h4 className="text-base font-bold leading-tight mb-2"
+                    style={{ fontFamily: "Manrope, sans-serif", color: C.text1 }}>{c.title}</h4>
+                  {c.description && (
+                    <p className="text-xs mb-2 line-clamp-2" style={{ color: C.text4 }}>{c.description}</p>
+                  )}
+                  <div className="flex items-center gap-4 mt-4 text-sm" style={{ color: C.text3 }}>
+                    {c.duration && <span>⏱ {c.duration}</span>}
+                    {c.deadline && <span>📅 {c.deadline}</span>}
                   </div>
-                  <button className="w-full py-3.5 rounded-xl font-bold text-sm"
-                    style={{ background: C.primarySoft, color: C.primary }}>
-                    이어보기 →
-                  </button>
+                  {c.courseUrl ? (
+                    <a href={c.courseUrl} target="_blank" rel="noopener noreferrer"
+                      className="mt-6 w-full py-3.5 rounded-xl font-bold text-sm text-white text-center block hover:brightness-110 transition-all"
+                      style={{ background: C.brand }}>
+                      교육 시작하기
+                    </a>
+                  ) : (
+                    <button disabled className="mt-6 w-full py-3.5 rounded-xl font-bold text-sm"
+                      style={{ background: C.bg, color: C.text4 }}>
+                      URL 미등록
+                    </button>
+                  )}
                 </div>
-              ) : (
-                <button className="mt-6 w-full py-3.5 rounded-xl font-bold text-sm text-white hover:brightness-110 transition-all"
-                  style={{ background: C.brand }}>
-                  교육 시작하기
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </section>
 
-      {/* C1: "SW Training Materials" → "SW 활용 자료" */}
-      <section className="mb-12">
-        <h3 className="text-xl font-bold mb-6" style={{ fontFamily: "Manrope, sans-serif" }}>SW 활용 자료</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {MATERIALS.map(m => (
-            <div key={m.title}
-              className="p-6 rounded-xl flex flex-col items-center text-center cursor-pointer transition-colors hover:bg-[#e4e9ed]"
-              style={{ background: C.bg }}>
-              <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center mb-4"
-                style={{ color: C.brand }}>
-                <Icon n={m.icon} s={24} />
+      {/* SW 활용 자료 */}
+      {materials.length > 0 && (
+        <section className="mb-12">
+          <h3 className="text-xl font-bold mb-6" style={{ fontFamily: "Manrope, sans-serif" }}>SW 활용 자료</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {materials.map(m => (
+              <a key={m.id} href={m.courseUrl || "#"} target="_blank" rel="noopener noreferrer"
+                className="p-6 rounded-xl flex flex-col items-center text-center cursor-pointer transition-colors hover:bg-[#e4e9ed]"
+                style={{ background: C.bg, textDecoration: "none" }}>
+                <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center mb-4"
+                  style={{ color: C.brand }}>
+                  {m.thumbnailUrl
+                    ? <img src={m.thumbnailUrl} alt="" className="w-full h-full rounded-full object-cover" />
+                    : <Icon n="box" s={24} />}
+                </div>
+                <span className="font-bold text-sm" style={{ color: C.text1 }}>{m.title}</span>
+                {m.description && (
+                  <span className="text-xs mt-1 font-medium" style={{ color: C.text3 }}>{m.description}</span>
+                )}
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* IT 정책 교육 */}
+      {policy.length > 0 && (
+        <section className="mb-10">
+          <h3 className="text-xl font-bold mb-6" style={{ fontFamily: "Manrope, sans-serif" }}>IT 정책 교육</h3>
+          <div className="space-y-4">
+            {policy.map(p => (
+              <div key={p.id} className="rounded-[20px] overflow-hidden flex flex-col lg:flex-row"
+                style={{ background: C.bg }}>
+                {p.thumbnailUrl && (
+                  <div className="lg:w-1/2 h-56 lg:h-auto overflow-hidden">
+                    <img src={p.thumbnailUrl} alt={p.title} className="w-full h-full object-cover" />
+                  </div>
+                )}
+                <div className={`${p.thumbnailUrl ? "lg:w-1/2" : "w-full"} p-8 flex flex-col justify-center`}>
+                  <h4 className="text-2xl font-extrabold mb-4 leading-tight"
+                    style={{ fontFamily: "Manrope, sans-serif", color: C.text1 }}>{p.title}</h4>
+                  {p.description && (
+                    <p className="text-sm leading-relaxed mb-6" style={{ color: C.text3 }}>{p.description}</p>
+                  )}
+                  {p.courseUrl && (
+                    <a href={p.courseUrl} target="_blank" rel="noopener noreferrer"
+                      className="self-start px-8 py-4 rounded-xl text-white font-bold hover:shadow-lg transition-shadow"
+                      style={{ background: C.brand }}>
+                      정책 상세 보기
+                    </a>
+                  )}
+                </div>
               </div>
-              <span className="font-bold text-sm" style={{ color: C.text1 }}>{m.title}</span>
-              <span className="text-xs mt-1 font-medium" style={{ color: C.text3 }}>{m.sub}</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* C1: "IT Policy Education" → "IT 정책 교육" */}
-      <section className="mb-10">
-        <h3 className="text-xl font-bold mb-6" style={{ fontFamily: "Manrope, sans-serif" }}>IT 정책 교육</h3>
-        <div className="rounded-[20px] overflow-hidden flex flex-col lg:flex-row" style={{ background: C.bg }}>
-          <div className="lg:w-1/2 h-56 lg:h-auto overflow-hidden">
-            <img
-              src="https://images.unsplash.com/photo-1497366216548-37526070297c?w=600&auto=format&fit=crop"
-              alt="Office"
-              className="w-full h-full object-cover"
-            />
+            ))}
           </div>
-          <div className="lg:w-1/2 p-8 flex flex-col justify-center">
-            <h4 className="text-2xl font-extrabold mb-4 leading-tight"
-              style={{ fontFamily: "Manrope, sans-serif", color: C.text1 }}>
-              신규 입사자 정보 자산 활용 정책
-            </h4>
-            <p className="text-sm leading-relaxed mb-6" style={{ color: C.text3 }}>
-              회사의 모든 디지털 자산은 가이드라인에 따라 관리되어야 합니다.
-              기기 반납부터 정품 소프트웨어 설치까지, IT 인프라 활용의 핵심 원칙을 확인하세요.
-            </p>
-            <div className="flex flex-wrap gap-3 mb-7">
-              {["기기 보안", "네트워크 정책", "저작권 관리"].map(tag => (
-                <span key={tag} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-white">
-                  ✓ {tag}
-                </span>
-              ))}
-            </div>
-            <button className="self-start px-8 py-4 rounded-xl text-white font-bold hover:shadow-lg transition-shadow"
-              style={{ background: C.brand }}>
-              정책 상세 보기
-            </button>
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       <div className="p-5 rounded-[16px] flex items-center gap-5"
         style={{ background: `${C.brand}0d`, border: `1px solid ${C.brand}1a` }}>
@@ -443,29 +459,16 @@ function EducationTab() {
    자료실 탭
 ══════════════════════════════════════════════════════ */
 function ResourcesTab() {
-  const [resTab, setResTab] = useState<ResTab>("install");
+  const [resTab,    setResTab]    = useState<ResTab>("install");
+  const [resources, setResources] = useState<Resource[]>([]);
 
-  const FILES: Record<ResTab, { title: string; type: string; size: string; updated: string }[]> = {
-    install: [
-      { title: "사내 필수 SW 일괄 설치 가이드",     type: "PDF",  size: "2.1 MB", updated: "2026-02-01" },
-      { title: "VPN 클라이언트 설치 및 설정 방법",   type: "PDF",  size: "1.3 MB", updated: "2026-01-20" },
-      { title: "보안 솔루션(V3/DLP) 설치 가이드",    type: "PDF",  size: "890 KB", updated: "2026-01-10" },
-      { title: "Microsoft 365 초기 설정 가이드",     type: "PDF",  size: "3.5 MB", updated: "2025-12-15" },
-      { title: "Adobe Creative Cloud 설치 방법",     type: "PDF",  size: "1.7 MB", updated: "2025-12-01" },
-    ],
-    policy: [
-      { title: "SW 자산관리 정책서 v2.0",           type: "PDF",  size: "1.8 MB", updated: "2026-01-01" },
-      { title: "개인정보보호 지침서",                type: "PDF",  size: "2.4 MB", updated: "2025-11-01" },
-      { title: "클라우드 서비스 이용 지침",          type: "PDF",  size: "1.1 MB", updated: "2025-10-15" },
-      { title: "사내 승인 SW 목록 (최신)",           type: "XLSX", size: "120 KB", updated: "2026-02-15" },
-    ],
-    forms: [
-      { title: "SW 구매 신청서 양식",               type: "XLSX", size: "45 KB",  updated: "2026-01-01" },
-      { title: "IT 자산 반납 확인서",               type: "DOCX", size: "38 KB",  updated: "2025-12-01" },
-      { title: "라이선스 이관 신청서",              type: "DOCX", size: "42 KB",  updated: "2025-11-01" },
-      { title: "개인정보 처리 동의서",              type: "DOCX", size: "55 KB",  updated: "2025-10-01" },
-    ],
-  };
+  useEffect(() => {
+    fetch("/api/resources")
+      .then(r => r.json())
+      .then(res => setResources(res.data ?? []));
+  }, []);
+
+  const FILES = resources.filter(r => r.category === resTab);
 
   const FILE_STYLE: Record<string, { bg: string; color: string }> = {
     PDF:  { bg: "#FEE2E2", color: "#B91C1C" },
@@ -535,19 +538,15 @@ function ResourcesTab() {
             </h4>
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <span className="text-sm" style={{ color: C.text3 }}>신규 등록 파일</span>
+                <span className="text-sm" style={{ color: C.text3 }}>현재 탭 자료</span>
                 <span className="text-xl font-extrabold"
                   style={{ fontFamily: "Manrope, sans-serif", color: C.text1 }}>
-                  13<span className="text-sm font-normal ml-0.5" style={{ color: C.text3 }}>건</span>
+                  {FILES.length}<span className="text-sm font-normal ml-0.5" style={{ color: C.text3 }}>건</span>
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm" style={{ color: C.text3 }}>마지막 업데이트</span>
-                <span className="text-sm font-bold" style={{ color: C.primary }}>2일 전</span>
-              </div>
-              <div className="flex justify-between items-center">
                 <span className="text-sm" style={{ color: C.text3 }}>총 자료 수</span>
-                <span className="text-sm font-bold" style={{ color: C.text2 }}>47건</span>
+                <span className="text-sm font-bold" style={{ color: C.text2 }}>{resources.length}건</span>
               </div>
             </div>
           </div>
@@ -559,11 +558,15 @@ function ResourcesTab() {
             <h3 className="text-lg font-bold" style={{ fontFamily: "Manrope, sans-serif" }}>파일 목록</h3>
           </div>
           <div className="space-y-3">
-            {FILES[resTab].map(file => {
-              const fs = FILE_STYLE[file.type] ?? { bg: C.bg, color: C.text3 };
+            {FILES.length === 0 ? (
+              <div className="text-center py-12 rounded-[16px]" style={{ background: C.bg, color: C.text4 }}>
+                등록된 자료가 없습니다.
+              </div>
+            ) : FILES.map(file => {
+              const fs = FILE_STYLE[file.fileType] ?? { bg: C.bg, color: C.text3 };
               return (
-                <div key={file.title}
-                  className="bg-white p-5 rounded-[16px] flex items-center justify-between hover:shadow-md transition-all cursor-pointer"
+                <div key={file.id}
+                  className="bg-white p-5 rounded-[16px] flex items-center justify-between hover:shadow-md transition-all"
                   style={{ border: `1px solid ${C.bg}` }}>
                   <div className="flex items-center gap-4 min-w-0 flex-1">
                     <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
@@ -576,25 +579,32 @@ function ResourcesTab() {
                       </h4>
                       <div className="flex items-center gap-2 mt-1 flex-wrap">
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded"
-                          style={{ background: "#eaeef2", color: C.text3 }}>{file.type}</span>
-                        <span className="text-xs" style={{ color: "#757682" }}>{file.size}</span>
-                        <span className="text-xs hidden sm:inline" style={{ color: "#757682" }}>· {file.updated}</span>
+                          style={{ background: "#eaeef2", color: C.text3 }}>{file.fileType}</span>
+                        {file.fileSize && <span className="text-xs" style={{ color: "#757682" }}>{file.fileSize}</span>}
+                        {file.updatedAt && <span className="text-xs hidden sm:inline" style={{ color: "#757682" }}>· {file.updatedAt}</span>}
                       </div>
                     </div>
                   </div>
-                  <button
-                    className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 ml-3 transition-all"
-                    style={{ background: C.bg, color: C.brand }}
-                    onMouseEnter={e => {
-                      (e.currentTarget as HTMLButtonElement).style.background = C.brand;
-                      (e.currentTarget as HTMLButtonElement).style.color = "#fff";
-                    }}
-                    onMouseLeave={e => {
-                      (e.currentTarget as HTMLButtonElement).style.background = C.bg;
-                      (e.currentTarget as HTMLButtonElement).style.color = C.brand;
-                    }}>
-                    <Icon n="dl" s={16} />
-                  </button>
+                  {file.fileUrl ? (
+                    <a href={file.fileUrl} target="_blank" rel="noopener noreferrer" download
+                      className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 ml-3 transition-all"
+                      style={{ background: C.bg, color: C.brand }}
+                      onMouseEnter={e => {
+                        (e.currentTarget as HTMLAnchorElement).style.background = C.brand;
+                        (e.currentTarget as HTMLAnchorElement).style.color = "#fff";
+                      }}
+                      onMouseLeave={e => {
+                        (e.currentTarget as HTMLAnchorElement).style.background = C.bg;
+                        (e.currentTarget as HTMLAnchorElement).style.color = C.brand;
+                      }}>
+                      <Icon n="dl" s={16} />
+                    </a>
+                  ) : (
+                    <div className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 ml-3"
+                      style={{ background: C.bg, color: C.text4 }}>
+                      <Icon n="dl" s={16} />
+                    </div>
+                  )}
                 </div>
               );
             })}
