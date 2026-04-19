@@ -136,6 +136,24 @@ async function getNotionFileInfo(pageId: string): Promise<FileResult | null> {
   }
 }
 
+async function collectBlockTypes(blockId: string, depth = 0, out: string[] = []): Promise<string[]> {
+  if (depth > 3) return out;
+  try {
+    const blocks = await notion.blocks.children.list({ block_id: blockId, page_size: 50 });
+    for (const block of blocks.results) {
+      const b = block as BlockObjectResponse;
+      out.push(`${"  ".repeat(depth)}[${b.type}]`);
+      const isContainer = ["column_list","column","toggle","callout","quote","synced_block","template","table"].includes(b.type);
+      if (isContainer && (b as any).has_children) {
+        await collectBlockTypes(b.id, depth + 1, out);
+      }
+    }
+  } catch (e) {
+    out.push(`${"  ".repeat(depth)}[ERROR: ${String(e)}]`);
+  }
+  return out;
+}
+
 export async function GET(req: NextRequest) {
   const session = getSessionFromCookieHeader(req.headers.get("cookie"));
   if (!session || session.role !== "super") {
@@ -145,10 +163,17 @@ export async function GET(req: NextRequest) {
   const url = req.nextUrl.searchParams.get("url");
   if (!url) return NextResponse.json({ error: "url 파라미터가 필요합니다." }, { status: 400 });
 
+  const debug = req.nextUrl.searchParams.get("debug") === "1";
+
   // ── Notion 페이지 링크 처리 ──────────────────────────────────
   if (url.includes("notion.so") || url.includes("notion.site")) {
     const pageId = extractNotionPageId(url);
-    if (!pageId) return NextResponse.json({ fileSize: "", fileType: "" });
+    if (!pageId) return NextResponse.json({ fileSize: "", fileType: "", _debug: "pageId 추출 실패" });
+
+    if (debug) {
+      const blockTypes = await collectBlockTypes(pageId);
+      return NextResponse.json({ _debug: { pageId, blockTypes } });
+    }
 
     const info = await getNotionFileInfo(pageId);
     return NextResponse.json(info ?? { fileSize: "", fileType: "" });
