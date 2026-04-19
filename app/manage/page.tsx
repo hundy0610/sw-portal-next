@@ -312,6 +312,7 @@ function ResourcesPanel() {
   const [adding,      setAdding]      = useState(false);
   const [saving,      setSaving]      = useState(false);
   const [detecting,   setDetecting]   = useState(false);
+  const [detectMsg,   setDetectMsg]   = useState("");
   const [form, setForm] = useState({ title: "", category: "install" as ResourceCategory, fileUrl: "", fileType: "PDF", fileSize: "", description: "", updatedAt: "", order: 0, visible: true });
 
   const load = useCallback(() => {
@@ -325,15 +326,25 @@ function ResourcesPanel() {
     const url = form.fileUrl.trim();
     if (!url.startsWith("http")) return;
     setDetecting(true);
+    setDetectMsg("");
     try {
       const res = await fetch(`/api/manage/file-info?url=${encodeURIComponent(url)}`);
       const data = await res.json();
+      const gotSize = !!data.fileSize;
+      const gotType = !!data.fileType;
       setForm(f => ({
         ...f,
         fileSize: data.fileSize || f.fileSize,
         fileType: data.fileType || f.fileType,
       }));
-    } catch {/* 무시 */}
+      if (!gotSize && !gotType) {
+        setDetectMsg(url.includes("notion") ? "Notion 페이지에 파일 블록이 없거나 연동 권한이 없습니다. 직접 입력해주세요." : "파일 정보를 감지하지 못했습니다. 직접 입력해주세요.");
+      } else if (!gotSize) {
+        setDetectMsg("파일 크기를 감지하지 못했습니다. 직접 입력해주세요.");
+      }
+    } catch {
+      setDetectMsg("감지 중 오류가 발생했습니다. 직접 입력해주세요.");
+    }
     setDetecting(false);
   }
 
@@ -341,7 +352,7 @@ function ResourcesPanel() {
     if (!form.title.trim()) return;
     setSaving(true);
     await fetch("/api/resources", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, updatedAt: form.updatedAt || new Date().toISOString().slice(0, 10), order: form.order || items.length }) });
-    setSaving(false); setAdding(false);
+    setSaving(false); setAdding(false); setDetectMsg("");
     setForm({ title: "", category: "install", fileUrl: "", fileType: "PDF", fileSize: "", description: "", updatedAt: "", order: 0, visible: true });
     load();
   }
@@ -411,16 +422,20 @@ function ResourcesPanel() {
                 <option value="other">기타</option>
               </select>
             </Field>
-            <Field label={`파일 크기${detecting ? " ⏳" : ""}`}>
+            <Field label={detecting ? "파일 크기 (감지 중...)" : "파일 크기"}>
               <input
-                style={{ ...iStyle, background: detecting ? "#f8fafc" : "#fff" }}
+                style={iStyle}
                 value={form.fileSize}
-                onChange={e => setForm(f => ({ ...f, fileSize: e.target.value }))}
-                placeholder={detecting ? "감지 중..." : "자동 입력 또는 직접 입력"}
-                readOnly={detecting}
+                onChange={e => { setForm(f => ({ ...f, fileSize: e.target.value })); setDetectMsg(""); }}
+                placeholder="예: 2.1 MB"
               />
             </Field>
           </div>
+          {detectMsg && (
+            <p style={{ fontSize: 12, color: "#B45309", background: "#FEF3C7", border: "1px solid #FDE68A", borderRadius: 8, padding: "6px 12px", margin: 0 }}>
+              ⚠ {detectMsg}
+            </p>
+          )}
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <Field label="업데이트 날짜"><input type="date" style={iStyle} value={form.updatedAt} onChange={e => setForm(f => ({ ...f, updatedAt: e.target.value }))} /></Field>
