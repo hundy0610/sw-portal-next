@@ -18,6 +18,10 @@ export interface SketchCtx {
   onDropToSlot?: (zoneId: string, idx: number) => void;
   onDeleteSeat?: (id: string) => void;
   onAddSeat?: (zoneId: string, idx: number) => void;
+  // ── 테이블 내 좌석 편집 ─────────────────────────────────────
+  tableSeats?: Record<string, { top: SketchSeat[]; bot?: SketchSeat[] }>;
+  onTableSeatDelete?: (tableId: string, side: "top" | "bot", idx: number) => void;
+  onTableSeatAdd?: (tableId: string, side: "top" | "bot") => void;
 }
 
 function Seat({ x, y, w=22, h=12, orient, seat, ctx }: {
@@ -127,6 +131,7 @@ const HATCH = (
   </defs>
 );
 
+
 function gridPositions(startX:number,startY:number,cols:number,rows:number,sw:number,sh:number,gx:number,gy:number,rowGroups:number[],aisle:number) {
   const out:{x:number;y:number;row:number;col:number}[]=[];
   let rowY=startY,gi=0,ri=0;
@@ -217,39 +222,73 @@ export function BW_2F_Sketch(ctx: SketchCtx) {
 
   // 공유 테이블 단위: 큰 테이블 rect 하나 + 그 위에 모니터들
   // 의자는 테이블 바깥(Seat 컴포넌트가 orient에 따라 자동 배치)
-  const dw=38, dh=11, dx=48, tpad=4, igap=14, chairH=8;
+  const dw=38, dh=11, dx=48, tpad=4, igap=14;
   const x0=20;
-  const maxCols=5;
-  const tw=2*tpad+(maxCols-1)*dx+dw; // =238
 
-  // tableGroup: 단면(topBase만) 또는 양면(botBase 포함) 공유 테이블
-  // y0 = 테이블 rect 상단, topBase/botBase = zone.seats 시작 인덱스
-  const tableGroup=(y0:number,topBase:number,topN:number,botBase?:number,botN?:number)=>{
-    const isDouble=botBase!==undefined;
-    const th=isDouble?2*dh+2*tpad+igap:dh+2*tpad;  // 단=19, 양=44
+  // tableGroup: 그룹 내 개별 좌석 삭제(✕) / 추가(+) 지원
+  const tableGroup=(
+    tableId:string,
+    y0:number,
+    defTopBase:number, defTopN:number,
+    defBotBase?:number, defBotN?:number
+  )=>{
+    // ctx.tableSeats 오버라이드 우선, 없으면 zone.seats 슬라이스
+    const stored=ctx.tableSeats?.[tableId];
+    const topSeats:SketchSeat[]=stored
+      ?stored.top
+      :Array.from({length:defTopN},(_,i)=>zone.seats[defTopBase+i]).filter(Boolean) as SketchSeat[];
+    const botSeats:SketchSeat[]|undefined=stored
+      ?(stored.bot!==undefined?stored.bot:undefined)
+      :(defBotBase!==undefined
+          ?Array.from({length:defBotN!},(_,i)=>zone.seats[defBotBase+i]).filter(Boolean) as SketchSeat[]
+          :undefined);
+    const topN=topSeats.length;
+    const botN=botSeats?.length??0;
+    const maxN=Math.max(topN,botN,1);
+    const isDouble=botSeats!==undefined;
+    const th=isDouble?2*dh+2*tpad+igap:dh+2*tpad;
     const topY=y0+tpad;
     const botY=isDouble?y0+th-dh-tpad:0;
     const topOrient:("up"|"down")=isDouble?"up":"down";
-    const xs=(n:number)=>Array.from({length:n},(_,i)=>x0+tpad+i*dx);
+    const em=ctx.editMode??false;
+    // 편집 모드에서 +버튼 슬롯 1칸 추가 확보
+    const tw=em?2*tpad+maxN*dx+dw:2*tpad+(maxN-1)*dx+dw;
     return (<g>
-      {/* 테이블 면 (공유 테이블 하나) */}
-      <rect x={x0} y={y0} width={tw} height={th} rx={3}
-        fill="#F5F0E8" stroke="#8B7355" strokeWidth={1.4}/>
-      {/* 양면일 때 중앙 분리선 */}
-      {isDouble&&<line x1={x0+4} y1={y0+tpad+dh+igap/2} x2={x0+tw-4} y2={y0+tpad+dh+igap/2}
-        stroke="#C4B49A" strokeWidth={0.8}/>}
-      {/* 상단 모니터 + 의자 */}
-      {xs(topN).map((x,i)=>{
-        const seat=zone.seats[topBase+i];
-        if(!seat) return <EmptySlot key={`es-t${topBase+i}`} x={x} y={topY} w={dw} h={dh} zoneId={zone.id} idx={topBase+i} ctx={ctx}/>;
-        return <Seat key={seat.id} x={x} y={topY} w={dw} h={dh} orient={topOrient} seat={seat} ctx={ctx}/>;
+      {/* 테이블 면 */}
+      <rect x={x0} y={y0} width={tw} height={th} rx={3} fill="#F5F0E8" stroke="#8B7355" strokeWidth={1.4}/>
+      {isDouble&&<line x1={x0+4} y1={y0+tpad+dh+igap/2} x2={x0+tw-4} y2={y0+tpad+dh+igap/2} stroke="#C4B49A" strokeWidth={0.8}/>}
+      {/* 상단 행 */}
+      {topSeats.map((seat,i)=>{
+        const sx=x0+tpad+i*dx;
+        return (<g key={seat.id}>
+          <Seat x={sx} y={topY} w={dw} h={dh} orient={topOrient} seat={seat} ctx={ctx}/>
+          {em&&<g style={{cursor:"pointer"}} onClick={(e)=>{e.stopPropagation();ctx.onTableSeatDelete?.(tableId,"top",i);}}>
+            <circle cx={sx+dw} cy={topY} r={5} fill="#EF4444" stroke="white" strokeWidth={1}/>
+            <text x={sx+dw} y={topY+3.5} fontSize={7.5} textAnchor="middle" fill="white" style={{pointerEvents:"none"}}>✕</text>
+          </g>}
+        </g>);
       })}
-      {/* 하단 모니터 + 의자 (양면만) */}
-      {isDouble&&xs(botN!).map((x,i)=>{
-        const seat=zone.seats[botBase!+i];
-        if(!seat) return <EmptySlot key={`es-b${botBase!+i}`} x={x} y={botY} w={dw} h={dh} zoneId={zone.id} idx={botBase!+i} ctx={ctx}/>;
-        return <Seat key={seat.id} x={x} y={botY} w={dw} h={dh} orient="down" seat={seat} ctx={ctx}/>;
+      {/* 상단 행 + 추가 버튼 */}
+      {em&&<g style={{cursor:"pointer"}} onClick={(e)=>{e.stopPropagation();ctx.onTableSeatAdd?.(tableId,"top");}}>
+        <rect x={x0+tpad+topN*dx} y={topY} width={dw} height={dh} rx={1.5} fill="#DCFCE7" stroke="#16A34A" strokeWidth={1} strokeDasharray="3,2"/>
+        <text x={x0+tpad+topN*dx+dw/2} y={topY+dh/2+2.5} fontSize={9} textAnchor="middle" fill="#16A34A" fontWeight="700" style={{pointerEvents:"none"}}>+</text>
+      </g>}
+      {/* 하단 행 (양면만) */}
+      {isDouble&&botSeats&&botSeats.map((seat,i)=>{
+        const sx=x0+tpad+i*dx;
+        return (<g key={seat.id}>
+          <Seat x={sx} y={botY} w={dw} h={dh} orient="down" seat={seat} ctx={ctx}/>
+          {em&&<g style={{cursor:"pointer"}} onClick={(e)=>{e.stopPropagation();ctx.onTableSeatDelete?.(tableId,"bot",i);}}>
+            <circle cx={sx+dw} cy={botY} r={5} fill="#EF4444" stroke="white" strokeWidth={1}/>
+            <text x={sx+dw} y={botY+3.5} fontSize={7.5} textAnchor="middle" fill="white" style={{pointerEvents:"none"}}>✕</text>
+          </g>}
+        </g>);
       })}
+      {/* 하단 행 + 추가 버튼 */}
+      {isDouble&&botSeats&&em&&<g style={{cursor:"pointer"}} onClick={(e)=>{e.stopPropagation();ctx.onTableSeatAdd?.(tableId,"bot");}}>
+        <rect x={x0+tpad+botN*dx} y={botY} width={dw} height={dh} rx={1.5} fill="#DCFCE7" stroke="#16A34A" strokeWidth={1} strokeDasharray="3,2"/>
+        <text x={x0+tpad+botN*dx+dw/2} y={botY+dh/2+2.5} fontSize={9} textAnchor="middle" fill="#16A34A" fontWeight="700" style={{pointerEvents:"none"}}>+</text>
+      </g>}
     </g>);
   };
 
@@ -277,23 +316,13 @@ export function BW_2F_Sketch(ctx: SketchCtx) {
       <rect x={14} y={28} width={340} height={492} rx={4} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1.2} strokeDasharray="6,3"/>
       <text x={184} y={44} fontSize={9.5} fontWeight={800} fill="#1E3A8A" textAnchor="middle">스마트오피스 (서편) — 52석</text>
 
-      {/* 테이블1: 단독 5석 (seats 0-4, 단면) */}
-      {tableGroup(54, 0, 5)}
-
-      {/* 테이블2: 10석 5+5 (seats 5-14, 양면) */}
-      {tableGroup(105, 5, 5, 10, 5)}
-
-      {/* 테이블3: 9석 5+4 (seats 15-23, 양면) */}
-      {tableGroup(181, 15, 5, 20, 4)}
-
-      {/* 테이블4: 10석 5+5 (seats 24-33, 양면) */}
-      {tableGroup(257, 24, 5, 29, 5)}
-
-      {/* 테이블5: 9석 5+4 (seats 34-42, 양면) */}
-      {tableGroup(333, 34, 5, 39, 4)}
-
-      {/* 테이블6: 10석 5+5 (seats 43-51+빈슬롯, 양면) */}
-      {tableGroup(409, 43, 5, 48, 5)}
+      {/* 테이블 1~6: 그룹별 좌석 추가/삭제 지원 */}
+      {tableGroup("t1", 54,   0, 5)}
+      {tableGroup("t2", 105,  5, 5, 10, 5)}
+      {tableGroup("t3", 181, 15, 5, 20, 4)}
+      {tableGroup("t4", 257, 24, 5, 29, 5)}
+      {tableGroup("t5", 333, 34, 5, 39, 4)}
+      {tableGroup("t6", 409, 43, 5, 48, 5)}
       {/* 미팅룸 */}
       <MeetingBox x={358} y={28}  w={112} h={100} name="미팅룸 A" sub="13.5㎡"/>
       <MeetingBox x={358} y={133} w={112} h={130} name="미팅룸 B" sub="21.1㎡"/>

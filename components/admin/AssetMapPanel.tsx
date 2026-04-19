@@ -452,6 +452,7 @@ const FALLBACK_SVG: FloorSvgCfg = {
 function FloorPlanSVG({
   bldId, floorId, zones, filter, selectedId, onSelect,
   editMode, pickedId, onPickSeat, onDropToSeat, onDropToSlot, onDeleteSeat, onAddSeat,
+  tableSeats, onTableSeatDelete, onTableSeatAdd,
 }: {
   bldId: string;
   floorId: string;
@@ -466,6 +467,9 @@ function FloorPlanSVG({
   onDropToSlot?: (zoneId: string, idx: number) => void;
   onDeleteSeat?: (id: string) => void;
   onAddSeat?: (zoneId: string, idx: number) => void;
+  tableSeats?: Record<string, { top: Array<{id:string;type:MonitorType}>; bot?: Array<{id:string;type:MonitorType}> }>;
+  onTableSeatDelete?: (tableId: string, side: "top" | "bot", idx: number) => void;
+  onTableSeatAdd?: (tableId: string, side: "top" | "bot") => void;
 }) {
   // 건물별 층 키 우선, 없으면 본관 기본 키, 그 다음 fallback
   // ① 전용 스케치가 있으면 그것으로 렌더 (실제 도면 기반 손 스케치)
@@ -489,6 +493,7 @@ function FloorPlanSVG({
       colorOf: (t) => ({ color: MONITOR[t].color, pale: MONITOR[t].pale }),
       editMode, pickedId,
       onPickSeat, onDropToSeat, onDropToSlot, onDeleteSeat, onAddSeat,
+      tableSeats, onTableSeatDelete, onTableSeatAdd,
     };
     return (
       <div className="w-full overflow-x-auto">{sketchRender(ctx)}</div>
@@ -886,7 +891,9 @@ export default function AssetMapPanel() {
   const [editMode,      setEditMode]      = useState(false);
   const [pickedId,      setPickedId]      = useState<string|null>(null);
   // 구조 편집: zoneKey → [{id, type}] (삭제/추가/이동 반영)
-  const [layoutEdits,   setLayoutEdits]   = useState<Record<string,Array<{id:string;type:MonitorType}>>>({});
+  const [layoutEdits,     setLayoutEdits]     = useState<Record<string,Array<{id:string;type:MonitorType}>>>({});
+  // 테이블별 좌석 편집: `${bldId}-${floorId}-${tableId}` → { top, bot? }
+  const [tableSeatStore,  setTableSeatStore]  = useState<Record<string,{top:Array<{id:string;type:MonitorType}>;bot?:Array<{id:string;type:MonitorType}>}>>({});
 
   // ── localStorage 초기 로드 ──────────────────────────────────────
   useEffect(() => {
@@ -895,6 +902,8 @@ export default function AssetMapPanel() {
       if (stored) setSeatOverrides(JSON.parse(stored));
       const layout = localStorage.getItem("sw-layout-edits");
       if (layout) setLayoutEdits(JSON.parse(layout));
+      const tseats = localStorage.getItem("sw-table-seats");
+      if (tseats) setTableSeatStore(JSON.parse(tseats));
     } catch {}
   }, []);
 
@@ -950,6 +959,35 @@ export default function AssetMapPanel() {
 
   const flStats    = useMemo(() => calcStats(effectiveZones), [effectiveZones]);
   const selectedId = selected?.seat.id ?? null;
+
+  // ── 테이블별 좌석 (BW 2F 전용) — tableSeatStore 오버라이드 + effectiveZones 기본값 ──
+  const tableSeatsForCtx = useMemo(()=>{
+    if(buildingId!=="bw"||floorId!=="2F") return undefined;
+    const zone=effectiveZones.find(z=>z.id==="SO");
+    if(!zone) return undefined;
+    const defs:{[k:string]:{topBase:number;topN:number;botBase?:number;botN?:number}}={
+      t1:{topBase:0, topN:5},
+      t2:{topBase:5, topN:5, botBase:10, botN:5},
+      t3:{topBase:15,topN:5, botBase:20, botN:4},
+      t4:{topBase:24,topN:5, botBase:29, botN:5},
+      t5:{topBase:34,topN:5, botBase:39, botN:4},
+      t6:{topBase:43,topN:5, botBase:48, botN:5},
+    };
+    const result:Record<string,{top:{id:string;type:MonitorType}[];bot?:{id:string;type:MonitorType}[]}>={};
+    for(const [tid,def] of Object.entries(defs)){
+      const key=`${buildingId}-${floorId}-${tid}`;
+      if(tableSeatStore[key]){
+        result[tid]=tableSeatStore[key];
+      } else {
+        const top=zone.seats.slice(def.topBase,def.topBase+def.topN).map(s=>({id:s.id,type:s.type as MonitorType}));
+        const bot=def.botBase!==undefined
+          ?zone.seats.slice(def.botBase,def.botBase+def.botN!).map(s=>({id:s.id,type:s.type as MonitorType}))
+          :undefined;
+        result[tid]={top,bot};
+      }
+    }
+    return result;
+  },[buildingId,floorId,effectiveZones,tableSeatStore]);
 
   // ── 편집 모드 콜백 (effectiveZones / floor 이후에 선언) ──────────
   const saveLayout = useCallback((next: Record<string,Array<{id:string;type:MonitorType}>>) => {
@@ -1025,11 +1063,49 @@ export default function AssetMapPanel() {
     saveLayout({ ...layoutEdits, [key]: [...base.slice(0,idx), {id:newId,type:"unk"as MonitorType}, ...base.slice(idx)] });
   }, [floor.zones, buildingId, floorId, layoutEdits, saveLayout]);
 
-  // 편집 초기화
+  // 테이블 그룹 내 좌석 삭제
+  const handleTableSeatDelete = useCallback((tableId:string,side:"top"|"bot",idx:number)=>{
+    const curr=tableSeatsForCtx?.[tableId];
+    if(!curr) return;
+    const next={...curr};
+    if(side==="top") next.top=[...curr.top.slice(0,idx),...curr.top.slice(idx+1)];
+    else if(side==="bot"&&curr.bot) next.bot=[...curr.bot.slice(0,idx),...curr.bot.slice(idx+1)];
+    const storeKey=`${buildingId}-${floorId}-${tableId}`;
+    setTableSeatStore(prev=>{
+      const n={...prev,[storeKey]:next};
+      try{localStorage.setItem("sw-table-seats",JSON.stringify(n));}catch{}
+      return n;
+    });
+  },[buildingId,floorId,tableSeatsForCtx]);
+
+  // 테이블 그룹 내 좌석 추가
+  const handleTableSeatAdd = useCallback((tableId:string,side:"top"|"bot")=>{
+    const curr=tableSeatsForCtx?.[tableId];
+    if(!curr) return;
+    const newSeat={id:`NEW-${tableId}-${side}-${Date.now()}`,type:"unk" as MonitorType};
+    const next={...curr};
+    if(side==="top") next.top=[...curr.top,newSeat];
+    else next.bot=[...(curr.bot??[]),newSeat];
+    const storeKey=`${buildingId}-${floorId}-${tableId}`;
+    setTableSeatStore(prev=>{
+      const n={...prev,[storeKey]:next};
+      try{localStorage.setItem("sw-table-seats",JSON.stringify(n));}catch{}
+      return n;
+    });
+  },[buildingId,floorId,tableSeatsForCtx]);
+
+  // 편집 초기화 (좌석 구조 + 테이블 좌석 편집 모두 리셋)
   const resetLayout = useCallback(() => {
     const next = { ...layoutEdits };
     floor.zones.forEach(z => delete next[`${buildingId}-${floorId}-${z.id}`]);
     saveLayout(next);
+    // 현재 층의 테이블 좌석 편집도 제거
+    setTableSeatStore(prev => {
+      const tNext = { ...prev };
+      ["t1","t2","t3","t4","t5","t6"].forEach(k => delete tNext[`${buildingId}-${floorId}-${k}`]);
+      try { localStorage.setItem("sw-table-seats", JSON.stringify(tNext)); } catch {}
+      return tNext;
+    });
     setPickedId(null); setEditMode(false);
   }, [floor.zones, buildingId, floorId, layoutEdits, saveLayout]);
 
@@ -1170,6 +1246,9 @@ export default function AssetMapPanel() {
               onDropToSlot={handleDropToSlot}
               onDeleteSeat={handleDeleteSeat}
               onAddSeat={handleAddSeat}
+              tableSeats={tableSeatsForCtx}
+              onTableSeatDelete={handleTableSeatDelete}
+              onTableSeatAdd={handleTableSeatAdd}
             />
           </div>
           {/* 범례 */}
