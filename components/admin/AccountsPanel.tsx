@@ -161,15 +161,26 @@ export default function AccountsPanel() {
   const [editTarget, setEditTarget] = useState<Account | undefined>(undefined);
   const [showPw, setShowPw] = useState<string | null>(null);
 
+  // 총무 관리자 지정 상태
+  const [gmList, setGmList]     = useState<string[]>([]);   // userId 목록
+  const [gmSaving, setGmSaving] = useState(false);
+  const [gmMsg, setGmMsg]       = useState<string | null>(null);
+
   const hasDb = true; // ACCOUNTS_DB_ID 환경변수 필요
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const res  = await fetch("/api/admin/accounts");
-      const json = await res.json();
-      if (!json.ok) throw new Error(json.error || "불러오기 실패");
-      setAccounts(json.accounts);
+      const [accRes, gmRes] = await Promise.all([
+        fetch("/api/admin/accounts"),
+        fetch("/api/general-managers"),
+      ]);
+      const accJson = await accRes.json();
+      if (!accJson.ok) throw new Error(accJson.error || "불러오기 실패");
+      setAccounts(accJson.accounts);
+
+      const gmJson = await gmRes.json();
+      if (gmJson.ok) setGmList(gmJson.managers ?? []);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -217,6 +228,32 @@ export default function AccountsPanel() {
       body: JSON.stringify({ id: account.id }),
     });
     load();
+  }
+
+  function toggleGm(userId: string) {
+    setGmList(prev =>
+      prev.includes(userId) ? prev.filter(u => u !== userId) : [...prev, userId]
+    );
+    setGmMsg(null);
+  }
+
+  async function saveGmList() {
+    setGmSaving(true); setGmMsg(null);
+    try {
+      const res = await fetch("/api/general-managers", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ managers: gmList }),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "저장 실패");
+      setGmMsg("✓ 저장 완료");
+    } catch (e) {
+      setGmMsg(`⚠ ${String(e)}`);
+    } finally {
+      setGmSaving(false);
+      setTimeout(() => setGmMsg(null), 3000);
+    }
   }
 
   if (loading) {
@@ -343,6 +380,68 @@ export default function AccountsPanel() {
       <div className="text-xs text-gray-400">
         총 {accounts.length}개 계정 · Notion DB 연동
         {accounts.length > 0 && ` · 활성 ${accounts.filter(a => a.active).length}개`}
+      </div>
+
+      {/* ── 총무 관리자 지정 섹션 ── */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div>
+            <h3 className="font-semibold text-gray-900 text-sm">🔧 총무 관리자 지정</h3>
+            <p className="text-xs text-gray-400 mt-0.5">
+              지정된 담당자는 모니터 교체·수리 요청을 확인·처리할 수 있습니다
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            {gmMsg && (
+              <span className={`text-xs font-medium ${gmMsg.startsWith("✓") ? "text-emerald-600" : "text-red-600"}`}>
+                {gmMsg}
+              </span>
+            )}
+            <button
+              onClick={saveGmList}
+              disabled={gmSaving}
+              className="px-3 py-1.5 bg-purple-600 text-white text-xs font-semibold rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors"
+            >
+              {gmSaving ? "저장 중..." : "저장"}
+            </button>
+          </div>
+        </div>
+
+        {accounts.filter(a => a.active).length === 0 ? (
+          <div className="px-5 py-8 text-center text-gray-400 text-sm">활성 계정이 없습니다</div>
+        ) : (
+          <div className="divide-y divide-gray-50">
+            {accounts.filter(a => a.active).map(acc => {
+              const isGm = gmList.includes(acc.userId);
+              return (
+                <label
+                  key={acc.id}
+                  className={`flex items-center gap-3 px-5 py-3 cursor-pointer transition-colors hover:bg-gray-50 ${isGm ? "bg-purple-50/50" : ""}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isGm}
+                    onChange={() => toggleGm(acc.userId)}
+                    className="accent-purple-600 w-4 h-4"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium text-sm text-gray-900">{acc.name}</span>
+                    <span className="text-xs text-gray-400 ml-2 font-mono">{acc.userId}</span>
+                    {acc.role === "super" && (
+                      <span className="ml-2 text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full font-semibold">슈퍼어드민</span>
+                    )}
+                  </div>
+                  {acc.company && (
+                    <span className="text-xs text-gray-400 shrink-0">{acc.company}</span>
+                  )}
+                  {isGm && (
+                    <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-semibold shrink-0">총무 관리자</span>
+                  )}
+                </label>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* 모달 */}

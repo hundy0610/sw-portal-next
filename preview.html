@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>포털 미리보기</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f4f8; }
+  .fade-in { animation: fadeIn 0.25s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  input, textarea, select { font-family: inherit; }
+  .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+  /* 탭 전환 */
+  .preview-tab { cursor: pointer; padding: 8px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; transition: all .15s; }
+  .preview-tab.active { background: #2563EB; color: #fff; }
+  .preview-tab:not(.active) { color: #64748b; }
+  .preview-tab:not(.active):hover { background: #e2e8f0; }
+</style>
+</head>
+<body>
+
+<!-- ─── 최상단 뷰 선택 바 ─── -->
+<div style="position:fixed;top:0;left:0;right:0;z-index:100;background:#1E3A8A;padding:10px 24px;display:flex;align-items:center;gap:12px;">
+  <span style="color:#fff;font-weight:800;font-size:13px;margin-right:8px;">미리보기 선택</span>
+  <button class="preview-tab active" onclick="showView('portal')">사용자 포털</button>
+  <button class="preview-tab" onclick="showView('manage-auth')">관리모드 (인증화면)</button>
+  <button class="preview-tab" onclick="showView('manage-main')">관리모드 (메인)</button>
+</div>
+<div style="height:52px;"></div>
+
+<!-- ════════════════════════════════
+     뷰 1: 사용자 포털
+════════════════════════════════ -->
+<div id="view-portal" class="view-area">
+<div style="display:flex;min-height:calc(100vh - 52px);background:#f6fafe;">
+
+  <!-- 사이드바 -->
+  <aside style="width:240px;background:#fff;border-right:1px solid #E2E8F0;display:flex;flex-direction:column;position:fixed;top:52px;bottom:0;">
+    <div style="display:flex;align-items:center;gap:12px;padding:20px 24px;border-bottom:1px solid #E2E8F0;">
+      <div style="width:38px;height:38px;border-radius:10px;background:#2563EB;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:11px;flex-shrink:0;">SW</div>
+      <div>
+        <div style="font-weight:800;font-size:13px;color:#0f172a;">SW 자산관리 포털</div>
+        <div style="font-size:11px;color:#94a3b8;">IT 자산관리파트</div>
+      </div>
+    </div>
+    <nav style="flex:1;padding:12px;display:flex;flex-direction:column;gap:2px;">
+      <button onclick="switchPortalTab('home')" id="nav-home" style="display:flex;align-items:center;gap:12px;padding:10px 14px;width:100%;border:none;border-radius:10px;background:#EFF6FF;color:#2563EB;font-weight:700;font-size:13px;cursor:pointer;text-align:left;">🏠 홈</button>
+      <button onclick="switchPortalTab('education')" id="nav-education" style="display:flex;align-items:center;gap:12px;padding:10px 14px;width:100%;border:none;border-radius:10px;background:transparent;color:#64748b;font-weight:500;font-size:13px;cursor:pointer;text-align:left;">🎓 교육 센터</button>
+      <button onclick="switchPortalTab('resources')" id="nav-resources" style="display:flex;align-items:center;gap:12px;padding:10px 14px;width:100%;border:none;border-radius:10px;background:transparent;color:#64748b;font-weight:500;font-size:13px;cursor:pointer;text-align:left;">📁 자료실</button>
+      <button onclick="switchPortalTab('search')" id="nav-search" style="display:flex;align-items:center;gap:12px;padding:10px 14px;width:100%;border:none;border-radius:10px;background:transparent;color:#64748b;font-weight:500;font-size:13px;cursor:pointer;text-align:left;">🔍 SW 검색</button>
+    </nav>
+    <div style="padding:12px;border-top:1px solid #E2E8F0;">
+      <button style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:#2563EB;color:#fff;font-weight:700;font-size:13px;border:none;border-radius:10px;width:100%;cursor:pointer;">💬 IT 지원 문의하기</button>
+    </div>
+  </aside>
+
+  <!-- 메인 -->
+  <main style="flex:1;margin-left:240px;padding:32px 24px;max-width:calc(240px + 900px);">
+    <div style="max-width:860px;margin:0 auto;">
+
+      <!-- 홈 탭 -->
+      <div id="ptab-home" class="fade-in">
+        <!-- 히어로 -->
+        <div style="border-radius:20px;background:linear-gradient(135deg,#1E3A8A,#2563EB,#3B82F6);padding:40px;color:#fff;margin-bottom:32px;position:relative;overflow:hidden;">
+          <div style="position:absolute;width:360px;height:360px;top:-120px;right:-80px;background:#fff;border-radius:50%;opacity:.05;"></div>
+          <div style="font-size:28px;font-weight:800;margin-bottom:10px;">안녕하세요 👋</div>
+          <div style="font-size:13px;opacity:.8;line-height:1.7;margin-bottom:28px;">SW 자산관리 포털에 오신 것을 환영합니다.<br>SW 사용 정책을 확인하고 필요한 교육 자료를 이용하세요.</div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;">
+            <button style="display:flex;align-items:center;gap:8px;background:#fff;color:#2563EB;border:none;padding:12px 20px;border-radius:12px;font-weight:800;font-size:13px;cursor:pointer;">🔍 SW 정책 확인하기</button>
+            <button style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);padding:12px 20px;border-radius:12px;font-weight:600;font-size:13px;cursor:pointer;">💬 IT 지원 문의</button>
+          </div>
+        </div>
+
+        <!-- 바로가기 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+          <div style="background:#fff;border-radius:20px;padding:24px;border:1px solid #E2E8F0;">
+            <div style="width:48px;height:48px;border-radius:12px;background:#F3E8FF;color:#7C3AED;display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:14px;">🎓</div>
+            <div style="font-weight:800;font-size:13px;color:#0f172a;margin-bottom:6px;">교육 센터</div>
+            <div style="font-size:12px;color:#64748b;">필수 이수 교육 및 SW 활용 자료</div>
+          </div>
+          <div style="background:#fff;border-radius:20px;padding:24px;border:1px solid #E2E8F0;">
+            <div style="width:48px;height:48px;border-radius:12px;background:#FEF3C7;color:#D97706;display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:14px;">📁</div>
+            <div style="font-weight:800;font-size:13px;color:#0f172a;margin-bottom:6px;">자료실</div>
+            <div style="font-size:12px;color:#64748b;">설치 가이드, 정책 지침, 양식 서식</div>
+          </div>
+          <div style="background:#fff;border-radius:20px;padding:24px;border:1px solid #E2E8F0;">
+            <div style="width:48px;height:48px;border-radius:12px;background:#DBEAFE;color:#2563EB;display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:14px;">🔍</div>
+            <div style="font-weight:800;font-size:13px;color:#0f172a;margin-bottom:6px;">SW 검색</div>
+            <div style="font-size:12px;color:#64748b;">승인·금지 SW 여부 즉시 확인</div>
+          </div>
+          <div style="background:#fff;border-radius:20px;padding:24px;border:1px solid #E2E8F0;">
+            <div style="width:48px;height:48px;border-radius:12px;background:#D1FAE5;color:#059669;display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:14px;">📋</div>
+            <div style="font-weight:800;font-size:13px;color:#0f172a;margin-bottom:6px;">자산 실사</div>
+            <div style="font-size:12px;color:#64748b;">소프트웨어 자산 현황 신고하기</div>
+          </div>
+        </div>
+
+        <!-- 공지사항 (API 연동 후 비어있는 상태) -->
+        <div style="background:#fff;border-radius:20px;border:1px solid #E2E8F0;overflow:hidden;">
+          <div style="padding:16px 24px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:between;">
+            <div style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:13px;color:#0f172a;flex:1;">🔔 공지사항</div>
+            <span style="font-size:11px;font-weight:500;padding:2px 8px;border-radius:20px;background:#f0f4f8;color:#64748b;">0건</span>
+          </div>
+          <div style="padding:32px;text-align:center;color:#94a3b8;font-size:13px;">
+            등록된 공지사항이 없습니다.
+            <div style="margin-top:8px;font-size:11px;color:#cbd5e1;">관리모드에서 공지사항을 추가하세요</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 교육센터 탭 -->
+      <div id="ptab-education" class="fade-in" style="display:none;">
+        <div style="margin-bottom:32px;">
+          <h2 style="font-size:28px;font-weight:800;color:#0f172a;margin:0 0 8px;">교육 센터</h2>
+          <p style="font-size:13px;color:#64748b;margin:0;">소프트웨어 자산 관리 및 IT 보안 지침을 학습하세요.</p>
+        </div>
+        <section style="margin-bottom:48px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:24px;">
+            <h3 style="font-size:18px;font-weight:700;margin:0;">필수 교육</h3>
+            <span style="font-size:13px;font-weight:600;color:#2563EB;">0개 과정</span>
+          </div>
+          <div style="text-align:center;padding:48px;background:#f0f4f8;border-radius:20px;color:#94a3b8;font-size:13px;">
+            등록된 교육 과정이 없습니다.
+            <div style="margin-top:8px;font-size:11px;color:#cbd5e1;">관리모드 → 교육과정에서 추가하세요</div>
+          </div>
+        </section>
+        <div style="padding:20px;border-radius:16px;background:#EFF6FF;border:1px solid #DBEAFE;display:flex;align-items:center;gap:20px;">
+          <div style="width:48px;height:48px;border-radius:50%;background:#2563EB;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;">ℹ️</div>
+          <div>
+            <div style="font-weight:700;color:#0f172a;margin-bottom:2px;">교육 이수 확인 안내</div>
+            <div style="font-size:13px;color:#64748b;">모든 동영상 시청 및 퀴즈 완료 후 완료 확인 버튼을 클릭해야 이수 처리가 완료됩니다.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 자료실 탭 -->
+      <div id="ptab-resources" class="fade-in" style="display:none;">
+        <div style="margin-bottom:32px;display:flex;align-items:flex-end;justify-content:space-between;">
+          <div>
+            <p style="font-size:12px;font-weight:600;color:#2563EB;text-transform:uppercase;letter-spacing:.05em;margin:0 0 4px;">자료 아카이브</p>
+            <h2 style="font-size:32px;font-weight:800;color:#0f172a;margin:0;">자료실</h2>
+          </div>
+          <div style="display:flex;background:#f0f4f8;padding:6px;border-radius:12px;gap:2px;">
+            <button style="padding:8px 16px;border-radius:8px;background:#fff;border:none;font-size:13px;font-weight:700;color:#1E3A8A;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.08);">설치 가이드</button>
+            <button style="padding:8px 16px;border-radius:8px;background:transparent;border:none;font-size:13px;font-weight:500;color:#64748b;cursor:pointer;">정책 문서</button>
+            <button style="padding:8px 16px;border-radius:8px;background:transparent;border:none;font-size:13px;font-weight:500;color:#64748b;cursor:pointer;">양식 서식</button>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 2fr;gap:32px;align-items:start;">
+          <div>
+            <div style="background:linear-gradient(135deg,#1E3A8A,#2563EB);padding:32px;border-radius:20px;color:#fff;margin-bottom:20px;">
+              <div style="font-size:28px;margin-bottom:16px;opacity:.75;">📦</div>
+              <h3 style="font-size:18px;font-weight:700;margin:0 0 8px;">최근 업데이트</h3>
+              <p style="font-size:12px;color:#90c0ff;line-height:1.6;margin:0 0 20px;">새 자료가 추가되면 여기에 안내됩니다.</p>
+            </div>
+            <div style="background:#f0f4f8;padding:32px;border-radius:20px;">
+              <h4 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin:0 0 20px;">이번 달 현황</h4>
+              <div style="display:flex;flex-direction:column;gap:16px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                  <span style="font-size:13px;color:#64748b;">현재 탭 자료</span>
+                  <span style="font-size:20px;font-weight:800;color:#0f172a;">0<span style="font-size:12px;font-weight:400;color:#64748b;">건</span></span>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                  <span style="font-size:13px;color:#64748b;">총 자료 수</span>
+                  <span style="font-size:13px;font-weight:700;color:#334155;">0건</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <h3 style="font-size:17px;font-weight:700;margin:0 0 16px;">파일 목록</h3>
+            <div style="text-align:center;padding:48px;background:#f0f4f8;border-radius:16px;color:#94a3b8;font-size:13px;">
+              등록된 자료가 없습니다.
+              <div style="margin-top:8px;font-size:11px;color:#cbd5e1;">관리모드 → 자료실에서 추가하세요</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+</div>
+
+<!-- ════════════════════════════════
+     뷰 2: 관리모드 인증화면
+════════════════════════════════ -->
+<div id="view-manage-auth" class="view-area" style="display:none;min-height:calc(100vh - 52px);display:none;align-items:center;justify-content:center;background:#f0f4f8;">
+  <div style="background:#fff;border-radius:24px;padding:40px;width:100%;max-width:360px;box-shadow:0 4px 24px rgba(0,0,0,.1);border:1px solid #E2E8F0;margin:40px auto;">
+    <div style="display:flex;justify-content:center;margin-bottom:24px;">
+      <div style="width:48px;height:48px;border-radius:14px;background:#2563EB;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:13px;">SW</div>
+    </div>
+    <h1 style="font-size:20px;font-weight:800;text-align:center;color:#0f172a;margin:0 0 6px;">포털 관리모드</h1>
+    <p style="font-size:13px;text-align:center;color:#64748b;margin:0 0 32px;">비밀번호를 입력하세요</p>
+    <input type="password" placeholder="관리 비밀번호" style="width:100%;padding:12px 16px;border-radius:12px;border:1px solid #E2E8F0;font-size:13px;margin-bottom:12px;outline:none;" />
+    <button onclick="showView('manage-main')" style="width:100%;padding:12px;border-radius:12px;background:#2563EB;color:#fff;border:none;font-weight:700;font-size:13px;cursor:pointer;">입장하기</button>
+    <p style="font-size:11px;text-align:center;color:#94a3b8;margin-top:20px;">이 페이지에 접근하려면 시크릿 URL 키가 필요합니다</p>
+  </div>
+</div>
+
+<!-- ════════════════════════════════
+     뷰 3: 관리모드 메인
+════════════════════════════════ -->
+<div id="view-manage-main" class="view-area" style="display:none;background:#f0f4f8;min-height:calc(100vh - 52px);">
+  <!-- 관리 헤더 -->
+  <header style="background:#fff;position:sticky;top:52px;z-index:30;border-bottom:1px solid #E2E8F0;">
+    <div style="max-width:1000px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="width:32px;height:32px;border-radius:8px;background:#2563EB;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:11px;">SW</div>
+        <span style="font-weight:800;font-size:13px;color:#0f172a;">포털 관리모드</span>
+      </div>
+      <div style="display:flex;background:#f0f4f8;padding:6px;border-radius:12px;gap:2px;" id="manage-nav">
+        <button onclick="switchManageTab('notices')" id="mnav-notices" style="padding:8px 16px;border-radius:8px;background:#fff;border:none;font-size:13px;font-weight:700;color:#1E3A8A;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.08);">공지사항</button>
+        <button onclick="switchManageTab('courses')" id="mnav-courses" style="padding:8px 16px;border-radius:8px;background:transparent;border:none;font-size:13px;font-weight:500;color:#64748b;cursor:pointer;">교육과정</button>
+        <button onclick="switchManageTab('resources')" id="mnav-resources" style="padding:8px 16px;border-radius:8px;background:transparent;border:none;font-size:13px;font-weight:500;color:#64748b;cursor:pointer;">자료실</button>
+      </div>
+      <button onclick="showView('manage-auth')" style="padding:6px 12px;border-radius:8px;background:#FEE2E2;color:#DC2626;border:none;font-size:12px;font-weight:700;cursor:pointer;">로그아웃</button>
+    </div>
+  </header>
+
+  <main style="max-width:1000px;margin:0 auto;padding:32px 24px;">
+
+    <!-- 공지사항 패널 -->
+    <div id="mtab-notices" class="fade-in">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+        <div>
+          <h2 style="font-size:20px;font-weight:800;color:#0f172a;margin:0 0 4px;">공지사항 관리</h2>
+          <p style="font-size:13px;color:#64748b;margin:0;">총 2건</p>
+        </div>
+        <button onclick="toggleForm('notice-form')" style="padding:10px 16px;border-radius:12px;background:#2563EB;color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;">+ 새로 추가</button>
+      </div>
+
+      <!-- 추가 폼 -->
+      <div id="notice-form" style="display:none;background:#fff;border-radius:20px;padding:24px;margin-bottom:24px;border:1px solid #E2E8F0;">
+        <h3 style="font-size:13px;font-weight:700;color:#0f172a;margin:0 0 16px;">새 공지사항</h3>
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <div>
+            <label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:6px;">제목 *</label>
+            <input placeholder="공지 제목" style="width:100%;padding:10px 12px;border-radius:12px;border:1px solid #E2E8F0;font-size:13px;outline:none;" />
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:6px;">내용</label>
+            <textarea placeholder="공지 내용" style="width:100%;padding:10px 12px;border-radius:12px;border:1px solid #E2E8F0;font-size:13px;outline:none;min-height:80px;resize:vertical;"></textarea>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            <div>
+              <label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:6px;">날짜</label>
+              <input type="date" style="width:100%;padding:10px 12px;border-radius:12px;border:1px solid #E2E8F0;font-size:13px;outline:none;" />
+            </div>
+            <div>
+              <label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:6px;">이미지 URL (Notion 첨부파일 URL)</label>
+              <input placeholder="https://..." style="width:100%;padding:10px 12px;border-radius:12px;border:1px solid #E2E8F0;font-size:13px;outline:none;" />
+            </div>
+          </div>
+          <div style="display:flex;gap:24px;">
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#334155;cursor:pointer;"><input type="checkbox" /> 긴급 공지</label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#334155;cursor:pointer;"><input type="checkbox" checked /> 즉시 공개</label>
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;margin-top:20px;">
+          <button onclick="addNoticeDemo()" style="padding:10px 20px;border-radius:12px;background:#2563EB;color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;">저장</button>
+          <button onclick="toggleForm('notice-form')" style="padding:10px 20px;border-radius:12px;background:#f0f4f8;color:#64748b;border:none;font-size:13px;font-weight:700;cursor:pointer;">취소</button>
+        </div>
+      </div>
+
+      <!-- 공지 목록 -->
+      <div id="notices-list" style="display:flex;flex-direction:column;gap:12px;">
+        <div style="background:#fff;border-radius:16px;padding:20px;display:flex;align-items:center;gap:16px;border:1px solid #E2E8F0;">
+          <span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;background:#FEE2E2;color:#DC2626;flex-shrink:0;">긴급</span>
+          <div style="flex:1;min-width:0;">
+            <p style="font-size:13px;font-weight:700;color:#0f172a;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Q1 필수 보안 교육 마감 안내 (예시 데이터)</p>
+            <p style="font-size:11px;color:#94a3b8;margin:4px 0 0;">2026-03-31</p>
+          </div>
+          <div style="display:flex;gap:8px;flex-shrink:0;">
+            <button style="padding:6px 12px;border-radius:8px;background:#D1FAE5;color:#065F46;border:none;font-size:11px;font-weight:700;cursor:pointer;">공개중</button>
+            <button style="padding:6px 12px;border-radius:8px;background:#FEE2E2;color:#DC2626;border:none;font-size:11px;font-weight:700;cursor:pointer;">삭제</button>
+          </div>
+        </div>
+        <div style="background:#fff;border-radius:16px;padding:20px;display:flex;align-items:center;gap:16px;border:1px solid #E2E8F0;opacity:.55;">
+          <span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;background:#f1f5f9;color:#64748b;flex-shrink:0;">안내</span>
+          <div style="flex:1;min-width:0;">
+            <p style="font-size:13px;font-weight:700;color:#0f172a;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">SW 사용 정책 개정 안내 v2.0 (예시 데이터)</p>
+            <p style="font-size:11px;color:#94a3b8;margin:4px 0 0;">2026-01-15</p>
+          </div>
+          <div style="display:flex;gap:8px;flex-shrink:0;">
+            <button style="padding:6px 12px;border-radius:8px;background:#f0f4f8;color:#64748b;border:none;font-size:11px;font-weight:700;cursor:pointer;">숨김</button>
+            <button style="padding:6px 12px;border-radius:8px;background:#FEE2E2;color:#DC2626;border:none;font-size:11px;font-weight:700;cursor:pointer;">삭제</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 교육과정 패널 -->
+    <div id="mtab-courses" class="fade-in" style="display:none;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+        <div>
+          <h2 style="font-size:20px;font-weight:800;color:#0f172a;margin:0 0 4px;">교육과정 관리</h2>
+          <p style="font-size:13px;color:#64748b;margin:0;">총 0건</p>
+        </div>
+        <button onclick="toggleForm('course-form')" style="padding:10px 16px;border-radius:12px;background:#2563EB;color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;">+ 새로 추가</button>
+      </div>
+
+      <div id="course-form" style="display:none;background:#fff;border-radius:20px;padding:24px;margin-bottom:24px;border:1px solid #E2E8F0;">
+        <h3 style="font-size:13px;font-weight:700;color:#0f172a;margin:0 0 16px;">새 교육과정</h3>
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <div><label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:6px;">제목 *</label><input placeholder="과정명" style="width:100%;padding:10px 12px;border-radius:12px;border:1px solid #E2E8F0;font-size:13px;outline:none;" /></div>
+          <div><label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:6px;">설명</label><textarea placeholder="과정 설명" style="width:100%;padding:10px 12px;border-radius:12px;border:1px solid #E2E8F0;font-size:13px;outline:none;min-height:80px;resize:vertical;"></textarea></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            <div><label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:6px;">카테고리</label>
+              <select style="width:100%;padding:10px 12px;border-radius:12px;border:1px solid #E2E8F0;font-size:13px;outline:none;background:#fff;">
+                <option>필수교육</option><option>SW활용자료</option><option>IT정책교육</option>
+              </select>
+            </div>
+            <div><label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:6px;">소요시간</label><input placeholder="예: 45분" style="width:100%;padding:10px 12px;border-radius:12px;border:1px solid #E2E8F0;font-size:13px;outline:none;" /></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            <div><label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:6px;">마감일</label><input type="date" style="width:100%;padding:10px 12px;border-radius:12px;border:1px solid #E2E8F0;font-size:13px;outline:none;" /></div>
+            <div><label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:6px;">순서</label><input type="number" value="0" style="width:100%;padding:10px 12px;border-radius:12px;border:1px solid #E2E8F0;font-size:13px;outline:none;" /></div>
+          </div>
+          <div><label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:6px;">교육 URL</label><input placeholder="https://..." style="width:100%;padding:10px 12px;border-radius:12px;border:1px solid #E2E8F0;font-size:13px;outline:none;" /></div>
+          <div><label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:6px;">썸네일 URL (Notion 첨부파일 URL)</label><input placeholder="https://..." style="width:100%;padding:10px 12px;border-radius:12px;border:1px solid #E2E8F0;font-size:13px;outline:none;" /></div>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#334155;cursor:pointer;"><input type="checkbox" checked /> 즉시 공개</label>
+        </div>
+        <div style="display:flex;gap:12px;margin-top:20px;">
+          <button style="padding:10px 20px;border-radius:12px;background:#2563EB;color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;">저장</button>
+          <button onclick="toggleForm('course-form')" style="padding:10px 20px;border-radius:12px;background:#f0f4f8;color:#64748b;border:none;font-size:13px;font-weight:700;cursor:pointer;">취소</button>
+        </div>
+      </div>
+
+      <div style="text-align:center;padding:64px;background:#fff;border-radius:20px;border:1px solid #E2E8F0;color:#94a3b8;font-size:13px;">
+        아직 등록된 교육과정이 없습니다. 새로 추가해보세요.
+      </div>
+    </div>
+
+    <!-- 자료실 패널 -->
+    <div id="mtab-resources" class="fade-in" style="display:none;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+        <div>
+          <h2 style="font-size:20px;font-weight:800;color:#0f172a;margin:0 0 4px;">자료실 관리</h2>
+          <p style="font-size:13px;color:#64748b;margin:0;">총 0건</p>
+        </div>
+        <button onclick="toggleForm('resource-form')" style="padding:10px 16px;border-radius:12px;background:#2563EB;color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;">+ 새로 추가</button>
+      </div>
+
+      <div id="resource-form" style="display:none;background:#fff;border-radius:20px;padding:24px;margin-bottom:24px;border:1px solid #E2E8F0;">
+        <h3 style="font-size:13px;font-weight:700;color:#0f172a;margin:0 0 16px;">새 자료 등록</h3>
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <div><label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:6px;">파일명 *</label><input placeholder="파일명" style="width:100%;padding:10px 12px;border-radius:12px;border:1px solid #E2E8F0;font-size:13px;outline:none;" /></div>
+          <div><label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:6px;">설명</label><input placeholder="파일 설명" style="width:100%;padding:10px 12px;border-radius:12px;border:1px solid #E2E8F0;font-size:13px;outline:none;" /></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+            <div><label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:6px;">분류</label>
+              <select style="width:100%;padding:10px 12px;border-radius:12px;border:1px solid #E2E8F0;font-size:13px;outline:none;background:#fff;">
+                <option>설치가이드</option><option>정책문서</option><option>양식서식</option>
+              </select>
+            </div>
+            <div><label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:6px;">파일 형식</label>
+              <select style="width:100%;padding:10px 12px;border-radius:12px;border:1px solid #E2E8F0;font-size:13px;outline:none;background:#fff;">
+                <option>PDF</option><option>XLSX</option><option>DOCX</option><option>ZIP</option><option>EXE</option>
+              </select>
+            </div>
+            <div><label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:6px;">파일 크기</label><input placeholder="예: 2.1 MB" style="width:100%;padding:10px 12px;border-radius:12px;border:1px solid #E2E8F0;font-size:13px;outline:none;" /></div>
+          </div>
+          <div><label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:6px;">파일 URL (Notion 첨부파일 URL 또는 공유 링크)</label><input placeholder="https://..." style="width:100%;padding:10px 12px;border-radius:12px;border:1px solid #E2E8F0;font-size:13px;outline:none;" /></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            <div><label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:6px;">업데이트 날짜</label><input type="date" style="width:100%;padding:10px 12px;border-radius:12px;border:1px solid #E2E8F0;font-size:13px;outline:none;" /></div>
+            <div><label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:6px;">순서</label><input type="number" value="0" style="width:100%;padding:10px 12px;border-radius:12px;border:1px solid #E2E8F0;font-size:13px;outline:none;" /></div>
+          </div>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#334155;cursor:pointer;"><input type="checkbox" checked /> 즉시 공개</label>
+        </div>
+        <div style="display:flex;gap:12px;margin-top:20px;">
+          <button style="padding:10px 20px;border-radius:12px;background:#2563EB;color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;">저장</button>
+          <button onclick="toggleForm('resource-form')" style="padding:10px 20px;border-radius:12px;background:#f0f4f8;color:#64748b;border:none;font-size:13px;font-weight:700;cursor:pointer;">취소</button>
+        </div>
+      </div>
+
+      <div style="text-align:center;padding:64px;background:#fff;border-radius:20px;border:1px solid #E2E8F0;color:#94a3b8;font-size:13px;">
+        아직 등록된 자료가 없습니다. 새로 추가해보세요.
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+function showView(v) {
+  document.querySelectorAll('.view-area').forEach(el => el.style.display = 'none');
+  const el = document.getElementById('view-' + v);
+  el.style.display = v === 'manage-auth' ? 'flex' : 'block';
+
+  document.querySelectorAll('.preview-tab').forEach(b => b.classList.remove('active'));
+  const map = { 'portal': 0, 'manage-auth': 1, 'manage-main': 2 };
+  document.querySelectorAll('.preview-tab')[map[v]].classList.add('active');
+}
+
+function switchPortalTab(t) {
+  ['home','education','resources'].forEach(id => {
+    document.getElementById('ptab-' + id).style.display = id === t ? 'block' : 'none';
+    const nav = document.getElementById('nav-' + id);
+    if (nav) {
+      nav.style.background = id === t ? '#EFF6FF' : 'transparent';
+      nav.style.color = id === t ? '#2563EB' : '#64748b';
+      nav.style.fontWeight = id === t ? '700' : '500';
+    }
+  });
+}
+
+function switchManageTab(t) {
+  ['notices','courses','resources'].forEach(id => {
+    document.getElementById('mtab-' + id).style.display = id === t ? 'block' : 'none';
+    const nav = document.getElementById('mnav-' + id);
+    nav.style.background = id === t ? '#fff' : 'transparent';
+    nav.style.color = id === t ? '#1E3A8A' : '#64748b';
+    nav.style.fontWeight = id === t ? '700' : '500';
+    nav.style.boxShadow = id === t ? '0 1px 3px rgba(0,0,0,.08)' : 'none';
+  });
+}
+
+function toggleForm(id) {
+  const el = document.getElementById(id);
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function addNoticeDemo() {
+  const list = document.getElementById('notices-list');
+  const item = document.createElement('div');
+  item.style.cssText = 'background:#fff;border-radius:16px;padding:20px;display:flex;align-items:center;gap:16px;border:1px solid #E2E8F0;animation:fadeIn .25s ease;';
+  item.innerHTML = `
+    <span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;background:#f1f5f9;color:#64748b;flex-shrink:0;">안내</span>
+    <div style="flex:1;min-width:0;">
+      <p style="font-size:13px;font-weight:700;color:#0f172a;margin:0;">새로 추가된 공지사항</p>
+      <p style="font-size:11px;color:#94a3b8;margin:4px 0 0;">${new Date().toISOString().slice(0,10)}</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-shrink:0;">
+      <button style="padding:6px 12px;border-radius:8px;background:#D1FAE5;color:#065F46;border:none;font-size:11px;font-weight:700;cursor:pointer;">공개중</button>
+      <button onclick="this.closest('div[style]').remove()" style="padding:6px 12px;border-radius:8px;background:#FEE2E2;color:#DC2626;border:none;font-size:11px;font-weight:700;cursor:pointer;">삭제</button>
+    </div>`;
+  list.appendChild(item);
+  toggleForm('notice-form');
+}
+</script>
+</body>
+</html>

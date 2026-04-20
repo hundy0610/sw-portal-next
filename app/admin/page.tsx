@@ -52,6 +52,9 @@ export default function AdminPage() {
   // HW 통계 백그라운드 prefetch (경량 stats, ~수 KB)
   const [hwStatsPrefetch, setHwStatsPrefetch] = useState<any | null>(null);
   const hwFetchedRef = useRef(false);
+  // 모니터 요청 알림 뱃지 (pending 건수)
+  const [pendingMonitorCount, setPendingMonitorCount] = useState(0);
+  const monitorPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const router = useRouter();
 
   // ── 세션 조회 ──────────────────────────────────────────────
@@ -90,6 +93,29 @@ export default function AdminPage() {
       .catch(() => router.replace("/admin/login"))
       .finally(() => setLoading(false));
   }, [router]);
+
+  // ── 모니터 요청 알림 폴링 (슈퍼어드민 / 총무 관리자용) ──────
+  useEffect(() => {
+    if (!session) return;
+
+    function fetchPending() {
+      fetch("/api/monitor-requests")
+        .then(r => r.json())
+        .then(data => {
+          if (data.ok && Array.isArray(data.requests)) {
+            const cnt = data.requests.filter((r: { status: string }) => r.status === "pending").length;
+            setPendingMonitorCount(cnt);
+          }
+        })
+        .catch(() => {});
+    }
+
+    fetchPending();
+    monitorPollRef.current = setInterval(fetchPending, 60_000); // 1분마다 갱신
+    return () => {
+      if (monitorPollRef.current) clearInterval(monitorPollRef.current);
+    };
+  }, [session]);
 
   async function handleLogout() {
     await fetch("/api/admin/auth", { method: "DELETE" });
@@ -237,13 +263,23 @@ export default function AdminPage() {
             <div
               key={m.id}
               className={`sidenav-item${page === m.id ? " active" : ""}`}
-              onClick={() => setPage(m.id)}
+              onClick={() => {
+                setPage(m.id);
+                // 어사맵 진입 시 뱃지 즉시 숨김 (재진입 시 폴링이 갱신)
+                if (m.id === "assetmap") setPendingMonitorCount(0);
+              }}
             >
               <span style={{ fontSize: 14 }}>{m.icon}</span>
-              <div className="flex flex-col leading-tight">
+              <div className="flex flex-col leading-tight flex-1 min-w-0">
                 <span>{m.label}</span>
                 <span className="text-xs opacity-50">{m.desc}</span>
               </div>
+              {/* 모니터 요청 대기 알림 뱃지 */}
+              {m.id === "assetmap" && pendingMonitorCount > 0 && (
+                <span className="ml-auto flex-shrink-0 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1 animate-pulse">
+                  {pendingMonitorCount > 99 ? "99+" : pendingMonitorCount}
+                </span>
+              )}
             </div>
           ))}
 

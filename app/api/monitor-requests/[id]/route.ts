@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { kv } from "@vercel/kv";
-import { getSession } from "@/lib/session";
+import { decodeSession } from "@/lib/session";
 import type { MonitorRequest } from "../route";
+
+function getSession(req: NextRequest) {
+  const token = req.cookies.get("admin_session")?.value;
+  if (!token) return null;
+  return decodeSession(token);
+}
 
 const REQUESTS_KEY = "sw:monitor-requests";
 
