@@ -1,6 +1,6 @@
 "use client";
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { FLOOR_SKETCHES, SketchCtx, SketchZone } from "./FloorSketches";
+import { FLOOR_SKETCHES, SketchCtx, SketchZone, BW_FLOOR_TABLES } from "./FloorSketches";
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -960,30 +960,30 @@ export default function AssetMapPanel() {
   const flStats    = useMemo(() => calcStats(effectiveZones), [effectiveZones]);
   const selectedId = selected?.seat.id ?? null;
 
-  // ── 테이블별 좌석 (BW 2F 전용) — tableSeatStore 오버라이드 + effectiveZones 기본값 ──
+  // ── 테이블별 좌석 (본관 2F~9F) — tableSeatStore 오버라이드 + effectiveZones 기본값 ──
   const tableSeatsForCtx = useMemo(()=>{
-    if(buildingId!=="bw"||floorId!=="2F") return undefined;
-    const zone=effectiveZones.find(z=>z.id==="SO");
-    if(!zone) return undefined;
-    const defs:{[k:string]:{topBase:number;topN:number;botBase?:number;botN?:number}}={
-      t1:{topBase:0, topN:5},
-      t2:{topBase:5, topN:5, botBase:10, botN:5},
-      t3:{topBase:15,topN:5, botBase:20, botN:4},
-      t4:{topBase:24,topN:5, botBase:29, botN:5},
-      t5:{topBase:34,topN:5, botBase:39, botN:4},
-      t6:{topBase:43,topN:5, botBase:48, botN:5},
-    };
+    if(buildingId!=="bw") return undefined;
+    const floorDefs = BW_FLOOR_TABLES[floorId];
+    if(!floorDefs) return undefined;
     const result:Record<string,{top:{id:string;type:MonitorType}[];bot?:{id:string;type:MonitorType}[]}>={};
-    for(const [tid,def] of Object.entries(defs)){
-      const key=`${buildingId}-${floorId}-${tid}`;
-      if(tableSeatStore[key]){
-        result[tid]=tableSeatStore[key];
-      } else {
-        const top=zone.seats.slice(def.topBase,def.topBase+def.topN).map(s=>({id:s.id,type:s.type as MonitorType}));
-        const bot=def.botBase!==undefined
-          ?zone.seats.slice(def.botBase,def.botBase+def.botN!).map(s=>({id:s.id,type:s.type as MonitorType}))
-          :undefined;
-        result[tid]={top,bot};
+    for(const def of floorDefs){
+      const zone = effectiveZones.find(z=>z.id===def.zoneId);
+      if(!zone) continue;
+      let cursor = 0;
+      for(const pod of def.pods){
+        const key = `${buildingId}-${floorId}-${pod.id}`;
+        if(tableSeatStore[key]){
+          result[pod.id] = tableSeatStore[key];
+        } else {
+          const top = zone.seats.slice(cursor, cursor+pod.topN)
+            .map(s=>({id:s.id, type:s.type as MonitorType}));
+          const bot = pod.botN !== undefined
+            ? zone.seats.slice(cursor+pod.topN, cursor+pod.topN+pod.botN)
+                .map(s=>({id:s.id, type:s.type as MonitorType}))
+            : undefined;
+          result[pod.id] = { top, bot };
+        }
+        cursor += pod.topN + (pod.botN ?? 0);
       }
     }
     return result;
@@ -1099,10 +1099,17 @@ export default function AssetMapPanel() {
     const next = { ...layoutEdits };
     floor.zones.forEach(z => delete next[`${buildingId}-${floorId}-${z.id}`]);
     saveLayout(next);
-    // 현재 층의 테이블 좌석 편집도 제거
+    // 현재 층의 테이블 좌석 편집도 제거 — BW_FLOOR_TABLES의 모든 pod id 순회
     setTableSeatStore(prev => {
       const tNext = { ...prev };
-      ["t1","t2","t3","t4","t5","t6"].forEach(k => delete tNext[`${buildingId}-${floorId}-${k}`]);
+      const floorDefs = buildingId === "bw" ? BW_FLOOR_TABLES[floorId] : undefined;
+      if (floorDefs) {
+        for (const def of floorDefs) {
+          for (const pod of def.pods) {
+            delete tNext[`${buildingId}-${floorId}-${pod.id}`];
+          }
+        }
+      }
       try { localStorage.setItem("sw-table-seats", JSON.stringify(tNext)); } catch {}
       return tNext;
     });
@@ -1220,8 +1227,8 @@ export default function AssetMapPanel() {
         </div>
         {editMode ? (
           <span className="text-[10px] text-amber-600 font-semibold ml-2">
-            {buildingId==="bw"&&floorId==="2F"
-              ? "✏️ 편집 모드 — ✕: 모니터 슬롯 삭제 · +: 슬롯 추가 · 우클릭: 모니터 종류 변경"
+            {buildingId==="bw" && BW_FLOOR_TABLES[floorId]
+              ? "✏️ 편집 모드 — ✕: 테이블 내 모니터 삭제 · +: 모니터 추가 · 우클릭: 모니터 종류 변경"
               : "✏️ 편집 모드 — 클릭: 좌석 집기 · 빈 슬롯: 이동/추가 · ✕: 삭제 · 빈 곳 클릭: 취소"}
           </span>
         ) : (

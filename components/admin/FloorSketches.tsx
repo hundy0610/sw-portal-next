@@ -131,6 +131,280 @@ const HATCH = (
   </defs>
 );
 
+// ══════════════════════════════════════════════════════════════════════════════
+// 공유 테이블(pod) 렌더 — 본관 2F와 동일한 편집 체계
+// 테이블 내 모니터(좌석) 추가/삭제 지원
+// ══════════════════════════════════════════════════════════════════════════════
+export type PodDef = {
+  id: string;        // 테이블 식별자 (예: "t1", "t2", …)
+  topN: number;      // 상단 모니터(좌석) 개수 — defaults from zone.seats
+  botN?: number;     // 하단(양면) 모니터 개수 — undefined면 단면
+};
+export type FloorTableDef = {
+  zoneId: string;    // 대상 zone id
+  pods: PodDef[];    // 순서대로 zone.seats 배분
+};
+// 본관 각 층별 테이블 정의 (zone.seats 인덱스를 순차 배분)
+export const BW_FLOOR_TABLES: Record<string, FloorTableDef[]> = {
+  "2F": [{ zoneId:"SO", pods:[
+    {id:"t1", topN:5},
+    {id:"t2", topN:5, botN:5},
+    {id:"t3", topN:5, botN:4},
+    {id:"t4", topN:5, botN:5},
+    {id:"t5", topN:5, botN:4},
+    {id:"t6", topN:5, botN:5},
+  ]}],
+  "3F": [
+    { zoneId:"W", pods:[
+      {id:"w1", topN:6, botN:6},
+      {id:"w2", topN:6, botN:6},
+      {id:"w3", topN:6, botN:6},
+      {id:"w4", topN:6, botN:6},
+      {id:"w5", topN:6},
+    ]},
+    { zoneId:"E", pods:[
+      {id:"e1", topN:8, botN:8},
+      {id:"e2", topN:8, botN:8},
+      {id:"e3", topN:8, botN:8},
+      {id:"e4", topN:8, botN:8},
+      {id:"e5", topN:7},
+    ]},
+  ],
+  "4F": [
+    { zoneId:"W", pods:[
+      {id:"w1", topN:7, botN:7},
+      {id:"w2", topN:7, botN:7},
+      {id:"w3", topN:7, botN:7},
+      {id:"w4", topN:7, botN:7},
+      {id:"w5", topN:7, botN:7},
+      {id:"w6", topN:4},
+    ]},
+    { zoneId:"E", pods:[
+      {id:"e1", topN:7, botN:7},
+      {id:"e2", topN:7, botN:7},
+      {id:"e3", topN:7, botN:7},
+      {id:"e4", topN:7},
+    ]},
+  ],
+  "5F": [
+    { zoneId:"W", pods:[
+      {id:"w1", topN:7, botN:7},
+      {id:"w2", topN:7, botN:7},
+      {id:"w3", topN:7, botN:7},
+      {id:"w4", topN:7, botN:7},
+      {id:"w5", topN:7, botN:7},
+      {id:"w6", topN:4},
+    ]},
+    { zoneId:"E", pods:[
+      {id:"e1", topN:7, botN:7},
+      {id:"e2", topN:7, botN:7},
+      {id:"e3", topN:7, botN:7},
+      {id:"e4", topN:7},
+    ]},
+  ],
+  "6F": [
+    { zoneId:"W", pods:[
+      {id:"w1", topN:7, botN:7},
+      {id:"w2", topN:7, botN:7},
+      {id:"w3", topN:7, botN:7},
+      {id:"w4", topN:7, botN:7},
+      {id:"w5", topN:7, botN:4},
+    ]},
+    { zoneId:"E", pods:[
+      {id:"e1", topN:8, botN:8},
+      {id:"e2", topN:8, botN:8},
+      {id:"e3", topN:8, botN:8},
+      {id:"e4", topN:8, botN:8},
+      {id:"e5", topN:1},
+    ]},
+  ],
+  "7F": [
+    { zoneId:"W", pods:[
+      {id:"w1", topN:4, botN:4},
+      {id:"w2", topN:4, botN:4},
+      {id:"w3", topN:3},
+    ]},
+    { zoneId:"E", pods:[
+      {id:"e1", topN:7, botN:7},
+      {id:"e2", topN:7, botN:7},
+      {id:"e3", topN:7, botN:7},
+      {id:"e4", topN:7, botN:7},
+      {id:"e5", topN:1},
+    ]},
+  ],
+  "8F": [
+    { zoneId:"M", pods:[
+      {id:"m1", topN:7, botN:7},
+      {id:"m2", topN:7, botN:7},
+    ]},
+  ],
+  "9F": [
+    { zoneId:"W", pods:[
+      {id:"w1", topN:5, botN:5},
+      {id:"w2", topN:5, botN:5},
+      {id:"w3", topN:5, botN:5},
+      {id:"w4", topN:5, botN:2},
+    ]},
+    { zoneId:"E", pods:[
+      {id:"e1", topN:9, botN:9},
+      {id:"e2", topN:9, botN:9},
+      {id:"e3", topN:9, botN:9},
+      {id:"e4", topN:9, botN:9},
+      {id:"e5", topN:9, botN:4},
+    ]},
+  ],
+};
+
+/**
+ * SharedTable — 본관 2F 테이블 그룹과 동일한 공유 테이블(pod) 렌더
+ * 상단/하단(양면) 모니터 행을 공유 테이블 위에 배치하고,
+ * 편집 모드에서 각 행 끝에 "+" 추가 버튼과 각 모니터 옆에 "✕" 삭제 버튼을 표시한다.
+ */
+export function SharedTable({
+  ctx, zone, tableId, x0, y0,
+  defTopBase, defTopN, defBotBase, defBotN,
+  dw=38, dh=11, dx=48, tpad=4, igap=14,
+  chairOutside=true,
+}:{
+  ctx: SketchCtx;
+  zone: SketchZone;
+  tableId: string;
+  x0: number; y0: number;
+  defTopBase: number; defTopN: number;
+  defBotBase?: number; defBotN?: number;
+  dw?: number; dh?: number; dx?: number;
+  tpad?: number; igap?: number;
+  chairOutside?: boolean;
+}) {
+  const stored = ctx.tableSeats?.[tableId];
+  const topSeats: SketchSeat[] = stored
+    ? stored.top
+    : (Array.from({length: defTopN}, (_, i) => zone.seats[defTopBase+i]).filter(Boolean) as SketchSeat[]);
+  const botSeats: SketchSeat[] | undefined = stored
+    ? (stored.bot !== undefined ? stored.bot : undefined)
+    : (defBotBase !== undefined
+        ? (Array.from({length: defBotN!}, (_, i) => zone.seats[defBotBase+i]).filter(Boolean) as SketchSeat[])
+        : undefined);
+  const topN = topSeats.length;
+  const botN = botSeats?.length ?? 0;
+  const maxN = Math.max(topN, botN, 1);
+  const isDouble = botSeats !== undefined;
+  const th = isDouble ? 2*dh + 2*tpad + igap : dh + 2*tpad;
+  const topY = y0 + tpad;
+  const botY = isDouble ? y0 + th - dh - tpad : 0;
+  const topOrient: ("up"|"down") = isDouble ? "up" : "down";
+  const em = ctx.editMode ?? false;
+  const tw = em ? 2*tpad + maxN*dx + dw : 2*tpad + (maxN-1)*dx + dw;
+  return (
+    <g>
+      {/* 테이블 면 */}
+      <rect x={x0} y={y0} width={tw} height={th} rx={3}
+        fill="#F5F0E8" stroke="#8B7355" strokeWidth={1.4}/>
+      {isDouble && (
+        <line x1={x0+4} y1={y0+tpad+dh+igap/2} x2={x0+tw-4} y2={y0+tpad+dh+igap/2}
+          stroke="#C4B49A" strokeWidth={0.8}/>
+      )}
+      {/* 상단 행 */}
+      {topSeats.map((seat, i) => {
+        const sx = x0 + tpad + i*dx;
+        return (
+          <g key={seat.id}>
+            <Seat x={sx} y={topY} w={dw} h={dh} orient={topOrient} seat={seat} ctx={ctx}/>
+            {em && (
+              <g style={{cursor:"pointer"}}
+                 onClick={(e)=>{e.stopPropagation(); ctx.onTableSeatDelete?.(tableId,"top",i);}}>
+                <circle cx={sx+dw} cy={topY} r={5} fill="#EF4444" stroke="white" strokeWidth={1}/>
+                <text x={sx+dw} y={topY+3.5} fontSize={7.5} textAnchor="middle" fill="white"
+                  style={{pointerEvents:"none"}}>✕</text>
+              </g>
+            )}
+          </g>
+        );
+      })}
+      {/* 상단 + 버튼 */}
+      {em && (
+        <g style={{cursor:"pointer"}}
+           onClick={(e)=>{e.stopPropagation(); ctx.onTableSeatAdd?.(tableId,"top");}}>
+          <rect x={x0+tpad+topN*dx} y={topY} width={dw} height={dh} rx={1.5}
+            fill="#DCFCE7" stroke="#16A34A" strokeWidth={1} strokeDasharray="3,2"/>
+          <text x={x0+tpad+topN*dx+dw/2} y={topY+dh/2+2.5}
+            fontSize={9} textAnchor="middle" fill="#16A34A" fontWeight="700"
+            style={{pointerEvents:"none"}}>+</text>
+        </g>
+      )}
+      {/* 하단 행 (양면만) */}
+      {isDouble && botSeats && botSeats.map((seat, i) => {
+        const sx = x0 + tpad + i*dx;
+        return (
+          <g key={seat.id}>
+            <Seat x={sx} y={botY} w={dw} h={dh} orient="down" seat={seat} ctx={ctx}/>
+            {em && (
+              <g style={{cursor:"pointer"}}
+                 onClick={(e)=>{e.stopPropagation(); ctx.onTableSeatDelete?.(tableId,"bot",i);}}>
+                <circle cx={sx+dw} cy={botY} r={5} fill="#EF4444" stroke="white" strokeWidth={1}/>
+                <text x={sx+dw} y={botY+3.5} fontSize={7.5} textAnchor="middle" fill="white"
+                  style={{pointerEvents:"none"}}>✕</text>
+              </g>
+            )}
+          </g>
+        );
+      })}
+      {/* 하단 + 버튼 */}
+      {isDouble && botSeats && em && (
+        <g style={{cursor:"pointer"}}
+           onClick={(e)=>{e.stopPropagation(); ctx.onTableSeatAdd?.(tableId,"bot");}}>
+          <rect x={x0+tpad+botN*dx} y={botY} width={dw} height={dh} rx={1.5}
+            fill="#DCFCE7" stroke="#16A34A" strokeWidth={1} strokeDasharray="3,2"/>
+          <text x={x0+tpad+botN*dx+dw/2} y={botY+dh/2+2.5}
+            fontSize={9} textAnchor="middle" fill="#16A34A" fontWeight="700"
+            style={{pointerEvents:"none"}}>+</text>
+        </g>
+      )}
+    </g>
+  );
+}
+
+/**
+ * SharedTableStack — zone의 seats를 순차 배분해 여러 공유 테이블을 세로로 쌓는다.
+ * 각 pod의 상/하단 개수는 FloorTableDef 기준 기본값으로 사용하되,
+ * ctx.tableSeats[podId]가 있으면 override(편집 반영).
+ */
+export function SharedTableStack({
+  ctx, zone, pods, x0, y0,
+  dw=38, dh=11, dx=48, tpad=4, igap=14, gap=22,
+}:{
+  ctx: SketchCtx;
+  zone: SketchZone;
+  pods: PodDef[];
+  x0: number; y0: number;
+  dw?: number; dh?: number; dx?: number;
+  tpad?: number; igap?: number;
+  gap?: number;
+}) {
+  let cursor = 0;
+  let yCursor = y0;
+  return (
+    <g>
+      {pods.map((p) => {
+        const isDouble = p.botN !== undefined;
+        const th = isDouble ? 2*dh + 2*tpad + igap : dh + 2*tpad;
+        const node = (
+          <SharedTable key={p.id}
+            ctx={ctx} zone={zone} tableId={p.id}
+            x0={x0} y0={yCursor}
+            defTopBase={cursor} defTopN={p.topN}
+            defBotBase={isDouble ? cursor + p.topN : undefined}
+            defBotN={p.botN}
+            dw={dw} dh={dh} dx={dx} tpad={tpad} igap={igap}/>
+        );
+        cursor += p.topN + (p.botN ?? 0);
+        yCursor += th + gap;
+        return node;
+      })}
+    </g>
+  );
+}
+
 
 function gridPositions(startX:number,startY:number,cols:number,rows:number,sw:number,sh:number,gx:number,gy:number,rowGroups:number[],aisle:number) {
   const out:{x:number;y:number;row:number;col:number}[]=[];
@@ -220,86 +494,14 @@ export function BW_2F_Sketch(ctx: SketchCtx) {
   const zone = ctx.zones.find(z => z.id === "SO");
   if (!zone) return null;
 
-  // 공유 테이블 단위: 큰 테이블 rect 하나 + 그 위에 모니터들
-  // 의자는 테이블 바깥(Seat 컴포넌트가 orient에 따라 자동 배치)
-  const dw=38, dh=11, dx=48, tpad=4, igap=14;
-  const x0=20;
-
-  // tableGroup: 그룹 내 개별 좌석 삭제(✕) / 추가(+) 지원
-  const tableGroup=(
-    tableId:string,
-    y0:number,
-    defTopBase:number, defTopN:number,
-    defBotBase?:number, defBotN?:number
-  )=>{
-    // ctx.tableSeats 오버라이드 우선, 없으면 zone.seats 슬라이스
-    const stored=ctx.tableSeats?.[tableId];
-    const topSeats:SketchSeat[]=stored
-      ?stored.top
-      :Array.from({length:defTopN},(_,i)=>zone.seats[defTopBase+i]).filter(Boolean) as SketchSeat[];
-    const botSeats:SketchSeat[]|undefined=stored
-      ?(stored.bot!==undefined?stored.bot:undefined)
-      :(defBotBase!==undefined
-          ?Array.from({length:defBotN!},(_,i)=>zone.seats[defBotBase+i]).filter(Boolean) as SketchSeat[]
-          :undefined);
-    const topN=topSeats.length;
-    const botN=botSeats?.length??0;
-    const maxN=Math.max(topN,botN,1);
-    const isDouble=botSeats!==undefined;
-    const th=isDouble?2*dh+2*tpad+igap:dh+2*tpad;
-    const topY=y0+tpad;
-    const botY=isDouble?y0+th-dh-tpad:0;
-    const topOrient:("up"|"down")=isDouble?"up":"down";
-    const em=ctx.editMode??false;
-    // 편집 모드에서 +버튼 슬롯 1칸 추가 확보
-    const tw=em?2*tpad+maxN*dx+dw:2*tpad+(maxN-1)*dx+dw;
-    return (<g>
-      {/* 테이블 면 */}
-      <rect x={x0} y={y0} width={tw} height={th} rx={3} fill="#F5F0E8" stroke="#8B7355" strokeWidth={1.4}/>
-      {isDouble&&<line x1={x0+4} y1={y0+tpad+dh+igap/2} x2={x0+tw-4} y2={y0+tpad+dh+igap/2} stroke="#C4B49A" strokeWidth={0.8}/>}
-      {/* 상단 행 */}
-      {topSeats.map((seat,i)=>{
-        const sx=x0+tpad+i*dx;
-        return (<g key={seat.id}>
-          <Seat x={sx} y={topY} w={dw} h={dh} orient={topOrient} seat={seat} ctx={ctx}/>
-          {em&&<g style={{cursor:"pointer"}} onClick={(e)=>{e.stopPropagation();ctx.onTableSeatDelete?.(tableId,"top",i);}}>
-            <circle cx={sx+dw} cy={topY} r={5} fill="#EF4444" stroke="white" strokeWidth={1}/>
-            <text x={sx+dw} y={topY+3.5} fontSize={7.5} textAnchor="middle" fill="white" style={{pointerEvents:"none"}}>✕</text>
-          </g>}
-        </g>);
-      })}
-      {/* 상단 행 + 추가 버튼 */}
-      {em&&<g style={{cursor:"pointer"}} onClick={(e)=>{e.stopPropagation();ctx.onTableSeatAdd?.(tableId,"top");}}>
-        <rect x={x0+tpad+topN*dx} y={topY} width={dw} height={dh} rx={1.5} fill="#DCFCE7" stroke="#16A34A" strokeWidth={1} strokeDasharray="3,2"/>
-        <text x={x0+tpad+topN*dx+dw/2} y={topY+dh/2+2.5} fontSize={9} textAnchor="middle" fill="#16A34A" fontWeight="700" style={{pointerEvents:"none"}}>+</text>
-      </g>}
-      {/* 하단 행 (양면만) */}
-      {isDouble&&botSeats&&botSeats.map((seat,i)=>{
-        const sx=x0+tpad+i*dx;
-        return (<g key={seat.id}>
-          <Seat x={sx} y={botY} w={dw} h={dh} orient="down" seat={seat} ctx={ctx}/>
-          {em&&<g style={{cursor:"pointer"}} onClick={(e)=>{e.stopPropagation();ctx.onTableSeatDelete?.(tableId,"bot",i);}}>
-            <circle cx={sx+dw} cy={botY} r={5} fill="#EF4444" stroke="white" strokeWidth={1}/>
-            <text x={sx+dw} y={botY+3.5} fontSize={7.5} textAnchor="middle" fill="white" style={{pointerEvents:"none"}}>✕</text>
-          </g>}
-        </g>);
-      })}
-      {/* 하단 행 + 추가 버튼 */}
-      {isDouble&&botSeats&&em&&<g style={{cursor:"pointer"}} onClick={(e)=>{e.stopPropagation();ctx.onTableSeatAdd?.(tableId,"bot");}}>
-        <rect x={x0+tpad+botN*dx} y={botY} width={dw} height={dh} rx={1.5} fill="#DCFCE7" stroke="#16A34A" strokeWidth={1} strokeDasharray="3,2"/>
-        <text x={x0+tpad+botN*dx+dw/2} y={botY+dh/2+2.5} fontSize={9} textAnchor="middle" fill="#16A34A" fontWeight="700" style={{pointerEvents:"none"}}>+</text>
-      </g>}
-    </g>);
-  };
-
-  // Y 레이아웃 (각 그룹 사이 간격: 의자 포함 영역 기준 gap=14)
-  // 단면 tableH=19, 양면 tableH=44, chairH=8
-  // T1 단독5석: table y=54..73, 의자아래 y=73+1+8=82
-  // T2 10석양면: top-chair at clAy-9; want ≥82+14=96 → clAy=105; bottom y=105+44+9=158
-  // T3  9석양면: clBy-9≥158+14=172 → clBy=181; bottom=181+44+9=234
-  // T4 10석양면: clCy-9≥234+14=248 → clCy=257; bottom=257+44+9=310
-  // T5  9석양면: clDy-9≥310+14=324 → clDy=333; bottom=333+44+9=386
-  // T6 10석양면: clEy-9≥386+14=400 → clEy=409; bottom=409+44+9=462
+  // Y 레이아웃 (각 그룹 사이 간격)
+  // T1 단독5석: y=54
+  // T2 10석양면: y=105
+  // T3  9석양면: y=181
+  // T4 10석양면: y=257
+  // T5  9석양면: y=333
+  // T6 10석양면: y=409
+  const x0 = 20;
 
   return (
     <svg viewBox="0 0 820 540" style={{width:"100%",maxWidth:960,height:"auto",display:"block"}}
@@ -314,15 +516,15 @@ export function BW_2F_Sketch(ctx: SketchCtx) {
       )}
       {/* 스마트오피스 프레임 */}
       <rect x={14} y={28} width={340} height={492} rx={4} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1.2} strokeDasharray="6,3"/>
-      <text x={184} y={44} fontSize={9.5} fontWeight={800} fill="#1E3A8A" textAnchor="middle">스마트오피스 (서편) — 52석</text>
+      <text x={184} y={44} fontSize={9.5} fontWeight={800} fill="#1E3A8A" textAnchor="middle">스마트오피스 (서편) — {zone.seats.length}석</text>
 
       {/* 테이블 1~6: 그룹별 좌석 추가/삭제 지원 */}
-      {tableGroup("t1", 54,   0, 5)}
-      {tableGroup("t2", 105,  5, 5, 10, 5)}
-      {tableGroup("t3", 181, 15, 5, 20, 4)}
-      {tableGroup("t4", 257, 24, 5, 29, 5)}
-      {tableGroup("t5", 333, 34, 5, 39, 4)}
-      {tableGroup("t6", 409, 43, 5, 48, 5)}
+      <SharedTable ctx={ctx} zone={zone} tableId="t1" x0={x0} y0={54}  defTopBase={0}  defTopN={5}/>
+      <SharedTable ctx={ctx} zone={zone} tableId="t2" x0={x0} y0={105} defTopBase={5}  defTopN={5} defBotBase={10} defBotN={5}/>
+      <SharedTable ctx={ctx} zone={zone} tableId="t3" x0={x0} y0={181} defTopBase={15} defTopN={5} defBotBase={20} defBotN={4}/>
+      <SharedTable ctx={ctx} zone={zone} tableId="t4" x0={x0} y0={257} defTopBase={24} defTopN={5} defBotBase={29} defBotN={5}/>
+      <SharedTable ctx={ctx} zone={zone} tableId="t5" x0={x0} y0={333} defTopBase={34} defTopN={5} defBotBase={39} defBotN={4}/>
+      <SharedTable ctx={ctx} zone={zone} tableId="t6" x0={x0} y0={409} defTopBase={43} defTopN={5} defBotBase={48} defBotN={5}/>
       {/* 미팅룸 */}
       <MeetingBox x={358} y={28}  w={112} h={100} name="미팅룸 A" sub="13.5㎡"/>
       <MeetingBox x={358} y={133} w={112} h={130} name="미팅룸 B" sub="21.1㎡"/>
@@ -385,22 +587,30 @@ export function BW_2F_Sketch(ctx: SketchCtx) {
 export function BW_3F_Sketch(ctx: SketchCtx) {
   const zW=ctx.zones.find(z=>z.id==="W"), zE=ctx.zones.find(z=>z.id==="E");
   if(!zW||!zE) return null;
+  const defs = BW_FLOOR_TABLES["3F"];
+  const wPods = defs.find(d=>d.zoneId==="W")!.pods;
+  const ePods = defs.find(d=>d.zoneId==="E")!.pods;
   return (
-    <svg viewBox="0 0 820 560" style={{width:"100%",maxWidth:960,height:"auto",display:"block"}}>
+    <svg viewBox="0 0 820 560" style={{width:"100%",maxWidth:960,height:"auto",display:"block"}}
+         onClick={()=>{if(ctx.editMode&&ctx.pickedId) ctx.onPickSeat?.(null);}}>
       {HATCH}
       <rect x={12} y={20} width={796} height={528} fill="#FAFAFA" stroke="#1F2937" strokeWidth={2}/>
       {Array.from({length:24},(_,i)=><line key={`t${i}`} x1={30+i*32} y1={20} x2={30+i*32} y2={28} stroke="#60A5FA" strokeWidth={2} opacity={0.5}/>)}
       {Array.from({length:24},(_,i)=><line key={`b${i}`} x1={30+i*32} y1={548} x2={30+i*32} y2={540} stroke="#60A5FA" strokeWidth={2} opacity={0.5}/>)}
+      {ctx.editMode && <rect x={14} y={20} width={796} height={8} rx={2} fill="#FEF3C7" opacity={0.8}/>}
       {/* 서편 */}
       <rect x={14} y={20} width={290} height={528} rx={3} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2"/>
       <text x={22} y={38} fontSize={8.5} fontWeight={800} fill="#1E3A8A">서편 — {zW.seats.length}석</text>
       {/* G/B 협업공간 상단 */}
-      <rect x={14} y={20} width={130} height={78} fill="#F0FDF4" stroke="#86EFAC" strokeWidth={1.2} rx={3}/>
-      <text x={79} y={58} fontSize={8} textAnchor="middle" fill="#15803D" fontWeight={700}>G/B 협업공간</text>
-      <circle cx={58} cy={48} r={11} fill="none" stroke="#86EFAC" strokeWidth={1}/>
-      {[-12,0,12].map(d=><circle key={d} cx={58+d} cy={68} r={3.5} fill="#BBF7D0" stroke="#86EFAC" strokeWidth={0.6}/>)}
-      {/* 서편 데스크 6×9=54석 */}
-      <DeskGrid zone={zW} startX={20} startY={108} cols={6} rows={9} sw={28} sh={12} gx={8} gy={3} rowGroups={[2,2,2,3]} aisle={16} ctx={ctx}/>
+      <rect x={14} y={44} width={290} height={58} fill="#F0FDF4" stroke="#86EFAC" strokeWidth={1.2} rx={3}/>
+      <text x={159} y={68} fontSize={8} textAnchor="middle" fill="#15803D" fontWeight={700}>G/B 협업공간</text>
+      <circle cx={80} cy={82} r={9} fill="none" stroke="#86EFAC" strokeWidth={1}/>
+      {[-12,0,12].map(d=><circle key={d} cx={80+d} cy={96} r={3} fill="#BBF7D0" stroke="#86EFAC" strokeWidth={0.6}/>)}
+      <circle cx={238} cy={82} r={9} fill="none" stroke="#86EFAC" strokeWidth={1}/>
+      {[-12,0,12].map(d=><circle key={d} cx={238+d} cy={96} r={3} fill="#BBF7D0" stroke="#86EFAC" strokeWidth={0.6}/>)}
+      {/* 서편 공유 테이블 — 5 pods (w1-w4 양면 12석, w5 단면 6석) */}
+      <SharedTableStack ctx={ctx} zone={zW} pods={wPods} x0={22} y0={112}
+        dw={22} dh={10} dx={28} tpad={4} igap={12} gap={18}/>
       {/* 미팅룸 하단 */}
       <MeetingBox x={14} y={444} w={140} h={100} name="미팅룸" sub="18.5m²"/>
       <MeetingBox x={158} y={444} w={148} h={100} name="미팅룸" sub="16.1m²"/>
@@ -410,14 +620,15 @@ export function BW_3F_Sketch(ctx: SketchCtx) {
       <rect x={494} y={20} width={314} height={528} rx={3} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2"/>
       <text x={502} y={38} fontSize={8.5} fontWeight={800} fill="#1E3A8A">동편 — {zE.seats.length}석</text>
       {/* G/B+TV 상단 */}
-      <rect x={494} y={20} width={140} height={78} fill="#F0FDF4" stroke="#86EFAC" strokeWidth={1.2} rx={3}/>
-      <text x={564} y={50} fontSize={8} textAnchor="middle" fill="#15803D" fontWeight={700}>G/B+TV</text>
-      <rect x={502} y={28} width={28} height={18} rx={2} fill="#1F2937" stroke="#475569" strokeWidth={0.8}/>
-      <text x={516} y={40} fontSize={6} textAnchor="middle" fill="white">TV</text>
-      <rect x={536} y={28} width={28} height={18} rx={2} fill="#1F2937" stroke="#475569" strokeWidth={0.8}/>
-      <text x={550} y={40} fontSize={6} textAnchor="middle" fill="white">TV</text>
-      {/* 동편 데스크 8×9=72(71석) */}
-      <DeskGrid zone={zE} startX={500} startY={108} cols={8} rows={9} sw={26} sh={12} gx={7} gy={3} rowGroups={[2,2,2,3]} aisle={16} ctx={ctx}/>
+      <rect x={494} y={44} width={314} height={58} fill="#F0FDF4" stroke="#86EFAC" strokeWidth={1.2} rx={3}/>
+      <text x={651} y={86} fontSize={8} textAnchor="middle" fill="#15803D" fontWeight={700}>G/B+TV</text>
+      <rect x={572} y={56} width={36} height={22} rx={2} fill="#1F2937" stroke="#475569" strokeWidth={0.8}/>
+      <text x={590} y={70} fontSize={6.5} textAnchor="middle" fill="white">TV</text>
+      <rect x={694} y={56} width={36} height={22} rx={2} fill="#1F2937" stroke="#475569" strokeWidth={0.8}/>
+      <text x={712} y={70} fontSize={6.5} textAnchor="middle" fill="white">TV</text>
+      {/* 동편 공유 테이블 — 5 pods (e1-e4 양면 16석, e5 단면 7석) */}
+      <SharedTableStack ctx={ctx} zone={zE} pods={ePods} x0={500} y0={112}
+        dw={22} dh={10} dx={28} tpad={4} igap={12} gap={18}/>
       <text x={20} y={16} fontSize={9} fontWeight={800} fill="#1F2937">← 서편</text>
       <text x={800} y={16} fontSize={9} fontWeight={800} fill="#1F2937" textAnchor="end">동편 →</text>
     </svg>
@@ -428,32 +639,39 @@ export function BW_3F_Sketch(ctx: SketchCtx) {
 export function BW_4F_Sketch(ctx: SketchCtx) {
   const zW=ctx.zones.find(z=>z.id==="W"), zE=ctx.zones.find(z=>z.id==="E");
   if(!zW||!zE) return null;
+  const defs = BW_FLOOR_TABLES["4F"];
+  const wPods = defs.find(d=>d.zoneId==="W")!.pods;
+  const ePods = defs.find(d=>d.zoneId==="E")!.pods;
   return (
-    <svg viewBox="0 0 820 580" style={{width:"100%",maxWidth:960,height:"auto",display:"block"}}>
+    <svg viewBox="0 0 820 580" style={{width:"100%",maxWidth:960,height:"auto",display:"block"}}
+         onClick={()=>{if(ctx.editMode&&ctx.pickedId) ctx.onPickSeat?.(null);}}>
       {HATCH}
       <rect x={12} y={20} width={796} height={548} fill="#FAFAFA" stroke="#1F2937" strokeWidth={2}/>
       {Array.from({length:24},(_,i)=><line key={`t${i}`} x1={30+i*32} y1={20} x2={30+i*32} y2={28} stroke="#60A5FA" strokeWidth={2} opacity={0.5}/>)}
       {Array.from({length:24},(_,i)=><line key={`b${i}`} x1={30+i*32} y1={568} x2={30+i*32} y2={560} stroke="#60A5FA" strokeWidth={2} opacity={0.5}/>)}
+      {ctx.editMode && <rect x={14} y={20} width={796} height={8} rx={2} fill="#FEF3C7" opacity={0.8}/>}
       {/* 서편 */}
       <rect x={14} y={20} width={290} height={548} rx={3} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2"/>
       <text x={22} y={38} fontSize={8.5} fontWeight={800} fill="#1E3A8A">서편 — {zW.seats.length}석</text>
       {/* 화상회의실 상단 */}
-      <rect x={14} y={20} width={140} height={80} fill="#FEF9C3" stroke="#D97706" strokeWidth={1.2} rx={3}/>
-      <text x={84} y={52} fontSize={8} textAnchor="middle" fill="#92400E" fontWeight={700}>화상회의실</text>
-      <rect x={26} y={56} width={50} height={28} rx={2} fill="#FEF3C7" stroke="#D97706" strokeWidth={0.7}/>
-      {[-14,0,14].map(d=><circle key={d} cx={51+d} cy={50} r={4} fill="#FDE68A" stroke="#D97706" strokeWidth={0.5}/>)}
+      <rect x={14} y={44} width={140} height={58} fill="#FEF9C3" stroke="#D97706" strokeWidth={1.2} rx={3}/>
+      <text x={84} y={72} fontSize={8} textAnchor="middle" fill="#92400E" fontWeight={700}>화상회의실</text>
+      <rect x={46} y={78} width={76} height={18} rx={2} fill="#FEF3C7" stroke="#D97706" strokeWidth={0.7}/>
+      {[-22,-8,6,20].map(d=><circle key={d} cx={84+d} cy={64} r={3.5} fill="#FDE68A" stroke="#D97706" strokeWidth={0.5}/>)}
       {/* 협업공간 */}
-      <rect x={158} y={20} width={148} height={80} fill="#F0FDF4" stroke="#86EFAC" strokeWidth={1.2} rx={3}/>
-      <text x={232} y={58} fontSize={8} textAnchor="middle" fill="#15803D" fontWeight={700}>협업공간</text>
-      {/* 서편 데스크 7×11=77(74석) */}
-      <DeskGrid zone={zW} startX={18} startY={110} cols={7} rows={11} sw={26} sh={11} gx={8} gy={3} rowGroups={[2,2,3,2,2]} aisle={14} ctx={ctx}/>
+      <rect x={158} y={44} width={148} height={58} fill="#F0FDF4" stroke="#86EFAC" strokeWidth={1.2} rx={3}/>
+      <text x={232} y={78} fontSize={8} textAnchor="middle" fill="#15803D" fontWeight={700}>협업공간</text>
+      {/* 서편 공유 테이블 — 6 pods (w1-w5 양면 14석, w6 단면 4석 = 74) */}
+      <SharedTableStack ctx={ctx} zone={zW} pods={wPods} x0={22} y0={112}
+        dw={22} dh={10} dx={28} tpad={4} igap={12} gap={16}/>
       {/* 코어 */}
       <BW_Core y0={20} y1={568}/>
       {/* 동편 */}
       <rect x={494} y={20} width={314} height={548} rx={3} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2"/>
       <text x={502} y={38} fontSize={8.5} fontWeight={800} fill="#1E3A8A">동편 — {zE.seats.length}석</text>
-      {/* 동편 데스크 7×7=49석 */}
-      <DeskGrid zone={zE} startX={502} startY={50} cols={7} rows={7} sw={30} sh={13} gx={9} gy={3} rowGroups={[2,2,3]} aisle={18} ctx={ctx}/>
+      {/* 동편 공유 테이블 — 4 pods (e1-e3 양면 14석, e4 단면 7석 = 49) */}
+      <SharedTableStack ctx={ctx} zone={zE} pods={ePods} x0={502} y0={50}
+        dw={22} dh={10} dx={28} tpad={4} igap={12} gap={18}/>
       {/* 동편 하단 미팅룸 */}
       <MeetingBox x={494} y={440} w={150} h={128} name="미팅룸" sub="25.3m²"/>
       <MeetingBox x={648} y={440} w={158} h={128} name="라운지" sub="20.4m²"/>
@@ -467,18 +685,25 @@ export function BW_4F_Sketch(ctx: SketchCtx) {
 export function BW_5F_Sketch(ctx: SketchCtx) {
   const zW=ctx.zones.find(z=>z.id==="W"), zE=ctx.zones.find(z=>z.id==="E");
   if(!zW||!zE) return null;
+  const defs = BW_FLOOR_TABLES["5F"];
+  const wPods = defs.find(d=>d.zoneId==="W")!.pods;
+  const ePods = defs.find(d=>d.zoneId==="E")!.pods;
   return (
-    <svg viewBox="0 0 820 580" style={{width:"100%",maxWidth:960,height:"auto",display:"block"}}>
+    <svg viewBox="0 0 820 580" style={{width:"100%",maxWidth:960,height:"auto",display:"block"}}
+         onClick={()=>{if(ctx.editMode&&ctx.pickedId) ctx.onPickSeat?.(null);}}>
       {HATCH}
       <rect x={12} y={20} width={796} height={548} fill="#FAFAFA" stroke="#1F2937" strokeWidth={2}/>
       {Array.from({length:24},(_,i)=><line key={`t${i}`} x1={30+i*32} y1={20} x2={30+i*32} y2={28} stroke="#60A5FA" strokeWidth={2} opacity={0.5}/>)}
       {Array.from({length:24},(_,i)=><line key={`b${i}`} x1={30+i*32} y1={568} x2={30+i*32} y2={560} stroke="#60A5FA" strokeWidth={2} opacity={0.5}/>)}
+      {ctx.editMode && <rect x={14} y={20} width={796} height={8} rx={2} fill="#FEF3C7" opacity={0.8}/>}
       {/* 서편 */}
       <rect x={14} y={20} width={290} height={548} rx={3} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2"/>
       <text x={22} y={38} fontSize={8.5} fontWeight={800} fill="#1E3A8A">서편 — {zW.seats.length}석</text>
-      <rect x={14} y={20} width={290} height={78} fill="#F0FDF4" stroke="#86EFAC" strokeWidth={1.2} rx={3}/>
-      <text x={159} y={56} fontSize={8.5} textAnchor="middle" fill="#15803D" fontWeight={700}>협업공간 / G·B Zone</text>
-      <DeskGrid zone={zW} startX={18} startY={110} cols={7} rows={11} sw={26} sh={11} gx={8} gy={3} rowGroups={[2,2,3,2,2]} aisle={14} ctx={ctx}/>
+      <rect x={14} y={44} width={290} height={58} fill="#F0FDF4" stroke="#86EFAC" strokeWidth={1.2} rx={3}/>
+      <text x={159} y={76} fontSize={8.5} textAnchor="middle" fill="#15803D" fontWeight={700}>협업공간 / G·B Zone</text>
+      {/* 서편 공유 테이블 — 6 pods (w1-w5 양면 14석, w6 단면 4석 = 74) */}
+      <SharedTableStack ctx={ctx} zone={zW} pods={wPods} x0={22} y0={112}
+        dw={22} dh={10} dx={28} tpad={4} igap={12} gap={16}/>
       {/* 미팅룸 하단 */}
       <MeetingBox x={14} y={460} w={140} h={108} name="미팅룸" sub="18.5m²"/>
       <MeetingBox x={158} y={460} w={148} h={108} name="미팅룸" sub="16.1m²"/>
@@ -487,7 +712,9 @@ export function BW_5F_Sketch(ctx: SketchCtx) {
       {/* 동편 */}
       <rect x={494} y={20} width={314} height={548} rx={3} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2"/>
       <text x={502} y={38} fontSize={8.5} fontWeight={800} fill="#1E3A8A">동편 — {zE.seats.length}석</text>
-      <DeskGrid zone={zE} startX={502} startY={50} cols={7} rows={7} sw={30} sh={13} gx={9} gy={3} rowGroups={[2,2,3]} aisle={18} ctx={ctx}/>
+      {/* 동편 공유 테이블 — 4 pods (e1-e3 양면 14석, e4 단면 7석 = 49) */}
+      <SharedTableStack ctx={ctx} zone={zE} pods={ePods} x0={502} y0={50}
+        dw={22} dh={10} dx={28} tpad={4} igap={12} gap={18}/>
       <MeetingBox x={494} y={440} w={314} h={128} name="대회의실" sub="45.2m²"/>
       <text x={20} y={16} fontSize={9} fontWeight={800} fill="#1F2937">← 서편</text>
       <text x={800} y={16} fontSize={9} fontWeight={800} fill="#1F2937" textAnchor="end">동편 →</text>
@@ -499,25 +726,34 @@ export function BW_5F_Sketch(ctx: SketchCtx) {
 export function BW_6F_Sketch(ctx: SketchCtx) {
   const zW=ctx.zones.find(z=>z.id==="W"), zE=ctx.zones.find(z=>z.id==="E");
   if(!zW||!zE) return null;
+  const defs = BW_FLOOR_TABLES["6F"];
+  const wPods = defs.find(d=>d.zoneId==="W")!.pods;
+  const ePods = defs.find(d=>d.zoneId==="E")!.pods;
   return (
-    <svg viewBox="0 0 820 580" style={{width:"100%",maxWidth:960,height:"auto",display:"block"}}>
+    <svg viewBox="0 0 820 580" style={{width:"100%",maxWidth:960,height:"auto",display:"block"}}
+         onClick={()=>{if(ctx.editMode&&ctx.pickedId) ctx.onPickSeat?.(null);}}>
       {HATCH}
       <rect x={12} y={20} width={796} height={548} fill="#FAFAFA" stroke="#1F2937" strokeWidth={2}/>
       {Array.from({length:24},(_,i)=><line key={`t${i}`} x1={30+i*32} y1={20} x2={30+i*32} y2={28} stroke="#60A5FA" strokeWidth={2} opacity={0.5}/>)}
       {Array.from({length:24},(_,i)=><line key={`b${i}`} x1={30+i*32} y1={568} x2={30+i*32} y2={560} stroke="#60A5FA" strokeWidth={2} opacity={0.5}/>)}
+      {ctx.editMode && <rect x={14} y={20} width={796} height={8} rx={2} fill="#FEF3C7" opacity={0.8}/>}
       {/* 서편: 개발 34" 모니터 존 */}
       <rect x={14} y={20} width={290} height={548} rx={3} fill="#FFF7ED" stroke="#FB923C" strokeWidth={1} strokeDasharray="5,2"/>
       <text x={22} y={36} fontSize={8} fontWeight={800} fill="#C2410C">서편 — {zW.seats.length}석 (개발 34")</text>
-      <rect x={14} y={20} width={290} height={60} fill="#FFEDD5" stroke="#FB923C" strokeWidth={1} rx={3}/>
-      <text x={159} y={46} fontSize={8} textAnchor="middle" fill="#9A3412" fontWeight={700}>개발 34" 모니터 구역</text>
-      <text x={159} y={58} fontSize={7} textAnchor="middle" fill="#9A3412" opacity={0.8}>전 좌석 34인치 듀얼모니터</text>
-      <DeskGrid zone={zW} startX={18} startY={92} cols={7} rows={10} sw={26} sh={11} gx={8} gy={3} rowGroups={[2,2,3,3]} aisle={14} ctx={ctx}/>
+      <rect x={14} y={44} width={290} height={58} fill="#FFEDD5" stroke="#FB923C" strokeWidth={1} rx={3}/>
+      <text x={159} y={70} fontSize={8} textAnchor="middle" fill="#9A3412" fontWeight={700}>개발 34" 모니터 구역</text>
+      <text x={159} y={84} fontSize={7} textAnchor="middle" fill="#9A3412" opacity={0.8}>전 좌석 34인치 듀얼모니터</text>
+      {/* 서편 공유 테이블 — 5 pods (w1-w4 양면 14석, w5 양면 7+4=11 = 67) */}
+      <SharedTableStack ctx={ctx} zone={zW} pods={wPods} x0={22} y0={112}
+        dw={22} dh={10} dx={28} tpad={4} igap={12} gap={18}/>
       {/* 코어 */}
       <BW_Core y0={20} y1={568}/>
       {/* 동편 */}
       <rect x={494} y={20} width={314} height={548} rx={3} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2"/>
       <text x={502} y={38} fontSize={8.5} fontWeight={800} fill="#1E3A8A">동편 — {zE.seats.length}석</text>
-      <DeskGrid zone={zE} startX={500} startY={50} cols={8} rows={9} sw={26} sh={12} gx={7} gy={3} rowGroups={[2,2,2,3]} aisle={16} ctx={ctx}/>
+      {/* 동편 공유 테이블 — 5 pods (e1-e4 양면 16석, e5 단면 1석 = 65) */}
+      <SharedTableStack ctx={ctx} zone={zE} pods={ePods} x0={500} y0={50}
+        dw={22} dh={10} dx={28} tpad={4} igap={12} gap={18}/>
       <text x={20} y={16} fontSize={9} fontWeight={800} fill="#1F2937">← 서편</text>
       <text x={800} y={16} fontSize={9} fontWeight={800} fill="#1F2937" textAnchor="end">동편 →</text>
     </svg>
@@ -528,42 +764,51 @@ export function BW_6F_Sketch(ctx: SketchCtx) {
 export function BW_7F_Sketch(ctx: SketchCtx) {
   const zW=ctx.zones.find(z=>z.id==="W"), zE=ctx.zones.find(z=>z.id==="E");
   if(!zW||!zE) return null;
+  const defs = BW_FLOOR_TABLES["7F"];
+  const wPods = defs.find(d=>d.zoneId==="W")!.pods;
+  const ePods = defs.find(d=>d.zoneId==="E")!.pods;
   return (
-    <svg viewBox="0 0 820 560" style={{width:"100%",maxWidth:960,height:"auto",display:"block"}}>
+    <svg viewBox="0 0 820 580" style={{width:"100%",maxWidth:960,height:"auto",display:"block"}}
+         onClick={()=>{if(ctx.editMode&&ctx.pickedId) ctx.onPickSeat?.(null);}}>
       {HATCH}
-      <rect x={12} y={20} width={796} height={528} fill="#FAFAFA" stroke="#1F2937" strokeWidth={2}/>
+      <rect x={12} y={20} width={796} height={548} fill="#FAFAFA" stroke="#1F2937" strokeWidth={2}/>
       {Array.from({length:24},(_,i)=><line key={`t${i}`} x1={30+i*32} y1={20} x2={30+i*32} y2={28} stroke="#60A5FA" strokeWidth={2} opacity={0.5}/>)}
-      {Array.from({length:24},(_,i)=><line key={`b${i}`} x1={30+i*32} y1={548} x2={30+i*32} y2={540} stroke="#60A5FA" strokeWidth={2} opacity={0.5}/>)}
+      {Array.from({length:24},(_,i)=><line key={`b${i}`} x1={30+i*32} y1={568} x2={30+i*32} y2={560} stroke="#60A5FA" strokeWidth={2} opacity={0.5}/>)}
+      {ctx.editMode && <rect x={14} y={20} width={796} height={8} rx={2} fill="#FEF3C7" opacity={0.8}/>}
       {/* 서편: G/B 협업공간 + 스마트오피스 19석 + 미팅룸 */}
-      <rect x={14} y={20} width={290} height={528} rx={3} fill="#F8FAFC" stroke="#94A3B8" strokeWidth={1}/>
+      <rect x={14} y={20} width={290} height={548} rx={3} fill="#F8FAFC" stroke="#94A3B8" strokeWidth={1}/>
       {/* G/B 협업공간 상단 2개 (도면 기준: 원탁 협업 구역) */}
-      <rect x={14} y={20} width={140} height={120} fill="#F0FDF4" stroke="#86EFAC" strokeWidth={1.2} rx={3}/>
-      <text x={84} y={62} fontSize={8} textAnchor="middle" fill="#15803D" fontWeight={700}>G/B 협업 A</text>
-      <text x={84} y={74} fontSize={7} textAnchor="middle" fill="#15803D">22.3m²</text>
-      <circle cx={84} cy={44} r={16} fill="none" stroke="#86EFAC" strokeWidth={1.2}/>
-      <circle cx={84} cy={44} r={7} fill="#D1FAE5" stroke="#86EFAC" strokeWidth={0.8}/>
-      {[-14,0,14].map(d=><rect key={d} x={84+d-5} y={28} width={10} height={10} rx={2} fill="#BBF7D0" stroke="#86EFAC" strokeWidth={0.5}/>)}
-      <rect x={158} y={20} width={148} height={120} fill="#F0FDF4" stroke="#86EFAC" strokeWidth={1.2} rx={3}/>
-      <text x={232} y={62} fontSize={8} textAnchor="middle" fill="#15803D" fontWeight={700}>G/B 협업 B</text>
-      <text x={232} y={74} fontSize={7} textAnchor="middle" fill="#15803D">20.1m²</text>
-      <circle cx={232} cy={44} r={16} fill="none" stroke="#86EFAC" strokeWidth={1.2}/>
-      <circle cx={232} cy={44} r={7} fill="#D1FAE5" stroke="#86EFAC" strokeWidth={0.8}/>
-      {[-14,0,14].map(d=><rect key={d} x={232+d-5} y={28} width={10} height={10} rx={2} fill="#BBF7D0" stroke="#86EFAC" strokeWidth={0.5}/>)}
-      <MeetingBox x={14} y={144} w={140} h={110} name="세미나실" sub="35.6m²"/>
-      <MeetingBox x={158} y={144} w={148} h={110} name="회의실"   sub="18.4m²"/>
+      <rect x={14} y={32} width={140} height={100} fill="#F0FDF4" stroke="#86EFAC" strokeWidth={1.2} rx={3}/>
+      <text x={84} y={72} fontSize={8} textAnchor="middle" fill="#15803D" fontWeight={700}>G/B 협업 A</text>
+      <text x={84} y={84} fontSize={7} textAnchor="middle" fill="#15803D">22.3m²</text>
+      <circle cx={84} cy={56} r={14} fill="none" stroke="#86EFAC" strokeWidth={1.2}/>
+      <circle cx={84} cy={56} r={6} fill="#D1FAE5" stroke="#86EFAC" strokeWidth={0.8}/>
+      {[-14,0,14].map(d=><rect key={d} x={84+d-5} y={104} width={10} height={10} rx={2} fill="#BBF7D0" stroke="#86EFAC" strokeWidth={0.5}/>)}
+      <rect x={158} y={32} width={148} height={100} fill="#F0FDF4" stroke="#86EFAC" strokeWidth={1.2} rx={3}/>
+      <text x={232} y={72} fontSize={8} textAnchor="middle" fill="#15803D" fontWeight={700}>G/B 협업 B</text>
+      <text x={232} y={84} fontSize={7} textAnchor="middle" fill="#15803D">20.1m²</text>
+      <circle cx={232} cy={56} r={14} fill="none" stroke="#86EFAC" strokeWidth={1.2}/>
+      <circle cx={232} cy={56} r={6} fill="#D1FAE5" stroke="#86EFAC" strokeWidth={0.8}/>
+      {[-14,0,14].map(d=><rect key={d} x={232+d-5} y={104} width={10} height={10} rx={2} fill="#BBF7D0" stroke="#86EFAC" strokeWidth={0.5}/>)}
+      <MeetingBox x={14} y={138} w={140} h={100} name="세미나실" sub="35.6m²"/>
+      <MeetingBox x={158} y={138} w={148} h={100} name="회의실"   sub="18.4m²"/>
       {/* 스마트오피스 19석 */}
-      <rect x={14} y={258} width={290} height={130} rx={3} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="4,2"/>
-      <text x={22} y={274} fontSize={8} fontWeight={800} fill="#1E3A8A">스마트오피스 — {zW.seats.length}석</text>
-      <DeskGrid zone={zW} startX={20} startY={282} cols={4} rows={5} sw={28} sh={12} gx={9} gy={3} rowGroups={[2,3]} aisle={16} ctx={ctx}/>
+      <rect x={14} y={244} width={290} height={160} rx={3} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="4,2"/>
+      <text x={22} y={260} fontSize={8} fontWeight={800} fill="#1E3A8A">스마트오피스 — {zW.seats.length}석</text>
+      {/* 서편 공유 테이블 — 3 pods (w1,w2 양면 8석, w3 단면 3석 = 19) */}
+      <SharedTableStack ctx={ctx} zone={zW} pods={wPods} x0={38} y0={268}
+        dw={22} dh={10} dx={28} tpad={4} igap={12} gap={14}/>
       {/* 하단 미팅룸 */}
-      <MeetingBox x={14} y={392} w={140} h={156} name="임원실" sub="28.0m²"/>
-      <MeetingBox x={158} y={392} w={148} h={156} name="회의실" sub="22.1m²"/>
+      <MeetingBox x={14} y={412} w={140} h={156} name="임원실" sub="28.0m²"/>
+      <MeetingBox x={158} y={412} w={148} h={156} name="회의실" sub="22.1m²"/>
       {/* 코어 */}
-      <BW_Core y0={20} y1={548}/>
+      <BW_Core y0={20} y1={568}/>
       {/* 동편: 57석 */}
-      <rect x={494} y={20} width={314} height={528} rx={3} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2"/>
+      <rect x={494} y={20} width={314} height={548} rx={3} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2"/>
       <text x={502} y={38} fontSize={8.5} fontWeight={800} fill="#1E3A8A">동편 — {zE.seats.length}석</text>
-      <DeskGrid zone={zE} startX={500} startY={50} cols={7} rows={9} sw={28} sh={12} gx={8} gy={3} rowGroups={[2,2,2,3]} aisle={16} ctx={ctx}/>
+      {/* 동편 공유 테이블 — 5 pods (e1-e4 양면 14석, e5 단면 1석 = 57) */}
+      <SharedTableStack ctx={ctx} zone={zE} pods={ePods} x0={502} y0={50}
+        dw={22} dh={10} dx={28} tpad={4} igap={12} gap={18}/>
       <text x={20} y={16} fontSize={9} fontWeight={800} fill="#1F2937">← 서편</text>
       <text x={800} y={16} fontSize={9} fontWeight={800} fill="#1F2937" textAnchor="end">동편 →</text>
     </svg>
@@ -574,16 +819,22 @@ export function BW_7F_Sketch(ctx: SketchCtx) {
 export function BW_8F_Sketch(ctx: SketchCtx) {
   const zM=ctx.zones.find(z=>z.id==="M");
   if(!zM) return null;
+  const defs = BW_FLOOR_TABLES["8F"];
+  const mPods = defs.find(d=>d.zoneId==="M")!.pods;
   return (
-    <svg viewBox="0 0 820 500" style={{width:"100%",maxWidth:960,height:"auto",display:"block"}}>
+    <svg viewBox="0 0 820 500" style={{width:"100%",maxWidth:960,height:"auto",display:"block"}}
+         onClick={()=>{if(ctx.editMode&&ctx.pickedId) ctx.onPickSeat?.(null);}}>
       {HATCH}
       <rect x={12} y={20} width={796} height={468} fill="#FAFAFA" stroke="#1F2937" strokeWidth={2}/>
       {Array.from({length:24},(_,i)=><line key={`t${i}`} x1={30+i*32} y1={20} x2={30+i*32} y2={28} stroke="#60A5FA" strokeWidth={2} opacity={0.5}/>)}
       {Array.from({length:24},(_,i)=><line key={`b${i}`} x1={30+i*32} y1={488} x2={30+i*32} y2={480} stroke="#60A5FA" strokeWidth={2} opacity={0.5}/>)}
+      {ctx.editMode && <rect x={14} y={20} width={796} height={8} rx={2} fill="#FEF3C7" opacity={0.8}/>}
       {/* 서편: 스마트오피스 28석 */}
       <rect x={14} y={20} width={290} height={250} rx={3} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2"/>
       <text x={22} y={38} fontSize={8.5} fontWeight={800} fill="#1E3A8A">스마트오피스 — {zM.seats.length}석</text>
-      <DeskGrid zone={zM} startX={18} startY={50} cols={7} rows={4} sw={28} sh={13} gx={8} gy={3} rowGroups={[2,2]} aisle={18} ctx={ctx}/>
+      {/* 서편 공유 테이블 — 2 pods (m1, m2 양면 14석 = 28) */}
+      <SharedTableStack ctx={ctx} zone={zM} pods={mPods} x0={22} y0={50}
+        dw={22} dh={10} dx={28} tpad={4} igap={12} gap={18}/>
       {/* 라운지·휴게 */}
       <rect x={14} y={278} width={290} height={208} rx={3} fill="#FEF9C3" stroke="#D97706" strokeWidth={1.2}/>
       <text x={159} y={298} fontSize={8.5} textAnchor="middle" fill="#92400E" fontWeight={700}>라운지 / 휴게공간</text>
@@ -614,34 +865,43 @@ export function BW_8F_Sketch(ctx: SketchCtx) {
 export function BW_9F_Sketch(ctx: SketchCtx) {
   const zW=ctx.zones.find(z=>z.id==="W"), zE=ctx.zones.find(z=>z.id==="E");
   if(!zW||!zE) return null;
+  const defs = BW_FLOOR_TABLES["9F"];
+  const wPods = defs.find(d=>d.zoneId==="W")!.pods;
+  const ePods = defs.find(d=>d.zoneId==="E")!.pods;
   return (
-    <svg viewBox="0 0 880 600" style={{width:"100%",maxWidth:1050,height:"auto",display:"block"}}>
+    <svg viewBox="0 0 880 600" style={{width:"100%",maxWidth:1050,height:"auto",display:"block"}}
+         onClick={()=>{if(ctx.editMode&&ctx.pickedId) ctx.onPickSeat?.(null);}}>
       {HATCH}
       <rect x={12} y={20} width={856} height={568} fill="#FAFAFA" stroke="#1F2937" strokeWidth={2}/>
       {Array.from({length:26},(_,i)=><line key={`t${i}`} x1={30+i*32} y1={20} x2={30+i*32} y2={28} stroke="#60A5FA" strokeWidth={2} opacity={0.5}/>)}
       {Array.from({length:26},(_,i)=><line key={`b${i}`} x1={30+i*32} y1={588} x2={30+i*32} y2={580} stroke="#60A5FA" strokeWidth={2} opacity={0.5}/>)}
+      {ctx.editMode && <rect x={14} y={20} width={856} height={8} rx={2} fill="#FEF3C7" opacity={0.8}/>}
       {/* 서편: 스튜디오 37석 */}
       <rect x={14} y={20} width={290} height={568} rx={3} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2"/>
       <text x={22} y={38} fontSize={8.5} fontWeight={800} fill="#1E3A8A">스튜디오 서편 — {zW.seats.length}석</text>
       {/* 도서관 / 라이브러리 구역 (도면 기준: 무대 높이 단계 + 서가) */}
-      <rect x={14} y={20} width={290} height={96} fill="#FEF9C3" stroke="#D97706" strokeWidth={1.2} rx={3}/>
-      <text x={159} y={36} fontSize={8} textAnchor="middle" fill="#92400E" fontWeight={700}>스튜디오 무대 / 라이브러리</text>
+      <rect x={14} y={44} width={290} height={80} fill="#FEF9C3" stroke="#D97706" strokeWidth={1.2} rx={3}/>
+      <text x={159} y={60} fontSize={8} textAnchor="middle" fill="#92400E" fontWeight={700}>스튜디오 무대 / 라이브러리</text>
       {/* 무대 단 (높이 단계 심볼) */}
       {[0,1,2,3].map(i=>(
-        <rect key={i} x={20+i*16} y={44+i*8} width={258-i*32} height={60-i*8}
+        <rect key={i} x={20+i*16} y={66+i*6} width={258-i*32} height={48-i*6}
           fill="none" stroke="#D97706" strokeWidth={0.7} rx={1} opacity={0.7}/>
       ))}
-      <text x={159} y={78} fontSize={6.5} textAnchor="middle" fill="#92400E">▼ 무대 단 / BOOK SHELF</text>
+      <text x={159} y={98} fontSize={6.5} textAnchor="middle" fill="#92400E">▼ 무대 단 / BOOK SHELF</text>
       {/* 스탠딩 데스크 구역 */}
-      <rect x={14} y={120} width={290} height={28} fill="#FFF7E6" stroke="#F59E0B" strokeWidth={0.8} rx={2}/>
-      <text x={159} y={137} fontSize={7} textAnchor="middle" fill="#92400E">스탠딩 데스크 구역</text>
-      <DeskGrid zone={zW} startX={18} startY={158} cols={5} rows={8} sw={30} sh={13} gx={9} gy={3} rowGroups={[2,2,2,2]} aisle={14} ctx={ctx}/>
+      <rect x={14} y={128} width={290} height={22} fill="#FFF7E6" stroke="#F59E0B" strokeWidth={0.8} rx={2}/>
+      <text x={159} y={143} fontSize={7} textAnchor="middle" fill="#92400E">스탠딩 데스크 구역</text>
+      {/* 서편 공유 테이블 — 4 pods (w1-w3 양면 10석, w4 양면 5+2=7 = 37) */}
+      <SharedTableStack ctx={ctx} zone={zW} pods={wPods} x0={52} y0={160}
+        dw={22} dh={10} dx={28} tpad={4} igap={12} gap={18}/>
       {/* 코어 */}
       <BW_Core y0={20} y1={588}/>
       {/* 동편: 홀 85석 */}
       <rect x={494} y={20} width={374} height={568} rx={3} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2"/>
       <text x={502} y={38} fontSize={8.5} fontWeight={800} fill="#1E3A8A">홀 동편 — {zE.seats.length}석</text>
-      <DeskGrid zone={zE} startX={500} startY={52} cols={9} rows={10} sw={26} sh={11} gx={7} gy={3} rowGroups={[2,2,2,2,2]} aisle={14} ctx={ctx}/>
+      {/* 동편 공유 테이블 — 5 pods (e1-e4 양면 18석, e5 양면 9+4=13 = 85) */}
+      <SharedTableStack ctx={ctx} zone={zE} pods={ePods} x0={502} y0={52}
+        dw={22} dh={10} dx={28} tpad={4} igap={12} gap={18}/>
       <text x={20} y={16} fontSize={9} fontWeight={800} fill="#1F2937">← 서편 (스튜디오)</text>
       <text x={860} y={16} fontSize={9} fontWeight={800} fill="#1F2937" textAnchor="end">동편 (홀) →</text>
     </svg>
