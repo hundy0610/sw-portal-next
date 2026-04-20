@@ -1,6 +1,5 @@
 "use client";
 import { useState, useMemo, useEffect, useCallback } from "react";
-import dynamic from "next/dynamic";
 import { FLOOR_SKETCHES, SketchCtx, SketchZone, BW_FLOOR_TABLES } from "./FloorSketches";
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -125,25 +124,26 @@ const BUILDINGS: BuildingData[] = [
       { id:"2F", label:"2층", note:"서편 스마트오피스 52석",
         zones:[ buildZone("SO","스마트오피스","W",13,4,
           m([36,"unk"],[1,"none"],[15,"unk"]), "BW","2F") ],
-        rooms:["미팅룸 A (13.5㎡/4.1평)","미팅룸 B (21.1㎡/6.4평)","미팅룸 C (18.8㎡/5.7평)","쇼룸 (15.2㎡/4.6평)"] },
-      { id:"3F", label:"3층", note:"서편 54석 · 동편 71석",
+        rooms:["미팅룸 A","미팅룸 B","미팅룸 C","쇼룸"] },
+      { id:"3F", label:"3층", note:"서편 54석 · 동편 71석 · 벽면 7석",
         zones:[
           buildZone("W","서편","W",6,9, f(54,"unk"), "BW","3F"),
           buildZone("E","동편","E",8,9, f(71,"unk"), "BW","3F"),
+          buildZone("WW","서편 벽면","W",1,7, f(7,"unk"), "BW","3F"),
         ],
-        rooms:["미팅룸 (18.5m²/5.6평)","미팅룸 (16.1m²/4.9평)"] },
+        rooms:["미팅룸","미팅룸"] },
       { id:"4F", label:"4층", note:"서편 74석 · 동편 49석",
         zones:[
           buildZone("W","서편","W",7,11, f(74,"unk"), "BW","4F"),
           buildZone("E","동편","E",7,7,  f(49,"unk"), "BW","4F"),
         ],
-        rooms:["스마트2 (5.6평)","스마트3 (5.6평)","라운지 (10.7평)"] },
+        rooms:["스마트2","스마트3","라운지"] },
       { id:"5F", label:"5층", note:"서편 74석 · 동편 49석",
         zones:[
           buildZone("W","서편","W",7,11, f(74,"unk"), "BW","5F"),
           buildZone("E","동편","E",7,7,  f(49,"unk"), "BW","5F"),
         ],
-        rooms:["미팅룸 (6.6m²/2.0평)"] },
+        rooms:["미팅룸"] },
       { id:"6F", label:"6층", note:'서편(개발 34") 67석 · 동편 65석',
         zones:[
           buildZone("W",'서편 (개발 34")',"W",7,10, f(67,"unk"), "BW","6F"),
@@ -212,14 +212,14 @@ const FLOOR_SVGS: Record<string, FloorSvgCfg> = {
       { x:512, y:18, w:90, h:342, label:"계단\nELEV HALL\nEV" },
       { x:608, y:18, w:78, h:342, label:"EPS\n화장실" },
     ],
-    extraBlocks:[{ x:692, y:18, w:100, h:342, label:"창고 2평\n(VOID)", fill:"#E2E8F0", stroke:"#94A3B8" }],
+    extraBlocks:[{ x:692, y:18, w:100, h:342, label:"창고\n(VOID)", fill:"#E2E8F0", stroke:"#94A3B8" }],
     rooms:[
-      { x:348, y:20,  w:158, h:80,  label:"미팅룸 A", sub:"13.5㎡ / 4.1평" },
-      { x:348, y:106, w:158, h:90,  label:"미팅룸 B", sub:"21.1㎡ / 6.4평" },
-      { x:348, y:202, w:158, h:82,  label:"미팅룸 C", sub:"18.8㎡ / 5.7평" },
-      { x:348, y:290, w:158, h:70,  label:"쇼룸",     sub:"15.2㎡ / 4.6평" },
+      { x:348, y:20,  w:158, h:80,  label:"미팅룸 A" },
+      { x:348, y:106, w:158, h:90,  label:"미팅룸 B" },
+      { x:348, y:202, w:158, h:82,  label:"미팅룸 C" },
+      { x:348, y:290, w:158, h:70,  label:"쇼룸" },
     ],
-    deskBg:[{ id:"SO", x:12, y:12, w:328, h:348, label:"스마트오피스 (서편) — 90평 / 52석", fill:"#EFF6FF", stroke:"#93C5FD" }],
+    deskBg:[{ id:"SO", x:12, y:12, w:328, h:348, label:"스마트오피스 (서편) — 52석", fill:"#EFF6FF", stroke:"#93C5FD" }],
     // 실제 도면 4개 블록에 맞춰 4줄 사이 통로: rowGroups=[1,1,1,1]
     seatGrids:[{ zoneId:"SO", startX:22, startY:60, cols:13, rows:4, sw:21, sh:26, gx:3, gy:4, rowGroups:[1,1,1,1], aisle:48 }],
     labels:[
@@ -236,8 +236,8 @@ const FLOOR_SVGS: Record<string, FloorSvgCfg> = {
       { x:672, y:12, w:120, h:90, label:"G/B", fill:"#F0FDF4", stroke:"#86EFAC" },
     ],
     rooms:[
-      { x:12, y:298, w:145, h:72, label:"미팅룸", sub:"18.5m² / 5.6인" },
-      { x:165, y:298, w:148, h:72, label:"미팅룸", sub:"16.1m² / 4.9인" },
+      { x:12, y:298, w:145, h:72, label:"미팅룸" },
+      { x:165, y:298, w:148, h:72, label:"미팅룸" },
     ],
     deskBg:[
       { id:"W", x:12, y:108, w:305, h:182, label:"서편", fill:"#EFF6FF", stroke:"#93C5FD" },
@@ -258,9 +258,9 @@ const FLOOR_SVGS: Record<string, FloorSvgCfg> = {
     coreBlocks:[{ x:325, y:18, w:150, h:342, label:"계단/EPS/화장실" }],
     extraBlocks:[{ x:683, y:298, w:112, h:72, label:"8인 미팅룸", fill:"#F0FDF4", stroke:"#86EFAC" }],
     rooms:[
-      { x:12, y:298, w:100, h:72, label:"스마트2", sub:"5.6평" },
-      { x:120, y:298, w:100, h:72, label:"스마트3", sub:"5.6평" },
-      { x:228, y:298, w:90, h:72, label:"라운지", sub:"10.7평" },
+      { x:12, y:298, w:100, h:72, label:"스마트2" },
+      { x:120, y:298, w:100, h:72, label:"스마트3" },
+      { x:228, y:298, w:90, h:72, label:"라운지" },
     ],
     deskBg:[
       { id:"W", x:12, y:12, w:305, h:278, label:"서편 (미설치 다수)", fill:"#FFF1F2", stroke:"#FCA5A5" },
@@ -341,12 +341,12 @@ const FLOOR_SVGS: Record<string, FloorSvgCfg> = {
     coreBlocks:[{ x:325, y:18, w:150, h:342, label:"CANTEEN\n계단\n화장실" }],
     extraBlocks:[],
     rooms:[
-      { x:12, y:12, w:152, h:120, label:"회의실/미팅룸-1", sub:"4.1인" },
-      { x:12, y:140, w:152, h:120, label:"회의실/미팅룸-2", sub:"4.1인" },
-      { x:12, y:268, w:152, h:102, label:"미팅룸", sub:"7.6인" },
-      { x:483, y:12, w:308, h:138, label:"Conference-1", sub:"17.9인" },
-      { x:483, y:158, w:308, h:105, label:"회의실/멀티룸", sub:"13.8인" },
-      { x:483, y:271, w:308, h:99, label:"Conference-2", sub:"19.5인" },
+      { x:12, y:12, w:152, h:120, label:"회의실/미팅룸-1" },
+      { x:12, y:140, w:152, h:120, label:"회의실/미팅룸-2" },
+      { x:12, y:268, w:152, h:102, label:"미팅룸" },
+      { x:483, y:12, w:308, h:138, label:"Conference-1" },
+      { x:483, y:158, w:308, h:105, label:"회의실/멀티룸" },
+      { x:483, y:271, w:308, h:99, label:"Conference-2" },
     ],
     deskBg:[{ id:"M", x:172, y:90, w:145, h:200, label:"업무공간", fill:"#EFF6FF", stroke:"#93C5FD" }],
     seatGrids:[{ zoneId:"M", startX:180, startY:100, cols:5, rows:5, sw:16, sh:13, gx:5, gy:3, rowGroups:[2,3], aisle:20 }],
@@ -390,7 +390,7 @@ const NS_FLOOR: FloorSvgCfg = {
     { x:12,  y:300, w:260, h:70, label:"CASUAL WORK\nSPACE", fill:"#FEF3C7", stroke:"#FCD34D" },
   ],
   rooms:[
-    { x:280, y:300, w:90, h:70, label:"MEETING", sub:"12.4㎡" },
+    { x:280, y:300, w:90, h:70, label:"MEETING" },
   ],
   deskBg:[
     { id:"M", x:520, y:108, w:265, h:182, label:"OPEN-OFFICE (동편)", fill:"#EFF6FF", stroke:"#93C5FD" },
@@ -414,7 +414,7 @@ const SB_FLOOR: FloorSvgCfg = {
     { x:420, y:18, w:370, h:70, label:"FOCUS OFFICE 1 · 2 · 3 · 4", fill:"#F0FDF4", stroke:"#86EFAC" },
   ],
   rooms:[
-    { x:180, y:300, w:110, h:70, label:"MEETING RM", sub:"12.4㎡" },
+    { x:180, y:300, w:110, h:70, label:"MEETING RM" },
   ],
   deskBg:[
     { id:"M",  x:420, y:98,  w:370, h:260, label:"OPEN-OFFICE (동편)", fill:"#EFF6FF", stroke:"#93C5FD" },

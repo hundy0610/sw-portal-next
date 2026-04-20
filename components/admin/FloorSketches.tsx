@@ -169,6 +169,7 @@ export const BW_FLOOR_TABLES: Record<string, FloorTableDef[]> = {
       {id:"e4", topN:8, botN:8},
       {id:"e5", topN:7},
     ]},
+    { zoneId:"WW", pods:[{id:"ww", topN:7}] },
   ],
   "4F": [
     { zoneId:"W", pods:[
@@ -466,7 +467,7 @@ function BW_Core({y0=20,y1=548}:{y0?:number;y1?:number}) {
     <rect x={cx+34} y={y0+86} width={114} height={100} fill="#D1D5DB" stroke="#475569" strokeWidth={1.2}/>
     <line x1={cx+34} y1={y0+86} x2={cx+148} y2={y0+186} stroke="#94A3B8" strokeWidth={1}/>
     <line x1={cx+148} y1={y0+86} x2={cx+34} y2={y0+186} stroke="#94A3B8" strokeWidth={1}/>
-    <text x={cx+91} y={y0+139} fontSize={8} textAnchor="middle" fill="#475569" fontWeight={700}>D.S.</text>
+    <text x={cx+91} y={y0+139} fontSize={8} textAnchor="middle" fill="#475569" fontWeight={700}>EV</text>
     {/* SOFA 구역 */}
     <rect x={cx+6} y={y0+190} width={cw-12} height={52} fill="#FAFAFA" stroke="#475569" strokeWidth={0.8}/>
     <text x={cx+91} y={y0+214} fontSize={7.5} textAnchor="middle" fill="#475569" fontWeight={700}>SOFA</text>
@@ -526,10 +527,10 @@ export function BW_2F_Sketch(ctx: SketchCtx) {
       <SharedTable ctx={ctx} zone={zone} tableId="t5" x0={x0} y0={333} defTopBase={34} defTopN={5} defBotBase={39} defBotN={4}/>
       <SharedTable ctx={ctx} zone={zone} tableId="t6" x0={x0} y0={409} defTopBase={43} defTopN={5} defBotBase={48} defBotN={5}/>
       {/* 미팅룸 */}
-      <MeetingBox x={358} y={28}  w={112} h={100} name="미팅룸 A" sub="13.5㎡"/>
-      <MeetingBox x={358} y={133} w={112} h={130} name="미팅룸 B" sub="21.1㎡"/>
-      <MeetingBox x={358} y={268} w={112} h={118} name="미팅룸 C" sub="18.8㎡"/>
-      <MeetingBox x={358} y={391} w={112} h={109} name="쇼룸"     sub="15.2㎡"/>
+      <MeetingBox x={358} y={28}  w={112} h={100} name="미팅룸 A"/>
+      <MeetingBox x={358} y={133} w={112} h={130} name="미팅룸 B"/>
+      <MeetingBox x={358} y={268} w={112} h={118} name="미팅룸 C"/>
+      <MeetingBox x={358} y={391} w={112} h={109} name="쇼룸"/>
       {/* ELEV HALL */}
       <rect x={474} y={28} width={88} height={88} fill="url(#hatchLight)" stroke="#475569" strokeWidth={1.2}/>
       {Array.from({length:7},(_,i)=><line key={i} x1={474} y1={38+i*11} x2={562} y2={38+i*11} stroke="#475569" strokeWidth={0.6}/>)}
@@ -567,7 +568,7 @@ export function BW_2F_Sketch(ctx: SketchCtx) {
       <rect x={576} y={220} width={22} height={10} rx={2} fill="#FDE68A" stroke="#D97706" strokeWidth={0.7}/>
       <rect x={602} y={220} width={22} height={10} rx={2} fill="#FDE68A" stroke="#D97706" strokeWidth={0.7}/>
       <rect x={566} y={312} width={100} height={67} fill="#F1F5F9" stroke="#475569" strokeWidth={1.2}/>
-      <text x={616} y={348} fontSize={8} textAnchor="middle" fill="#475569" fontWeight={700}>창고 2평</text>
+      <text x={616} y={348} fontSize={8} textAnchor="middle" fill="#475569" fontWeight={700}>창고</text>
       <rect x={566} y={387} width={35} height={52} fill="url(#hatch)" stroke="#475569" strokeWidth={1}/>
       <text x={584} y={416} fontSize={7} textAnchor="middle" fill="#1F2937" fontWeight={700}>EPS</text>
       <rect x={566} y={447} width={70} height={73} fill="#EFF6FF" stroke="#1D4ED8" strokeWidth={1}/>
@@ -583,9 +584,10 @@ export function BW_2F_Sketch(ctx: SketchCtx) {
   );
 }
 
-// ── 본관 3F: 서편 54석 + 동편 71석 ────────────────────────────────
+// ── 본관 3F: 서편 54석 + 동편 71석 + 벽면 7석 ─────────────────────
 export function BW_3F_Sketch(ctx: SketchCtx) {
   const zW=ctx.zones.find(z=>z.id==="W"), zE=ctx.zones.find(z=>z.id==="E");
+  const zWW=ctx.zones.find(z=>z.id==="WW");
   if(!zW||!zE) return null;
   const defs = BW_FLOOR_TABLES["3F"];
   const wPods = defs.find(d=>d.zoneId==="W")!.pods;
@@ -608,12 +610,34 @@ export function BW_3F_Sketch(ctx: SketchCtx) {
       {[-12,0,12].map(d=><circle key={d} cx={80+d} cy={96} r={3} fill="#BBF7D0" stroke="#86EFAC" strokeWidth={0.6}/>)}
       <circle cx={238} cy={82} r={9} fill="none" stroke="#86EFAC" strokeWidth={1}/>
       {[-12,0,12].map(d=><circle key={d} cx={238+d} cy={96} r={3} fill="#BBF7D0" stroke="#86EFAC" strokeWidth={0.6}/>)}
-      {/* 서편 공유 테이블 — 5 pods (w1-w4 양면 12석, w5 단면 6석) */}
-      <SharedTableStack ctx={ctx} zone={zW} pods={wPods} x0={22} y0={112}
+      {/* 벽면 7석 (서편 좌측 외벽 — 안쪽 방향) */}
+      {zWW && zWW.seats.slice(0,7).map((seat,i)=>{
+        const sy=112+i*48;
+        const meta=ctx.colorOf(seat.type);
+        const dimmed=ctx.filter!=="all"&&seat.type!==ctx.filter;
+        const isSel=ctx.selectedId===seat.id;
+        return (
+          <g key={seat.id} style={{cursor:"pointer"}}
+             onClick={(e)=>{e.stopPropagation();!dimmed&&ctx.onSelect(seat.id);}}>
+            {/* 의자 (책상 오른쪽, 안쪽 방향) */}
+            <rect x={40} y={sy+2} width={7} height={6} rx={2}
+              fill={dimmed?"#F3F4F6":"#E8EAED"} stroke="#94A3B8" strokeWidth={0.7}/>
+            {/* 책상 */}
+            <rect x={16} y={sy} width={22} height={10} rx={1.5}
+              fill={dimmed?"#E5E7EB":(meta.color+(seat.type==="unk"?"66":"D9"))}
+              stroke={isSel?meta.color:"#1F2937"} strokeWidth={isSel?1.5:0.7}/>
+            {isSel&&<rect x={14} y={sy-1} width={35} height={12} rx={2} fill="none"
+              stroke={meta.color} strokeWidth={1.6} opacity={0.9}/>}
+            <title>{seat.id}</title>
+          </g>
+        );
+      })}
+      {/* 서편 공유 테이블 — 5 pods (w1-w4 양면 12석, w5 단면 6석), 벽면 7석 공간 확보를 위해 x0=58 */}
+      <SharedTableStack ctx={ctx} zone={zW} pods={wPods} x0={58} y0={112}
         dw={22} dh={10} dx={28} tpad={4} igap={12} gap={18}/>
       {/* 미팅룸 하단 */}
-      <MeetingBox x={14} y={444} w={140} h={100} name="미팅룸" sub="18.5m²"/>
-      <MeetingBox x={158} y={444} w={148} h={100} name="미팅룸" sub="16.1m²"/>
+      <MeetingBox x={14} y={444} w={140} h={100} name="미팅룸"/>
+      <MeetingBox x={158} y={444} w={148} h={100} name="미팅룸"/>
       {/* 코어 */}
       <BW_Core y0={20} y1={548}/>
       {/* 동편 */}
@@ -673,8 +697,8 @@ export function BW_4F_Sketch(ctx: SketchCtx) {
       <SharedTableStack ctx={ctx} zone={zE} pods={ePods} x0={502} y0={50}
         dw={22} dh={10} dx={28} tpad={4} igap={12} gap={18}/>
       {/* 동편 하단 미팅룸 */}
-      <MeetingBox x={494} y={440} w={150} h={128} name="미팅룸" sub="25.3m²"/>
-      <MeetingBox x={648} y={440} w={158} h={128} name="라운지" sub="20.4m²"/>
+      <MeetingBox x={494} y={440} w={150} h={128} name="미팅룸"/>
+      <MeetingBox x={648} y={440} w={158} h={128} name="라운지"/>
       <text x={20} y={16} fontSize={9} fontWeight={800} fill="#1F2937">← 서편</text>
       <text x={800} y={16} fontSize={9} fontWeight={800} fill="#1F2937" textAnchor="end">동편 →</text>
     </svg>
@@ -705,8 +729,8 @@ export function BW_5F_Sketch(ctx: SketchCtx) {
       <SharedTableStack ctx={ctx} zone={zW} pods={wPods} x0={22} y0={112}
         dw={22} dh={10} dx={28} tpad={4} igap={12} gap={16}/>
       {/* 미팅룸 하단 */}
-      <MeetingBox x={14} y={460} w={140} h={108} name="미팅룸" sub="18.5m²"/>
-      <MeetingBox x={158} y={460} w={148} h={108} name="미팅룸" sub="16.1m²"/>
+      <MeetingBox x={14} y={460} w={140} h={108} name="미팅룸"/>
+      <MeetingBox x={158} y={460} w={148} h={108} name="미팅룸"/>
       {/* 코어 */}
       <BW_Core y0={20} y1={568}/>
       {/* 동편 */}
@@ -715,7 +739,7 @@ export function BW_5F_Sketch(ctx: SketchCtx) {
       {/* 동편 공유 테이블 — 4 pods (e1-e3 양면 14석, e4 단면 7석 = 49) */}
       <SharedTableStack ctx={ctx} zone={zE} pods={ePods} x0={502} y0={50}
         dw={22} dh={10} dx={28} tpad={4} igap={12} gap={18}/>
-      <MeetingBox x={494} y={440} w={314} h={128} name="대회의실" sub="45.2m²"/>
+      <MeetingBox x={494} y={440} w={314} h={128} name="대회의실"/>
       <text x={20} y={16} fontSize={9} fontWeight={800} fill="#1F2937">← 서편</text>
       <text x={800} y={16} fontSize={9} fontWeight={800} fill="#1F2937" textAnchor="end">동편 →</text>
     </svg>
@@ -780,18 +804,16 @@ export function BW_7F_Sketch(ctx: SketchCtx) {
       {/* G/B 협업공간 상단 2개 (도면 기준: 원탁 협업 구역) */}
       <rect x={14} y={32} width={140} height={100} fill="#F0FDF4" stroke="#86EFAC" strokeWidth={1.2} rx={3}/>
       <text x={84} y={72} fontSize={8} textAnchor="middle" fill="#15803D" fontWeight={700}>G/B 협업 A</text>
-      <text x={84} y={84} fontSize={7} textAnchor="middle" fill="#15803D">22.3m²</text>
       <circle cx={84} cy={56} r={14} fill="none" stroke="#86EFAC" strokeWidth={1.2}/>
       <circle cx={84} cy={56} r={6} fill="#D1FAE5" stroke="#86EFAC" strokeWidth={0.8}/>
       {[-14,0,14].map(d=><rect key={d} x={84+d-5} y={104} width={10} height={10} rx={2} fill="#BBF7D0" stroke="#86EFAC" strokeWidth={0.5}/>)}
       <rect x={158} y={32} width={148} height={100} fill="#F0FDF4" stroke="#86EFAC" strokeWidth={1.2} rx={3}/>
       <text x={232} y={72} fontSize={8} textAnchor="middle" fill="#15803D" fontWeight={700}>G/B 협업 B</text>
-      <text x={232} y={84} fontSize={7} textAnchor="middle" fill="#15803D">20.1m²</text>
       <circle cx={232} cy={56} r={14} fill="none" stroke="#86EFAC" strokeWidth={1.2}/>
       <circle cx={232} cy={56} r={6} fill="#D1FAE5" stroke="#86EFAC" strokeWidth={0.8}/>
       {[-14,0,14].map(d=><rect key={d} x={232+d-5} y={104} width={10} height={10} rx={2} fill="#BBF7D0" stroke="#86EFAC" strokeWidth={0.5}/>)}
-      <MeetingBox x={14} y={138} w={140} h={100} name="세미나실" sub="35.6m²"/>
-      <MeetingBox x={158} y={138} w={148} h={100} name="회의실"   sub="18.4m²"/>
+      <MeetingBox x={14} y={138} w={140} h={100} name="세미나실"/>
+      <MeetingBox x={158} y={138} w={148} h={100} name="회의실"/>
       {/* 스마트오피스 19석 */}
       <rect x={14} y={244} width={290} height={160} rx={3} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="4,2"/>
       <text x={22} y={260} fontSize={8} fontWeight={800} fill="#1E3A8A">스마트오피스 — {zW.seats.length}석</text>
@@ -799,8 +821,8 @@ export function BW_7F_Sketch(ctx: SketchCtx) {
       <SharedTableStack ctx={ctx} zone={zW} pods={wPods} x0={38} y0={268}
         dw={22} dh={10} dx={28} tpad={4} igap={12} gap={14}/>
       {/* 하단 미팅룸 */}
-      <MeetingBox x={14} y={412} w={140} h={156} name="임원실" sub="28.0m²"/>
-      <MeetingBox x={158} y={412} w={148} h={156} name="회의실" sub="22.1m²"/>
+      <MeetingBox x={14} y={412} w={140} h={156} name="임원실"/>
+      <MeetingBox x={158} y={412} w={148} h={156} name="회의실"/>
       {/* 코어 */}
       <BW_Core y0={20} y1={568}/>
       {/* 동편: 57석 */}
@@ -849,12 +871,12 @@ export function BW_8F_Sketch(ctx: SketchCtx) {
       {/* 동편: 미팅룸 6개 (2열×3행) */}
       <rect x={494} y={20} width={314} height={468} rx={3} fill="#F8FAFC" stroke="#94A3B8" strokeWidth={1}/>
       <text x={502} y={36} fontSize={8.5} fontWeight={800} fill="#475569">미팅룸</text>
-      <MeetingBox x={494} y={44} w={152} h={138} name="미팅룸-1"    sub="7.9m²"/>
-      <MeetingBox x={650} y={44} w={158} h={138} name="미팅룸-2"    sub="7.9m²"/>
-      <MeetingBox x={494} y={186} w={152} h={138} name="미팅룸"     sub="10.5m²"/>
-      <MeetingBox x={650} y={186} w={158} h={138} name="멀티룸"     sub="12.1m²"/>
-      <MeetingBox x={494} y={328} w={152} h={160} name="Conference-1" sub="21.3m²"/>
-      <MeetingBox x={650} y={328} w={158} h={160} name="Conference-2" sub="21.3m²"/>
+      <MeetingBox x={494} y={44} w={152} h={138} name="미팅룸-1"/>
+      <MeetingBox x={650} y={44} w={158} h={138} name="미팅룸-2"/>
+      <MeetingBox x={494} y={186} w={152} h={138} name="미팅룸"/>
+      <MeetingBox x={650} y={186} w={158} h={138} name="멀티룸"/>
+      <MeetingBox x={494} y={328} w={152} h={160} name="Conference-1"/>
+      <MeetingBox x={650} y={328} w={158} h={160} name="Conference-2"/>
       <text x={20} y={16} fontSize={9} fontWeight={800} fill="#1F2937">← 서편</text>
       <text x={800} y={16} fontSize={9} fontWeight={800} fill="#1F2937" textAnchor="end">동편 (미팅룸) →</text>
     </svg>
@@ -982,13 +1004,13 @@ export function NS_2F_Sketch(ctx: SketchCtx) {
       <line x1={928} y1={108} x2={808} y2={208} stroke="#94A3B8" strokeWidth={0.8}/>
       <text x={868} y={160} fontSize={7} textAnchor="middle" fill="#475569">EV홀</text>
       {/* 2F: 포커스룸 2실 + 미팅룸 + 라운지 */}
-      <MeetingBox x={608} y={340} w={155} h={100} name="포커스룸 1" sub="5.0m²"/>
-      <MeetingBox x={608} y={444} w={155} h={100} name="포커스룸 2" sub="5.0m²"/>
+      <MeetingBox x={608} y={340} w={155} h={100} name="포커스룸 1"/>
+      <MeetingBox x={608} y={444} w={155} h={100} name="포커스룸 2"/>
       <rect x={608} y={548} width={155} height={120} rx={3} fill="#FEF3C7" stroke="#D97706" strokeWidth={1.2}/>
       <text x={685} y={608} fontSize={8} textAnchor="middle" fill="#92400E" fontWeight={700}>라운지</text>
       <rect x={626} y={568} width={50} height={20} rx={4} fill="#FDE68A" stroke="#D97706" strokeWidth={0.7}/>
       <rect x={686} y={568} width={50} height={20} rx={4} fill="#FDE68A" stroke="#D97706" strokeWidth={0.7}/>
-      <MeetingBox x={768} y={220} w={160} h={140} name="미팅룸" sub="18.5m²"/>
+      <MeetingBox x={768} y={220} w={160} h={140} name="미팅룸"/>
       <rect x={768} y={364} width={160} height={304} rx={3} fill="#ECFDF5" stroke="#047857" strokeWidth={1.2}/>
       <text x={848} y={510} fontSize={8.5} textAnchor="middle" fill="#065F46" fontWeight={700}>라운지</text>
       <circle cx={848} cy={470} r={22} fill="none" stroke="#86EFAC" strokeWidth={1.2}/>
@@ -1022,17 +1044,16 @@ export function NS_3F_Sketch(ctx: SketchCtx) {
       <line x1={928} y1={108} x2={808} y2={208} stroke="#94A3B8" strokeWidth={0.8}/>
       <text x={868} y={160} fontSize={7} textAnchor="middle" fill="#475569">EV홀</text>
       {/* 3F: 포커스룸 2실 + 라운지 + 미팅룸 + 세미나실 + 미팅홀 */}
-      <MeetingBox x={608} y={340} w={155} h={90} name="포커스룸 1" sub="5.0m²"/>
-      <MeetingBox x={608} y={434} w={155} h={90} name="포커스룸 2" sub="5.0m²"/>
+      <MeetingBox x={608} y={340} w={155} h={90} name="포커스룸 1"/>
+      <MeetingBox x={608} y={434} w={155} h={90} name="포커스룸 2"/>
       <rect x={608} y={528} width={155} height={140} rx={3} fill="#FEF3C7" stroke="#D97706" strokeWidth={1.2}/>
       <text x={685} y={598} fontSize={8} textAnchor="middle" fill="#92400E" fontWeight={700}>라운지</text>
       <rect x={626} y={546} width={44} height={18} rx={4} fill="#FDE68A" stroke="#D97706" strokeWidth={0.7}/>
       <rect x={680} y={546} width={44} height={18} rx={4} fill="#FDE68A" stroke="#D97706" strokeWidth={0.7}/>
-      <MeetingBox x={768} y={220} w={160} h={140} name="미팅룸" sub="18.5m²"/>
-      <MeetingBox x={768} y={364} w={160} h={140} name="세미나실" sub="25.0m²"/>
+      <MeetingBox x={768} y={220} w={160} h={140} name="미팅룸"/>
+      <MeetingBox x={768} y={364} w={160} h={140} name="세미나실"/>
       <rect x={768} y={508} width={160} height={160} rx={3} fill="#ECFDF5" stroke="#047857" strokeWidth={1.4}/>
-      <text x={848} y={582} fontSize={8.5} textAnchor="middle" fill="#065F46" fontWeight={800}>미팅홀</text>
-      <text x={848} y={596} fontSize={7} textAnchor="middle" fill="#047857">30.0m² / 9.1평</text>
+      <text x={848} y={592} fontSize={8.5} textAnchor="middle" fill="#065F46" fontWeight={800}>미팅홀</text>
       {[-30,-10,10,30].map(d=><circle key={d} cx={848+d} cy={552} r={8} fill="#F0FDF4" stroke="#86EFAC" strokeWidth={0.7}/>)}
     </svg>
   );
@@ -1063,14 +1084,13 @@ export function NS_4F_Sketch(ctx: SketchCtx) {
       <line x1={928} y1={108} x2={808} y2={208} stroke="#94A3B8" strokeWidth={0.8}/>
       <text x={868} y={160} fontSize={7} textAnchor="middle" fill="#475569">EV홀</text>
       {/* 4F: 포커스 1~5 + 라운지 (실도면 기준: 포커스4가 상단 대형룸) */}
-      <MeetingBox x={608} y={340} w={155} h={95} name="포커스 1" sub="5.0m²"/>
-      <MeetingBox x={608} y={439} w={155} h={95} name="포커스 2" sub="5.0m²"/>
-      <MeetingBox x={608} y={538} w={155} h={130} name="포커스 3" sub="5.0m²"/>
-      <MeetingBox x={768} y={220} w={160} h={155} name="포커스 4" sub="8.0m²"/>
-      <MeetingBox x={768} y={379} w={160} h={95} name="포커스 5" sub="5.0m²"/>
+      <MeetingBox x={608} y={340} w={155} h={95} name="포커스 1"/>
+      <MeetingBox x={608} y={439} w={155} h={95} name="포커스 2"/>
+      <MeetingBox x={608} y={538} w={155} h={130} name="포커스 3"/>
+      <MeetingBox x={768} y={220} w={160} h={155} name="포커스 4"/>
+      <MeetingBox x={768} y={379} w={160} h={95} name="포커스 5"/>
       <rect x={768} y={478} width={160} height={190} rx={3} fill="#FEF3C7" stroke="#D97706" strokeWidth={1.4}/>
-      <text x={848} y={572} fontSize={8.5} textAnchor="middle" fill="#92400E" fontWeight={800}>라운지</text>
-      <text x={848} y={586} fontSize={7} textAnchor="middle" fill="#92400E" opacity={0.8}>20.0m²</text>
+      <text x={848} y={578} fontSize={8.5} textAnchor="middle" fill="#92400E" fontWeight={800}>라운지</text>
       <circle cx={820} cy={536} r={13} fill="#FEF9C3" stroke="#D97706" strokeWidth={0.8}/>
       <circle cx={876} cy={536} r={13} fill="#FEF9C3" stroke="#D97706" strokeWidth={0.8}/>
     </svg>
@@ -1102,7 +1122,7 @@ export function NS_5F_Sketch(ctx: SketchCtx) {
       <line x1={928} y1={108} x2={808} y2={208} stroke="#94A3B8" strokeWidth={0.8}/>
       <text x={868} y={160} fontSize={7} textAnchor="middle" fill="#475569">EV홀</text>
       {/* 5F: Focus RM + 라운지 + Work Space / Meeting RM 1·2 + 라운지 */}
-      <MeetingBox x={608} y={340} w={155} h={105} name="포커스룸 1" sub="6.1m²"/>
+      <MeetingBox x={608} y={340} w={155} h={105} name="포커스룸 1"/>
       <rect x={608} y={449} width={155} height={105} rx={3} fill="#FEF3C7" stroke="#D97706" strokeWidth={1.2}/>
       <text x={685} y={500} fontSize={8} textAnchor="middle" fill="#92400E" fontWeight={700}>라운지</text>
       <rect x={622} y={516} width={44} height={18} rx={4} fill="#FDE68A" stroke="#D97706" strokeWidth={0.7}/>
@@ -1110,8 +1130,8 @@ export function NS_5F_Sketch(ctx: SketchCtx) {
       <rect x={608} y={558} width={155} height={110} rx={3} fill="#F0FDF4" stroke="#86EFAC" strokeWidth={1.2}/>
       <text x={685} y={612} fontSize={8} textAnchor="middle" fill="#065F46" fontWeight={700}>Work Space</text>
       {[636,682,728].map(x=><rect key={x} x={x} y={576} width={28} height={14} rx={3} fill="#DCFCE7" stroke="#86EFAC" strokeWidth={0.6}/>)}
-      <MeetingBox x={768} y={220} w={160} h={145} name="Meeting RM 1" sub="7.9m²"/>
-      <MeetingBox x={768} y={369} w={160} h={145} name="Meeting RM 2" sub="7.9m²"/>
+      <MeetingBox x={768} y={220} w={160} h={145} name="Meeting RM 1"/>
+      <MeetingBox x={768} y={369} w={160} h={145} name="Meeting RM 2"/>
       <rect x={768} y={518} width={160} height={150} rx={3} fill="#FEF3C7" stroke="#D97706" strokeWidth={1.4}/>
       <text x={848} y={592} fontSize={8.5} textAnchor="middle" fill="#92400E" fontWeight={800}>라운지</text>
       <circle cx={820} cy={553} r={13} fill="#FEF9C3" stroke="#D97706" strokeWidth={0.8}/>
@@ -1167,16 +1187,16 @@ export function SB_3F_Sketch(ctx: SketchCtx) {
       <text x={490} y={135} fontSize={7} textAnchor="middle" fill="#6B21A8" fontWeight={700}>화장실(M)</text>
       <rect x={534} y={90} width={60} height={90} fill="#EFF6FF" stroke="#1D4ED8" strokeWidth={1}/>
       <text x={564} y={135} fontSize={7} textAnchor="middle" fill="#1D4ED8" fontWeight={700}>화장실(F)</text>
-      <MeetingBox x={598} y={90} w={90} h={90} name="Meeting RM.1" sub="7.9m²"/>
-      <MeetingBox x={692} y={90} w={90} h={90} name="Meeting RM.2" sub="7.9m²"/>
-      <MeetingBox x={786} y={90} w={90} h={90} name="Meeting RM.3" sub="7.9m²"/>
+      <MeetingBox x={598} y={90} w={90} h={90} name="Meeting RM.1"/>
+      <MeetingBox x={692} y={90} w={90} h={90} name="Meeting RM.2"/>
+      <MeetingBox x={786} y={90} w={90} h={90} name="Meeting RM.3"/>
       {/* 유리벽 구분선 */}
       <line x1={210} y1={244} x2={880} y2={244} stroke="#60A5FA" strokeWidth={1.5} strokeDasharray="6,3"/>
       <text x={540} y={240} fontSize={7} fill="#3B82F6" textAnchor="middle">— 유리벽 —</text>
       {/* Smart Office 1: 15석 (정적 표시) */}
       <rect x={80} y={258} width={260} height={280} rx={3} fill="#F1F5F9" stroke="#94A3B8" strokeWidth={1} strokeDasharray="4,2"/>
       <text x={210} y={276} fontSize={9} textAnchor="middle" fill="#475569" fontWeight={700}>Smart Office 1</text>
-      <text x={210} y={290} fontSize={8} textAnchor="middle" fill="#94A3B8">84.4㎡ · 25.5평 · 15석</text>
+      <text x={210} y={290} fontSize={8} textAnchor="middle" fill="#94A3B8">15석</text>
       {/* 정적 책상 그리드 (15석 표시용) */}
       {Array.from({length:3},(_,row)=>Array.from({length:5},(_,col)=>(
         <rect key={`so1-${row}-${col}`}
@@ -1185,8 +1205,7 @@ export function SB_3F_Sketch(ctx: SketchCtx) {
       )))}
       {/* Smart Office 2: zone M (40석 인터랙티브) */}
       <rect x={344} y={258} width={532} height={300} rx={3} fill="#EFF6FF" stroke="#93C5FD" strokeWidth={1} strokeDasharray="5,2"/>
-      <text x={610} y={276} fontSize={9} textAnchor="middle" fill="#1E3A8A" fontWeight={700}>Smart Office 2 — {zone.seats.length}석</text>
-      <text x={610} y={290} fontSize={7.5} textAnchor="middle" fill="#3B82F6">142.8㎡ · 43.2평</text>
+      <text x={610} y={280} fontSize={9} textAnchor="middle" fill="#1E3A8A" fontWeight={700}>Smart Office 2 — {zone.seats.length}석</text>
       <DeskGrid zone={zone} startX={352} startY={302} cols={8} rows={5}
         sw={36} sh={13} gx={10} gy={3} rowGroups={[2,3]} aisle={18} ctx={ctx}/>
       {/* 하단 */}
@@ -1221,7 +1240,7 @@ export function SB_4F_Sketch(ctx: SketchCtx) {
       <text x={403} y={135} fontSize={7} textAnchor="middle" fill="#475569" fontWeight={700}>LOCKER</text>
       {/* Focus Offices 상단 5개 */}
       {["Focus 1","Focus 2","Focus 3","Focus 4","Focus 5"].map((n,i)=>(
-        <MeetingBox key={n} x={447+i*87} y={90} w={83} h={90} name={n} sub="5.0m²"/>
+        <MeetingBox key={n} x={447+i*87} y={90} w={83} h={90} name={n}/>
       ))}
       {/* 유리벽 */}
       <line x1={210} y1={192} x2={880} y2={192} stroke="#60A5FA" strokeWidth={1.5} strokeDasharray="6,3"/>
@@ -1263,11 +1282,11 @@ export function SB_5F_Sketch(ctx: SketchCtx) {
       {Array.from({length:6},(_,i)=><line key={i} x1={82} y1={100+i*14} x2={208} y2={100+i*14} stroke="#475569" strokeWidth={0.6}/>)}
       <text x={86} y={102} fontSize={7} fill="#475569" fontWeight={700}>DN/UP</text>
       {/* 상단 룸들 */}
-      <MeetingBox x={215} y={90} w={110} h={90} name="Focus RM 1" sub="6.1m²"/>
+      <MeetingBox x={215} y={90} w={110} h={90} name="Focus RM 1"/>
       <rect x={329} y={90} width={80} height={90} fill="#F1F5F9" stroke="#94A3B8" strokeWidth={1}/>
       <text x={369} y={138} fontSize={7.5} textAnchor="middle" fill="#475569" fontWeight={700}>카운터</text>
-      <MeetingBox x={413} y={90} w={110} h={90} name="Meeting RM.1" sub="7.9m²"/>
-      <MeetingBox x={527} y={90} w={110} h={90} name="Meeting RM.2" sub="7.9m²"/>
+      <MeetingBox x={413} y={90} w={110} h={90} name="Meeting RM.1"/>
+      <MeetingBox x={527} y={90} w={110} h={90} name="Meeting RM.2"/>
       {/* 화장실 */}
       <rect x={641} y={90} width={80} height={44} fill="#F5F3FF" stroke="#6B21A8" strokeWidth={1}/>
       <text x={681} y={116} fontSize={7} textAnchor="middle" fill="#6B21A8" fontWeight={700}>화장실(여)</text>
