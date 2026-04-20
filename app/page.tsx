@@ -677,11 +677,12 @@ const CAT_PALETTE = [
   { bg: "#FEF3C7", color: "#92400E" },
 ];
 function catStyle(cat: string) {
+  if (!cat) return CAT_PALETTE[0];
   const keyword: Record<string, number> = { 보안: 4, 협업: 0, 개발: 1, 디자인: 2, 생산성: 3, AI: 5 };
   for (const [k, i] of Object.entries(keyword)) {
     if (cat.includes(k)) return CAT_PALETTE[i];
   }
-  return CAT_PALETTE[cat.charCodeAt(0) % CAT_PALETTE.length];
+  return CAT_PALETTE[cat.charCodeAt(0) % CAT_PALETTE.length] ?? CAT_PALETTE[0];
 }
 
 function SearchTab() {
