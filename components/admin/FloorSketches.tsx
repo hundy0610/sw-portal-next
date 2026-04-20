@@ -169,7 +169,7 @@ export const BW_FLOOR_TABLES: Record<string, FloorTableDef[]> = {
       {id:"e4", topN:8, botN:8},
       {id:"e5", topN:7},
     ]},
-    { zoneId:"WW", pods:[{id:"ww", topN:7}] },
+    { zoneId:"EW", pods:[{id:"ew", topN:7}] },
   ],
   "4F": [
     { zoneId:"W", pods:[
@@ -587,7 +587,7 @@ export function BW_2F_Sketch(ctx: SketchCtx) {
 // ── 본관 3F: 서편 54석 + 동편 71석 + 벽면 7석 ─────────────────────
 export function BW_3F_Sketch(ctx: SketchCtx) {
   const zW=ctx.zones.find(z=>z.id==="W"), zE=ctx.zones.find(z=>z.id==="E");
-  const zWW=ctx.zones.find(z=>z.id==="WW");
+  const zEW=ctx.zones.find(z=>z.id==="EW");
   if(!zW||!zE) return null;
   const defs = BW_FLOOR_TABLES["3F"];
   const wPods = defs.find(d=>d.zoneId==="W")!.pods;
@@ -610,30 +610,8 @@ export function BW_3F_Sketch(ctx: SketchCtx) {
       {[-12,0,12].map(d=><circle key={d} cx={80+d} cy={96} r={3} fill="#BBF7D0" stroke="#86EFAC" strokeWidth={0.6}/>)}
       <circle cx={238} cy={82} r={9} fill="none" stroke="#86EFAC" strokeWidth={1}/>
       {[-12,0,12].map(d=><circle key={d} cx={238+d} cy={96} r={3} fill="#BBF7D0" stroke="#86EFAC" strokeWidth={0.6}/>)}
-      {/* 벽면 7석 (서편 좌측 외벽 — 안쪽 방향) */}
-      {zWW && zWW.seats.slice(0,7).map((seat,i)=>{
-        const sy=112+i*48;
-        const meta=ctx.colorOf(seat.type);
-        const dimmed=ctx.filter!=="all"&&seat.type!==ctx.filter;
-        const isSel=ctx.selectedId===seat.id;
-        return (
-          <g key={seat.id} style={{cursor:"pointer"}}
-             onClick={(e)=>{e.stopPropagation();!dimmed&&ctx.onSelect(seat.id);}}>
-            {/* 의자 (책상 오른쪽, 안쪽 방향) */}
-            <rect x={40} y={sy+2} width={7} height={6} rx={2}
-              fill={dimmed?"#F3F4F6":"#E8EAED"} stroke="#94A3B8" strokeWidth={0.7}/>
-            {/* 책상 */}
-            <rect x={16} y={sy} width={22} height={10} rx={1.5}
-              fill={dimmed?"#E5E7EB":(meta.color+(seat.type==="unk"?"66":"D9"))}
-              stroke={isSel?meta.color:"#1F2937"} strokeWidth={isSel?1.5:0.7}/>
-            {isSel&&<rect x={14} y={sy-1} width={35} height={12} rx={2} fill="none"
-              stroke={meta.color} strokeWidth={1.6} opacity={0.9}/>}
-            <title>{seat.id}</title>
-          </g>
-        );
-      })}
-      {/* 서편 공유 테이블 — 5 pods (w1-w4 양면 12석, w5 단면 6석), 벽면 7석 공간 확보를 위해 x0=58 */}
-      <SharedTableStack ctx={ctx} zone={zW} pods={wPods} x0={58} y0={112}
+      {/* 서편 공유 테이블 — 5 pods (w1-w4 양면 12석, w5 단면 6석) */}
+      <SharedTableStack ctx={ctx} zone={zW} pods={wPods} x0={22} y0={112}
         dw={22} dh={10} dx={28} tpad={4} igap={12} gap={18}/>
       {/* 미팅룸 하단 */}
       <MeetingBox x={14} y={444} w={140} h={100} name="미팅룸"/>
@@ -653,6 +631,28 @@ export function BW_3F_Sketch(ctx: SketchCtx) {
       {/* 동편 공유 테이블 — 5 pods (e1-e4 양면 16석, e5 단면 7석) */}
       <SharedTableStack ctx={ctx} zone={zE} pods={ePods} x0={500} y0={112}
         dw={22} dh={10} dx={28} tpad={4} igap={12} gap={18}/>
+      {/* 동편 벽면 7석 (동편 우측 외벽 — 안쪽 방향) */}
+      {zEW && zEW.seats.slice(0,7).map((seat,i)=>{
+        const sy=112+i*48;
+        const meta=ctx.colorOf(seat.type);
+        const dimmed=ctx.filter!=="all"&&seat.type!==ctx.filter;
+        const isSel=ctx.selectedId===seat.id;
+        return (
+          <g key={seat.id} style={{cursor:"pointer"}}
+             onClick={(e)=>{e.stopPropagation();if(!dimmed)ctx.onSelect(seat.id);}}>
+            {/* 의자 (책상 왼쪽, 안쪽 방향) */}
+            <rect x={762} y={sy+2} width={7} height={6} rx={2}
+              fill={dimmed?"#F3F4F6":"#E8EAED"} stroke="#94A3B8" strokeWidth={0.7}/>
+            {/* 책상 */}
+            <rect x={770} y={sy} width={22} height={10} rx={1.5}
+              fill={dimmed?"#E5E7EB":(meta.color+(seat.type==="unk"?"66":"D9"))}
+              stroke={isSel?meta.color:"#1F2937"} strokeWidth={isSel?1.5:0.7}/>
+            {isSel&&<rect x={760} y={sy-1} width={35} height={12} rx={2} fill="none"
+              stroke={meta.color} strokeWidth={1.6} opacity={0.9}/>}
+            <title>{seat.id}</title>
+          </g>
+        );
+      })}
       <text x={20} y={16} fontSize={9} fontWeight={800} fill="#1F2937">← 서편</text>
       <text x={800} y={16} fontSize={9} fontWeight={800} fill="#1F2937" textAnchor="end">동편 →</text>
     </svg>

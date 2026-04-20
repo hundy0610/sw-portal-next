@@ -129,7 +129,7 @@ const BUILDINGS: BuildingData[] = [
         zones:[
           buildZone("W","서편","W",6,9, f(54,"unk"), "BW","3F"),
           buildZone("E","동편","E",8,9, f(71,"unk"), "BW","3F"),
-          buildZone("WW","서편 벽면","W",1,7, f(7,"unk"), "BW","3F"),
+          buildZone("EW","동편 벽면","E",1,7, f(7,"unk"), "BW","3F"),
         ],
         rooms:["미팅룸","미팅룸"] },
       { id:"4F", label:"4층", note:"서편 74석 · 동편 49석",
