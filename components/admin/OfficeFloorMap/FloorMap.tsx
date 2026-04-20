@@ -31,11 +31,25 @@ function InfoPanel({ table, onClose }: { table: LayoutTable; onClose: () => void
 }
 
 // ─── 메인 컴포넌트 ────────────────────────────────────────────────────────────
-export function FloorMap() {
-  const [floorId, setFloorId] = useState<FloorId>("3F");
+export function FloorMap({
+  floor: floorProp,
+  showTabs = true,
+}: {
+  floor?: FloorId;
+  showTabs?: boolean;
+}) {
+  const [floorId, setFloorId] = useState<FloorId>(floorProp ?? "3F");
   const [selected, setSelected] = useState<LayoutTable | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
+
+  // 외부에서 층이 바뀌면 내부 상태도 동기화
+  useEffect(() => {
+    if (floorProp && floorProp !== floorId) {
+      setFloorId(floorProp);
+      setSelected(null);
+    }
+  }, [floorProp]);
 
   // 컨테이너 너비에 따라 Stage 축소
   useEffect(() => {
@@ -125,25 +139,27 @@ export function FloorMap() {
 
   return (
     <div className="flex flex-col gap-3 w-full">
-      {/* ── 층 선택 탭 ─────────────────────────────────────────────────── */}
-      <div className="flex gap-1.5 flex-wrap">
-        {FLOOR_IDS.map((fid) => (
-          <button
-            key={fid}
-            onClick={() => { setFloorId(fid); setSelected(null); }}
-            className={`px-3 py-1.5 rounded-md text-sm font-semibold transition-colors ${
-              floorId === fid
-                ? "bg-blue-600 text-white shadow"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            }`}
-          >
-            {fid}
-          </button>
-        ))}
-        <span className="ml-auto text-xs text-slate-400 self-center">
-          총 {westSeats + eastSeats}석
-        </span>
-      </div>
+      {/* ── 층 선택 탭 (showTabs=false이면 AssetMapPanel이 층 탭을 이미 제공) ── */}
+      {showTabs && (
+        <div className="flex gap-1.5 flex-wrap">
+          {FLOOR_IDS.map((fid) => (
+            <button
+              key={fid}
+              onClick={() => { setFloorId(fid); setSelected(null); }}
+              className={`px-3 py-1.5 rounded-md text-sm font-semibold transition-colors ${
+                floorId === fid
+                  ? "bg-blue-600 text-white shadow"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              {fid}
+            </button>
+          ))}
+          <span className="ml-auto text-xs text-slate-400 self-center">
+            총 {westSeats + eastSeats}석
+          </span>
+        </div>
+      )}
 
       {/* ── 선택 정보 ───────────────────────────────────────────────────── */}
       {selected && (
