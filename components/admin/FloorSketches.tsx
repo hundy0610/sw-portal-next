@@ -981,12 +981,18 @@ export function NS_2F_Sketch(ctx: SketchCtx) {
       <line x1={808} y1={108} x2={928} y2={208} stroke="#94A3B8" strokeWidth={0.8}/>
       <line x1={928} y1={108} x2={808} y2={208} stroke="#94A3B8" strokeWidth={0.8}/>
       <text x={868} y={160} fontSize={7} textAnchor="middle" fill="#475569">EV홀</text>
-      {/* 미팅룸들 */}
-      <MeetingBox x={608} y={340} w={155} h={110} name="미팅룸 1" sub="7.9m²"/>
-      <MeetingBox x={608} y={454} w={155} h={110} name="미팅룸 2" sub="7.9m²"/>
-      <MeetingBox x={768} y={220} w={160} h={145} name="회의실" sub="18.5m²"/>
-      <MeetingBox x={768} y={370} w={160} h={145} name="라운지" sub="15.2m²"/>
-      <MeetingBox x={768} y={520} w={160} h={145} name="포커스룸" sub="8.1m²"/>
+      {/* 2F: 포커스룸 2실 + 미팅룸 + 라운지 */}
+      <MeetingBox x={608} y={340} w={155} h={100} name="포커스룸 1" sub="5.0m²"/>
+      <MeetingBox x={608} y={444} w={155} h={100} name="포커스룸 2" sub="5.0m²"/>
+      <rect x={608} y={548} width={155} height={120} rx={3} fill="#FEF3C7" stroke="#D97706" strokeWidth={1.2}/>
+      <text x={685} y={608} fontSize={8} textAnchor="middle" fill="#92400E" fontWeight={700}>라운지</text>
+      <rect x={626} y={568} width={50} height={20} rx={4} fill="#FDE68A" stroke="#D97706" strokeWidth={0.7}/>
+      <rect x={686} y={568} width={50} height={20} rx={4} fill="#FDE68A" stroke="#D97706" strokeWidth={0.7}/>
+      <MeetingBox x={768} y={220} w={160} h={140} name="미팅룸" sub="18.5m²"/>
+      <rect x={768} y={364} width={160} height={304} rx={3} fill="#ECFDF5" stroke="#047857" strokeWidth={1.2}/>
+      <text x={848} y={510} fontSize={8.5} textAnchor="middle" fill="#065F46" fontWeight={700}>라운지</text>
+      <circle cx={848} cy={470} r={22} fill="none" stroke="#86EFAC" strokeWidth={1.2}/>
+      {[-18,0,18].map(d=><rect key={d} x={830+d} y={536} width={36} height={14} rx={4} fill="#BBF7D0" stroke="#86EFAC" strokeWidth={0.6}/>)}
     </svg>
   );
 }
@@ -1015,13 +1021,19 @@ export function NS_3F_Sketch(ctx: SketchCtx) {
       <line x1={808} y1={108} x2={928} y2={208} stroke="#94A3B8" strokeWidth={0.8}/>
       <line x1={928} y1={108} x2={808} y2={208} stroke="#94A3B8" strokeWidth={0.8}/>
       <text x={868} y={160} fontSize={7} textAnchor="middle" fill="#475569">EV홀</text>
-      {/* 포커스룸 + 라운지 */}
+      {/* 3F: 포커스룸 2실 + 라운지 + 미팅룸 + 세미나실 + 미팅홀 */}
       <MeetingBox x={608} y={340} w={155} h={90} name="포커스룸 1" sub="5.0m²"/>
       <MeetingBox x={608} y={434} w={155} h={90} name="포커스룸 2" sub="5.0m²"/>
-      <MeetingBox x={608} y={528} w={155} h={140} name="라운지" sub="20.0m²"/>
-      <MeetingBox x={768} y={220} w={160} h={145} name="미팅룸" sub="18.5m²"/>
-      <MeetingBox x={768} y={370} w={160} h={145} name="세미나실" sub="25.0m²"/>
-      <MeetingBox x={768} y={520} w={160} h={148} name="포커스룸 3" sub="5.0m²"/>
+      <rect x={608} y={528} width={155} height={140} rx={3} fill="#FEF3C7" stroke="#D97706" strokeWidth={1.2}/>
+      <text x={685} y={598} fontSize={8} textAnchor="middle" fill="#92400E" fontWeight={700}>라운지</text>
+      <rect x={626} y={546} width={44} height={18} rx={4} fill="#FDE68A" stroke="#D97706" strokeWidth={0.7}/>
+      <rect x={680} y={546} width={44} height={18} rx={4} fill="#FDE68A" stroke="#D97706" strokeWidth={0.7}/>
+      <MeetingBox x={768} y={220} w={160} h={140} name="미팅룸" sub="18.5m²"/>
+      <MeetingBox x={768} y={364} w={160} h={140} name="세미나실" sub="25.0m²"/>
+      <rect x={768} y={508} width={160} height={160} rx={3} fill="#ECFDF5" stroke="#047857" strokeWidth={1.4}/>
+      <text x={848} y={582} fontSize={8.5} textAnchor="middle" fill="#065F46" fontWeight={800}>미팅홀</text>
+      <text x={848} y={596} fontSize={7} textAnchor="middle" fill="#047857">30.0m² / 9.1평</text>
+      {[-30,-10,10,30].map(d=><circle key={d} cx={848+d} cy={552} r={8} fill="#F0FDF4" stroke="#86EFAC" strokeWidth={0.7}/>)}
     </svg>
   );
 }
@@ -1050,15 +1062,17 @@ export function NS_4F_Sketch(ctx: SketchCtx) {
       <line x1={808} y1={108} x2={928} y2={208} stroke="#94A3B8" strokeWidth={0.8}/>
       <line x1={928} y1={108} x2={808} y2={208} stroke="#94A3B8" strokeWidth={0.8}/>
       <text x={868} y={160} fontSize={7} textAnchor="middle" fill="#475569">EV홀</text>
-      {/* 포커스 오피스 */}
-      {["포커스 1","포커스 2","포커스 3"].map((n,i)=>(
-        <MeetingBox key={n} x={608} y={340+i*110} w={155} h={106} name={n} sub="5.0m²"/>
-      ))}
-      {["포커스 4","포커스 5"].map((n,i)=>(
-        <MeetingBox key={n} x={768} y={220+i*130} w={160} h={126} name={n} sub="5.0m²"/>
-      ))}
-      <rect x={768} y={480} width={160} height={188} fill="#FEF3C7" stroke="#D97706" strokeWidth={1.2}/>
-      <text x={848} y={570} fontSize={8} textAnchor="middle" fill="#92400E" fontWeight={700}>라운지</text>
+      {/* 4F: 포커스 1~5 + 라운지 (실도면 기준: 포커스4가 상단 대형룸) */}
+      <MeetingBox x={608} y={340} w={155} h={95} name="포커스 1" sub="5.0m²"/>
+      <MeetingBox x={608} y={439} w={155} h={95} name="포커스 2" sub="5.0m²"/>
+      <MeetingBox x={608} y={538} w={155} h={130} name="포커스 3" sub="5.0m²"/>
+      <MeetingBox x={768} y={220} w={160} h={155} name="포커스 4" sub="8.0m²"/>
+      <MeetingBox x={768} y={379} w={160} h={95} name="포커스 5" sub="5.0m²"/>
+      <rect x={768} y={478} width={160} height={190} rx={3} fill="#FEF3C7" stroke="#D97706" strokeWidth={1.4}/>
+      <text x={848} y={572} fontSize={8.5} textAnchor="middle" fill="#92400E" fontWeight={800}>라운지</text>
+      <text x={848} y={586} fontSize={7} textAnchor="middle" fill="#92400E" opacity={0.8}>20.0m²</text>
+      <circle cx={820} cy={536} r={13} fill="#FEF9C3" stroke="#D97706" strokeWidth={0.8}/>
+      <circle cx={876} cy={536} r={13} fill="#FEF9C3" stroke="#D97706" strokeWidth={0.8}/>
     </svg>
   );
 }
@@ -1087,16 +1101,21 @@ export function NS_5F_Sketch(ctx: SketchCtx) {
       <line x1={808} y1={108} x2={928} y2={208} stroke="#94A3B8" strokeWidth={0.8}/>
       <line x1={928} y1={108} x2={808} y2={208} stroke="#94A3B8" strokeWidth={0.8}/>
       <text x={868} y={160} fontSize={7} textAnchor="middle" fill="#475569">EV홀</text>
-      {/* 5F: Focus RM + Counter + Meeting RMs */}
-      <MeetingBox x={608} y={340} w={155} h={110} name="Focus RM 1" sub="6.1m²"/>
-      <MeetingBox x={608} y={454} w={155} h={110} name="카운터" sub="5.0m²"/>
-      <MeetingBox x={608} y={568} w={155} h={100} name="Work Space" sub="20.0m²"/>
+      {/* 5F: Focus RM + 라운지 + Work Space / Meeting RM 1·2 + 라운지 */}
+      <MeetingBox x={608} y={340} w={155} h={105} name="포커스룸 1" sub="6.1m²"/>
+      <rect x={608} y={449} width={155} height={105} rx={3} fill="#FEF3C7" stroke="#D97706" strokeWidth={1.2}/>
+      <text x={685} y={500} fontSize={8} textAnchor="middle" fill="#92400E" fontWeight={700}>라운지</text>
+      <rect x={622} y={516} width={44} height={18} rx={4} fill="#FDE68A" stroke="#D97706" strokeWidth={0.7}/>
+      <rect x={676} y={516} width={44} height={18} rx={4} fill="#FDE68A" stroke="#D97706" strokeWidth={0.7}/>
+      <rect x={608} y={558} width={155} height={110} rx={3} fill="#F0FDF4" stroke="#86EFAC" strokeWidth={1.2}/>
+      <text x={685} y={612} fontSize={8} textAnchor="middle" fill="#065F46" fontWeight={700}>Work Space</text>
+      {[636,682,728].map(x=><rect key={x} x={x} y={576} width={28} height={14} rx={3} fill="#DCFCE7" stroke="#86EFAC" strokeWidth={0.6}/>)}
       <MeetingBox x={768} y={220} w={160} h={145} name="Meeting RM 1" sub="7.9m²"/>
-      <MeetingBox x={768} y={370} w={160} h={145} name="Meeting RM 2" sub="7.9m²"/>
-      <rect x={768} y={520} width={160} height={148} fill="#FEF3C7" stroke="#D97706" strokeWidth={1.2}/>
-      <text x={848} y={594} fontSize={8.5} textAnchor="middle" fill="#92400E" fontWeight={700}>라운지</text>
-      <rect x={786} y={555} width={50} height={22} rx={5} fill="#FDE68A" stroke="#D97706" strokeWidth={0.7}/>
-      <rect x={848} y={555} width={50} height={22} rx={5} fill="#FDE68A" stroke="#D97706" strokeWidth={0.7}/>
+      <MeetingBox x={768} y={369} w={160} h={145} name="Meeting RM 2" sub="7.9m²"/>
+      <rect x={768} y={518} width={160} height={150} rx={3} fill="#FEF3C7" stroke="#D97706" strokeWidth={1.4}/>
+      <text x={848} y={592} fontSize={8.5} textAnchor="middle" fill="#92400E" fontWeight={800}>라운지</text>
+      <circle cx={820} cy={553} r={13} fill="#FEF9C3" stroke="#D97706" strokeWidth={0.8}/>
+      <circle cx={876} cy={553} r={13} fill="#FEF9C3" stroke="#D97706" strokeWidth={0.8}/>
     </svg>
   );
 }
