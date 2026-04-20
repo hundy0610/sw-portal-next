@@ -13,7 +13,6 @@ const ReportPanel       = dynamic(() => import("@/components/admin/ReportPanel")
 const HwPanel           = dynamic(() => import("@/components/admin/HwPanel"),           { ssr: false });
 const AccountsPanel     = dynamic(() => import("@/components/admin/AccountsPanel"),     { ssr: false });
 const AssetMapPanel     = dynamic(() => import("@/components/admin/AssetMapPanel"),     { ssr: false });
-const FloorMap          = dynamic(() => import("@/components/admin/OfficeFloorMap").then(m => ({ default: m.FloorMap })), { ssr: false });
 
 // ── 세션 타입 ──────────────────────────────────────────────────
 interface SessionInfo {
@@ -24,7 +23,7 @@ interface SessionInfo {
   mustChangePassword?: boolean;
 }
 
-type PageId = "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "accounts" | "assetmap" | "floormap";
+type PageId = "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "accounts" | "assetmap";
 
 // ── 메뉴 정의 ──────────────────────────────────────────────────
 const SUPER_MENU: { id: PageId; icon: string; label: string; desc: string }[] = [
@@ -35,7 +34,6 @@ const SUPER_MENU: { id: PageId; icon: string; label: string; desc: string }[] = 
   { id: "report",     icon: "📊", label: "구독 리포트",   desc: "현황 분석 · 만료 알림"  },
   { id: "hw",         icon: "💻", label: "HW 자산 관리",  desc: "NT/DT 재고 · 반납 관리" },
   { id: "assetmap",   icon: "🗺", label: "스마트오피스 모니터 관리", desc: "인터랙티브 자산 맵"    },
-  { id: "floormap",   icon: "🏢", label: "사무실 배치도",           desc: "층별 테이블 배치 (Konva)" },
   { id: "accounts",   icon: "👤", label: "계정 설정",     desc: "담당자 계정 관리"       },
 ];
 
@@ -172,12 +170,6 @@ export default function AdminPage() {
       case "report":      return <ReportPanel company={company} />;
       case "hw":          return <HwPanel company={company} initialStats={hwStatsPrefetch} />;
       case "assetmap":    return <AssetMapPanel />;
-      case "floormap":    return (
-        <div className="p-6">
-          <h2 className="text-lg font-bold text-slate-800 mb-4">본관 사무실 배치도 (3F–9F)</h2>
-          <FloorMap />
-        </div>
-      );
       case "accounts":    return isSuper ? <AccountsPanel /> : null;
       default:            return null;
     }
