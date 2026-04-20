@@ -4,10 +4,5 @@
       "path": "/api/cron/warm-cache",
       "schedule": "0 9 * * *"
     }
-<<<<<<< HEAD
-  ],
-  "ignoreCommand": "exit 1"
-=======
   ]
->>>>>>> origin/main
 }
