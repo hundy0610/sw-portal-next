@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, Suspense } from "react";
 import type { Notice, Course, Resource, ResourceCategory } from "@/types/portal";
 import type { AuditLog } from "@/lib/portal-store";
+import type { SwItem } from "@/types";
 
 /* ── 색상 토큰 ── */
 const C = {
@@ -19,7 +20,7 @@ const C = {
   dangerSoft:  "#FEE2E2",
 } as const;
 
-type ManageTab = "notices" | "courses" | "resources" | "audit";
+type ManageTab = "notices" | "courses" | "resources" | "swdb" | "audit";
 
 interface SessionInfo {
   name: string;
@@ -82,6 +83,7 @@ function ManageDashboard({ session }: { session: SessionInfo }) {
     { id: "notices",   label: "공지사항", icon: "🔔" },
     { id: "courses",   label: "교육과정", icon: "🎓" },
     { id: "resources", label: "자료실",   icon: "📁" },
+    { id: "swdb",      label: "SW 검색",  icon: "🔍" },
     { id: "audit",     label: "감사 로그", icon: "🕵️" },
   ];
 
@@ -129,6 +131,7 @@ function ManageDashboard({ session }: { session: SessionInfo }) {
         {tab === "notices"   && <NoticesPanel   />}
         {tab === "courses"   && <CoursesPanel   />}
         {tab === "resources" && <ResourcesPanel />}
+        {tab === "swdb"      && <SwPanel        />}
         {tab === "audit"     && <AuditPanel     />}
       </main>
     </div>
@@ -407,6 +410,120 @@ function ResourcesPanel() {
 }
 
 /* ══════════════════════════════════════════════════════
+   SW 검색 패널
+══════════════════════════════════════════════════════ */
+function SwPanel() {
+  const [items,   setItems]   = useState<SwItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [adding,  setAdding]  = useState(false);
+  const [saving,  setSaving]  = useState(false);
+  const [editing, setEditing] = useState<SwItem | null>(null);
+
+  const defaultForm = { name: "", vendor: "", category: "", status: "conditional" as SwItem["status"], description: "", alternatives: "", mandatory: false, totalLicenses: 999 };
+  const [form, setForm] = useState(defaultForm);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetch("/api/sw-db").then(r => r.json()).then(res => setItems(res.data ?? [])).finally(() => setLoading(false));
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  function startAdd() { setForm(defaultForm); setEditing(null); setAdding(true); }
+  function startEdit(item: SwItem) {
+    setForm({ name: item.name, vendor: item.vendor, category: item.category, status: item.status, description: item.description, alternatives: item.alternatives.join(", "), mandatory: item.mandatory, totalLicenses: item.totalLicenses });
+    setEditing(item);
+    setAdding(true);
+  }
+
+  async function handleSave() {
+    if (!form.name.trim()) return;
+    setSaving(true);
+    const payload = { ...form, alternatives: form.alternatives.split(",").map(s => s.trim()).filter(Boolean) };
+    if (editing) {
+      await fetch("/api/sw-db", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ _action: "update", id: editing.id, data: payload }) });
+    } else {
+      await fetch("/api/sw-db", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    }
+    setSaving(false); setAdding(false); setEditing(null);
+    setForm(defaultForm);
+    load();
+  }
+
+  async function del(id: string, name: string) {
+    if (!confirm(`"${name}" 을(를) 삭제하시겠습니까?`)) return;
+    await fetch("/api/sw-db", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ _action: "delete", id }) });
+    load();
+  }
+
+  const STATUS_STYLE: Record<SwItem["status"], { text: string; bg: string; color: string }> = {
+    approved:    { text: "승인",  bg: "#D1FAE5", color: "#065F46" },
+    banned:      { text: "금지",  bg: "#FEE2E2", color: "#B91C1C" },
+    conditional: { text: "조건부", bg: "#FEF3C7", color: "#92400E" },
+  };
+
+  return (
+    <div>
+      <SectionHeader title="SW 검색 관리" count={items.length} onAdd={startAdd} />
+      {adding && (
+        <FormCard title={editing ? `수정: ${editing.name}` : "새 SW 등록"} onCancel={() => { setAdding(false); setEditing(null); }} onSave={handleSave} saving={saving} disabled={!form.name.trim()}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Field label="SW 이름 *"><input style={iStyle} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="예: Microsoft Teams" /></Field>
+            <Field label="제조사"><input style={iStyle} value={form.vendor} onChange={e => setForm(f => ({ ...f, vendor: e.target.value }))} placeholder="예: Microsoft" /></Field>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Field label="카테고리"><input style={iStyle} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} placeholder="예: 협업, 개발, 보안" /></Field>
+            <Field label="상태">
+              <select style={iStyle} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as SwItem["status"] }))}>
+                <option value="approved">승인</option>
+                <option value="conditional">조건부</option>
+                <option value="banned">금지</option>
+              </select>
+            </Field>
+          </div>
+          <Field label="설명"><textarea style={{ ...iStyle, minHeight: 80, resize: "vertical" }} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="SW 설명 및 사용 조건" /></Field>
+          <Field label="대체 SW (쉼표로 구분)"><input style={iStyle} value={form.alternatives} onChange={e => setForm(f => ({ ...f, alternatives: e.target.value }))} placeholder="예: Slack, Zoom, Google Meet" /></Field>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Field label="총 라이선스 수"><input type="number" style={iStyle} value={form.totalLicenses} onChange={e => setForm(f => ({ ...f, totalLicenses: Number(e.target.value) }))} /></Field>
+            <div style={{ display: "flex", alignItems: "flex-end", paddingBottom: 2 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.text2, cursor: "pointer" }}>
+                <input type="checkbox" checked={form.mandatory} onChange={e => setForm(f => ({ ...f, mandatory: e.target.checked }))} /> 필수 설치 SW
+              </label>
+            </div>
+          </div>
+        </FormCard>
+      )}
+      <ItemList loading={loading} empty="아직 등록된 SW가 없습니다.">
+        {items.map(sw => {
+          const st = STATUS_STYLE[sw.status];
+          return (
+            <div key={sw.id} style={{ background: "#fff", borderRadius: 16, padding: 20, display: "flex", alignItems: "center", gap: 16, border: `1px solid ${C.border}` }}>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: st.bg, color: st.color, flexShrink: 0 }}>{st.text}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: C.text1, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {sw.name}
+                  {sw.mandatory && <span style={{ marginLeft: 6, fontSize: 10, padding: "2px 6px", borderRadius: 4, background: C.primarySoft, color: C.primary }}>필수</span>}
+                </p>
+                <p style={{ fontSize: 11, color: C.text4, margin: "4px 0 0" }}>{sw.vendor}{sw.category ? ` · ${sw.category}` : ""}{sw.alternatives.length ? ` · 대체: ${sw.alternatives.join(", ")}` : ""}</p>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                <button onClick={() => startEdit(sw)}
+                  style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: C.primarySoft, color: C.primary }}>
+                  수정
+                </button>
+                <button onClick={() => del(sw.id, sw.name)}
+                  style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: C.dangerSoft, color: C.danger }}>
+                  삭제
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </ItemList>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════
    감사 로그 패널
 ══════════════════════════════════════════════════════ */
 function AuditPanel() {
@@ -427,7 +544,7 @@ function AuditPanel() {
   };
 
   const TARGET_LABEL: Record<AuditLog["target"], string> = {
-    notices: "공지사항", courses: "교육과정", resources: "자료실",
+    notices: "공지사항", courses: "교육과정", resources: "자료실", swdb: "SW 검색",
   };
 
   function formatTime(iso: string) {
