@@ -5,7 +5,7 @@ import type { SwItem } from "@/types";
 import type { Notice, Course, Resource, ResourceCategory } from "@/types/portal";
 import DeclarationPanel from "@/components/DeclarationPanel";
 
-type Tab    = "home" | "education" | "resources" | "search" | "declaration";
+type Tab    = "home" | "notices" | "education" | "resources" | "search" | "declaration";
 type ResTab = ResourceCategory | "all";
 
 const INQUIRY_URL = "https://assetify-desk.vercel.app/inquiry";
@@ -64,6 +64,7 @@ function Icon({ n, s = 18 }: { n: string; s?: number }) {
 
 const NAV_ITEMS = [
   { id: "home"        as Tab, icon: "home",   label: "홈",       short: "홈"    },
+  { id: "notices"     as Tab, icon: "bell",   label: "공지사항",  short: "공지"  },
   { id: "education"   as Tab, icon: "edu",    label: "교육 센터", short: "교육"  },
   { id: "resources"   as Tab, icon: "folder", label: "자료실",    short: "자료실" },
   { id: "search"      as Tab, icon: "search", label: "SW 검색",   short: "SW"   },
@@ -131,6 +132,7 @@ export default function PortalPage() {
       <main className="flex-1 lg:ml-[240px] min-h-screen pb-20 lg:pb-10 pt-14 lg:pt-0">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
           {tab === "home"        && <HomeTab onNavigate={setTab} />}
+          {tab === "notices"     && <NoticesTab />}
           {tab === "education"   && <EducationTab />}
           {tab === "resources"   && <ResourcesTab />}
           {tab === "search"      && <SearchTab />}
@@ -293,6 +295,68 @@ function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════
+   공지사항 탭
+══════════════════════════════════════════════════════ */
+function NoticesTab() {
+  const [notices, setNotices] = useState<Notice[]>([]);
+  const [selected, setSelected] = useState<Notice | null>(null);
+
+  useEffect(() => {
+    fetch("/api/notices")
+      .then(r => r.json())
+      .then(res => setNotices(res.data ?? []));
+  }, []);
+
+  return (
+    <div className="fade-in">
+      <div className="mb-8">
+        <p className="text-sm font-semibold tracking-wider uppercase mb-1" style={{ color: C.primary }}>
+          공지사항
+        </p>
+        <h2 className="text-4xl font-extrabold tracking-tight"
+          style={{ fontFamily: "Manrope, sans-serif", color: C.text1 }}>알림판</h2>
+      </div>
+
+      {notices.length === 0 ? (
+        <div className="text-center py-16 rounded-[20px]" style={{ background: C.bg, color: C.text4 }}>
+          등록된 공지사항이 없습니다.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {notices.map(n => (
+            <div key={n.id}>
+              <div
+                className="bg-white rounded-[16px] px-6 py-4 flex items-center gap-4 cursor-pointer transition-all hover:shadow-md"
+                style={{ border: selected?.id === n.id ? `2px solid ${C.primary}` : `1px solid ${C.border}` }}
+                onClick={() => setSelected(selected?.id === n.id ? null : n)}
+              >
+                <span className="text-xs font-bold px-2 py-0.5 rounded-md shrink-0"
+                  style={n.urgent
+                    ? { background: "#FEE2E2", color: "#DC2626" }
+                    : { background: "#f1f5f9", color: C.text3 }}>
+                  {n.urgent ? "긴급" : "안내"}
+                </span>
+                <span className="text-sm font-medium flex-1" style={{ color: C.text1 }}>{n.title}</span>
+                <span className="text-xs shrink-0" style={{ color: C.text4 }}>{n.date}</span>
+                <span style={{ color: C.text4, transform: selected?.id === n.id ? "rotate(90deg)" : "none", transition: "transform 0.2s" }}>
+                  <Icon n="chevron" s={14} />
+                </span>
+              </div>
+              {selected?.id === n.id && n.content && (
+                <div className="mx-2 px-6 py-5 rounded-b-[16px] text-sm leading-relaxed whitespace-pre-wrap"
+                  style={{ background: C.bg, color: C.text2, borderTop: "none" }}>
+                  {n.content}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
