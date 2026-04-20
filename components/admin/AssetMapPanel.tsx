@@ -2,13 +2,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { FLOOR_SKETCHES, SketchCtx, SketchZone, BW_FLOOR_TABLES } from "./FloorSketches";
-import type { FloorId } from "./OfficeFloorMap/officeData";
-
-// 본관 3F~9F 재설계 도면 (Konva 기반) — SSR 제외
-const KonvaFloorMap = dynamic(
-  () => import("./OfficeFloorMap/FloorMap").then(m => ({ default: m.FloorMap })),
-  { ssr: false, loading: () => <div className="flex items-center justify-center h-48 text-gray-400 text-sm">도면 로딩 중…</div> }
-);
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -1253,45 +1246,33 @@ export default function AssetMapPanel() {
             {floor.note && <p className="text-xs text-gray-400 mt-0.5">{floor.note}</p>}
           </div>
 
-          {/* 본관 3F~9F: 재설계 Konva 도면 */}
-          {buildingId === "bw" && floorId !== "2F" ? (
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-              <KonvaFloorMap
-                floor={floorId as FloorId}
-                showTabs={false}
-              />
-            </div>
-          ) : (
-            <>
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-                <FloorPlanSVG
-                  bldId={buildingId} floorId={floor.id}
-                  zones={effectiveZones} filter={filter}
-                  selectedId={selectedId} onSelect={handleSelect}
-                  editMode={editMode} pickedId={pickedId}
-                  onPickSeat={handlePickSeat}
-                  onDropToSeat={handleDropToSeat}
-                  onDropToSlot={handleDropToSlot}
-                  onDeleteSeat={handleDeleteSeat}
-                  onAddSeat={handleAddSeat}
-                  tableSeats={tableSeatsForCtx}
-                  onTableSeatDelete={handleTableSeatDelete}
-                  onTableSeatAdd={handleTableSeatAdd}
-                />
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <FloorPlanSVG
+              bldId={buildingId} floorId={floor.id}
+              zones={effectiveZones} filter={filter}
+              selectedId={selectedId} onSelect={handleSelect}
+              editMode={editMode} pickedId={pickedId}
+              onPickSeat={handlePickSeat}
+              onDropToSeat={handleDropToSeat}
+              onDropToSlot={handleDropToSlot}
+              onDeleteSeat={handleDeleteSeat}
+              onAddSeat={handleAddSeat}
+              tableSeats={tableSeatsForCtx}
+              onTableSeatDelete={handleTableSeatDelete}
+              onTableSeatAdd={handleTableSeatAdd}
+            />
+          </div>
+          {/* 범례 */}
+          <div className="flex gap-4 mt-3 px-1 flex-wrap items-center">
+            <span className="text-[10px] font-semibold text-gray-400">범례</span>
+            {TYPES.map(t => (
+              <div key={t} className="flex items-center gap-1.5">
+                <div className="w-3.5 h-3 rounded-sm" style={{ background:MONITOR[t].color+(t==="unk"?"55":"CC") }}/>
+                <span className="text-[11px] text-gray-500">{MONITOR[t].long}</span>
               </div>
-              {/* 범례 (SVG 모드에서만 표시) */}
-              <div className="flex gap-4 mt-3 px-1 flex-wrap items-center">
-                <span className="text-[10px] font-semibold text-gray-400">범례</span>
-                {TYPES.map(t => (
-                  <div key={t} className="flex items-center gap-1.5">
-                    <div className="w-3.5 h-3 rounded-sm" style={{ background:MONITOR[t].color+(t==="unk"?"55":"CC") }}/>
-                    <span className="text-[11px] text-gray-500">{MONITOR[t].long}</span>
-                  </div>
-                ))}
-                <span className="text-[10px] text-gray-300 ml-2">A~Z = 행 / 1,2,3… = 열</span>
-              </div>
-            </>
-          )}
+            ))}
+            <span className="text-[10px] text-gray-300 ml-2">A~Z = 행 / 1,2,3… = 열</span>
+          </div>
         </div>
 
         {/* 우측 패널 */}
