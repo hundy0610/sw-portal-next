@@ -6,7 +6,7 @@ import type { Notice, Course, Resource, ResourceCategory } from "@/types/portal"
 import DeclarationPanel from "@/components/DeclarationPanel";
 
 type Tab    = "home" | "education" | "resources" | "search" | "declaration";
-type ResTab = ResourceCategory;
+type ResTab = ResourceCategory | "all";
 
 const INQUIRY_URL = "https://assetify-desk.vercel.app/inquiry";
 
@@ -458,8 +458,17 @@ function EducationTab() {
 /* ══════════════════════════════════════════════════════
    자료실 탭
 ══════════════════════════════════════════════════════ */
+const CATEGORY_LABEL: Record<string, string> = {
+  install:   "설치 가이드",
+  installer: "설치 파일",
+  patch:     "패치 파일",
+  policy:    "정책 문서",
+  forms:     "양식 서식",
+  other:     "기타",
+};
+
 function ResourcesTab() {
-  const [resTab,    setResTab]    = useState<ResTab>("install");
+  const [resTab,    setResTab]    = useState<ResTab>("all");
   const [resources, setResources] = useState<Resource[]>([]);
 
   useEffect(() => {
@@ -468,7 +477,11 @@ function ResourcesTab() {
       .then(res => setResources(res.data ?? []));
   }, []);
 
-  const FILES = resources.filter(r => r.category === resTab);
+  const FILES = resTab === "all" ? resources : resources.filter(r => r.category === resTab);
+
+  const RECENT_TWO = [...resources]
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    .slice(0, 2);
 
   const FILE_STYLE: Record<string, { bg: string; color: string }> = {
     PDF:  { bg: "#FEE2E2", color: "#B91C1C" },
@@ -476,13 +489,14 @@ function ResourcesTab() {
     DOCX: { bg: "#DBEAFE", color: "#1E40AF" },
   };
 
-  const RES_TABS = [
-    { key: "install"   as ResTab, label: "설치 가이드" },
-    { key: "installer" as ResTab, label: "설치 파일"   },
-    { key: "patch"     as ResTab, label: "패치 파일"   },
-    { key: "policy"    as ResTab, label: "정책 문서"   },
-    { key: "forms"     as ResTab, label: "양식 서식"   },
-    { key: "other"     as ResTab, label: "기타"         },
+  const RES_TABS: { key: ResTab; label: string }[] = [
+    { key: "all",       label: "전체"     },
+    { key: "install",   label: "설치 가이드" },
+    { key: "installer", label: "설치 파일"   },
+    { key: "patch",     label: "패치 파일"   },
+    { key: "policy",    label: "정책 문서"   },
+    { key: "forms",     label: "양식 서식"   },
+    { key: "other",     label: "기타"         },
   ];
 
   return (
@@ -514,20 +528,29 @@ function ResourcesTab() {
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
         <div className="md:col-span-4 space-y-5">
-          {/* C1: "Resource Update" → "최근 업데이트" */}
+          {/* 최근 업데이트 */}
           <div className="p-8 rounded-[20px] text-white relative overflow-hidden"
             style={{ background: `linear-gradient(135deg, ${C.brand}, ${C.primary})` }}>
             <div className="relative z-10">
               <span className="block mb-4 opacity-75"><Icon n="box" s={32} /></span>
-              <h3 className="text-xl font-bold mb-2" style={{ fontFamily: "Manrope, sans-serif" }}>최근 업데이트</h3>
-              <p className="text-sm leading-relaxed mb-6" style={{ color: "#90c0ff" }}>
-                Q3 컴플라이언스 정책과 macOS 설치 스크립트가 업데이트되었습니다.
-              </p>
-              {/* C1: "Check History" → "변경 이력 보기" */}
-              <button className="px-5 py-2 rounded-full text-xs font-bold uppercase tracking-widest"
-                style={{ background: "rgba(255,255,255,0.12)" }}>
-                변경 이력 보기
-              </button>
+              <h3 className="text-xl font-bold mb-3" style={{ fontFamily: "Manrope, sans-serif" }}>최근 업데이트</h3>
+              {RECENT_TWO.length === 0 ? (
+                <p className="text-sm leading-relaxed" style={{ color: "#90c0ff" }}>등록된 자료가 없습니다.</p>
+              ) : (
+                <ul className="space-y-3">
+                  {RECENT_TWO.map(f => (
+                    <li key={f.id} className="flex flex-col gap-0.5">
+                      <span className="text-[10px] font-bold uppercase tracking-widest"
+                        style={{ color: "rgba(255,255,255,0.55)" }}>
+                        {CATEGORY_LABEL[f.category] ?? f.category} · {f.updatedAt}
+                      </span>
+                      <span className="text-sm font-semibold leading-snug" style={{ color: "#fff" }}>
+                        {f.title}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
             <div className="absolute -right-12 -bottom-12 w-48 h-48 rounded-full"
               style={{ background: "rgba(255,255,255,0.05)" }} />
@@ -612,34 +635,25 @@ function ResourcesTab() {
             })}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
-            {[
-              /* C1: "Support/Missing a resource?" → "문의하기/자료가 없나요?" */
-              { icon: "search", label: "문의하기",  title: "자료가 없나요?",
-                desc: "IT팀에 자료 추가 요청을 보내세요.", linkLabel: "관리자에게 문의", linkColor: C.brand },
-              /* C1: "Action/Submit Resource" → "제출하기/자료 제출하기" */
-              { icon: "upload", label: "제출하기",  title: "자료 제출하기",
-                desc: "내부 문서를 업로드하여 검토받으세요.", linkLabel: "업로드 시작", linkColor: C.primary },
-            ].map(card => (
-              <div key={card.title} className="p-6 rounded-[20px]"
-                style={{ background: C.bg, border: "1px solid rgba(255,255,255,0.5)" }}>
-                <div className="flex justify-between items-start mb-4">
-                  <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm"
-                    style={{ color: C.text3 }}>
-                    <Icon n={card.icon} s={17} />
-                  </div>
-                  <span className="text-[10px] font-bold uppercase px-2 py-1 rounded"
-                    style={{ color: "#757682", background: "#e4e9ed" }}>{card.label}</span>
+          <div className="mt-6">
+            <div className="p-6 rounded-[20px]"
+              style={{ background: C.bg, border: "1px solid rgba(255,255,255,0.5)" }}>
+              <div className="flex justify-between items-start mb-4">
+                <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm"
+                  style={{ color: C.text3 }}>
+                  <Icon n="search" s={17} />
                 </div>
-                <h5 className="font-bold text-lg mb-1"
-                  style={{ fontFamily: "Manrope, sans-serif", color: C.text1 }}>{card.title}</h5>
-                <p className="text-sm mb-4" style={{ color: C.text3 }}>{card.desc}</p>
-                <a href={INQUIRY_URL} target="_blank" rel="noopener noreferrer"
-                  className="text-sm font-bold flex items-center gap-1" style={{ color: card.linkColor }}>
-                  {card.linkLabel} →
-                </a>
+                <span className="text-[10px] font-bold uppercase px-2 py-1 rounded"
+                  style={{ color: "#757682", background: "#e4e9ed" }}>문의하기</span>
               </div>
-            ))}
+              <h5 className="font-bold text-lg mb-1"
+                style={{ fontFamily: "Manrope, sans-serif", color: C.text1 }}>자료가 없나요?</h5>
+              <p className="text-sm mb-4" style={{ color: C.text3 }}>IT팀에 자료 추가 요청을 보내세요.</p>
+              <a href={INQUIRY_URL} target="_blank" rel="noopener noreferrer"
+                className="text-sm font-bold flex items-center gap-1" style={{ color: C.brand }}>
+                관리자에게 문의 →
+              </a>
+            </div>
           </div>
         </div>
       </div>
