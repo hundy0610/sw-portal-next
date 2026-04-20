@@ -303,23 +303,76 @@ function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
    공지사항 탭
 ══════════════════════════════════════════════════════ */
 function NoticesTab() {
-  const [notices, setNotices] = useState<Notice[]>([]);
-  const [selected, setSelected] = useState<Notice | null>(null);
+  const [notices,  setNotices]  = useState<Notice[]>([]);
+  const [preview,  setPreview]  = useState<Notice | null>(null);
+  const [detail,   setDetail]   = useState<Notice | null>(null);
 
   useEffect(() => {
     fetch("/api/notices")
       .then(r => r.json())
-      .then(res => setNotices(res.data ?? []));
+      .then(res => {
+        const data: Notice[] = res.data ?? [];
+        setNotices(data);
+        if (data.length > 0) setPreview(data[0]);
+      });
   }, []);
 
+  const urgentBadge = (urgent: boolean) => urgent
+    ? { background: "#FEE2E2", color: "#DC2626" }
+    : { background: "#f1f5f9", color: C.text3 };
+
+  /* ── 상세 뷰 ── */
+  if (detail) {
+    return (
+      <div className="fade-in">
+        <button
+          onClick={() => setDetail(null)}
+          className="flex items-center gap-2 text-sm font-semibold mb-6 hover:opacity-70 transition-opacity"
+          style={{ color: C.primary }}>
+          <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+            strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          목록으로
+        </button>
+        <div className="bg-white rounded-[20px] p-8" style={{ border: `1px solid ${C.border}` }}>
+          <div className="flex items-center gap-3 mb-4">
+            <span className="text-xs font-bold px-2 py-0.5 rounded-md" style={urgentBadge(detail.urgent)}>
+              {detail.urgent ? "긴급" : "안내"}
+            </span>
+            <span className="text-xs" style={{ color: C.text4 }}>{detail.date}</span>
+          </div>
+          <h2 className="text-2xl font-extrabold mb-6" style={{ fontFamily: "Manrope, sans-serif", color: C.text1 }}>
+            {detail.title}
+          </h2>
+          {detail.imageUrl && (
+            <img src={detail.imageUrl} alt="" className="w-full rounded-xl mb-6 object-cover" style={{ maxHeight: 320 }} />
+          )}
+          <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: C.text2 }}>
+            {detail.content || "내용이 없습니다."}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  /* ── 목록 + 미리보기 뷰 ── */
   return (
     <div className="fade-in">
-      <div className="mb-8">
-        <p className="text-sm font-semibold tracking-wider uppercase mb-1" style={{ color: C.primary }}>
-          공지사항
-        </p>
-        <h2 className="text-4xl font-extrabold tracking-tight"
-          style={{ fontFamily: "Manrope, sans-serif", color: C.text1 }}>알림판</h2>
+      {/* 히어로 */}
+      <div className="rounded-[20px] text-white relative overflow-hidden mb-8 px-8 sm:px-10 py-10"
+        style={{ background: `linear-gradient(135deg, ${C.brand} 0%, ${C.primary} 60%, #3B82F6 100%)` }}>
+        <div className="absolute rounded-full pointer-events-none opacity-5"
+          style={{ width: 360, height: 360, top: -120, right: -80, background: "#fff" }} />
+        <div className="absolute rounded-full pointer-events-none"
+          style={{ width: 200, height: 200, bottom: -80, left: "40%", background: "rgba(255,255,255,0.04)" }} />
+        <div className="relative">
+          <div className="text-3xl font-extrabold mb-2" style={{ fontFamily: "Manrope, sans-serif" }}>
+            안녕하세요 👋
+          </div>
+          <div className="text-sm opacity-80 leading-relaxed">
+            SW 자산관리 포털에 오신 것을 환영합니다.<br />
+            SW 사용 정책을 확인하고 필요한 교육 자료를 이용하세요.
+          </div>
+        </div>
       </div>
 
       {notices.length === 0 ? (
@@ -327,34 +380,68 @@ function NoticesTab() {
           등록된 공지사항이 없습니다.
         </div>
       ) : (
-        <div className="space-y-3">
-          {notices.map(n => (
-            <div key={n.id}>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+
+          {/* ── 좌: 미리보기 ── */}
+          <div className="bg-white rounded-[20px] p-7 sticky top-6" style={{ border: `1px solid ${C.border}` }}>
+            <div className="text-xs font-bold uppercase tracking-widest mb-5" style={{ color: C.text4 }}>미리보기</div>
+            {preview ? (
+              <>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-md" style={urgentBadge(preview.urgent)}>
+                    {preview.urgent ? "긴급" : "안내"}
+                  </span>
+                  <span className="text-xs" style={{ color: C.text4 }}>{preview.date}</span>
+                </div>
+                <h3 className="text-lg font-extrabold mb-4 leading-snug"
+                  style={{ fontFamily: "Manrope, sans-serif", color: C.text1 }}>
+                  {preview.title}
+                </h3>
+                {preview.imageUrl && (
+                  <img src={preview.imageUrl} alt="" className="w-full rounded-xl mb-4 object-cover" style={{ maxHeight: 200 }} />
+                )}
+                <p className="text-sm leading-relaxed line-clamp-6 whitespace-pre-wrap mb-5" style={{ color: C.text3 }}>
+                  {preview.content || "내용이 없습니다."}
+                </p>
+                <button
+                  onClick={() => setDetail(preview)}
+                  className="flex items-center gap-1.5 text-sm font-bold hover:opacity-70 transition-opacity"
+                  style={{ color: C.primary }}>
+                  전체 내용 보기 <Icon n="chevron" s={14} />
+                </button>
+              </>
+            ) : (
+              <div className="py-12 text-center text-sm" style={{ color: C.text4 }}>
+                공지를 선택하면 여기에 표시됩니다.
+              </div>
+            )}
+          </div>
+
+          {/* ── 우: 목록 ── */}
+          <div className="space-y-2">
+            {notices.map(n => (
               <div
-                className="bg-white rounded-[16px] px-6 py-4 flex items-center gap-4 cursor-pointer transition-all hover:shadow-md"
-                style={{ border: selected?.id === n.id ? `2px solid ${C.primary}` : `1px solid ${C.border}` }}
-                onClick={() => setSelected(selected?.id === n.id ? null : n)}
+                key={n.id}
+                className="bg-white rounded-[14px] px-5 py-4 flex items-center gap-3 cursor-pointer transition-all hover:shadow-md"
+                style={{ border: preview?.id === n.id ? `2px solid ${C.primary}` : `1px solid ${C.border}` }}
+                onClick={() => setPreview(n)}
               >
-                <span className="text-xs font-bold px-2 py-0.5 rounded-md shrink-0"
-                  style={n.urgent
-                    ? { background: "#FEE2E2", color: "#DC2626" }
-                    : { background: "#f1f5f9", color: C.text3 }}>
+                <span className="text-xs font-bold px-2 py-0.5 rounded-md shrink-0" style={urgentBadge(n.urgent)}>
                   {n.urgent ? "긴급" : "안내"}
                 </span>
-                <span className="text-sm font-medium flex-1" style={{ color: C.text1 }}>{n.title}</span>
-                <span className="text-xs shrink-0" style={{ color: C.text4 }}>{n.date}</span>
-                <span style={{ color: C.text4, transform: selected?.id === n.id ? "rotate(90deg)" : "none", transition: "transform 0.2s" }}>
-                  <Icon n="chevron" s={14} />
-                </span>
+                <span className="text-sm font-medium flex-1 truncate" style={{ color: C.text1 }}>{n.title}</span>
+                <span className="text-xs shrink-0 hidden sm:block" style={{ color: C.text4 }}>{n.date}</span>
+                <button
+                  onClick={e => { e.stopPropagation(); setDetail(n); }}
+                  className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center hover:opacity-70 transition-opacity"
+                  style={{ background: C.bg, color: C.text3 }}
+                  title="전체 보기">
+                  <Icon n="chevron" s={13} />
+                </button>
               </div>
-              {selected?.id === n.id && n.content && (
-                <div className="mx-2 px-6 py-5 rounded-b-[16px] text-sm leading-relaxed whitespace-pre-wrap"
-                  style={{ background: C.bg, color: C.text2, borderTop: "none" }}>
-                  {n.content}
-                </div>
-              )}
-            </div>
-          ))}
+            ))}
+          </div>
+
         </div>
       )}
     </div>
