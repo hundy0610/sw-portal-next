@@ -50,16 +50,16 @@ export async function POST(req: NextRequest) {
 
   // 등록
   const newItem: SwItem = {
-    id: `sw_${Date.now()}`,
-    name:          body.name          ?? "",
-    vendor:        body.vendor        ?? "",
-    category:      body.category      ?? "",
-    status:        body.status        ?? "conditional",
-    totalLicenses: body.totalLicenses ?? 999,
-    usedLicenses:  body.usedLicenses  ?? 0,
-    alternatives:  body.alternatives  ?? [],
-    mandatory:     body.mandatory     ?? false,
-    description:   body.description   ?? "",
+    id:           `sw_${Date.now()}`,
+    name:         body.name         ?? "",
+    vendor:       body.vendor       ?? "",
+    category:     body.category     ?? "",
+    status:       body.status       ?? "conditional",
+    alternatives: body.alternatives ?? [],
+    mandatory:    body.mandatory    ?? false,
+    description:  body.description  ?? "",
+    officialUrl:  body.officialUrl  || undefined,
+    resourceId:   body.resourceId   || undefined,
   };
   await saveSwItems([...items, newItem]);
   await appendAuditLog({ adminId: session.userId, adminName: session.name, action: "create", target: "swdb", itemTitle: newItem.name, timestamp: new Date().toISOString() });

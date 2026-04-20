@@ -413,24 +413,34 @@ function ResourcesPanel() {
    SW 검색 패널
 ══════════════════════════════════════════════════════ */
 function SwPanel() {
-  const [items,   setItems]   = useState<SwItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [adding,  setAdding]  = useState(false);
-  const [saving,  setSaving]  = useState(false);
-  const [editing, setEditing] = useState<SwItem | null>(null);
+  const [items,     setItems]     = useState<SwItem[]>([]);
+  const [resources, setResources] = useState<{ id: string; title: string }[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [adding,    setAdding]    = useState(false);
+  const [saving,    setSaving]    = useState(false);
+  const [editing,   setEditing]   = useState<SwItem | null>(null);
+  const [filter,    setFilter]    = useState<"all" | SwItem["status"]>("all");
 
-  const defaultForm = { name: "", vendor: "", category: "", status: "conditional" as SwItem["status"], description: "", alternatives: "", mandatory: false, totalLicenses: 999 };
+  const defaultForm = { name: "", vendor: "", category: "", status: "conditional" as SwItem["status"], description: "", alternatives: "", mandatory: false, officialUrl: "", resourceId: "" };
   const [form, setForm] = useState(defaultForm);
 
   const load = useCallback(() => {
     setLoading(true);
-    fetch("/api/sw-db").then(r => r.json()).then(res => setItems(res.data ?? [])).finally(() => setLoading(false));
+    Promise.all([
+      fetch("/api/sw-db").then(r => r.json()),
+      fetch("/api/resources?all=1").then(r => r.json()),
+    ]).then(([sw, res]) => {
+      setItems(sw.data ?? []);
+      setResources((res.data ?? []).map((r: { id: string; title: string }) => ({ id: r.id, title: r.title })));
+    }).catch(() => {
+      setItems([]);
+    }).finally(() => setLoading(false));
   }, []);
   useEffect(() => { load(); }, [load]);
 
   function startAdd() { setForm(defaultForm); setEditing(null); setAdding(true); }
   function startEdit(item: SwItem) {
-    setForm({ name: item.name, vendor: item.vendor, category: item.category, status: item.status, description: item.description, alternatives: item.alternatives.join(", "), mandatory: item.mandatory, totalLicenses: item.totalLicenses });
+    setForm({ name: item.name, vendor: item.vendor, category: item.category, status: item.status, description: item.description, alternatives: item.alternatives.join(", "), mandatory: item.mandatory, officialUrl: item.officialUrl ?? "", resourceId: item.resourceId ?? "" });
     setEditing(item);
     setAdding(true);
   }
@@ -438,32 +448,74 @@ function SwPanel() {
   async function handleSave() {
     if (!form.name.trim()) return;
     setSaving(true);
-    const payload = { ...form, alternatives: form.alternatives.split(",").map(s => s.trim()).filter(Boolean) };
-    if (editing) {
-      await fetch("/api/sw-db", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ _action: "update", id: editing.id, data: payload }) });
-    } else {
-      await fetch("/api/sw-db", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    try {
+      // officialUrl/resourceId를 빈 문자열 그대로 전송해야 기존 값이 올바르게 덮어씌워짐
+      // (undefined로 변환하면 JSON에서 키가 제거되어 기존 값이 유지되는 버그 발생)
+      const payload = {
+        ...form,
+        alternatives: form.alternatives.split(",").map(s => s.trim()).filter(Boolean),
+      };
+      if (editing) {
+        const res = await fetch("/api/sw-db", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ _action: "update", id: editing.id, data: payload }) });
+        if (!res.ok) throw new Error(await res.text());
+      } else {
+        const res = await fetch("/api/sw-db", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        if (!res.ok) throw new Error(await res.text());
+      }
+      setAdding(false); setEditing(null);
+      setForm(defaultForm);
+      load();
+    } catch (e) {
+      alert(`저장 실패: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setSaving(false);
     }
-    setSaving(false); setAdding(false); setEditing(null);
-    setForm(defaultForm);
-    load();
   }
 
   async function del(id: string, name: string) {
     if (!confirm(`"${name}" 을(를) 삭제하시겠습니까?`)) return;
-    await fetch("/api/sw-db", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ _action: "delete", id }) });
-    load();
+    try {
+      const res = await fetch("/api/sw-db", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ _action: "delete", id }) });
+      if (!res.ok) throw new Error(await res.text());
+      load();
+    } catch (e) {
+      alert(`삭제 실패: ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
 
   const STATUS_STYLE: Record<SwItem["status"], { text: string; bg: string; color: string }> = {
-    approved:    { text: "승인",  bg: "#D1FAE5", color: "#065F46" },
-    banned:      { text: "금지",  bg: "#FEE2E2", color: "#B91C1C" },
+    approved:    { text: "승인",   bg: "#D1FAE5", color: "#065F46" },
+    banned:      { text: "금지",   bg: "#FEE2E2", color: "#B91C1C" },
     conditional: { text: "조건부", bg: "#FEF3C7", color: "#92400E" },
   };
+
+  const FILTERS: { key: "all" | SwItem["status"]; label: string }[] = [
+    { key: "all",         label: `전체 (${items.length})` },
+    { key: "approved",    label: `승인 (${items.filter(i => i.status === "approved").length})` },
+    { key: "conditional", label: `조건부 (${items.filter(i => i.status === "conditional").length})` },
+    { key: "banned",      label: `금지 (${items.filter(i => i.status === "banned").length})` },
+  ];
+
+  const filtered = filter === "all" ? items : items.filter(i => i.status === filter);
 
   return (
     <div>
       <SectionHeader title="SW 검색 관리" count={items.length} onAdd={startAdd} />
+
+      {/* 상태 필터 */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+        {FILTERS.map(f => (
+          <button key={f.key} onClick={() => setFilter(f.key)}
+            style={{ padding: "6px 14px", borderRadius: 20, border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer",
+              background: filter === f.key ? C.primary : "#fff",
+              color:      filter === f.key ? "#fff"     : C.text3,
+              boxShadow:  filter === f.key ? "none" : `0 0 0 1px ${C.border}`,
+            }}>
+            {f.label}
+          </button>
+        ))}
+      </div>
+
       {adding && (
         <FormCard title={editing ? `수정: ${editing.name}` : "새 SW 등록"} onCancel={() => { setAdding(false); setEditing(null); }} onSave={handleSave} saving={saving} disabled={!form.name.trim()}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
@@ -482,19 +534,23 @@ function SwPanel() {
           </div>
           <Field label="설명"><textarea style={{ ...iStyle, minHeight: 80, resize: "vertical" }} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="SW 설명 및 사용 조건" /></Field>
           <Field label="대체 SW (쉼표로 구분)"><input style={iStyle} value={form.alternatives} onChange={e => setForm(f => ({ ...f, alternatives: e.target.value }))} placeholder="예: Slack, Zoom, Google Meet" /></Field>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            <Field label="총 라이선스 수"><input type="number" style={iStyle} value={form.totalLicenses} onChange={e => setForm(f => ({ ...f, totalLicenses: Number(e.target.value) }))} /></Field>
-            <div style={{ display: "flex", alignItems: "flex-end", paddingBottom: 2 }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.text2, cursor: "pointer" }}>
-                <input type="checkbox" checked={form.mandatory} onChange={e => setForm(f => ({ ...f, mandatory: e.target.checked }))} /> 필수 설치 SW
-              </label>
-            </div>
-          </div>
+          <Field label="공식 다운로드 링크"><input style={iStyle} value={form.officialUrl} onChange={e => setForm(f => ({ ...f, officialUrl: e.target.value }))} placeholder="https://..." /></Field>
+          <Field label="자료실 설치파일 연동">
+            <select style={iStyle} value={form.resourceId} onChange={e => setForm(f => ({ ...f, resourceId: e.target.value }))}>
+              <option value="">연동 안 함</option>
+              {resources.map(r => <option key={r.id} value={r.id}>{r.title}</option>)}
+            </select>
+          </Field>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.text2, cursor: "pointer" }}>
+            <input type="checkbox" checked={form.mandatory} onChange={e => setForm(f => ({ ...f, mandatory: e.target.checked }))} /> 필수 설치 SW
+          </label>
         </FormCard>
       )}
+
       <ItemList loading={loading} empty="아직 등록된 SW가 없습니다.">
-        {items.map(sw => {
+        {filtered.map(sw => {
           const st = STATUS_STYLE[sw.status];
+          const linkedRes = resources.find(r => r.id === sw.resourceId);
           return (
             <div key={sw.id} style={{ background: "#fff", borderRadius: 16, padding: 20, display: "flex", alignItems: "center", gap: 16, border: `1px solid ${C.border}` }}>
               <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: st.bg, color: st.color, flexShrink: 0 }}>{st.text}</span>
@@ -503,7 +559,12 @@ function SwPanel() {
                   {sw.name}
                   {sw.mandatory && <span style={{ marginLeft: 6, fontSize: 10, padding: "2px 6px", borderRadius: 4, background: C.primarySoft, color: C.primary }}>필수</span>}
                 </p>
-                <p style={{ fontSize: 11, color: C.text4, margin: "4px 0 0" }}>{sw.vendor}{sw.category ? ` · ${sw.category}` : ""}{sw.alternatives.length ? ` · 대체: ${sw.alternatives.join(", ")}` : ""}</p>
+                <p style={{ fontSize: 11, color: C.text4, margin: "4px 0 0" }}>
+                  {sw.vendor}{sw.category ? ` · ${sw.category}` : ""}
+                  {sw.alternatives.length ? ` · 대체: ${sw.alternatives.join(", ")}` : ""}
+                  {sw.officialUrl ? " · 🔗 공식링크" : ""}
+                  {linkedRes ? ` · 📦 ${linkedRes.title}` : ""}
+                </p>
               </div>
               <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
                 <button onClick={() => startEdit(sw)}
