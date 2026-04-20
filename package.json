@@ -15,7 +15,7 @@
     "next": "14.2.5",
     "react": "^18",
     "react-dom": "^18",
-    "react-konva": "^19.2.3",
+    "react-konva": "18.2.10",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
