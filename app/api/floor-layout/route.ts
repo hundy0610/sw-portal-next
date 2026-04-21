@@ -35,7 +35,7 @@ async function findPageId(floorKey: string): Promise<string | null> {
   try {
     const res = await notion.databases.query({
       database_id: DB_ID,
-      filter: { property: "이름", title: { equals: floorKey } },
+      filter: { property: "Title", title: { equals: floorKey } },
       page_size: 1,
     });
     return res.results[0]?.id ?? null;
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     const elementsStr = JSON.stringify(elements ?? []);
 
     const props = {
-      "이름":     { title:     [{ text: { content: floorKey } }] },
+      "Title":     { title:     [{ text: { content: floorKey } }] },
       "elements": { rich_text: toChunks(elementsStr) },
       "bgImage":  { rich_text: bgImage ? toChunks(bgImage) : [{ text: { content: "" } }] },
     } as never;
