@@ -1,12 +1,19 @@
 import { NextResponse } from "next/server";
 import { fetchSwDb } from "@/lib/notion";
+import { kvGet, kvSet } from "@/lib/kv-store";
+import type { SwItem } from "@/types";
 
-// 캐시: 60초 (revalidate)
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export async function GET() {
   try {
-    const data = await fetchSwDb();
+    // KV 캐시 우선 (1~5ms)
+    let data = await kvGet<SwItem[]>("sw:db");
+    if (!data) {
+      data = await fetchSwDb();
+      await kvSet("sw:db", data);
+    }
     return NextResponse.json({
       data,
       lastSynced: new Date().toISOString(),
