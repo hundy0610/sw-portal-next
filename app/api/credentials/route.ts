@@ -63,15 +63,36 @@ function mapPage(page: PageObjectResponse): SwCredential {
   };
 }
 
+// ── 페이지 ID → 내부 DB ID 자동 해석 ────────────────────
+async function resolveDbId(id: string): Promise<string> {
+  // 먼저 데이터베이스로 직접 시도
+  try {
+    await notion.databases.retrieve({ database_id: id });
+    return id;
+  } catch {
+    // 페이지인 경우 하위 블록에서 child_database 찾기
+    try {
+      const blocks = await notion.blocks.children.list({ block_id: id, page_size: 50 });
+      for (const block of blocks.results) {
+        if ("type" in block && block.type === "child_database") {
+          return block.id;
+        }
+      }
+    } catch {}
+  }
+  return id;
+}
+
 // ── DB 전체 조회 (페이지네이션) ───────────────────────────
 async function fetchAll(): Promise<SwCredential[]> {
   if (!DB_ID) return [];
+  const dbId = await resolveDbId(DB_ID);
   const results: SwCredential[] = [];
   let cursor: string | undefined;
 
   do {
     const res = await notion.databases.query({
-      database_id: DB_ID,
+      database_id: dbId,
       sorts: [{ property: "유형", direction: "ascending" }],
       page_size: 100,
       start_cursor: cursor,
@@ -115,8 +136,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "SW명과 아이디는 필수입니다." }, { status: 400 });
     }
 
+    const dbId = await resolveDbId(DB_ID);
     const page = await notion.pages.create({
-      parent: { database_id: DB_ID },
+      parent: { database_id: dbId },
       properties: {
         "이름":  { title:     [{ text: { content: String(name).trim() || String(swName).trim() } }] },
         "유형":  { rich_text: [{ text: { content: String(swName).trim() } }] },
