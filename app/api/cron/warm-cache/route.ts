@@ -11,6 +11,7 @@ import { kvSet } from "@/lib/kv-store";
  * → 이후 사용자 요청은 KV에서 즉시 응답 (1~5ms)
  */
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
