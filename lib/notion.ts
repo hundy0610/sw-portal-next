@@ -140,8 +140,9 @@ export async function fetchSwDb(): Promise<SwItem[]> {
   const dbId = process.env.NOTION_DB_SWDB;
   if (!dbId) throw new Error("NOTION_DB_SWDB 환경변수가 설정되지 않았습니다.");
 
+  // created_time 기준으로 정렬 (property명 불일치 에러 방지)
   const pages = await queryAllPages(dbId, undefined, [
-    { property: "Name", direction: "ascending" },
+    { timestamp: "created_time", direction: "ascending" },
   ]);
 
   return pages.map((page) => {
@@ -149,10 +150,16 @@ export async function fetchSwDb(): Promise<SwItem[]> {
     const total = getPropNumber(p, "라이선스 수") || getPropNumber(p, "Total Licenses");
     return {
       id: page.id,
-      name: getPropText(p, "Name") || getPropText(p, "소프트웨어명"),
+      // 한국어/영어 컬럼명 모두 지원
+      name: getPropText(p, "Name") || getPropText(p, "이름") || getPropText(p, "소프트웨어명"),
       vendor: getPropText(p, "Vendor") || getPropSelect(p, "Vendor") || getPropText(p, "벤더"),
-      category: getPropSelect(p, "Category") || getPropSelect(p, "카테고리"),
-      status: (getPropSelect(p, "Status") || getPropSelect(p, "승인 상태") || "conditional") as SwItem["status"],
+      category: getPropSelect(p, "Category") || getPropSelect(p, "카테고리") || getPropText(p, "유형"),
+      status: (
+        getPropSelect(p, "Status") ||
+        getPropSelect(p, "승인 상태") ||
+        getPropSelect(p, "상태") ||
+        "conditional"
+      ) as SwItem["status"],
       totalLicenses: total || 999,
       usedLicenses: getPropNumber(p, "Used") || getPropNumber(p, "사용중"),
       alternatives: getPropMultiSelect(p, "Alternatives") || getPropMultiSelect(p, "대체재"),
