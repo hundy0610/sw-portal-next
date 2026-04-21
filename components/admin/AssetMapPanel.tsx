@@ -1,6 +1,12 @@
 "use client";
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { FLOOR_SKETCHES, SketchCtx, SketchZone, BW_FLOOR_TABLES } from "./FloorSketches";
+import dynamic from "next/dynamic";
+
+const MapEditor = dynamic(() => import("./FloorMapEditor/MapEditor"), {
+  ssr: false,
+  loading: () => <div className="flex items-center justify-center h-full text-gray-400 text-sm">도면 편집기 로딩 중...</div>,
+});
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -666,6 +672,19 @@ function FloorPlanSVG({
 // ══════════════════════════════════════════════════════════════════════════════
 // SEAT DETAIL PANEL
 // ══════════════════════════════════════════════════════════════════════════════
+interface MonitorRequest {
+  id: string;
+  seatId: string;
+  building: string;
+  floor: string;
+  zone: string;
+  type: "repair" | "replace";
+  status: "pending" | "in_progress" | "done";
+  createdAt: string;
+  createdByName: string;
+  note?: string;
+}
+
 function SeatDetailPanel({
   seat, zone, floor, building, onClose, onUpdateType,
 }: {
@@ -673,11 +692,86 @@ function SeatDetailPanel({
   onClose: () => void;
   onUpdateType: (seatId: string, type: MonitorType) => void;
 }) {
-  const meta = MONITOR[seat.type];
-  const rowLabel = String.fromCharCode(65+seat.row);
+  const meta     = MONITOR[seat.type];
+  const rowLabel = String.fromCharCode(65 + seat.row);
+
+  // 탭: info | history | request
+  const [tab, setTab] = useState<"info" | "history" | "request">("info");
+
+  // 수리 요청 상태
+  const [reqType,     setReqType]     = useState<"repair" | "replace">("repair");
+  const [reqNote,     setReqNote]     = useState("");
+  const [submitting,  setSubmitting]  = useState(false);
+  const [submitMsg,   setSubmitMsg]   = useState<{ ok: boolean; text: string } | null>(null);
+
+  // 이력 (모니터 요청 목록)
+  const [history,     setHistory]     = useState<MonitorRequest[]>([]);
+  const [histLoading, setHistLoading] = useState(false);
+
+  // seat 변경 시 탭·상태 초기화
+  useEffect(() => {
+    setTab("info");
+    setReqNote("");
+    setSubmitMsg(null);
+    setHistory([]);
+  }, [seat.id]);
+
+  // history 탭 진입 시 이력 조회
+  useEffect(() => {
+    if (tab !== "history") return;
+    setHistLoading(true);
+    fetch("/api/monitor-requests")
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok && Array.isArray(data.requests)) {
+          const filtered = (data.requests as MonitorRequest[])
+            .filter(r => r.seatId === seat.id)
+            .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+          setHistory(filtered);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setHistLoading(false));
+  }, [tab, seat.id]);
+
+  const handleSubmitRequest = async () => {
+    setSubmitting(true);
+    setSubmitMsg(null);
+    try {
+      const res = await fetch("/api/monitor-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          seatId:   seat.id,
+          building: building.label,
+          floor:    floor.label,
+          zone:     zone.label,
+          type:     reqType,
+          note:     reqNote.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setSubmitMsg({ ok: true, text: "✅ 요청이 접수되었습니다. 총무 담당자에게 알림이 전송됩니다." });
+        setReqNote("");
+      } else {
+        setSubmitMsg({ ok: false, text: data.error ?? "요청 실패. 다시 시도해주세요." });
+      }
+    } catch {
+      setSubmitMsg({ ok: false, text: "네트워크 오류. 다시 시도해주세요." });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const STATUS_LABEL: Record<string, { text: string; color: string }> = {
+    pending:     { text: "접수",    color: "#F59E0B" },
+    in_progress: { text: "처리 중", color: "#3B82F6" },
+    done:        { text: "완료",    color: "#10B981" },
+  };
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto text-sm">
+    <div className="flex flex-col h-full text-sm">
       {/* 헤더 */}
       <div className="flex items-start justify-between px-4 py-3 bg-slate-800 text-white flex-shrink-0">
         <div>
@@ -688,101 +782,234 @@ function SeatDetailPanel({
         <button onClick={onClose} className="opacity-60 hover:opacity-100 text-lg mt-0.5">✕</button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-3 space-y-3">
-        {/* 모니터 현황 */}
-        <div className="rounded-xl p-3 border" style={{ background:meta.pale, borderColor:meta.border }}>
+      {/* 모니터 현황 */}
+      <div className="flex-shrink-0 px-3 pt-3">
+        <div className="rounded-xl p-3 border" style={{ background: meta.pale, borderColor: meta.border }}>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white text-sm font-black"
-              style={{ background:meta.color }}>{meta.label}</div>
-            <div>
-              <div className="font-bold" style={{ color:meta.color }}>{meta.long}</div>
-              <div className="text-[10px] opacity-70" style={{ color:meta.color }}>
-                {seat.type==="unk"?"미확인 좌석":seat.type==="none"?"모니터 미설치":seat.type==="dev34"?"개발자용 와이드 모니터":"표준형 모니터 설치됨"}
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-sm font-black flex-shrink-0"
+              style={{ background: meta.color }}>{meta.label}</div>
+            <div className="min-w-0">
+              <div className="font-bold text-sm" style={{ color: meta.color }}>{meta.long}</div>
+              <div className="text-[10px] opacity-70 truncate" style={{ color: meta.color }}>
+                {seat.type === "unk" ? "미확인 좌석" : seat.type === "none" ? "모니터 미설치" : seat.type === "dev34" ? "개발자용 와이드 모니터" : "표준형 모니터 설치됨"}
               </div>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* 위치 정보 */}
-        <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-          <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">📍 위치</div>
-          <div className="flex flex-wrap gap-1.5 mb-2">
-            {[building.label, floor.label, zone.label].map(tag => (
-              <span key={tag} className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-semibold border border-blue-100">{tag}</span>
-            ))}
-          </div>
-          <div className="text-xs text-gray-600 space-y-0.5">
-            <div><span className="text-gray-400">행</span> <strong>{rowLabel}행</strong></div>
-            <div><span className="text-gray-400">열</span> <strong>{seat.col+1}번</strong></div>
-          </div>
-        </div>
-
-        {/* 찾아가는 방법 */}
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-          <div className="text-[10px] font-bold text-amber-700 mb-1.5">🗺 찾아가는 방법</div>
-          <div className="text-[11px] text-amber-700 leading-relaxed">
-            {building.label} 건물 진입<br/>
-            → <strong>{floor.label}</strong> 이동 (계단/엘리베이터)<br/>
-            → <strong>{zone.label}</strong> 구역<br/>
-            → <strong>{rowLabel}행 {seat.col+1}번째 자리</strong>
-          </div>
-        </div>
-
-        {/* 모니터 타입 변경 */}
-        <div className="bg-white border border-gray-100 rounded-xl p-3">
-          <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">✏️ 모니터 상태 변경</div>
-          <div className="grid grid-cols-1 gap-1.5">
-            {TYPES.map(t => {
-              const m = MONITOR[t];
-              const isActive = seat.type === t;
-              return (
-                <button
-                  key={t}
-                  onClick={() => onUpdateType(seat.id, t)}
-                  className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-semibold transition-all border"
-                  style={{
-                    background: isActive ? m.color : m.pale,
-                    color: isActive ? "white" : m.color,
-                    borderColor: m.border,
-                    outline: isActive ? `2px solid ${m.color}` : "none",
-                  }}
-                >
-                  <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
-                    style={{ background: isActive ? "white" : m.color+"CC" }}/>
-                  {m.long}
-                  {isActive && <span className="ml-auto text-[10px] opacity-80">✓ 현재</span>}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* 액션 버튼 */}
-        <div className="space-y-2">
-          <button className="w-full py-2.5 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 transition-colors">
-            🔧 교체/수리 요청
-          </button>
+      {/* 탭 */}
+      <div className="flex-shrink-0 flex border-b border-gray-200 mt-2 px-3">
+        {(["info", "history", "request"] as const).map(t => (
           <button
-            className="w-full py-2 rounded-lg border border-gray-200 bg-white text-gray-600 text-xs font-semibold hover:bg-gray-50 transition-colors"
-            onClick={() => navigator.clipboard?.writeText(`${building.label} ${floor.label} ${zone.label} ${rowLabel}행 ${seat.col+1}번 (${seat.id})`)}
+            key={t}
+            onClick={() => setTab(t)}
+            className={`flex-1 py-1.5 text-[11px] font-semibold border-b-2 transition-colors ${
+              tab === t
+                ? "border-blue-500 text-blue-600"
+                : "border-transparent text-gray-400 hover:text-gray-600"
+            }`}
           >
-            📋 위치 텍스트 복사
+            {t === "info" ? "정보" : t === "history" ? "이력" : "수리 요청"}
           </button>
-        </div>
+        ))}
+      </div>
 
-        {/* 범례 */}
-        <div className="bg-white border border-gray-100 rounded-xl p-3">
-          <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">범례</div>
-          <div className="space-y-1.5">
-            {TYPES.map(t => (
-              <div key={t} className="flex items-center gap-2">
-                <div className="w-3.5 h-3 rounded-sm flex-shrink-0"
-                  style={{ background: MONITOR[t].color+(t==="unk"?"55":"CC") }}/>
-                <span className="text-[10px] text-gray-500">{MONITOR[t].long}</span>
+      {/* 탭 콘텐츠 */}
+      <div className="flex-1 overflow-y-auto">
+
+        {/* ── 정보 탭 ── */}
+        {tab === "info" && (
+          <div className="p-3 space-y-3">
+            {/* 위치 정보 */}
+            <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+              <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">📍 위치</div>
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {[building.label, floor.label, zone.label].map(tag => (
+                  <span key={tag} className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-semibold border border-blue-100">{tag}</span>
+                ))}
               </div>
-            ))}
+              <div className="text-xs text-gray-600 space-y-0.5">
+                <div><span className="text-gray-400">행</span> <strong>{rowLabel}행</strong></div>
+                <div><span className="text-gray-400">열</span> <strong>{seat.col + 1}번</strong></div>
+              </div>
+            </div>
+
+            {/* 찾아가는 방법 */}
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+              <div className="text-[10px] font-bold text-amber-700 mb-1.5">🗺 찾아가는 방법</div>
+              <div className="text-[11px] text-amber-700 leading-relaxed">
+                {building.label} 건물 진입<br />
+                → <strong>{floor.label}</strong> 이동 (계단/엘리베이터)<br />
+                → <strong>{zone.label}</strong> 구역<br />
+                → <strong>{rowLabel}행 {seat.col + 1}번째 자리</strong>
+              </div>
+            </div>
+
+            {/* 모니터 타입 변경 */}
+            <div className="bg-white border border-gray-100 rounded-xl p-3">
+              <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">✏️ 모니터 상태 변경</div>
+              <div className="grid grid-cols-1 gap-1.5">
+                {TYPES.map(t => {
+                  const m = MONITOR[t];
+                  const isActive = seat.type === t;
+                  return (
+                    <button key={t}
+                      onClick={() => onUpdateType(seat.id, t)}
+                      className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-semibold transition-all border"
+                      style={{
+                        background: isActive ? m.color : m.pale,
+                        color: isActive ? "white" : m.color,
+                        borderColor: m.border,
+                        outline: isActive ? `2px solid ${m.color}` : "none",
+                      }}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: isActive ? "white" : m.color + "CC" }} />
+                      {m.long}
+                      {isActive && <span className="ml-auto text-[10px] opacity-80">✓ 현재</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 바로가기 버튼 */}
+            <div className="space-y-1.5">
+              <button
+                onClick={() => setTab("request")}
+                className="w-full py-2.5 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 transition-colors"
+              >
+                🔧 교체/수리 요청
+              </button>
+              <button
+                className="w-full py-2 rounded-lg border border-gray-200 bg-white text-gray-600 text-xs font-semibold hover:bg-gray-50 transition-colors"
+                onClick={() => navigator.clipboard?.writeText(
+                  `${building.label} ${floor.label} ${zone.label} ${rowLabel}행 ${seat.col + 1}번 (${seat.id})`
+                )}
+              >
+                📋 위치 텍스트 복사
+              </button>
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* ── 이력 탭 ── */}
+        {tab === "history" && (
+          <div className="p-3">
+            <div className="text-[10px] text-gray-400 font-semibold mb-2">수리/교체 요청 이력</div>
+            {histLoading ? (
+              <div className="text-xs text-gray-400 py-4 text-center">로딩 중...</div>
+            ) : history.length === 0 ? (
+              <div className="text-xs text-gray-400 py-8 text-center">
+                <div className="text-2xl mb-2 opacity-40">📋</div>
+                요청 이력이 없습니다
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {history.map(req => {
+                  const s = STATUS_LABEL[req.status] ?? { text: req.status, color: "#6B7280" };
+                  return (
+                    <div key={req.id} className="border border-gray-100 rounded-xl p-2.5 bg-white space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold"
+                          style={{ color: req.type === "repair" ? "#DC2626" : "#7C3AED" }}>
+                          {req.type === "repair" ? "🔧 수리" : "🔄 교체"}
+                        </span>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                          style={{ background: s.color + "20", color: s.color }}>
+                          {s.text}
+                        </span>
+                        <span className="ml-auto text-[10px] text-gray-400">
+                          {new Date(req.createdAt).toLocaleDateString("ko-KR")}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-gray-500">요청자: {req.createdByName}</div>
+                      {req.note && (
+                        <div className="text-[10px] text-gray-600 bg-gray-50 rounded px-2 py-1">
+                          {req.note}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── 수리 요청 탭 ── */}
+        {tab === "request" && (
+          <div className="p-3 space-y-3">
+            <div className="text-[10px] text-gray-400 font-semibold">교체/수리 요청 접수</div>
+
+            {/* 요청 종류 */}
+            <div>
+              <div className="text-[10px] text-gray-500 mb-1.5">요청 종류</div>
+              <div className="flex gap-2">
+                {(["repair", "replace"] as const).map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setReqType(t)}
+                    className={`flex-1 py-2 text-xs font-semibold rounded-lg border transition-all ${
+                      reqType === t
+                        ? t === "repair"
+                          ? "bg-red-600 text-white border-red-600"
+                          : "bg-purple-600 text-white border-purple-600"
+                        : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                    }`}
+                  >
+                    {t === "repair" ? "🔧 수리" : "🔄 교체"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 요청 메모 */}
+            <div>
+              <div className="text-[10px] text-gray-500 mb-1.5">증상 / 메모 (선택)</div>
+              <textarea
+                value={reqNote}
+                onChange={e => setReqNote(e.target.value)}
+                rows={3}
+                placeholder="증상을 구체적으로 입력하면 처리가 빨라집니다&#10;예: 화면이 깜빡임, 전원이 안 켜짐..."
+                className="w-full border border-gray-200 rounded-lg px-2.5 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 resize-none"
+              />
+            </div>
+
+            {/* 대상 좌석 확인 */}
+            <div className="bg-gray-50 rounded-xl p-2.5 border border-gray-100">
+              <div className="text-[10px] text-gray-400 mb-1">대상 좌석</div>
+              <div className="text-xs font-mono font-bold text-slate-700">{seat.id}</div>
+              <div className="text-[10px] text-gray-500 mt-0.5">
+                {building.label} {floor.label} · {zone.label} {rowLabel}행 {seat.col + 1}번
+              </div>
+            </div>
+
+            {/* 결과 메시지 */}
+            {submitMsg && (
+              <div className={`rounded-lg px-3 py-2 text-xs font-medium ${
+                submitMsg.ok
+                  ? "bg-green-50 text-green-700 border border-green-200"
+                  : "bg-red-50 text-red-700 border border-red-200"
+              }`}>
+                {submitMsg.text}
+              </div>
+            )}
+
+            {/* 제출 버튼 */}
+            <button
+              onClick={handleSubmitRequest}
+              disabled={submitting}
+              className="w-full py-2.5 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {submitting ? "처리 중..." : "🔧 요청 접수 · 총무 담당자 알림"}
+            </button>
+
+            <p className="text-[10px] text-gray-400 text-center leading-relaxed">
+              요청 접수 시 총무 담당자의<br />관리 대시보드에 알림이 표시됩니다.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -890,6 +1117,8 @@ export default function AssetMapPanel() {
   const [selected,      setSelected]      = useState<{ seat:SeatData; zone:ZoneData } | null>(null);
   const [seatOverrides, setSeatOverrides] = useState<Record<string, MonitorType>>({});
   const [editMode,      setEditMode]      = useState(false);
+  // 도면 편집기 모드 (MapEditor vs FloorPlanSVG)
+  const [useMapEditor,  setUseMapEditor]  = useState(false);
   const [pickedId,      setPickedId]      = useState<string|null>(null);
   // 구조 편집: zoneKey → [{id, type}] (삭제/추가/이동 반영)
   const [layoutEdits,     setLayoutEdits]     = useState<Record<string,Array<{id:string;type:MonitorType}>>>({});
@@ -1129,6 +1358,23 @@ export default function AssetMapPanel() {
     setSelected(prev => prev?.seat.id === seat.id ? null : { seat: effective, zone });
   };
 
+  // MapEditor에서 모니터 아이콘 클릭 시 — seatId로 좌석 찾아 패널 표시
+  const handleMapEditorMonitorSelect = useCallback((seatId: string) => {
+    for (const z of effectiveZones) {
+      const seat = z.seats.find(s => s.id === seatId);
+      if (seat) {
+        const effective: SeatData = { ...seat, type: (seatOverrides[seat.id] ?? seat.type) as MonitorType };
+        setSelected(prev => prev?.seat.id === seatId ? null : { seat: effective, zone: z });
+        return;
+      }
+    }
+    // effectiveZones에 없는 경우 (편집기에서 새로 추가한 모니터)
+    const t = (seatOverrides[seatId] ?? "unk") as MonitorType;
+    const fakeSeat: SeatData = { id: seatId, type: t, row: 0, col: 0 };
+    const fakeZone: ZoneData = { id: "custom", label: "커스텀", side: "", cols: 1, rows: 1, seats: [fakeSeat] };
+    setSelected(prev => prev?.seat.id === seatId ? null : { seat: fakeSeat, zone: fakeZone });
+  }, [effectiveZones, seatOverrides]);
+
   return (
     <div className="flex flex-col h-full min-h-0 bg-slate-50" style={{ fontFamily:"system-ui,-apple-system,sans-serif" }}>
 
@@ -1158,24 +1404,40 @@ export default function AssetMapPanel() {
           })}
         </div>
 
-        {/* 편집 모드 버튼 */}
+        {/* 모드 전환 + 편집 버튼 */}
         <div className="flex items-center gap-1.5 ml-auto">
+          {/* 도면 편집기 모드 토글 */}
           <button
-            onClick={() => { setEditMode(e => !e); setPickedId(null); setSelected(null); }}
+            onClick={() => { setUseMapEditor(v => !v); setSelected(null); setEditMode(false); setPickedId(null); }}
             className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${
-              editMode
-                ? "bg-amber-500 text-white border-amber-500 shadow-sm"
-                : "bg-white text-slate-600 border-gray-200 hover:bg-amber-50 hover:border-amber-300"
-            }`}>
-            {editMode ? "✓ 편집 중" : "✏️ 편집"}
+              useMapEditor
+                ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                : "bg-white text-slate-600 border-gray-200 hover:bg-indigo-50 hover:border-indigo-300"
+            }`}
+            title="팔레트에서 아이콘을 드래그해 도면을 직접 구성하는 편집기 모드"
+          >
+            {useMapEditor ? "📐 편집기 모드" : "📐 편집기"}
           </button>
-          {editMode && (
+
+          {/* 기존 편집 모드 버튼 (편집기 모드가 아닐 때만 표시) */}
+          {!useMapEditor && (<>
             <button
-              onClick={resetLayout}
-              className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition-all">
-              ↩ 초기화
+              onClick={() => { setEditMode(e => !e); setPickedId(null); setSelected(null); }}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${
+                editMode
+                  ? "bg-amber-500 text-white border-amber-500 shadow-sm"
+                  : "bg-white text-slate-600 border-gray-200 hover:bg-amber-50 hover:border-amber-300"
+              }`}>
+              {editMode ? "✓ 편집 중" : "✏️ 편집"}
             </button>
-          )}
+            {editMode && (
+              <button
+                onClick={resetLayout}
+                className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition-all">
+                ↩ 초기화
+              </button>
+            )}
+          </>)}
         </div>
 
         {/* 건물 + 층 선택 */}
@@ -1204,90 +1466,122 @@ export default function AssetMapPanel() {
       </div>
 
       {/* ── 필터 바 ───────────────────────────────────────────────── */}
-      <div className="flex-none bg-white border-b px-5 py-2 flex items-center gap-3 flex-wrap">
-        <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
-          <button
-            onClick={() => setFilter("all")}
-            className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-              filter==="all" ? "bg-white shadow text-slate-800 font-semibold" : "text-slate-500 hover:text-slate-700"
-            }`}>전체 보기</button>
-          {TYPES.map(t => {
-            const cnt = flStats[t as keyof typeof flStats] as number;
-            if (!cnt) return null;
-            return (
-              <button key={t}
-                onClick={() => setFilter(filter===t?"all":t)}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                  filter===t ? "bg-white shadow font-semibold" : "text-slate-500 hover:text-slate-700"
-                }`}
-                style={{ color: filter===t ? MONITOR[t].color : undefined }}>
-                {MONITOR[t].long}만
-              </button>
-            );
-          })}
+      {/* ── 필터 바 (편집기 모드에서는 숨김) ─────────────────────── */}
+      {!useMapEditor && (
+        <div className="flex-none bg-white border-b px-5 py-2 flex items-center gap-3 flex-wrap">
+          <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
+            <button onClick={() => setFilter("all")}
+              className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${filter==="all"?"bg-white shadow text-slate-800 font-semibold":"text-slate-500 hover:text-slate-700"}`}>
+              전체 보기</button>
+            {TYPES.map(t => {
+              const cnt = flStats[t as keyof typeof flStats] as number;
+              if (!cnt) return null;
+              return (
+                <button key={t} onClick={() => setFilter(filter===t?"all":t)}
+                  className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${filter===t?"bg-white shadow font-semibold":"text-slate-500 hover:text-slate-700"}`}
+                  style={{ color: filter===t ? MONITOR[t].color : undefined }}>
+                  {MONITOR[t].long}만
+                </button>
+              );
+            })}
+          </div>
+          {editMode ? (
+            <span className="text-[10px] text-amber-600 font-semibold ml-2">
+              {buildingId==="bw" && BW_FLOOR_TABLES[floorId]
+                ? "✏️ 편집 모드 — ✕: 테이블 내 모니터 삭제 · +: 모니터 추가 · 우클릭: 모니터 종류 변경"
+                : "✏️ 편집 모드 — 클릭: 좌석 집기 · 빈 슬롯: 이동/추가 · ✕: 삭제 · 빈 곳 클릭: 취소"}
+            </span>
+          ) : (
+            <span className="text-[10px] text-gray-400 ml-2">좌석 클릭 시 위치 정보 · 교체 요청 가능</span>
+          )}
         </div>
-        {editMode ? (
-          <span className="text-[10px] text-amber-600 font-semibold ml-2">
-            {buildingId==="bw" && BW_FLOOR_TABLES[floorId]
-              ? "✏️ 편집 모드 — ✕: 테이블 내 모니터 삭제 · +: 모니터 추가 · 우클릭: 모니터 종류 변경"
-              : "✏️ 편집 모드 — 클릭: 좌석 집기 · 빈 슬롯: 이동/추가 · ✕: 삭제 · 빈 곳 클릭: 취소"}
-          </span>
-        ) : (
-          <span className="text-[10px] text-gray-400 ml-2">좌석 클릭 시 위치 정보 · 교체 요청 가능</span>
-        )}
-      </div>
+      )}
 
       {/* ── 메인 콘텐츠 ─────────────────────────────────────────── */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
-        {/* 도면 영역 */}
-        <div className="flex-1 overflow-auto p-4">
-          <div className="mb-3">
-            <h2 className="text-base font-bold text-slate-800">{floor.label}</h2>
-            {floor.note && <p className="text-xs text-gray-400 mt-0.5">{floor.note}</p>}
-          </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-            <FloorPlanSVG
-              bldId={buildingId} floorId={floor.id}
-              zones={effectiveZones} filter={filter}
-              selectedId={selectedId} onSelect={handleSelect}
-              editMode={editMode} pickedId={pickedId}
-              onPickSeat={handlePickSeat}
-              onDropToSeat={handleDropToSeat}
-              onDropToSlot={handleDropToSlot}
-              onDeleteSeat={handleDeleteSeat}
-              onAddSeat={handleAddSeat}
-              tableSeats={tableSeatsForCtx}
-              onTableSeatDelete={handleTableSeatDelete}
-              onTableSeatAdd={handleTableSeatAdd}
-            />
-          </div>
-          {/* 범례 */}
-          <div className="flex gap-4 mt-3 px-1 flex-wrap items-center">
-            <span className="text-[10px] font-semibold text-gray-400">범례</span>
-            {TYPES.map(t => (
-              <div key={t} className="flex items-center gap-1.5">
-                <div className="w-3.5 h-3 rounded-sm" style={{ background:MONITOR[t].color+(t==="unk"?"55":"CC") }}/>
-                <span className="text-[11px] text-gray-500">{MONITOR[t].long}</span>
+        {/* ── 📐 도면 편집기 모드 ── */}
+        {useMapEditor ? (
+          <>
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <MapEditor
+                buildingId={buildingId}
+                floorId={floorId}
+                seatOverrides={seatOverrides}
+                onMonitorSelect={handleMapEditorMonitorSelect}
+                selectedSeatId={selectedId}
+              />
+            </div>
+            {/* 우측 패널 (모니터 클릭 시 표시) */}
+            <div className="w-64 flex-shrink-0 border-l border-gray-200 bg-white overflow-hidden">
+              {selected ? (
+                <SeatDetailPanel
+                  seat={selected.seat} zone={selected.zone}
+                  floor={floor} building={building}
+                  onClose={() => setSelected(null)}
+                  onUpdateType={updateSeatType}
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-center p-6 text-xs text-gray-400">
+                  <div className="text-3xl mb-2 opacity-30">🖥️</div>
+                  <div>도면에서 모니터 아이콘을<br />클릭하면 상세 정보와<br />수리 요청이 가능합니다</div>
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            {/* ── 기존 SVG 도면 모드 ── */}
+            <div className="flex-1 overflow-auto p-4">
+              <div className="mb-3">
+                <h2 className="text-base font-bold text-slate-800">{floor.label}</h2>
+                {floor.note && <p className="text-xs text-gray-400 mt-0.5">{floor.note}</p>}
               </div>
-            ))}
-            <span className="text-[10px] text-gray-300 ml-2">A~Z = 행 / 1,2,3… = 열</span>
-          </div>
-        </div>
 
-        {/* 우측 패널 */}
-        <div className="w-64 flex-shrink-0 border-l border-gray-200 bg-white overflow-hidden">
-          {selected ? (
-            <SeatDetailPanel
-              seat={selected.seat} zone={selected.zone}
-              floor={floor} building={building}
-              onClose={() => setSelected(null)}
-              onUpdateType={updateSeatType}
-            />
-          ) : (
-            <OverviewSidePanel building={building} floor={floor} zones={effectiveZones}/>
-          )}
-        </div>
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+                <FloorPlanSVG
+                  bldId={buildingId} floorId={floor.id}
+                  zones={effectiveZones} filter={filter}
+                  selectedId={selectedId} onSelect={handleSelect}
+                  editMode={editMode} pickedId={pickedId}
+                  onPickSeat={handlePickSeat}
+                  onDropToSeat={handleDropToSeat}
+                  onDropToSlot={handleDropToSlot}
+                  onDeleteSeat={handleDeleteSeat}
+                  onAddSeat={handleAddSeat}
+                  tableSeats={tableSeatsForCtx}
+                  onTableSeatDelete={handleTableSeatDelete}
+                  onTableSeatAdd={handleTableSeatAdd}
+                />
+              </div>
+              {/* 범례 */}
+              <div className="flex gap-4 mt-3 px-1 flex-wrap items-center">
+                <span className="text-[10px] font-semibold text-gray-400">범례</span>
+                {TYPES.map(t => (
+                  <div key={t} className="flex items-center gap-1.5">
+                    <div className="w-3.5 h-3 rounded-sm" style={{ background:MONITOR[t].color+(t==="unk"?"55":"CC") }}/>
+                    <span className="text-[11px] text-gray-500">{MONITOR[t].long}</span>
+                  </div>
+                ))}
+                <span className="text-[10px] text-gray-300 ml-2">A~Z = 행 / 1,2,3… = 열</span>
+              </div>
+            </div>
+
+            {/* 우측 패널 */}
+            <div className="w-64 flex-shrink-0 border-l border-gray-200 bg-white overflow-hidden">
+              {selected ? (
+                <SeatDetailPanel
+                  seat={selected.seat} zone={selected.zone}
+                  floor={floor} building={building}
+                  onClose={() => setSelected(null)}
+                  onUpdateType={updateSeatType}
+                />
+              ) : (
+                <OverviewSidePanel building={building} floor={floor} zones={effectiveZones}/>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
