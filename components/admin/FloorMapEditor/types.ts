@@ -35,3 +35,10 @@ export interface PaletteItem {
   defaultW: number;
   defaultH: number;
 }
+
+export interface AvailableFloor {
+  buildingId: string;
+  buildingLabel: string;
+  floorId: string;
+  floorLabel: string;
+}

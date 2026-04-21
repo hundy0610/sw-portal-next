@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Konva from "konva";
 import { Stage, Layer, Rect, Text, Group, Transformer, Line } from "react-konva";
-import type { FloorMapElement, FloorElementType, MonitorType, PaletteItem } from "./types";
+import type { FloorMapElement, FloorElementType, MonitorType, PaletteItem, AvailableFloor } from "./types";
 
 // ── 캔버스 논리 좌표 ─────────────────────────────────────────────
 const LOGIC_W = 900;
@@ -81,6 +81,7 @@ export interface MapEditorProps {
   seatOverrides?: Record<string, MonitorType>;
   onMonitorSelect?: (seatId: string) => void;
   selectedSeatId?: string | null;
+  availableFloors?: AvailableFloor[];
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -91,6 +92,7 @@ export default function MapEditor({
   seatOverrides = {},
   onMonitorSelect,
   selectedSeatId,
+  availableFloors = [],
 }: MapEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef     = useRef<Konva.Stage>(null);
@@ -102,6 +104,12 @@ export default function MapEditor({
   const [editMode,    setEditMode]    = useState(false);
   const [scale,       setScale]       = useState(1);
   const [editingName, setEditingName] = useState("");
+
+  // 복사 모달
+  const [showCopyModal,  setShowCopyModal]  = useState(false);
+  const [copySourceBld,  setCopySourceBld]  = useState<string>("");
+  const [copySourceFloor,setCopySourceFloor]= useState<string>("");
+  const [copyMode,       setCopyMode]       = useState<"overwrite" | "append">("overwrite");
 
   // ── 로드 ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -173,6 +181,43 @@ export default function MapEditor({
     setSelectedId(null);
   }, [selectedId]);
 
+  // 복사 실행
+  const executeCopy = useCallback(() => {
+    if (!copySourceBld || !copySourceFloor) return;
+    const src = loadLayout(copySourceBld, copySourceFloor);
+    if (src.length === 0) {
+      alert("선택한 층에 저장된 도면이 없습니다.");
+      return;
+    }
+    if (copyMode === "overwrite") {
+      // 새 ID 부여 (덮어쓰기)
+      const rekeyed = src.map(el => ({
+        ...el,
+        id: `el-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        seatId: el.type === "monitor" ? `NEW-${Date.now()}-${Math.random().toString(36).slice(2,5)}` : el.seatId,
+      }));
+      setElements(rekeyed);
+      saveLayout(buildingId, floorId, rekeyed);
+    } else {
+      // 추가 (append) — 오른쪽/아래로 20px 오프셋
+      const offset = 20;
+      const appended = src.map(el => ({
+        ...el,
+        id: `el-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        x: Math.min(el.x + offset, LOGIC_W - el.width - PAD),
+        y: Math.min(el.y + offset, LOGIC_H - el.height - PAD),
+        seatId: el.type === "monitor" ? `NEW-${Date.now()}-${Math.random().toString(36).slice(2,5)}` : el.seatId,
+      }));
+      setElements(prev => {
+        const next = [...prev, ...appended];
+        saveLayout(buildingId, floorId, next);
+        return next;
+      });
+    }
+    setShowCopyModal(false);
+    setSelectedId(null);
+  }, [copySourceBld, copySourceFloor, copyMode, buildingId, floorId]);
+
   const effectiveMonitorColor = (el: FloorMapElement) => {
     const t = (el.seatId && seatOverrides[el.seatId]) || el.monitorType || "unk";
     return MCOLOR[t as MonitorType];
@@ -235,6 +280,21 @@ export default function MapEditor({
     node.scaleX(1); node.scaleY(1);
   };
 
+  // ── 복사 모달에 표시할 건물 목록 (현재 층 제외) ─────────────────
+  const copyableFloors = availableFloors.filter(
+    f => !(f.buildingId === buildingId && f.floorId === floorId)
+  );
+  // 선택한 건물의 층 목록
+  const copyBldFloors = copyableFloors.filter(f => f.buildingId === copySourceBld);
+  // 복사 소스 층에 저장 데이터가 있는지 미리 확인
+  const copySourceHasData = copySourceBld && copySourceFloor
+    ? loadLayout(copySourceBld, copySourceFloor).length > 0
+    : false;
+  // 복사 가능한 유일한 건물 목록
+  const copyBldList = Array.from(
+    new Map(copyableFloors.map(f => [f.buildingId, f])).values()
+  );
+
   // ── Render ─────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-full" style={{ fontFamily: "system-ui,sans-serif" }}>
@@ -248,8 +308,30 @@ export default function MapEditor({
           </span>
         )}
         <div className="ml-auto flex items-center gap-1.5">
+          {/* 다른 층 복사 */}
+          {availableFloors.length > 0 && (
+            <button
+              onClick={() => {
+                // 기본 선택: 복사 가능한 첫 번째 항목
+                if (!copySourceBld && copyBldList.length > 0) {
+                  const first = copyBldList[0];
+                  setCopySourceBld(first.buildingId);
+                  const firstFloor = copyableFloors.find(f => f.buildingId === first.buildingId);
+                  if (firstFloor) setCopySourceFloor(firstFloor.floorId);
+                }
+                setShowCopyModal(v => !v);
+              }}
+              className={`px-3 py-1.5 font-semibold rounded-lg border transition-all text-xs ${
+                showCopyModal
+                  ? "bg-blue-600 text-white border-blue-600"
+                  : "bg-white text-blue-600 border-blue-200 hover:bg-blue-50"
+              }`}
+            >
+              ⧉ 다른 층 복사
+            </button>
+          )}
           <button
-            onClick={() => { setEditMode(v => !v); setSelectedId(null); setPlacingType(null); }}
+            onClick={() => { setEditMode(v => !v); setSelectedId(null); setPlacingType(null); setShowCopyModal(false); }}
             className={`px-3 py-1.5 font-semibold rounded-lg border transition-all text-xs ${
               editMode
                 ? "bg-amber-500 text-white border-amber-500 shadow-sm"
@@ -271,6 +353,109 @@ export default function MapEditor({
           )}
         </div>
       </div>
+
+      {/* ── 복사 모달 패널 ──────────────────────────────────────────── */}
+      {showCopyModal && (
+        <div className="flex-none bg-blue-50 border-b border-blue-200 px-4 py-3">
+          <div className="flex items-start gap-4 flex-wrap">
+            <div>
+              <div className="text-[10px] text-blue-600 font-bold mb-1.5">⧉ 다른 층 도면 복사</div>
+
+              {/* 건물 선택 */}
+              <div className="flex gap-1 mb-2">
+                {copyBldList.map(b => (
+                  <button
+                    key={b.buildingId}
+                    onClick={() => {
+                      setCopySourceBld(b.buildingId);
+                      const first = copyableFloors.find(f => f.buildingId === b.buildingId);
+                      if (first) setCopySourceFloor(first.floorId);
+                    }}
+                    className={`px-2.5 py-1 text-xs font-semibold rounded border transition-all ${
+                      copySourceBld === b.buildingId
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "bg-white text-gray-600 border-gray-200 hover:bg-blue-50"
+                    }`}
+                  >
+                    {b.buildingLabel}
+                  </button>
+                ))}
+              </div>
+
+              {/* 층 선택 */}
+              {copySourceBld && (
+                <div className="flex gap-1 flex-wrap mb-2">
+                  {copyBldFloors.map(f => {
+                    const hasData = loadLayout(f.buildingId, f.floorId).length > 0;
+                    return (
+                      <button
+                        key={f.floorId}
+                        onClick={() => setCopySourceFloor(f.floorId)}
+                        className={`px-2 py-1 text-xs rounded border transition-all ${
+                          copySourceFloor === f.floorId
+                            ? "bg-blue-600 text-white border-blue-600 font-semibold"
+                            : hasData
+                              ? "bg-white text-gray-700 border-gray-300 hover:bg-blue-50"
+                              : "bg-gray-50 text-gray-400 border-gray-200 cursor-default"
+                        }`}
+                        title={hasData ? `${f.floorLabel} — 저장된 도면 있음` : `${f.floorLabel} — 저장된 도면 없음`}
+                      >
+                        {f.floorLabel}
+                        {hasData && <span className="ml-1 text-[9px] opacity-70">●</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* 복사 방식 */}
+              <div className="flex gap-2 mb-2">
+                {(["overwrite", "append"] as const).map(m => (
+                  <label key={m} className="flex items-center gap-1 text-xs text-gray-600 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="copyMode"
+                      value={m}
+                      checked={copyMode === m}
+                      onChange={() => setCopyMode(m)}
+                      className="accent-blue-600"
+                    />
+                    {m === "overwrite" ? "현재 도면 덮어쓰기" : "현재 도면에 추가"}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5 justify-end self-end ml-auto">
+              {/* 미리보기 정보 */}
+              {copySourceBld && copySourceFloor && (
+                <div className={`text-[10px] px-2 py-1 rounded text-center ${
+                  copySourceHasData
+                    ? "bg-green-50 text-green-700 border border-green-200"
+                    : "bg-gray-50 text-gray-400 border border-gray-200"
+                }`}>
+                  {copySourceHasData
+                    ? `${loadLayout(copySourceBld, copySourceFloor).length}개 요소`
+                    : "저장된 도면 없음"}
+                </div>
+              )}
+              <button
+                onClick={executeCopy}
+                disabled={!copySourceHasData}
+                className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                {copyMode === "overwrite" ? "⧉ 복사 (덮어쓰기)" : "⧉ 복사 (추가)"}
+              </button>
+              <button
+                onClick={() => setShowCopyModal(false)}
+                className="px-4 py-1.5 bg-white text-gray-500 text-xs rounded-lg border border-gray-200 hover:bg-gray-50"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
 
