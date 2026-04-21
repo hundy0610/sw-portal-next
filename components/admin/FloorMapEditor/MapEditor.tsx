@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
 import Konva from "konva";
-import { Stage, Layer, Rect, Text, Group, Transformer, Line } from "react-konva";
+import { Stage, Layer, Rect, Text, Group, Transformer, Line, Image as KonvaImage } from "react-konva";
 import type { FloorMapElement, FloorElementType, MonitorType, PaletteItem, AvailableFloor } from "./types";
 
 // ── 캔버스 논리 좌표 ─────────────────────────────────────────────
@@ -61,6 +61,18 @@ const PALETTE: PaletteItem[] = [
 function lsKey(bldId: string, floorId: string) {
   return `sw-floor-layout-${bldId}-${floorId}`;
 }
+function lsBgKey(bldId: string, floorId: string) {
+  return `sw-floor-bg-${bldId}-${floorId}`;
+}
+function loadBg(bldId: string, floorId: string): string | null {
+  try { return localStorage.getItem(lsBgKey(bldId, floorId)); } catch { return null; }
+}
+function saveBg(bldId: string, floorId: string, dataUrl: string) {
+  try { localStorage.setItem(lsBgKey(bldId, floorId), dataUrl); } catch {}
+}
+function clearBg(bldId: string, floorId: string) {
+  try { localStorage.removeItem(lsBgKey(bldId, floorId)); } catch {}
+}
 function loadLayout(bldId: string, floorId: string): FloorMapElement[] {
   try {
     const s = localStorage.getItem(lsKey(bldId, floorId));
@@ -104,6 +116,7 @@ export default function MapEditor({
   const [editMode,    setEditMode]    = useState(false);
   const [scale,       setScale]       = useState(1);
   const [editingName, setEditingName] = useState("");
+  const [bgImg,       setBgImg]       = useState<HTMLImageElement | null>(null);
 
   // 복사 모달
   const [showCopyModal,  setShowCopyModal]  = useState(false);
@@ -115,6 +128,43 @@ export default function MapEditor({
   useEffect(() => {
     setElements(loadLayout(buildingId, floorId));
     setSelectedId(null); setPlacingType(null);
+
+    // 배경 이미지 로드
+    const stored = loadBg(buildingId, floorId);
+    if (stored) {
+      const img = new window.Image();
+      img.onload = () => setBgImg(img);
+      img.src = stored;
+    } else {
+      setBgImg(null);
+    }
+  }, [buildingId, floorId]);
+
+  // ── 클립보드 붙여넣기 (배경 이미지) ──────────────────────────
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith("image/")) {
+          const blob = item.getAsFile();
+          if (!blob) continue;
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            const dataUrl = ev.target?.result as string;
+            const img = new window.Image();
+            img.onload = () => setBgImg(img);
+            img.src = dataUrl;
+            saveBg(buildingId, floorId, dataUrl);
+          };
+          reader.readAsDataURL(blob);
+          e.preventDefault();
+          break;
+        }
+      }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
   }, [buildingId, floorId]);
 
   // ── 저장 ───────────────────────────────────────────────────────
@@ -306,6 +356,19 @@ export default function MapEditor({
           <span className="text-amber-600 font-semibold bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
             📍 클릭으로 배치 · Shift=연속 · Esc=취소
           </span>
+        )}
+        {!placingType && (
+          <span className="text-gray-400 text-[10px]">
+            🖼 Ctrl+V로 도면 이미지 붙여넣기
+          </span>
+        )}
+        {bgImg && (
+          <button
+            onClick={() => { setBgImg(null); clearBg(buildingId, floorId); }}
+            className="px-2.5 py-1 text-[10px] font-medium rounded border border-orange-200 text-orange-500 hover:bg-orange-50 transition-all"
+          >
+            🗑 배경 이미지 제거
+          </button>
         )}
         <div className="ml-auto flex items-center gap-1.5">
           {/* 다른 층 복사 */}
@@ -510,6 +573,16 @@ export default function MapEditor({
                   strokeWidth={1.5}
                   dash={[6, 3]}
                 />
+                {/* 붙여넣기 배경 이미지 */}
+                {bgImg && (
+                  <KonvaImage
+                    image={bgImg}
+                    x={PAD} y={PAD}
+                    width={FLOOR_W} height={FLOOR_H}
+                    opacity={0.75}
+                    listening={false}
+                  />
+                )}
                 {/* 방향 레이블 */}
                 <Text x={PAD+6} y={PAD+6} text="← 서편" fontSize={9} fill="#94A3B8" />
                 <Text x={PAD+FLOOR_W-46} y={PAD+6} text="동편 →" fontSize={9} fill="#94A3B8" />
