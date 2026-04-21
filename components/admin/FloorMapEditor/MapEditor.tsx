@@ -119,9 +119,10 @@ export default function MapEditor({
   const [bgImg,       setBgImg]       = useState<HTMLImageElement | null>(null);
   const [bgDataUrl,   setBgDataUrl]   = useState<string | null>(null);
   const [syncing,     setSyncing]     = useState(false);
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const elSaveTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const currentFloorRef = useRef(`${buildingId}-${floorId}`);
 
-  // ── 이미지 압축 (localStorage/Notion 저장 전) ──────────────
+  // ── 이미지 압축 ─────────────────────────────────────────────
   function compressImage(dataUrl: string, maxW = 1200, quality = 0.65): Promise<string> {
     return new Promise(resolve => {
       const img = new window.Image();
@@ -137,38 +138,48 @@ export default function MapEditor({
     });
   }
 
-  // ── 서버 저장 (디바운스 2초) ────────────────────────────────
-  function scheduleServerSave(bldId: string, fId: string, els: FloorMapElement[], bg: string | null) {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(async () => {
-      setSyncing(true);
-      try {
-        await fetch("/api/floor-layout", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ bldId, floorId: fId, elements: els, bgImage: bg }),
-        });
-      } catch {} finally { setSyncing(false); }
-    }, 2000);
+  // ── 서버 즉시 저장 (배경 이미지용) ─────────────────────────
+  async function saveNow(bldId: string, fId: string, els: FloorMapElement[], bg: string | null) {
+    setSyncing(true);
+    try {
+      await fetch("/api/floor-layout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bldId, floorId: fId, elements: els, bgImage: bg }),
+      });
+    } catch {} finally { setSyncing(false); }
   }
 
-  // ── 서버에서 로드 ───────────────────────────────────────────
+  // ── 서버 저장 (elements 변경용 디바운스) ───────────────────
+  function scheduleElementsSave(bldId: string, fId: string, els: FloorMapElement[], bg: string | null) {
+    if (elSaveTimerRef.current) clearTimeout(elSaveTimerRef.current);
+    elSaveTimerRef.current = setTimeout(() => saveNow(bldId, fId, els, bg), 2000);
+  }
+
+  // ── 서버에서 로드 (층 전환 경합 방지) ──────────────────────
   async function loadFromServer(bldId: string, fId: string) {
+    const floorKey = `${bldId}-${fId}`;
     try {
       const res  = await fetch(`/api/floor-layout?bld=${bldId}&floor=${fId}`);
       const json = await res.json();
+      // 응답 도착 전에 다른 층으로 이동했으면 무시
+      if (currentFloorRef.current !== floorKey) return;
       if (json.elements?.length > 0) {
         setElements(json.elements);
         saveLayout(bldId, fId, json.elements);
       }
       if (json.bgImage) {
         const img = new window.Image();
-        img.onload = () => setBgImg(img);
+        img.onload = () => {
+          if (currentFloorRef.current === floorKey) setBgImg(img);
+        };
         img.src = json.bgImage;
-        setBgDataUrl(json.bgImage);
-        saveBg(bldId, fId, json.bgImage);
+        if (currentFloorRef.current === floorKey) {
+          setBgDataUrl(json.bgImage);
+          saveBg(bldId, fId, json.bgImage);
+        }
       }
-    } catch {} // 실패 시 localStorage 유지
+    } catch {}
   }
 
   // 복사 모달
@@ -179,9 +190,11 @@ export default function MapEditor({
 
   // ── 로드: localStorage → 서버 순서 ────────────────────────────
   useEffect(() => {
-    // 1) localStorage에서 즉시 로드 (빠른 표시)
-    const cachedEls = loadLayout(buildingId, floorId);
-    setElements(cachedEls);
+    // 현재 층 ref 업데이트 (경합 방지)
+    currentFloorRef.current = `${buildingId}-${floorId}`;
+
+    // 1) localStorage 즉시 로드
+    setElements(loadLayout(buildingId, floorId));
     setSelectedId(null); setPlacingType(null);
 
     const cachedBg = loadBg(buildingId, floorId);
@@ -195,7 +208,7 @@ export default function MapEditor({
       setBgDataUrl(null);
     }
 
-    // 2) 서버에서 최신 데이터 로드 (공유 동기화)
+    // 2) 서버에서 최신 데이터 로드
     loadFromServer(buildingId, floorId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buildingId, floorId]);
@@ -212,14 +225,14 @@ export default function MapEditor({
           const reader = new FileReader();
           reader.onload = async (ev) => {
             const raw = ev.target?.result as string;
-            // 압축 (8,9층 localStorage 초과 방지)
             const compressed = await compressImage(raw);
             const img = new window.Image();
             img.onload = () => setBgImg(img);
             img.src = compressed;
             setBgDataUrl(compressed);
             saveBg(buildingId, floorId, compressed);
-            scheduleServerSave(buildingId, floorId, elements, compressed);
+            // 배경 이미지는 즉시 저장 (층 전환해도 취소 안됨)
+            saveNow(buildingId, floorId, elements, compressed);
           };
           reader.readAsDataURL(blob);
           e.preventDefault();
@@ -232,10 +245,10 @@ export default function MapEditor({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buildingId, floorId, elements]);
 
-  // ── 저장: localStorage + 서버 (디바운스) ──────────────────────
+  // ── elements 변경 시 저장 (디바운스) ──────────────────────────
   useEffect(() => {
     saveLayout(buildingId, floorId, elements);
-    scheduleServerSave(buildingId, floorId, elements, bgDataUrl);
+    scheduleElementsSave(buildingId, floorId, elements, bgDataUrl);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [elements]);
 
