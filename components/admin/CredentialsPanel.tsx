@@ -550,7 +550,7 @@ export default function CredentialsPanel() {
 
           {creds.length > 0 && (
             <div className="mt-6 text-center text-xs text-gray-400">
-              총 {creds.length}개 계정 · 변경사항은 GitHub에 자동 저장됩니다.
+              총 {creds.length}개 계정 · 변경사항은 자동 저장됩니다.
             </div>
           )}
         </>
