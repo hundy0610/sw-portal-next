@@ -142,11 +142,17 @@ export default function MapEditor({
   async function saveNow(bldId: string, fId: string, els: FloorMapElement[], bg: string | null) {
     setSyncing(true);
     try {
-      await fetch("/api/floor-layout", {
+      const res  = await fetch("/api/floor-layout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ bldId, floorId: fId, elements: els, bgImage: bg }),
       });
+      const json = await res.json();
+      // Vercel Blob 업로드 후 반환된 URL로 로컬 상태 업데이트
+      if (json.bgUrl && currentFloorRef.current === `${bldId}-${fId}`) {
+        setBgDataUrl(json.bgUrl);
+        saveBg(bldId, fId, json.bgUrl);
+      }
     } catch {} finally { setSyncing(false); }
   }
 
@@ -447,7 +453,7 @@ export default function MapEditor({
             onClick={() => {
               setBgImg(null); setBgDataUrl(null);
               clearBg(buildingId, floorId);
-              scheduleServerSave(buildingId, floorId, elements, null);
+              saveNow(buildingId, floorId, elements, null);
             }}
             className="px-2.5 py-1 text-[10px] font-medium rounded border border-orange-200 text-orange-500 hover:bg-orange-50 transition-all"
           >
