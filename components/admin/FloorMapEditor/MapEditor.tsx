@@ -193,6 +193,8 @@ export default function MapEditor({
   const [copySourceBld,  setCopySourceBld]  = useState<string>("");
   const [copySourceFloor,setCopySourceFloor]= useState<string>("");
   const [copyMode,       setCopyMode]       = useState<"overwrite" | "append">("overwrite");
+  // 서버에 저장된 층 데이터 여부: "bld-floorId" → 개수
+  const [serverFloorCounts, setServerFloorCounts] = useState<Record<string, number>>({});
 
   // ── 로드: localStorage → 서버 순서 ────────────────────────────
   useEffect(() => {
@@ -317,42 +319,83 @@ export default function MapEditor({
     setSelectedId(null);
   }, [selectedId]);
 
-  // 복사 실행
-  const executeCopy = useCallback(() => {
+  // ── 서버에서 복사 소스 레이아웃 가져오기 ─────────────────
+  const fetchSourceLayout = useCallback(async (bldId: string, fId: string): Promise<FloorMapElement[]> => {
+    // 1) localStorage 우선
+    const cached = loadLayout(bldId, fId);
+    if (cached.length > 0) return cached;
+    // 2) 서버(Notion) fallback
+    try {
+      const res  = await fetch(`/api/floor-layout?bld=${bldId}&floor=${fId}`);
+      const json = await res.json();
+      if (Array.isArray(json.elements) && json.elements.length > 0) {
+        saveLayout(bldId, fId, json.elements);   // 로컬에도 캐시
+        return json.elements;
+      }
+    } catch {}
+    return [];
+  }, []);
+
+  // ── 복사 모달 열 때 서버 보유 데이터 수 조회 ─────────────
+  const fetchServerFloorCounts = useCallback(async (floors: AvailableFloor[]) => {
+    const results: Record<string, number> = {};
+    await Promise.all(
+      floors.map(async f => {
+        const key = `${f.buildingId}-${f.floorId}`;
+        // localStorage 먼저
+        const lsCount = loadLayout(f.buildingId, f.floorId).length;
+        if (lsCount > 0) { results[key] = lsCount; return; }
+        // 서버 조회
+        try {
+          const res  = await fetch(`/api/floor-layout?bld=${f.buildingId}&floor=${f.floorId}`);
+          const json = await res.json();
+          results[key] = Array.isArray(json.elements) ? json.elements.length : 0;
+        } catch { results[key] = 0; }
+      })
+    );
+    setServerFloorCounts(results);
+  }, []);
+
+  // 복사 실행 (서버 fallback + 즉시 서버 저장)
+  const executeCopy = useCallback(async () => {
     if (!copySourceBld || !copySourceFloor) return;
-    const src = loadLayout(copySourceBld, copySourceFloor);
+
+    const src = await fetchSourceLayout(copySourceBld, copySourceFloor);
     if (src.length === 0) {
-      alert("선택한 층에 저장된 도면이 없습니다.");
+      alert("선택한 층에 저장된 도면이 없습니다.\n(Notion DB와 로컬 캐시 모두 비어있음)");
       return;
     }
+
+    let newElements: FloorMapElement[];
     if (copyMode === "overwrite") {
-      // 새 ID 부여 (덮어쓰기)
-      const rekeyed = src.map(el => ({
+      newElements = src.map(el => ({
         ...el,
-        id: `el-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        id:     `el-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         seatId: el.type === "monitor" ? `NEW-${Date.now()}-${Math.random().toString(36).slice(2,5)}` : el.seatId,
       }));
-      setElements(rekeyed);
-      saveLayout(buildingId, floorId, rekeyed);
+      setElements(newElements);
+      saveLayout(buildingId, floorId, newElements);
     } else {
-      // 추가 (append) — 오른쪽/아래로 20px 오프셋
       const offset = 20;
       const appended = src.map(el => ({
         ...el,
-        id: `el-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        x: Math.min(el.x + offset, LOGIC_W - el.width - PAD),
-        y: Math.min(el.y + offset, LOGIC_H - el.height - PAD),
+        id:     `el-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        x:      Math.min(el.x + offset, LOGIC_W - el.width - PAD),
+        y:      Math.min(el.y + offset, LOGIC_H - el.height - PAD),
         seatId: el.type === "monitor" ? `NEW-${Date.now()}-${Math.random().toString(36).slice(2,5)}` : el.seatId,
       }));
-      setElements(prev => {
-        const next = [...prev, ...appended];
-        saveLayout(buildingId, floorId, next);
-        return next;
-      });
+      newElements = [...elements, ...appended];
+      setElements(newElements);
+      saveLayout(buildingId, floorId, newElements);
     }
+
+    // 디바운스 타이머 취소 후 즉시 서버 저장
+    if (elSaveTimerRef.current) clearTimeout(elSaveTimerRef.current);
+    saveNow(buildingId, floorId, newElements, bgDataUrl);
+
     setShowCopyModal(false);
     setSelectedId(null);
-  }, [copySourceBld, copySourceFloor, copyMode, buildingId, floorId]);
+  }, [copySourceBld, copySourceFloor, copyMode, buildingId, floorId, elements, bgDataUrl, fetchSourceLayout]);
 
   const effectiveMonitorColor = (el: FloorMapElement) => {
     const t = (el.seatId && seatOverrides[el.seatId]) || el.monitorType || "unk";
@@ -422,14 +465,21 @@ export default function MapEditor({
   );
   // 선택한 건물의 층 목록
   const copyBldFloors = copyableFloors.filter(f => f.buildingId === copySourceBld);
-  // 복사 소스 층에 저장 데이터가 있는지 미리 확인
-  const copySourceHasData = copySourceBld && copySourceFloor
-    ? loadLayout(copySourceBld, copySourceFloor).length > 0
-    : false;
+  // 복사 소스 데이터 수 (localStorage + 서버 통합)
+  const copySourceCount = copySourceBld && copySourceFloor
+    ? (serverFloorCounts[`${copySourceBld}-${copySourceFloor}`] ?? loadLayout(copySourceBld, copySourceFloor).length)
+    : 0;
   // 복사 가능한 유일한 건물 목록
   const copyBldList = Array.from(
     new Map(copyableFloors.map(f => [f.buildingId, f])).values()
   );
+  // 층별 데이터 유무 (서버+로컬 통합)
+  const floorHasData = (bldId: string, fId: string) => {
+    const key = `${bldId}-${fId}`;
+    const serverCount = serverFloorCounts[key];
+    if (serverCount !== undefined) return serverCount > 0;
+    return loadLayout(bldId, fId).length > 0;
+  };
 
   // ── Render ─────────────────────────────────────────────────────
   return (
@@ -475,6 +525,8 @@ export default function MapEditor({
                   const firstFloor = copyableFloors.find(f => f.buildingId === first.buildingId);
                   if (firstFloor) setCopySourceFloor(firstFloor.floorId);
                 }
+                // 복사 모달 열 때 서버 데이터 수 비동기 조회
+                fetchServerFloorCounts(copyableFloors);
                 setShowCopyModal(v => !v);
               }}
               className={`px-3 py-1.5 font-semibold rounded-lg border transition-all text-xs ${
@@ -542,7 +594,9 @@ export default function MapEditor({
               {copySourceBld && (
                 <div className="flex gap-1 flex-wrap mb-2">
                   {copyBldFloors.map(f => {
-                    const hasData = loadLayout(f.buildingId, f.floorId).length > 0;
+                    const hasData = floorHasData(f.buildingId, f.floorId);
+                    const key = `${f.buildingId}-${f.floorId}`;
+                    const isLoading = serverFloorCounts[key] === undefined;
                     return (
                       <button
                         key={f.floorId}
@@ -552,12 +606,23 @@ export default function MapEditor({
                             ? "bg-blue-600 text-white border-blue-600 font-semibold"
                             : hasData
                               ? "bg-white text-gray-700 border-gray-300 hover:bg-blue-50"
-                              : "bg-gray-50 text-gray-400 border-gray-200 cursor-default"
+                              : "bg-gray-50 text-gray-400 border-gray-200"
                         }`}
-                        title={hasData ? `${f.floorLabel} — 저장된 도면 있음` : `${f.floorLabel} — 저장된 도면 없음`}
+                        title={
+                          isLoading
+                            ? `${f.floorLabel} — 조회 중...`
+                            : hasData
+                              ? `${f.floorLabel} — ${serverFloorCounts[key] ?? loadLayout(f.buildingId, f.floorId).length}개 요소`
+                              : `${f.floorLabel} — 저장된 도면 없음`
+                        }
                       >
                         {f.floorLabel}
-                        {hasData && <span className="ml-1 text-[9px] opacity-70">●</span>}
+                        {isLoading
+                          ? <span className="ml-1 text-[9px] opacity-40">…</span>
+                          : hasData
+                            ? <span className="ml-1 text-[9px] opacity-70">●</span>
+                            : null
+                        }
                       </button>
                     );
                   })}
@@ -586,18 +651,22 @@ export default function MapEditor({
               {/* 미리보기 정보 */}
               {copySourceBld && copySourceFloor && (
                 <div className={`text-[10px] px-2 py-1 rounded text-center ${
-                  copySourceHasData
+                  copySourceCount > 0
                     ? "bg-green-50 text-green-700 border border-green-200"
-                    : "bg-gray-50 text-gray-400 border border-gray-200"
+                    : serverFloorCounts[`${copySourceBld}-${copySourceFloor}`] === undefined
+                      ? "bg-blue-50 text-blue-500 border border-blue-200"
+                      : "bg-gray-50 text-gray-400 border border-gray-200"
                 }`}>
-                  {copySourceHasData
-                    ? `${loadLayout(copySourceBld, copySourceFloor).length}개 요소`
-                    : "저장된 도면 없음"}
+                  {serverFloorCounts[`${copySourceBld}-${copySourceFloor}`] === undefined
+                    ? "서버 조회 중..."
+                    : copySourceCount > 0
+                      ? `${copySourceCount}개 요소 (Notion DB)`
+                      : "저장된 도면 없음"}
                 </div>
               )}
               <button
-                onClick={executeCopy}
-                disabled={!copySourceHasData}
+                onClick={() => { void executeCopy(); }}
+                disabled={!copySourceBld || !copySourceFloor}
                 className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 {copyMode === "overwrite" ? "⧉ 복사 (덮어쓰기)" : "⧉ 복사 (추가)"}
