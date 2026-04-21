@@ -117,6 +117,59 @@ export default function MapEditor({
   const [scale,       setScale]       = useState(1);
   const [editingName, setEditingName] = useState("");
   const [bgImg,       setBgImg]       = useState<HTMLImageElement | null>(null);
+  const [bgDataUrl,   setBgDataUrl]   = useState<string | null>(null);
+  const [syncing,     setSyncing]     = useState(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── 이미지 압축 (localStorage/Notion 저장 전) ──────────────
+  function compressImage(dataUrl: string, maxW = 1200, quality = 0.65): Promise<string> {
+    return new Promise(resolve => {
+      const img = new window.Image();
+      img.onload = () => {
+        const ratio = Math.min(1, maxW / img.width);
+        const canvas = document.createElement("canvas");
+        canvas.width  = Math.round(img.width  * ratio);
+        canvas.height = Math.round(img.height * ratio);
+        canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.src = dataUrl;
+    });
+  }
+
+  // ── 서버 저장 (디바운스 2초) ────────────────────────────────
+  function scheduleServerSave(bldId: string, fId: string, els: FloorMapElement[], bg: string | null) {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
+      setSyncing(true);
+      try {
+        await fetch("/api/floor-layout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ bldId, floorId: fId, elements: els, bgImage: bg }),
+        });
+      } catch {} finally { setSyncing(false); }
+    }, 2000);
+  }
+
+  // ── 서버에서 로드 ───────────────────────────────────────────
+  async function loadFromServer(bldId: string, fId: string) {
+    try {
+      const res  = await fetch(`/api/floor-layout?bld=${bldId}&floor=${fId}`);
+      const json = await res.json();
+      if (json.elements?.length > 0) {
+        setElements(json.elements);
+        saveLayout(bldId, fId, json.elements);
+      }
+      if (json.bgImage) {
+        const img = new window.Image();
+        img.onload = () => setBgImg(img);
+        img.src = json.bgImage;
+        setBgDataUrl(json.bgImage);
+        saveBg(bldId, fId, json.bgImage);
+      }
+    } catch {} // 실패 시 localStorage 유지
+  }
 
   // 복사 모달
   const [showCopyModal,  setShowCopyModal]  = useState(false);
@@ -124,23 +177,30 @@ export default function MapEditor({
   const [copySourceFloor,setCopySourceFloor]= useState<string>("");
   const [copyMode,       setCopyMode]       = useState<"overwrite" | "append">("overwrite");
 
-  // ── 로드 ───────────────────────────────────────────────────────
+  // ── 로드: localStorage → 서버 순서 ────────────────────────────
   useEffect(() => {
-    setElements(loadLayout(buildingId, floorId));
+    // 1) localStorage에서 즉시 로드 (빠른 표시)
+    const cachedEls = loadLayout(buildingId, floorId);
+    setElements(cachedEls);
     setSelectedId(null); setPlacingType(null);
 
-    // 배경 이미지 로드
-    const stored = loadBg(buildingId, floorId);
-    if (stored) {
+    const cachedBg = loadBg(buildingId, floorId);
+    if (cachedBg) {
       const img = new window.Image();
       img.onload = () => setBgImg(img);
-      img.src = stored;
+      img.src = cachedBg;
+      setBgDataUrl(cachedBg);
     } else {
       setBgImg(null);
+      setBgDataUrl(null);
     }
+
+    // 2) 서버에서 최신 데이터 로드 (공유 동기화)
+    loadFromServer(buildingId, floorId);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buildingId, floorId]);
 
-  // ── 클립보드 붙여넣기 (배경 이미지) ──────────────────────────
+  // ── 클립보드 붙여넣기 (압축 후 저장) ──────────────────────────
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
       const items = e.clipboardData?.items;
@@ -150,12 +210,16 @@ export default function MapEditor({
           const blob = item.getAsFile();
           if (!blob) continue;
           const reader = new FileReader();
-          reader.onload = (ev) => {
-            const dataUrl = ev.target?.result as string;
+          reader.onload = async (ev) => {
+            const raw = ev.target?.result as string;
+            // 압축 (8,9층 localStorage 초과 방지)
+            const compressed = await compressImage(raw);
             const img = new window.Image();
             img.onload = () => setBgImg(img);
-            img.src = dataUrl;
-            saveBg(buildingId, floorId, dataUrl);
+            img.src = compressed;
+            setBgDataUrl(compressed);
+            saveBg(buildingId, floorId, compressed);
+            scheduleServerSave(buildingId, floorId, elements, compressed);
           };
           reader.readAsDataURL(blob);
           e.preventDefault();
@@ -165,12 +229,15 @@ export default function MapEditor({
     };
     window.addEventListener("paste", onPaste);
     return () => window.removeEventListener("paste", onPaste);
-  }, [buildingId, floorId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buildingId, floorId, elements]);
 
-  // ── 저장 ───────────────────────────────────────────────────────
+  // ── 저장: localStorage + 서버 (디바운스) ──────────────────────
   useEffect(() => {
     saveLayout(buildingId, floorId, elements);
-  }, [buildingId, floorId, elements]);
+    scheduleServerSave(buildingId, floorId, elements, bgDataUrl);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [elements]);
 
   // ── 반응형 스케일 ───────────────────────────────────────────────
   useEffect(() => {
@@ -364,11 +431,18 @@ export default function MapEditor({
         )}
         {bgImg && (
           <button
-            onClick={() => { setBgImg(null); clearBg(buildingId, floorId); }}
+            onClick={() => {
+              setBgImg(null); setBgDataUrl(null);
+              clearBg(buildingId, floorId);
+              scheduleServerSave(buildingId, floorId, elements, null);
+            }}
             className="px-2.5 py-1 text-[10px] font-medium rounded border border-orange-200 text-orange-500 hover:bg-orange-50 transition-all"
           >
             🗑 배경 이미지 제거
           </button>
+        )}
+        {syncing && (
+          <span className="text-[10px] text-blue-400 animate-pulse">↑ 저장 중...</span>
         )}
         <div className="ml-auto flex items-center gap-1.5">
           {/* 다른 층 복사 */}
