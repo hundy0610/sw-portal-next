@@ -1,42 +1,102 @@
+/**
+ * 계정 관리 (ID/PW) API — Notion DB 연동
+ *
+ * 필요한 환경변수:
+ *   NOTION_TOKEN          ← 기존 사용 중
+ *   NOTION_DB_CREDENTIALS ← ID/PW 노션 DB 페이지 ID
+ *
+ * 노션 DB 필수 프로퍼티 (대소문자 정확히 일치):
+ *   이름   — Title         (계정 소유자 / 회사명)
+ *   유형   — Rich Text     (Adobe, AutoDesk, … 그룹핑 기준)
+ *   ID     — Rich Text     (계정 아이디)
+ *   PW     — Rich Text     (비밀번호)
+ *   URL    — URL or Text   (사이트 주소)
+ *   비고   — Rich Text     (메모, optional)
+ */
+
 import { NextRequest, NextResponse } from "next/server";
-import { kv } from "@vercel/kv";
-import { randomUUID } from "crypto";
+import { Client } from "@notionhq/client";
+import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
 
-// ── KV 키 ──────────────────────────────────────────────────
-const KV_KEY = "sw:credentials";
+const notion = new Client({ auth: process.env.NOTION_TOKEN });
+const DB_ID  = process.env.NOTION_DB_CREDENTIALS ?? "";
 
+// ── 프로퍼티 파서 헬퍼 ────────────────────────────────────
+type Props = PageObjectResponse["properties"];
+
+const txt = (p: Props, k: string): string => {
+  const v = p[k];
+  if (!v) return "";
+  if (v.type === "title")     return v.title.map(t => t.plain_text).join("");
+  if (v.type === "rich_text") return v.rich_text.map(t => t.plain_text).join("");
+  if (v.type === "url")       return v.url ?? "";
+  return "";
+};
+
+const sel = (p: Props, k: string): string => {
+  const v = p[k];
+  if (!v || v.type !== "select") return "";
+  return v.select?.name ?? "";
+};
+
+// ── 노션 페이지 → SwCredential 매핑 ─────────────────────
 export interface SwCredential {
-  id: string;
-  swName: string;
-  siteUrl: string;
+  id:        string;
+  swName:    string;   // SW명 (select) — 카드 제목
+  name:      string;   // 이름 (title)  — 회사/계정 소유자
   accountId: string;
-  password: string;
-  memo: string;
+  password:  string;
+  siteUrl:   string;
+  memo:      string;
 }
 
-// ── KV 읽기 (KV 미설정 시 빈 배열 반환) ──────────────────
-async function readAll(): Promise<SwCredential[]> {
-  if (!process.env.KV_REST_API_URL) return [];
-  try {
-    const data = await kv.get<SwCredential[]>(KV_KEY);
-    return Array.isArray(data) ? data : [];
-  } catch {
-    return [];
-  }
+function mapPage(page: PageObjectResponse): SwCredential {
+  const p = page.properties;
+  return {
+    id:        page.id,
+    swName:    txt(p, "유형")   || sel(p, "유형"),
+    name:      txt(p, "이름"),
+    accountId: txt(p, "ID"),
+    password:  txt(p, "PW"),
+    siteUrl:   txt(p, "URL"),
+    memo:      txt(p, "비고"),
+  };
 }
 
-// ── KV 쓰기 ────────────────────────────────────────────────
-async function writeAll(data: SwCredential[]): Promise<void> {
-  if (!process.env.KV_REST_API_URL) {
-    throw new Error("KV_REST_API_URL 환경변수가 설정되지 않았습니다.");
-  }
-  await kv.set(KV_KEY, data); // TTL 없음 — 영구 보존
+// ── DB 전체 조회 (페이지네이션) ───────────────────────────
+async function fetchAll(): Promise<SwCredential[]> {
+  if (!DB_ID) return [];
+  const results: SwCredential[] = [];
+  let cursor: string | undefined;
+
+  do {
+    const res = await notion.databases.query({
+      database_id: DB_ID,
+      sorts: [{ property: "유형", direction: "ascending" }],
+      page_size: 100,
+      start_cursor: cursor,
+    });
+    for (const page of res.results) {
+      if (page.object === "page" && "properties" in page) {
+        results.push(mapPage(page as PageObjectResponse));
+      }
+    }
+    cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined;
+  } while (cursor);
+
+  return results;
 }
 
-// ── GET: 계정 목록 조회 ───────────────────────────────────
+// ── GET: 계정 목록 ────────────────────────────────────────
 export async function GET() {
+  if (!DB_ID) {
+    return NextResponse.json(
+      { data: [], error: "NOTION_DB_CREDENTIALS 환경변수가 설정되지 않았습니다." },
+      { status: 500 }
+    );
+  }
   try {
-    const data = await readAll();
+    const data = await fetchAll();
     return NextResponse.json({ data });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
@@ -44,28 +104,36 @@ export async function GET() {
   }
 }
 
-// ── POST: 새 계정 추가 ────────────────────────────────────
+// ── POST: 계정 추가 ───────────────────────────────────────
 export async function POST(req: NextRequest) {
+  if (!DB_ID) {
+    return NextResponse.json({ error: "NOTION_DB_CREDENTIALS 미설정" }, { status: 500 });
+  }
   try {
-    const body = await req.json();
-    const { swName, siteUrl = "", accountId, password = "", memo = "" } = body;
-
+    const { swName, name = "", accountId, password = "", siteUrl = "", memo = "" } = await req.json();
     if (!swName || !accountId) {
       return NextResponse.json({ error: "SW명과 아이디는 필수입니다." }, { status: 400 });
     }
 
-    const all = await readAll();
-    const newEntry: SwCredential = {
-      id:        randomUUID(),
-      swName:    String(swName).trim(),
-      siteUrl:   String(siteUrl).trim(),
-      accountId: String(accountId).trim(),
-      password:  String(password).trim(),
-      memo:      String(memo).trim(),
-    };
+    const page = await notion.pages.create({
+      parent: { database_id: DB_ID },
+      properties: {
+        "이름":  { title:     [{ text: { content: String(name).trim() || String(swName).trim() } }] },
+        "유형":  { rich_text: [{ text: { content: String(swName).trim() } }] },
+        "ID":    { rich_text: [{ text: { content: String(accountId).trim() } }] },
+        "PW":    { rich_text: [{ text: { content: String(password).trim() } }] },
+        "URL":   { url: String(siteUrl).trim() || null },
+        "비고":  { rich_text: [{ text: { content: String(memo).trim() } }] },
+      } as never,
+    });
 
-    await writeAll([...all, newEntry]);
-    return NextResponse.json({ ok: true, data: newEntry });
+    return NextResponse.json({
+      ok: true,
+      data: {
+        id: page.id, swName, name,
+        accountId, password, siteUrl, memo,
+      } satisfies SwCredential,
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });
@@ -75,47 +143,32 @@ export async function POST(req: NextRequest) {
 // ── PUT: 계정 수정 ────────────────────────────────────────
 export async function PUT(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { id, swName, siteUrl, accountId, password, memo } = body;
+    const { id, swName, name, accountId, password, siteUrl, memo } = await req.json();
     if (!id) return NextResponse.json({ error: "id가 필요합니다." }, { status: 400 });
 
-    const all = await readAll();
-    const idx = all.findIndex(c => c.id === id);
-    if (idx === -1) {
-      return NextResponse.json({ error: "해당 항목을 찾을 수 없습니다." }, { status: 404 });
-    }
+    const props: Record<string, unknown> = {};
+    if (name      !== undefined) props["이름"] = { title:     [{ text: { content: String(name).trim() } }] };
+    if (swName    !== undefined) props["유형"] = { rich_text: [{ text: { content: String(swName).trim() } }] };
+    if (accountId !== undefined) props["ID"]   = { rich_text: [{ text: { content: String(accountId).trim() } }] };
+    if (password  !== undefined) props["PW"]   = { rich_text: [{ text: { content: String(password).trim() } }] };
+    if (siteUrl   !== undefined) props["URL"]  = { url: String(siteUrl).trim() || null };
+    if (memo      !== undefined) props["비고"] = { rich_text: [{ text: { content: String(memo).trim() } }] };
 
-    all[idx] = {
-      ...all[idx],
-      ...(swName    !== undefined && { swName:    String(swName).trim() }),
-      ...(siteUrl   !== undefined && { siteUrl:   String(siteUrl).trim() }),
-      ...(accountId !== undefined && { accountId: String(accountId).trim() }),
-      ...(password  !== undefined && { password:  String(password).trim() }),
-      ...(memo      !== undefined && { memo:      String(memo).trim() }),
-    };
-
-    await writeAll(all);
-    return NextResponse.json({ ok: true, data: all[idx] });
+    await notion.pages.update({ page_id: id, properties: props as never });
+    return NextResponse.json({ ok: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
-// ── DELETE: 계정 삭제 ─────────────────────────────────────
+// ── DELETE: 계정 삭제 (아카이브) ─────────────────────────
 export async function DELETE(req: NextRequest) {
   try {
     const { id } = await req.json();
     if (!id) return NextResponse.json({ error: "id가 필요합니다." }, { status: 400 });
 
-    const all = await readAll();
-    const updated = all.filter(c => c.id !== id);
-
-    if (updated.length === all.length) {
-      return NextResponse.json({ error: "해당 항목을 찾을 수 없습니다." }, { status: 404 });
-    }
-
-    await writeAll(updated);
+    await notion.pages.update({ page_id: id, archived: true });
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
