@@ -1,6 +1,5 @@
 "use client";
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { FLOOR_SKETCHES, SketchCtx, SketchZone, BW_FLOOR_TABLES } from "./FloorSketches";
 import dynamic from "next/dynamic";
 
 const MapEditor = dynamic(() => import("./FloorMapEditor/MapEditor"), {
@@ -12,7 +11,6 @@ const MapEditor = dynamic(() => import("./FloorMapEditor/MapEditor"), {
 // TYPES
 // ══════════════════════════════════════════════════════════════════════════════
 type MonitorType = "std27" | "std24" | "dev34" | "none" | "unk";
-type FilterMode  = "all" | MonitorType;
 
 interface SeatData {
   id:   string;
@@ -41,21 +39,6 @@ interface BuildingData {
   floors: FloorData[];
 }
 
-// SVG 스케치 레이아웃 타입
-interface CoreBlock  { x:number; y:number; w:number; h:number; label:string; fill?:string; stroke?:string; }
-interface RoomBlock  { x:number; y:number; w:number; h:number; label:string; sub?:string; }
-interface DeskBgBlock{ id:string; x:number; y:number; w:number; h:number; label:string; fill:string; stroke:string; }
-interface SeatGrid   { zoneId:string; startX:number; startY:number; cols:number; rows:number; sw:number; sh:number; gx:number; gy:number; rowGroups:number[]; aisle:number; }
-interface SvgLabel   { x:number; y:number; text:string; size?:number; color?:string; anchor?:string; bold?:boolean; }
-interface FloorSvgCfg{
-  vw:number; vh:number;
-  coreBlocks?: CoreBlock[];
-  extraBlocks?: CoreBlock[];
-  rooms?:       RoomBlock[];
-  deskBg?:      DeskBgBlock[];
-  seatGrids?:   SeatGrid[];
-  labels?:      SvgLabel[];
-}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // MONITOR META
@@ -94,27 +77,6 @@ function calcStats(zones: ZoneData[]) {
   const r = { std27:0, std24:0, dev34:0, none:0, unk:0, total:0 };
   zones.forEach(z => z.seats.forEach(s => { (r as Record<string,number>)[s.type]++; r.total++; }));
   return r;
-}
-
-function getSeatPositions(sg: SeatGrid): {x:number;y:number;row:number;col:number}[] {
-  const { startX, startY, cols, rows, sw, sh, gx, gy, rowGroups, aisle } = sg;
-  const positions: {x:number;y:number;row:number;col:number}[] = [];
-  let rowY = startY, groupIdx = 0, rowInGroup = 0;
-  for (let r = 0; r < rows; r++) {
-    let colX = startX;
-    for (let c = 0; c < cols; c++) {
-      positions.push({ x:colX, y:rowY, row:r, col:c });
-      colX += sw + gx;
-    }
-    rowInGroup++;
-    const groupSize = (rowGroups && rowGroups[groupIdx]) || 2;
-    if (rowInGroup >= groupSize && r < rows - 1) {
-      rowY += sh + gy + aisle; groupIdx++; rowInGroup = 0;
-    } else {
-      rowY += sh + gy;
-    }
-  }
-  return positions;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -205,469 +167,6 @@ const BUILDINGS: BuildingData[] = [
     ],
   },
 ];
-
-// ══════════════════════════════════════════════════════════════════════════════
-// SVG 스케치 도면 설정  (본관 2~9층 도면 기반)
-// ══════════════════════════════════════════════════════════════════════════════
-const FLOOR_SVGS: Record<string, FloorSvgCfg> = {
-  "2F": {
-    // 실제 도면: 좌측=4블록 스마트오피스(각 블록 13석), 중앙=미팅룸 A/B/C/쇼룸 수직 배치,
-    //           중앙-우=계단/EV 홀, 우=EPS·화장실·창고(VOID)
-    vw:800, vh:380,
-    coreBlocks: [
-      { x:512, y:18, w:90, h:342, label:"계단\nELEV HALL\nEV" },
-      { x:608, y:18, w:78, h:342, label:"EPS\n화장실" },
-    ],
-    extraBlocks:[{ x:692, y:18, w:100, h:342, label:"창고\n(VOID)", fill:"#E2E8F0", stroke:"#94A3B8" }],
-    rooms:[
-      { x:348, y:20,  w:158, h:80,  label:"미팅룸 A" },
-      { x:348, y:106, w:158, h:90,  label:"미팅룸 B" },
-      { x:348, y:202, w:158, h:82,  label:"미팅룸 C" },
-      { x:348, y:290, w:158, h:70,  label:"쇼룸" },
-    ],
-    deskBg:[{ id:"SO", x:12, y:12, w:328, h:348, label:"스마트오피스 (서편) — 52석", fill:"#EFF6FF", stroke:"#93C5FD" }],
-    // 실제 도면 4개 블록에 맞춰 4줄 사이 통로: rowGroups=[1,1,1,1]
-    seatGrids:[{ zoneId:"SO", startX:22, startY:60, cols:13, rows:4, sw:21, sh:26, gx:3, gy:4, rowGroups:[1,1,1,1], aisle:48 }],
-    labels:[
-      { x:176, y:32, text:"← 서편 (WEST) →", size:9, color:"#2563EB", anchor:"middle", bold:true },
-      { x:427, y:372, text:"↑ 동편 복도 / 엘리베이터 홀 / 창고", size:7.5, color:"#94A3B8", anchor:"middle" },
-    ],
-  },
-  "3F": {
-    vw:800, vh:380,
-    coreBlocks:[{ x:325, y:18, w:150, h:342, label:"계단/EPS/EV/화장실" }],
-    extraBlocks:[
-      { x:12, y:12, w:95, h:90, label:"협업공간", fill:"#F0FDF4", stroke:"#86EFAC" },
-      { x:570, y:12, w:95, h:90, label:"협업공간", fill:"#F0FDF4", stroke:"#86EFAC" },
-      { x:672, y:12, w:120, h:90, label:"G/B", fill:"#F0FDF4", stroke:"#86EFAC" },
-    ],
-    rooms:[
-      { x:12, y:298, w:145, h:72, label:"미팅룸" },
-      { x:165, y:298, w:148, h:72, label:"미팅룸" },
-    ],
-    deskBg:[
-      { id:"W", x:12, y:108, w:305, h:182, label:"서편", fill:"#EFF6FF", stroke:"#93C5FD" },
-      { id:"E", x:483, y:108, w:308, h:182, label:"동편", fill:"#EFF6FF", stroke:"#93C5FD" },
-    ],
-    seatGrids:[
-      { zoneId:"W", startX:22, startY:118, cols:6, rows:8, sw:15, sh:12, gx:5, gy:3, rowGroups:[2,2,2,2], aisle:12 },
-      { zoneId:"E", startX:493, startY:118, cols:9, rows:7, sw:15, sh:12, gx:5, gy:3, rowGroups:[2,2,2,1], aisle:12 },
-    ],
-    labels:[
-      { x:164, y:28, text:"서편 (WEST)", size:9, color:"#2563EB", anchor:"middle", bold:true },
-      { x:636, y:28, text:"동편 (EAST)", size:9, color:"#2563EB", anchor:"middle", bold:true },
-      { x:398, y:192, text:"계단\nEPS\n화장실", size:8, color:"#64748B", anchor:"middle" },
-    ],
-  },
-  "4F": {
-    vw:800, vh:380,
-    coreBlocks:[{ x:325, y:18, w:150, h:342, label:"계단/EPS/화장실" }],
-    extraBlocks:[{ x:683, y:298, w:112, h:72, label:"8인 미팅룸", fill:"#F0FDF4", stroke:"#86EFAC" }],
-    rooms:[
-      { x:12, y:298, w:100, h:72, label:"스마트2" },
-      { x:120, y:298, w:100, h:72, label:"스마트3" },
-      { x:228, y:298, w:90, h:72, label:"라운지" },
-    ],
-    deskBg:[
-      { id:"W", x:12, y:12, w:305, h:278, label:"서편 (미설치 다수)", fill:"#FFF1F2", stroke:"#FCA5A5" },
-      { id:"E", x:483, y:12, w:308, h:278, label:"동편", fill:"#EFF6FF", stroke:"#93C5FD" },
-    ],
-    seatGrids:[
-      { zoneId:"W", startX:22, startY:22, cols:5, rows:8, sw:18, sh:13, gx:5, gy:3, rowGroups:[2,2,2,2], aisle:14 },
-      { zoneId:"E", startX:493, startY:22, cols:8, rows:7, sw:18, sh:13, gx:5, gy:3, rowGroups:[2,2,2,1], aisle:14 },
-    ],
-    labels:[
-      { x:164, y:28, text:"서편 (WEST) — 미설치 주의", size:9, color:"#DC2626", anchor:"middle", bold:true },
-      { x:636, y:28, text:"동편 (EAST)", size:9, color:"#2563EB", anchor:"middle", bold:true },
-      { x:398, y:192, text:"계단\nEPS\n화장실", size:8, color:"#64748B", anchor:"middle" },
-    ],
-  },
-  "5F": {
-    vw:800, vh:380,
-    coreBlocks:[
-      { x:325, y:18, w:150, h:250, label:"계단/EPS/화장실" },
-      { x:325, y:276, w:150, h:84, label:"미팅룸", fill:"#F0FDF4", stroke:"#86EFAC" },
-    ],
-    extraBlocks:[{ x:570, y:12, w:222, h:105, label:"라운지 / 바 (Bar Table)", fill:"#FEF3C7", stroke:"#FCD34D" }],
-    rooms:[],
-    deskBg:[
-      { id:"W", x:12, y:12, w:305, h:358, label:"서편", fill:"#EFF6FF", stroke:"#93C5FD" },
-      { id:"E", x:483, y:118, w:308, h:252, label:"동편", fill:"#EFF6FF", stroke:"#93C5FD" },
-    ],
-    seatGrids:[
-      { zoneId:"W", startX:22, startY:22, cols:6, rows:7, sw:17, sh:13, gx:5, gy:3, rowGroups:[2,2,2,1], aisle:14 },
-      { zoneId:"E", startX:493, startY:128, cols:8, rows:6, sw:17, sh:13, gx:5, gy:3, rowGroups:[2,2,2], aisle:14 },
-    ],
-    labels:[
-      { x:164, y:28, text:"서편 (WEST)", size:9, color:"#2563EB", anchor:"middle", bold:true },
-      { x:636, y:134, text:"동편 (EAST)", size:9, color:"#2563EB", anchor:"middle", bold:true },
-      { x:398, y:152, text:"계단/EPS", size:8, color:"#64748B", anchor:"middle" },
-    ],
-  },
-  "6F": {
-    vw:800, vh:380,
-    coreBlocks:[{ x:325, y:18, w:150, h:342, label:"계단/EPS/화장실" }],
-    extraBlocks:[],
-    rooms:[],
-    deskBg:[
-      { id:"W", x:12, y:12, w:305, h:358, label:'서편 — 개발자 34" 구역', fill:"#F5F3FF", stroke:"#C4B5FD" },
-      { id:"E", x:483, y:12, w:308, h:358, label:"동편", fill:"#EFF6FF", stroke:"#93C5FD" },
-    ],
-    seatGrids:[
-      { zoneId:"W", startX:22, startY:42, cols:7, rows:7, sw:16, sh:13, gx:5, gy:3, rowGroups:[2,2,2,1], aisle:14 },
-      { zoneId:"E", startX:493, startY:22, cols:8, rows:7, sw:17, sh:13, gx:5, gy:3, rowGroups:[2,2,2,1], aisle:14 },
-    ],
-    labels:[
-      { x:164, y:28, text:'서편 (WEST) — 개발자 34"', size:9, color:"#7C3AED", anchor:"middle", bold:true },
-      { x:636, y:28, text:"동편 (EAST)", size:9, color:"#2563EB", anchor:"middle", bold:true },
-      { x:398, y:192, text:"계단\nEPS\n화장실", size:8, color:"#64748B", anchor:"middle" },
-    ],
-  },
-  "7F": {
-    vw:800, vh:380,
-    coreBlocks:[{ x:325, y:18, w:150, h:342, label:"계단/EPS/화장실" }],
-    extraBlocks:[{ x:12, y:298, w:305, h:72, label:"로커 구역 (LOCKER)", fill:"#F1F5F9", stroke:"#CBD5E1" }],
-    rooms:[],
-    deskBg:[
-      { id:"W", x:12, y:12, w:305, h:278, label:"서편 (미설치 다수)", fill:"#FFF1F2", stroke:"#FCA5A5" },
-      { id:"E", x:483, y:12, w:308, h:358, label:"동편", fill:"#EFF6FF", stroke:"#93C5FD" },
-    ],
-    seatGrids:[
-      { zoneId:"W", startX:22, startY:22, cols:6, rows:6, sw:17, sh:13, gx:5, gy:3, rowGroups:[2,2,2], aisle:14 },
-      { zoneId:"E", startX:493, startY:22, cols:8, rows:7, sw:17, sh:13, gx:5, gy:3, rowGroups:[2,2,2,1], aisle:14 },
-    ],
-    labels:[
-      { x:164, y:28, text:"서편 (WEST) — 미설치 주의", size:9, color:"#DC2626", anchor:"middle", bold:true },
-      { x:636, y:28, text:"동편 (EAST)", size:9, color:"#2563EB", anchor:"middle", bold:true },
-      { x:398, y:192, text:"계단\nEPS\n화장실", size:8, color:"#64748B", anchor:"middle" },
-    ],
-  },
-  "8F": {
-    vw:800, vh:380,
-    coreBlocks:[{ x:325, y:18, w:150, h:342, label:"CANTEEN\n계단\n화장실" }],
-    extraBlocks:[],
-    rooms:[
-      { x:12, y:12, w:152, h:120, label:"회의실/미팅룸-1" },
-      { x:12, y:140, w:152, h:120, label:"회의실/미팅룸-2" },
-      { x:12, y:268, w:152, h:102, label:"미팅룸" },
-      { x:483, y:12, w:308, h:138, label:"Conference-1" },
-      { x:483, y:158, w:308, h:105, label:"회의실/멀티룸" },
-      { x:483, y:271, w:308, h:99, label:"Conference-2" },
-    ],
-    deskBg:[{ id:"M", x:172, y:90, w:145, h:200, label:"업무공간", fill:"#EFF6FF", stroke:"#93C5FD" }],
-    seatGrids:[{ zoneId:"M", startX:180, startY:100, cols:5, rows:5, sw:16, sh:13, gx:5, gy:3, rowGroups:[2,3], aisle:20 }],
-    labels:[
-      { x:92, y:28, text:"← 회의실 구역 →", size:9, color:"#15803D", anchor:"middle" },
-      { x:636, y:28, text:"← 컨퍼런스룸 구역 →", size:9, color:"#15803D", anchor:"middle" },
-      { x:244, y:52, text:"업무공간", size:8, color:"#2563EB", anchor:"middle" },
-      { x:398, y:192, text:"CANTEEN\n계단\n화장실", size:8, color:"#64748B", anchor:"middle" },
-    ],
-  },
-  "9F": {
-    vw:800, vh:380,
-    coreBlocks:[{ x:325, y:18, w:150, h:342, label:"계단/창고/화장실" }],
-    extraBlocks:[
-      { x:12, y:12, w:175, h:100, label:"스튜디오 / 도서관", fill:"#FEF3C7", stroke:"#F6CE4A" },
-      { x:12, y:120, w:175, h:80, label:"스탠딩 데스크", fill:"#FEF3C7", stroke:"#F6CE4A" },
-    ],
-    rooms:[],
-    deskBg:[
-      { id:"W", x:12, y:208, w:305, h:162, label:"스튜디오 (서편)", fill:"#FFF7E6", stroke:"#F6CE4A" },
-      { id:"E", x:483, y:12, w:308, h:358, label:"홀 (동편) — 54석", fill:"#EFF6FF", stroke:"#93C5FD" },
-    ],
-    seatGrids:[
-      { zoneId:"W", startX:22, startY:220, cols:4, rows:5, sw:20, sh:14, gx:7, gy:4, rowGroups:[2,2,1], aisle:14 },
-      { zoneId:"E", startX:493, startY:22, cols:9, rows:6, sw:15, sh:13, gx:4, gy:3, rowGroups:[2,2,2], aisle:14 },
-    ],
-    labels:[
-      { x:164, y:28, text:"서편 — 스튜디오 / 라이브러리", size:9, color:"#92400E", anchor:"middle", bold:true },
-      { x:636, y:28, text:"동편 (EAST) — 홀 54석", size:9, color:"#2563EB", anchor:"middle", bold:true },
-      { x:398, y:192, text:"계단\n화장실\n창고", size:8, color:"#64748B", anchor:"middle" },
-    ],
-  },
-};
-
-// ─── 신관 (탄천방면) — 65평 / 스마트오피스 48석 + 포커스룸 2개실 ───
-const NS_FLOOR: FloorSvgCfg = {
-  vw:800, vh:380,
-  coreBlocks:[{ x:380, y:100, w:130, h:200, label:"계단\n화장실\nEV" }],
-  extraBlocks:[
-    { x:520, y:18, w:265, h:80, label:"포커스룸 1 · 2", fill:"#F0FDF4", stroke:"#86EFAC" },
-    { x:12,  y:300, w:260, h:70, label:"CASUAL WORK\nSPACE", fill:"#FEF3C7", stroke:"#FCD34D" },
-  ],
-  rooms:[
-    { x:280, y:300, w:90, h:70, label:"MEETING" },
-  ],
-  deskBg:[
-    { id:"M", x:520, y:108, w:265, h:182, label:"OPEN-OFFICE (동편)", fill:"#EFF6FF", stroke:"#93C5FD" },
-    { id:"M2",x:12,  y:12,  w:360, h:78,  label:"CASUAL / BENCH (서편)", fill:"#FFF7E6", stroke:"#F6CE4A" },
-  ],
-  seatGrids:[
-    { zoneId:"M", startX:530, startY:118, cols:8, rows:6, sw:15, sh:13, gx:5, gy:3, rowGroups:[2,2,2], aisle:14 },
-  ],
-  labels:[
-    { x:650, y:58,  text:"FOCUS OFFICES (1~4)", size:9, color:"#15803D", anchor:"middle", bold:true },
-    { x:440, y:200, text:"코어", size:8, color:"#64748B", anchor:"middle" },
-    { x:142, y:50,  text:"서편 작업대", size:9, color:"#92400E", anchor:"middle", bold:true },
-  ],
-};
-
-// ─── S빌딩 ─── 3F/4F/5F 공통 프레임 (실제 도면: 좌 CASUAL+MEETING, 우 OPEN-OFFICE)
-const SB_FLOOR: FloorSvgCfg = {
-  vw:800, vh:380,
-  coreBlocks:[{ x:300, y:60, w:110, h:180, label:"계단\n화장실\nLOCKER" }],
-  extraBlocks:[
-    { x:420, y:18, w:370, h:70, label:"FOCUS OFFICE 1 · 2 · 3 · 4", fill:"#F0FDF4", stroke:"#86EFAC" },
-  ],
-  rooms:[
-    { x:180, y:300, w:110, h:70, label:"MEETING RM" },
-  ],
-  deskBg:[
-    { id:"M",  x:420, y:98,  w:370, h:260, label:"OPEN-OFFICE (동편)", fill:"#EFF6FF", stroke:"#93C5FD" },
-    { id:"M2", x:12,  y:12,  w:280, h:278, label:"CASUAL WORK SPACE (서편)", fill:"#FFF7E6", stroke:"#F6CE4A" },
-  ],
-  seatGrids:[
-    { zoneId:"M", startX:430, startY:108, cols:8, rows:5, sw:17, sh:13, gx:6, gy:3, rowGroups:[2,2,1], aisle:14 },
-  ],
-  labels:[
-    { x:152, y:30,  text:"CASUAL WORK SPACE", size:9, color:"#92400E", anchor:"middle", bold:true },
-    { x:605, y:58,  text:"FOCUS OFFICES", size:9, color:"#15803D", anchor:"middle", bold:true },
-    { x:355, y:154, text:"계단\n화장실", size:8, color:"#64748B", anchor:"middle" },
-  ],
-};
-
-// 건물별 층 매핑
-Object.assign(FLOOR_SVGS, {
-  "ns-2F": NS_FLOOR, "ns-3F": NS_FLOOR, "ns-4F": NS_FLOOR, "ns-5F": NS_FLOOR,
-  "sb-3F": SB_FLOOR, "sb-4F": SB_FLOOR, "sb-5F": SB_FLOOR,
-});
-
-// 미확인 층 fallback SVG
-const FALLBACK_SVG: FloorSvgCfg = {
-  vw:800, vh:360,
-  coreBlocks:[{ x:325, y:18, w:150, h:325, label:"계단/EV/화장실" }],
-  extraBlocks:[],
-  rooms:[],
-  deskBg:[{ id:"M", x:12, y:12, w:305, h:335, label:"업무 구역 (도면 확인 중)", fill:"#F1F5F9", stroke:"#CBD5E1" }],
-  seatGrids:[{ zoneId:"M", startX:22, startY:60, cols:8, rows:6, sw:20, sh:14, gx:6, gy:4, rowGroups:[2,2,2], aisle:18 }],
-  labels:[{ x:400, y:190, text:"도면 업데이트 예정\n신관/S빌딩 도면 수신 후 반영됩니다", size:11, color:"#94A3B8", anchor:"middle" }],
-};
-
-// ══════════════════════════════════════════════════════════════════════════════
-// SVG FLOOR PLAN COMPONENT
-// ══════════════════════════════════════════════════════════════════════════════
-function FloorPlanSVG({
-  bldId, floorId, zones, filter, selectedId, onSelect,
-  editMode, pickedId, onPickSeat, onDropToSeat, onDropToSlot, onDeleteSeat, onAddSeat,
-  tableSeats, onTableSeatDelete, onTableSeatAdd,
-}: {
-  bldId: string;
-  floorId: string;
-  zones: ZoneData[];
-  filter: FilterMode;
-  selectedId: string | null;
-  onSelect: (seat: SeatData, zone: ZoneData) => void;
-  editMode?: boolean;
-  pickedId?: string | null;
-  onPickSeat?: (id: string | null) => void;
-  onDropToSeat?: (targetId: string) => void;
-  onDropToSlot?: (zoneId: string, idx: number) => void;
-  onDeleteSeat?: (id: string) => void;
-  onAddSeat?: (zoneId: string, idx: number) => void;
-  tableSeats?: Record<string, { top: Array<{id:string;type:MonitorType}>; bot?: Array<{id:string;type:MonitorType}> }>;
-  onTableSeatDelete?: (tableId: string, side: "top" | "bot", idx: number) => void;
-  onTableSeatAdd?: (tableId: string, side: "top" | "bot") => void;
-}) {
-  // 건물별 층 키 우선, 없으면 본관 기본 키, 그 다음 fallback
-  // ① 전용 스케치가 있으면 그것으로 렌더 (실제 도면 기반 손 스케치)
-  const sketchKey = `${bldId}-${floorId}`;
-  const sketchRender = FLOOR_SKETCHES[sketchKey];
-  if (sketchRender) {
-    const sketchZones: SketchZone[] = zones.map(z => ({
-      id: z.id, label: z.label,
-      seats: z.seats.map(s => ({ id: s.id, type: s.type })),
-    }));
-    const ctx: SketchCtx = {
-      zones: sketchZones,
-      filter,
-      selectedId,
-      onSelect: (seatId) => {
-        for (const z of zones) {
-          const s = z.seats.find(x => x.id === seatId);
-          if (s) { onSelect(s, z); return; }
-        }
-      },
-      colorOf: (t) => ({ color: MONITOR[t].color, pale: MONITOR[t].pale }),
-      editMode, pickedId,
-      onPickSeat, onDropToSeat, onDropToSlot, onDeleteSeat, onAddSeat,
-      tableSeats, onTableSeatDelete, onTableSeatAdd,
-    };
-    return (
-      <div className="w-full overflow-x-auto">{sketchRender(ctx)}</div>
-    );
-  }
-
-  const cfg: FloorSvgCfg =
-    FLOOR_SVGS[`${bldId}-${floorId}`] ??
-    (bldId === "bw" ? FLOOR_SVGS[floorId] : undefined) ??
-    FALLBACK_SVG;
-  const { vw, vh, coreBlocks=[], extraBlocks=[], rooms=[], deskBg=[], seatGrids=[], labels=[] } = cfg;
-
-  const seatPosMap = useMemo(() => {
-    const map: Record<string, {x:number;y:number;row:number;col:number}[]> = {};
-    seatGrids.forEach(sg => { map[sg.zoneId] = getSeatPositions(sg); });
-    return map;
-  }, [bldId, floorId]);
-
-  const zoneMap = useMemo(() => {
-    const m: Record<string, ZoneData> = {};
-    zones.forEach(z => { m[z.id] = z; });
-    return m;
-  }, [zones]);
-
-  return (
-    <div className="w-full overflow-x-auto">
-      <svg
-        viewBox={`0 0 ${vw} ${vh}`}
-        style={{ width:"100%", minWidth:560, maxWidth:900, height:"auto", display:"block" }}
-      >
-        {/* 건물 외곽 */}
-        <rect x={4} y={4} width={vw-8} height={vh-8} rx={8} fill="#FAFAFA" stroke="#94A3B8" strokeWidth={1.5}/>
-        {/* 창문 힌트 (외벽) */}
-        {Array.from({length: Math.floor((vw-50)/30)}, (_,i) => (
-          <line key={`wt${i}`} x1={30+i*30} y1={4} x2={30+i*30} y2={10} stroke="#BAE6FD" strokeWidth={2} opacity={0.6}/>
-        ))}
-        {Array.from({length: Math.floor((vw-50)/30)}, (_,i) => (
-          <line key={`wb${i}`} x1={30+i*30} y1={vh-4} x2={30+i*30} y2={vh-10} stroke="#BAE6FD" strokeWidth={2} opacity={0.6}/>
-        ))}
-
-        {/* 업무 구역 배경 */}
-        {deskBg.map(bg => (
-          <g key={bg.id}>
-            <rect x={bg.x} y={bg.y} width={bg.w} height={bg.h} rx={4}
-              fill={bg.fill} stroke={bg.stroke} strokeWidth={1.5} strokeDasharray="6,3"/>
-            <text x={bg.x+6} y={bg.y+16} fontSize={9} fontWeight="700" fill={bg.stroke}>{bg.label}</text>
-          </g>
-        ))}
-
-        {/* 특수 구역 (라운지, 로커, 협업공간 등) */}
-        {extraBlocks.map((eb, i) => (
-          <g key={`eb${i}`}>
-            <rect x={eb.x} y={eb.y} width={eb.w} height={eb.h} rx={4}
-              fill={eb.fill||"#E2E8F0"} stroke={eb.stroke||"#94A3B8"} strokeWidth={1}/>
-            {eb.label.split("\n").map((line,li) => (
-              <text key={li} x={eb.x+eb.w/2} y={eb.y+eb.h/2-6+li*12}
-                fontSize={8} fill="#475569" textAnchor="middle">{line}</text>
-            ))}
-          </g>
-        ))}
-
-        {/* 회의실 */}
-        {rooms.map((room, i) => (
-          <g key={`rm${i}`}>
-            <rect x={room.x} y={room.y} width={room.w} height={room.h} rx={3}
-              fill="#F0FDF4" stroke="#86EFAC" strokeWidth={1.5}/>
-            <text x={room.x+room.w/2} y={room.y+room.h/2-(room.sub?6:0)}
-              fontSize={8.5} fontWeight="600" fill="#15803D" textAnchor="middle">{room.label}</text>
-            {room.sub && (
-              <text x={room.x+room.w/2} y={room.y+room.h/2+8}
-                fontSize={7.5} fill="#16A34A" textAnchor="middle" opacity={0.8}>{room.sub}</text>
-            )}
-          </g>
-        ))}
-
-        {/* 코어 블록 (계단/EV) */}
-        {coreBlocks.map((core, i) => (
-          <g key={`core${i}`}>
-            <rect x={core.x} y={core.y} width={core.w} height={core.h} rx={4}
-              fill={core.fill||"#E2E8F0"} stroke={core.stroke||"#94A3B8"} strokeWidth={1}/>
-            <line x1={core.x+10} y1={core.y+25} x2={core.x+core.w-10} y2={core.y+25} stroke="#94A3B8" strokeWidth={0.8}/>
-            <line x1={core.x+10} y1={core.y+35} x2={core.x+core.w-10} y2={core.y+35} stroke="#94A3B8" strokeWidth={0.8}/>
-            {core.label.split("\n").map((line,li) => (
-              <text key={li} x={core.x+core.w/2} y={core.y+core.h/2-8+li*14}
-                fontSize={8.5} fill="#64748B" textAnchor="middle">{line}</text>
-            ))}
-          </g>
-        ))}
-
-        {/* 좌석 렌더링 */}
-        {seatGrids.map(sg => {
-          const zone = zoneMap[sg.zoneId];
-          if (!zone) return null;
-          const positions = seatPosMap[sg.zoneId] || [];
-          return positions.map((pos, idx) => {
-            const seat = zone.seats[idx];
-            if (!seat) return null;
-            const type = seat.type;
-            const meta = MONITOR[type];
-            const isSel = seat.id === selectedId;
-            const dimmed = filter !== "all" && type !== filter;
-            return (
-              <g key={seat.id}>
-                <rect
-                  x={pos.x} y={pos.y} width={sg.sw} height={sg.sh} rx={2}
-                  fill={dimmed ? "#E5E7EB" : meta.color+(type==="unk"?"55":"CC")}
-                  stroke={isSel ? meta.color : (dimmed ? "#E5E7EB" : meta.color+"44")}
-                  strokeWidth={isSel ? 2 : 0.5}
-                  style={{ cursor:"pointer" }}
-                  onClick={() => !dimmed && onSelect(seat, zone)}
-                >
-                  <title>{seat.id} — {meta.long}</title>
-                </rect>
-                {/* 미설치 X */}
-                {type === "none" && !dimmed && (
-                  <>
-                    <line x1={pos.x+2} y1={pos.y+2} x2={pos.x+sg.sw-2} y2={pos.y+sg.sh-2}
-                      stroke="white" strokeWidth={1.2} style={{pointerEvents:"none"}}/>
-                    <line x1={pos.x+sg.sw-2} y1={pos.y+2} x2={pos.x+2} y2={pos.y+sg.sh-2}
-                      stroke="white" strokeWidth={1.2} style={{pointerEvents:"none"}}/>
-                  </>
-                )}
-                {/* 선택 링 */}
-                {isSel && (
-                  <rect x={pos.x-2} y={pos.y-2} width={sg.sw+4} height={sg.sh+4} rx={3}
-                    fill="none" stroke={meta.color} strokeWidth={2} opacity={0.7}
-                    style={{pointerEvents:"none"}}/>
-                )}
-              </g>
-            );
-          });
-        })}
-
-        {/* 행 레이블 (A,B,C…) */}
-        {seatGrids.map(sg => {
-          const positions = seatPosMap[sg.zoneId] || [];
-          const seen = new Set<number>();
-          return positions.filter(p => { if(seen.has(p.row)) return false; seen.add(p.row); return true; })
-            .map(pos => (
-              <text key={`rl-${sg.zoneId}-${pos.row}`}
-                x={pos.x-9} y={pos.y+sg.sh/2+1}
-                fontSize={7.5} fill="#D1D5DB" textAnchor="middle" fontWeight="700">
-                {String.fromCharCode(65+pos.row)}
-              </text>
-            ));
-        })}
-
-        {/* 방향 표시 */}
-        <text x={10} y={vh-8} fontSize={7} fill="#CBD5E1">← 서쪽</text>
-        <text x={vw-10} y={vh-8} fontSize={7} fill="#CBD5E1" textAnchor="end">동쪽 →</text>
-
-        {/* 범례 라벨 */}
-        {labels.map((lb, i) => (
-          lb.text.includes("\n")
-            ? lb.text.split("\n").map((line,li) => (
-                <text key={`lb${i}-${li}`} x={lb.x} y={lb.y+li*13}
-                  fontSize={lb.size||9} fill={lb.color||"#64748B"} textAnchor={lb.anchor||"middle"}
-                  fontWeight={lb.bold?"700":"400"}>{line}</text>
-              ))
-            : <text key={`lb${i}`} x={lb.x} y={lb.y}
-                fontSize={lb.size||9} fill={lb.color||"#64748B"} textAnchor={lb.anchor||"middle"}
-                fontWeight={lb.bold?"700":"400"}>{lb.text}</text>
-        ))}
-      </svg>
-    </div>
-  );
-}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // SEAT DETAIL PANEL
@@ -1113,27 +612,14 @@ function OverviewSidePanel({ building, floor, zones }: { building: BuildingData;
 export default function AssetMapPanel() {
   const [buildingId,    setBuildingId]    = useState<string>("bw");
   const [floorId,       setFloorId]       = useState<string>("2F");
-  const [filter,        setFilter]        = useState<FilterMode>("all");
   const [selected,      setSelected]      = useState<{ seat:SeatData; zone:ZoneData } | null>(null);
   const [seatOverrides, setSeatOverrides] = useState<Record<string, MonitorType>>({});
-  const [editMode,      setEditMode]      = useState(false);
-  // 도면 편집기 모드 (MapEditor vs FloorPlanSVG)
-  const [useMapEditor,  setUseMapEditor]  = useState(false);
-  const [pickedId,      setPickedId]      = useState<string|null>(null);
-  // 구조 편집: zoneKey → [{id, type}] (삭제/추가/이동 반영)
-  const [layoutEdits,     setLayoutEdits]     = useState<Record<string,Array<{id:string;type:MonitorType}>>>({});
-  // 테이블별 좌석 편집: `${bldId}-${floorId}-${tableId}` → { top, bot? }
-  const [tableSeatStore,  setTableSeatStore]  = useState<Record<string,{top:Array<{id:string;type:MonitorType}>;bot?:Array<{id:string;type:MonitorType}>}>>({});
 
   // ── localStorage 초기 로드 ──────────────────────────────────────
   useEffect(() => {
     try {
       const stored = localStorage.getItem("sw-monitor-overrides");
       if (stored) setSeatOverrides(JSON.parse(stored));
-      const layout = localStorage.getItem("sw-layout-edits");
-      if (layout) setLayoutEdits(JSON.parse(layout));
-      const tseats = localStorage.getItem("sw-table-seats");
-      if (tseats) setTableSeatStore(JSON.parse(tseats));
     } catch {}
   }, []);
 
@@ -1144,7 +630,6 @@ export default function AssetMapPanel() {
       try { localStorage.setItem("sw-monitor-overrides", JSON.stringify(next)); } catch {}
       return next;
     });
-    // 현재 선택된 좌석도 즉시 반영
     setSelected(prev =>
       prev?.seat.id === seatId ? { ...prev, seat: { ...prev.seat, type } } : prev
     );
@@ -1156,195 +641,32 @@ export default function AssetMapPanel() {
     [building, floorId]
   );
 
-  // override 적용된 zones (구조 편집 + 타입 오버라이드 모두 적용)
+  // seatOverrides 적용된 zones
   const effectiveZones = useMemo(() =>
-    floor.zones.map(z => {
-      const key = `${buildingId}-${floorId}-${z.id}`;
-      const structEdit = layoutEdits[key];
-      if (structEdit) {
-        const origMap = new Map(z.seats.map(s => [s.id, s]));
-        return {
-          ...z,
-          seats: structEdit.map((e, idx) => {
-            const orig = origMap.get(e.id);
-            return {
-              id:   e.id,
-              type: (seatOverrides[e.id] ?? e.type) as MonitorType,
-              row:  orig?.row ?? Math.floor(idx / Math.max(z.cols, 1)),
-              col:  orig?.col ?? idx % Math.max(z.cols, 1),
-            };
-          }),
-        };
-      }
-      return {
-        ...z,
-        seats: z.seats.map(s => ({
-          ...s,
-          type: (seatOverrides[s.id] ?? s.type) as MonitorType,
-        })),
-      };
-    }),
-    [floor.zones, seatOverrides, layoutEdits, buildingId, floorId]
+    floor.zones.map(z => ({
+      ...z,
+      seats: z.seats.map(s => ({
+        ...s,
+        type: (seatOverrides[s.id] ?? s.type) as MonitorType,
+      })),
+    })),
+    [floor.zones, seatOverrides]
   );
 
   const flStats    = useMemo(() => calcStats(effectiveZones), [effectiveZones]);
   const selectedId = selected?.seat.id ?? null;
 
-  // ── 테이블별 좌석 (본관 2F~9F) — tableSeatStore 오버라이드 + effectiveZones 기본값 ──
-  const tableSeatsForCtx = useMemo(()=>{
-    if(buildingId!=="bw") return undefined;
-    const floorDefs = BW_FLOOR_TABLES[floorId];
-    if(!floorDefs) return undefined;
-    const result:Record<string,{top:{id:string;type:MonitorType}[];bot?:{id:string;type:MonitorType}[]}>={};
-    for(const def of floorDefs){
-      const zone = effectiveZones.find(z=>z.id===def.zoneId);
-      if(!zone) continue;
-      let cursor = 0;
-      for(const pod of def.pods){
-        const key = `${buildingId}-${floorId}-${pod.id}`;
-        if(tableSeatStore[key]){
-          result[pod.id] = tableSeatStore[key];
-        } else {
-          const top = zone.seats.slice(cursor, cursor+pod.topN)
-            .map(s=>({id:s.id, type:s.type as MonitorType}));
-          const bot = pod.botN !== undefined
-            ? zone.seats.slice(cursor+pod.topN, cursor+pod.topN+pod.botN)
-                .map(s=>({id:s.id, type:s.type as MonitorType}))
-            : undefined;
-          result[pod.id] = { top, bot };
-        }
-        cursor += pod.topN + (pod.botN ?? 0);
-      }
-    }
-    return result;
-  },[buildingId,floorId,effectiveZones,tableSeatStore]);
-
-  // ── 편집 모드 콜백 (effectiveZones / floor 이후에 선언) ──────────
-  const saveLayout = useCallback((next: Record<string,Array<{id:string;type:MonitorType}>>) => {
-    setLayoutEdits(next);
-    try { localStorage.setItem("sw-layout-edits", JSON.stringify(next)); } catch {}
-  }, []);
-
-  const handlePickSeat = useCallback((id: string | null) => {
-    setPickedId(id);
-    if (id !== null) setSelected(null);
-  }, []);
-
-  // 이동: 두 좌석의 모니터 타입 교환
-  const handleDropToSeat = useCallback((targetId: string) => {
-    if (!pickedId) return;
-    let fromType: MonitorType = "unk", toType: MonitorType = "unk";
-    for (const z of effectiveZones) {
-      for (const s of z.seats) {
-        if (s.id === pickedId) fromType = s.type as MonitorType;
-        if (s.id === targetId) toType   = s.type as MonitorType;
-      }
-    }
-    setSeatOverrides(prev => {
-      const next = { ...prev, [pickedId]: toType, [targetId]: fromType };
-      try { localStorage.setItem("sw-monitor-overrides", JSON.stringify(next)); } catch {}
-      return next;
-    });
-    setPickedId(null); setSelected(null);
-  }, [pickedId, effectiveZones]);
-
-  // 빈 슬롯으로 이동
-  const handleDropToSlot = useCallback((zoneId: string, idx: number) => {
-    if (!pickedId) return;
-    let pickedType: MonitorType = "unk";
-    const zone = floor.zones.find(z => z.id === zoneId);
-    if (!zone) return;
-    for (const z of effectiveZones) {
-      const s = z.seats.find(s => s.id === pickedId);
-      if (s) { pickedType = s.type as MonitorType; break; }
-    }
-    const key = `${buildingId}-${floorId}-${zoneId}`;
-    const base = layoutEdits[key] ?? zone.seats.map(s => ({ id: s.id, type: s.type as MonitorType }));
-    const newId = `NEW-${Date.now()}`;
-    saveLayout({ ...layoutEdits, [key]: [...base.slice(0,idx), {id:newId,type:pickedType}, ...base.slice(idx)] });
-    setSeatOverrides(prev => {
-      const next = { ...prev, [pickedId]: "unk" as MonitorType };
-      try { localStorage.setItem("sw-monitor-overrides", JSON.stringify(next)); } catch {}
-      return next;
-    });
-    setPickedId(null);
-  }, [pickedId, floor.zones, effectiveZones, buildingId, floorId, layoutEdits, saveLayout]);
-
-  // 삭제
-  const handleDeleteSeat = useCallback((seatId: string) => {
-    for (const z of floor.zones) {
-      const key = `${buildingId}-${floorId}-${z.id}`;
-      const base = layoutEdits[key] ?? z.seats.map(s => ({ id: s.id, type: s.type as MonitorType }));
-      if (base.some(s => s.id === seatId)) {
-        saveLayout({ ...layoutEdits, [key]: base.filter(s => s.id !== seatId) });
-        break;
-      }
-    }
-    setPickedId(null); setSelected(null);
-  }, [floor.zones, buildingId, floorId, layoutEdits, saveLayout]);
-
-  // 생성
-  const handleAddSeat = useCallback((zoneId: string, idx: number) => {
-    const zone = floor.zones.find(z => z.id === zoneId);
-    if (!zone) return;
-    const key = `${buildingId}-${floorId}-${zoneId}`;
-    const base = layoutEdits[key] ?? zone.seats.map(s => ({ id: s.id, type: s.type as MonitorType }));
-    const newId = `NEW-${Date.now()}`;
-    saveLayout({ ...layoutEdits, [key]: [...base.slice(0,idx), {id:newId,type:"unk"as MonitorType}, ...base.slice(idx)] });
-  }, [floor.zones, buildingId, floorId, layoutEdits, saveLayout]);
-
-  // 테이블 그룹 내 좌석 삭제
-  const handleTableSeatDelete = useCallback((tableId:string,side:"top"|"bot",idx:number)=>{
-    const curr=tableSeatsForCtx?.[tableId];
-    if(!curr) return;
-    const next={...curr};
-    if(side==="top") next.top=[...curr.top.slice(0,idx),...curr.top.slice(idx+1)];
-    else if(side==="bot"&&curr.bot) next.bot=[...curr.bot.slice(0,idx),...curr.bot.slice(idx+1)];
-    const storeKey=`${buildingId}-${floorId}-${tableId}`;
-    setTableSeatStore(prev=>{
-      const n={...prev,[storeKey]:next};
-      try{localStorage.setItem("sw-table-seats",JSON.stringify(n));}catch{}
-      return n;
-    });
-  },[buildingId,floorId,tableSeatsForCtx]);
-
-  // 테이블 그룹 내 좌석 추가
-  const handleTableSeatAdd = useCallback((tableId:string,side:"top"|"bot")=>{
-    const curr=tableSeatsForCtx?.[tableId];
-    if(!curr) return;
-    const newSeat={id:`NEW-${tableId}-${side}-${Date.now()}`,type:"unk" as MonitorType};
-    const next={...curr};
-    if(side==="top") next.top=[...curr.top,newSeat];
-    else next.bot=[...(curr.bot??[]),newSeat];
-    const storeKey=`${buildingId}-${floorId}-${tableId}`;
-    setTableSeatStore(prev=>{
-      const n={...prev,[storeKey]:next};
-      try{localStorage.setItem("sw-table-seats",JSON.stringify(n));}catch{}
-      return n;
-    });
-  },[buildingId,floorId,tableSeatsForCtx]);
-
-  // 편집 초기화 (좌석 구조 + 테이블 좌석 편집 모두 리셋)
-  const resetLayout = useCallback(() => {
-    const next = { ...layoutEdits };
-    floor.zones.forEach(z => delete next[`${buildingId}-${floorId}-${z.id}`]);
-    saveLayout(next);
-    // 현재 층의 테이블 좌석 편집도 제거 — BW_FLOOR_TABLES의 모든 pod id 순회
-    setTableSeatStore(prev => {
-      const tNext = { ...prev };
-      const floorDefs = buildingId === "bw" ? BW_FLOOR_TABLES[floorId] : undefined;
-      if (floorDefs) {
-        for (const def of floorDefs) {
-          for (const pod of def.pods) {
-            delete tNext[`${buildingId}-${floorId}-${pod.id}`];
-          }
-        }
-      }
-      try { localStorage.setItem("sw-table-seats", JSON.stringify(tNext)); } catch {}
-      return tNext;
-    });
-    setPickedId(null); setEditMode(false);
-  }, [floor.zones, buildingId, floorId, layoutEdits, saveLayout]);
+  // 전체 건물·층 목록 (복사 기능용)
+  const availableFloors = useMemo(() =>
+    BUILDINGS.flatMap(b =>
+      b.floors.map(f => ({
+        buildingId:    b.id,
+        buildingLabel: b.label,
+        floorId:       f.id,
+        floorLabel:    f.label,
+      }))
+    ), []
+  );
 
   const handleBldChange = (bid: string) => {
     setBuildingId(bid);
@@ -1352,11 +674,6 @@ export default function AssetMapPanel() {
     setSelected(null);
   };
   const handleFloorChange = (fid: string) => { setFloorId(fid); setSelected(null); };
-  const handleSelect = (seat: SeatData, zone: ZoneData) => {
-    // 선택 시 override 반영된 최신 type 적용
-    const effective: SeatData = { ...seat, type: (seatOverrides[seat.id] ?? seat.type) as MonitorType };
-    setSelected(prev => prev?.seat.id === seat.id ? null : { seat: effective, zone });
-  };
 
   // MapEditor에서 모니터 아이콘 클릭 시 — seatId로 좌석 찾아 패널 표시
   const handleMapEditorMonitorSelect = useCallback((seatId: string) => {
@@ -1404,44 +721,8 @@ export default function AssetMapPanel() {
           })}
         </div>
 
-        {/* 모드 전환 + 편집 버튼 */}
-        <div className="flex items-center gap-1.5 ml-auto">
-          {/* 도면 편집기 모드 토글 */}
-          <button
-            onClick={() => { setUseMapEditor(v => !v); setSelected(null); setEditMode(false); setPickedId(null); }}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${
-              useMapEditor
-                ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
-                : "bg-white text-slate-600 border-gray-200 hover:bg-indigo-50 hover:border-indigo-300"
-            }`}
-            title="팔레트에서 아이콘을 드래그해 도면을 직접 구성하는 편집기 모드"
-          >
-            {useMapEditor ? "📐 편집기 모드" : "📐 편집기"}
-          </button>
-
-          {/* 기존 편집 모드 버튼 (편집기 모드가 아닐 때만 표시) */}
-          {!useMapEditor && (<>
-            <button
-              onClick={() => { setEditMode(e => !e); setPickedId(null); setSelected(null); }}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${
-                editMode
-                  ? "bg-amber-500 text-white border-amber-500 shadow-sm"
-                  : "bg-white text-slate-600 border-gray-200 hover:bg-amber-50 hover:border-amber-300"
-              }`}>
-              {editMode ? "✓ 편집 중" : "✏️ 편집"}
-            </button>
-            {editMode && (
-              <button
-                onClick={resetLayout}
-                className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition-all">
-                ↩ 초기화
-              </button>
-            )}
-          </>)}
-        </div>
-
         {/* 건물 + 층 선택 */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap ml-auto">
           <div className="flex rounded-lg border border-gray-200 overflow-hidden">
             {BUILDINGS.map(b => (
               <button key={b.id}
@@ -1465,123 +746,32 @@ export default function AssetMapPanel() {
         </div>
       </div>
 
-      {/* ── 필터 바 ───────────────────────────────────────────────── */}
-      {/* ── 필터 바 (편집기 모드에서는 숨김) ─────────────────────── */}
-      {!useMapEditor && (
-        <div className="flex-none bg-white border-b px-5 py-2 flex items-center gap-3 flex-wrap">
-          <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
-            <button onClick={() => setFilter("all")}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${filter==="all"?"bg-white shadow text-slate-800 font-semibold":"text-slate-500 hover:text-slate-700"}`}>
-              전체 보기</button>
-            {TYPES.map(t => {
-              const cnt = flStats[t as keyof typeof flStats] as number;
-              if (!cnt) return null;
-              return (
-                <button key={t} onClick={() => setFilter(filter===t?"all":t)}
-                  className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${filter===t?"bg-white shadow font-semibold":"text-slate-500 hover:text-slate-700"}`}
-                  style={{ color: filter===t ? MONITOR[t].color : undefined }}>
-                  {MONITOR[t].long}만
-                </button>
-              );
-            })}
-          </div>
-          {editMode ? (
-            <span className="text-[10px] text-amber-600 font-semibold ml-2">
-              {buildingId==="bw" && BW_FLOOR_TABLES[floorId]
-                ? "✏️ 편집 모드 — ✕: 테이블 내 모니터 삭제 · +: 모니터 추가 · 우클릭: 모니터 종류 변경"
-                : "✏️ 편집 모드 — 클릭: 좌석 집기 · 빈 슬롯: 이동/추가 · ✕: 삭제 · 빈 곳 클릭: 취소"}
-            </span>
-          ) : (
-            <span className="text-[10px] text-gray-400 ml-2">좌석 클릭 시 위치 정보 · 교체 요청 가능</span>
-          )}
-        </div>
-      )}
-
       {/* ── 메인 콘텐츠 ─────────────────────────────────────────── */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <MapEditor
+            buildingId={buildingId}
+            floorId={floorId}
+            seatOverrides={seatOverrides}
+            onMonitorSelect={handleMapEditorMonitorSelect}
+            selectedSeatId={selectedId}
+            availableFloors={availableFloors}
+          />
+        </div>
 
-        {/* ── 📐 도면 편집기 모드 ── */}
-        {useMapEditor ? (
-          <>
-            <div className="flex-1 min-h-0 overflow-hidden">
-              <MapEditor
-                buildingId={buildingId}
-                floorId={floorId}
-                seatOverrides={seatOverrides}
-                onMonitorSelect={handleMapEditorMonitorSelect}
-                selectedSeatId={selectedId}
-              />
-            </div>
-            {/* 우측 패널 (모니터 클릭 시 표시) */}
-            <div className="w-64 flex-shrink-0 border-l border-gray-200 bg-white overflow-hidden">
-              {selected ? (
-                <SeatDetailPanel
-                  seat={selected.seat} zone={selected.zone}
-                  floor={floor} building={building}
-                  onClose={() => setSelected(null)}
-                  onUpdateType={updateSeatType}
-                />
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full text-center p-6 text-xs text-gray-400">
-                  <div className="text-3xl mb-2 opacity-30">🖥️</div>
-                  <div>도면에서 모니터 아이콘을<br />클릭하면 상세 정보와<br />수리 요청이 가능합니다</div>
-                </div>
-              )}
-            </div>
-          </>
-        ) : (
-          <>
-            {/* ── 기존 SVG 도면 모드 ── */}
-            <div className="flex-1 overflow-auto p-4">
-              <div className="mb-3">
-                <h2 className="text-base font-bold text-slate-800">{floor.label}</h2>
-                {floor.note && <p className="text-xs text-gray-400 mt-0.5">{floor.note}</p>}
-              </div>
-
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-                <FloorPlanSVG
-                  bldId={buildingId} floorId={floor.id}
-                  zones={effectiveZones} filter={filter}
-                  selectedId={selectedId} onSelect={handleSelect}
-                  editMode={editMode} pickedId={pickedId}
-                  onPickSeat={handlePickSeat}
-                  onDropToSeat={handleDropToSeat}
-                  onDropToSlot={handleDropToSlot}
-                  onDeleteSeat={handleDeleteSeat}
-                  onAddSeat={handleAddSeat}
-                  tableSeats={tableSeatsForCtx}
-                  onTableSeatDelete={handleTableSeatDelete}
-                  onTableSeatAdd={handleTableSeatAdd}
-                />
-              </div>
-              {/* 범례 */}
-              <div className="flex gap-4 mt-3 px-1 flex-wrap items-center">
-                <span className="text-[10px] font-semibold text-gray-400">범례</span>
-                {TYPES.map(t => (
-                  <div key={t} className="flex items-center gap-1.5">
-                    <div className="w-3.5 h-3 rounded-sm" style={{ background:MONITOR[t].color+(t==="unk"?"55":"CC") }}/>
-                    <span className="text-[11px] text-gray-500">{MONITOR[t].long}</span>
-                  </div>
-                ))}
-                <span className="text-[10px] text-gray-300 ml-2">A~Z = 행 / 1,2,3… = 열</span>
-              </div>
-            </div>
-
-            {/* 우측 패널 */}
-            <div className="w-64 flex-shrink-0 border-l border-gray-200 bg-white overflow-hidden">
-              {selected ? (
-                <SeatDetailPanel
-                  seat={selected.seat} zone={selected.zone}
-                  floor={floor} building={building}
-                  onClose={() => setSelected(null)}
-                  onUpdateType={updateSeatType}
-                />
-              ) : (
-                <OverviewSidePanel building={building} floor={floor} zones={effectiveZones}/>
-              )}
-            </div>
-          </>
-        )}
+        {/* 우측 패널 */}
+        <div className="w-64 flex-shrink-0 border-l border-gray-200 bg-white overflow-hidden">
+          {selected ? (
+            <SeatDetailPanel
+              seat={selected.seat} zone={selected.zone}
+              floor={floor} building={building}
+              onClose={() => setSelected(null)}
+              onUpdateType={updateSeatType}
+            />
+          ) : (
+            <OverviewSidePanel building={building} floor={floor} zones={effectiveZones}/>
+          )}
+        </div>
       </div>
     </div>
   );
