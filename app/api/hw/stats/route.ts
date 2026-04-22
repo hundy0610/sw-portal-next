@@ -4,7 +4,6 @@ import { kvGet, kvSet } from "@/lib/kv-store";
 import type { HwStats } from "@/lib/hw";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
 
 /**
  * GET /api/hw/stats

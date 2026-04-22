@@ -5,8 +5,8 @@ import type { SwItem } from "@/types";
 import type { Notice, Course, Resource, ResourceCategory } from "@/types/portal";
 import DeclarationPanel from "@/components/DeclarationPanel";
 
-type Tab    = "home" | "notices" | "education" | "resources" | "search" | "declaration";
-type ResTab = ResourceCategory | "all";
+type Tab    = "home" | "education" | "resources" | "search" | "declaration";
+type ResTab = ResourceCategory;
 
 const INQUIRY_URL = "https://assetify-desk.vercel.app/inquiry";
 
@@ -64,7 +64,6 @@ function Icon({ n, s = 18 }: { n: string; s?: number }) {
 
 const NAV_ITEMS = [
   { id: "home"        as Tab, icon: "home",   label: "홈",       short: "홈"    },
-  { id: "notices"     as Tab, icon: "bell",   label: "공지사항",  short: "공지"  },
   { id: "education"   as Tab, icon: "edu",    label: "교육 센터", short: "교육"  },
   { id: "resources"   as Tab, icon: "folder", label: "자료실",    short: "자료실" },
   { id: "search"      as Tab, icon: "search", label: "SW 검색",   short: "SW"   },
@@ -132,7 +131,6 @@ export default function PortalPage() {
       <main className="flex-1 lg:ml-[240px] min-h-screen pb-20 lg:pb-10 pt-14 lg:pt-0">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
           {tab === "home"        && <HomeTab onNavigate={setTab} />}
-          {tab === "notices"     && <NoticesTab />}
           {tab === "education"   && <EducationTab />}
           {tab === "resources"   && <ResourcesTab />}
           {tab === "search"      && <SearchTab />}
@@ -300,155 +298,6 @@ function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
 }
 
 /* ══════════════════════════════════════════════════════
-   공지사항 탭
-══════════════════════════════════════════════════════ */
-function NoticesTab() {
-  const [notices,  setNotices]  = useState<Notice[]>([]);
-  const [preview,  setPreview]  = useState<Notice | null>(null);
-  const [detail,   setDetail]   = useState<Notice | null>(null);
-
-  useEffect(() => {
-    fetch("/api/notices")
-      .then(r => r.json())
-      .then(res => {
-        const data: Notice[] = res.data ?? [];
-        setNotices(data);
-        if (data.length > 0) setPreview(data[0]);
-      });
-  }, []);
-
-  const urgentBadge = (urgent: boolean) => urgent
-    ? { background: "#FEE2E2", color: "#DC2626" }
-    : { background: "#f1f5f9", color: C.text3 };
-
-  /* ── 상세 뷰 ── */
-  if (detail) {
-    return (
-      <div className="fade-in">
-        <button
-          onClick={() => setDetail(null)}
-          className="flex items-center gap-2 text-sm font-semibold mb-6 hover:opacity-70 transition-opacity"
-          style={{ color: C.primary }}>
-          <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
-            strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-          목록으로
-        </button>
-        <div className="bg-white rounded-[20px] p-8" style={{ border: `1px solid ${C.border}` }}>
-          <div className="flex items-center gap-3 mb-4">
-            <span className="text-xs font-bold px-2 py-0.5 rounded-md" style={urgentBadge(detail.urgent)}>
-              {detail.urgent ? "긴급" : "안내"}
-            </span>
-            <span className="text-xs" style={{ color: C.text4 }}>{detail.date}</span>
-          </div>
-          <h2 className="text-2xl font-extrabold mb-6" style={{ fontFamily: "Manrope, sans-serif", color: C.text1 }}>
-            {detail.title}
-          </h2>
-          {detail.imageUrl && (
-            <img src={detail.imageUrl} alt="" className="w-full rounded-xl mb-6 object-cover" style={{ maxHeight: 320 }} />
-          )}
-          <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: C.text2 }}>
-            {detail.content || "내용이 없습니다."}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  /* ── 목록 + 미리보기 뷰 ── */
-  return (
-    <div className="fade-in">
-      {/* 히어로 */}
-      <div className="rounded-[20px] text-white relative overflow-hidden mb-8 px-8 sm:px-10 py-10"
-        style={{ background: `linear-gradient(135deg, ${C.brand} 0%, ${C.primary} 60%, #3B82F6 100%)` }}>
-        <div className="absolute rounded-full pointer-events-none opacity-5"
-          style={{ width: 360, height: 360, top: -120, right: -80, background: "#fff" }} />
-        <div className="absolute rounded-full pointer-events-none"
-          style={{ width: 200, height: 200, bottom: -80, left: "40%", background: "rgba(255,255,255,0.04)" }} />
-        <div className="relative">
-          <div className="text-3xl font-extrabold mb-2" style={{ fontFamily: "Manrope, sans-serif" }}>
-            안녕하세요 👋
-          </div>
-          <div className="text-sm opacity-80 leading-relaxed">
-            SW 자산관리 포털에 오신 것을 환영합니다.<br />
-            SW 사용 정책을 확인하고 필요한 교육 자료를 이용하세요.
-          </div>
-        </div>
-      </div>
-
-      {notices.length === 0 ? (
-        <div className="text-center py-16 rounded-[20px]" style={{ background: C.bg, color: C.text4 }}>
-          등록된 공지사항이 없습니다.
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-
-          {/* ── 좌: 미리보기 ── */}
-          <div className="bg-white rounded-[20px] p-7 sticky top-6" style={{ border: `1px solid ${C.border}` }}>
-            <div className="text-xs font-bold uppercase tracking-widest mb-5" style={{ color: C.text4 }}>미리보기</div>
-            {preview ? (
-              <>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-xs font-bold px-2 py-0.5 rounded-md" style={urgentBadge(preview.urgent)}>
-                    {preview.urgent ? "긴급" : "안내"}
-                  </span>
-                  <span className="text-xs" style={{ color: C.text4 }}>{preview.date}</span>
-                </div>
-                <h3 className="text-lg font-extrabold mb-4 leading-snug"
-                  style={{ fontFamily: "Manrope, sans-serif", color: C.text1 }}>
-                  {preview.title}
-                </h3>
-                {preview.imageUrl && (
-                  <img src={preview.imageUrl} alt="" className="w-full rounded-xl mb-4 object-cover" style={{ maxHeight: 200 }} />
-                )}
-                <p className="text-sm leading-relaxed line-clamp-6 whitespace-pre-wrap mb-5" style={{ color: C.text3 }}>
-                  {preview.content || "내용이 없습니다."}
-                </p>
-                <button
-                  onClick={() => setDetail(preview)}
-                  className="flex items-center gap-1.5 text-sm font-bold hover:opacity-70 transition-opacity"
-                  style={{ color: C.primary }}>
-                  전체 내용 보기 <Icon n="chevron" s={14} />
-                </button>
-              </>
-            ) : (
-              <div className="py-12 text-center text-sm" style={{ color: C.text4 }}>
-                공지를 선택하면 여기에 표시됩니다.
-              </div>
-            )}
-          </div>
-
-          {/* ── 우: 목록 ── */}
-          <div className="space-y-2">
-            {notices.map(n => (
-              <div
-                key={n.id}
-                className="bg-white rounded-[14px] px-5 py-4 flex items-center gap-3 cursor-pointer transition-all hover:shadow-md"
-                style={{ border: preview?.id === n.id ? `2px solid ${C.primary}` : `1px solid ${C.border}` }}
-                onClick={() => setPreview(n)}
-              >
-                <span className="text-xs font-bold px-2 py-0.5 rounded-md shrink-0" style={urgentBadge(n.urgent)}>
-                  {n.urgent ? "긴급" : "안내"}
-                </span>
-                <span className="text-sm font-medium flex-1 truncate" style={{ color: C.text1 }}>{n.title}</span>
-                <span className="text-xs shrink-0 hidden sm:block" style={{ color: C.text4 }}>{n.date}</span>
-                <button
-                  onClick={e => { e.stopPropagation(); setDetail(n); }}
-                  className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center hover:opacity-70 transition-opacity"
-                  style={{ background: C.bg, color: C.text3 }}
-                  title="전체 보기">
-                  <Icon n="chevron" s={13} />
-                </button>
-              </div>
-            ))}
-          </div>
-
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ══════════════════════════════════════════════════════
    교육 센터 탭
 ══════════════════════════════════════════════════════ */
 function courseBadge(deadline: string): { text: string; bg: string; color: string } {
@@ -609,17 +458,8 @@ function EducationTab() {
 /* ══════════════════════════════════════════════════════
    자료실 탭
 ══════════════════════════════════════════════════════ */
-const CATEGORY_LABEL: Record<string, string> = {
-  install:   "설치 가이드",
-  installer: "설치 파일",
-  patch:     "패치 파일",
-  policy:    "정책 문서",
-  forms:     "양식 서식",
-  other:     "기타",
-};
-
 function ResourcesTab() {
-  const [resTab,    setResTab]    = useState<ResTab>("all");
+  const [resTab,    setResTab]    = useState<ResTab>("install");
   const [resources, setResources] = useState<Resource[]>([]);
 
   useEffect(() => {
@@ -628,11 +468,7 @@ function ResourcesTab() {
       .then(res => setResources(res.data ?? []));
   }, []);
 
-  const FILES = resTab === "all" ? resources : resources.filter(r => r.category === resTab);
-
-  const RECENT_TWO = [...resources]
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-    .slice(0, 2);
+  const FILES = resources.filter(r => r.category === resTab);
 
   const FILE_STYLE: Record<string, { bg: string; color: string }> = {
     PDF:  { bg: "#FEE2E2", color: "#B91C1C" },
@@ -640,14 +476,11 @@ function ResourcesTab() {
     DOCX: { bg: "#DBEAFE", color: "#1E40AF" },
   };
 
-  const RES_TABS: { key: ResTab; label: string }[] = [
-    { key: "all",       label: "전체"     },
-    { key: "install",   label: "설치 가이드" },
-    { key: "installer", label: "설치 파일"   },
-    { key: "patch",     label: "패치 파일"   },
-    { key: "policy",    label: "정책 문서"   },
-    { key: "forms",     label: "양식 서식"   },
-    { key: "other",     label: "기타"         },
+  const RES_TABS = [
+    { key: "install" as ResTab, label: "설치 가이드" },
+    { key: "policy"  as ResTab, label: "정책 문서"   },
+    { key: "forms"   as ResTab, label: "양식 서식"   },
+    { key: "other"   as ResTab, label: "기타"         },
   ];
 
   return (
@@ -679,29 +512,20 @@ function ResourcesTab() {
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
         <div className="md:col-span-4 space-y-5">
-          {/* 최근 업데이트 */}
+          {/* C1: "Resource Update" → "최근 업데이트" */}
           <div className="p-8 rounded-[20px] text-white relative overflow-hidden"
             style={{ background: `linear-gradient(135deg, ${C.brand}, ${C.primary})` }}>
             <div className="relative z-10">
               <span className="block mb-4 opacity-75"><Icon n="box" s={32} /></span>
-              <h3 className="text-xl font-bold mb-3" style={{ fontFamily: "Manrope, sans-serif" }}>최근 업데이트</h3>
-              {RECENT_TWO.length === 0 ? (
-                <p className="text-sm leading-relaxed" style={{ color: "#90c0ff" }}>등록된 자료가 없습니다.</p>
-              ) : (
-                <ul className="space-y-3">
-                  {RECENT_TWO.map(f => (
-                    <li key={f.id} className="flex flex-col gap-0.5">
-                      <span className="text-[10px] font-bold uppercase tracking-widest"
-                        style={{ color: "rgba(255,255,255,0.55)" }}>
-                        {CATEGORY_LABEL[f.category] ?? f.category} · {f.updatedAt}
-                      </span>
-                      <span className="text-sm font-semibold leading-snug" style={{ color: "#fff" }}>
-                        {f.title}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <h3 className="text-xl font-bold mb-2" style={{ fontFamily: "Manrope, sans-serif" }}>최근 업데이트</h3>
+              <p className="text-sm leading-relaxed mb-6" style={{ color: "#90c0ff" }}>
+                Q3 컴플라이언스 정책과 macOS 설치 스크립트가 업데이트되었습니다.
+              </p>
+              {/* C1: "Check History" → "변경 이력 보기" */}
+              <button className="px-5 py-2 rounded-full text-xs font-bold uppercase tracking-widest"
+                style={{ background: "rgba(255,255,255,0.12)" }}>
+                변경 이력 보기
+              </button>
             </div>
             <div className="absolute -right-12 -bottom-12 w-48 h-48 rounded-full"
               style={{ background: "rgba(255,255,255,0.05)" }} />
@@ -786,25 +610,34 @@ function ResourcesTab() {
             })}
           </div>
 
-          <div className="mt-6">
-            <div className="p-6 rounded-[20px]"
-              style={{ background: C.bg, border: "1px solid rgba(255,255,255,0.5)" }}>
-              <div className="flex justify-between items-start mb-4">
-                <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm"
-                  style={{ color: C.text3 }}>
-                  <Icon n="search" s={17} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
+            {[
+              /* C1: "Support/Missing a resource?" → "문의하기/자료가 없나요?" */
+              { icon: "search", label: "문의하기",  title: "자료가 없나요?",
+                desc: "IT팀에 자료 추가 요청을 보내세요.", linkLabel: "관리자에게 문의", linkColor: C.brand },
+              /* C1: "Action/Submit Resource" → "제출하기/자료 제출하기" */
+              { icon: "upload", label: "제출하기",  title: "자료 제출하기",
+                desc: "내부 문서를 업로드하여 검토받으세요.", linkLabel: "업로드 시작", linkColor: C.primary },
+            ].map(card => (
+              <div key={card.title} className="p-6 rounded-[20px]"
+                style={{ background: C.bg, border: "1px solid rgba(255,255,255,0.5)" }}>
+                <div className="flex justify-between items-start mb-4">
+                  <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm"
+                    style={{ color: C.text3 }}>
+                    <Icon n={card.icon} s={17} />
+                  </div>
+                  <span className="text-[10px] font-bold uppercase px-2 py-1 rounded"
+                    style={{ color: "#757682", background: "#e4e9ed" }}>{card.label}</span>
                 </div>
-                <span className="text-[10px] font-bold uppercase px-2 py-1 rounded"
-                  style={{ color: "#757682", background: "#e4e9ed" }}>문의하기</span>
+                <h5 className="font-bold text-lg mb-1"
+                  style={{ fontFamily: "Manrope, sans-serif", color: C.text1 }}>{card.title}</h5>
+                <p className="text-sm mb-4" style={{ color: C.text3 }}>{card.desc}</p>
+                <a href={INQUIRY_URL} target="_blank" rel="noopener noreferrer"
+                  className="text-sm font-bold flex items-center gap-1" style={{ color: card.linkColor }}>
+                  {card.linkLabel} →
+                </a>
               </div>
-              <h5 className="font-bold text-lg mb-1"
-                style={{ fontFamily: "Manrope, sans-serif", color: C.text1 }}>자료가 없나요?</h5>
-              <p className="text-sm mb-4" style={{ color: C.text3 }}>IT팀에 자료 추가 요청을 보내세요.</p>
-              <a href={INQUIRY_URL} target="_blank" rel="noopener noreferrer"
-                className="text-sm font-bold flex items-center gap-1" style={{ color: C.brand }}>
-                관리자에게 문의 →
-              </a>
-            </div>
+            ))}
           </div>
         </div>
       </div>
@@ -828,12 +661,11 @@ const CAT_PALETTE = [
   { bg: "#FEF3C7", color: "#92400E" },
 ];
 function catStyle(cat: string) {
-  if (!cat) return CAT_PALETTE[0];
   const keyword: Record<string, number> = { 보안: 4, 협업: 0, 개발: 1, 디자인: 2, 생산성: 3, AI: 5 };
   for (const [k, i] of Object.entries(keyword)) {
     if (cat.includes(k)) return CAT_PALETTE[i];
   }
-  return CAT_PALETTE[cat.charCodeAt(0) % CAT_PALETTE.length] ?? CAT_PALETTE[0];
+  return CAT_PALETTE[cat.charCodeAt(0) % CAT_PALETTE.length];
 }
 
 function SearchTab() {

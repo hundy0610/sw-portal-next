@@ -1,6 +1,6 @@
 {
   "name": "sw-portal-next",
-  "version": "1.0.0",
+  "version": "2.5.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -10,13 +10,10 @@
   },
   "dependencies": {
     "@notionhq/client": "^2.2.15",
-    "@vercel/blob": "^2.3.3",
     "@vercel/kv": "^3.0.0",
-    "konva": "^10.2.5",
     "next": "14.2.5",
     "react": "^18",
     "react-dom": "^18",
-    "react-konva": "18.2.10",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

@@ -1,16 +1,12 @@
 "use client";
 import { useState, useMemo, useEffect, useCallback } from "react";
-import dynamic from "next/dynamic";
-
-const MapEditor = dynamic(() => import("./FloorMapEditor/MapEditor"), {
-  ssr: false,
-  loading: () => <div className="flex items-center justify-center h-full text-gray-400 text-sm">도면 편집기 로딩 중...</div>,
-});
+import { FLOOR_SKETCHES, SketchCtx, SketchZone } from "./FloorSketches";
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TYPES
 // ══════════════════════════════════════════════════════════════════════════════
 type MonitorType = "std27" | "std24" | "dev34" | "none" | "unk";
+type FilterMode  = "all" | MonitorType;
 
 interface SeatData {
   id:   string;
@@ -39,6 +35,21 @@ interface BuildingData {
   floors: FloorData[];
 }
 
+// SVG 스케치 레이아웃 타입
+interface CoreBlock  { x:number; y:number; w:number; h:number; label:string; fill?:string; stroke?:string; }
+interface RoomBlock  { x:number; y:number; w:number; h:number; label:string; sub?:string; }
+interface DeskBgBlock{ id:string; x:number; y:number; w:number; h:number; label:string; fill:string; stroke:string; }
+interface SeatGrid   { zoneId:string; startX:number; startY:number; cols:number; rows:number; sw:number; sh:number; gx:number; gy:number; rowGroups:number[]; aisle:number; }
+interface SvgLabel   { x:number; y:number; text:string; size?:number; color?:string; anchor?:string; bold?:boolean; }
+interface FloorSvgCfg{
+  vw:number; vh:number;
+  coreBlocks?: CoreBlock[];
+  extraBlocks?: CoreBlock[];
+  rooms?:       RoomBlock[];
+  deskBg?:      DeskBgBlock[];
+  seatGrids?:   SeatGrid[];
+  labels?:      SvgLabel[];
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // MONITOR META
@@ -79,6 +90,27 @@ function calcStats(zones: ZoneData[]) {
   return r;
 }
 
+function getSeatPositions(sg: SeatGrid): {x:number;y:number;row:number;col:number}[] {
+  const { startX, startY, cols, rows, sw, sh, gx, gy, rowGroups, aisle } = sg;
+  const positions: {x:number;y:number;row:number;col:number}[] = [];
+  let rowY = startY, groupIdx = 0, rowInGroup = 0;
+  for (let r = 0; r < rows; r++) {
+    let colX = startX;
+    for (let c = 0; c < cols; c++) {
+      positions.push({ x:colX, y:rowY, row:r, col:c });
+      colX += sw + gx;
+    }
+    rowInGroup++;
+    const groupSize = (rowGroups && rowGroups[groupIdx]) || 2;
+    if (rowInGroup >= groupSize && r < rows - 1) {
+      rowY += sh + gy + aisle; groupIdx++; rowInGroup = 0;
+    } else {
+      rowY += sh + gy;
+    }
+  }
+  return positions;
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // BUILDING DATA  (본관 도면 기반 근사치 / 신관·S빌딩 추후 업데이트)
 // ══════════════════════════════════════════════════════════════════════════════
@@ -92,26 +124,25 @@ const BUILDINGS: BuildingData[] = [
       { id:"2F", label:"2층", note:"서편 스마트오피스 52석",
         zones:[ buildZone("SO","스마트오피스","W",13,4,
           m([36,"unk"],[1,"none"],[15,"unk"]), "BW","2F") ],
-        rooms:["미팅룸 A","미팅룸 B","미팅룸 C","쇼룸"] },
-      { id:"3F", label:"3층", note:"서편 54석 · 동편 71석 · 벽면 7석",
+        rooms:["미팅룸 A (13.5㎡/4.1평)","미팅룸 B (21.1㎡/6.4평)","미팅룸 C (18.8㎡/5.7평)","쇼룸 (15.2㎡/4.6평)"] },
+      { id:"3F", label:"3층", note:"서편 54석 · 동편 71석",
         zones:[
           buildZone("W","서편","W",6,9, f(54,"unk"), "BW","3F"),
           buildZone("E","동편","E",8,9, f(71,"unk"), "BW","3F"),
-          buildZone("EW","동편 벽면","E",1,7, f(7,"unk"), "BW","3F"),
         ],
-        rooms:["미팅룸","미팅룸"] },
+        rooms:["미팅룸 (18.5m²/5.6평)","미팅룸 (16.1m²/4.9평)"] },
       { id:"4F", label:"4층", note:"서편 74석 · 동편 49석",
         zones:[
           buildZone("W","서편","W",7,11, f(74,"unk"), "BW","4F"),
           buildZone("E","동편","E",7,7,  f(49,"unk"), "BW","4F"),
         ],
-        rooms:["스마트2","스마트3","라운지"] },
+        rooms:["스마트2 (5.6평)","스마트3 (5.6평)","라운지 (10.7평)"] },
       { id:"5F", label:"5층", note:"서편 74석 · 동편 49석",
         zones:[
           buildZone("W","서편","W",7,11, f(74,"unk"), "BW","5F"),
           buildZone("E","동편","E",7,7,  f(49,"unk"), "BW","5F"),
         ],
-        rooms:["미팅룸"] },
+        rooms:["미팅룸 (6.6m²/2.0평)"] },
       { id:"6F", label:"6층", note:'서편(개발 34") 67석 · 동편 65석',
         zones:[
           buildZone("W",'서편 (개발 34")',"W",7,10, f(67,"unk"), "BW","6F"),
@@ -169,21 +200,456 @@ const BUILDINGS: BuildingData[] = [
 ];
 
 // ══════════════════════════════════════════════════════════════════════════════
-// SEAT DETAIL PANEL
+// SVG 스케치 도면 설정  (본관 2~9층 도면 기반)
 // ══════════════════════════════════════════════════════════════════════════════
-interface MonitorRequest {
-  id: string;
-  seatId: string;
-  building: string;
-  floor: string;
-  zone: string;
-  type: "repair" | "replace";
-  status: "pending" | "in_progress" | "done";
-  createdAt: string;
-  createdByName: string;
-  note?: string;
+const FLOOR_SVGS: Record<string, FloorSvgCfg> = {
+  "2F": {
+    // 실제 도면: 좌측=4블록 스마트오피스(각 블록 13석), 중앙=미팅룸 A/B/C/쇼룸 수직 배치,
+    //           중앙-우=계단/EV 홀, 우=EPS·화장실·창고(VOID)
+    vw:800, vh:380,
+    coreBlocks: [
+      { x:512, y:18, w:90, h:342, label:"계단\nELEV HALL\nEV" },
+      { x:608, y:18, w:78, h:342, label:"EPS\n화장실" },
+    ],
+    extraBlocks:[{ x:692, y:18, w:100, h:342, label:"창고 2평\n(VOID)", fill:"#E2E8F0", stroke:"#94A3B8" }],
+    rooms:[
+      { x:348, y:20,  w:158, h:80,  label:"미팅룸 A", sub:"13.5㎡ / 4.1평" },
+      { x:348, y:106, w:158, h:90,  label:"미팅룸 B", sub:"21.1㎡ / 6.4평" },
+      { x:348, y:202, w:158, h:82,  label:"미팅룸 C", sub:"18.8㎡ / 5.7평" },
+      { x:348, y:290, w:158, h:70,  label:"쇼룸",     sub:"15.2㎡ / 4.6평" },
+    ],
+    deskBg:[{ id:"SO", x:12, y:12, w:328, h:348, label:"스마트오피스 (서편) — 90평 / 52석", fill:"#EFF6FF", stroke:"#93C5FD" }],
+    // 실제 도면 4개 블록에 맞춰 4줄 사이 통로: rowGroups=[1,1,1,1]
+    seatGrids:[{ zoneId:"SO", startX:22, startY:60, cols:13, rows:4, sw:21, sh:26, gx:3, gy:4, rowGroups:[1,1,1,1], aisle:48 }],
+    labels:[
+      { x:176, y:32, text:"← 서편 (WEST) →", size:9, color:"#2563EB", anchor:"middle", bold:true },
+      { x:427, y:372, text:"↑ 동편 복도 / 엘리베이터 홀 / 창고", size:7.5, color:"#94A3B8", anchor:"middle" },
+    ],
+  },
+  "3F": {
+    vw:800, vh:380,
+    coreBlocks:[{ x:325, y:18, w:150, h:342, label:"계단/EPS/EV/화장실" }],
+    extraBlocks:[
+      { x:12, y:12, w:95, h:90, label:"협업공간", fill:"#F0FDF4", stroke:"#86EFAC" },
+      { x:570, y:12, w:95, h:90, label:"협업공간", fill:"#F0FDF4", stroke:"#86EFAC" },
+      { x:672, y:12, w:120, h:90, label:"G/B", fill:"#F0FDF4", stroke:"#86EFAC" },
+    ],
+    rooms:[
+      { x:12, y:298, w:145, h:72, label:"미팅룸", sub:"18.5m² / 5.6인" },
+      { x:165, y:298, w:148, h:72, label:"미팅룸", sub:"16.1m² / 4.9인" },
+    ],
+    deskBg:[
+      { id:"W", x:12, y:108, w:305, h:182, label:"서편", fill:"#EFF6FF", stroke:"#93C5FD" },
+      { id:"E", x:483, y:108, w:308, h:182, label:"동편", fill:"#EFF6FF", stroke:"#93C5FD" },
+    ],
+    seatGrids:[
+      { zoneId:"W", startX:22, startY:118, cols:6, rows:8, sw:15, sh:12, gx:5, gy:3, rowGroups:[2,2,2,2], aisle:12 },
+      { zoneId:"E", startX:493, startY:118, cols:9, rows:7, sw:15, sh:12, gx:5, gy:3, rowGroups:[2,2,2,1], aisle:12 },
+    ],
+    labels:[
+      { x:164, y:28, text:"서편 (WEST)", size:9, color:"#2563EB", anchor:"middle", bold:true },
+      { x:636, y:28, text:"동편 (EAST)", size:9, color:"#2563EB", anchor:"middle", bold:true },
+      { x:398, y:192, text:"계단\nEPS\n화장실", size:8, color:"#64748B", anchor:"middle" },
+    ],
+  },
+  "4F": {
+    vw:800, vh:380,
+    coreBlocks:[{ x:325, y:18, w:150, h:342, label:"계단/EPS/화장실" }],
+    extraBlocks:[{ x:683, y:298, w:112, h:72, label:"8인 미팅룸", fill:"#F0FDF4", stroke:"#86EFAC" }],
+    rooms:[
+      { x:12, y:298, w:100, h:72, label:"스마트2", sub:"5.6평" },
+      { x:120, y:298, w:100, h:72, label:"스마트3", sub:"5.6평" },
+      { x:228, y:298, w:90, h:72, label:"라운지", sub:"10.7평" },
+    ],
+    deskBg:[
+      { id:"W", x:12, y:12, w:305, h:278, label:"서편 (미설치 다수)", fill:"#FFF1F2", stroke:"#FCA5A5" },
+      { id:"E", x:483, y:12, w:308, h:278, label:"동편", fill:"#EFF6FF", stroke:"#93C5FD" },
+    ],
+    seatGrids:[
+      { zoneId:"W", startX:22, startY:22, cols:5, rows:8, sw:18, sh:13, gx:5, gy:3, rowGroups:[2,2,2,2], aisle:14 },
+      { zoneId:"E", startX:493, startY:22, cols:8, rows:7, sw:18, sh:13, gx:5, gy:3, rowGroups:[2,2,2,1], aisle:14 },
+    ],
+    labels:[
+      { x:164, y:28, text:"서편 (WEST) — 미설치 주의", size:9, color:"#DC2626", anchor:"middle", bold:true },
+      { x:636, y:28, text:"동편 (EAST)", size:9, color:"#2563EB", anchor:"middle", bold:true },
+      { x:398, y:192, text:"계단\nEPS\n화장실", size:8, color:"#64748B", anchor:"middle" },
+    ],
+  },
+  "5F": {
+    vw:800, vh:380,
+    coreBlocks:[
+      { x:325, y:18, w:150, h:250, label:"계단/EPS/화장실" },
+      { x:325, y:276, w:150, h:84, label:"미팅룸", fill:"#F0FDF4", stroke:"#86EFAC" },
+    ],
+    extraBlocks:[{ x:570, y:12, w:222, h:105, label:"라운지 / 바 (Bar Table)", fill:"#FEF3C7", stroke:"#FCD34D" }],
+    rooms:[],
+    deskBg:[
+      { id:"W", x:12, y:12, w:305, h:358, label:"서편", fill:"#EFF6FF", stroke:"#93C5FD" },
+      { id:"E", x:483, y:118, w:308, h:252, label:"동편", fill:"#EFF6FF", stroke:"#93C5FD" },
+    ],
+    seatGrids:[
+      { zoneId:"W", startX:22, startY:22, cols:6, rows:7, sw:17, sh:13, gx:5, gy:3, rowGroups:[2,2,2,1], aisle:14 },
+      { zoneId:"E", startX:493, startY:128, cols:8, rows:6, sw:17, sh:13, gx:5, gy:3, rowGroups:[2,2,2], aisle:14 },
+    ],
+    labels:[
+      { x:164, y:28, text:"서편 (WEST)", size:9, color:"#2563EB", anchor:"middle", bold:true },
+      { x:636, y:134, text:"동편 (EAST)", size:9, color:"#2563EB", anchor:"middle", bold:true },
+      { x:398, y:152, text:"계단/EPS", size:8, color:"#64748B", anchor:"middle" },
+    ],
+  },
+  "6F": {
+    vw:800, vh:380,
+    coreBlocks:[{ x:325, y:18, w:150, h:342, label:"계단/EPS/화장실" }],
+    extraBlocks:[],
+    rooms:[],
+    deskBg:[
+      { id:"W", x:12, y:12, w:305, h:358, label:'서편 — 개발자 34" 구역', fill:"#F5F3FF", stroke:"#C4B5FD" },
+      { id:"E", x:483, y:12, w:308, h:358, label:"동편", fill:"#EFF6FF", stroke:"#93C5FD" },
+    ],
+    seatGrids:[
+      { zoneId:"W", startX:22, startY:42, cols:7, rows:7, sw:16, sh:13, gx:5, gy:3, rowGroups:[2,2,2,1], aisle:14 },
+      { zoneId:"E", startX:493, startY:22, cols:8, rows:7, sw:17, sh:13, gx:5, gy:3, rowGroups:[2,2,2,1], aisle:14 },
+    ],
+    labels:[
+      { x:164, y:28, text:'서편 (WEST) — 개발자 34"', size:9, color:"#7C3AED", anchor:"middle", bold:true },
+      { x:636, y:28, text:"동편 (EAST)", size:9, color:"#2563EB", anchor:"middle", bold:true },
+      { x:398, y:192, text:"계단\nEPS\n화장실", size:8, color:"#64748B", anchor:"middle" },
+    ],
+  },
+  "7F": {
+    vw:800, vh:380,
+    coreBlocks:[{ x:325, y:18, w:150, h:342, label:"계단/EPS/화장실" }],
+    extraBlocks:[{ x:12, y:298, w:305, h:72, label:"로커 구역 (LOCKER)", fill:"#F1F5F9", stroke:"#CBD5E1" }],
+    rooms:[],
+    deskBg:[
+      { id:"W", x:12, y:12, w:305, h:278, label:"서편 (미설치 다수)", fill:"#FFF1F2", stroke:"#FCA5A5" },
+      { id:"E", x:483, y:12, w:308, h:358, label:"동편", fill:"#EFF6FF", stroke:"#93C5FD" },
+    ],
+    seatGrids:[
+      { zoneId:"W", startX:22, startY:22, cols:6, rows:6, sw:17, sh:13, gx:5, gy:3, rowGroups:[2,2,2], aisle:14 },
+      { zoneId:"E", startX:493, startY:22, cols:8, rows:7, sw:17, sh:13, gx:5, gy:3, rowGroups:[2,2,2,1], aisle:14 },
+    ],
+    labels:[
+      { x:164, y:28, text:"서편 (WEST) — 미설치 주의", size:9, color:"#DC2626", anchor:"middle", bold:true },
+      { x:636, y:28, text:"동편 (EAST)", size:9, color:"#2563EB", anchor:"middle", bold:true },
+      { x:398, y:192, text:"계단\nEPS\n화장실", size:8, color:"#64748B", anchor:"middle" },
+    ],
+  },
+  "8F": {
+    vw:800, vh:380,
+    coreBlocks:[{ x:325, y:18, w:150, h:342, label:"CANTEEN\n계단\n화장실" }],
+    extraBlocks:[],
+    rooms:[
+      { x:12, y:12, w:152, h:120, label:"회의실/미팅룸-1", sub:"4.1인" },
+      { x:12, y:140, w:152, h:120, label:"회의실/미팅룸-2", sub:"4.1인" },
+      { x:12, y:268, w:152, h:102, label:"미팅룸", sub:"7.6인" },
+      { x:483, y:12, w:308, h:138, label:"Conference-1", sub:"17.9인" },
+      { x:483, y:158, w:308, h:105, label:"회의실/멀티룸", sub:"13.8인" },
+      { x:483, y:271, w:308, h:99, label:"Conference-2", sub:"19.5인" },
+    ],
+    deskBg:[{ id:"M", x:172, y:90, w:145, h:200, label:"업무공간", fill:"#EFF6FF", stroke:"#93C5FD" }],
+    seatGrids:[{ zoneId:"M", startX:180, startY:100, cols:5, rows:5, sw:16, sh:13, gx:5, gy:3, rowGroups:[2,3], aisle:20 }],
+    labels:[
+      { x:92, y:28, text:"← 회의실 구역 →", size:9, color:"#15803D", anchor:"middle" },
+      { x:636, y:28, text:"← 컨퍼런스룸 구역 →", size:9, color:"#15803D", anchor:"middle" },
+      { x:244, y:52, text:"업무공간", size:8, color:"#2563EB", anchor:"middle" },
+      { x:398, y:192, text:"CANTEEN\n계단\n화장실", size:8, color:"#64748B", anchor:"middle" },
+    ],
+  },
+  "9F": {
+    vw:800, vh:380,
+    coreBlocks:[{ x:325, y:18, w:150, h:342, label:"계단/창고/화장실" }],
+    extraBlocks:[
+      { x:12, y:12, w:175, h:100, label:"스튜디오 / 도서관", fill:"#FEF3C7", stroke:"#F6CE4A" },
+      { x:12, y:120, w:175, h:80, label:"스탠딩 데스크", fill:"#FEF3C7", stroke:"#F6CE4A" },
+    ],
+    rooms:[],
+    deskBg:[
+      { id:"W", x:12, y:208, w:305, h:162, label:"스튜디오 (서편)", fill:"#FFF7E6", stroke:"#F6CE4A" },
+      { id:"E", x:483, y:12, w:308, h:358, label:"홀 (동편) — 54석", fill:"#EFF6FF", stroke:"#93C5FD" },
+    ],
+    seatGrids:[
+      { zoneId:"W", startX:22, startY:220, cols:4, rows:5, sw:20, sh:14, gx:7, gy:4, rowGroups:[2,2,1], aisle:14 },
+      { zoneId:"E", startX:493, startY:22, cols:9, rows:6, sw:15, sh:13, gx:4, gy:3, rowGroups:[2,2,2], aisle:14 },
+    ],
+    labels:[
+      { x:164, y:28, text:"서편 — 스튜디오 / 라이브러리", size:9, color:"#92400E", anchor:"middle", bold:true },
+      { x:636, y:28, text:"동편 (EAST) — 홀 54석", size:9, color:"#2563EB", anchor:"middle", bold:true },
+      { x:398, y:192, text:"계단\n화장실\n창고", size:8, color:"#64748B", anchor:"middle" },
+    ],
+  },
+};
+
+// ─── 신관 (탄천방면) — 65평 / 스마트오피스 48석 + 포커스룸 2개실 ───
+const NS_FLOOR: FloorSvgCfg = {
+  vw:800, vh:380,
+  coreBlocks:[{ x:380, y:100, w:130, h:200, label:"계단\n화장실\nEV" }],
+  extraBlocks:[
+    { x:520, y:18, w:265, h:80, label:"포커스룸 1 · 2", fill:"#F0FDF4", stroke:"#86EFAC" },
+    { x:12,  y:300, w:260, h:70, label:"CASUAL WORK\nSPACE", fill:"#FEF3C7", stroke:"#FCD34D" },
+  ],
+  rooms:[
+    { x:280, y:300, w:90, h:70, label:"MEETING", sub:"12.4㎡" },
+  ],
+  deskBg:[
+    { id:"M", x:520, y:108, w:265, h:182, label:"OPEN-OFFICE (동편)", fill:"#EFF6FF", stroke:"#93C5FD" },
+    { id:"M2",x:12,  y:12,  w:360, h:78,  label:"CASUAL / BENCH (서편)", fill:"#FFF7E6", stroke:"#F6CE4A" },
+  ],
+  seatGrids:[
+    { zoneId:"M", startX:530, startY:118, cols:8, rows:6, sw:15, sh:13, gx:5, gy:3, rowGroups:[2,2,2], aisle:14 },
+  ],
+  labels:[
+    { x:650, y:58,  text:"FOCUS OFFICES (1~4)", size:9, color:"#15803D", anchor:"middle", bold:true },
+    { x:440, y:200, text:"코어", size:8, color:"#64748B", anchor:"middle" },
+    { x:142, y:50,  text:"서편 작업대", size:9, color:"#92400E", anchor:"middle", bold:true },
+  ],
+};
+
+// ─── S빌딩 ─── 3F/4F/5F 공통 프레임 (실제 도면: 좌 CASUAL+MEETING, 우 OPEN-OFFICE)
+const SB_FLOOR: FloorSvgCfg = {
+  vw:800, vh:380,
+  coreBlocks:[{ x:300, y:60, w:110, h:180, label:"계단\n화장실\nLOCKER" }],
+  extraBlocks:[
+    { x:420, y:18, w:370, h:70, label:"FOCUS OFFICE 1 · 2 · 3 · 4", fill:"#F0FDF4", stroke:"#86EFAC" },
+  ],
+  rooms:[
+    { x:180, y:300, w:110, h:70, label:"MEETING RM", sub:"12.4㎡" },
+  ],
+  deskBg:[
+    { id:"M",  x:420, y:98,  w:370, h:260, label:"OPEN-OFFICE (동편)", fill:"#EFF6FF", stroke:"#93C5FD" },
+    { id:"M2", x:12,  y:12,  w:280, h:278, label:"CASUAL WORK SPACE (서편)", fill:"#FFF7E6", stroke:"#F6CE4A" },
+  ],
+  seatGrids:[
+    { zoneId:"M", startX:430, startY:108, cols:8, rows:5, sw:17, sh:13, gx:6, gy:3, rowGroups:[2,2,1], aisle:14 },
+  ],
+  labels:[
+    { x:152, y:30,  text:"CASUAL WORK SPACE", size:9, color:"#92400E", anchor:"middle", bold:true },
+    { x:605, y:58,  text:"FOCUS OFFICES", size:9, color:"#15803D", anchor:"middle", bold:true },
+    { x:355, y:154, text:"계단\n화장실", size:8, color:"#64748B", anchor:"middle" },
+  ],
+};
+
+// 건물별 층 매핑
+Object.assign(FLOOR_SVGS, {
+  "ns-2F": NS_FLOOR, "ns-3F": NS_FLOOR, "ns-4F": NS_FLOOR, "ns-5F": NS_FLOOR,
+  "sb-3F": SB_FLOOR, "sb-4F": SB_FLOOR, "sb-5F": SB_FLOOR,
+});
+
+// 미확인 층 fallback SVG
+const FALLBACK_SVG: FloorSvgCfg = {
+  vw:800, vh:360,
+  coreBlocks:[{ x:325, y:18, w:150, h:325, label:"계단/EV/화장실" }],
+  extraBlocks:[],
+  rooms:[],
+  deskBg:[{ id:"M", x:12, y:12, w:305, h:335, label:"업무 구역 (도면 확인 중)", fill:"#F1F5F9", stroke:"#CBD5E1" }],
+  seatGrids:[{ zoneId:"M", startX:22, startY:60, cols:8, rows:6, sw:20, sh:14, gx:6, gy:4, rowGroups:[2,2,2], aisle:18 }],
+  labels:[{ x:400, y:190, text:"도면 업데이트 예정\n신관/S빌딩 도면 수신 후 반영됩니다", size:11, color:"#94A3B8", anchor:"middle" }],
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SVG FLOOR PLAN COMPONENT
+// ══════════════════════════════════════════════════════════════════════════════
+function FloorPlanSVG({
+  bldId, floorId, zones, filter, selectedId, onSelect,
+}: {
+  bldId: string;
+  floorId: string;
+  zones: ZoneData[];
+  filter: FilterMode;
+  selectedId: string | null;
+  onSelect: (seat: SeatData, zone: ZoneData) => void;
+}) {
+  // 건물별 층 키 우선, 없으면 본관 기본 키, 그 다음 fallback
+  // ① 전용 스케치가 있으면 그것으로 렌더 (실제 도면 기반 손 스케치)
+  const sketchKey = `${bldId}-${floorId}`;
+  const sketchRender = FLOOR_SKETCHES[sketchKey];
+  if (sketchRender) {
+    const sketchZones: SketchZone[] = zones.map(z => ({
+      id: z.id, label: z.label,
+      seats: z.seats.map(s => ({ id: s.id, type: s.type })),
+    }));
+    const ctx: SketchCtx = {
+      zones: sketchZones,
+      filter,
+      selectedId,
+      onSelect: (seatId) => {
+        for (const z of zones) {
+          const s = z.seats.find(x => x.id === seatId);
+          if (s) { onSelect(s, z); return; }
+        }
+      },
+      colorOf: (t) => ({ color: MONITOR[t].color, pale: MONITOR[t].pale }),
+    };
+    return (
+      <div className="w-full overflow-x-auto">{sketchRender(ctx)}</div>
+    );
+  }
+
+  const cfg: FloorSvgCfg =
+    FLOOR_SVGS[`${bldId}-${floorId}`] ??
+    (bldId === "bw" ? FLOOR_SVGS[floorId] : undefined) ??
+    FALLBACK_SVG;
+  const { vw, vh, coreBlocks=[], extraBlocks=[], rooms=[], deskBg=[], seatGrids=[], labels=[] } = cfg;
+
+  const seatPosMap = useMemo(() => {
+    const map: Record<string, {x:number;y:number;row:number;col:number}[]> = {};
+    seatGrids.forEach(sg => { map[sg.zoneId] = getSeatPositions(sg); });
+    return map;
+  }, [bldId, floorId]);
+
+  const zoneMap = useMemo(() => {
+    const m: Record<string, ZoneData> = {};
+    zones.forEach(z => { m[z.id] = z; });
+    return m;
+  }, [zones]);
+
+  return (
+    <div className="w-full overflow-x-auto">
+      <svg
+        viewBox={`0 0 ${vw} ${vh}`}
+        style={{ width:"100%", minWidth:560, maxWidth:900, height:"auto", display:"block" }}
+      >
+        {/* 건물 외곽 */}
+        <rect x={4} y={4} width={vw-8} height={vh-8} rx={8} fill="#FAFAFA" stroke="#94A3B8" strokeWidth={1.5}/>
+        {/* 창문 힌트 (외벽) */}
+        {Array.from({length: Math.floor((vw-50)/30)}, (_,i) => (
+          <line key={`wt${i}`} x1={30+i*30} y1={4} x2={30+i*30} y2={10} stroke="#BAE6FD" strokeWidth={2} opacity={0.6}/>
+        ))}
+        {Array.from({length: Math.floor((vw-50)/30)}, (_,i) => (
+          <line key={`wb${i}`} x1={30+i*30} y1={vh-4} x2={30+i*30} y2={vh-10} stroke="#BAE6FD" strokeWidth={2} opacity={0.6}/>
+        ))}
+
+        {/* 업무 구역 배경 */}
+        {deskBg.map(bg => (
+          <g key={bg.id}>
+            <rect x={bg.x} y={bg.y} width={bg.w} height={bg.h} rx={4}
+              fill={bg.fill} stroke={bg.stroke} strokeWidth={1.5} strokeDasharray="6,3"/>
+            <text x={bg.x+6} y={bg.y+16} fontSize={9} fontWeight="700" fill={bg.stroke}>{bg.label}</text>
+          </g>
+        ))}
+
+        {/* 특수 구역 (라운지, 로커, 협업공간 등) */}
+        {extraBlocks.map((eb, i) => (
+          <g key={`eb${i}`}>
+            <rect x={eb.x} y={eb.y} width={eb.w} height={eb.h} rx={4}
+              fill={eb.fill||"#E2E8F0"} stroke={eb.stroke||"#94A3B8"} strokeWidth={1}/>
+            {eb.label.split("\n").map((line,li) => (
+              <text key={li} x={eb.x+eb.w/2} y={eb.y+eb.h/2-6+li*12}
+                fontSize={8} fill="#475569" textAnchor="middle">{line}</text>
+            ))}
+          </g>
+        ))}
+
+        {/* 회의실 */}
+        {rooms.map((room, i) => (
+          <g key={`rm${i}`}>
+            <rect x={room.x} y={room.y} width={room.w} height={room.h} rx={3}
+              fill="#F0FDF4" stroke="#86EFAC" strokeWidth={1.5}/>
+            <text x={room.x+room.w/2} y={room.y+room.h/2-(room.sub?6:0)}
+              fontSize={8.5} fontWeight="600" fill="#15803D" textAnchor="middle">{room.label}</text>
+            {room.sub && (
+              <text x={room.x+room.w/2} y={room.y+room.h/2+8}
+                fontSize={7.5} fill="#16A34A" textAnchor="middle" opacity={0.8}>{room.sub}</text>
+            )}
+          </g>
+        ))}
+
+        {/* 코어 블록 (계단/EV) */}
+        {coreBlocks.map((core, i) => (
+          <g key={`core${i}`}>
+            <rect x={core.x} y={core.y} width={core.w} height={core.h} rx={4}
+              fill={core.fill||"#E2E8F0"} stroke={core.stroke||"#94A3B8"} strokeWidth={1}/>
+            <line x1={core.x+10} y1={core.y+25} x2={core.x+core.w-10} y2={core.y+25} stroke="#94A3B8" strokeWidth={0.8}/>
+            <line x1={core.x+10} y1={core.y+35} x2={core.x+core.w-10} y2={core.y+35} stroke="#94A3B8" strokeWidth={0.8}/>
+            {core.label.split("\n").map((line,li) => (
+              <text key={li} x={core.x+core.w/2} y={core.y+core.h/2-8+li*14}
+                fontSize={8.5} fill="#64748B" textAnchor="middle">{line}</text>
+            ))}
+          </g>
+        ))}
+
+        {/* 좌석 렌더링 */}
+        {seatGrids.map(sg => {
+          const zone = zoneMap[sg.zoneId];
+          if (!zone) return null;
+          const positions = seatPosMap[sg.zoneId] || [];
+          return positions.map((pos, idx) => {
+            const seat = zone.seats[idx];
+            if (!seat) return null;
+            const type = seat.type;
+            const meta = MONITOR[type];
+            const isSel = seat.id === selectedId;
+            const dimmed = filter !== "all" && type !== filter;
+            return (
+              <g key={seat.id}>
+                <rect
+                  x={pos.x} y={pos.y} width={sg.sw} height={sg.sh} rx={2}
+                  fill={dimmed ? "#E5E7EB" : meta.color+(type==="unk"?"55":"CC")}
+                  stroke={isSel ? meta.color : (dimmed ? "#E5E7EB" : meta.color+"44")}
+                  strokeWidth={isSel ? 2 : 0.5}
+                  style={{ cursor:"pointer" }}
+                  onClick={() => !dimmed && onSelect(seat, zone)}
+                >
+                  <title>{seat.id} — {meta.long}</title>
+                </rect>
+                {/* 미설치 X */}
+                {type === "none" && !dimmed && (
+                  <>
+                    <line x1={pos.x+2} y1={pos.y+2} x2={pos.x+sg.sw-2} y2={pos.y+sg.sh-2}
+                      stroke="white" strokeWidth={1.2} style={{pointerEvents:"none"}}/>
+                    <line x1={pos.x+sg.sw-2} y1={pos.y+2} x2={pos.x+2} y2={pos.y+sg.sh-2}
+                      stroke="white" strokeWidth={1.2} style={{pointerEvents:"none"}}/>
+                  </>
+                )}
+                {/* 선택 링 */}
+                {isSel && (
+                  <rect x={pos.x-2} y={pos.y-2} width={sg.sw+4} height={sg.sh+4} rx={3}
+                    fill="none" stroke={meta.color} strokeWidth={2} opacity={0.7}
+                    style={{pointerEvents:"none"}}/>
+                )}
+              </g>
+            );
+          });
+        })}
+
+        {/* 행 레이블 (A,B,C…) */}
+        {seatGrids.map(sg => {
+          const positions = seatPosMap[sg.zoneId] || [];
+          const seen = new Set<number>();
+          return positions.filter(p => { if(seen.has(p.row)) return false; seen.add(p.row); return true; })
+            .map(pos => (
+              <text key={`rl-${sg.zoneId}-${pos.row}`}
+                x={pos.x-9} y={pos.y+sg.sh/2+1}
+                fontSize={7.5} fill="#D1D5DB" textAnchor="middle" fontWeight="700">
+                {String.fromCharCode(65+pos.row)}
+              </text>
+            ));
+        })}
+
+        {/* 방향 표시 */}
+        <text x={10} y={vh-8} fontSize={7} fill="#CBD5E1">← 서쪽</text>
+        <text x={vw-10} y={vh-8} fontSize={7} fill="#CBD5E1" textAnchor="end">동쪽 →</text>
+
+        {/* 범례 라벨 */}
+        {labels.map((lb, i) => (
+          lb.text.includes("\n")
+            ? lb.text.split("\n").map((line,li) => (
+                <text key={`lb${i}-${li}`} x={lb.x} y={lb.y+li*13}
+                  fontSize={lb.size||9} fill={lb.color||"#64748B"} textAnchor={lb.anchor||"middle"}
+                  fontWeight={lb.bold?"700":"400"}>{line}</text>
+              ))
+            : <text key={`lb${i}`} x={lb.x} y={lb.y}
+                fontSize={lb.size||9} fill={lb.color||"#64748B"} textAnchor={lb.anchor||"middle"}
+                fontWeight={lb.bold?"700":"400"}>{lb.text}</text>
+        ))}
+      </svg>
+    </div>
+  );
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// SEAT DETAIL PANEL
+// ══════════════════════════════════════════════════════════════════════════════
 function SeatDetailPanel({
   seat, zone, floor, building, onClose, onUpdateType,
 }: {
@@ -191,86 +657,11 @@ function SeatDetailPanel({
   onClose: () => void;
   onUpdateType: (seatId: string, type: MonitorType) => void;
 }) {
-  const meta     = MONITOR[seat.type];
-  const rowLabel = String.fromCharCode(65 + seat.row);
-
-  // 탭: info | history | request
-  const [tab, setTab] = useState<"info" | "history" | "request">("info");
-
-  // 수리 요청 상태
-  const [reqType,     setReqType]     = useState<"repair" | "replace">("repair");
-  const [reqNote,     setReqNote]     = useState("");
-  const [submitting,  setSubmitting]  = useState(false);
-  const [submitMsg,   setSubmitMsg]   = useState<{ ok: boolean; text: string } | null>(null);
-
-  // 이력 (모니터 요청 목록)
-  const [history,     setHistory]     = useState<MonitorRequest[]>([]);
-  const [histLoading, setHistLoading] = useState(false);
-
-  // seat 변경 시 탭·상태 초기화
-  useEffect(() => {
-    setTab("info");
-    setReqNote("");
-    setSubmitMsg(null);
-    setHistory([]);
-  }, [seat.id]);
-
-  // history 탭 진입 시 이력 조회
-  useEffect(() => {
-    if (tab !== "history") return;
-    setHistLoading(true);
-    fetch("/api/monitor-requests")
-      .then(r => r.json())
-      .then(data => {
-        if (data.ok && Array.isArray(data.requests)) {
-          const filtered = (data.requests as MonitorRequest[])
-            .filter(r => r.seatId === seat.id)
-            .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-          setHistory(filtered);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setHistLoading(false));
-  }, [tab, seat.id]);
-
-  const handleSubmitRequest = async () => {
-    setSubmitting(true);
-    setSubmitMsg(null);
-    try {
-      const res = await fetch("/api/monitor-requests", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          seatId:   seat.id,
-          building: building.label,
-          floor:    floor.label,
-          zone:     zone.label,
-          type:     reqType,
-          note:     reqNote.trim() || undefined,
-        }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        setSubmitMsg({ ok: true, text: "✅ 요청이 접수되었습니다. 총무 담당자에게 알림이 전송됩니다." });
-        setReqNote("");
-      } else {
-        setSubmitMsg({ ok: false, text: data.error ?? "요청 실패. 다시 시도해주세요." });
-      }
-    } catch {
-      setSubmitMsg({ ok: false, text: "네트워크 오류. 다시 시도해주세요." });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const STATUS_LABEL: Record<string, { text: string; color: string }> = {
-    pending:     { text: "접수",    color: "#F59E0B" },
-    in_progress: { text: "처리 중", color: "#3B82F6" },
-    done:        { text: "완료",    color: "#10B981" },
-  };
+  const meta = MONITOR[seat.type];
+  const rowLabel = String.fromCharCode(65+seat.row);
 
   return (
-    <div className="flex flex-col h-full text-sm">
+    <div className="flex flex-col h-full overflow-y-auto text-sm">
       {/* 헤더 */}
       <div className="flex items-start justify-between px-4 py-3 bg-slate-800 text-white flex-shrink-0">
         <div>
@@ -281,234 +672,101 @@ function SeatDetailPanel({
         <button onClick={onClose} className="opacity-60 hover:opacity-100 text-lg mt-0.5">✕</button>
       </div>
 
-      {/* 모니터 현황 */}
-      <div className="flex-shrink-0 px-3 pt-3">
-        <div className="rounded-xl p-3 border" style={{ background: meta.pale, borderColor: meta.border }}>
+      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+        {/* 모니터 현황 */}
+        <div className="rounded-xl p-3 border" style={{ background:meta.pale, borderColor:meta.border }}>
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-sm font-black flex-shrink-0"
-              style={{ background: meta.color }}>{meta.label}</div>
-            <div className="min-w-0">
-              <div className="font-bold text-sm" style={{ color: meta.color }}>{meta.long}</div>
-              <div className="text-[10px] opacity-70 truncate" style={{ color: meta.color }}>
-                {seat.type === "unk" ? "미확인 좌석" : seat.type === "none" ? "모니터 미설치" : seat.type === "dev34" ? "개발자용 와이드 모니터" : "표준형 모니터 설치됨"}
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white text-sm font-black"
+              style={{ background:meta.color }}>{meta.label}</div>
+            <div>
+              <div className="font-bold" style={{ color:meta.color }}>{meta.long}</div>
+              <div className="text-[10px] opacity-70" style={{ color:meta.color }}>
+                {seat.type==="unk"?"미확인 좌석":seat.type==="none"?"모니터 미설치":seat.type==="dev34"?"개발자용 와이드 모니터":"표준형 모니터 설치됨"}
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* 탭 */}
-      <div className="flex-shrink-0 flex border-b border-gray-200 mt-2 px-3">
-        {(["info", "history", "request"] as const).map(t => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`flex-1 py-1.5 text-[11px] font-semibold border-b-2 transition-colors ${
-              tab === t
-                ? "border-blue-500 text-blue-600"
-                : "border-transparent text-gray-400 hover:text-gray-600"
-            }`}
-          >
-            {t === "info" ? "정보" : t === "history" ? "이력" : "수리 요청"}
+        {/* 위치 정보 */}
+        <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+          <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">📍 위치</div>
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {[building.label, floor.label, zone.label].map(tag => (
+              <span key={tag} className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-semibold border border-blue-100">{tag}</span>
+            ))}
+          </div>
+          <div className="text-xs text-gray-600 space-y-0.5">
+            <div><span className="text-gray-400">행</span> <strong>{rowLabel}행</strong></div>
+            <div><span className="text-gray-400">열</span> <strong>{seat.col+1}번</strong></div>
+          </div>
+        </div>
+
+        {/* 찾아가는 방법 */}
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+          <div className="text-[10px] font-bold text-amber-700 mb-1.5">🗺 찾아가는 방법</div>
+          <div className="text-[11px] text-amber-700 leading-relaxed">
+            {building.label} 건물 진입<br/>
+            → <strong>{floor.label}</strong> 이동 (계단/엘리베이터)<br/>
+            → <strong>{zone.label}</strong> 구역<br/>
+            → <strong>{rowLabel}행 {seat.col+1}번째 자리</strong>
+          </div>
+        </div>
+
+        {/* 모니터 타입 변경 */}
+        <div className="bg-white border border-gray-100 rounded-xl p-3">
+          <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">✏️ 모니터 상태 변경</div>
+          <div className="grid grid-cols-1 gap-1.5">
+            {TYPES.map(t => {
+              const m = MONITOR[t];
+              const isActive = seat.type === t;
+              return (
+                <button
+                  key={t}
+                  onClick={() => onUpdateType(seat.id, t)}
+                  className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-semibold transition-all border"
+                  style={{
+                    background: isActive ? m.color : m.pale,
+                    color: isActive ? "white" : m.color,
+                    borderColor: m.border,
+                    outline: isActive ? `2px solid ${m.color}` : "none",
+                  }}
+                >
+                  <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
+                    style={{ background: isActive ? "white" : m.color+"CC" }}/>
+                  {m.long}
+                  {isActive && <span className="ml-auto text-[10px] opacity-80">✓ 현재</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 액션 버튼 */}
+        <div className="space-y-2">
+          <button className="w-full py-2.5 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 transition-colors">
+            🔧 교체/수리 요청
           </button>
-        ))}
-      </div>
+          <button
+            className="w-full py-2 rounded-lg border border-gray-200 bg-white text-gray-600 text-xs font-semibold hover:bg-gray-50 transition-colors"
+            onClick={() => navigator.clipboard?.writeText(`${building.label} ${floor.label} ${zone.label} ${rowLabel}행 ${seat.col+1}번 (${seat.id})`)}
+          >
+            📋 위치 텍스트 복사
+          </button>
+        </div>
 
-      {/* 탭 콘텐츠 */}
-      <div className="flex-1 overflow-y-auto">
-
-        {/* ── 정보 탭 ── */}
-        {tab === "info" && (
-          <div className="p-3 space-y-3">
-            {/* 위치 정보 */}
-            <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-              <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">📍 위치</div>
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                {[building.label, floor.label, zone.label].map(tag => (
-                  <span key={tag} className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-semibold border border-blue-100">{tag}</span>
-                ))}
+        {/* 범례 */}
+        <div className="bg-white border border-gray-100 rounded-xl p-3">
+          <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">범례</div>
+          <div className="space-y-1.5">
+            {TYPES.map(t => (
+              <div key={t} className="flex items-center gap-2">
+                <div className="w-3.5 h-3 rounded-sm flex-shrink-0"
+                  style={{ background: MONITOR[t].color+(t==="unk"?"55":"CC") }}/>
+                <span className="text-[10px] text-gray-500">{MONITOR[t].long}</span>
               </div>
-              <div className="text-xs text-gray-600 space-y-0.5">
-                <div><span className="text-gray-400">행</span> <strong>{rowLabel}행</strong></div>
-                <div><span className="text-gray-400">열</span> <strong>{seat.col + 1}번</strong></div>
-              </div>
-            </div>
-
-            {/* 찾아가는 방법 */}
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-              <div className="text-[10px] font-bold text-amber-700 mb-1.5">🗺 찾아가는 방법</div>
-              <div className="text-[11px] text-amber-700 leading-relaxed">
-                {building.label} 건물 진입<br />
-                → <strong>{floor.label}</strong> 이동 (계단/엘리베이터)<br />
-                → <strong>{zone.label}</strong> 구역<br />
-                → <strong>{rowLabel}행 {seat.col + 1}번째 자리</strong>
-              </div>
-            </div>
-
-            {/* 모니터 타입 변경 */}
-            <div className="bg-white border border-gray-100 rounded-xl p-3">
-              <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">✏️ 모니터 상태 변경</div>
-              <div className="grid grid-cols-1 gap-1.5">
-                {TYPES.map(t => {
-                  const m = MONITOR[t];
-                  const isActive = seat.type === t;
-                  return (
-                    <button key={t}
-                      onClick={() => onUpdateType(seat.id, t)}
-                      className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-semibold transition-all border"
-                      style={{
-                        background: isActive ? m.color : m.pale,
-                        color: isActive ? "white" : m.color,
-                        borderColor: m.border,
-                        outline: isActive ? `2px solid ${m.color}` : "none",
-                      }}
-                    >
-                      <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: isActive ? "white" : m.color + "CC" }} />
-                      {m.long}
-                      {isActive && <span className="ml-auto text-[10px] opacity-80">✓ 현재</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* 바로가기 버튼 */}
-            <div className="space-y-1.5">
-              <button
-                onClick={() => setTab("request")}
-                className="w-full py-2.5 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 transition-colors"
-              >
-                🔧 교체/수리 요청
-              </button>
-              <button
-                className="w-full py-2 rounded-lg border border-gray-200 bg-white text-gray-600 text-xs font-semibold hover:bg-gray-50 transition-colors"
-                onClick={() => navigator.clipboard?.writeText(
-                  `${building.label} ${floor.label} ${zone.label} ${rowLabel}행 ${seat.col + 1}번 (${seat.id})`
-                )}
-              >
-                📋 위치 텍스트 복사
-              </button>
-            </div>
+            ))}
           </div>
-        )}
-
-        {/* ── 이력 탭 ── */}
-        {tab === "history" && (
-          <div className="p-3">
-            <div className="text-[10px] text-gray-400 font-semibold mb-2">수리/교체 요청 이력</div>
-            {histLoading ? (
-              <div className="text-xs text-gray-400 py-4 text-center">로딩 중...</div>
-            ) : history.length === 0 ? (
-              <div className="text-xs text-gray-400 py-8 text-center">
-                <div className="text-2xl mb-2 opacity-40">📋</div>
-                요청 이력이 없습니다
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {history.map(req => {
-                  const s = STATUS_LABEL[req.status] ?? { text: req.status, color: "#6B7280" };
-                  return (
-                    <div key={req.id} className="border border-gray-100 rounded-xl p-2.5 bg-white space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold"
-                          style={{ color: req.type === "repair" ? "#DC2626" : "#7C3AED" }}>
-                          {req.type === "repair" ? "🔧 수리" : "🔄 교체"}
-                        </span>
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                          style={{ background: s.color + "20", color: s.color }}>
-                          {s.text}
-                        </span>
-                        <span className="ml-auto text-[10px] text-gray-400">
-                          {new Date(req.createdAt).toLocaleDateString("ko-KR")}
-                        </span>
-                      </div>
-                      <div className="text-[10px] text-gray-500">요청자: {req.createdByName}</div>
-                      {req.note && (
-                        <div className="text-[10px] text-gray-600 bg-gray-50 rounded px-2 py-1">
-                          {req.note}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── 수리 요청 탭 ── */}
-        {tab === "request" && (
-          <div className="p-3 space-y-3">
-            <div className="text-[10px] text-gray-400 font-semibold">교체/수리 요청 접수</div>
-
-            {/* 요청 종류 */}
-            <div>
-              <div className="text-[10px] text-gray-500 mb-1.5">요청 종류</div>
-              <div className="flex gap-2">
-                {(["repair", "replace"] as const).map(t => (
-                  <button
-                    key={t}
-                    onClick={() => setReqType(t)}
-                    className={`flex-1 py-2 text-xs font-semibold rounded-lg border transition-all ${
-                      reqType === t
-                        ? t === "repair"
-                          ? "bg-red-600 text-white border-red-600"
-                          : "bg-purple-600 text-white border-purple-600"
-                        : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-                    }`}
-                  >
-                    {t === "repair" ? "🔧 수리" : "🔄 교체"}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* 요청 메모 */}
-            <div>
-              <div className="text-[10px] text-gray-500 mb-1.5">증상 / 메모 (선택)</div>
-              <textarea
-                value={reqNote}
-                onChange={e => setReqNote(e.target.value)}
-                rows={3}
-                placeholder="증상을 구체적으로 입력하면 처리가 빨라집니다&#10;예: 화면이 깜빡임, 전원이 안 켜짐..."
-                className="w-full border border-gray-200 rounded-lg px-2.5 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 resize-none"
-              />
-            </div>
-
-            {/* 대상 좌석 확인 */}
-            <div className="bg-gray-50 rounded-xl p-2.5 border border-gray-100">
-              <div className="text-[10px] text-gray-400 mb-1">대상 좌석</div>
-              <div className="text-xs font-mono font-bold text-slate-700">{seat.id}</div>
-              <div className="text-[10px] text-gray-500 mt-0.5">
-                {building.label} {floor.label} · {zone.label} {rowLabel}행 {seat.col + 1}번
-              </div>
-            </div>
-
-            {/* 결과 메시지 */}
-            {submitMsg && (
-              <div className={`rounded-lg px-3 py-2 text-xs font-medium ${
-                submitMsg.ok
-                  ? "bg-green-50 text-green-700 border border-green-200"
-                  : "bg-red-50 text-red-700 border border-red-200"
-              }`}>
-                {submitMsg.text}
-              </div>
-            )}
-
-            {/* 제출 버튼 */}
-            <button
-              onClick={handleSubmitRequest}
-              disabled={submitting}
-              className="w-full py-2.5 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {submitting ? "처리 중..." : "🔧 요청 접수 · 총무 담당자 알림"}
-            </button>
-
-            <p className="text-[10px] text-gray-400 text-center leading-relaxed">
-              요청 접수 시 총무 담당자의<br />관리 대시보드에 알림이 표시됩니다.
-            </p>
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );
@@ -612,6 +870,7 @@ function OverviewSidePanel({ building, floor, zones }: { building: BuildingData;
 export default function AssetMapPanel() {
   const [buildingId,    setBuildingId]    = useState<string>("bw");
   const [floorId,       setFloorId]       = useState<string>("2F");
+  const [filter,        setFilter]        = useState<FilterMode>("all");
   const [selected,      setSelected]      = useState<{ seat:SeatData; zone:ZoneData } | null>(null);
   const [seatOverrides, setSeatOverrides] = useState<Record<string, MonitorType>>({});
 
@@ -630,6 +889,7 @@ export default function AssetMapPanel() {
       try { localStorage.setItem("sw-monitor-overrides", JSON.stringify(next)); } catch {}
       return next;
     });
+    // 현재 선택된 좌석도 즉시 반영
     setSelected(prev =>
       prev?.seat.id === seatId ? { ...prev, seat: { ...prev.seat, type } } : prev
     );
@@ -641,7 +901,7 @@ export default function AssetMapPanel() {
     [building, floorId]
   );
 
-  // seatOverrides 적용된 zones
+  // override 적용된 zones (렌더링·통계 모두 이걸 사용)
   const effectiveZones = useMemo(() =>
     floor.zones.map(z => ({
       ...z,
@@ -656,41 +916,17 @@ export default function AssetMapPanel() {
   const flStats    = useMemo(() => calcStats(effectiveZones), [effectiveZones]);
   const selectedId = selected?.seat.id ?? null;
 
-  // 전체 건물·층 목록 (복사 기능용)
-  const availableFloors = useMemo(() =>
-    BUILDINGS.flatMap(b =>
-      b.floors.map(f => ({
-        buildingId:    b.id,
-        buildingLabel: b.label,
-        floorId:       f.id,
-        floorLabel:    f.label,
-      }))
-    ), []
-  );
-
   const handleBldChange = (bid: string) => {
     setBuildingId(bid);
     setFloorId(BUILDINGS.find(b => b.id === bid)!.floors[0].id);
     setSelected(null);
   };
   const handleFloorChange = (fid: string) => { setFloorId(fid); setSelected(null); };
-
-  // MapEditor에서 모니터 아이콘 클릭 시 — seatId로 좌석 찾아 패널 표시
-  const handleMapEditorMonitorSelect = useCallback((seatId: string) => {
-    for (const z of effectiveZones) {
-      const seat = z.seats.find(s => s.id === seatId);
-      if (seat) {
-        const effective: SeatData = { ...seat, type: (seatOverrides[seat.id] ?? seat.type) as MonitorType };
-        setSelected(prev => prev?.seat.id === seatId ? null : { seat: effective, zone: z });
-        return;
-      }
-    }
-    // effectiveZones에 없는 경우 (편집기에서 새로 추가한 모니터)
-    const t = (seatOverrides[seatId] ?? "unk") as MonitorType;
-    const fakeSeat: SeatData = { id: seatId, type: t, row: 0, col: 0 };
-    const fakeZone: ZoneData = { id: "custom", label: "커스텀", side: "", cols: 1, rows: 1, seats: [fakeSeat] };
-    setSelected(prev => prev?.seat.id === seatId ? null : { seat: fakeSeat, zone: fakeZone });
-  }, [effectiveZones, seatOverrides]);
+  const handleSelect = (seat: SeatData, zone: ZoneData) => {
+    // 선택 시 override 반영된 최신 type 적용
+    const effective: SeatData = { ...seat, type: (seatOverrides[seat.id] ?? seat.type) as MonitorType };
+    setSelected(prev => prev?.seat.id === seat.id ? null : { seat: effective, zone });
+  };
 
   return (
     <div className="flex flex-col h-full min-h-0 bg-slate-50" style={{ fontFamily:"system-ui,-apple-system,sans-serif" }}>
@@ -722,7 +958,7 @@ export default function AssetMapPanel() {
         </div>
 
         {/* 건물 + 층 선택 */}
-        <div className="flex items-center gap-2 flex-wrap ml-auto">
+        <div className="ml-auto flex items-center gap-2 flex-wrap">
           <div className="flex rounded-lg border border-gray-200 overflow-hidden">
             {BUILDINGS.map(b => (
               <button key={b.id}
@@ -746,17 +982,58 @@ export default function AssetMapPanel() {
         </div>
       </div>
 
+      {/* ── 필터 바 ───────────────────────────────────────────────── */}
+      <div className="flex-none bg-white border-b px-5 py-2 flex items-center gap-3 flex-wrap">
+        <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
+          <button
+            onClick={() => setFilter("all")}
+            className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+              filter==="all" ? "bg-white shadow text-slate-800 font-semibold" : "text-slate-500 hover:text-slate-700"
+            }`}>전체 보기</button>
+          {TYPES.map(t => {
+            const cnt = flStats[t as keyof typeof flStats] as number;
+            if (!cnt) return null;
+            return (
+              <button key={t}
+                onClick={() => setFilter(filter===t?"all":t)}
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                  filter===t ? "bg-white shadow font-semibold" : "text-slate-500 hover:text-slate-700"
+                }`}
+                style={{ color: filter===t ? MONITOR[t].color : undefined }}>
+                {MONITOR[t].long}만
+              </button>
+            );
+          })}
+        </div>
+        <span className="text-[10px] text-gray-400 ml-2">좌석 클릭 시 위치 정보 · 교체 요청 가능</span>
+      </div>
+
       {/* ── 메인 콘텐츠 ─────────────────────────────────────────── */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
-        <div className="flex-1 min-h-0 overflow-hidden">
-          <MapEditor
-            buildingId={buildingId}
-            floorId={floorId}
-            seatOverrides={seatOverrides}
-            onMonitorSelect={handleMapEditorMonitorSelect}
-            selectedSeatId={selectedId}
-            availableFloors={availableFloors}
-          />
+        {/* 도면 영역 */}
+        <div className="flex-1 overflow-auto p-4">
+          <div className="mb-3">
+            <h2 className="text-base font-bold text-slate-800">{floor.label}</h2>
+            {floor.note && <p className="text-xs text-gray-400 mt-0.5">{floor.note}</p>}
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <FloorPlanSVG
+              bldId={buildingId} floorId={floor.id}
+              zones={effectiveZones} filter={filter}
+              selectedId={selectedId} onSelect={handleSelect}
+            />
+          </div>
+          {/* 범례 */}
+          <div className="flex gap-4 mt-3 px-1 flex-wrap items-center">
+            <span className="text-[10px] font-semibold text-gray-400">범례</span>
+            {TYPES.map(t => (
+              <div key={t} className="flex items-center gap-1.5">
+                <div className="w-3.5 h-3 rounded-sm" style={{ background:MONITOR[t].color+(t==="unk"?"55":"CC") }}/>
+                <span className="text-[11px] text-gray-500">{MONITOR[t].long}</span>
+              </div>
+            ))}
+            <span className="text-[10px] text-gray-300 ml-2">A~Z = 행 / 1,2,3… = 열</span>
+          </div>
         </div>
 
         {/* 우측 패널 */}

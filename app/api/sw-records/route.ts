@@ -4,7 +4,6 @@ import { kvGet, kvSet } from "@/lib/kv-store";
 import type { SwDbRecord } from "@/types";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
   try {

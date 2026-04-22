@@ -311,6 +311,7 @@ function ResourcesPanel() {
   const [loading,     setLoading]     = useState(true);
   const [adding,      setAdding]      = useState(false);
   const [saving,      setSaving]      = useState(false);
+  const [detecting,   setDetecting]   = useState(false);
   const [form, setForm] = useState({ title: "", category: "install" as ResourceCategory, fileUrl: "", fileType: "PDF", fileSize: "", description: "", updatedAt: "", order: 0, visible: true });
 
   const load = useCallback(() => {
@@ -318,6 +319,23 @@ function ResourcesPanel() {
     fetch("/api/resources?all=1").then(r => r.json()).then(res => setItems(res.data ?? [])).finally(() => setLoading(false));
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  // URL 입력 완료 시 파일 크기·형식 자동 감지
+  async function handleUrlBlur() {
+    const url = form.fileUrl.trim();
+    if (!url.startsWith("http")) return;
+    setDetecting(true);
+    try {
+      const res = await fetch(`/api/manage/file-info?url=${encodeURIComponent(url)}`);
+      const data = await res.json();
+      setForm(f => ({
+        ...f,
+        fileSize: data.fileSize || f.fileSize,
+        fileType: data.fileType || f.fileType,
+      }));
+    } catch {/* 무시 */}
+    setDetecting(false);
+  }
 
   async function handleSave() {
     if (!form.title.trim()) return;
@@ -339,7 +357,7 @@ function ResourcesPanel() {
     load();
   }
 
-  const CAT: Record<ResourceCategory, string> = { install: "설치가이드", installer: "설치파일", patch: "패치파일", policy: "정책문서", forms: "양식서식", other: "기타" };
+  const CAT: Record<ResourceCategory, string> = { install: "설치가이드", policy: "정책문서", forms: "양식서식", other: "기타" };
   const FT: Record<string, { bg: string; color: string }> = { PDF: { bg: "#FEE2E2", color: "#B91C1C" }, XLSX: { bg: "#D1FAE5", color: "#065F46" }, DOCX: { bg: "#DBEAFE", color: "#1E40AF" }, ZIP: { bg: "#FEF3C7", color: "#92400E" }, EXE: { bg: "#F3E8FF", color: "#7C3AED" } };
 
   return (
@@ -350,16 +368,28 @@ function ResourcesPanel() {
           <Field label="파일명 *"><input style={iStyle} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="파일명" /></Field>
           <Field label="설명"><input style={iStyle} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="파일 설명" /></Field>
 
-          <Field label="파일 URL">
-            <input style={iStyle} value={form.fileUrl} onChange={e => setForm(f => ({ ...f, fileUrl: e.target.value }))} placeholder="https://..." />
+          {/* URL 먼저 — 자동감지 후 아래 필드 채워짐 */}
+          <Field label="파일 URL (Notion 첨부파일 URL 또는 공유 링크)">
+            <div style={{ position: "relative" }}>
+              <input
+                style={{ ...iStyle, paddingRight: detecting ? 110 : undefined }}
+                value={form.fileUrl}
+                onChange={e => setForm(f => ({ ...f, fileUrl: e.target.value }))}
+                onBlur={handleUrlBlur}
+                placeholder="https://... (입력 후 포커스 이동 시 크기·형식 자동 입력)"
+              />
+              {detecting && (
+                <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 11, color: "#2563EB", fontWeight: 600 }}>
+                  감지 중...
+                </span>
+              )}
+            </div>
           </Field>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
             <Field label="분류">
               <select style={iStyle} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value as ResourceCategory }))}>
                 <option value="install">설치가이드</option>
-                <option value="installer">설치파일</option>
-                <option value="patch">패치파일</option>
                 <option value="policy">정책문서</option>
                 <option value="forms">양식서식</option>
                 <option value="other">기타</option>
@@ -379,8 +409,14 @@ function ResourcesPanel() {
                 <option value="other">기타</option>
               </select>
             </Field>
-            <Field label="파일 크기">
-              <input style={iStyle} value={form.fileSize} onChange={e => setForm(f => ({ ...f, fileSize: e.target.value }))} placeholder="예: 2.1 MB" />
+            <Field label={`파일 크기${detecting ? " ⏳" : ""}`}>
+              <input
+                style={{ ...iStyle, background: detecting ? "#f8fafc" : "#fff" }}
+                value={form.fileSize}
+                onChange={e => setForm(f => ({ ...f, fileSize: e.target.value }))}
+                placeholder={detecting ? "감지 중..." : "자동 입력 또는 직접 입력"}
+                readOnly={detecting}
+              />
             </Field>
           </div>
 
