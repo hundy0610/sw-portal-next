@@ -1,6 +1,7 @@
 "use client";
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { FLOOR_SKETCHES, SketchCtx, SketchZone } from "./FloorSketches";
+import FloorMapEditor, { type EditorData, migrate } from "./FloorMapEditor";
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -867,12 +868,16 @@ function OverviewSidePanel({ building, floor, zones }: { building: BuildingData;
 // ══════════════════════════════════════════════════════════════════════════════
 // MAIN PANEL
 // ══════════════════════════════════════════════════════════════════════════════
+const EMPTY_EDITOR_DATA: EditorData = { imageUrl: null, items: [], zones: [], facilities: [], groups: [], renderOrder: [] };
+
 export default function AssetMapPanel() {
   const [buildingId,    setBuildingId]    = useState<string>("bw");
   const [floorId,       setFloorId]       = useState<string>("2F");
   const [filter,        setFilter]        = useState<FilterMode>("all");
   const [selected,      setSelected]      = useState<{ seat:SeatData; zone:ZoneData } | null>(null);
   const [seatOverrides, setSeatOverrides] = useState<Record<string, MonitorType>>({});
+  const [editorMode,    setEditorMode]    = useState<boolean>(false);
+  const [editorData,    setEditorData]    = useState<EditorData>(EMPTY_EDITOR_DATA);
 
   // ── localStorage 초기 로드 ──────────────────────────────────────
   useEffect(() => {
@@ -881,6 +886,23 @@ export default function AssetMapPanel() {
       if (stored) setSeatOverrides(JSON.parse(stored));
     } catch {}
   }, []);
+
+  // ── 편집 데이터 로드 (건물/층 변경 시) ──────────────────────────
+  useEffect(() => {
+    const key = `sw-floormap-editor-${buildingId}-${floorId}`;
+    try {
+      const stored = localStorage.getItem(key);
+      setEditorData(stored ? migrate(JSON.parse(stored)) : EMPTY_EDITOR_DATA);
+    } catch {
+      setEditorData(EMPTY_EDITOR_DATA);
+    }
+  }, [buildingId, floorId]);
+
+  const handleEditorChange = useCallback((data: EditorData) => {
+    setEditorData(data);
+    const key = `sw-floormap-editor-${buildingId}-${floorId}`;
+    try { localStorage.setItem(key, JSON.stringify(data)); } catch {}
+  }, [buildingId, floorId]);
 
   // ── 좌석 타입 업데이트 (localStorage 동기 저장) ──────────────────
   const updateSeatType = useCallback((seatId: string, type: MonitorType) => {
@@ -957,6 +979,17 @@ export default function AssetMapPanel() {
           })}
         </div>
 
+        {/* 편집 모드 토글 */}
+        <button
+          onClick={() => setEditorMode(v => !v)}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+            editorMode
+              ? "bg-amber-500 text-white border-amber-500 shadow-sm"
+              : "bg-white text-slate-600 border-gray-200 hover:border-amber-400 hover:text-amber-600"
+          }`}>
+          {editorMode ? "✏️ 편집 모드 ON" : "✏️ 편집 모드"}
+        </button>
+
         {/* 건물 + 층 선택 */}
         <div className="ml-auto flex items-center gap-2 flex-wrap">
           <div className="flex rounded-lg border border-gray-200 overflow-hidden">
@@ -1008,7 +1041,22 @@ export default function AssetMapPanel() {
         <span className="text-[10px] text-gray-400 ml-2">좌석 클릭 시 위치 정보 · 교체 요청 가능</span>
       </div>
 
+      {/* ── 편집 모드 ──────────────────────────────────────────────── */}
+      {editorMode && (
+        <div className="flex flex-1 min-h-0 overflow-hidden flex-col">
+          <div className="flex-none bg-amber-50 border-b border-amber-200 px-5 py-1.5 flex items-center gap-2">
+            <span className="text-[10px] font-semibold text-amber-700">✏️ 편집 모드</span>
+            <span className="text-[10px] text-amber-600">
+              도면 이미지 업로드 · 모니터/책상 배치 · 공간 구역 지정 · 시설물 마커 · 드래그 이동 · 회전 지원
+            </span>
+            <span className="text-[10px] text-amber-500 ml-auto">{building.label} {floor.label}</span>
+          </div>
+          <FloorMapEditor data={editorData} onChange={handleEditorChange}/>
+        </div>
+      )}
+
       {/* ── 메인 콘텐츠 ─────────────────────────────────────────── */}
+      {!editorMode && (
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* 도면 영역 */}
         <div className="flex-1 overflow-auto p-4">
@@ -1050,6 +1098,7 @@ export default function AssetMapPanel() {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }
