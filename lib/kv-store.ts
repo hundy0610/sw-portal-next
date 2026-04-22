@@ -37,15 +37,28 @@ export async function kvGet<T>(key: string): Promise<T | null> {
 }
 
 /**
- * KV에 값 저장. 오류 시 조용히 무시 (로깅만)
+ * KV에 값 저장 (TTL 있음, 기본 1시간). 오류 시 조용히 무시
  */
-export async function kvSet<T>(key: string, value: T): Promise<void> {
+export async function kvSet<T>(key: string, value: T, ttl = KV_TTL): Promise<void> {
   const client = getClient();
   if (!client) return;
   try {
-    await client.set(key, JSON.stringify(value), "EX", KV_TTL);
+    await client.set(key, JSON.stringify(value), "EX", ttl);
   } catch (e) {
     console.warn("[KV] set failed:", key, e);
+  }
+}
+
+/**
+ * KV에 값 영구 저장 (TTL 없음). 공지사항/강의/자료 등 관리 데이터에 사용
+ */
+export async function kvSetPermanent<T>(key: string, value: T): Promise<void> {
+  const client = getClient();
+  if (!client) return;
+  try {
+    await client.set(key, JSON.stringify(value));
+  } catch (e) {
+    console.warn("[KV] setPermament failed:", key, e);
   }
 }
 

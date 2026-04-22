@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { kv } from "@vercel/kv";
+import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { decodeSession } from "@/lib/session";
 import type { MonitorRequest } from "../route";
 
@@ -13,24 +13,22 @@ const REQUESTS_KEY = "sw:monitor-requests";
 
 async function getRequests(): Promise<MonitorRequest[]> {
   try {
-    if (!process.env.KV_REST_API_URL) return [];
-    const data = await kv.get<MonitorRequest[]>(REQUESTS_KEY);
-    return data ?? [];
+    if (!process.env.REDIS_URL) return [];
+    return (await kvGet<MonitorRequest[]>(REQUESTS_KEY)) ?? [];
   } catch {
     return [];
   }
 }
 
 async function saveRequests(requests: MonitorRequest[]): Promise<void> {
-  if (!process.env.KV_REST_API_URL) return;
-  await kv.set(REQUESTS_KEY, requests);
+  if (!process.env.REDIS_URL) return;
+  await kvSetPermanent(REQUESTS_KEY, requests);
 }
 
 async function getGeneralManagers(): Promise<string[]> {
   try {
-    if (!process.env.KV_REST_API_URL) return [];
-    const data = await kv.get<string[]>("sw:general-managers");
-    return data ?? [];
+    if (!process.env.REDIS_URL) return [];
+    return (await kvGet<string[]>("sw:general-managers")) ?? [];
   } catch {
     return [];
   }

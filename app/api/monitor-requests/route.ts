@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { kv } from "@vercel/kv";
+import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { decodeSession } from "@/lib/session";
 
 function getSession(req: NextRequest) {
@@ -27,18 +27,17 @@ export interface MonitorRequest {
 
 async function getRequests(): Promise<MonitorRequest[]> {
   try {
-    if (!process.env.KV_REST_API_URL) return [];
-    const data = await kv.get<MonitorRequest[]>(REQUESTS_KEY);
-    return data ?? [];
+    if (!process.env.REDIS_URL) return [];
+    return (await kvGet<MonitorRequest[]>(REQUESTS_KEY)) ?? [];
   } catch {
     return [];
   }
 }
 
 async function saveRequests(requests: MonitorRequest[]): Promise<void> {
-  if (!process.env.KV_REST_API_URL) return;
+  if (!process.env.REDIS_URL) return;
   // 영구 저장 (TTL 없음) — 요청 기록은 휘발되면 안 됨
-  await kv.set(REQUESTS_KEY, requests);
+  await kvSetPermanent(REQUESTS_KEY, requests);
 }
 
 // GET /api/monitor-requests — 요청 목록 조회
@@ -99,9 +98,8 @@ export async function POST(req: NextRequest) {
 // 내부 헬퍼 (general-managers 조회)
 async function getGeneralManagers(): Promise<string[]> {
   try {
-    if (!process.env.KV_REST_API_URL) return [];
-    const data = await kv.get<string[]>("sw:general-managers");
-    return data ?? [];
+    if (!process.env.REDIS_URL) return [];
+    return (await kvGet<string[]>("sw:general-managers")) ?? [];
   } catch {
     return [];
   }

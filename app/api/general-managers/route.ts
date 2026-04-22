@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { kv } from "@vercel/kv";
+import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { decodeSession } from "@/lib/session";
 
 const GM_KEY = "sw:general-managers";
@@ -12,9 +12,8 @@ function getSession(req: NextRequest) {
 
 async function getManagers(): Promise<string[]> {
   try {
-    if (!process.env.KV_REST_API_URL) return [];
-    const data = await kv.get<string[]>(GM_KEY);
-    return data ?? [];
+    if (!process.env.REDIS_URL) return [];
+    return (await kvGet<string[]>(GM_KEY)) ?? [];
   } catch {
     return [];
   }
@@ -43,6 +42,6 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "잘못된 형식" }, { status: 400 });
   }
 
-  await kv.set(GM_KEY, managers);
+  await kvSetPermanent(GM_KEY, managers);
   return NextResponse.json({ ok: true, managers });
 }
