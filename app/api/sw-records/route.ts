@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchSwDatabase } from "@/lib/notion";
 import { kvGet, kvSet } from "@/lib/kv-store";
+import { memGet, memSet } from "@/lib/mem-cache";
 import type { SwDbRecord } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -10,25 +11,31 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const filterCompany = searchParams.get("company")?.trim() || "";
 
-    // ✅ KV에서 즉시 읽기 (1~5ms)
-    let data = await kvGet<SwDbRecord[]>("sw:all");
+    // 1. 인메모리 캐시 (0ms)
+    let data = memGet<SwDbRecord[]>("sw:all");
 
     if (!data) {
-      // KV 미스: Notion fetch 후 KV 저장
-      data = await fetchSwDatabase();
-      await kvSet("sw:all", data);
+      // 2. KV 캐시 (1~5ms, KV 미설정 시 null 반환)
+      data = await kvGet<SwDbRecord[]>("sw:all");
+
+      if (!data) {
+        // 3. Notion 직접 조회
+        data = await fetchSwDatabase();
+        await kvSet("sw:all", data);
+      }
+
+      memSet("sw:all", data, 300);
     }
 
-    // 메모리 필터링
-    if (filterCompany) {
-      data = data.filter(r => r.company === filterCompany);
-    }
+    const result = filterCompany
+      ? data.filter(r => r.company === filterCompany)
+      : data;
 
     return NextResponse.json({
-      data,
+      data: result,
       lastSynced: new Date().toISOString(),
     }, {
-      headers: { "Cache-Control": "s-maxage=60, stale-while-revalidate=30" },
+      headers: { "Cache-Control": "s-maxage=300, stale-while-revalidate=60" },
     });
   } catch (e: any) {
     console.error("[sw-records] fetch error:", e?.message);

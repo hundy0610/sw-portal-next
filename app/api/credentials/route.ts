@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
+import { kvGet, kvSet, kvDel } from "@/lib/kv-store";
+import { memGet, memSet, memDel } from "@/lib/mem-cache";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
@@ -27,6 +29,18 @@ function mapPage(page: any) {
 // ── GET: 전체 조회 ────────────────────────────────────────
 export async function GET() {
   try {
+    // 1. 인메모리 캐시 (0ms)
+    const mem = memGet<object[]>("credentials:all");
+    if (mem) return NextResponse.json({ data: mem, cached: true });
+
+    // 2. KV 캐시 (1~5ms, KV 미설정 시 null)
+    const kv = await kvGet<object[]>("credentials:all");
+    if (kv) {
+      memSet("credentials:all", kv, 300);
+      return NextResponse.json({ data: kv, cached: true });
+    }
+
+    // 3. Notion 직접 조회
     const pages: any[] = [];
     let cursor: string | undefined;
 
@@ -41,7 +55,11 @@ export async function GET() {
       cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined;
     } while (cursor);
 
-    return NextResponse.json({ data: pages.map(mapPage) });
+    const data = pages.map(mapPage);
+    memSet("credentials:all", data, 300);
+    await kvSet("credentials:all", data);
+
+    return NextResponse.json({ data });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ data: [], error: message }, { status: 500 });
@@ -67,6 +85,8 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    memDel("credentials:all");
+    await kvDel("credentials:all");
     return NextResponse.json({ ok: true, data: mapPage(page) });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
@@ -88,6 +108,8 @@ export async function PUT(req: NextRequest) {
     if (memo      !== undefined) properties["유형"] = { rich_text: [{ text: { content: String(memo).trim() } }] };
 
     const page = await notion.pages.update({ page_id: id, properties });
+    memDel("credentials:all");
+    await kvDel("credentials:all");
     return NextResponse.json({ ok: true, data: mapPage(page) });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
@@ -102,6 +124,8 @@ export async function DELETE(req: NextRequest) {
     if (!id) return NextResponse.json({ error: "id가 필요합니다." }, { status: 400 });
 
     await notion.pages.update({ page_id: id, archived: true });
+    memDel("credentials:all");
+    await kvDel("credentials:all");
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

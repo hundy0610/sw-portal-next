@@ -1,23 +1,20 @@
 import { NextResponse } from "next/server";
 import { fetchTickets, createTicket } from "@/lib/notion";
+import { memCached, memDel } from "@/lib/mem-cache";
 
-export const revalidate = 30; // 티켓은 더 자주 갱신
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const data = await fetchTickets();
-    return NextResponse.json({
-      data,
-      lastSynced: new Date().toISOString(),
-    });
+    const { data, cached } = await memCached("tickets:all", fetchTickets, 120);
+    return NextResponse.json(
+      { data, lastSynced: new Date().toISOString(), cached },
+      { headers: { "Cache-Control": "s-maxage=120, stale-while-revalidate=30" } }
+    );
   } catch (error) {
     console.error("[API GET /tickets]", error);
     return NextResponse.json(
-      {
-        data: [],
-        lastSynced: new Date().toISOString(),
-        error: error instanceof Error ? error.message : "알 수 없는 오류",
-      },
+      { data: [], lastSynced: new Date().toISOString(), error: error instanceof Error ? error.message : "알 수 없는 오류" },
       { status: 500 }
     );
   }
@@ -42,6 +39,9 @@ export async function POST(request: Request) {
       description,
       requester,
     });
+
+    // 티켓 생성 후 캐시 무효화
+    memDel("tickets:all");
 
     return NextResponse.json({ success: true, pageId }, { status: 201 });
   } catch (error) {

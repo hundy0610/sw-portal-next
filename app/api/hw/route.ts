@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchAllHwRecords, type HwRecord } from "@/lib/hw";
 import { kvGet, kvSet } from "@/lib/kv-store";
+import { memGet, memSet } from "@/lib/mem-cache";
 
 export const dynamic = "force-dynamic";
 
@@ -13,23 +14,32 @@ export async function GET(req: NextRequest) {
   const returnDue = searchParams.get("returnDue") === "1";
 
   try {
-    // ✅ KV에서 즉시 읽기 (1~5ms)
-    let records = await kvGet<HwRecord[]>("hw:all");
+    // 1. 인메모리 캐시 (0ms)
+    let records = memGet<HwRecord[]>("hw:all");
 
     if (!records) {
-      // KV 미스 (최초 배포 or KV 만료): Notion fetch 후 KV 저장
-      records = await fetchAllHwRecords();
-      await kvSet("hw:all", records);
+      // 2. KV 캐시 (1~5ms, KV 미설정 시 null 반환)
+      records = await kvGet<HwRecord[]>("hw:all");
+
+      if (!records) {
+        // 3. Notion 직접 조회
+        records = await fetchAllHwRecords();
+        await kvSet("hw:all", records);
+      }
+
+      // 인메모리에 저장
+      memSet("hw:all", records, 300);
     }
 
     // 메모리 필터링 (추가 DB 호출 없음)
-    if (company)   records = records.filter(r => r.company === company);
-    if (status)    records = records.filter(r => r.status === status);
-    if (location)  records = records.filter(r => r.location.includes(location));
-    if (returnDue) records = records.filter(r => !!r.returnDue);
+    let filtered = records;
+    if (company)   filtered = filtered.filter(r => r.company === company);
+    if (status)    filtered = filtered.filter(r => r.status === status);
+    if (location)  filtered = filtered.filter(r => r.location.includes(location));
+    if (returnDue) filtered = filtered.filter(r => !!r.returnDue);
     if (search) {
       const q = search.toLowerCase();
-      records = records.filter(r =>
+      filtered = filtered.filter(r =>
         r.user.toLowerCase().includes(q)    ||
         r.assetNo.toLowerCase().includes(q) ||
         r.model.toLowerCase().includes(q)   ||
@@ -37,13 +47,13 @@ export async function GET(req: NextRequest) {
       );
     }
     if (returnDue) {
-      records = [...records].sort((a, b) =>
+      filtered = [...filtered].sort((a, b) =>
         (a.returnDue || "9999") < (b.returnDue || "9999") ? -1 : 1
       );
     }
 
-    return NextResponse.json({ ok: true, records }, {
-      headers: { "Cache-Control": "s-maxage=60, stale-while-revalidate=30" },
+    return NextResponse.json({ ok: true, records: filtered }, {
+      headers: { "Cache-Control": "s-maxage=300, stale-while-revalidate=60" },
     });
   } catch (e) {
     console.error("[API /hw]", e);
