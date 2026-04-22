@@ -44,6 +44,8 @@ interface Group {
 
 export interface EditorData {
   imageUrl: string | null;
+  canvasW?: number;
+  canvasH?: number;
   items: PlacedItem[];
   zones: DrawnZone[];
   facilities: Facility[];
@@ -148,6 +150,8 @@ export function migrate(raw: Partial<EditorData & { items: any[]; zones: any[]; 
   const newIds = allIds.filter(id => !existingOrder.includes(id));
   return {
     imageUrl: raw.imageUrl ?? null,
+    canvasW: raw.canvasW ?? undefined,
+    canvasH: raw.canvasH ?? undefined,
     items,
     zones,
     facilities,
@@ -343,6 +347,19 @@ export default function FloorMapEditor({ data, onChange }: {
   const zoneStartRef = useRef<{ x:number;y:number } | null>(null);
   const zoneColorIdx = useRef(0);
 
+  // 외부(Notion 등)에서 data가 로드될 때 canvasW/H 동기화
+  useEffect(() => {
+    if (data.canvasW && data.canvasW !== canvasW) {
+      setCanvasW(data.canvasW);
+      setCwInput(String(data.canvasW));
+    }
+    if (data.canvasH && data.canvasH !== canvasH) {
+      setCanvasH(data.canvasH);
+      setChInput(String(data.canvasH));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.canvasW, data.canvasH]);
+
   // Derived: last selected entity (properties panel)
   const lastSelId = [...selectedIds].at(-1) ?? null;
   const selItem  = data.items.find(i => i.id === lastSelId) ?? null;
@@ -363,7 +380,21 @@ export default function FloorMapEditor({ data, onChange }: {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = ev => onChange({ ...data, imageUrl: ev.target?.result as string });
+    reader.onload = ev => {
+      const dataUrl = ev.target?.result as string;
+      // 실제 이미지 크기를 읽어 캔버스 비율을 맞춤
+      const img = new Image();
+      img.onload = () => {
+        const targetW = canvasW; // 현재 캔버스 너비 유지
+        const targetH = Math.round(targetW * img.naturalHeight / img.naturalWidth);
+        setCanvasH(targetH);
+        setCwInput(String(targetW));
+        setChInput(String(targetH));
+        onChange({ ...data, imageUrl: dataUrl, canvasW: targetW, canvasH: targetH });
+      };
+      img.onerror = () => onChange({ ...data, imageUrl: dataUrl, canvasW, canvasH });
+      img.src = dataUrl;
+    };
     reader.readAsDataURL(file);
     e.target.value = "";
   };
@@ -556,6 +587,7 @@ export default function FloorMapEditor({ data, onChange }: {
     const w = Math.max(400, Math.min(3000, +cwInput || 1000));
     const h = Math.max(300, Math.min(2000, +chInput || 700));
     setCanvasW(w); setCanvasH(h); setCwInput(String(w)); setChInput(String(h));
+    onChange({ ...data, canvasW: w, canvasH: h });
   };
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────────

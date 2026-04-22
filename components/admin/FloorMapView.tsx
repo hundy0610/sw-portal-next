@@ -37,9 +37,10 @@ export default function FloorMapView({ data, className }: { data: EditorData; cl
   ];
   const entities: RE[] = [...ordered, ...unordered];
 
-  // 캔버스 크기를 렌더링된 항목 기준으로 자동 추정
-  let vw = 1000, vh = 700;
-  if (data.items.length || data.zones.length || data.facilities.length) {
+  // 캔버스 크기: 저장된 값 우선, 없으면 항목 바운딩 박스로 추정
+  let vw = data.canvasW ?? 1000;
+  let vh = data.canvasH ?? 700;
+  if (!data.canvasW && (data.items.length || data.zones.length || data.facilities.length)) {
     const xs: number[] = [], ys: number[] = [];
     data.items.forEach(i => { xs.push(i.x, i.x+i.w); ys.push(i.y, i.y+i.h); });
     data.zones.forEach(z => { xs.push(z.x, z.x+z.w); ys.push(z.y, z.y+z.h); });
