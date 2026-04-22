@@ -949,6 +949,276 @@ function SeatDetailPanel({
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// ITEM DETAIL PANEL  (편집도면 모니터 클릭 시)
+// ══════════════════════════════════════════════════════════════════════════════
+type EditorItem = EditorData["items"][number];
+
+function ItemDetailPanel({
+  item,
+  editorData,
+  buildingLabel,
+  floorLabel,
+  onClose,
+  onUpdateType,
+}: {
+  item: EditorItem;
+  editorData: EditorData;
+  buildingLabel: string;
+  floorLabel: string;
+  onClose: () => void;
+  onUpdateType: (itemId: string, type: MonitorType) => void;
+}) {
+  const mt: MonitorType = (item.monitorType as MonitorType) in MONITOR
+    ? (item.monitorType as MonitorType)
+    : "unk";
+  const meta = MONITOR[mt];
+  const zone = editorData.zones.find(z => isItemInZone(item, z));
+
+  const [repairOpen,   setRepairOpen]   = useState(false);
+  const [repairReason, setRepairReason] = useState<string>(REPAIR_REASONS[0]);
+  const [repairNote,   setRepairNote]   = useState("");
+  const [submitting,   setSubmitting]   = useState(false);
+  const [submitMsg,    setSubmitMsg]    = useState("");
+
+  const [history,        setHistory]        = useState<MonitorHistoryEntry[]>([]);
+  const [histLoading,    setHistLoading]    = useState(false);
+  const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
+
+  const loadHistory = useCallback(() => {
+    setHistLoading(true);
+    fetch(`/api/monitor-history?itemId=${encodeURIComponent(item.id)}`)
+      .then(r => r.json())
+      .then(({ entries }) => setHistory(entries ?? []))
+      .catch(() => {})
+      .finally(() => setHistLoading(false));
+  }, [item.id]);
+
+  useEffect(() => { loadHistory(); }, [loadHistory]);
+
+  const submitRepair = async () => {
+    setSubmitting(true); setSubmitMsg("");
+    try {
+      const locationLabel = [buildingLabel, floorLabel, zone?.name, item.label].filter(Boolean).join(" ");
+      const res = await fetch("/api/monitor-history", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          itemId:      item.id,
+          label:       locationLabel || item.id,
+          building:    buildingLabel,
+          floor:       floorLabel,
+          eventType:   "repair_request",
+          description: `${repairReason}${repairNote ? ` — ${repairNote}` : ""}`,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "요청 실패");
+      setSubmitMsg("✓ 수리 요청이 접수되었습니다.");
+      setRepairOpen(false); setRepairNote("");
+      loadHistory();
+    } catch (e: any) {
+      setSubmitMsg(`✗ ${e.message}`);
+    } finally {
+      setSubmitting(false);
+      setTimeout(() => setSubmitMsg(""), 4000);
+    }
+  };
+
+  const updateStatus = async (entryId: string, status: string) => {
+    setStatusUpdating(entryId);
+    try {
+      await fetch(`/api/monitor-history/${entryId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      setHistory(prev => prev.map(e => e.id === entryId ? { ...e, status: status as any } : e));
+    } catch {}
+    finally { setStatusUpdating(null); }
+  };
+
+  return (
+    <div className="flex flex-col h-full overflow-y-auto text-sm">
+      {/* 헤더 */}
+      <div className="flex items-start justify-between px-4 py-3 bg-slate-800 text-white flex-shrink-0">
+        <div>
+          <div className="text-[10px] opacity-60 mb-0.5">모니터 상세</div>
+          <div className="text-base font-extrabold tracking-wide leading-tight">{item.label || item.id}</div>
+          <div className="text-[10px] opacity-60 mt-1">
+            {buildingLabel} · {floorLabel}{zone ? ` · ${zone.name}` : ""}
+          </div>
+        </div>
+        <button onClick={onClose} className="opacity-60 hover:opacity-100 text-lg mt-0.5">✕</button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+        {/* 현재 상태 */}
+        <div className="rounded-xl p-3 border" style={{ background: meta.pale, borderColor: meta.border }}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white text-sm font-black"
+              style={{ background: meta.color }}>{meta.label}</div>
+            <div>
+              <div className="font-bold" style={{ color: meta.color }}>{meta.long}</div>
+              <div className="text-[10px] opacity-70" style={{ color: meta.color }}>
+                {mt === "unk" ? "미확인" : mt === "none" ? "미설치" : mt === "dev34" ? "개발자용 와이드" : "표준형"}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 구역 */}
+        {zone && (
+          <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+            <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">📍 구역</div>
+            <div className="flex flex-wrap gap-1.5">
+              <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-semibold border border-blue-100">
+                {zone.name}
+              </span>
+              {(zone.tags as string[] | undefined)?.map((tag: string) => (
+                <span key={tag} className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full border border-gray-200">{tag}</span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 상태 변경 */}
+        <div className="bg-white border border-gray-100 rounded-xl p-3">
+          <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">✏️ 상태 변경</div>
+          <div className="grid grid-cols-1 gap-1.5">
+            {TYPES.map(t => {
+              const m = MONITOR[t];
+              const isActive = mt === t;
+              return (
+                <button key={t} onClick={() => onUpdateType(item.id, t)}
+                  className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-semibold transition-all border"
+                  style={{
+                    background:   isActive ? m.color : m.pale,
+                    color:        isActive ? "white" : m.color,
+                    borderColor:  m.border,
+                    outline:      isActive ? `2px solid ${m.color}` : "none",
+                  }}>
+                  <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
+                    style={{ background: isActive ? "white" : m.color + "CC" }}/>
+                  {m.long}
+                  {isActive && <span className="ml-auto text-[10px] opacity-80">✓ 현재</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 수리 요청 */}
+        <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
+          <button
+            onClick={() => setRepairOpen(o => !o)}
+            className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-bold text-red-600 hover:bg-red-50 transition-colors">
+            <span>🔧 교체/수리 요청</span>
+            <span className="text-gray-400 text-[10px]">{repairOpen ? "▲" : "▼"}</span>
+          </button>
+          {repairOpen && (
+            <div className="px-3 pb-3 space-y-2 border-t border-gray-100">
+              <div className="pt-2">
+                <div className="text-[10px] text-gray-400 mb-1">사유 선택</div>
+                <select
+                  value={repairReason}
+                  onChange={e => setRepairReason(e.target.value)}
+                  className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-red-400">
+                  {REPAIR_REASONS.map(r => <option key={r}>{r}</option>)}
+                </select>
+              </div>
+              <div>
+                <div className="text-[10px] text-gray-400 mb-1">메모 (선택)</div>
+                <textarea
+                  value={repairNote}
+                  onChange={e => setRepairNote(e.target.value)}
+                  rows={2}
+                  placeholder="상세 증상 또는 요청 내용"
+                  className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-red-400"/>
+              </div>
+              <button
+                onClick={submitRepair}
+                disabled={submitting}
+                className="w-full py-2 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 disabled:opacity-50 transition-colors">
+                {submitting ? "접수 중…" : "요청 제출"}
+              </button>
+            </div>
+          )}
+          {submitMsg && (
+            <div className={`px-3 pb-2 text-[11px] font-medium ${submitMsg.startsWith("✓") ? "text-green-600" : "text-red-500"}`}>
+              {submitMsg}
+            </div>
+          )}
+        </div>
+
+        {/* 이력 목록 */}
+        <div className="bg-white border border-gray-100 rounded-xl p-3">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">📋 이력</div>
+            <button onClick={loadHistory} className="text-[10px] text-blue-400 hover:text-blue-600">↻ 새로고침</button>
+          </div>
+          {histLoading ? (
+            <div className="text-[11px] text-gray-400 text-center py-3">불러오는 중…</div>
+          ) : history.length === 0 ? (
+            <div className="text-[11px] text-gray-400 text-center py-3">이력 없음</div>
+          ) : (
+            <div className="space-y-2">
+              {history.map(entry => {
+                const st = STATUS_LABEL[entry.status] ?? STATUS_LABEL.pending;
+                return (
+                  <div key={entry.id} className="border border-gray-100 rounded-lg p-2 space-y-1">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-[10px] font-semibold text-slate-600">
+                        {EVENT_LABEL[entry.eventType] ?? entry.eventType}
+                      </span>
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                        style={{ background: st.color + "22", color: st.color }}>
+                        {st.label}
+                      </span>
+                    </div>
+                    {(entry.from || entry.to) && (
+                      <div className="text-[10px] text-gray-500">
+                        {entry.from && <span>{entry.from}</span>}
+                        {entry.from && entry.to && <span className="mx-1 text-gray-300">→</span>}
+                        {entry.to && <span>{entry.to}</span>}
+                      </div>
+                    )}
+                    {entry.description && (
+                      <div className="text-[10px] text-gray-400 truncate">{entry.description}</div>
+                    )}
+                    <div className="text-[9px] text-gray-300">
+                      {entry.createdAt ? new Date(entry.createdAt).toLocaleDateString("ko-KR") : "—"}
+                      {entry.createdBy ? ` · ${entry.createdBy}` : ""}
+                    </div>
+                    {entry.status !== "done" && (
+                      <div className="flex gap-1 pt-0.5">
+                        {entry.status === "pending" && (
+                          <button
+                            disabled={statusUpdating === entry.id}
+                            onClick={() => updateStatus(entry.id, "in_progress")}
+                            className="text-[9px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 disabled:opacity-50">
+                            처리 중으로
+                          </button>
+                        )}
+                        <button
+                          disabled={statusUpdating === entry.id}
+                          onClick={() => updateStatus(entry.id, "done")}
+                          className="text-[9px] px-1.5 py-0.5 rounded bg-green-50 text-green-600 border border-green-200 hover:bg-green-100 disabled:opacity-50">
+                          완료
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // OVERVIEW SIDE PANEL  (좌석 미선택 시)
 // ══════════════════════════════════════════════════════════════════════════════
 // 아이템 중심점이 구역 내부인지 판단
@@ -1087,6 +1357,13 @@ export default function AssetMapPanel() {
   const [isSaving,      setIsSaving]      = useState<boolean>(false);
   const [saveMsg,       setSaveMsg]       = useState<string>("");
 
+  // ── 편집도면 모니터 선택 (view mode) ──────────────────────────────
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const selectedItem = useMemo(
+    () => selectedItemId ? editorData.items.find(i => i.id === selectedItemId) ?? null : null,
+    [selectedItemId, editorData.items]
+  );
+
   // ── localStorage 초기 로드 ──────────────────────────────────────
   useEffect(() => {
     try {
@@ -1163,6 +1440,35 @@ export default function AssetMapPanel() {
     }
   }, [buildingId, floorId, editorData]);
 
+  // ── 편집도면 아이템 타입 변경 + Notion 저장 ─────────────────────
+  const updateItemType = useCallback(async (itemId: string, type: MonitorType) => {
+    const nextData = {
+      ...editorData,
+      items: editorData.items.map(i => i.id === itemId ? { ...i, monitorType: type } : i),
+    };
+    setEditorData(nextData);
+    const key = `sw-floormap-editor-${buildingId}-${floorId}`;
+    try { localStorage.setItem(key, JSON.stringify(nextData)); } catch {}
+
+    // Notion 자동 저장
+    setIsSaving(true); setSaveMsg("");
+    try {
+      const res = await fetch("/api/floor-map", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ building: buildingId, floor: floorId, data: nextData }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "저장 실패");
+      setSaveMsg("✓ 상태 저장 완료");
+    } catch (e: any) {
+      setSaveMsg(`✗ ${(e as any).message}`);
+    } finally {
+      setIsSaving(false);
+      setTimeout(() => setSaveMsg(""), 4000);
+    }
+  }, [buildingId, floorId, editorData]);
+
   // ── 좌석 타입 업데이트 (localStorage 동기 저장) ──────────────────
   const updateSeatType = useCallback((seatId: string, type: MonitorType) => {
     setSeatOverrides(prev => {
@@ -1208,8 +1514,9 @@ export default function AssetMapPanel() {
     setBuildingId(bid);
     setFloorId(BUILDINGS.find(b => b.id === bid)!.floors[0].id);
     setSelected(null);
+    setSelectedItemId(null);
   };
-  const handleFloorChange = (fid: string) => { setFloorId(fid); setSelected(null); };
+  const handleFloorChange = (fid: string) => { setFloorId(fid); setSelected(null); setSelectedItemId(null); };
   const handleSelect = (seat: SeatData, zone: ZoneData) => {
     // 선택 시 override 반영된 최신 type 적용
     const effective: SeatData = { ...seat, type: (seatOverrides[seat.id] ?? seat.type) as MonitorType };
@@ -1352,7 +1659,14 @@ export default function AssetMapPanel() {
 
           {/* 편집 도면 */}
           {editorData.items.length > 0 || editorData.zones.length > 0 || editorData.facilities.length > 0 || editorData.imageUrl
-            ? <FloorMapView data={editorData} className="w-full"/>
+            ? <FloorMapView
+                data={editorData}
+                className="w-full"
+                onItemClick={item =>
+                  setSelectedItemId(prev => prev === item.id ? null : item.id)
+                }
+                selectedItemId={selectedItemId}
+              />
             : <div className="flex flex-col items-center justify-center py-20 text-center text-gray-400">
                 <div className="text-4xl mb-3">🗺</div>
                 <div className="text-sm font-medium text-gray-500">저장된 도면이 없습니다</div>
@@ -1362,17 +1676,31 @@ export default function AssetMapPanel() {
         </div>
 
         {/* 우측 패널 */}
-        <div className="w-64 flex-shrink-0 border-l border-gray-200 bg-white overflow-hidden">
-          {selected ? (
-            <SeatDetailPanel
-              seat={selected.seat} zone={selected.zone}
-              floor={floor} building={building}
-              onClose={() => setSelected(null)}
-              onUpdateType={updateSeatType}
-            />
-          ) : (
-            <OverviewSidePanel building={building} floor={floor} editorData={editorData}/>
+        <div className="w-64 flex-shrink-0 border-l border-gray-200 bg-white overflow-hidden flex flex-col">
+          {/* view mode 저장 메시지 */}
+          {saveMsg && !editorMode && (
+            <div className={`flex-none px-3 py-1.5 text-[11px] font-medium text-center border-b ${
+              saveMsg.startsWith("✓")
+                ? "bg-green-50 text-green-700 border-green-100"
+                : "bg-red-50 text-red-600 border-red-100"
+            }`}>
+              {isSaving ? "저장 중…" : saveMsg}
+            </div>
           )}
+          <div className="flex-1 overflow-hidden">
+            {selectedItem ? (
+              <ItemDetailPanel
+                item={selectedItem}
+                editorData={editorData}
+                buildingLabel={building.label}
+                floorLabel={floor.label}
+                onClose={() => setSelectedItemId(null)}
+                onUpdateType={updateItemType}
+              />
+            ) : (
+              <OverviewSidePanel building={building} floor={floor} editorData={editorData}/>
+            )}
+          </div>
         </div>
       </div>
       )}

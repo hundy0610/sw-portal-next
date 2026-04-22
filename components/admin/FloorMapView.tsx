@@ -16,7 +16,17 @@ const FACILITY_META: Record<string, { icon: string; color: string }> = {
   restroom: { icon: "WC",   color: "#6B7280" },
 };
 
-export default function FloorMapView({ data, className }: { data: EditorData; className?: string }) {
+export default function FloorMapView({
+  data,
+  className,
+  onItemClick,
+  selectedItemId,
+}: {
+  data: EditorData;
+  className?: string;
+  onItemClick?: (item: EditorData["items"][number]) => void;
+  selectedItemId?: string | null;
+}) {
   const hasContent = data.imageUrl || data.items.length > 0 || data.zones.length > 0 || data.facilities.length > 0;
   if (!hasContent) return null;
 
@@ -118,11 +128,25 @@ export default function FloorMapView({ data, className }: { data: EditorData; cl
             const { x, y, w, h } = item;
             const cx = x+w/2, cy = y+h/2;
             const meta = MONITOR_META[item.monitorType] ?? MONITOR_META.unk;
+            const isSel = item.id === selectedItemId;
+            const clickable = !!onItemClick;
             return (
-              <g key={item.id} style={{ pointerEvents: "none" }}>
+              <g key={item.id}
+                style={{ cursor: clickable ? "pointer" : "default" }}
+                onClick={clickable ? () => onItemClick(item) : undefined}>
                 <g transform={`rotate(${item.rotation ?? 0}, ${cx}, ${cy})`}>
                   <rect x={x+2} y={y+2} width={w} height={h} rx={5} fill="#00000015"/>
-                  <rect x={x} y={y} width={w} height={h} rx={5} fill={meta.color+"CC"}/>
+                  <rect x={x} y={y} width={w} height={h} rx={5}
+                    fill={meta.color + (isSel ? "FF" : "CC")}/>
+                  {/* 선택 링 */}
+                  {isSel && (
+                    <>
+                      <rect x={x-2} y={y-2} width={w+4} height={h+4} rx={6}
+                        fill="none" stroke="white" strokeWidth={2}/>
+                      <rect x={x-4} y={y-4} width={w+8} height={h+8} rx={8}
+                        fill="none" stroke={meta.color} strokeWidth={2} opacity={0.9}/>
+                    </>
+                  )}
                   <text x={cx} y={cy+1} textAnchor="middle" dominantBaseline="middle"
                     fontSize={10} fontWeight="700" fill="white">{meta.label}</text>
                   {item.label && item.label !== "Monitor" && (
