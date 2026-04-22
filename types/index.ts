@@ -41,11 +41,11 @@ export interface SwItem {
   vendor: string;
   category: string;
   status: "approved" | "banned" | "conditional";
-  totalLicenses: number;    // 999 = 무제한
-  usedLicenses: number;
   alternatives: string[];
   mandatory: boolean;
   description: string;
+  officialUrl?: string;   // 공식 다운로드/제품 페이지
+  resourceId?: string;    // 자료실 연동 (Resource.id)
   notionUrl?: string;
 }
 

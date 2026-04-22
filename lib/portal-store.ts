@@ -1,9 +1,11 @@
 import { kv } from "@vercel/kv";
 import type { Notice, Course, Resource } from "@/types/portal";
+import type { SwItem } from "@/types";
 
 const KV_NOTICES   = "portal:notices";
 const KV_COURSES   = "portal:courses";
 const KV_RESOURCES = "portal:resources";
+const KV_SWDB      = "portal:swdb";
 const KV_AUDIT     = "portal:audit_log";
 
 // ─── Audit Log ──────────────────────────────────────────
@@ -12,7 +14,7 @@ export interface AuditLog {
   adminId: string;
   adminName: string;
   action: "create" | "update" | "delete";
-  target: "notices" | "courses" | "resources";
+  target: "notices" | "courses" | "resources" | "swdb";
   itemTitle: string;
   timestamp: string; // ISO
 }
@@ -82,4 +84,13 @@ export async function getResources(onlyVisible = true): Promise<Resource[]> {
 
 export async function saveResources(resources: Resource[]): Promise<void> {
   await kvSetPermanent(KV_RESOURCES, resources);
+}
+
+// ─── SW DB (화이트/블랙리스트) ───────────────────────────
+export async function getSwItems(): Promise<SwItem[]> {
+  return (await kvGetPermanent<SwItem[]>(KV_SWDB)) ?? [];
+}
+
+export async function saveSwItems(items: SwItem[]): Promise<void> {
+  await kvSetPermanent(KV_SWDB, items);
 }
