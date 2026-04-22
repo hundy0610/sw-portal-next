@@ -341,36 +341,50 @@ function EducationTab() {
             등록된 교육 과정이 없습니다.
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {required.map(c => {
               const badge = courseBadge(c.deadline);
               return (
-                <div key={c.id} className="bg-white p-6 rounded-[20px] hover:-translate-y-1 transition-all"
-                  style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}>
-                  <div className="flex justify-between items-start mb-8">
+                <div key={c.id} className="bg-white p-6 rounded-[20px] flex flex-col hover:-translate-y-1 transition-all"
+                  style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.07)", border: `1px solid ${C.border}` }}>
+                  {/* 배지 + 아이콘 */}
+                  <div className="flex justify-between items-center mb-5">
                     <span className="text-xs font-bold px-3 py-1 rounded-full"
                       style={{ background: badge.bg, color: badge.color }}>{badge.text}</span>
-                    <span style={{ color: C.text3 }}><Icon n="shield" s={28} /></span>
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+                      style={{ background: C.primarySoft, color: C.primary }}>
+                      <Icon n="shield" s={17} />
+                    </div>
                   </div>
-                  <h4 className="text-base font-bold leading-tight mb-2"
+                  {/* 제목 */}
+                  <h4 className="text-base font-bold leading-snug mb-3"
                     style={{ fontFamily: "Manrope, sans-serif", color: C.text1 }}>{c.title}</h4>
+                  {/* 설명 — 전체 표시 */}
                   {c.description && (
-                    <p className="text-xs mb-2 line-clamp-2" style={{ color: C.text4 }}>{c.description}</p>
+                    <p className="text-sm leading-relaxed flex-1 mb-4" style={{ color: C.text3 }}>{c.description}</p>
                   )}
-                  <div className="flex items-center gap-4 mt-4 text-sm" style={{ color: C.text3 }}>
-                    {c.duration && <span>⏱ {c.duration}</span>}
-                    {c.deadline && <span>📅 {c.deadline}</span>}
+                  {/* 메타 태그 */}
+                  <div className="flex items-center gap-2 flex-wrap mb-4">
+                    {c.duration && (
+                      <span className="text-xs font-medium px-2.5 py-1 rounded-full"
+                        style={{ background: C.bg, color: C.text3 }}>⏱ {c.duration}</span>
+                    )}
+                    {c.deadline && (
+                      <span className="text-xs font-medium px-2.5 py-1 rounded-full"
+                        style={{ background: C.bg, color: C.text3 }}>📅 {c.deadline}</span>
+                    )}
                   </div>
-                  {c.courseUrl ? (
+                  {/* 버튼 */}
+                  {c.courseUrl && c.courseUrl !== "#" ? (
                     <a href={c.courseUrl} target="_blank" rel="noopener noreferrer"
-                      className="mt-6 w-full py-3.5 rounded-xl font-bold text-sm text-white text-center block hover:brightness-110 transition-all"
+                      className="w-full py-3 rounded-xl font-bold text-sm text-white text-center block hover:brightness-110 transition-all"
                       style={{ background: C.brand }}>
-                      교육 시작하기
+                      교육 시작하기 →
                     </a>
                   ) : (
-                    <button disabled className="mt-6 w-full py-3.5 rounded-xl font-bold text-sm"
+                    <button disabled className="w-full py-3 rounded-xl font-bold text-sm"
                       style={{ background: C.bg, color: C.text4 }}>
-                      URL 미등록
+                      준비 중
                     </button>
                   )}
                 </div>
@@ -384,21 +398,27 @@ function EducationTab() {
       {materials.length > 0 && (
         <section className="mb-12">
           <h3 className="text-xl font-bold mb-6" style={{ fontFamily: "Manrope, sans-serif" }}>SW 활용 자료</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {materials.map(m => (
-              <a key={m.id} href={m.courseUrl || "#"} target="_blank" rel="noopener noreferrer"
-                className="p-6 rounded-xl flex flex-col items-center text-center cursor-pointer transition-colors hover:bg-[#e4e9ed]"
-                style={{ background: C.bg, textDecoration: "none" }}>
-                <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center mb-4"
-                  style={{ color: C.brand }}>
+              <a key={m.id} href={m.courseUrl && m.courseUrl !== "#" ? m.courseUrl : undefined}
+                target="_blank" rel="noopener noreferrer"
+                className="bg-white p-5 rounded-[16px] flex items-start gap-4 hover:shadow-md transition-all"
+                style={{ border: `1px solid ${C.border}`, textDecoration: "none" }}>
+                <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ background: C.primarySoft, color: C.primary }}>
                   {m.thumbnailUrl
-                    ? <img src={m.thumbnailUrl} alt="" className="w-full h-full rounded-full object-cover" />
-                    : <Icon n="box" s={24} />}
+                    ? <img src={m.thumbnailUrl} alt="" className="w-full h-full rounded-xl object-cover" />
+                    : <Icon n="box" s={20} />}
                 </div>
-                <span className="font-bold text-sm" style={{ color: C.text1 }}>{m.title}</span>
-                {m.description && (
-                  <span className="text-xs mt-1 font-medium" style={{ color: C.text3 }}>{m.description}</span>
-                )}
+                <div className="flex-1 min-w-0">
+                  <span className="font-bold text-sm block mb-1" style={{ color: C.text1 }}>{m.title}</span>
+                  {m.description && (
+                    <span className="text-xs leading-relaxed line-clamp-2" style={{ color: C.text3 }}>{m.description}</span>
+                  )}
+                  {m.courseUrl && m.courseUrl !== "#" && (
+                    <span className="text-xs font-bold mt-2 block" style={{ color: C.primary }}>자세히 보기 →</span>
+                  )}
+                </div>
               </a>
             ))}
           </div>
@@ -408,29 +428,36 @@ function EducationTab() {
       {/* IT 정책 교육 */}
       {policy.length > 0 && (
         <section className="mb-10">
-          <h3 className="text-xl font-bold mb-6" style={{ fontFamily: "Manrope, sans-serif" }}>IT 정책 교육</h3>
+          <div className="flex justify-between items-end mb-6">
+            <h3 className="text-xl font-bold" style={{ fontFamily: "Manrope, sans-serif" }}>IT 정책 교육</h3>
+            <span className="text-sm font-semibold" style={{ color: C.primary }}>{policy.length}개 과정</span>
+          </div>
           <div className="space-y-4">
-            {policy.map(p => (
-              <div key={p.id} className="rounded-[20px] overflow-hidden flex flex-col lg:flex-row"
-                style={{ background: C.bg }}>
-                {p.thumbnailUrl && (
-                  <div className="lg:w-1/2 h-56 lg:h-auto overflow-hidden">
-                    <img src={p.thumbnailUrl} alt={p.title} className="w-full h-full object-cover" />
-                  </div>
-                )}
-                <div className={`${p.thumbnailUrl ? "lg:w-1/2" : "w-full"} p-8 flex flex-col justify-center`}>
-                  <h4 className="text-2xl font-extrabold mb-4 leading-tight"
+            {policy.map((p, idx) => (
+              <div key={p.id} className="bg-white rounded-[20px] p-6 flex items-start gap-5 hover:shadow-md transition-all"
+                style={{ border: `1px solid ${C.border}` }}>
+                {/* 번호 배지 */}
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-sm shrink-0"
+                  style={{ background: C.brand }}>{idx + 1}</div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-base font-bold leading-snug mb-2"
                     style={{ fontFamily: "Manrope, sans-serif", color: C.text1 }}>{p.title}</h4>
                   {p.description && (
-                    <p className="text-sm leading-relaxed mb-6" style={{ color: C.text3 }}>{p.description}</p>
+                    <p className="text-sm leading-relaxed mb-4" style={{ color: C.text3 }}>{p.description}</p>
                   )}
-                  {p.courseUrl && (
-                    <a href={p.courseUrl} target="_blank" rel="noopener noreferrer"
-                      className="self-start px-8 py-4 rounded-xl text-white font-bold hover:shadow-lg transition-shadow"
-                      style={{ background: C.brand }}>
-                      정책 상세 보기
-                    </a>
-                  )}
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {p.duration && (
+                      <span className="text-xs font-medium px-2.5 py-1 rounded-full"
+                        style={{ background: C.bg, color: C.text3 }}>⏱ {p.duration}</span>
+                    )}
+                    {p.courseUrl && p.courseUrl !== "#" && (
+                      <a href={p.courseUrl} target="_blank" rel="noopener noreferrer"
+                        className="text-xs font-bold flex items-center gap-1 hover:underline transition-all"
+                        style={{ color: C.primary }}>
+                        상세 보기 →
+                      </a>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -485,23 +512,21 @@ function ResourcesTab() {
 
   return (
     <div className="fade-in">
-      <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-6">
-        <div>
-          {/* C1: "Archive Library" → "자료 아카이브" */}
-          <p className="text-sm font-semibold tracking-wider uppercase mb-1" style={{ color: C.primary }}>
-            자료 아카이브
-          </p>
-          <h2 className="text-4xl font-extrabold tracking-tight"
-            style={{ fontFamily: "Manrope, sans-serif", color: C.text1 }}>자료실</h2>
-        </div>
-        <div className="flex p-1.5 rounded-xl" style={{ background: C.bg }}>
+      <div className="mb-8">
+        <p className="text-sm font-semibold tracking-wider uppercase mb-1" style={{ color: C.primary }}>
+          자료 아카이브
+        </p>
+        <h2 className="text-3xl font-extrabold tracking-tight mb-6"
+          style={{ fontFamily: "Manrope, sans-serif", color: C.text1 }}>자료실</h2>
+        {/* 탭 — 전체 너비 */}
+        <div className="flex p-1.5 rounded-xl w-full" style={{ background: C.bg }}>
           {RES_TABS.map(({ key, label }) => (
             <button key={key} onClick={() => setResTab(key)}
-              className="px-4 py-2.5 rounded-lg text-sm transition-all"
+              className="flex-1 px-3 py-2.5 rounded-lg text-sm transition-all"
               style={{
                 background: resTab === key ? "#fff" : "transparent",
-                color:      resTab === key ? C.brand  : C.text3,
-                fontWeight: resTab === key ? 700      : 500,
+                color:      resTab === key ? C.brand : C.text3,
+                fontWeight: resTab === key ? 700     : 500,
                 boxShadow:  resTab === key ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
               }}>
               {label}
@@ -563,48 +588,44 @@ function ResourcesTab() {
                 등록된 자료가 없습니다.
               </div>
             ) : FILES.map(file => {
-              const fs = FILE_STYLE[file.fileType] ?? { bg: C.bg, color: C.text3 };
+              const isLink = file.fileType === "LINK";
+              const fs = FILE_STYLE[file.fileType] ?? { bg: C.primarySoft, color: C.primary };
               return (
                 <div key={file.id}
-                  className="bg-white p-5 rounded-[16px] flex items-center justify-between hover:shadow-md transition-all"
-                  style={{ border: `1px solid ${C.bg}` }}>
-                  <div className="flex items-center gap-4 min-w-0 flex-1">
-                    <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+                  className="bg-white p-5 rounded-[16px] hover:shadow-md transition-all"
+                  style={{ border: `1px solid ${C.border}` }}>
+                  <div className="flex items-start gap-4">
+                    <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
                       style={{ background: fs.bg, color: fs.color }}>
-                      <Icon n="file" s={20} />
+                      <Icon n={isLink ? "search" : "file"} s={18} />
                     </div>
-                    <div className="min-w-0">
-                      <h4 className="font-bold text-sm sm:text-base truncate" style={{ color: C.text1 }}>
-                        {file.title}
-                      </h4>
-                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-3">
+                        <h4 className="font-bold text-sm sm:text-base leading-snug" style={{ color: C.text1 }}>
+                          {file.title}
+                        </h4>
+                        {file.fileUrl && file.fileUrl !== "#" ? (
+                          <a href={file.fileUrl} target="_blank" rel="noopener noreferrer"
+                            className="px-3 py-1.5 rounded-lg text-xs font-bold shrink-0 hover:brightness-110 transition-all"
+                            style={{ background: C.brand, color: "#fff" }}>
+                            {isLink ? "바로가기" : "다운로드"}
+                          </a>
+                        ) : (
+                          <span className="px-3 py-1.5 rounded-lg text-xs font-medium shrink-0"
+                            style={{ background: C.bg, color: C.text4 }}>준비중</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded"
                           style={{ background: "#eaeef2", color: C.text3 }}>{file.fileType}</span>
-                        {file.fileSize && <span className="text-xs" style={{ color: "#757682" }}>{file.fileSize}</span>}
-                        {file.updatedAt && <span className="text-xs hidden sm:inline" style={{ color: "#757682" }}>· {file.updatedAt}</span>}
+                        {file.fileSize && <span className="text-xs" style={{ color: C.text4 }}>{file.fileSize}</span>}
+                        {file.updatedAt && <span className="text-xs hidden sm:inline" style={{ color: C.text4 }}>· {file.updatedAt}</span>}
                       </div>
+                      {file.description && (
+                        <p className="text-xs mt-2 leading-relaxed" style={{ color: C.text3 }}>{file.description}</p>
+                      )}
                     </div>
                   </div>
-                  {file.fileUrl ? (
-                    <a href={file.fileUrl} target="_blank" rel="noopener noreferrer" download
-                      className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 ml-3 transition-all"
-                      style={{ background: C.bg, color: C.brand }}
-                      onMouseEnter={e => {
-                        (e.currentTarget as HTMLAnchorElement).style.background = C.brand;
-                        (e.currentTarget as HTMLAnchorElement).style.color = "#fff";
-                      }}
-                      onMouseLeave={e => {
-                        (e.currentTarget as HTMLAnchorElement).style.background = C.bg;
-                        (e.currentTarget as HTMLAnchorElement).style.color = C.brand;
-                      }}>
-                      <Icon n="dl" s={16} />
-                    </a>
-                  ) : (
-                    <div className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 ml-3"
-                      style={{ background: C.bg, color: C.text4 }}>
-                      <Icon n="dl" s={16} />
-                    </div>
-                  )}
                 </div>
               );
             })}
@@ -648,7 +669,7 @@ function ResourcesTab() {
 /* ══════════════════════════════════════════════════════
    SW 검색 탭
 ══════════════════════════════════════════════════════ */
-const QUICK_SEARCHES = ["Photoshop", "Teams", "Notion", "7-Zip", "ChatGPT", "VSCode", "Zoom", "Figma"];
+const QUICK_SEARCHES = ["LibreOffice", "7-Zip", "VLC", "GIMP", "VSCode", "uTorrent", "WinRAR", "TeamViewer"];
 
 /* N2: 카테고리별 색상 팔레트 */
 const CAT_PALETTE = [
@@ -850,7 +871,7 @@ function SearchTab() {
               <p className="text-sm mb-5" style={{ color: C.text4 }}>
                 {filtered.length}개 결과{query && ` — "${query}"`}
               </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {filtered.map(s => {
                   const ss = STATUS_STYLE[s.status];
                   const cs = catStyle(s.category);
@@ -885,7 +906,7 @@ function SearchTab() {
                         </h4>
                         <p className="text-sm font-medium" style={{ color: C.text3 }}>{s.vendor}</p>
                         {s.description && (
-                          <p className="text-xs mt-1 truncate" style={{ color: C.text4 }}>{s.description}</p>
+                          <p className="text-xs mt-2 leading-relaxed line-clamp-3" style={{ color: C.text3 }}>{s.description}</p>
                         )}
                       </div>
                       <div className="mt-5 pt-5 flex items-center justify-between"
