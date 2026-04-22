@@ -1108,9 +1108,14 @@ export default function AssetMapPanel() {
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* 도면 영역 */}
         <div className="flex-1 overflow-auto p-4">
-          {/* 헤더 */}
-          <div className="flex items-center gap-2 mb-3">
-            <h2 className="text-sm font-bold text-slate-700">{floor.label}</h2>
+          {/* 탭 헤더 */}
+          <div className="flex items-center gap-1 mb-3">
+            <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
+              <span className="px-3 py-1.5 font-medium bg-blue-600 text-white">
+                📊 시트 배치도
+              </span>
+            </div>
+            <h2 className="text-sm font-bold text-slate-700 ml-2">{floor.label}</h2>
             {floor.note && <span className="text-xs text-gray-400">· {floor.note}</span>}
           </div>
 
