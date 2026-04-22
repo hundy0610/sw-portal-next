@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>FloorMapEditor v3 미리보기</title>
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+*{box-sizing:border-box}
+html,body,#root{height:100%;margin:0;font-family:system-ui,-apple-system,sans-serif}
+input[type=range]{accent-color:#2563EB}
+input[type=number]::-webkit-inner-spin-button{opacity:.5}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:#f1f5f9}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
+.tag-chip{display:inline-flex;align-items:center;gap:3px;padding:1px 8px;border-radius:999px;background:#EFF6FF;color:#2563EB;font-size:10px;font-weight:600;border:1px solid #BFDBFE}
+.tag-chip button{color:#93C5FD;cursor:pointer;background:none;border:none;font-size:11px;line-height:1;padding:0}
+.tag-chip button:hover{color:#2563EB}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useRef, useEffect } = React;
+
+/* ── Constants ── */
+const MONITOR_META = {
+  std27:{label:'27"',color:"#2563EB",long:'표준 27"'},
+  std24:{label:'24"',color:"#0284C7",long:'표준 24"'},
+  dev34:{label:'34"',color:"#7C3AED",long:'개발자 34"'},
+  none: {label:"✕", color:"#DC2626",long:"미설치"},
+  unk:  {label:"·", color:"#94A3B8",long:"미확인"},
+};
+const FACILITY_META = {
+  elevator:{label:"엘리베이터",icon:"EV",  color:"#1D4ED8"},
+  stairs:  {label:"계단",      icon:"계단", color:"#374151"},
+  entrance:{label:"출입구",    icon:"입구", color:"#15803D"},
+  exit:    {label:"비상구",    icon:"EXIT",color:"#DC2626"},
+  restroom:{label:"화장실",    icon:"WC",  color:"#6B7280"},
+};
+const ZONE_COLORS=["#3B82F6","#10B981","#F59E0B","#EF4444","#8B5CF6","#EC4899","#06B6D4","#84CC16"];
+const MONITOR_TYPES=["std27","std24","dev34","none","unk"];
+const FACILITY_KINDS=["elevator","stairs","entrance","exit","restroom"];
+const ITEM_DEF={monitor:{w:50,h:36}};
+const FAC_DEF_R=22, MIN_SZ=20;
+const uid=()=>Math.random().toString(36).slice(2,9);
+const RESIZE_CURSORS={nw:"nw-resize",n:"n-resize",ne:"ne-resize",w:"w-resize",e:"e-resize",sw:"sw-resize",s:"s-resize",se:"se-resize"};
+
+/* ── Helpers ── */
+function getSVGCoords(e,svgRef,vw,vh){
+  const svg=svgRef.current; if(!svg) return{x:0,y:0};
+  const r=svg.getBoundingClientRect();
+  return{x:Math.round(((e.clientX-r.left)/r.width)*vw),y:Math.round(((e.clientY-r.top)/r.height)*vh)};
+}
+function applyResize(handle,dx,dy,ox,oy,ow,oh){
+  let nx=ox,ny=oy,nw=ow,nh=oh;
+  if(handle.includes("e")) nw=Math.max(MIN_SZ,ow+dx);
+  if(handle.includes("w")){const d=Math.min(dx,ow-MIN_SZ);nx=ox+d;nw=ow-d;}
+  if(handle.includes("s")) nh=Math.max(MIN_SZ,oh+dy);
+  if(handle.includes("n")){const d=Math.min(dy,oh-MIN_SZ);ny=oy+d;nh=oh-d;}
+  return{nx,ny,nw,nh};
+}
+function isInZone(px,py,zone){
+  const cx=zone.x+zone.w/2,cy=zone.y+zone.h/2;
+  const rot=zone.rotation||0;
+  if(!rot) return px>=zone.x&&px<=zone.x+zone.w&&py>=zone.y&&py<=zone.y+zone.h;
+  const theta=-(rot*Math.PI/180),dx=px-cx,dy=py-cy;
+  const rx=dx*Math.cos(theta)-dy*Math.sin(theta);
+  const ry=dx*Math.sin(theta)+dy*Math.cos(theta);
+  return Math.abs(rx)<=zone.w/2&&Math.abs(ry)<=zone.h/2;
+}
+function migrate(raw){
+  const items=(raw.items||[]).map(i=>({...i,id:i.id||uid(),kind:"monitor",monitorType:i.monitorType||"unk",
+    w:i.w||ITEM_DEF.monitor.w,h:i.h||ITEM_DEF.monitor.h,tags:i.tags||[]}));
+  const zones=(raw.zones||[]).map(z=>({...z,tags:z.tags||[],rotation:z.rotation||0}));
+  const facilities=(raw.facilities||[]).map(f=>({...f,
+    x:f.r!==undefined?f.x:(f.x||0)+20,y:f.r!==undefined?f.y:(f.y||0)+20,r:f.r||FAC_DEF_R,tags:f.tags||[]}));
+  const allIds=[...zones.map(z=>z.id),...facilities.map(f=>f.id),...items.map(i=>i.id)];
+  const existing=(raw.renderOrder||[]).filter(id=>allIds.includes(id));
+  const newIds=allIds.filter(id=>!existing.includes(id));
+  return{imageUrl:raw.imageUrl||null,items,zones,facilities,groups:raw.groups||[],renderOrder:[...existing,...newIds]};
+}
+
+/* ── TagEditor ── */
+function TagEditor({tags,onChange}){
+  const[input,setInput]=useState("");
+  const add=()=>{const t=input.trim();if(t&&!tags.includes(t))onChange([...tags,t]);setInput("");};
+  return(
+    <div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:4,minHeight:20,marginBottom:6}}>
+        {!tags.length&&<span style={{fontSize:10,color:"#D1D5DB"}}>태그 없음</span>}
+        {tags.map(t=>(
+          <span key={t} className="tag-chip">{t}
+            <button onClick={()=>onChange(tags.filter(x=>x!==t))}>×</button>
+          </span>
+        ))}
+      </div>
+      <div style={{display:"flex",gap:4}}>
+        <input value={input} onChange={e=>setInput(e.target.value)}
+          onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();add();}}}
+          placeholder="태그 입력 후 Enter"
+          style={{flex:1,padding:"4px 8px",border:"1px solid #E5E7EB",borderRadius:8,fontSize:11,outline:"none"}}/>
+        <button onClick={add}
+          style={{padding:"4px 8px",border:"1px solid #E5E7EB",borderRadius:8,fontSize:12,cursor:"pointer",background:"white"}}>+</button>
+      </div>
+    </div>
+  );
+}
+
+/* ── ResizeHandles ── */
+function ResizeHandles({x,y,w,h,onStart}){
+  const S=9,HS=S/2;
+  const pts=[
+    {t:"nw",cx:x,cy:y},{t:"n",cx:x+w/2,cy:y},{t:"ne",cx:x+w,cy:y},
+    {t:"w",cx:x,cy:y+h/2},                     {t:"e",cx:x+w,cy:y+h/2},
+    {t:"sw",cx:x,cy:y+h},{t:"s",cx:x+w/2,cy:y+h},{t:"se",cx:x+w,cy:y+h},
+  ];
+  return(<>
+    <rect x={x} y={y} width={w} height={h} fill="none"
+      stroke="#2563EB" strokeWidth={1} strokeDasharray="5,3" opacity={0.5}
+      style={{pointerEvents:"none"}}/>
+    {pts.map(p=>(
+      <rect key={p.t} x={p.cx-HS} y={p.cy-HS} width={S} height={S} rx={2}
+        fill="white" stroke="#2563EB" strokeWidth={1.5}
+        style={{cursor:RESIZE_CURSORS[p.t]}}
+        onMouseDown={e=>{e.stopPropagation();e.preventDefault();onStart(e,p.t);}}/>
+    ))}
+  </>);
+}
+
+/* ── ZoneDashboard ── */
+function ZoneDashboard({data,selectedIds,onSelect}){
+  const zc=data.zones.map(z=>({
+    zone:z,
+    items:data.items.filter(i=>isInZone(i.x+i.w/2,i.y+i.h/2,z)),
+    facilities:data.facilities.filter(f=>isInZone(f.x,f.y,z)),
+  }));
+  const aItemIds=new Set(zc.flatMap(z=>z.items.map(i=>i.id)));
+  const aFacIds=new Set(zc.flatMap(z=>z.facilities.map(f=>f.id)));
+  const unItems=data.items.filter(i=>!aItemIds.has(i.id));
+  const unFacs=data.facilities.filter(f=>!aFacIds.has(f.id));
+  const S={fontSize:10,cursor:"pointer",padding:"2px 12px",display:"block",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"};
+  return(
+    <div style={{width:176,flexShrink:0,borderRight:"1px solid #E5E7EB",background:"white",overflowY:"auto",fontSize:12}}>
+      <div style={{padding:"6px 8px",borderBottom:"1px solid #F3F4F6",background:"#F9FAFB",position:"sticky",top:0,zIndex:10}}>
+        <div style={{fontSize:10,fontWeight:700,color:"#6B7280",textTransform:"uppercase",letterSpacing:"0.05em"}}>구역 배치</div>
+      </div>
+      {!data.zones.length&&<div style={{padding:12,fontSize:10,color:"#D1D5DB",textAlign:"center",marginTop:16}}>구역 도구로 영역을<br/>그려주세요</div>}
+      {zc.map(({zone,items,facilities})=>{
+        const total=items.length+facilities.length;
+        const isSel=selectedIds.has(zone.id);
+        return(
+          <div key={zone.id} style={{borderBottom:"1px solid #F3F4F6"}}>
+            <div onClick={()=>onSelect(zone.id)}
+              style={{padding:"6px 8px",display:"flex",alignItems:"center",gap:6,cursor:"pointer",
+                background:isSel?"#EFF6FF":"white",transition:"background 0.1s"}}>
+              <div style={{width:10,height:10,borderRadius:2,flexShrink:0,border:`2px solid ${zone.color}`,background:zone.color+"33"}}/>
+              <span style={{fontSize:11,fontWeight:600,color:"#1E293B",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{zone.name}</span>
+              <span style={{fontSize:10,color:"#9CA3AF",flexShrink:0}}>{total}</span>
+            </div>
+            {total>0&&<div style={{paddingBottom:4}}>
+              {items.map(item=>(
+                <div key={item.id} onClick={()=>onSelect(item.id)}
+                  style={{...S,color:selectedIds.has(item.id)?"#2563EB":"#6B7280",
+                    background:selectedIds.has(item.id)?"#EFF6FF":"transparent",
+                    fontWeight:selectedIds.has(item.id)?600:400}}>
+                  🖥 {item.label}
+                </div>
+              ))}
+              {facilities.map(fac=>(
+                <div key={fac.id} onClick={()=>onSelect(fac.id)}
+                  style={{...S,color:selectedIds.has(fac.id)?"#2563EB":"#6B7280",
+                    background:selectedIds.has(fac.id)?"#EFF6FF":"transparent",
+                    fontWeight:selectedIds.has(fac.id)?600:400}}>
+                  📍 {fac.label}
+                </div>
+              ))}
+            </div>}
+            {!total&&<div style={{padding:"0 12px 6px",fontSize:10,color:"#D1D5DB"}}>비어 있음</div>}
+          </div>
+        );
+      })}
+      {(unItems.length>0||unFacs.length>0)&&<div>
+        <div style={{padding:"4px 8px",fontSize:10,fontWeight:600,color:"#9CA3AF",background:"#F9FAFB",borderBottom:"1px solid #F3F4F6"}}>미배치</div>
+        <div style={{paddingBottom:4}}>
+          {unItems.map(item=>(
+            <div key={item.id} onClick={()=>onSelect(item.id)}
+              style={{...S,color:selectedIds.has(item.id)?"#2563EB":"#6B7280",
+                background:selectedIds.has(item.id)?"#EFF6FF":"transparent",
+                fontWeight:selectedIds.has(item.id)?600:400}}>
+              🖥 {item.label}
+            </div>
+          ))}
+          {unFacs.map(fac=>(
+            <div key={fac.id} onClick={()=>onSelect(fac.id)}
+              style={{...S,color:selectedIds.has(fac.id)?"#2563EB":"#6B7280",
+                background:selectedIds.has(fac.id)?"#EFF6FF":"transparent",
+                fontWeight:selectedIds.has(fac.id)?600:400}}>
+              📍 {fac.label}
+            </div>
+          ))}
+        </div>
+      </div>}
+    </div>
+  );
+}
+
+/* ── FloorMapEditor ── */
+function FloorMapEditor({data,onChange}){
+  const svgRef=useRef(null);
+  const fileRef=useRef(null);
+  const[tool,setTool]=useState("select");
+  const[monType,setMonType]=useState("std27");
+  const[facKind,setFacKind]=useState("elevator");
+  const[selectedIds,setSelectedIds]=useState(new Set());
+  const[drawingZone,setDrawingZone]=useState(null);
+  const[pendingZone,setPendingZone]=useState(null);
+  const[zoneName,setZoneName]=useState("");
+  const[canvasW,setCanvasW]=useState(1000);
+  const[canvasH,setCanvasH]=useState(700);
+  const[cwIn,setCwIn]=useState("1000");
+  const[chIn,setChIn]=useState("700");
+  const dragRef=useRef(null);
+  const zoneStartRef=useRef(null);
+  const zoneColorIdx=useRef(0);
+
+  const lastSelId=[...selectedIds].at(-1)||null;
+  const selItem=data.items.find(i=>i.id===lastSelId)||null;
+  const selFac=data.facilities.find(f=>f.id===lastSelId)||null;
+  const selZone=data.zones.find(z=>z.id===lastSelId)||null;
+  const selGroup=(data.groups||[]).find(g=>g.memberIds.includes(lastSelId||""))||null;
+
+  const patchItem=patch=>onChange({...data,items:data.items.map(i=>i.id===lastSelId?{...i,...patch}:i)});
+  const patchFac=patch=>onChange({...data,facilities:data.facilities.map(f=>f.id===lastSelId?{...f,...patch}:f)});
+  const patchZone=patch=>onChange({...data,zones:data.zones.map(z=>z.id===lastSelId?{...z,...patch}:z)});
+
+  const handleImg=e=>{
+    const file=e.target.files?.[0];if(!file)return;
+    const r=new FileReader();
+    r.onload=ev=>onChange({...data,imageUrl:ev.target.result});
+    r.readAsDataURL(file);e.target.value="";
+  };
+
+  const startDrag=(e,id,ek,handle,ox,oy,ow,oh)=>{
+    e.stopPropagation();e.preventDefault();
+    if(e.shiftKey){
+      setSelectedIds(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;});
+      return;
+    }
+    const newSel=selectedIds.has(id)?selectedIds:new Set([id]);
+    setSelectedIds(newSel);
+    const pt=getSVGCoords(e,svgRef,canvasW,canvasH);
+    let groupOrigins=undefined;
+    if(handle==="move"){
+      const group=(data.groups||[]).find(g=>g.memberIds.includes(id));
+      const moveIds=new Set(group?group.memberIds:[...newSel]);
+      moveIds.delete(id);
+      groupOrigins=[...moveIds].map(mid=>{
+        const it=data.items.find(i=>i.id===mid);if(it)return{id:mid,kind:"item",ox:it.x,oy:it.y};
+        const fa=data.facilities.find(f=>f.id===mid);if(fa)return{id:mid,kind:"facility",ox:fa.x,oy:fa.y};
+        const zo=data.zones.find(z=>z.id===mid);if(zo)return{id:mid,kind:"zone",ox:zo.x,oy:zo.y};
+        return null;
+      }).filter(Boolean);
+    }
+    dragRef.current={primaryId:id,entityKind:ek,handle,sx:pt.x,sy:pt.y,ox,oy,ow,oh,groupOrigins};
+  };
+
+  const handleDown=e=>{
+    const tgt=e.target;
+    if(tgt!==svgRef.current&&tgt.getAttribute("data-bg")!=="1")return;
+    const pt=getSVGCoords(e,svgRef,canvasW,canvasH);
+    if(tool==="zone"){zoneStartRef.current=pt;setDrawingZone({x:pt.x,y:pt.y,w:0,h:0});return;}
+    if(tool==="monitor"){
+      const d=ITEM_DEF.monitor;
+      const item={id:uid(),kind:"monitor",monitorType:monType,x:pt.x-d.w/2,y:pt.y-d.h/2,w:d.w,h:d.h,rotation:0,label:"Monitor",tags:[]};
+      onChange({...data,items:[...data.items,item],renderOrder:[...(data.renderOrder||[]),item.id]});
+      setSelectedIds(new Set([item.id]));if(!e.shiftKey)setTool("select");return;
+    }
+    if(tool==="facility"){
+      const fac={id:uid(),kind:facKind,x:pt.x,y:pt.y,r:FAC_DEF_R,label:FACILITY_META[facKind].label,tags:[]};
+      onChange({...data,facilities:[...data.facilities,fac],renderOrder:[...(data.renderOrder||[]),fac.id]});
+      setSelectedIds(new Set([fac.id]));if(!e.shiftKey)setTool("select");return;
+    }
+    setSelectedIds(new Set());
+  };
+
+  const handleMove=e=>{
+    const pt=getSVGCoords(e,svgRef,canvasW,canvasH);
+    const drag=dragRef.current;
+    if(!drag){
+      if(zoneStartRef.current&&tool==="zone"){
+        const s=zoneStartRef.current;
+        setDrawingZone({x:Math.min(s.x,pt.x),y:Math.min(s.y,pt.y),w:Math.abs(pt.x-s.x),h:Math.abs(pt.y-s.y)});
+      }return;
+    }
+    const{primaryId,entityKind,handle,sx,sy,ox,oy,ow,oh,groupOrigins}=drag;
+    const dx=pt.x-sx,dy=pt.y-sy;
+    if(handle==="move"){
+      const nx=ox+dx,ny=oy+dy;
+      let nd={...data};
+      if(entityKind==="item")     nd={...nd,items:nd.items.map(i=>i.id===primaryId?{...i,x:nx,y:ny}:i)};
+      else if(entityKind==="facility") nd={...nd,facilities:nd.facilities.map(f=>f.id===primaryId?{...f,x:nx,y:ny}:f)};
+      else                        nd={...nd,zones:nd.zones.map(z=>z.id===primaryId?{...z,x:nx,y:ny}:z)};
+      for(const go of groupOrigins||[]){
+        const gx=go.ox+dx,gy=go.oy+dy;
+        if(go.kind==="item")     nd={...nd,items:nd.items.map(i=>i.id===go.id?{...i,x:gx,y:gy}:i)};
+        else if(go.kind==="facility") nd={...nd,facilities:nd.facilities.map(f=>f.id===go.id?{...f,x:gx,y:gy}:f)};
+        else                     nd={...nd,zones:nd.zones.map(z=>z.id===go.id?{...z,x:gx,y:gy}:z)};
+      }
+      onChange(nd);
+    }else if(handle==="r"){
+      const newR=Math.max(15,ow/2+dx);
+      onChange({...data,facilities:data.facilities.map(f=>f.id===primaryId?{...f,r:newR}:f)});
+    }else{
+      const{nx,ny,nw,nh}=applyResize(handle,dx,dy,ox,oy,ow,oh);
+      if(entityKind==="item") onChange({...data,items:data.items.map(i=>i.id===primaryId?{...i,x:nx,y:ny,w:nw,h:nh}:i)});
+      else onChange({...data,zones:data.zones.map(z=>z.id===primaryId?{...z,x:nx,y:ny,w:nw,h:nh}:z)});
+    }
+  };
+
+  const handleUp=()=>{
+    dragRef.current=null;
+    if(zoneStartRef.current&&drawingZone&&drawingZone.w>15&&drawingZone.h>15){setPendingZone(drawingZone);setZoneName("");}
+    zoneStartRef.current=null;setDrawingZone(null);
+  };
+
+  const confirmZone=()=>{
+    if(!pendingZone)return;
+    const color=ZONE_COLORS[zoneColorIdx.current%ZONE_COLORS.length];zoneColorIdx.current++;
+    const zone={id:uid(),...pendingZone,name:zoneName.trim()||"구역",color,tags:[],rotation:0};
+    const newOrder=[zone.id,...(data.renderOrder||[])];
+    onChange({...data,zones:[...data.zones,zone],renderOrder:newOrder});
+    setSelectedIds(new Set([zone.id]));setPendingZone(null);
+  };
+
+  const deleteSelected=()=>{
+    if(!selectedIds.size)return;
+    const ids=[...selectedIds];
+    onChange({
+      ...data,
+      items:data.items.filter(i=>!ids.includes(i.id)),
+      zones:data.zones.filter(z=>!ids.includes(z.id)),
+      facilities:data.facilities.filter(f=>!ids.includes(f.id)),
+      groups:(data.groups||[]).map(g=>({...g,memberIds:g.memberIds.filter(mid=>!ids.includes(mid))})).filter(g=>g.memberIds.length>=2),
+      renderOrder:(data.renderOrder||[]).filter(id=>!ids.includes(id)),
+    });
+    setSelectedIds(new Set());
+  };
+
+  const groupSelected=()=>{
+    if(selectedIds.size<2)return;
+    const group={id:uid(),name:"그룹",memberIds:[...selectedIds]};
+    onChange({...data,groups:[...(data.groups||[]),group]});
+  };
+  const patchGroup=patch=>onChange({...data,groups:(data.groups||[]).map(g=>g.id===selGroup?.id?{...g,...patch}:g)});
+  const ungroupSelected=()=>{
+    if(!lastSelId)return;
+    onChange({...data,groups:(data.groups||[]).filter(g=>!g.memberIds.includes(lastSelId))});
+  };
+
+  const zOp=(id,op)=>{
+    const order=[...(data.renderOrder||[])];const idx=order.indexOf(id);if(idx===-1)return;
+    if(op==="front"){order.splice(idx,1);order.push(id);}
+    else if(op==="back"){order.splice(idx,1);order.unshift(id);}
+    else if(op==="forward"&&idx<order.length-1){[order[idx],order[idx+1]]=[order[idx+1],order[idx]];}
+    else if(op==="backward"&&idx>0){[order[idx-1],order[idx]]=[order[idx],order[idx-1]];}
+    onChange({...data,renderOrder:order});
+  };
+
+  const applyCanvas=()=>{
+    const w=Math.max(400,Math.min(3000,+cwIn||1000));
+    const h=Math.max(300,Math.min(2000,+chIn||700));
+    setCanvasW(w);setCanvasH(h);setCwIn(String(w));setChIn(String(h));
+  };
+
+  const delRef=useRef(deleteSelected);
+  delRef.current=deleteSelected;
+  useEffect(()=>{
+    const handler=e=>{
+      const tag=e.target.tagName;
+      if(tag==="INPUT"||tag==="TEXTAREA")return;
+      if(e.key==="Delete"||e.key==="Backspace")delRef.current();
+      if(e.key==="Escape"){setSelectedIds(new Set());setPendingZone(null);setDrawingZone(null);zoneStartRef.current=null;setTool("select");}
+    };
+    window.addEventListener("keydown",handler);
+    return()=>window.removeEventListener("keydown",handler);
+  },[]);
+
+  /* render order */
+  const ro=data.renderOrder||[];
+  const allEntities=ro.map(id=>{
+    const item=data.items.find(i=>i.id===id);if(item)return{type:"item",d:item};
+    const fac=data.facilities.find(f=>f.id===id);if(fac)return{type:"facility",d:fac};
+    const zone=data.zones.find(z=>z.id===id);if(zone)return{type:"zone",d:zone};
+    return null;
+  }).filter(Boolean);
+  const inOrder=new Set(ro);
+  const unordered=[
+    ...data.zones.filter(z=>!inOrder.has(z.id)).map(d=>({type:"zone",d})),
+    ...data.facilities.filter(f=>!inOrder.has(f.id)).map(d=>({type:"facility",d})),
+    ...data.items.filter(i=>!inOrder.has(i.id)).map(d=>({type:"item",d})),
+  ];
+  const entities=[...allEntities,...unordered];
+
+  const cursor=["zone","monitor","facility"].includes(tool)?"crosshair":"default";
+  const itemCount=data.items.length+data.facilities.length+data.zones.length;
+
+  /* styles */
+  const S={btn:(active)=>({padding:"6px 12px",fontWeight:600,fontSize:12,cursor:"pointer",transition:"all 0.1s",
+    background:active?"#2563EB":"white",color:active?"white":"#475569",border:"none",borderRight:"1px solid #E5E7EB"})};
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",height:"100%",background:"#F8FAFC"}}>
+
+      {/* Toolbar */}
+      <div style={{flexShrink:0,background:"white",borderBottom:"1px solid #E5E7EB",padding:"8px 16px",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",boxShadow:"0 1px 3px rgba(0,0,0,0.08)"}}>
+        {/* Tool buttons */}
+        <div style={{display:"flex",border:"1px solid #E5E7EB",borderRadius:8,overflow:"hidden"}}>
+          {[{id:"select",icon:"↖",lb:"선택"},{id:"monitor",icon:"🖥",lb:"모니터"},{id:"zone",icon:"⬜",lb:"구역"},{id:"facility",icon:"📍",lb:"시설물"}].map(t=>(
+            <button key={t.id} onClick={()=>setTool(t.id)} style={S.btn(tool===t.id)}>{t.icon} {t.lb}</button>
+          ))}
+        </div>
+
+        {tool==="monitor"&&<div style={{display:"flex",gap:4}}>
+          {MONITOR_TYPES.map(t=>(
+            <button key={t} onClick={()=>setMonType(t)}
+              style={{padding:"4px 8px",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer",
+                border:`1px solid ${monType===t?MONITOR_META[t].color:"#E5E7EB"}`,
+                background:monType===t?MONITOR_META[t].color:"white",
+                color:monType===t?"white":"#4B5563",transition:"all 0.1s"}}>
+              {MONITOR_META[t].label}
+            </button>
+          ))}
+        </div>}
+
+        {tool==="facility"&&<div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+          {FACILITY_KINDS.map(k=>(
+            <button key={k} onClick={()=>setFacKind(k)}
+              style={{padding:"4px 8px",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer",
+                border:"1px solid transparent",
+                background:facKind===k?"#374151":"#F9FAFB",color:facKind===k?"white":"#4B5563",transition:"all 0.1s"}}>
+              {FACILITY_META[k].label}
+            </button>
+          ))}
+        </div>}
+
+        {tool==="select"&&selectedIds.size>=2&&!selGroup&&(
+          <button onClick={groupSelected}
+            style={{padding:"6px 10px",borderRadius:8,fontSize:11,fontWeight:600,cursor:"pointer",
+              background:"#F5F3FF",color:"#7C3AED",border:"1px solid #DDD6FE",transition:"all 0.1s"}}>
+            🔗 그룹화
+          </button>
+        )}
+        {tool==="select"&&selGroup&&<div style={{display:"flex",alignItems:"center",gap:6}}>
+          <span style={{fontSize:10,color:"#7C3AED",background:"#F5F3FF",padding:"4px 8px",borderRadius:8,border:"1px solid #DDD6FE"}}>🔗 {selGroup.name}</span>
+          <button onClick={ungroupSelected}
+            style={{padding:"4px 8px",borderRadius:8,fontSize:11,cursor:"pointer",background:"#F3F4F6",color:"#374151",border:"1px solid #E5E7EB"}}>해제</button>
+        </div>}
+
+        <span style={{fontSize:10,color:"#9CA3AF",marginLeft:4}}>
+          {tool==="select"&&"클릭 선택 | Shift+클릭 다중선택 | 드래그 이동 | Del 삭제"}
+          {tool==="monitor"&&"캔버스 클릭 → 모니터 배치"}
+          {tool==="zone"&&"드래그로 공간 영역 지정"}
+          {tool==="facility"&&"클릭으로 시설물 마커 배치"}
+        </span>
+
+        <div style={{display:"flex",alignItems:"center",gap:4,marginLeft:"auto"}}>
+          <span style={{fontSize:10,color:"#9CA3AF"}}>캔버스</span>
+          <input value={cwIn} onChange={e=>setCwIn(e.target.value)} type="number"
+            onKeyDown={e=>e.key==="Enter"&&applyCanvas()}
+            style={{width:52,padding:"4px 4px",border:"1px solid #E5E7EB",borderRadius:6,textAlign:"center",fontSize:11,outline:"none"}}/>
+          <span style={{fontSize:10,color:"#D1D5DB"}}>×</span>
+          <input value={chIn} onChange={e=>setChIn(e.target.value)} type="number"
+            onKeyDown={e=>e.key==="Enter"&&applyCanvas()}
+            style={{width:52,padding:"4px 4px",border:"1px solid #E5E7EB",borderRadius:6,textAlign:"center",fontSize:11,outline:"none"}}/>
+          <button onClick={applyCanvas}
+            style={{padding:"4px 8px",borderRadius:6,background:"#F3F4F6",color:"#374151",border:"1px solid #E5E7EB",fontSize:11,fontWeight:600,cursor:"pointer"}}>적용</button>
+        </div>
+
+        <div style={{display:"flex",alignItems:"center",gap:6}}>
+          {itemCount>0&&<span style={{fontSize:10,color:"#9CA3AF"}}>{itemCount}개</span>}
+          <button onClick={()=>fileRef.current?.click()}
+            style={{padding:"6px 10px",borderRadius:8,fontSize:11,fontWeight:600,cursor:"pointer",background:"#F3F4F6",color:"#374151",border:"1px solid #E5E7EB"}}>
+            🖼 도면 이미지
+          </button>
+          {data.imageUrl&&<button onClick={()=>onChange({...data,imageUrl:null})}
+            style={{padding:"6px 8px",borderRadius:8,fontSize:11,fontWeight:600,cursor:"pointer",background:"#FEF2F2",color:"#DC2626",border:"1px solid #FECACA"}}>제거</button>}
+          <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleImg}/>
+        </div>
+      </div>
+
+      {/* Main */}
+      <div style={{display:"flex",flex:1,minHeight:0,overflow:"hidden"}}>
+
+        {/* Zone Dashboard */}
+        <ZoneDashboard data={data} selectedIds={selectedIds} onSelect={id=>setSelectedIds(new Set([id]))}/>
+
+        {/* Canvas */}
+        <div style={{flex:1,overflow:"auto",padding:16,display:"flex",alignItems:"flex-start",justifyContent:"center"}}>
+          <div style={{position:"relative",width:"100%",maxWidth:Math.max(canvasW,900)}}>
+
+            {!data.imageUrl&&!itemCount&&(
+              <div onClick={()=>fileRef.current?.click()}
+                style={{position:"absolute",inset:0,zIndex:10,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+                  cursor:"pointer",borderRadius:12,border:"2px dashed #93C5FD",background:"rgba(255,255,255,0.7)",minHeight:200}}>
+                <div style={{fontSize:48,marginBottom:12}}>🖼</div>
+                <div style={{fontSize:14,fontWeight:600,color:"#3B82F6"}}>도면 이미지를 업로드하세요</div>
+                <div style={{fontSize:12,color:"#9CA3AF",marginTop:4}}>또는 툴바의 아이템을 직접 배치하세요</div>
+              </div>
+            )}
+
+            <svg ref={svgRef}
+              viewBox={`0 0 ${canvasW} ${canvasH}`}
+              style={{width:"100%",display:"block",userSelect:"none",cursor,aspectRatio:`${canvasW}/${canvasH}`,background:"white",borderRadius:12,border:"1px solid #E5E7EB",boxShadow:"0 1px 3px rgba(0,0,0,0.08)"}}
+              onMouseDown={handleDown} onMouseMove={handleMove} onMouseUp={handleUp} onMouseLeave={handleUp}>
+
+              {data.imageUrl
+                ?<image href={data.imageUrl} x={0} y={0} width={canvasW} height={canvasH} preserveAspectRatio="xMidYMid meet" data-bg="1" style={{pointerEvents:"none"}}/>
+                :<g opacity={0.1} style={{pointerEvents:"none"}}>
+                  {Array.from({length:Math.ceil(canvasW/50)+1},(_,i)=>(
+                    <line key={"gv"+i} x1={i*50} y1={0} x2={i*50} y2={canvasH} stroke="#94A3B8" strokeWidth={0.5}/>
+                  ))}
+                  {Array.from({length:Math.ceil(canvasH/50)+1},(_,i)=>(
+                    <line key={"gh"+i} x1={0} y1={i*50} x2={canvasW} y2={i*50} stroke="#94A3B8" strokeWidth={0.5}/>
+                  ))}
+                </g>
+              }
+              <rect x={0} y={0} width={canvasW} height={canvasH} fill="transparent" data-bg="1"/>
+
+              {entities.map(entity=>{
+                if(entity.type==="zone"){
+                  const z=entity.d;const isSel=selectedIds.has(z.id);
+                  const zrot=z.rotation||0,zcx=z.x+z.w/2,zcy=z.y+z.h/2;
+                  return(
+                    <g key={z.id} transform={zrot?`rotate(${zrot},${zcx},${zcy})`:undefined}>
+                      <rect x={z.x} y={z.y} width={z.w} height={z.h}
+                        fill={z.color+"22"} stroke={z.color} strokeWidth={isSel?2.5:1.5} strokeDasharray="10,5" rx={5}
+                        data-bg={tool!=="select"?"1":undefined}
+                        style={{cursor:tool==="select"?"move":"default"}}
+                        onMouseDown={e=>{if(tool!=="select")return;startDrag(e,z.id,"zone","move",z.x,z.y,z.w,z.h);}}/>
+                      <text x={z.x+8} y={z.y+18} fontSize={12} fontWeight="700" fill={z.color} style={{pointerEvents:"none"}}>{z.name}</text>
+                      {zrot!==0&&<text x={z.x+8} y={z.y+32} fontSize={9} fill={z.color} opacity={0.6} style={{pointerEvents:"none"}}>↻ {zrot}°</text>}
+                      {isSel&&zrot===0&&tool==="select"&&(
+                        <ResizeHandles x={z.x} y={z.y} w={z.w} h={z.h}
+                          onStart={(e,handle)=>startDrag(e,z.id,"zone",handle,z.x,z.y,z.w,z.h)}/>
+                      )}
+                    </g>
+                  );
+                }
+                if(entity.type==="facility"){
+                  const fac=entity.d;const meta=FACILITY_META[fac.kind];const isSel=selectedIds.has(fac.id);
+                  return(
+                    <g key={fac.id}
+                      onMouseDown={e=>{if(tool!=="select")return;startDrag(e,fac.id,"facility","move",fac.x,fac.y,fac.r*2,fac.r*2);}}
+                      style={{cursor:tool==="select"?"move":"default"}}>
+                      <circle cx={fac.x+1} cy={fac.y+2} r={fac.r} fill="#00000020"/>
+                      <circle cx={fac.x} cy={fac.y} r={fac.r} fill={meta.color} opacity={0.92} stroke={isSel?"white":"transparent"} strokeWidth={2.5}/>
+                      <text x={fac.x} y={fac.y+4} textAnchor="middle" fontSize={Math.max(7,fac.r*0.5)} fontWeight="700" fill="white" style={{pointerEvents:"none"}}>{meta.icon}</text>
+                      {fac.label&&<text x={fac.x} y={fac.y+fac.r+14} textAnchor="middle" fontSize={10} fill={meta.color} fontWeight="600" style={{pointerEvents:"none"}}>{fac.label}</text>}
+                      {isSel&&<circle cx={fac.x} cy={fac.y} r={fac.r+3} fill="none" stroke={meta.color} strokeWidth={2} opacity={0.5} style={{pointerEvents:"none"}}/>}
+                      {isSel&&tool==="select"&&(
+                        <circle cx={fac.x+fac.r+5} cy={fac.y} r={5} fill="white" stroke="#2563EB" strokeWidth={1.5}
+                          style={{cursor:"e-resize"}}
+                          onMouseDown={e=>{e.stopPropagation();e.preventDefault();startDrag(e,fac.id,"facility","r",fac.x,fac.y,fac.r*2,fac.r*2);}}/>
+                      )}
+                    </g>
+                  );
+                }
+                if(entity.type==="item"){
+                  const item=entity.d;const{x,y,w,h}=item;
+                  const cx=x+w/2,cy=y+h/2;const color=MONITOR_META[item.monitorType].color;
+                  const isSel=selectedIds.has(item.id);
+                  const inGroup=(data.groups||[]).some(g=>g.memberIds.includes(item.id));
+                  return(
+                    <g key={item.id}>
+                      <g transform={`rotate(${item.rotation},${cx},${cy})`}
+                        onMouseDown={e=>{if(tool!=="select")return;startDrag(e,item.id,"item","move",x,y,w,h);}}
+                        style={{cursor:tool==="select"?"move":"default"}}>
+                        <rect x={x+2} y={y+2} width={w} height={h} rx={5} fill="#00000020"/>
+                        <rect x={x} y={y} width={w} height={h} rx={5}
+                          fill={color+"CC"} stroke={isSel?"white":color+"88"} strokeWidth={isSel?2.5:1}/>
+                        {inGroup&&!isSel&&<rect x={x} y={y} width={w} height={h} rx={5}
+                          fill="none" stroke="#A855F7" strokeWidth={1} strokeDasharray="4,3" opacity={0.6} style={{pointerEvents:"none"}}/>}
+                        <text x={cx} y={cy+1} textAnchor="middle" dominantBaseline="middle" fontSize={10} fontWeight="700" fill="white" style={{pointerEvents:"none"}}>
+                          {MONITOR_META[item.monitorType].label}
+                        </text>
+                        {isSel&&<circle cx={cx} cy={y-8} r={4} fill={color} opacity={0.8} style={{pointerEvents:"none"}}/>}
+                      </g>
+                      {isSel&&tool==="select"&&(
+                        <ResizeHandles x={x} y={y} w={w} h={h}
+                          onStart={(e,handle)=>startDrag(e,item.id,"item",handle,x,y,w,h)}/>
+                      )}
+                    </g>
+                  );
+                }
+                return null;
+              })}
+
+              {drawingZone&&drawingZone.w>0&&drawingZone.h>0&&(
+                <rect x={drawingZone.x} y={drawingZone.y} width={drawingZone.w} height={drawingZone.h}
+                  fill="#3B82F622" stroke="#3B82F6" strokeWidth={1.5} strokeDasharray="8,4" rx={5} style={{pointerEvents:"none"}}/>
+              )}
+            </svg>
+
+            {pendingZone&&(
+              <div style={{position:"absolute",inset:0,zIndex:20,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.25)",borderRadius:12}}>
+                <div style={{background:"white",borderRadius:16,padding:20,width:288,boxShadow:"0 20px 60px rgba(0,0,0,0.2)"}}>
+                  <div style={{fontWeight:700,fontSize:14,color:"#1E293B",marginBottom:4}}>구역 이름 입력</div>
+                  <div style={{fontSize:12,color:"#9CA3AF",marginBottom:12}}>크기 {Math.round(pendingZone.w)} × {Math.round(pendingZone.h)}</div>
+                  <input autoFocus type="text" value={zoneName} onChange={e=>setZoneName(e.target.value)}
+                    onKeyDown={e=>{if(e.key==="Enter")confirmZone();if(e.key==="Escape")setPendingZone(null);}}
+                    placeholder="예: 서편, 동편, 개발팀..."
+                    style={{width:"100%",padding:"8px 12px",border:"1px solid #D1D5DB",borderRadius:8,fontSize:14,outline:"none",marginBottom:12,boxSizing:"border-box"}}/>
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={confirmZone}
+                      style={{flex:1,padding:"8px 0",borderRadius:8,background:"#2563EB",color:"white",fontWeight:700,fontSize:14,cursor:"pointer",border:"none"}}>확인</button>
+                    <button onClick={()=>setPendingZone(null)}
+                      style={{flex:1,padding:"8px 0",borderRadius:8,border:"1px solid #E5E7EB",color:"#374151",fontSize:14,cursor:"pointer",background:"white"}}>취소</button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Properties Panel */}
+        <div style={{width:220,flexShrink:0,borderLeft:"1px solid #E5E7EB",background:"white",overflowY:"auto"}}>
+          {!selectedIds.size?(
+            <div style={{padding:16,display:"flex",flexDirection:"column",alignItems:"center",textAlign:"center",marginTop:24,color:"#9CA3AF"}}>
+              <div style={{fontSize:32,marginBottom:8}}>↖</div>
+              <div style={{fontSize:12,lineHeight:"1.6"}}>아이템을 클릭하여<br/>속성을 편집하세요<br/><span style={{fontSize:10,color:"#D1D5DB"}}>Shift+클릭으로 다중선택</span></div>
+              <div style={{marginTop:24,fontSize:10,color:"#D1D5DB",textAlign:"left",width:"100%",borderTop:"1px solid #F3F4F6",paddingTop:16,lineHeight:"1.8"}}>
+                <div>• Del — 선택 삭제</div><div>• Esc — 선택 해제</div><div>• Shift+클릭 — 다중선택</div><div>• 핸들 드래그 — 리사이즈</div>
+              </div>
+            </div>
+          ):(
+            <div style={{padding:12}}>
+              <div style={{fontSize:10,fontWeight:700,color:"#6B7280",textTransform:"uppercase",letterSpacing:"0.05em",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                속성 편집
+                {selectedIds.size>1&&<span style={{fontSize:10,color:"#3B82F6",fontWeight:400,textTransform:"none"}}>{selectedIds.size}개 선택됨</span>}
+              </div>
+
+              {selectedIds.size>=2&&(
+                <div style={{borderRadius:8,border:"1px solid #EDE9FE",background:"#F5F3FF",padding:10,marginBottom:12}}>
+                  <div style={{fontSize:10,fontWeight:600,color:"#7C3AED",marginBottom:8}}>{selectedIds.size}개 선택됨 · 드래그로 함께 이동</div>
+                  {!selGroup?(
+                    <button onClick={groupSelected}
+                      style={{width:"100%",padding:"6px 0",borderRadius:8,background:"#7C3AED",color:"white",fontWeight:700,fontSize:12,cursor:"pointer",border:"none"}}>
+                      🔗 그룹으로 묶기
+                    </button>
+                  ):(
+                    <div>
+                      <div style={{fontSize:10,color:"#7C3AED",marginBottom:4}}>그룹명</div>
+                      <input type="text" value={selGroup.name} onChange={e=>patchGroup({name:e.target.value})}
+                        style={{width:"100%",padding:"6px 10px",border:"1px solid #DDD6FE",borderRadius:8,fontSize:11,outline:"none",background:"white",color:"#5B21B6",boxSizing:"border-box",marginBottom:6}}/>
+                      <button onClick={ungroupSelected}
+                        style={{width:"100%",padding:"6px 0",borderRadius:8,background:"white",color:"#7C3AED",fontWeight:600,fontSize:12,cursor:"pointer",border:"1px solid #DDD6FE"}}>
+                        그룹 해제
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Monitor */}
+              {selItem&&<>
+                <div style={{fontSize:12,fontWeight:600,color:"#1E293B",marginBottom:8}}>🖥 모니터</div>
+                <div style={{marginBottom:10}}>
+                  <div style={{fontSize:10,color:"#9CA3AF",marginBottom:6}}>모니터 타입</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                    {MONITOR_TYPES.map(t=>(
+                      <button key={t} onClick={()=>patchItem({monitorType:t})}
+                        style={{padding:"6px 10px",borderRadius:8,fontSize:11,fontWeight:600,cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:8,
+                          border:selItem.monitorType===t?"1px solid transparent":"1px solid #E5E7EB",
+                          background:selItem.monitorType===t?MONITOR_META[t].color:"white",
+                          color:selItem.monitorType===t?"white":"#374151",transition:"all 0.1s"}}>
+                        <span style={{width:8,height:8,borderRadius:2,flexShrink:0,background:selItem.monitorType===t?"white":MONITOR_META[t].color}}/>
+                        {MONITOR_META[t].long}
+                        {selItem.monitorType===t&&<span style={{marginLeft:"auto",opacity:0.75,fontSize:10}}>✓</span>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <PropInput label="라벨" value={selItem.label} onChange={v=>patchItem({label:v})}/>
+                <div style={{marginBottom:10}}>
+                  <div style={{fontSize:10,color:"#9CA3AF",marginBottom:4}}>크기 (W × H)</div>
+                  <div style={{display:"flex",alignItems:"center",gap:4}}>
+                    <input type="number" value={Math.round(selItem.w)} min={MIN_SZ}
+                      onChange={e=>patchItem({w:Math.max(MIN_SZ,+e.target.value)})}
+                      style={{width:60,padding:"6px 4px",border:"1px solid #E5E7EB",borderRadius:8,fontSize:11,textAlign:"center",outline:"none"}}/>
+                    <span style={{color:"#D1D5DB",fontSize:12}}>×</span>
+                    <input type="number" value={Math.round(selItem.h)} min={MIN_SZ}
+                      onChange={e=>patchItem({h:Math.max(MIN_SZ,+e.target.value)})}
+                      style={{width:60,padding:"6px 4px",border:"1px solid #E5E7EB",borderRadius:8,fontSize:11,textAlign:"center",outline:"none"}}/>
+                  </div>
+                </div>
+                <RotationControl label="회전" value={selItem.rotation} onChange={v=>patchItem({rotation:v})}/>
+              </>}
+
+              {/* Facility */}
+              {selFac&&<>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                  <div style={{width:28,height:28,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",background:FACILITY_META[selFac.kind].color,color:"white",fontSize:9,fontWeight:700}}>
+                    {FACILITY_META[selFac.kind].icon}
+                  </div>
+                  <div style={{fontSize:12,fontWeight:600,color:"#1E293B"}}>{FACILITY_META[selFac.kind].label}</div>
+                </div>
+                <PropInput label="라벨" value={selFac.label} onChange={v=>patchFac({label:v})}/>
+                <div style={{marginBottom:10}}>
+                  <div style={{fontSize:10,color:"#9CA3AF",marginBottom:4}}>크기 (반지름)</div>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <input type="number" value={Math.round(selFac.r)} min={15} max={120}
+                      onChange={e=>patchFac({r:Math.max(15,+e.target.value)})}
+                      style={{width:72,padding:"6px 4px",border:"1px solid #E5E7EB",borderRadius:8,fontSize:11,textAlign:"center",outline:"none"}}/>
+                    <span style={{fontSize:10,color:"#9CA3AF"}}>px (드래그도 가능)</span>
+                  </div>
+                </div>
+              </>}
+
+              {/* Zone */}
+              {selZone&&<>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                  <div style={{width:12,height:12,borderRadius:3,border:`2px dashed ${selZone.color}`,background:selZone.color+"33"}}/>
+                  <div style={{fontSize:12,fontWeight:600,color:"#1E293B"}}>공간 구역</div>
+                </div>
+                <PropInput label="구역 이름" value={selZone.name} onChange={v=>patchZone({name:v})}/>
+                <div style={{marginBottom:10}}>
+                  <div style={{fontSize:10,color:"#9CA3AF",marginBottom:4}}>크기 (W × H)</div>
+                  <div style={{display:"flex",alignItems:"center",gap:4}}>
+                    <input type="number" value={Math.round(selZone.w)} min={MIN_SZ}
+                      onChange={e=>patchZone({w:Math.max(MIN_SZ,+e.target.value)})}
+                      style={{width:60,padding:"6px 4px",border:"1px solid #E5E7EB",borderRadius:8,fontSize:11,textAlign:"center",outline:"none"}}/>
+                    <span style={{color:"#D1D5DB",fontSize:12}}>×</span>
+                    <input type="number" value={Math.round(selZone.h)} min={MIN_SZ}
+                      onChange={e=>patchZone({h:Math.max(MIN_SZ,+e.target.value)})}
+                      style={{width:60,padding:"6px 4px",border:"1px solid #E5E7EB",borderRadius:8,fontSize:11,textAlign:"center",outline:"none"}}/>
+                  </div>
+                </div>
+                <RotationControl label="구역 회전" value={selZone.rotation||0} onChange={v=>patchZone({rotation:v})}
+                  extra={(selZone.rotation||0)!==0&&<>
+                    <span style={{fontSize:9,color:"#F59E0B"}}> 회전 중 리사이즈 불가</span>
+                    <button onClick={()=>patchZone({rotation:0})}
+                      style={{width:"100%",marginTop:4,padding:"4px 0",borderRadius:6,fontSize:10,color:"#9CA3AF",border:"1px solid #F3F4F6",cursor:"pointer",background:"white"}}>회전 초기화</button>
+                  </>}/>
+              </>}
+
+              {/* Z-order */}
+              {lastSelId&&<div style={{borderTop:"1px solid #F3F4F6",paddingTop:12,marginTop:4}}>
+                <div style={{fontSize:10,color:"#9CA3AF",marginBottom:6}}>🔢 순서 (Z-order)</div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:4}}>
+                  {[["back","맨뒤","⇊"],["backward","뒤로","↓"],["forward","앞으로","↑"],["front","맨앞","⇈"]].map(([op,label,icon])=>(
+                    <button key={op} onClick={()=>zOp(lastSelId,op)}
+                      style={{padding:"6px 2px",borderRadius:6,border:"1px solid #E5E7EB",fontSize:9,cursor:"pointer",
+                        background:"white",color:"#374151",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                      <span style={{fontSize:14,lineHeight:1}}>{icon}</span>
+                      <span>{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>}
+
+              {/* Tags */}
+              {(selItem||selFac||selZone)&&<div style={{borderTop:"1px solid #F3F4F6",paddingTop:12,marginTop:4}}>
+                <div style={{fontSize:10,color:"#9CA3AF",marginBottom:6}}>🏷 태그</div>
+                <TagEditor
+                  key={lastSelId}
+                  tags={selItem?.tags||selFac?.tags||selZone?.tags||[]}
+                  onChange={tags=>{
+                    if(selItem)patchItem({tags});
+                    else if(selFac)patchFac({tags});
+                    else if(selZone)patchZone({tags});
+                  }}/>
+              </div>}
+
+              {/* Delete */}
+              <div style={{borderTop:"1px solid #F3F4F6",paddingTop:12,marginTop:4}}>
+                <button onClick={deleteSelected}
+                  style={{width:"100%",padding:"8px 0",borderRadius:8,background:"#FEF2F2",color:"#DC2626",fontWeight:600,fontSize:12,cursor:"pointer",border:"1px solid #FECACA"}}>
+                  🗑 삭제{selectedIds.size>1?` (${selectedIds.size}개)`:""}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PropInput({label,value,onChange}){
+  return(
+    <div style={{marginBottom:10}}>
+      <div style={{fontSize:10,color:"#9CA3AF",marginBottom:4}}>{label}</div>
+      <input type="text" value={value} onChange={e=>onChange(e.target.value)}
+        style={{width:"100%",padding:"6px 10px",border:"1px solid #E5E7EB",borderRadius:8,fontSize:11,outline:"none",boxSizing:"border-box"}}/>
+    </div>
+  );
+}
+
+function RotationControl({label,value,onChange,extra}){
+  return(
+    <div style={{marginBottom:10}}>
+      <div style={{fontSize:10,color:"#9CA3AF",marginBottom:6}}>
+        {label} <span style={{fontWeight:600,color:"#1E293B"}}>{value}°</span>
+        {extra}
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:4,marginBottom:6}}>
+        {[[-90,"↺90"],[-45,"↺45"],[45,"↻45"],[90,"↻90"]].map(([d,lb])=>(
+          <button key={d} onClick={()=>onChange((value+d+360)%360)}
+            style={{padding:"6px 2px",borderRadius:6,border:"1px solid #E5E7EB",fontSize:10,fontWeight:700,color:"#374151",cursor:"pointer",background:"white"}}>
+            {lb}
+          </button>
+        ))}
+      </div>
+      <input type="range" min={0} max={359} value={value} onChange={e=>onChange(+e.target.value)} style={{width:"100%"}}/>
+    </div>
+  );
+}
+
+/* ── FloorMapView (읽기 전용) ── */
+function FloorMapView({data}){
+  const hasContent=data.imageUrl||data.items.length||data.zones.length||data.facilities.length;
+  if(!hasContent) return(
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100%",color:"#9CA3AF",textAlign:"center",padding:40}}>
+      <div style={{fontSize:48,marginBottom:12}}>🗺</div>
+      <div style={{fontSize:14,fontWeight:600,color:"#6B7280"}}>저장된 도면이 없습니다</div>
+      <div style={{fontSize:12,marginTop:6,lineHeight:1.6}}>편집 모드에서 도면을 작성한 뒤<br/><span style={{color:"#3B82F6",fontWeight:600}}>편집 탭</span>에서 저장해 주세요.</div>
+    </div>
+  );
+
+  // 렌더 순서 계산
+  const ro=data.renderOrder||[];
+  const inOrder=new Set(ro);
+  const ordered=ro.map(id=>{
+    const z=data.zones.find(z=>z.id===id);if(z)return{type:"zone",d:z};
+    const f=data.facilities.find(f=>f.id===id);if(f)return{type:"facility",d:f};
+    const i=data.items.find(i=>i.id===id);if(i)return{type:"item",d:i};
+    return null;
+  }).filter(Boolean);
+  const unordered=[
+    ...data.zones.filter(z=>!inOrder.has(z.id)).map(d=>({type:"zone",d})),
+    ...data.facilities.filter(f=>!inOrder.has(f.id)).map(d=>({type:"facility",d})),
+    ...data.items.filter(i=>!inOrder.has(i.id)).map(d=>({type:"item",d})),
+  ];
+  const entities=[...ordered,...unordered];
+
+  // 캔버스 크기 추정
+  let vw=1000,vh=700;
+  const xs=[],ys=[];
+  data.items.forEach(i=>{xs.push(i.x,i.x+i.w);ys.push(i.y,i.y+i.h);});
+  data.zones.forEach(z=>{xs.push(z.x,z.x+z.w);ys.push(z.y,z.y+z.h);});
+  data.facilities.forEach(f=>{xs.push(f.x+f.r,f.x-f.r);ys.push(f.y+f.r,f.y-f.r);});
+  if(xs.length){vw=Math.max(Math.max(...xs)+40,400);vh=Math.max(Math.max(...ys)+40,300);}
+
+  // 모니터 통계
+  const monCount={};
+  data.items.forEach(i=>{monCount[i.monitorType]=(monCount[i.monitorType]||0)+1;});
+
+  return(
+    <div style={{padding:16,overflowY:"auto",height:"100%",boxSizing:"border-box"}}>
+      <svg viewBox={`0 0 ${vw} ${vh}`}
+        style={{width:"100%",display:"block",aspectRatio:`${vw}/${vh}`,background:"white",borderRadius:12,border:"1px solid #E5E7EB",boxShadow:"0 1px 3px rgba(0,0,0,0.08)"}}>
+
+        {data.imageUrl&&<image href={data.imageUrl} x={0} y={0} width={vw} height={vh} preserveAspectRatio="xMidYMid meet" style={{pointerEvents:"none"}}/>}
+        {!data.imageUrl&&<g opacity={0.06} style={{pointerEvents:"none"}}>
+          {Array.from({length:Math.ceil(vw/50)+1},(_,i)=><line key={"v"+i} x1={i*50} y1={0} x2={i*50} y2={vh} stroke="#94A3B8" strokeWidth={0.5}/>)}
+          {Array.from({length:Math.ceil(vh/50)+1},(_,i)=><line key={"h"+i} x1={0} y1={i*50} x2={vw} y2={i*50} stroke="#94A3B8" strokeWidth={0.5}/>)}
+        </g>}
+
+        {entities.map(entity=>{
+          if(entity.type==="zone"){
+            const z=entity.d,rot=z.rotation||0,zcx=z.x+z.w/2,zcy=z.y+z.h/2;
+            return(<g key={z.id} transform={rot?`rotate(${rot},${zcx},${zcy})`:undefined} style={{pointerEvents:"none"}}>
+              <rect x={z.x} y={z.y} width={z.w} height={z.h} fill={z.color+"22"} stroke={z.color} strokeWidth={1.5} strokeDasharray="10,5" rx={5}/>
+              <text x={z.x+8} y={z.y+18} fontSize={12} fontWeight="700" fill={z.color}>{z.name}</text>
+              {rot!==0&&<text x={z.x+8} y={z.y+32} fontSize={9} fill={z.color} opacity={0.6}>↻ {rot}°</text>}
+              {z.tags&&z.tags.length>0&&<text x={z.x+8} y={z.y+(rot?44:32)} fontSize={9} fill={z.color} opacity={0.5}>{z.tags.join(", ")}</text>}
+            </g>);
+          }
+          if(entity.type==="facility"){
+            const fac=entity.d,meta=FACILITY_META[fac.kind]||{icon:"?",color:"#9CA3AF"};
+            return(<g key={fac.id} style={{pointerEvents:"none"}}>
+              <circle cx={fac.x+1} cy={fac.y+2} r={fac.r} fill="#00000015"/>
+              <circle cx={fac.x} cy={fac.y} r={fac.r} fill={meta.color} opacity={0.9}/>
+              <text x={fac.x} y={fac.y+4} textAnchor="middle" fontSize={Math.max(7,fac.r*0.5)} fontWeight="700" fill="white">{meta.icon}</text>
+              {fac.label&&<text x={fac.x} y={fac.y+fac.r+14} textAnchor="middle" fontSize={10} fill={meta.color} fontWeight="600">{fac.label}</text>}
+            </g>);
+          }
+          if(entity.type==="item"){
+            const item=entity.d,{x,y,w,h}=item,cx=x+w/2,cy=y+h/2;
+            const meta=MONITOR_META[item.monitorType]||MONITOR_META.unk;
+            return(<g key={item.id} style={{pointerEvents:"none"}}>
+              <g transform={`rotate(${item.rotation||0},${cx},${cy})`}>
+                <rect x={x+2} y={y+2} width={w} height={h} rx={5} fill="#00000015"/>
+                <rect x={x} y={y} width={w} height={h} rx={5} fill={meta.color+"CC"}/>
+                <text x={cx} y={cy+1} textAnchor="middle" dominantBaseline="middle" fontSize={10} fontWeight="700" fill="white">{meta.label}</text>
+                {item.label&&item.label!=="Monitor"&&<text x={cx} y={y+h+12} textAnchor="middle" fontSize={9} fill={meta.color} fontWeight="500">{item.label}</text>}
+              </g>
+            </g>);
+          }
+          return null;
+        })}
+      </svg>
+
+      {/* 범례 + 통계 */}
+      {data.items.length>0&&(
+        <div style={{display:"flex",gap:12,marginTop:10,paddingLeft:4,flexWrap:"wrap",alignItems:"center"}}>
+          {Object.entries(MONITOR_META).map(([k,v])=>{
+            const cnt=monCount[k]||0;if(!cnt)return null;
+            return(<div key={k} style={{display:"flex",alignItems:"center",gap:4}}>
+              <div style={{width:12,height:10,borderRadius:3,background:v.color+"CC"}}/>
+              <span style={{fontSize:11,color:"#6B7280"}}>{v.label}</span>
+              <span style={{fontSize:10,color:"#9CA3AF"}}>({cnt})</span>
+            </div>);
+          })}
+          {data.zones.length>0&&<span style={{fontSize:10,color:"#9CA3AF"}}>· 구역 {data.zones.length}개</span>}
+          {data.facilities.length>0&&<span style={{fontSize:10,color:"#9CA3AF"}}>· 시설물 {data.facilities.length}개</span>}
+          <span style={{fontSize:10,color:"#D1D5DB",marginLeft:"auto"}}>총 {data.items.length}개 모니터</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── App Shell ── */
+const EMPTY = {imageUrl:null,items:[],zones:[],facilities:[],groups:[],renderOrder:[]};
+const STORAGE_KEY = "floormap-preview-v3";
+
+function App(){
+  const[data,setData]=useState(()=>{
+    try{const s=localStorage.getItem(STORAGE_KEY);return s?migrate(JSON.parse(s)):EMPTY;}
+    catch{return EMPTY;}
+  });
+  const[mode,setMode]=useState("edit"); // "edit" | "view"
+  const handleChange=d=>{
+    setData(d);
+    try{localStorage.setItem(STORAGE_KEY,JSON.stringify(d));}catch{}
+  };
+  return(
+    <div style={{height:"100%",display:"flex",flexDirection:"column"}}>
+      {/* 상단 헤더 */}
+      <div style={{flexShrink:0,background:"#1E293B",color:"white",padding:"8px 16px",display:"flex",alignItems:"center",gap:12}}>
+        <span style={{fontWeight:700,fontSize:14}}>🗺 FloorMapEditor</span>
+        <span style={{fontSize:11,background:"#334155",padding:"2px 8px",borderRadius:999,color:"#94A3B8"}}>v3</span>
+
+        {/* 탭 */}
+        <div style={{display:"flex",borderRadius:8,overflow:"hidden",border:"1px solid #334155",marginLeft:8}}>
+          <button onClick={()=>setMode("edit")}
+            style={{padding:"5px 14px",fontSize:11,fontWeight:600,cursor:"pointer",border:"none",
+              background:mode==="edit"?"#3B82F6":"transparent",color:mode==="edit"?"white":"#94A3B8",transition:"all 0.15s"}}>
+            ✏️ 편집
+          </button>
+          <button onClick={()=>setMode("view")}
+            style={{padding:"5px 14px",fontSize:11,fontWeight:600,cursor:"pointer",border:"none",borderLeft:"1px solid #334155",
+              background:mode==="view"?"#10B981":"transparent",color:mode==="view"?"white":"#94A3B8",transition:"all 0.15s"}}>
+            👁 보기
+          </button>
+        </div>
+
+        <button onClick={()=>{localStorage.removeItem(STORAGE_KEY);setData(EMPTY);}}
+          style={{marginLeft:"auto",padding:"4px 10px",borderRadius:6,background:"#DC2626",color:"white",border:"none",fontSize:11,cursor:"pointer",fontWeight:600}}>
+          초기화
+        </button>
+      </div>
+
+      {/* 콘텐츠 */}
+      <div style={{flex:1,minHeight:0}}>
+        {mode==="edit"&&<FloorMapEditor data={data} onChange={handleChange}/>}
+        {mode==="view"&&<FloorMapView data={data}/>}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>

@@ -531,6 +531,9 @@ export default function FloorMapEditor({ data, onChange }: {
     onChange({ ...data, groups: [...(data.groups ?? []), group] });
   };
 
+  const patchGroup = (patch: Partial<Group>) =>
+    onChange({ ...data, groups: (data.groups ?? []).map(g => g.id === selGroup?.id ? {...g, ...patch} : g) });
+
   const ungroupSelected = () => {
     if (!lastSelId) return;
     onChange({ ...data, groups: (data.groups ?? []).filter(g => !g.memberIds.includes(lastSelId)) });
@@ -907,10 +910,26 @@ export default function FloorMapEditor({ data, onChange }: {
                 )}
               </div>
 
-              {selectedIds.size > 1 && !selItem && !selFac && !selZone && (
-                <div className="text-[10px] text-gray-500 bg-gray-50 rounded-lg p-2 leading-relaxed">
-                  여러 항목 선택됨<br/>
-                  <span className="text-gray-400">드래그로 함께 이동<br/>그룹화 버튼으로 묶기</span>
+              {selectedIds.size >= 2 && (
+                <div className="rounded-lg border border-purple-100 bg-purple-50 p-2.5 space-y-2">
+                  <div className="text-[10px] font-semibold text-purple-600">{selectedIds.size}개 선택됨 · 드래그로 함께 이동</div>
+                  {!selGroup ? (
+                    <button onClick={groupSelected}
+                      className="w-full py-1.5 rounded-lg bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700 transition-colors">
+                      🔗 그룹으로 묶기
+                    </button>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <div className="text-[10px] text-purple-500 mb-1">그룹명</div>
+                      <input type="text" value={selGroup.name}
+                        onChange={e => patchGroup({ name: e.target.value })}
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-purple-200 text-xs focus:outline-none focus:ring-1 focus:ring-purple-400 bg-white text-purple-800"/>
+                      <button onClick={ungroupSelected}
+                        className="w-full py-1.5 rounded-lg border border-purple-200 text-purple-600 text-xs font-medium hover:bg-purple-100 transition-colors">
+                        그룹 해제
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 

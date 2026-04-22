@@ -1,0 +1,31 @@
+import { NextRequest, NextResponse } from "next/server";
+import { fetchFloorMap, saveFloorMap } from "@/lib/notion";
+
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const building = searchParams.get("building");
+  const floor    = searchParams.get("floor");
+  if (!building || !floor)
+    return NextResponse.json({ error: "building, floor 파라미터가 필요합니다." }, { status: 400 });
+
+  try {
+    const data = await fetchFloorMap(building, floor);
+    return NextResponse.json({ data });
+  } catch (e) {
+    return NextResponse.json({ error: String(e) }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { building, floor, data } = body;
+    if (!building || !floor || !data)
+      return NextResponse.json({ error: "building, floor, data가 필요합니다." }, { status: 400 });
+
+    await saveFloorMap(building, floor, data);
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    return NextResponse.json({ error: String(e) }, { status: 500 });
+  }
+}

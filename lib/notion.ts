@@ -493,3 +493,70 @@ export async function createSwRequest(data: {
 
   return response.id;
 }
+
+// ────────────────────────────────────────────────────────────
+// 도면 편집기 데이터 저장/로드 (NOTION_DB_FLOOR_MAPS)
+// ────────────────────────────────────────────────────────────
+function chunkString(str: string, size = 1900): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < str.length; i += size) out.push(str.slice(i, i + size));
+  return out;
+}
+
+export async function fetchFloorMap(building: string, floor: string): Promise<object | null> {
+  const dbId = process.env.NOTION_DB_FLOOR_MAPS;
+  if (!dbId) return null;
+
+  const key = `${building}-${floor}`;
+  const res = await notion.databases.query({
+    database_id: dbId,
+    filter: { property: "Title", title: { equals: key } },
+    page_size: 1,
+  });
+  if (!res.results.length) return null;
+
+  const page = res.results[0] as PageObjectResponse;
+
+  // bgImage: 배경 이미지 URL
+  const imageUrl = ((page.properties?.bgImage as any)?.rich_text ?? [])
+    .map((r: any) => r.plain_text as string).join("") || null;
+
+  // elements: items/zones/facilities/groups/renderOrder JSON
+  const elementsJson = ((page.properties?.elements as any)?.rich_text ?? [])
+    .map((r: any) => r.plain_text as string).join("");
+
+  try {
+    const elements = elementsJson ? JSON.parse(elementsJson) : {};
+    return { imageUrl, ...elements };
+  } catch { return null; }
+}
+
+export async function saveFloorMap(building: string, floor: string, data: any): Promise<void> {
+  const dbId = process.env.NOTION_DB_FLOOR_MAPS;
+  if (!dbId) throw new Error("NOTION_DB_FLOOR_MAPS 환경변수가 설정되지 않았습니다.");
+
+  const key = `${building}-${floor}`;
+
+  // imageUrl은 bgImage 프로퍼티에, 나머지(items/zones/facilities/groups/renderOrder)는 elements에 저장
+  const { imageUrl, ...elements } = data as any;
+  const bgImageChunks = chunkString(imageUrl ?? "").map((c: string) => ({ text: { content: c } }));
+  const elementsChunks = chunkString(JSON.stringify(elements)).map((c: string) => ({ text: { content: c } }));
+
+  const props: Record<string, any> = {
+    Title:    { title: [{ text: { content: key } }] },
+    bgImage:  { rich_text: bgImageChunks },
+    elements: { rich_text: elementsChunks },
+  };
+
+  const existing = await notion.databases.query({
+    database_id: dbId,
+    filter: { property: "Title", title: { equals: key } },
+    page_size: 1,
+  });
+
+  if (existing.results.length > 0) {
+    await notion.pages.update({ page_id: existing.results[0].id, properties: props });
+  } else {
+    await notion.pages.create({ parent: { database_id: dbId }, properties: props });
+  }
+}
