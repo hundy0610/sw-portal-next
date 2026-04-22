@@ -23,8 +23,8 @@ export async function POST(req: NextRequest) {
     if (!building || !floor || !data)
       return NextResponse.json({ error: "building, floor, data가 필요합니다." }, { status: 400 });
 
-    await saveFloorMap(building, floor, data);
-    return NextResponse.json({ ok: true });
+    const result = await saveFloorMap(building, floor, data);
+    return NextResponse.json(result);
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
