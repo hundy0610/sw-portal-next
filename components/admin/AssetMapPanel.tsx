@@ -638,11 +638,11 @@ function FloorPlanSVG({
           lb.text.includes("\n")
             ? lb.text.split("\n").map((line,li) => (
                 <text key={`lb${i}-${li}`} x={lb.x} y={lb.y+li*13}
-                  fontSize={lb.size||9} fill={lb.color||"#64748B"} textAnchor={lb.anchor||"middle"}
+                  fontSize={lb.size||9} fill={lb.color||"#64748B"} textAnchor={(lb.anchor||"middle") as "inherit"|"start"|"end"|"middle"}
                   fontWeight={lb.bold?"700":"400"}>{line}</text>
               ))
             : <text key={`lb${i}`} x={lb.x} y={lb.y}
-                fontSize={lb.size||9} fill={lb.color||"#64748B"} textAnchor={lb.anchor||"middle"}
+                fontSize={lb.size||9} fill={lb.color||"#64748B"} textAnchor={(lb.anchor||"middle") as "inherit"|"start"|"end"|"middle"}
                 fontWeight={lb.bold?"700":"400"}>{lb.text}</text>
         ))}
       </svg>
@@ -678,7 +678,7 @@ function SeatDetailPanel({
   const rowLabel = String.fromCharCode(65 + seat.row);
 
   const [repairOpen,   setRepairOpen]   = useState(false);
-  const [repairReason, setRepairReason] = useState(REPAIR_REASONS[0]);
+  const [repairReason, setRepairReason] = useState<string>(REPAIR_REASONS[0]);
   const [repairNote,   setRepairNote]   = useState("");
   const [submitting,   setSubmitting]   = useState(false);
   const [submitMsg,    setSubmitMsg]    = useState("");
@@ -951,10 +951,37 @@ function SeatDetailPanel({
 // ══════════════════════════════════════════════════════════════════════════════
 // OVERVIEW SIDE PANEL  (좌석 미선택 시)
 // ══════════════════════════════════════════════════════════════════════════════
-function OverviewSidePanel({ building, floor, zones }: { building: BuildingData; floor: FloorData; zones: ZoneData[] }) {
-  const st = calcStats(zones);
+// 아이템 중심점이 구역 내부인지 판단
+function isItemInZone(item: { x:number; y:number; w:number; h:number }, zone: { x:number; y:number; w:number; h:number; rotation:number }): boolean {
+  const cx = item.x + item.w / 2, cy = item.y + item.h / 2;
+  const rot = zone.rotation ?? 0;
+  if (rot === 0) return cx >= zone.x && cx <= zone.x + zone.w && cy >= zone.y && cy <= zone.y + zone.h;
+  const zcx = zone.x + zone.w / 2, zcy = zone.y + zone.h / 2;
+  const theta = -(rot * Math.PI / 180);
+  const dx = cx - zcx, dy = cy - zcy;
+  const rx = dx * Math.cos(theta) - dy * Math.sin(theta);
+  const ry = dx * Math.sin(theta) + dy * Math.cos(theta);
+  return Math.abs(rx) <= zone.w / 2 && Math.abs(ry) <= zone.h / 2;
+}
+
+function OverviewSidePanel({ building, floor, editorData }: { building: BuildingData; floor: FloorData; editorData: EditorData }) {
+  const items = editorData.items;
+  const zones = editorData.zones;
+
+  // 타입별 집계
+  const st = { std27:0, std24:0, dev34:0, none:0, unk:0, total: items.length };
+  items.forEach(i => { (st as any)[i.monitorType] = ((st as any)[i.monitorType] ?? 0) + 1; });
   const confirmed = st.std27 + st.std24 + st.dev34 + st.none;
   const pct = st.total > 0 ? Math.round((confirmed / st.total) * 100) : 0;
+
+  // 구역별 집계
+  const zoneStats = zones.map(z => {
+    const zItems = items.filter(i => isItemInZone(i, z));
+    const zSt = { std27:0, std24:0, dev34:0, none:0, unk:0, total: zItems.length };
+    zItems.forEach(i => { (zSt as any)[i.monitorType]++; });
+    return { zone: z, st: zSt };
+  });
+  const unzoned = items.filter(i => !zones.some(z => isItemInZone(i, z)));
 
   return (
     <div className="flex flex-col h-full text-sm overflow-y-auto">
@@ -964,77 +991,81 @@ function OverviewSidePanel({ building, floor, zones }: { building: BuildingData;
       </div>
 
       <div className="flex-1 p-3 space-y-3 overflow-y-auto">
-        {/* 진행률 */}
-        <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-          <div className="text-[10px] text-gray-400 font-semibold mb-2">확인 진행률</div>
-          <div className="flex items-baseline gap-2 mb-1.5">
-            <span className="text-2xl font-extrabold text-gray-800">{pct}%</span>
-            <span className="text-xs text-gray-400">{confirmed}/{st.total}석 완료</span>
+        {items.length === 0 ? (
+          <div className="text-center text-gray-400 text-xs py-8">
+            <div className="text-2xl mb-2">📋</div>
+            도면 데이터가 없습니다.<br/>편집 모드에서 저장 후 확인해주세요.
           </div>
-          <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-            <div className="h-full rounded-full transition-all" style={{ width:`${pct}%`, background: pct===100?"#10B981":"#3B82F6" }}/>
-          </div>
-        </div>
-
-        {/* 타입별 카드 */}
-        <div className="grid grid-cols-1 gap-1.5">
-          {TYPES.map(t => {
-            const cnt = st[t as keyof typeof st] as number;
-            if (!cnt) return null;
-            const meta = MONITOR[t];
-            return (
-              <div key={t} className="rounded-lg p-2.5 border flex items-center gap-2.5"
-                style={{ background:meta.pale, borderColor:meta.border }}>
-                <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ background:meta.color+"CC" }}/>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[10px] font-semibold truncate" style={{ color:meta.color }}>{meta.long}</div>
-                </div>
-                <div className="text-base font-extrabold flex-shrink-0" style={{ color:meta.color }}>{cnt}</div>
+        ) : (
+          <>
+            {/* 진행률 */}
+            <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+              <div className="text-[10px] text-gray-400 font-semibold mb-2">확인 진행률</div>
+              <div className="flex items-baseline gap-2 mb-1.5">
+                <span className="text-2xl font-extrabold text-gray-800">{pct}%</span>
+                <span className="text-xs text-gray-400">{confirmed}/{st.total}대 완료</span>
               </div>
-            );
-          })}
-        </div>
-
-        {/* 구역별 */}
-        <div className="bg-white border border-gray-100 rounded-xl p-3">
-          <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">구역별 현황</div>
-          {zones.map(z => {
-            const zst = calcStats([z]);
-            const zConfirmed = zst.std27+zst.std24+zst.dev34+zst.none;
-            const zPct = zst.total > 0 ? Math.round((zConfirmed/zst.total)*100) : 0;
-            return (
-              <div key={z.id} className="mb-3 last:mb-0">
-                <div className="flex justify-between items-baseline mb-1">
-                  <span className="text-xs font-semibold text-gray-700 truncate max-w-[120px]">{z.label}</span>
-                  <span className="text-[10px] text-gray-400 flex-shrink-0">{z.seats.length}석 {zPct}%</span>
-                </div>
-                <div className="flex gap-1 flex-wrap">
-                  {TYPES.map(t => {
-                    const cnt = zst[t as keyof typeof zst] as number;
-                    if (!cnt) return null;
-                    const meta = MONITOR[t];
-                    return (
-                      <span key={t} className="text-[10px] px-1.5 py-0.5 rounded font-medium"
-                        style={{ background:meta.pale, color:meta.color }}>
-                        {meta.label} {cnt}
-                      </span>
-                    );
-                  })}
-                </div>
+              <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div className="h-full rounded-full transition-all" style={{ width:`${pct}%`, background: pct===100?"#10B981":"#3B82F6" }}/>
               </div>
-            );
-          })}
-        </div>
+            </div>
 
-        {/* 찾아가기 가이드 */}
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-          <div className="text-[10px] font-bold text-amber-700 mb-1.5">📍 찾아가는 방법</div>
-          <div className="text-[10px] text-amber-600 leading-relaxed space-y-0.5">
-            <p>• <strong>서편</strong> : 삼성역 방면 엘리베이터 이용</p>
-            <p>• <strong>동편</strong> : 탄천 방면 엘리베이터 이용</p>
-            <p>• 좌석 클릭 → 정확한 위치 확인</p>
-          </div>
-        </div>
+            {/* 타입별 카드 */}
+            <div className="grid grid-cols-1 gap-1.5">
+              {TYPES.map(t => {
+                const cnt = (st as any)[t] as number;
+                if (!cnt) return null;
+                const meta = MONITOR[t];
+                return (
+                  <div key={t} className="rounded-lg p-2.5 border flex items-center gap-2.5"
+                    style={{ background:meta.pale, borderColor:meta.border }}>
+                    <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ background:meta.color+"CC" }}/>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[10px] font-semibold truncate" style={{ color:meta.color }}>{meta.long}</div>
+                    </div>
+                    <div className="text-base font-extrabold flex-shrink-0" style={{ color:meta.color }}>{cnt}</div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* 구역별 */}
+            {(zoneStats.length > 0 || unzoned.length > 0) && (
+            <div className="bg-white border border-gray-100 rounded-xl p-3">
+              <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">구역별 현황</div>
+              {zoneStats.map(({ zone: z, st: zSt }) => (
+                <div key={z.id} className="mb-3 last:mb-0">
+                  <div className="flex justify-between items-baseline mb-1">
+                    <span className="text-xs font-semibold text-gray-700 truncate max-w-[120px]">{z.name}</span>
+                    <span className="text-[10px] text-gray-400 flex-shrink-0">{zSt.total}대</span>
+                  </div>
+                  <div className="flex gap-1 flex-wrap">
+                    {TYPES.map(t => {
+                      const cnt = (zSt as any)[t] as number;
+                      if (!cnt) return null;
+                      const meta = MONITOR[t];
+                      return (
+                        <span key={t} className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                          style={{ background:meta.pale, color:meta.color }}>
+                          {meta.label} {cnt}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+              {unzoned.length > 0 && (
+                <div className="mb-0">
+                  <div className="flex justify-between items-baseline mb-1">
+                    <span className="text-xs font-semibold text-gray-400">미분류</span>
+                    <span className="text-[10px] text-gray-400">{unzoned.length}대</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
@@ -1166,6 +1197,13 @@ export default function AssetMapPanel() {
   const flStats    = useMemo(() => calcStats(effectiveZones), [effectiveZones]);
   const selectedId = selected?.seat.id ?? null;
 
+  // editorData 기반 통계 (헤더/필터에 사용)
+  const editorStats = useMemo(() => {
+    const r = { std27:0, std24:0, dev34:0, none:0, unk:0, total:0 };
+    editorData.items.forEach(i => { (r as any)[i.monitorType]++; r.total++; });
+    return r;
+  }, [editorData.items]);
+
   const handleBldChange = (bid: string) => {
     setBuildingId(bid);
     setFloorId(BUILDINGS.find(b => b.id === bid)!.floors[0].id);
@@ -1188,13 +1226,13 @@ export default function AssetMapPanel() {
           <div className="text-base font-bold text-slate-800">모니터 배치도</div>
         </div>
 
-        {/* 층 통계 칩 */}
+        {/* 층 통계 칩 (editorData 기반) */}
         <div className="flex gap-1.5 flex-wrap">
           <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs bg-gray-100 text-gray-600 border border-gray-200">
-            총 {flStats.total}석
+            총 {editorStats.total}대
           </span>
           {TYPES.map(t => {
-            const cnt = flStats[t as keyof typeof flStats] as number;
+            const cnt = (editorStats as any)[t] as number;
             if (!cnt) return null;
             const meta = MONITOR[t];
             return (
@@ -1252,7 +1290,7 @@ export default function AssetMapPanel() {
               filter==="all" ? "bg-white shadow text-slate-800 font-semibold" : "text-slate-500 hover:text-slate-700"
             }`}>전체 보기</button>
           {TYPES.map(t => {
-            const cnt = flStats[t as keyof typeof flStats] as number;
+            const cnt = (editorStats as any)[t] as number;
             if (!cnt) return null;
             return (
               <button key={t}
@@ -1333,7 +1371,7 @@ export default function AssetMapPanel() {
               onUpdateType={updateSeatType}
             />
           ) : (
-            <OverviewSidePanel building={building} floor={floor} zones={effectiveZones}/>
+            <OverviewSidePanel building={building} floor={floor} editorData={editorData}/>
           )}
         </div>
       </div>
