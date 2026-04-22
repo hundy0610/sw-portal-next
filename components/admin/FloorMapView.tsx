@@ -60,7 +60,7 @@ export default function FloorMapView({ data, className }: { data: EditorData; cl
 
         {data.imageUrl && (
           <image href={data.imageUrl} x={0} y={0} width={vw} height={vh}
-            preserveAspectRatio="none" style={{ pointerEvents: "none" }}/>
+            preserveAspectRatio="xMidYMid meet" style={{ pointerEvents: "none" }}/>
         )}
 
         {!data.imageUrl && (
