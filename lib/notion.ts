@@ -531,16 +531,32 @@ export async function fetchFloorMap(building: string, floor: string): Promise<ob
   } catch { return null; }
 }
 
-export async function saveFloorMap(building: string, floor: string, data: any): Promise<void> {
+// Notion rich_text 배열 최대 항목 수
+const NOTION_RT_LIMIT = 100;
+
+export async function saveFloorMap(
+  building: string,
+  floor: string,
+  data: any,
+): Promise<{ ok: boolean; imageSkipped?: boolean }> {
   const dbId = process.env.NOTION_DB_FLOOR_MAPS;
   if (!dbId) throw new Error("NOTION_DB_FLOOR_MAPS 환경변수가 설정되지 않았습니다.");
 
   const key = `${building}-${floor}`;
 
-  // imageUrl은 bgImage 프로퍼티에, 나머지(items/zones/facilities/groups/renderOrder)는 elements에 저장
+  // imageUrl은 bgImage 프로퍼티에, 나머지는 elements에 저장
   const { imageUrl, ...elements } = data as any;
-  const bgImageChunks = chunkString(imageUrl ?? "").map((c: string) => ({ text: { content: c } }));
-  const elementsChunks = chunkString(JSON.stringify(elements)).map((c: string) => ({ text: { content: c } }));
+
+  const bgRaw   = chunkString(imageUrl ?? "");
+  const elRaw   = chunkString(JSON.stringify(elements));
+
+  // Notion 한도(100개) 초과 시 bgImage 저장 생략
+  const imageSkipped = bgRaw.length > NOTION_RT_LIMIT;
+  const bgImageChunks  = imageSkipped
+    ? []
+    : bgRaw.map((c: string) => ({ text: { content: c } }));
+  const elementsChunks = elRaw.slice(0, NOTION_RT_LIMIT)
+    .map((c: string) => ({ text: { content: c } }));
 
   const props: Record<string, any> = {
     Title:    { title: [{ text: { content: key } }] },
@@ -559,4 +575,6 @@ export async function saveFloorMap(building: string, floor: string, data: any): 
   } else {
     await notion.pages.create({ parent: { database_id: dbId }, properties: props });
   }
+
+  return { ok: true, imageSkipped };
 }
