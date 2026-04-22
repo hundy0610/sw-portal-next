@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
 
+export const dynamic = "force-dynamic";
+
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
 const LICENSE_TRACKER_PAGE_ID = "29867f4bfdac81efaccccae6742a728b"; // 라이선스 트래커 parent page
@@ -34,10 +36,10 @@ export async function GET() {
     parentPageTest = { status: "error", error: e?.message, };
   }
 
-  // Test 2: Can the token access MS Office directly via pages.retrieve?
+  // Test 2: Can the token access MS Office DB via databases.retrieve?
   let msOfficePageTest: { status: string; error?: string } = { status: "not_run" };
   try {
-    await notion.pages.retrieve({ page_id: LICENSE_TRACKER_DBS[0].id });
+    await notion.databases.retrieve({ database_id: LICENSE_TRACKER_DBS[0].id });
     msOfficePageTest = { status: "ok" };
   } catch (e: any) {
     msOfficePageTest = { status: "error", error: e?.message };
