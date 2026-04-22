@@ -324,9 +324,10 @@ function ZoneDashboard({ data, selectedIds, onSelect }: {
 }
 
 // ── Main Component ─────────────────────────────────────────────────────────────
-export default function FloorMapEditor({ data, onChange }: {
+export default function FloorMapEditor({ data, onChange, onZoneMove }: {
   data: EditorData;
   onChange: (data: EditorData) => void;
+  onZoneMove?: (itemId: string, label: string, fromZone: string, toZone: string) => void;
 }) {
   const svgRef  = useRef<SVGSVGElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -540,6 +541,26 @@ export default function FloorMapEditor({ data, onChange }: {
   };
 
   const handleSVGMouseUp = () => {
+    const drag = dragRef.current;
+
+    if (drag && drag.handle === "move" && drag.entityKind === "item" && onZoneMove) {
+      const item = data.items.find(i => i.id === drag.primaryId);
+      if (item) {
+        const cx  = item.x + item.w / 2, cy  = item.y + item.h / 2;
+        const ocx = drag.ox + item.w / 2, ocy = drag.oy + item.h / 2;
+        const fromZone = data.zones.find(z => isInZone(ocx, ocy, z));
+        const toZone   = data.zones.find(z => isInZone(cx,  cy,  z));
+        if (fromZone?.id !== toZone?.id) {
+          onZoneMove(
+            item.id,
+            item.label || item.id,
+            fromZone?.name ?? "미배정",
+            toZone?.name   ?? "미배정",
+          );
+        }
+      }
+    }
+
     dragRef.current = null;
     if (zoneStartRef.current && drawingZone && drawingZone.w > 15 && drawingZone.h > 15) {
       setPendingZone(drawingZone); setZoneName("");

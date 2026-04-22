@@ -578,3 +578,114 @@ export async function saveFloorMap(
 
   return { ok: true, imageSkipped };
 }
+
+// ────────────────────────────────────────────────────────────
+// 모니터 이력 (NOTION_DB_MONITOR_HISTORY)
+// ────────────────────────────────────────────────────────────
+
+export interface MonitorHistoryEntry {
+  id: string;
+  title: string;
+  itemId: string;
+  label: string;
+  building: string;
+  floor: string;
+  eventType: "zone_move" | "repair_request" | "repair_done" | "note";
+  from: string;
+  to: string;
+  description: string;
+  status: "pending" | "in_progress" | "done";
+  createdAt: string;
+  createdBy: string;
+}
+
+export async function fetchMonitorHistory(opts: {
+  itemId?: string;
+  building?: string;
+  floor?: string;
+  limit?: number;
+}): Promise<MonitorHistoryEntry[]> {
+  const dbId = process.env.NOTION_DB_MONITOR_HISTORY;
+  if (!dbId) return [];
+
+  const filters: any[] = [];
+  if (opts.itemId)   filters.push({ property: "ItemId",   rich_text: { equals: opts.itemId } });
+  if (opts.building) filters.push({ property: "Building", select:    { equals: opts.building } });
+  if (opts.floor)    filters.push({ property: "Floor",    select:    { equals: opts.floor } });
+
+  const filter =
+    filters.length === 0 ? undefined :
+    filters.length === 1 ? filters[0] :
+    { and: filters };
+
+  const pages = await queryAllPages(dbId, filter, [
+    { property: "CreatedAt", direction: "descending" },
+  ]);
+
+  return pages.slice(0, opts.limit ?? 30).map(page => {
+    const p = page.properties;
+    return {
+      id:          page.id,
+      title:       getPropText(p, "Title"),
+      itemId:      getPropText(p, "ItemId"),
+      label:       getPropText(p, "Label"),
+      building:    getPropSelect(p, "Building"),
+      floor:       getPropSelect(p, "Floor"),
+      eventType:   getPropSelect(p, "EventType") as MonitorHistoryEntry["eventType"],
+      from:        getPropText(p, "From"),
+      to:          getPropText(p, "To"),
+      description: getPropText(p, "Description"),
+      status:      getPropSelect(p, "Status") as MonitorHistoryEntry["status"],
+      createdAt:   getPropDate(p, "CreatedAt"),
+      createdBy:   getPropText(p, "CreatedBy"),
+    };
+  });
+}
+
+export async function createMonitorHistory(data: {
+  itemId: string;
+  label: string;
+  building: string;
+  floor: string;
+  eventType: "zone_move" | "repair_request" | "repair_done" | "note";
+  from?: string;
+  to?: string;
+  description?: string;
+  createdBy?: string;
+}): Promise<string> {
+  const dbId = process.env.NOTION_DB_MONITOR_HISTORY;
+  if (!dbId) throw new Error("NOTION_DB_MONITOR_HISTORY 환경변수가 설정되지 않았습니다.");
+
+  const now   = new Date().toISOString();
+  const title = `${data.itemId}-${Date.now()}`;
+
+  const response = await notion.pages.create({
+    parent: { database_id: dbId },
+    properties: {
+      Title:       { title:     [{ text: { content: title } }] },
+      ItemId:      { rich_text: [{ text: { content: data.itemId } }] },
+      Label:       { rich_text: [{ text: { content: data.label || "" } }] },
+      Building:    { select:    { name: data.building } },
+      Floor:       { select:    { name: data.floor } },
+      EventType:   { select:    { name: data.eventType } },
+      From:        { rich_text: [{ text: { content: data.from || "" } }] },
+      To:          { rich_text: [{ text: { content: data.to || "" } }] },
+      Description: { rich_text: [{ text: { content: data.description || "" } }] },
+      Status:      { select:    { name: "pending" } },
+      CreatedAt:   { date:      { start: now } },
+      CreatedBy:   { rich_text: [{ text: { content: data.createdBy || "" } }] },
+    },
+  });
+
+  return response.id;
+}
+
+export async function updateMonitorHistoryStatus(
+  pageId: string,
+  status: "pending" | "in_progress" | "done",
+): Promise<void> {
+  await notion.pages.update({
+    page_id: pageId,
+    properties: { Status: { select: { name: status } } },
+  });
+}
