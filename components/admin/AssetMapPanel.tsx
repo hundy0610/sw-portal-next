@@ -881,7 +881,6 @@ export default function AssetMapPanel() {
   const [editorData,    setEditorData]    = useState<EditorData>(EMPTY_EDITOR_DATA);
   const [isSaving,      setIsSaving]      = useState<boolean>(false);
   const [saveMsg,       setSaveMsg]       = useState<string>("");
-  const [viewTab,       setViewTab]       = useState<"seat"|"map">("seat");
 
   // ── localStorage 초기 로드 ──────────────────────────────────────
   useEffect(() => {
@@ -1109,53 +1108,21 @@ export default function AssetMapPanel() {
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* 도면 영역 */}
         <div className="flex-1 overflow-auto p-4">
-          {/* 탭 헤더 */}
-          <div className="flex items-center gap-1 mb-3">
-            <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
-              <button onClick={() => setViewTab("seat")}
-                className={`px-3 py-1.5 font-medium transition-colors ${viewTab==="seat" ? "bg-blue-600 text-white" : "text-slate-500 hover:bg-gray-50"}`}>
-                📊 시트 배치도
-              </button>
-              <button onClick={() => setViewTab("map")}
-                className={`px-3 py-1.5 font-medium transition-colors border-l border-gray-200 ${viewTab==="map" ? "bg-blue-600 text-white" : "text-slate-500 hover:bg-gray-50"}`}>
-                🗺 편집 도면
-              </button>
-            </div>
-            <h2 className="text-sm font-bold text-slate-700 ml-2">{floor.label}</h2>
+          {/* 헤더 */}
+          <div className="flex items-center gap-2 mb-3">
+            <h2 className="text-sm font-bold text-slate-700">🗺 {floor.label}</h2>
             {floor.note && <span className="text-xs text-gray-400">· {floor.note}</span>}
           </div>
 
-          {/* 시트 배치도 탭 */}
-          {viewTab === "seat" && <>
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-              <FloorPlanSVG
-                bldId={buildingId} floorId={floor.id}
-                zones={effectiveZones} filter={filter}
-                selectedId={selectedId} onSelect={handleSelect}
-              />
-            </div>
-            <div className="flex gap-4 mt-3 px-1 flex-wrap items-center">
-              <span className="text-[10px] font-semibold text-gray-400">범례</span>
-              {TYPES.map(t => (
-                <div key={t} className="flex items-center gap-1.5">
-                  <div className="w-3.5 h-3 rounded-sm" style={{ background:MONITOR[t].color+(t==="unk"?"55":"CC") }}/>
-                  <span className="text-[11px] text-gray-500">{MONITOR[t].long}</span>
-                </div>
-              ))}
-              <span className="text-[10px] text-gray-300 ml-2">A~Z = 행 / 1,2,3… = 열</span>
-            </div>
-          </>}
-
-          {/* 편집 도면 탭 */}
-          {viewTab === "map" && (
-            editorData.items.length > 0 || editorData.zones.length > 0 || editorData.facilities.length > 0 || editorData.imageUrl
-              ? <FloorMapView data={editorData} className="mt-1"/>
-              : <div className="flex flex-col items-center justify-center py-20 text-center text-gray-400">
-                  <div className="text-4xl mb-3">🗺</div>
-                  <div className="text-sm font-medium text-gray-500">저장된 도면이 없습니다</div>
-                  <div className="text-xs mt-1">편집 모드에서 도면을 작성하고 <span className="font-semibold text-blue-500">💾 노션 저장</span>을 눌러주세요.</div>
-                </div>
-          )}
+          {/* 편집 도면 */}
+          {editorData.items.length > 0 || editorData.zones.length > 0 || editorData.facilities.length > 0 || editorData.imageUrl
+            ? <FloorMapView data={editorData} className="w-full"/>
+            : <div className="flex flex-col items-center justify-center py-20 text-center text-gray-400">
+                <div className="text-4xl mb-3">🗺</div>
+                <div className="text-sm font-medium text-gray-500">저장된 도면이 없습니다</div>
+                <div className="text-xs mt-1">편집 모드에서 도면을 작성하고 <span className="font-semibold text-blue-500">💾 노션 저장</span>을 눌러주세요.</div>
+              </div>
+          }
         </div>
 
         {/* 우측 패널 */}
