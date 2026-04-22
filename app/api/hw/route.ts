@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchAllHwRecords, type HwRecord } from "@/lib/hw";
+import { fetchAllHwRecords, computeHwStats, type HwRecord } from "@/lib/hw";
 import { kvGet, kvSet } from "@/lib/kv-store";
 import { memGet, memSet } from "@/lib/mem-cache";
 
@@ -22,9 +22,13 @@ export async function GET(req: NextRequest) {
       records = await kvGet<HwRecord[]>("hw:all");
 
       if (!records) {
-        // 3. Notion 직접 조회
+        // 3. Notion 직접 조회 — hw:stats도 동시 저장하여 stats 엔드포인트 중복 fetch 방지
         records = await fetchAllHwRecords();
-        await kvSet("hw:all", records);
+        const stats = computeHwStats(records);
+        await Promise.all([
+          kvSet("hw:all",   records),
+          kvSet("hw:stats", stats),
+        ]);
       }
 
       // 인메모리에 저장

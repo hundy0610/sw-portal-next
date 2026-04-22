@@ -1,7 +1,7 @@
 import Redis from "ioredis";
 
-// KV TTL: 1시간
-export const KV_TTL = 3600;
+// KV TTL: 2시간 (cron 30분 주기 × 4배 여유 — cold start 후에도 캐시 생존 보장)
+export const KV_TTL = 7200;
 
 let _client: Redis | null = null;
 

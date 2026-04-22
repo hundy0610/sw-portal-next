@@ -81,12 +81,16 @@ export default function AdminPage() {
         // 법인 담당자 초기 페이지
         if (s.role === "company") setPage("hw");
         else setPage("overview");
-        // HW 통계 백그라운드 prefetch (경량 stats, 한 번만)
+        // HW 데이터 백그라운드 prefetch (stats + 전체 레코드 KV 워밍, 한 번만)
         if (!hwFetchedRef.current) {
           hwFetchedRef.current = true;
+          // stats 먼저 (경량, KV 워밍 겸용 — 내부에서 hw:all도 함께 저장)
           fetch("/api/hw/stats")
             .then(r => r.json())
             .then(d => { if (d.ok && d.stats) setHwStatsPrefetch(d.stats); })
+            .catch(() => {});
+          // hw:all 별도 prefetch — stats KV 히트 시 hw:all은 안 채워지므로 병렬 요청
+          fetch(`/api/hw${s.role === "company" && s.company ? `?company=${encodeURIComponent(s.company)}` : ""}`)
             .catch(() => {});
         }
       })
