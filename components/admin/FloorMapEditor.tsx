@@ -365,7 +365,15 @@ export default function FloorMapEditor({ data, onChange }: {
   const selItem  = data.items.find(i => i.id === lastSelId) ?? null;
   const selFac   = data.facilities.find(f => f.id === lastSelId) ?? null;
   const selZone  = data.zones.find(z => z.id === lastSelId) ?? null;
-  const selGroup = data.groups?.find(g => g.memberIds.includes(lastSelId ?? "")) ?? null;
+
+  // 선택된 항목 중 구역(zone)이 아닌 것만 (그룹화 대상)
+  const selNonZoneIds = [...selectedIds].filter(id =>
+    data.items.some(i => i.id === id) || data.facilities.some(f => f.id === id)
+  );
+  // 선택된 비-구역 항목들이 모두 같은 그룹에 속해 있으면 해당 그룹을 표시
+  const selGroup = selNonZoneIds.length >= 2
+    ? (data.groups ?? []).find(g => selNonZoneIds.every(id => g.memberIds.includes(id))) ?? null
+    : (data.groups ?? []).find(g => g.memberIds.includes(lastSelId ?? "")) ?? null;
 
   // ── Patch helpers ────────────────────────────────────────────────────────────
   const patchItem = (patch: Partial<PlacedItem>) =>
@@ -382,15 +390,27 @@ export default function FloorMapEditor({ data, onChange }: {
     const reader = new FileReader();
     reader.onload = ev => {
       const dataUrl = ev.target?.result as string;
-      // 실제 이미지 크기를 읽어 캔버스 비율을 맞춤
       const img = new Image();
       img.onload = () => {
-        const targetW = canvasW; // 현재 캔버스 너비 유지
-        const targetH = Math.round(targetW * img.naturalHeight / img.naturalWidth);
+        // Notion 저장 한도 내로 이미지를 압축 (최대 너비 1200px, JPEG 0.75)
+        const MAX_W = 1200;
+        const scale = img.naturalWidth > MAX_W ? MAX_W / img.naturalWidth : 1;
+        const dw = Math.round(img.naturalWidth  * scale);
+        const dh = Math.round(img.naturalHeight * scale);
+
+        const canvas = document.createElement("canvas");
+        canvas.width  = dw;
+        canvas.height = dh;
+        canvas.getContext("2d")!.drawImage(img, 0, 0, dw, dh);
+        const compressed = canvas.toDataURL("image/jpeg", 0.75);
+
+        // 캔버스 비율을 이미지에 맞춤
+        const targetW = canvasW;
+        const targetH = Math.round(targetW * dh / dw);
         setCanvasH(targetH);
         setCwInput(String(targetW));
         setChInput(String(targetH));
-        onChange({ ...data, imageUrl: dataUrl, canvasW: targetW, canvasH: targetH });
+        onChange({ ...data, imageUrl: compressed, canvasW: targetW, canvasH: targetH });
       };
       img.onerror = () => onChange({ ...data, imageUrl: dataUrl, canvasW, canvasH });
       img.src = dataUrl;
@@ -409,6 +429,8 @@ export default function FloorMapEditor({ data, onChange }: {
     e.preventDefault();
 
     if (e.shiftKey) {
+      // 구역(zone)은 다중선택/그룹화 대상에서 제외
+      if (entityKind === "zone") return;
       setSelectedIds(prev => {
         const next = new Set(prev);
         if (next.has(id)) next.delete(id); else next.add(id);
@@ -556,18 +578,28 @@ export default function FloorMapEditor({ data, onChange }: {
 
   // ── Group ────────────────────────────────────────────────────────────────────
   const groupSelected = () => {
-    if (selectedIds.size < 2) return;
-    const memberIds = [...selectedIds];
+    // 구역(zone)을 제외한 선택 항목만 그룹화
+    const memberIds = [...selectedIds].filter(id =>
+      data.items.some(i => i.id === id) || data.facilities.some(f => f.id === id)
+    );
+    if (memberIds.length < 2) return;
+
+    // 기존 그룹에서 해당 멤버를 제거 후 2명 미만이면 그룹 해산
+    const cleanedGroups = (data.groups ?? [])
+      .map(g => ({ ...g, memberIds: g.memberIds.filter(mid => !memberIds.includes(mid)) }))
+      .filter(g => g.memberIds.length >= 2);
+
     const group: Group = { id: uid(), name: "그룹", memberIds };
-    onChange({ ...data, groups: [...(data.groups ?? []), group] });
+    onChange({ ...data, groups: [...cleanedGroups, group] });
+    setSelectedIds(new Set(memberIds));
   };
 
   const patchGroup = (patch: Partial<Group>) =>
     onChange({ ...data, groups: (data.groups ?? []).map(g => g.id === selGroup?.id ? {...g, ...patch} : g) });
 
   const ungroupSelected = () => {
-    if (!lastSelId) return;
-    onChange({ ...data, groups: (data.groups ?? []).filter(g => !g.memberIds.includes(lastSelId)) });
+    if (!selGroup) return;
+    onChange({ ...data, groups: (data.groups ?? []).filter(g => g.id !== selGroup.id) });
   };
 
   // ── Z-order ──────────────────────────────────────────────────────────────────
@@ -678,10 +710,10 @@ export default function FloorMapEditor({ data, onChange }: {
           </div>
         )}
 
-        {tool==="select" && selectedIds.size >= 2 && !selGroup && (
+        {tool==="select" && selNonZoneIds.length >= 2 && !selGroup && (
           <button onClick={groupSelected}
             className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-purple-50 text-purple-600 hover:bg-purple-100 border border-purple-200 transition-colors">
-            🔗 그룹화
+            🔗 그룹화 ({selNonZoneIds.length})
           </button>
         )}
         {tool==="select" && selGroup && (
@@ -937,14 +969,14 @@ export default function FloorMapEditor({ data, onChange }: {
             <div className="p-3 space-y-3">
               <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
                 속성 편집
-                {selectedIds.size > 1 && (
-                  <span className="text-[10px] text-blue-500 normal-case font-normal">{selectedIds.size}개 선택됨</span>
+                {selNonZoneIds.length > 1 && (
+                  <span className="text-[10px] text-blue-500 normal-case font-normal">{selNonZoneIds.length}개 선택됨</span>
                 )}
               </div>
 
-              {selectedIds.size >= 2 && (
+              {selNonZoneIds.length >= 2 && (
                 <div className="rounded-lg border border-purple-100 bg-purple-50 p-2.5 space-y-2">
-                  <div className="text-[10px] font-semibold text-purple-600">{selectedIds.size}개 선택됨 · 드래그로 함께 이동</div>
+                  <div className="text-[10px] font-semibold text-purple-600">{selNonZoneIds.length}개 선택됨 · 드래그로 함께 이동</div>
                   {!selGroup ? (
                     <button onClick={groupSelected}
                       className="w-full py-1.5 rounded-lg bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700 transition-colors">
