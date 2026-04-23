@@ -540,7 +540,7 @@ async function uploadImageToNotion(base64DataUrl: string): Promise<string> {
   const filename = `floor-map-${Date.now()}.jpg`;
   const headers = {
     Authorization: `Bearer ${token}`,
-    "Notion-Version": "2025-02-12",
+    "Notion-Version": "2026-03-11",
   };
 
   // Step 1: 파일 업로드 객체 생성
