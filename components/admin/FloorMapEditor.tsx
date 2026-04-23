@@ -67,6 +67,8 @@ interface DragInfo {
   rotCx?: number;
   rotCy?: number;
   rotGroupMemberIds?: string[];
+  resizeGroupOrigins?: { id: string; ox: number; oy: number; ow: number; oh: number }[];
+  resizeGroupBox?: { x: number; y: number; w: number; h: number };
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -473,7 +475,22 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
       }).filter(Boolean) as GroupOrigin[];
     }
 
-    dragRef.current = { primaryId: id, entityKind, handle, sx: pt.x, sy: pt.y, ox, oy, ow, oh, groupOrigins };
+    let resizeGroupOrigins: DragInfo["resizeGroupOrigins"];
+    let resizeGroupBox: DragInfo["resizeGroupBox"];
+    if (handle !== "move" && handle !== "r" && handle !== "rot" && entityKind === "item") {
+      const group = data.groups?.find(g => g.memberIds.includes(id));
+      if (group && group.memberIds.length > 1) {
+        const members = data.items.filter(i => group.memberIds.includes(i.id));
+        const minX = Math.min(...members.map(i => i.x));
+        const minY = Math.min(...members.map(i => i.y));
+        const maxX = Math.max(...members.map(i => i.x + i.w));
+        const maxY = Math.max(...members.map(i => i.y + i.h));
+        resizeGroupBox = { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+        resizeGroupOrigins = members.filter(i => i.id !== id).map(i => ({ id: i.id, ox: i.x, oy: i.y, ow: i.w, oh: i.h }));
+      }
+    }
+
+    dragRef.current = { primaryId: id, entityKind, handle, sx: pt.x, sy: pt.y, ox, oy, ow, oh, groupOrigins, resizeGroupOrigins, resizeGroupBox };
   };
 
   // ── SVG Mouse Handlers ───────────────────────────────────────────────────────
@@ -588,11 +605,29 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
       }
 
     } else {
-      const { nx, ny, nw, nh } = applyResize(handle, dx, dy, ox, oy, ow, oh);
-      if (entityKind === "item")
-        onChange({ ...data, items: data.items.map(i => i.id===primaryId ? {...i,x:nx,y:ny,w:nw,h:nh} : i) });
-      else
-        onChange({ ...data, zones: data.zones.map(z => z.id===primaryId ? {...z,x:nx,y:ny,w:nw,h:nh} : z) });
+      const resizeGroupOrigins = drag.resizeGroupOrigins;
+      const groupBox = drag.resizeGroupBox;
+      if (resizeGroupOrigins && resizeGroupOrigins.length > 0 && groupBox) {
+        const { nx: ngx, ny: ngy, nw: ngw, nh: ngh } = applyResize(handle, dx, dy, groupBox.x, groupBox.y, groupBox.w, groupBox.h);
+        const allOrigins = [{ id: primaryId, ox, oy, ow, oh }, ...resizeGroupOrigins];
+        onChange({ ...data, items: data.items.map(i => {
+          const orig = allOrigins.find(o => o.id === i.id);
+          if (!orig) return i;
+          const rx = (orig.ox - groupBox.x) / groupBox.w;
+          const ry = (orig.oy - groupBox.y) / groupBox.h;
+          return { ...i,
+            x: ngx + rx * ngw, y: ngy + ry * ngh,
+            w: Math.max(MIN_SZ, orig.ow * ngw / groupBox.w),
+            h: Math.max(MIN_SZ, orig.oh * ngh / groupBox.h),
+          };
+        }) });
+      } else {
+        const { nx, ny, nw, nh } = applyResize(handle, dx, dy, ox, oy, ow, oh);
+        if (entityKind === "item")
+          onChange({ ...data, items: data.items.map(i => i.id===primaryId ? {...i,x:nx,y:ny,w:nw,h:nh} : i) });
+        else
+          onChange({ ...data, zones: data.zones.map(z => z.id===primaryId ? {...z,x:nx,y:ny,w:nw,h:nh} : z) });
+      }
     }
   };
 
