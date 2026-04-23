@@ -100,10 +100,27 @@ function getPageUrl(pageId: string): string {
   return `https://www.notion.so/${pageId.replace(/-/g, "")}`;
 }
 
-/** 32자 hex → 8-4-4-4-12 UUID 형식으로 정규화 (Notion pages.create 검증 통과) */
+/**
+ * Notion DB ID를 8-4-4-4-12 UUID 형식으로 정규화.
+ * 이미 올바른 UUID 형식이면 소문자로만 변환.
+ * 형식이 잘못된 경우 명확한 에러를 throw.
+ */
 function toNotionId(raw: string): string {
-  const h = raw.replace(/-/g, "").toLowerCase();
-  if (h.length !== 32) return raw;
+  // 이미 올바른 UUID 형식
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw)) {
+    return raw.toLowerCase();
+  }
+  // 대시/공백 제거 후 hex만 남김
+  const h = raw.replace(/[-\s]/g, "").toLowerCase();
+  if (!/^[0-9a-f]+$/.test(h)) {
+    throw new Error(`Notion DB ID에 유효하지 않은 문자 포함: "${raw}"`);
+  }
+  if (h.length !== 32) {
+    throw new Error(
+      `Notion DB ID 길이 오류: 32자 hex 필요, 현재 ${h.length}자 (입력값: "${raw}")\n` +
+      `→ Notion URL에서 DB ID를 다시 복사해 환경변수를 업데이트해 주세요.`
+    );
+  }
   return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
 }
 
@@ -614,7 +631,9 @@ export async function fetchMonitorHistory(opts: {
 }): Promise<MonitorHistoryEntry[]> {
   const dbId = process.env.NOTION_DB_MONITOR_HISTORY;
   if (!dbId) return [];
-  const normalizedDbId = toNotionId(dbId);
+  let normalizedDbId: string;
+  try { normalizedDbId = toNotionId(dbId); }
+  catch (e: any) { console.error("[notion] fetchMonitorHistory DB ID error:", e.message); return []; }
 
   const filters: any[] = [];
   if (opts.itemId)   filters.push({ property: "ItemId",   rich_text: { equals: opts.itemId } });
@@ -661,8 +680,15 @@ export async function createMonitorHistory(data: {
   description?: string;
   createdBy?: string;
 }): Promise<string> {
-  const dbId = process.env.NOTION_DB_MONITOR_HISTORY;
-  if (!dbId) throw new Error("NOTION_DB_MONITOR_HISTORY 환경변수가 설정되지 않았습니다.");
+  const rawDbId = process.env.NOTION_DB_MONITOR_HISTORY;
+  if (!rawDbId) throw new Error("NOTION_DB_MONITOR_HISTORY 환경변수가 설정되지 않았습니다.");
+
+  // 디버그: 실제 env 값과 길이 확인
+  const cleanHex = rawDbId.replace(/[-\s]/g, "");
+  console.log(`[notion] MONITOR_HISTORY DB raw="${rawDbId}" hex_len=${cleanHex.length}`);
+
+  const dbId = toNotionId(rawDbId);
+  console.log(`[notion] MONITOR_HISTORY DB uuid="${dbId}"`);
 
   const now   = new Date().toISOString();
   const title = `${data.itemId}-${Date.now()}`;
