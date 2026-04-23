@@ -356,6 +356,8 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
   const [gridRows,     setGridRows]     = useState(2);
   const [gridCols,     setGridCols]     = useState(3);
   const [gridGap,      setGridGap]      = useState(8);
+  const [monitorW,     setMonitorW]     = useState(ITEM_DEF.monitor.w);
+  const [monitorH,     setMonitorH]     = useState(ITEM_DEF.monitor.h);
 
   const dragRef      = useRef<DragInfo | null>(null);
   const clipboardRef = useRef<PlacedItem[]>([]);
@@ -507,18 +509,18 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
       return;
     }
     if (tool === "monitor") {
-      const d = ITEM_DEF.monitor;
+      const mw = monitorW, mh = monitorH;
       if (gridMode && (gridRows > 1 || gridCols > 1)) {
-        const totalW = gridCols * d.w + (gridCols - 1) * gridGap;
-        const totalH = gridRows * d.h + (gridRows - 1) * gridGap;
+        const totalW = gridCols * mw + (gridCols - 1) * gridGap;
+        const totalH = gridRows * mh + (gridRows - 1) * gridGap;
         const startX = pt.x - totalW / 2;
         const startY = pt.y - totalH / 2;
         const newItems: PlacedItem[] = [];
         for (let r = 0; r < gridRows; r++) {
           for (let c = 0; c < gridCols; c++) {
             newItems.push({ id: uid(), kind: "monitor", monitorType,
-              x: startX + c * (d.w + gridGap), y: startY + r * (d.h + gridGap),
-              w: d.w, h: d.h, rotation: 0, label: "Monitor", tags: [] });
+              x: startX + c * (mw + gridGap), y: startY + r * (mh + gridGap),
+              w: mw, h: mh, rotation: 0, label: "Monitor", tags: [] });
           }
         }
         const group: Group = { id: uid(), name: `${gridRows}×${gridCols} 그룹`, memberIds: newItems.map(i => i.id) };
@@ -530,7 +532,7 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
       }
       const item: PlacedItem = {
         id: uid(), kind: "monitor", monitorType,
-        x: pt.x-d.w/2, y: pt.y-d.h/2, w: d.w, h: d.h,
+        x: pt.x-mw/2, y: pt.y-mh/2, w: mw, h: mh,
         rotation: 0, label: "Monitor", tags: [],
       };
       onChange({ ...data, items: [...data.items, item], renderOrder: [...(data.renderOrder ?? []), item.id] });
@@ -831,6 +833,15 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
                 {MONITOR_META[t].label}
               </button>
             ))}
+            <div className="w-px h-4 bg-gray-200"/>
+            <input type="number" min={10} max={500} value={monitorW}
+              onChange={e => setMonitorW(Math.max(10, Math.min(500, +e.target.value)))}
+              className="w-12 px-1.5 py-1 rounded border border-gray-200 text-center text-xs"/>
+            <span className="text-gray-400 text-xs">W ×</span>
+            <input type="number" min={10} max={500} value={monitorH}
+              onChange={e => setMonitorH(Math.max(10, Math.min(500, +e.target.value)))}
+              className="w-12 px-1.5 py-1 rounded border border-gray-200 text-center text-xs"/>
+            <span className="text-gray-400 text-xs">H</span>
             <div className="w-px h-4 bg-gray-200"/>
             <button onClick={() => setGridMode(g => !g)}
               className={`px-2 py-1 rounded text-xs font-medium border transition-colors ${
