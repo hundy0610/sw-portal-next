@@ -3,7 +3,7 @@ import { getSwItems, saveSwItems, appendAuditLog } from "@/lib/portal-store";
 import { getSessionFromCookieHeader } from "@/lib/session";
 import type { SwItem } from "@/types";
 
-export const revalidate = 0;
+export const dynamic = "force-dynamic";
 
 function getSuperSession(req: NextRequest) {
   const session = getSessionFromCookieHeader(req.headers.get("cookie"));
