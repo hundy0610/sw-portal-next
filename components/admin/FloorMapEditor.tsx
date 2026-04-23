@@ -395,7 +395,6 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
       const dataUrl = ev.target?.result as string;
       const img = new Image();
       img.onload = () => {
-        // Notion 저장 한도 내로 이미지를 압축 (최대 너비 1200px, JPEG 0.75)
         const MAX_W = 1200;
         const scale = img.naturalWidth > MAX_W ? MAX_W / img.naturalWidth : 1;
         const dw = Math.round(img.naturalWidth  * scale);

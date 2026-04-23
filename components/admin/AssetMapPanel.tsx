@@ -1434,9 +1434,7 @@ export default function AssetMapPanel() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "저장 실패");
-      setSaveMsg(json.imageSkipped
-        ? "✓ 저장 완료 (배경 이미지는 용량 초과로 제외됨)"
-        : "✓ 노션 저장 완료");
+      setSaveMsg("✓ 노션 저장 완료");
     } catch (e: any) {
       setSaveMsg(`✗ ${e.message}`);
     } finally {
