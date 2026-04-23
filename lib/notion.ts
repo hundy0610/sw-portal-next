@@ -100,6 +100,30 @@ function getPageUrl(pageId: string): string {
   return `https://www.notion.so/${pageId.replace(/-/g, "")}`;
 }
 
+/**
+ * Notion DB ID를 8-4-4-4-12 UUID 형식으로 정규화.
+ * 이미 올바른 UUID 형식이면 소문자로만 변환.
+ * 형식이 잘못된 경우 명확한 에러를 throw.
+ */
+function toNotionId(raw: string): string {
+  // 이미 올바른 UUID 형식
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw)) {
+    return raw.toLowerCase();
+  }
+  // 대시/공백 제거 후 hex만 남김
+  const h = raw.replace(/[-\s]/g, "").toLowerCase();
+  if (!/^[0-9a-f]+$/.test(h)) {
+    throw new Error(`Notion DB ID에 유효하지 않은 문자 포함: "${raw}"`);
+  }
+  if (h.length !== 32) {
+    throw new Error(
+      `Notion DB ID 길이 오류: 32자 hex 필요, 현재 ${h.length}자 (입력값: "${raw}")\n` +
+      `→ Notion URL에서 DB ID를 다시 복사해 환경변수를 업데이트해 주세요.`
+    );
+  }
+  return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
+}
+
 // ────────────────────────────────────────────────────────────
 // 전체 데이터베이스 페이지 조회 (페이지네이션 처리)
 // ────────────────────────────────────────────────────────────
@@ -140,7 +164,9 @@ export async function fetchSwDb(): Promise<SwItem[]> {
   const dbId = process.env.NOTION_DB_SWDB;
   if (!dbId) throw new Error("NOTION_DB_SWDB 환경변수가 설정되지 않았습니다.");
 
-  const pages = await queryAllPages(dbId); // sort 제거 → 클라이언트 정렬
+  const pages = await queryAllPages(dbId, undefined, [
+    { property: "Name", direction: "ascending" },
+  ]);
 
   return pages.map((page) => {
     const p = page.properties;
@@ -490,4 +516,265 @@ export async function createSwRequest(data: {
   });
 
   return response.id;
+}
+
+// ────────────────────────────────────────────────────────────
+// 도면 편집기 데이터 저장/로드 (NOTION_DB_FLOOR_MAPS)
+// ────────────────────────────────────────────────────────────
+function chunkString(str: string, size = 1900): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < str.length; i += size) out.push(str.slice(i, i + size));
+  return out;
+}
+
+// Notion 파일 업로드 API (SDK v2.x 미지원 → raw fetch)
+// 반환값: file_upload ID (Notion 페이지 저장 시 참조)
+async function uploadImageToNotion(base64DataUrl: string): Promise<string> {
+  const token = process.env.NOTION_TOKEN;
+  if (!token) throw new Error("NOTION_TOKEN이 설정되지 않았습니다.");
+
+  const matches = base64DataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  if (!matches) throw new Error("유효하지 않은 base64 이미지 형식입니다.");
+  const contentType = matches[1];
+  const buffer = Buffer.from(matches[2], "base64");
+  const filename = `floor-map-${Date.now()}.jpg`;
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    "Notion-Version": "2026-03-11",
+  };
+
+  // Step 1: 파일 업로드 객체 생성
+  const createRes = await fetch("https://api.notion.com/v1/file_uploads", {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({ mode: "single_part", filename, content_type: contentType }),
+  });
+  if (!createRes.ok) {
+    throw new Error(`Notion 파일 업로드 생성 실패: ${await createRes.text()}`);
+  }
+  const { id: fileUploadId } = await createRes.json();
+
+  // Step 2: 파일 바이너리 전송
+  const formData = new FormData();
+  formData.append("file", new Blob([buffer], { type: contentType }), filename);
+  const sendRes = await fetch(`https://api.notion.com/v1/file_uploads/${fileUploadId}/send`, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+  if (!sendRes.ok) {
+    throw new Error(`Notion 파일 전송 실패: ${await sendRes.text()}`);
+  }
+
+  return fileUploadId;
+}
+
+export async function fetchFloorMap(building: string, floor: string): Promise<object | null> {
+  const dbId = process.env.NOTION_DB_FLOOR_MAPS;
+  if (!dbId) return null;
+
+  const key = `${building}-${floor}`;
+  const res = await notion.databases.query({
+    database_id: dbId,
+    filter: { property: "Title", title: { equals: key } },
+    page_size: 1,
+  });
+  if (!res.results.length) return null;
+
+  const page = res.results[0] as PageObjectResponse;
+
+  // bgImageFile (Files & media) → 매 API 호출마다 새로운 1시간 서명 URL 발급
+  let imageUrl: string | null = null;
+  const bgImageFileProp = (page.properties?.bgImageFile as any);
+  if (bgImageFileProp?.files?.length > 0) {
+    const f = bgImageFileProp.files[0];
+    imageUrl = f.type === "file" ? (f.file?.url ?? null) : (f.external?.url ?? null);
+  } else {
+    // 레거시: base64가 rich_text에 저장된 기존 데이터 하위 호환
+    const legacy = ((page.properties?.bgImage as any)?.rich_text ?? [])
+      .map((r: any) => r.plain_text as string).join("") || null;
+    imageUrl = legacy;
+  }
+
+  // elements: items/zones/facilities/groups/renderOrder JSON
+  const elementsJson = ((page.properties?.elements as any)?.rich_text ?? [])
+    .map((r: any) => r.plain_text as string).join("");
+
+  try {
+    const elements = elementsJson ? JSON.parse(elementsJson) : {};
+    return { imageUrl, ...elements };
+  } catch { return null; }
+}
+
+// Notion rich_text 배열 최대 항목 수
+const NOTION_RT_LIMIT = 100;
+
+export async function saveFloorMap(
+  building: string,
+  floor: string,
+  data: any,
+): Promise<{ ok: boolean }> {
+  const dbId = process.env.NOTION_DB_FLOOR_MAPS;
+  if (!dbId) throw new Error("NOTION_DB_FLOOR_MAPS 환경변수가 설정되지 않았습니다.");
+
+  const key = `${building}-${floor}`;
+  const { imageUrl, ...elements } = data as any;
+
+  const elRaw = chunkString(JSON.stringify(elements));
+  const elementsChunks = elRaw.slice(0, NOTION_RT_LIMIT)
+    .map((c: string) => ({ text: { content: c } }));
+
+  const props: Record<string, any> = {
+    Title:    { title: [{ text: { content: key } }] },
+    elements: { rich_text: elementsChunks },
+  };
+
+  if (!imageUrl) {
+    // 이미지 없음 → 첨부파일 초기화 + 레거시 필드 초기화
+    props.bgImageFile = { files: [] };
+    props.bgImage     = { rich_text: [] };
+  } else if (imageUrl.startsWith("data:")) {
+    // 새로 선택한 이미지(base64) → Notion에 업로드
+    const fileUploadId = await uploadImageToNotion(imageUrl);
+    props.bgImageFile = { files: [{ type: "file_upload", file_upload: { id: fileUploadId } }] };
+    props.bgImage     = { rich_text: [] }; // 레거시 필드 초기화
+  }
+  // imageUrl이 https:// 인 경우(Notion 서명 URL): bgImageFile을 건드리지 않아 기존 첨부 유지
+
+  const existing = await notion.databases.query({
+    database_id: dbId,
+    filter: { property: "Title", title: { equals: key } },
+    page_size: 1,
+  });
+
+  if (existing.results.length > 0) {
+    await notion.pages.update({ page_id: existing.results[0].id, properties: props });
+  } else {
+    await notion.pages.create({ parent: { database_id: dbId }, properties: props });
+  }
+
+  return { ok: true };
+}
+
+// ────────────────────────────────────────────────────────────
+// 모니터 이력 (NOTION_DB_MONITOR_HISTORY)
+// ────────────────────────────────────────────────────────────
+
+export interface MonitorHistoryEntry {
+  id: string;
+  title: string;
+  itemId: string;
+  label: string;
+  building: string;
+  floor: string;
+  eventType: "zone_move" | "repair_request" | "repair_done" | "note";
+  from: string;
+  to: string;
+  description: string;
+  status: "pending" | "수리중" | "in_progress" | "done";
+  createdAt: string;
+  createdBy: string;
+}
+
+export async function fetchMonitorHistory(opts: {
+  itemId?: string;
+  building?: string;
+  floor?: string;
+  limit?: number;
+}): Promise<MonitorHistoryEntry[]> {
+  const dbId = process.env.NOTION_DB_MONITOR_HISTORY;
+  if (!dbId) return [];
+  let normalizedDbId: string;
+  try { normalizedDbId = toNotionId(dbId); }
+  catch (e: any) { console.error("[notion] fetchMonitorHistory DB ID error:", e.message); return []; }
+
+  const filters: any[] = [];
+  if (opts.itemId)   filters.push({ property: "ItemId",   rich_text: { equals: opts.itemId } });
+  if (opts.building) filters.push({ property: "Building", select:    { equals: opts.building } });
+  if (opts.floor)    filters.push({ property: "Floor",    select:    { equals: opts.floor } });
+
+  const filter =
+    filters.length === 0 ? undefined :
+    filters.length === 1 ? filters[0] :
+    { and: filters };
+
+  const pages = await queryAllPages(normalizedDbId, filter, [
+    { property: "CreatedAt", direction: "descending" },
+  ]);
+
+  return pages.slice(0, opts.limit ?? 30).map(page => {
+    const p = page.properties;
+    return {
+      id:          page.id,
+      title:       getPropText(p, "Title"),
+      itemId:      getPropText(p, "ItemId"),
+      label:       getPropText(p, "Label"),
+      building:    getPropSelect(p, "Building"),
+      floor:       getPropSelect(p, "Floor"),
+      eventType:   getPropSelect(p, "EventType") as MonitorHistoryEntry["eventType"],
+      from:        getPropText(p, "From"),
+      to:          getPropText(p, "To"),
+      description: getPropText(p, "Description"),
+      status:      getPropSelect(p, "Status") as MonitorHistoryEntry["status"],
+      createdAt:   getPropDate(p, "CreatedAt"),
+      createdBy:   getPropText(p, "CreatedBy"),
+    };
+  });
+}
+
+export async function createMonitorHistory(data: {
+  itemId: string;
+  label: string;
+  building: string;
+  floor: string;
+  eventType: "zone_move" | "repair_request" | "repair_done" | "note";
+  from?: string;
+  to?: string;
+  description?: string;
+  createdBy?: string;
+}): Promise<string> {
+  const rawDbId = process.env.NOTION_DB_MONITOR_HISTORY;
+  if (!rawDbId) throw new Error("NOTION_DB_MONITOR_HISTORY 환경변수가 설정되지 않았습니다.");
+
+  // 디버그: 실제 env 값과 길이 확인
+  const cleanHex = rawDbId.replace(/[-\s]/g, "");
+  console.log(`[notion] MONITOR_HISTORY DB raw="${rawDbId}" hex_len=${cleanHex.length}`);
+
+  const dbId = toNotionId(rawDbId);
+  console.log(`[notion] MONITOR_HISTORY DB uuid="${dbId}"`);
+
+  const now   = new Date().toISOString();
+  const title = `${data.itemId}-${Date.now()}`;
+  // 수리 요청은 초기 상태를 "수리중"으로 설정
+  const initialStatus = data.eventType === "repair_request" ? "수리중" : "pending";
+
+  const response = await notion.pages.create({
+    parent: { database_id: toNotionId(dbId) },
+    properties: {
+      Title:       { title:     [{ text: { content: title } }] },
+      ItemId:      { rich_text: [{ text: { content: data.itemId } }] },
+      Label:       { rich_text: [{ text: { content: data.label || "" } }] },
+      Building:    { select:    { name: data.building } },
+      Floor:       { select:    { name: data.floor } },
+      EventType:   { select:    { name: data.eventType } },
+      From:        { rich_text: [{ text: { content: data.from || "" } }] },
+      To:          { rich_text: [{ text: { content: data.to || "" } }] },
+      Description: { rich_text: [{ text: { content: data.description || "" } }] },
+      Status:      { select:    { name: initialStatus } },
+      CreatedAt:   { date:      { start: now } },
+      CreatedBy:   { rich_text: [{ text: { content: data.createdBy || "" } }] },
+    },
+  });
+
+  return response.id;
+}
+
+export async function updateMonitorHistoryStatus(
+  pageId: string,
+  status: "pending" | "수리중" | "in_progress" | "done",
+): Promise<void> {
+  await notion.pages.update({
+    page_id: pageId,
+    properties: { Status: { select: { name: status } } },
+  });
 }
