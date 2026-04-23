@@ -349,6 +349,10 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
   const [canvasH,      setCanvasH]      = useState(700);
   const [cwInput,      setCwInput]      = useState("1000");
   const [chInput,      setChInput]      = useState("700");
+  const [gridMode,     setGridMode]     = useState(false);
+  const [gridRows,     setGridRows]     = useState(2);
+  const [gridCols,     setGridCols]     = useState(3);
+  const [gridGap,      setGridGap]      = useState(8);
 
   const dragRef      = useRef<DragInfo | null>(null);
   const clipboardRef = useRef<PlacedItem[]>([]);
@@ -486,6 +490,26 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
     }
     if (tool === "monitor") {
       const d = ITEM_DEF.monitor;
+      if (gridMode && (gridRows > 1 || gridCols > 1)) {
+        const totalW = gridCols * d.w + (gridCols - 1) * gridGap;
+        const totalH = gridRows * d.h + (gridRows - 1) * gridGap;
+        const startX = pt.x - totalW / 2;
+        const startY = pt.y - totalH / 2;
+        const newItems: PlacedItem[] = [];
+        for (let r = 0; r < gridRows; r++) {
+          for (let c = 0; c < gridCols; c++) {
+            newItems.push({ id: uid(), kind: "monitor", monitorType,
+              x: startX + c * (d.w + gridGap), y: startY + r * (d.h + gridGap),
+              w: d.w, h: d.h, rotation: 0, label: "Monitor", tags: [] });
+          }
+        }
+        const group: Group = { id: uid(), name: `${gridRows}×${gridCols} 그룹`, memberIds: newItems.map(i => i.id) };
+        const newIds = newItems.map(i => i.id);
+        onChange({ ...data, items: [...data.items, ...newItems], groups: [...(data.groups ?? []), group], renderOrder: [...(data.renderOrder ?? []), ...newIds] });
+        setSelectedIds(new Set(newIds));
+        if (!e.shiftKey) setTool("select");
+        return;
+      }
       const item: PlacedItem = {
         id: uid(), kind: "monitor", monitorType,
         x: pt.x-d.w/2, y: pt.y-d.h/2, w: d.w, h: d.h,
@@ -747,7 +771,7 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
         </div>
 
         {tool==="monitor" && (
-          <div className="flex gap-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
             {MONITOR_TYPES.map(t => (
               <button key={t} onClick={() => setMonitorType(t)}
                 className={`px-2 py-1 rounded text-xs font-medium border transition-colors ${
@@ -757,6 +781,22 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
                 {MONITOR_META[t].label}
               </button>
             ))}
+            <div className="w-px h-4 bg-gray-200"/>
+            <button onClick={() => setGridMode(g => !g)}
+              className={`px-2 py-1 rounded text-xs font-medium border transition-colors ${
+                gridMode ? "bg-blue-600 text-white border-transparent" : "text-gray-600 border-gray-200 hover:bg-gray-50"
+              }`}>⊞ 그리드</button>
+            {gridMode && (<>
+              <input type="number" min={1} max={20} value={gridRows}
+                onChange={e => setGridRows(Math.max(1, Math.min(20, +e.target.value)))}
+                className="w-10 px-1.5 py-1 rounded border border-gray-200 text-center text-xs"/>
+              <span className="text-gray-400 text-xs">행 ×</span>
+              <input type="number" min={1} max={20} value={gridCols}
+                onChange={e => setGridCols(Math.max(1, Math.min(20, +e.target.value)))}
+                className="w-10 px-1.5 py-1 rounded border border-gray-200 text-center text-xs"/>
+              <span className="text-gray-400 text-xs">열</span>
+              <span className="text-[10px] text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded">= {gridRows * gridCols}개</span>
+            </>)}
           </div>
         )}
 
