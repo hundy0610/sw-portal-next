@@ -2,11 +2,13 @@
 import { type EditorData } from "./FloorMapEditor";
 
 const MONITOR_META: Record<string, { label: string; color: string }> = {
-  std27: { label: '27"', color: "#2563EB" },
-  std24: { label: '24"', color: "#0284C7" },
-  dev34: { label: '34"', color: "#7C3AED" },
-  none:  { label: "✕",  color: "#DC2626" },
-  unk:   { label: "·",  color: "#94A3B8" },
+  std27:     { label: '27"', color: "#2563EB" },
+  std24:     { label: '24"', color: "#0284C7" },
+  dev34:     { label: '34"', color: "#7C3AED" },
+  none:      { label: "✕",  color: "#DC2626" },
+  unk:       { label: "·",  color: "#94A3B8" },
+  repair:    { label: "요청", color: "#F97316" },
+  repairing: { label: "수리", color: "#EF4444" },
 };
 const FACILITY_META: Record<string, { icon: string; color: string }> = {
   elevator: { icon: "EV",   color: "#1D4ED8" },

@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 
-export type MonitorType = "std27" | "std24" | "dev34" | "none" | "unk";
+export type MonitorType = "std27" | "std24" | "dev34" | "none" | "unk" | "repair" | "repairing";
 export interface SketchSeat { id: string; type: MonitorType; }
 export interface SketchZone { id: string; label: string; seats: SketchSeat[]; }
 export interface SketchCtx {

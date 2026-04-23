@@ -8,7 +8,7 @@ import FloorMapView from "./FloorMapView";
 // ══════════════════════════════════════════════════════════════════════════════
 // TYPES
 // ══════════════════════════════════════════════════════════════════════════════
-type MonitorType = "std27" | "std24" | "dev34" | "none" | "unk";
+type MonitorType = "std27" | "std24" | "dev34" | "none" | "unk" | "repair" | "repairing";
 type FilterMode  = "all" | MonitorType;
 
 interface SeatData {
@@ -58,13 +58,15 @@ interface FloorSvgCfg{
 // MONITOR META
 // ══════════════════════════════════════════════════════════════════════════════
 const MONITOR = {
-  std27: { label:'27"',  long:'표준형 27"',  color:"#2563EB", pale:"#DBEAFE", border:"#93C5FD" },
-  std24: { label:'24"',  long:'표준형 24"',  color:"#0284C7", pale:"#E0F2FE", border:"#7DD3FC" },
-  dev34: { label:'34"',  long:'개발자 34"',  color:"#7C3AED", pale:"#EDE9FE", border:"#C4B5FD" },
-  none:  { label:"✕",   long:"미설치",      color:"#DC2626", pale:"#FEE2E2", border:"#FCA5A5" },
-  unk:   { label:"·",   long:"미확인",      color:"#94A3B8", pale:"#F1F5F9", border:"#CBD5E1" },
+  std27:     { label:'27"',  long:'표준형 27"',  color:"#2563EB", pale:"#DBEAFE", border:"#93C5FD" },
+  std24:     { label:'24"',  long:'표준형 24"',  color:"#0284C7", pale:"#E0F2FE", border:"#7DD3FC" },
+  dev34:     { label:'34"',  long:'개발자 34"',  color:"#7C3AED", pale:"#EDE9FE", border:"#C4B5FD" },
+  none:      { label:"✕",   long:"미설치",      color:"#DC2626", pale:"#FEE2E2", border:"#FCA5A5" },
+  unk:       { label:"·",   long:"미확인",      color:"#94A3B8", pale:"#F1F5F9", border:"#CBD5E1" },
+  repair:    { label:"요청", long:"수리 요청",   color:"#F97316", pale:"#FFF7ED", border:"#FED7AA" },
+  repairing: { label:"수리", long:"수리 중",     color:"#EF4444", pale:"#FEF2F2", border:"#FECACA" },
 } as const;
-const TYPES: MonitorType[] = ["std27","std24","dev34","none","unk"];
+const TYPES: MonitorType[] = ["std27","std24","dev34","none","unk","repair","repairing"];
 
 // ══════════════════════════════════════════════════════════════════════════════
 // DATA HELPERS
@@ -1017,6 +1019,8 @@ function ItemDetailPanel({
       setSubmitMsg("✓ 수리 요청이 접수되었습니다.");
       setRepairOpen(false); setRepairNote("");
       loadHistory();
+      // 모니터 상태를 "수리 요청"으로 자동 변경
+      onUpdateType(item.id, "repair");
     } catch (e: any) {
       setSubmitMsg(`✗ ${e.message}`);
     } finally {

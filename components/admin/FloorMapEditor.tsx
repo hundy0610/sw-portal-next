@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from "react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-type MonitorType = "std27" | "std24" | "dev34" | "none" | "unk";
+type MonitorType = "std27" | "std24" | "dev34" | "none" | "unk" | "repair" | "repairing";
 type EditTool    = "select" | "monitor" | "zone" | "facility";
 type FacilityKind = "elevator" | "stairs" | "entrance" | "exit" | "restroom";
 type ResizeHandle = "move" | "nw"|"n"|"ne"|"w"|"e"|"sw"|"s"|"se" | "r";
@@ -66,11 +66,13 @@ interface DragInfo {
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const MONITOR_META: Record<MonitorType, { label: string; color: string; long: string }> = {
-  std27: { label: '27"', color: "#2563EB", long: '표준 27"' },
-  std24: { label: '24"', color: "#0284C7", long: '표준 24"' },
-  dev34: { label: '34"', color: "#7C3AED", long: '개발자 34"' },
-  none:  { label: "✕",  color: "#DC2626", long: "미설치" },
-  unk:   { label: "·",  color: "#94A3B8", long: "미확인" },
+  std27:     { label: '27"', color: "#2563EB", long: '표준 27"' },
+  std24:     { label: '24"', color: "#0284C7", long: '표준 24"' },
+  dev34:     { label: '34"', color: "#7C3AED", long: '개발자 34"' },
+  none:      { label: "✕",  color: "#DC2626", long: "미설치" },
+  unk:       { label: "·",  color: "#94A3B8", long: "미확인" },
+  repair:    { label: "요청", color: "#F97316", long: "수리 요청" },
+  repairing: { label: "수리", color: "#EF4444", long: "수리 중" },
 };
 
 const FACILITY_META: Record<FacilityKind, { label: string; icon: string; color: string }> = {
@@ -82,7 +84,7 @@ const FACILITY_META: Record<FacilityKind, { label: string; icon: string; color: 
 };
 
 const ZONE_COLORS  = ["#3B82F6","#10B981","#F59E0B","#EF4444","#8B5CF6","#EC4899","#06B6D4","#84CC16"];
-const MONITOR_TYPES: MonitorType[]   = ["std27","std24","dev34","none","unk"];
+const MONITOR_TYPES: MonitorType[]   = ["std27","std24","dev34","none","unk","repair","repairing"];
 const FACILITY_KINDS: FacilityKind[] = ["elevator","stairs","entrance","exit","restroom"];
 const ITEM_DEF = { monitor: { w: 50, h: 36 } };
 const FAC_DEF_R = 22;
