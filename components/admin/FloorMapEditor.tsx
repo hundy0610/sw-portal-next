@@ -66,6 +66,7 @@ interface DragInfo {
   rotStartDeg?: number;
   rotCx?: number;
   rotCy?: number;
+  rotGroupMemberIds?: string[];
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -570,7 +571,21 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
       const newRotation = ((drag.rotStartDeg! + delta) % 360 + 360) % 360;
       drag.rotPrevAngle = currentAngle;
       drag.rotStartDeg  = newRotation;
-      onChange({ ...data, items: data.items.map(i => i.id === primaryId ? { ...i, rotation: Math.round(newRotation) } : i) });
+      const memberIds = drag.rotGroupMemberIds;
+      if (memberIds && memberIds.length > 0) {
+        const rad = delta * Math.PI / 180;
+        const cos = Math.cos(rad), sin = Math.sin(rad);
+        onChange({ ...data, items: data.items.map(i => {
+          if (i.id === primaryId) return { ...i, rotation: Math.round(newRotation) };
+          if (!memberIds.includes(i.id)) return i;
+          const icx = i.x + i.w / 2 - rcx, icy = i.y + i.h / 2 - rcy;
+          const ncx = rcx + icx * cos - icy * sin;
+          const ncy = rcy + icx * sin + icy * cos;
+          return { ...i, x: ncx - i.w / 2, y: ncy - i.h / 2, rotation: Math.round(((i.rotation + delta) % 360 + 360) % 360) };
+        }) });
+      } else {
+        onChange({ ...data, items: data.items.map(i => i.id === primaryId ? { ...i, rotation: Math.round(newRotation) } : i) });
+      }
 
     } else {
       const { nx, ny, nw, nh } = applyResize(handle, dx, dy, ox, oy, ow, oh);
@@ -1026,13 +1041,27 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
                             onMouseDown={e => {
                               e.stopPropagation(); e.preventDefault();
                               const pt = getSVGCoords(e, svgRef, canvasW, canvasH);
-                              const startAngle = Math.atan2(pt.y - cy, pt.x - cx);
+                              const group = data.groups?.find(g => g.memberIds.includes(item.id));
+                              const memberIds = group ? group.memberIds.filter(mid => mid !== item.id) : [];
+                              let pivotCx = cx, pivotCy = cy;
+                              if (memberIds.length > 0) {
+                                const allIds = [item.id, ...memberIds];
+                                const allItems = data.items.filter(i => allIds.includes(i.id));
+                                const minX = Math.min(...allItems.map(i => i.x));
+                                const minY = Math.min(...allItems.map(i => i.y));
+                                const maxX = Math.max(...allItems.map(i => i.x + i.w));
+                                const maxY = Math.max(...allItems.map(i => i.y + i.h));
+                                pivotCx = (minX + maxX) / 2;
+                                pivotCy = (minY + maxY) / 2;
+                              }
+                              const startAngle = Math.atan2(pt.y - pivotCy, pt.x - pivotCx);
                               dragRef.current = {
                                 primaryId: item.id, entityKind: "item", handle: "rot",
                                 sx: pt.x, sy: pt.y, ox: x, oy: y, ow: w, oh: h,
                                 groupOrigins: [],
                                 rotPrevAngle: startAngle, rotStartDeg: item.rotation,
-                                rotCx: cx, rotCy: cy,
+                                rotCx: pivotCx, rotCy: pivotCy,
+                                rotGroupMemberIds: memberIds,
                               };
                               setSelectedIds(new Set([item.id]));
                             }}/>
