@@ -2,7 +2,7 @@ name: Cache Warming
 
 on:
   schedule:
-    # 매 5분마다 실행 — Vercel 함수 웜 유지 + 캐시 신선도 확보
+    # 매 5분마다 실행 — Vercel 함수 warm 유지 + Notion 캐시 사전 적재
     - cron: "*/5 * * * *"
   workflow_dispatch: # 수동 실행 버튼
 
@@ -16,15 +16,28 @@ jobs:
         run: |
           echo "🔥 캐시 워밍 시작: $(date)"
 
-          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
-            -X GET "${{ secrets.NEXT_PUBLIC_BASE_URL }}/api/cron/warm-cache" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            --max-time 30)
+          BASE_URL="https://swportal.vercel.app"
+          SECRET="${{ secrets.CRON_SECRET }}"
+
+          # CRON_SECRET이 설정된 경우에만 Authorization 헤더 추가
+          if [ -n "$SECRET" ]; then
+            RESPONSE=$(curl -s -o response.txt -w "%{http_code}" \
+              -X GET "${BASE_URL}/api/cron/warm-cache" \
+              -H "Authorization: Bearer ${SECRET}" \
+              --max-time 45)
+          else
+            RESPONSE=$(curl -s -o response.txt -w "%{http_code}" \
+              -X GET "${BASE_URL}/api/cron/warm-cache" \
+              --max-time 45)
+          fi
 
           echo "응답 상태: $RESPONSE"
+          cat response.txt 2>/dev/null | head -c 300 || true
 
           if [ "$RESPONSE" = "200" ]; then
             echo "✅ 캐시 워밍 완료"
           else
-            echo "⚠️ 응답 코드: $RESPONSE (첫 실행이거나 일시적 오류)"
+            echo "⚠️ 응답 코드: $RESPONSE"
+            # 200이 아니어도 워크플로우는 성공으로 처리 (일시적 오류 허용)
+            exit 0
           fi
