@@ -5,7 +5,7 @@ import { useState, useRef, useEffect } from "react";
 type MonitorType = "std27" | "std24" | "dev34" | "none" | "unk" | "repair" | "repairing";
 type EditTool    = "select" | "monitor" | "zone" | "facility";
 type FacilityKind = "elevator" | "stairs" | "entrance" | "exit" | "restroom";
-type ResizeHandle = "move" | "nw"|"n"|"ne"|"w"|"e"|"sw"|"s"|"se" | "r";
+type ResizeHandle = "move" | "nw"|"n"|"ne"|"w"|"e"|"sw"|"s"|"se" | "r" | "rot";
 
 interface PlacedItem {
   id: string;
@@ -62,6 +62,10 @@ interface DragInfo {
   sx: number; sy: number;
   ox: number; oy: number; ow: number; oh: number;
   groupOrigins?: GroupOrigin[];
+  rotPrevAngle?: number;
+  rotStartDeg?: number;
+  rotCx?: number;
+  rotCy?: number;
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -347,6 +351,7 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
   const [chInput,      setChInput]      = useState("700");
 
   const dragRef      = useRef<DragInfo | null>(null);
+  const clipboardRef = useRef<PlacedItem[]>([]);
   const zoneStartRef = useRef<{ x:number;y:number } | null>(null);
   const zoneColorIdx = useRef(0);
 
@@ -532,6 +537,17 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
       const newR = Math.max(15, ow/2 + dx);
       onChange({ ...data, facilities: data.facilities.map(f => f.id===primaryId ? {...f, r:newR} : f) });
 
+    } else if (handle === "rot") {
+      const rcx = drag.rotCx!, rcy = drag.rotCy!;
+      const currentAngle = Math.atan2(pt.y - rcy, pt.x - rcx);
+      let delta = (currentAngle - drag.rotPrevAngle!) * (180 / Math.PI);
+      if (delta > 180) delta -= 360;
+      if (delta < -180) delta += 360;
+      const newRotation = ((drag.rotStartDeg! + delta) % 360 + 360) % 360;
+      drag.rotPrevAngle = currentAngle;
+      drag.rotStartDeg  = newRotation;
+      onChange({ ...data, items: data.items.map(i => i.id === primaryId ? { ...i, rotation: Math.round(newRotation) } : i) });
+
     } else {
       const { nx, ny, nw, nh } = applyResize(handle, dx, dy, ox, oy, ow, oh);
       if (entityKind === "item")
@@ -648,10 +664,33 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
   const deleteRef = useRef(deleteSelected);
   deleteRef.current = deleteSelected;
 
+  const copyRef = useRef(() => {});
+  copyRef.current = () => {
+    const copied = data.items.filter(i => selectedIds.has(i.id));
+    if (copied.length > 0) clipboardRef.current = copied;
+  };
+
+  const pasteRef = useRef(() => {});
+  pasteRef.current = () => {
+    const templates = clipboardRef.current;
+    if (templates.length === 0) return;
+    const OFFSET = 20;
+    const newItems = templates.map(t => ({ ...t, id: uid(), x: t.x + OFFSET, y: t.y + OFFSET }));
+    onChange({
+      ...data,
+      items: [...data.items, ...newItems],
+      renderOrder: [...(data.renderOrder ?? []), ...newItems.map(i => i.id)],
+    });
+    setSelectedIds(new Set(newItems.map(i => i.id)));
+    clipboardRef.current = newItems;
+  };
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const tag = (e.target as Element).tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if ((e.ctrlKey || e.metaKey) && e.key === "c") { e.preventDefault(); copyRef.current(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key === "v") { e.preventDefault(); pasteRef.current(); return; }
       if (e.key === "Delete" || e.key === "Backspace") deleteRef.current();
       if (e.key === "Escape") {
         setSelectedIds(new Set()); setPendingZone(null);
@@ -751,7 +790,7 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
         )}
 
         <span className="text-[10px] text-gray-400 hidden lg:block">
-          {tool==="select"   && "클릭 선택 | Shift+클릭 다중선택 | 드래그 이동 | Del 삭제"}
+          {tool==="select"   && "클릭 선택 | Shift+클릭 다중선택 | Ctrl+C/V 복사·붙여넣기 | ↻ 핸들 드래그 회전 | Del 삭제"}
           {tool==="monitor"  && "캔버스 클릭 → 모니터 배치"}
           {tool==="zone"     && "드래그로 공간 영역 지정"}
           {tool==="facility" && "클릭으로 시설물 마커 배치"}
@@ -936,6 +975,32 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
                         <ResizeHandles x={x} y={y} w={w} h={h}
                           onStart={(e, handle) => startDrag(e, item.id, "item", handle, x, y, w, h)}/>
                       )}
+                      {isSel && tool==="select" && (
+                        <>
+                          <line x1={cx} y1={y - 1} x2={cx} y2={y - 22}
+                            stroke="#2563EB" strokeWidth={1} strokeDasharray="3,2"
+                            style={{ pointerEvents: "none" }}/>
+                          <circle cx={cx} cy={y - 30} r={11}
+                            fill="white" stroke="#2563EB" strokeWidth={1.5}
+                            style={{ cursor: "grab" }}
+                            onMouseDown={e => {
+                              e.stopPropagation(); e.preventDefault();
+                              const pt = getSVGCoords(e, svgRef, canvasW, canvasH);
+                              const startAngle = Math.atan2(pt.y - cy, pt.x - cx);
+                              dragRef.current = {
+                                primaryId: item.id, entityKind: "item", handle: "rot",
+                                sx: pt.x, sy: pt.y, ox: x, oy: y, ow: w, oh: h,
+                                groupOrigins: [],
+                                rotPrevAngle: startAngle, rotStartDeg: item.rotation,
+                                rotCx: cx, rotCy: cy,
+                              };
+                              setSelectedIds(new Set([item.id]));
+                            }}/>
+                          <text x={cx} y={y - 30} textAnchor="middle" dominantBaseline="middle"
+                            fontSize={13} fill="#2563EB" fontWeight="bold"
+                            style={{ pointerEvents: "none", userSelect: "none" }}>↻</text>
+                        </>
+                      )}
                     </g>
                   );
                 }
@@ -984,6 +1049,8 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
                 <div>• Del — 선택 삭제</div>
                 <div>• Esc — 선택 해제</div>
                 <div>• Shift+클릭 — 다중선택</div>
+                <div>• Ctrl+C / V — 복사·붙여넣기</div>
+                <div>• ↻ 핸들 드래그 — 회전</div>
                 <div>• 핸들 드래그 — 리사이즈</div>
               </div>
             </div>
