@@ -11,8 +11,9 @@ function getClient(): Redis | null {
   try {
     _client = new Redis(process.env.REDIS_URL, {
       maxRetriesPerRequest: 1,
-      connectTimeout: 2000,   // 3000ms → 2000ms
-      enableOfflineQueue: false, // 연결 전 요청 큐잉 비활성화 (빠른 실패)
+      connectTimeout: 3000,
+      // enableOfflineQueue 기본값(true) 유지 — 연결 전 요청을 큐에 보관
+      // false로 설정 시 서버리스 콜드 스타트에서 연결 완료 전 즉시 실패
     });
     _client.on("error", (e) => console.warn("[KV] Redis error:", e.message));
     return _client;
