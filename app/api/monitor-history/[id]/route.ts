@@ -32,7 +32,7 @@ export async function PATCH(
   if (!isPrivileged) return NextResponse.json({ ok: false, error: "권한 없음" }, { status: 403 });
 
   const { status } = await req.json();
-  if (!["pending", "in_progress", "done"].includes(status)) {
+  if (!["pending", "수리중", "in_progress", "done"].includes(status)) {
     return NextResponse.json({ ok: false, error: "유효하지 않은 상태값" }, { status: 400 });
   }
 

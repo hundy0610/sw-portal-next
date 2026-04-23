@@ -100,6 +100,13 @@ function getPageUrl(pageId: string): string {
   return `https://www.notion.so/${pageId.replace(/-/g, "")}`;
 }
 
+/** 32자 hex → 8-4-4-4-12 UUID 형식으로 정규화 (Notion pages.create 검증 통과) */
+function toNotionId(raw: string): string {
+  const h = raw.replace(/-/g, "").toLowerCase();
+  if (h.length !== 32) return raw;
+  return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
+}
+
 // ────────────────────────────────────────────────────────────
 // 전체 데이터베이스 페이지 조회 (페이지네이션 처리)
 // ────────────────────────────────────────────────────────────
@@ -594,7 +601,7 @@ export interface MonitorHistoryEntry {
   from: string;
   to: string;
   description: string;
-  status: "pending" | "in_progress" | "done";
+  status: "pending" | "수리중" | "in_progress" | "done";
   createdAt: string;
   createdBy: string;
 }
@@ -607,6 +614,7 @@ export async function fetchMonitorHistory(opts: {
 }): Promise<MonitorHistoryEntry[]> {
   const dbId = process.env.NOTION_DB_MONITOR_HISTORY;
   if (!dbId) return [];
+  const normalizedDbId = toNotionId(dbId);
 
   const filters: any[] = [];
   if (opts.itemId)   filters.push({ property: "ItemId",   rich_text: { equals: opts.itemId } });
@@ -618,7 +626,7 @@ export async function fetchMonitorHistory(opts: {
     filters.length === 1 ? filters[0] :
     { and: filters };
 
-  const pages = await queryAllPages(dbId, filter, [
+  const pages = await queryAllPages(normalizedDbId, filter, [
     { property: "CreatedAt", direction: "descending" },
   ]);
 
@@ -658,9 +666,11 @@ export async function createMonitorHistory(data: {
 
   const now   = new Date().toISOString();
   const title = `${data.itemId}-${Date.now()}`;
+  // 수리 요청은 초기 상태를 "수리중"으로 설정
+  const initialStatus = data.eventType === "repair_request" ? "수리중" : "pending";
 
   const response = await notion.pages.create({
-    parent: { database_id: dbId },
+    parent: { database_id: toNotionId(dbId) },
     properties: {
       Title:       { title:     [{ text: { content: title } }] },
       ItemId:      { rich_text: [{ text: { content: data.itemId } }] },
@@ -671,7 +681,7 @@ export async function createMonitorHistory(data: {
       From:        { rich_text: [{ text: { content: data.from || "" } }] },
       To:          { rich_text: [{ text: { content: data.to || "" } }] },
       Description: { rich_text: [{ text: { content: data.description || "" } }] },
-      Status:      { select:    { name: "pending" } },
+      Status:      { select:    { name: initialStatus } },
       CreatedAt:   { date:      { start: now } },
       CreatedBy:   { rich_text: [{ text: { content: data.createdBy || "" } }] },
     },
@@ -682,7 +692,7 @@ export async function createMonitorHistory(data: {
 
 export async function updateMonitorHistoryStatus(
   pageId: string,
-  status: "pending" | "in_progress" | "done",
+  status: "pending" | "수리중" | "in_progress" | "done",
 ): Promise<void> {
   await notion.pages.update({
     page_id: pageId,
