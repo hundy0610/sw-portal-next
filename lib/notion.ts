@@ -527,6 +527,48 @@ function chunkString(str: string, size = 1900): string[] {
   return out;
 }
 
+// Notion 파일 업로드 API (SDK v2.x 미지원 → raw fetch)
+// 반환값: file_upload ID (Notion 페이지 저장 시 참조)
+async function uploadImageToNotion(base64DataUrl: string): Promise<string> {
+  const token = process.env.NOTION_TOKEN;
+  if (!token) throw new Error("NOTION_TOKEN이 설정되지 않았습니다.");
+
+  const matches = base64DataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  if (!matches) throw new Error("유효하지 않은 base64 이미지 형식입니다.");
+  const contentType = matches[1];
+  const buffer = Buffer.from(matches[2], "base64");
+  const filename = `floor-map-${Date.now()}.jpg`;
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    "Notion-Version": "2025-02-12",
+  };
+
+  // Step 1: 파일 업로드 객체 생성
+  const createRes = await fetch("https://api.notion.com/v1/file_uploads", {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({ mode: "single_part", filename, content_type: contentType }),
+  });
+  if (!createRes.ok) {
+    throw new Error(`Notion 파일 업로드 생성 실패: ${await createRes.text()}`);
+  }
+  const { id: fileUploadId } = await createRes.json();
+
+  // Step 2: 파일 바이너리 전송
+  const formData = new FormData();
+  formData.append("file", new Blob([buffer], { type: contentType }), filename);
+  const sendRes = await fetch(`https://api.notion.com/v1/file_uploads/${fileUploadId}/send`, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+  if (!sendRes.ok) {
+    throw new Error(`Notion 파일 전송 실패: ${await sendRes.text()}`);
+  }
+
+  return fileUploadId;
+}
+
 export async function fetchFloorMap(building: string, floor: string): Promise<object | null> {
   const dbId = process.env.NOTION_DB_FLOOR_MAPS;
   if (!dbId) return null;
@@ -541,9 +583,18 @@ export async function fetchFloorMap(building: string, floor: string): Promise<ob
 
   const page = res.results[0] as PageObjectResponse;
 
-  // bgImage: 배경 이미지 URL
-  const imageUrl = ((page.properties?.bgImage as any)?.rich_text ?? [])
-    .map((r: any) => r.plain_text as string).join("") || null;
+  // bgImageFile (Files & media) → 매 API 호출마다 새로운 1시간 서명 URL 발급
+  let imageUrl: string | null = null;
+  const bgImageFileProp = (page.properties?.bgImageFile as any);
+  if (bgImageFileProp?.files?.length > 0) {
+    const f = bgImageFileProp.files[0];
+    imageUrl = f.type === "file" ? (f.file?.url ?? null) : (f.external?.url ?? null);
+  } else {
+    // 레거시: base64가 rich_text에 저장된 기존 데이터 하위 호환
+    const legacy = ((page.properties?.bgImage as any)?.rich_text ?? [])
+      .map((r: any) => r.plain_text as string).join("") || null;
+    imageUrl = legacy;
+  }
 
   // elements: items/zones/facilities/groups/renderOrder JSON
   const elementsJson = ((page.properties?.elements as any)?.rich_text ?? [])
@@ -562,31 +613,33 @@ export async function saveFloorMap(
   building: string,
   floor: string,
   data: any,
-): Promise<{ ok: boolean; imageSkipped?: boolean }> {
+): Promise<{ ok: boolean }> {
   const dbId = process.env.NOTION_DB_FLOOR_MAPS;
   if (!dbId) throw new Error("NOTION_DB_FLOOR_MAPS 환경변수가 설정되지 않았습니다.");
 
   const key = `${building}-${floor}`;
-
-  // imageUrl은 bgImage 프로퍼티에, 나머지는 elements에 저장
   const { imageUrl, ...elements } = data as any;
 
-  const bgRaw   = chunkString(imageUrl ?? "");
-  const elRaw   = chunkString(JSON.stringify(elements));
-
-  // Notion 한도(100개) 초과 시 bgImage 저장 생략
-  const imageSkipped = bgRaw.length > NOTION_RT_LIMIT;
-  const bgImageChunks  = imageSkipped
-    ? []
-    : bgRaw.map((c: string) => ({ text: { content: c } }));
+  const elRaw = chunkString(JSON.stringify(elements));
   const elementsChunks = elRaw.slice(0, NOTION_RT_LIMIT)
     .map((c: string) => ({ text: { content: c } }));
 
   const props: Record<string, any> = {
     Title:    { title: [{ text: { content: key } }] },
-    bgImage:  { rich_text: bgImageChunks },
     elements: { rich_text: elementsChunks },
   };
+
+  if (!imageUrl) {
+    // 이미지 없음 → 첨부파일 초기화 + 레거시 필드 초기화
+    props.bgImageFile = { files: [] };
+    props.bgImage     = { rich_text: [] };
+  } else if (imageUrl.startsWith("data:")) {
+    // 새로 선택한 이미지(base64) → Notion에 업로드
+    const fileUploadId = await uploadImageToNotion(imageUrl);
+    props.bgImageFile = { files: [{ type: "file_upload", file_upload: { id: fileUploadId } }] };
+    props.bgImage     = { rich_text: [] }; // 레거시 필드 초기화
+  }
+  // imageUrl이 https:// 인 경우(Notion 서명 URL): bgImageFile을 건드리지 않아 기존 첨부 유지
 
   const existing = await notion.databases.query({
     database_id: dbId,
@@ -600,7 +653,7 @@ export async function saveFloorMap(
     await notion.pages.create({ parent: { database_id: dbId }, properties: props });
   }
 
-  return { ok: true, imageSkipped };
+  return { ok: true };
 }
 
 // ────────────────────────────────────────────────────────────
