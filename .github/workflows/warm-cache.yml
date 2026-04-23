@@ -17,19 +17,10 @@ jobs:
           echo "🔥 캐시 워밍 시작: $(date)"
 
           BASE_URL="https://swportal.vercel.app"
-          SECRET="${{ secrets.CRON_SECRET }}"
 
-          # CRON_SECRET이 설정된 경우에만 Authorization 헤더 추가
-          if [ -n "$SECRET" ]; then
-            RESPONSE=$(curl -s -o response.txt -w "%{http_code}" \
-              -X GET "${BASE_URL}/api/cron/warm-cache" \
-              -H "Authorization: Bearer ${SECRET}" \
-              --max-time 45)
-          else
-            RESPONSE=$(curl -s -o response.txt -w "%{http_code}" \
-              -X GET "${BASE_URL}/api/cron/warm-cache" \
-              --max-time 45)
-          fi
+          RESPONSE=$(curl -s -o response.txt -w "%{http_code}" \
+            -X GET "${BASE_URL}/api/cron/warm-cache" \
+            --max-time 45)
 
           echo "응답 상태: $RESPONSE"
           cat response.txt 2>/dev/null | head -c 300 || true
