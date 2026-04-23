@@ -351,6 +351,58 @@ export async function fetchLicenseRecords(): Promise<LicenseRecord[]> {
 // ────────────────────────────────────────────────────────────
 // 티켓 DB 조회
 // ────────────────────────────────────────────────────────────
+export interface HelpDeskTicket {
+  id: string;
+  title: string;
+  status: string;
+  inquiryType: string;
+  company: string;
+  department: string;
+  requester: string;
+  assetNo: string;
+  content: string;
+  urgency: string;
+  team: string;
+  assignee: string;
+  submittedAt: string;
+  lastEditedAt: string;
+  notionUrl: string;
+}
+
+export async function fetchHelpDeskTickets(): Promise<HelpDeskTicket[]> {
+  const dbId = process.env.NOTION_DB_HELPDESK || process.env.NOTION_DB_TICKETS;
+  if (!dbId) throw new Error("NOTION_DB_HELPDESK 환경변수가 설정되지 않았습니다.");
+
+  const pages = await queryAllPages(dbId, undefined, [
+    { timestamp: "created_time", direction: "descending" },
+  ]);
+
+  return pages.map((page) => {
+    const p = page.properties;
+    const submittedAt =
+      getPropDate(p, "문의 제출 시간") ||
+      getPropDate(p, "Created") ||
+      page.created_time;
+    return {
+      id: page.id,
+      title: getPropText(p, "제목") || getPropText(p, "Title") || getPropText(p, "No") || "",
+      status: getPropSelect(p, "상태") || getPropSelect(p, "Status") || "진행 중",
+      inquiryType: getPropSelect(p, "문의유형") || getPropSelect(p, "Category") || "기타",
+      company: getPropSelect(p, "법인") || getPropText(p, "법인") || "",
+      department: getPropText(p, "부서") || getPropText(p, "Department") || "",
+      requester: getPropText(p, "문의자") || getPropPeople(p, "문의자") || getPropText(p, "Requester") || "",
+      assetNo: getPropText(p, "자산번호") || "",
+      content: getPropText(p, "문의내용") || getPropText(p, "Description") || "",
+      urgency: getPropSelect(p, "긴급도") || "",
+      team: getPropMultiSelect(p, "Team").join(", ") || getPropSelect(p, "Team") || "",
+      assignee: getPropPeople(p, "담당자") || getPropPeople(p, "Assignee") || "",
+      submittedAt,
+      lastEditedAt: page.last_edited_time,
+      notionUrl: getPageUrl(page.id),
+    };
+  });
+}
+
 export async function fetchTickets(): Promise<Ticket[]> {
   const dbId = process.env.NOTION_DB_TICKETS;
   if (!dbId) throw new Error("NOTION_DB_TICKETS 환경변수가 설정되지 않았습니다.");
