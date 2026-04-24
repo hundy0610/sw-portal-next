@@ -396,7 +396,7 @@ function generateReportHTML(opts: {
 }
 
 // ── Main Panel ───────────────────────────────────────────────
-type Tab = "overview" | "type" | "company" | "list" | "report";
+type Tab = "overview" | "type" | "company" | "list" | "report" | "assignee";
 
 export default function HelpDeskPanel() {
   const [tickets, setTickets]       = useState<HelpDeskTicket[]>([]);
@@ -605,11 +605,12 @@ export default function HelpDeskPanel() {
       {/* ── Tab Bar ── */}
       <div className="flex gap-1 mb-5 bg-gray-100 p-1 rounded-xl w-fit">
         {([
-          ["overview", "📈", "개요"],
-          ["type",     "🏷",  "유형분석"],
-          ["company",  "🏢", "법인현황"],
-          ["list",     "📋", "목록"],
-          ["report",   "📄", "보고서"],
+          ["overview",  "📈", "개요"],
+          ["type",      "🏷",  "유형분석"],
+          ["company",   "🏢", "법인현황"],
+          ["assignee",  "👤", "담당자"],
+          ["list",      "📋", "목록"],
+          ["report",    "📄", "보고서"],
         ] as [Tab, string, string][]).map(([id, icon, label]) => (
           <button key={id} onClick={() => setTab(id)}
             className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
@@ -940,6 +941,210 @@ export default function HelpDeskPanel() {
           </div>
         </div>
       )}
+
+      {/* ════ Tab: 담당자 */}
+      {tab === "assignee" && (() => {
+        // 담당자별 평가 데이터 집계
+        const now = new Date();
+        const thisYear = now.getFullYear();
+
+        // 평가가 있는 완료 티켓만 대상
+        const ratedTickets = tickets.filter(t => t.status === "완료" && feedbacks[t.id] && t.assignee);
+
+        // 담당자 목록
+        const assigneeNames = [...new Set(ratedTickets.map(t => t.assignee))].sort();
+
+        if (assigneeNames.length === 0) return (
+          <div className="bg-white border border-gray-200 rounded-xl p-10 text-center text-gray-400 text-sm">
+            아직 수집된 만족도 평가가 없습니다.<br />
+            <span className="text-xs text-gray-300 mt-1 block">처리 완료 후 평가 링크를 사용자에게 전달해주세요.</span>
+          </div>
+        );
+
+        // 최근 6개월 라벨
+        const recentMonths = last6Months();
+
+        // 담당자별 통계 계산
+        const assigneeStats = assigneeNames.map(name => {
+          const myTickets = ratedTickets.filter(t => t.assignee === name);
+          const ratings   = myTickets.map(t => feedbacks[t.id].rating);
+
+          // 전체 평균
+          const totalAvg = ratings.length > 0
+            ? (ratings.reduce((s, r) => s + r, 0) / ratings.length)
+            : null;
+
+          // 연평균 (올해)
+          const yearRatings = myTickets
+            .filter(t => new Date(t.lastEditedAt).getFullYear() === thisYear)
+            .map(t => feedbacks[t.id].rating);
+          const yearAvg = yearRatings.length > 0
+            ? (yearRatings.reduce((s, r) => s + r, 0) / yearRatings.length)
+            : null;
+
+          // 월별 평균 (최근 6개월)
+          const monthlyAvg = recentMonths.map(m => {
+            const mRatings = myTickets
+              .filter(t => (t.lastEditedAt || "").startsWith(m))
+              .map(t => feedbacks[t.id].rating);
+            return {
+              month: m,
+              avg: mRatings.length > 0
+                ? (mRatings.reduce((s, r) => s + r, 0) / mRatings.length)
+                : null,
+              count: mRatings.length,
+            };
+          });
+
+          return { name, totalAvg, yearAvg, monthlyAvg, totalCount: ratings.length };
+        }).sort((a, b) => (b.yearAvg ?? 0) - (a.yearAvg ?? 0));
+
+        const fmtAvg = (v: number | null) =>
+          v !== null ? v.toFixed(1) : "—";
+
+        const ratingColor = (v: number | null) => {
+          if (v === null) return "#D1D5DB";
+          if (v >= 4.5) return "#059669";
+          if (v >= 3.5) return "#7C3AED";
+          if (v >= 2.5) return "#F59E0B";
+          return "#EF4444";
+        };
+
+        return (
+          <div className="space-y-4">
+
+            {/* 담당자별 종합 카드 */}
+            <div className="grid grid-cols-1 gap-3">
+              {assigneeStats.map(({ name, totalAvg, yearAvg, totalCount }) => (
+                <div key={name} className="bg-white border border-gray-200 rounded-xl p-5 flex items-center gap-5">
+                  <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center flex-shrink-0">
+                    <span className="text-sm font-bold text-violet-600">{name.slice(0, 1)}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-gray-800 text-sm">{name}</div>
+                    <div className="text-[10px] text-gray-400 mt-0.5">평가 수집 {totalCount}건</div>
+                  </div>
+                  <div className="flex gap-6">
+                    <div className="text-center">
+                      <div className="text-xl font-extrabold" style={{ color: ratingColor(yearAvg) }}>
+                        {fmtAvg(yearAvg)}
+                      </div>
+                      <div className="text-[10px] text-gray-400 mt-0.5">{thisYear}년 평균</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xl font-extrabold" style={{ color: ratingColor(totalAvg) }}>
+                        {fmtAvg(totalAvg)}
+                      </div>
+                      <div className="text-[10px] text-gray-400 mt-0.5">전체 평균</div>
+                    </div>
+                    <div className="text-center">
+                      <Stars rating={Math.round(yearAvg ?? totalAvg ?? 0)} />
+                      <div className="text-[10px] text-gray-400 mt-0.5">별점</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* 월별 평균 테이블 */}
+            <div className="bg-white border border-gray-200 rounded-xl p-5">
+              <h3 className="text-sm font-bold text-gray-800 mb-4">
+                담당자별 월평균 만족도
+                <span className="text-xs font-normal text-gray-400 ml-2">최근 6개월</span>
+              </h3>
+              <div className="overflow-auto">
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b-2 border-gray-100">
+                      <th className="text-left py-2.5 pr-6 text-gray-500 font-semibold whitespace-nowrap">담당자</th>
+                      {recentMonths.map(m => (
+                        <th key={m} className="text-center py-2.5 px-4 text-gray-500 font-semibold whitespace-nowrap">
+                          {monthLabel(m)}
+                        </th>
+                      ))}
+                      <th className="text-center py-2.5 px-4 text-gray-500 font-semibold">{thisYear}년</th>
+                      <th className="text-center py-2.5 px-4 text-gray-700 font-bold">전체</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {assigneeStats.map(({ name, monthlyAvg, yearAvg, totalAvg }) => (
+                      <tr key={name} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                        <td className="py-3 pr-6 font-semibold text-gray-700 whitespace-nowrap flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-full bg-violet-100 inline-flex items-center justify-center text-[10px] font-bold text-violet-600 flex-shrink-0">
+                            {name.slice(0, 1)}
+                          </span>
+                          {name}
+                        </td>
+                        {monthlyAvg.map(({ month, avg, count }) => (
+                          <td key={month} className="text-center py-3 px-4">
+                            {avg !== null ? (
+                              <div className="flex flex-col items-center gap-0.5">
+                                <span className="font-bold text-[13px]" style={{ color: ratingColor(avg) }}>
+                                  {avg.toFixed(1)}
+                                </span>
+                                <span className="text-[9px] text-gray-300">{count}건</span>
+                              </div>
+                            ) : <span className="text-gray-200">—</span>}
+                          </td>
+                        ))}
+                        <td className="text-center py-3 px-4">
+                          <span className="font-bold text-[13px]" style={{ color: ratingColor(yearAvg) }}>
+                            {fmtAvg(yearAvg)}
+                          </span>
+                        </td>
+                        <td className="text-center py-3 px-4">
+                          <span className="font-extrabold text-[14px]" style={{ color: ratingColor(totalAvg) }}>
+                            {fmtAvg(totalAvg)}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* 최근 피드백 코멘트 */}
+            {(() => {
+              const comments = ratedTickets
+                .filter(t => feedbacks[t.id]?.comment)
+                .sort((a, b) => (feedbacks[b.id].submittedAt > feedbacks[a.id].submittedAt ? 1 : -1))
+                .slice(0, 10);
+              if (comments.length === 0) return null;
+              return (
+                <div className="bg-white border border-gray-200 rounded-xl p-5">
+                  <h3 className="text-sm font-bold text-gray-800 mb-4">최근 피드백 코멘트</h3>
+                  <div className="space-y-3">
+                    {comments.map(t => {
+                      const fb = feedbacks[t.id];
+                      return (
+                        <div key={t.id} className="flex gap-3 py-3 border-b border-gray-50 last:border-0">
+                          <div className="w-7 h-7 rounded-full bg-violet-100 flex items-center justify-center text-[10px] font-bold text-violet-600 flex-shrink-0 mt-0.5">
+                            {t.assignee.slice(0, 1)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs font-semibold text-gray-700">{t.assignee}</span>
+                              <Stars rating={fb.rating} />
+                              <span className="text-[10px] text-gray-300 ml-auto">
+                                {fb.submittedAt.slice(0, 10)}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-500 leading-relaxed">{fb.comment}</p>
+                            <p className="text-[10px] text-gray-300 mt-1">
+                              {[t.company, t.requester].filter(Boolean).join(" · ")}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        );
+      })()}
 
       {/* ════ Tab: 보고서 */}
       {tab === "report" && (
