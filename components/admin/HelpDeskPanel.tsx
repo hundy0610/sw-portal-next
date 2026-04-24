@@ -529,6 +529,23 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
     });
   }, [tickets]);
 
+  // 완료 + 이메일 있는 티켓의 발송 여부 초기 확인
+  useEffect(() => {
+    const targets = tickets.filter(t => t.status === "완료" && t.requesterEmail);
+    if (targets.length === 0) return;
+    Promise.all(
+      targets.map(t =>
+        fetch(`/api/helpdesk/send-feedback?id=${t.id}`)
+          .then(r => r.json())
+          .then(res => res.sent ? t.id : null)
+          .catch(() => null)
+      )
+    ).then(results => {
+      const sentIds = results.filter(Boolean) as string[];
+      if (sentIds.length > 0) setEmailSentIds(new Set(sentIds));
+    });
+  }, [tickets]);
+
   const months = useMemo(() => last6Months(), []);
 
   const displayTickets = useMemo(() =>
@@ -1047,13 +1064,25 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
                           {t.status === "완료" && t.requesterEmail && !emailSentIds.has(t.id) && (
                             <button onClick={() => sendFeedbackEmail(t)}
                               disabled={sendingEmail === t.id}
-                              title={`만족도 평가 이메일 발송 (${t.requesterEmail})`}
-                              className="text-blue-400 hover:text-blue-600 transition-colors text-[10px] font-medium whitespace-nowrap disabled:opacity-40">
+                              title={`만족도 평가 이메일 발송 → ${t.requesterEmail}`}
+                              className="text-blue-400 hover:text-blue-600 transition-colors text-[10px] font-medium whitespace-nowrap disabled:opacity-40 flex items-center gap-0.5">
+                              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                                <polyline points="22,6 12,13 2,6"/>
+                              </svg>
                               {sendingEmail === t.id ? "발송중..." : "이메일"}
                             </button>
                           )}
+                          {t.status === "완료" && !t.requesterEmail && !fb && (
+                            <span className="text-gray-300 text-[10px] whitespace-nowrap" title="이메일 없음">이메일 없음</span>
+                          )}
                           {t.status === "완료" && emailSentIds.has(t.id) && (
-                            <span className="text-green-500 text-[10px] whitespace-nowrap">✓ 발송됨</span>
+                            <span className="text-green-500 text-[10px] whitespace-nowrap flex items-center gap-0.5">
+                              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                              발송됨
+                            </span>
                           )}
                         </div>
                       </td>

@@ -523,6 +523,46 @@ export async function fetchCredentialsPage(): Promise<SwCredential[]> {
 }
 
 // ────────────────────────────────────────────────────────────
+// 헬프데스크 문의 생성 (문의 접수 페이지에서 제출)
+// NOTION_DB_HELPDESK 데이터베이스에 생성
+// ────────────────────────────────────────────────────────────
+export async function createHelpDeskTicket(data: {
+  title: string;
+  company: string;
+  department: string;
+  requester: string;
+  requesterEmail: string;
+  inquiryType: string;
+  urgency: string;
+  content: string;
+  assetNo?: string;
+}): Promise<string> {
+  const dbId = process.env.NOTION_DB_HELPDESK;
+  if (!dbId) throw new Error("NOTION_DB_HELPDESK 환경변수가 설정되지 않았습니다.");
+
+  const props: Record<string, unknown> = {
+    "제목":     { title: [{ text: { content: data.title } }] },
+    "상태":     { select: { name: "진행 중" } },
+    "문의유형": { select: { name: data.inquiryType } },
+    "부서":     { rich_text: [{ text: { content: data.department } }] },
+    "문의자":   { rich_text: [{ text: { content: data.requester } }] },
+    "이메일":   { email: data.requesterEmail },
+    "문의내용": { rich_text: [{ text: { content: data.content } }] },
+    "긴급도":   { select: { name: data.urgency } },
+  };
+  // 법인은 select 또는 rich_text 모두 허용 (DB 설정에 따라)
+  if (data.company) props["법인"] = { select: { name: data.company } };
+  if (data.assetNo) props["자산번호"] = { rich_text: [{ text: { content: data.assetNo } }] };
+
+  const response = await notion.pages.create({
+    parent: { database_id: dbId },
+    properties: props as Parameters<typeof notion.pages.create>[0]["properties"],
+  });
+
+  return response.id;
+}
+
+// ────────────────────────────────────────────────────────────
 // 티켓 생성 (직원 포털에서 접수)
 // ────────────────────────────────────────────────────────────
 export async function createTicket(data: {

@@ -65,7 +65,7 @@ function buildEmailHtml(opts: {
 
     <p style="font-size:12px;color:#94A3B8;text-align:center;margin:0;">
       본 메일은 발신 전용입니다. 추가 문의는
-      <a href="https://assetify-desk.vercel.app/inquiry" style="color:#7C3AED;">문의 접수 페이지</a>를 이용해 주세요.
+      <a href="https://assetify-desk-main.vercel.app/inquiry" style="color:#7C3AED;">문의 접수 페이지</a>를 이용해 주세요.
     </p>
   </div>
 
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
     const alreadySent = await kvGet<boolean>(SENT_KEY(ticketId));
     if (alreadySent) return NextResponse.json({ ok: true, skipped: true, reason: "이미 발송됨" });
 
-    const origin = process.env.NEXT_PUBLIC_APP_URL || "https://swportal.vercel.app";
+    const origin = process.env.NEXT_PUBLIC_APP_URL || "https://assetify-desk-main.vercel.app";
     const feedbackUrl = `${origin}/inquiry/feedback/${ticketId}`;
 
     const html = buildEmailHtml({

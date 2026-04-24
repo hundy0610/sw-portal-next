@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     const assignee       = getPeople(props, "담당자") || getPeople(props, "Assignee") || "담당자";
 
     // 이메일 발송 API 호출
-    const origin = process.env.NEXT_PUBLIC_APP_URL || "https://swportal.vercel.app";
+    const origin = process.env.NEXT_PUBLIC_APP_URL || "https://assetify-desk-main.vercel.app";
     const emailRes = await fetch(`${origin}/api/helpdesk/send-feedback`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
