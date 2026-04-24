@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { kvGet, kvSet } from "@/lib/kv-store";
+import { kvGet, kvSet, kvDel } from "@/lib/kv-store";
+import { Client } from "@notionhq/client";
 
 export interface FeedbackEntry {
   ticketId: string;
@@ -10,6 +11,8 @@ export interface FeedbackEntry {
 
 const KEY = (id: string) => `feedback:${id}`;
 const FEEDBACK_TTL = 60 * 60 * 24 * 365; // 1년
+
+const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
 // GET /api/feedback?id=xxx
 export async function GET(req: NextRequest) {
@@ -36,7 +39,27 @@ export async function POST(req: NextRequest) {
       comment: (comment ?? "").trim(),
       submittedAt: new Date().toISOString(),
     };
+
+    // 1. Redis에 저장 (빠른 읽기용)
     await kvSet(KEY(ticketId), entry, FEEDBACK_TTL);
+
+    // 2. Notion 티켓 페이지에 영구 저장 (누적 보존)
+    try {
+      await notion.pages.update({
+        page_id: ticketId,
+        properties: {
+          "만족도":     { number: entry.rating },
+          "피드백코멘트": { rich_text: [{ text: { content: entry.comment || "" } }] },
+        },
+      });
+      // 헬프데스크 캐시 무효화 → 다음 폴링 시 최신 반영
+      await kvDel("helpdesk:tickets");
+    } catch (notionErr) {
+      // Notion 저장 실패 시에도 Redis는 저장됐으므로 성공 처리
+      // (Notion DB에 해당 컬럼이 없을 경우 발생 — 컬럼 추가 필요)
+      console.warn("[feedback] Notion 저장 실패 (컬럼 확인 필요):", notionErr);
+    }
+
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[POST /api/feedback]", e);
