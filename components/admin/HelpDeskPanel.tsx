@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import type { HelpDeskTicket } from "@/lib/notion";
 import type { FeedbackEntry } from "@/app/api/feedback/route";
 
@@ -496,21 +496,73 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
   const [reportStartMonth, setReportStartMonth] = useState(oneYearAgo);
   const [reportEndMonth,   setReportEndMonth]   = useState(nowYearMonth);
 
+  // 이전 폴링의 티켓 상태를 기억 — "완료" 전환 감지용
+  const prevStatusRef  = useRef<Map<string, string>>(new Map());
+  const isFirstLoadRef = useRef(true);
+
+  // 완료 전환 티켓에 이메일 자동 발송 (UI 로딩 없이 조용히 처리)
+  const autoSendEmail = useCallback((ticket: HelpDeskTicket) => {
+    if (!ticket.requesterEmail) return;
+    fetch("/api/helpdesk/send-feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ticketId:       ticket.id,
+        requesterEmail: ticket.requesterEmail,
+        requesterName:  ticket.requester  || "고객",
+        ticketContent:  ticket.content    || ticket.title || "",
+        assignee:       ticket.assignee   || "담당자",
+      }),
+    })
+      .then(r => r.json())
+      .then(json => {
+        if (json.ok || json.skipped)
+          setEmailSentIds(prev => new Set([...prev, ticket.id]));
+      })
+      .catch(e => console.error("[autoSendEmail]", e));
+  }, []);
+
   const load = useCallback((force = false) => {
-    setLoading(true);
+    if (!force) setLoading(true);
     setError(null);
     fetch(`/api/helpdesk${force ? "?refresh=1" : ""}`)
       .then(r => r.json())
       .then(res => {
-        if (res.error) setError(res.error);
-        setTickets(res.data ?? []);
+        if (res.error) { setError(res.error); return; }
+        const newTickets: HelpDeskTicket[] = res.data ?? [];
+
+        // 첫 로드가 아닐 때만 상태 변화 감지 → 자동 이메일
+        if (!isFirstLoadRef.current) {
+          newTickets.forEach(ticket => {
+            if (
+              ticket.status === "완료" &&
+              ticket.requesterEmail &&
+              prevStatusRef.current.get(ticket.id) !== "완료"
+            ) {
+              autoSendEmail(ticket);
+            }
+          });
+        }
+
+        // 현재 상태 저장
+        prevStatusRef.current = new Map(newTickets.map(t => [t.id, t.status]));
+        isFirstLoadRef.current = false;
+
+        setTickets(newTickets);
         setLastSynced(res.lastSynced ?? null);
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [autoSendEmail]);
 
+  // 초기 로드
   useEffect(() => { load(); }, [load]);
+
+  // 30초마다 자동 새로고침 (Notion 최신 데이터 반영)
+  useEffect(() => {
+    const id = setInterval(() => load(true), 30_000);
+    return () => clearInterval(id);
+  }, [load]);
 
   // 완료 티켓의 피드백 + 이메일 발송 여부를 단 1번의 배치 요청으로 로드 (N+1 → O(1))
   useEffect(() => {
