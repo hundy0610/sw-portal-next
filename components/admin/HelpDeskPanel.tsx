@@ -42,6 +42,84 @@ function processingDays(submittedAt: string, lastEditedAt: string): number {
   return Math.max(0, Math.round(diff / 86400000));
 }
 
+// ── 문의 내용 기반 세부 분류기 ────────────────────────────────
+interface SubCategory {
+  id: string;
+  label: string;
+  color: string;
+  keywords: string[];
+}
+
+const SW_SUBCATS: SubCategory[] = [
+  { id: "ms-office",    label: "MS Office (Excel·Word·PPT)", color: "#22C55E",
+    keywords: ["엑셀","excel","워드","word","파워포인트","ppt","powerpoint","오피스","office","한글","hwp","한컴"] },
+  { id: "ms-outlook",   label: "Outlook·이메일",             color: "#3B82F6",
+    keywords: ["아웃룩","outlook","메일","이메일","email","받은편지","발송","첨부파일"] },
+  { id: "ms-teams",     label: "Teams·화상회의",             color: "#6366F1",
+    keywords: ["팀즈","teams","화상","회의","미팅","meeting","zoom","웹엑스","webex","구글미트"] },
+  { id: "security",     label: "보안·인증·VPN",              color: "#EF4444",
+    keywords: ["백신","바이러스","vpn","인증서","비밀번호","패스워드","password","로그인","2차인증","otp","보안","방화벽","악성"] },
+  { id: "os-windows",   label: "Windows·OS",                 color: "#F97316",
+    keywords: ["윈도우","windows","업데이트","블루스크린","부팅","재부팅","시스템오류","오류","오류코드","드라이버","레지스트리"] },
+  { id: "groupware",    label: "그룹웨어·ERP·결재",          color: "#A855F7",
+    keywords: ["그룹웨어","erp","sap","결재","품의","전자결재","인사","급여","회계","팝빌"] },
+  { id: "browser-net",  label: "인터넷·브라우저",            color: "#0EA5E9",
+    keywords: ["인터넷","브라우저","크롬","chrome","엣지","edge","접속","사이트","웹","홈페이지"] },
+  { id: "install",      label: "SW 설치·라이선스",           color: "#10B981",
+    keywords: ["설치","install","라이선스","license","활성화","인증키","키","버전","업그레이드"] },
+];
+
+const HW_SUBCATS: SubCategory[] = [
+  { id: "monitor",      label: "모니터·디스플레이",          color: "#3B82F6",
+    keywords: ["모니터","화면","디스플레이","해상도","꺼짐","깜빡","번짐","선명","노이즈","듀얼","멀티","출력포트","hdmi","dp"] },
+  { id: "keyboard-mouse", label: "키보드·마우스·주변기기",   color: "#8B5CF6",
+    keywords: ["키보드","마우스","입력","키","클릭","스크롤","패드","터치패드","무선"] },
+  { id: "performance",  label: "성능·속도·과열",            color: "#F59E0B",
+    keywords: ["느림","느려요","속도","버벅","렉","lag","과열","팬","발열","뜨겁","메모리","ram","cpu"] },
+  { id: "battery-power","label": "배터리·전원",              color: "#EF4444",
+    keywords: ["배터리","충전","전원","꺼짐","종료","안꺼짐","재시작","전원버튼","ac","어댑터"] },
+  { id: "printer",      label: "프린터·복합기",              color: "#10B981",
+    keywords: ["프린터","인쇄","복합기","출력","잼","카트리지","토너","스캔","팩스"] },
+  { id: "storage",      label: "저장장치·USB",               color: "#6366F1",
+    keywords: ["하드","hdd","ssd","usb","저장","드라이브","디스크","용량","백업","포맷"] },
+  { id: "camera-audio", label: "카메라·마이크·스피커",       color: "#EC4899",
+    keywords: ["카메라","웹캠","webcam","마이크","스피커","소리","오디오","이어폰","헤드셋","블루투스"] },
+  { id: "network-hw",   label: "네트워크·인터넷 연결",       color: "#0EA5E9",
+    keywords: ["와이파이","wifi","무선","랜","lan","케이블","인터넷연결","연결","핫스팟","공유기"] },
+];
+
+const OTHER_SUBCAT: SubCategory = { id: "other", label: "기타", color: "#9CA3AF", keywords: [] };
+
+/** 문의 내용 텍스트에서 메인 카테고리와 세부 카테고리를 분류 */
+function classifyContent(ticket: HelpDeskTicket): { mainCat: "SW" | "HW" | "기타"; subCat: SubCategory } {
+  const text = [ticket.content, ticket.title, ticket.inquiryType].join(" ").toLowerCase();
+  const typeStr = (ticket.inquiryType || "").toLowerCase();
+
+  // 메인 카테고리 판별 (inquiryType 우선, 내용 보완)
+  const isSwType = /sw|소프트웨어|프로그램|앱|application/.test(typeStr);
+  const isHwType = /hw|하드웨어|장비|기기|노트북|데스크탑|pc/.test(typeStr);
+
+  const swKeyHit = SW_SUBCATS.some(c => c.keywords.some(k => text.includes(k)));
+  const hwKeyHit = HW_SUBCATS.some(c => c.keywords.some(k => text.includes(k)));
+
+  const mainCat: "SW" | "HW" | "기타" =
+    isSwType || (!isHwType && swKeyHit && !hwKeyHit) ? "SW" :
+    isHwType || (!isSwType && hwKeyHit && !swKeyHit) ? "HW" :
+    swKeyHit ? "SW" : hwKeyHit ? "HW" : "기타";
+
+  const cats = mainCat === "SW" ? SW_SUBCATS : mainCat === "HW" ? HW_SUBCATS : [];
+
+  // 세부 카테고리: 키워드 히트 수 가장 많은 항목 선택
+  let bestCat: SubCategory | null = null;
+  let bestHits = 0;
+  for (const cat of cats) {
+    const hits = cat.keywords.filter(k => text.includes(k)).length;
+    if (hits > bestHits) { bestHits = hits; bestCat = cat; }
+  }
+
+  return { mainCat, subCat: bestCat ?? OTHER_SUBCAT };
+}
+
 function getMonthRange(start: string, end: string): string[] {
   const result: string[] = [];
   const [sy, sm] = start.split("-").map(Number);
@@ -1281,128 +1359,208 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
       {tab === "repeat" && (() => {
         const recentMonths = last6Months();
 
-        const typeMonthly = byType.map(({ type, color }) => {
-          const counts = recentMonths.map(m =>
-            displayTickets.filter(t => t.inquiryType === type && (t.submittedAt || "").startsWith(m)).length
-          );
-          const totalSum = counts.reduce((s, c) => s + c, 0);
-          const lastIdx  = counts.length - 1;
-          const curCount = counts[lastIdx];
-          const prevCount = counts[lastIdx - 1] ?? 0;
-          const otherCounts = counts.slice(0, lastIdx);
-          const otherAvg = otherCounts.length > 0
-            ? otherCounts.reduce((s, c) => s + c, 0) / otherCounts.length
-            : 0;
-          const isSpike = curCount >= 2 && otherAvg > 0 && curCount >= otherAvg * 2;
-          const trend = curCount > prevCount ? "up" : curCount < prevCount ? "down" : "flat";
-          return { type, color, counts, totalSum, curCount, prevCount, otherAvg, isSpike, trend };
-        }).filter(({ totalSum }) => totalSum > 0);
+        // ── 문의 내용 기반 분류 집계 ─────────────────────────
+        const classified = displayTickets.map(t => ({ ...t, ...classifyContent(t) }));
 
-        const spikes = typeMonthly.filter(t => t.isSpike);
+        // SW 세부 집계
+        const swTickets  = classified.filter(t => t.mainCat === "SW");
+        const hwTickets  = classified.filter(t => t.mainCat === "HW");
+        const etcTickets = classified.filter(t => t.mainCat === "기타");
+
+        function buildSubStats(tickets: typeof classified, cats: SubCategory[]) {
+          return cats.map(cat => {
+            const matched = tickets.filter(t => t.subCat.id === cat.id);
+            const counts  = recentMonths.map(m =>
+              matched.filter(t => (t.submittedAt || "").startsWith(m)).length
+            );
+            const total   = matched.length;
+            const lastIdx = counts.length - 1;
+            const cur     = counts[lastIdx];
+            const prev    = counts[lastIdx - 1] ?? 0;
+            const prevAvg = counts.slice(0, lastIdx).reduce((s, c) => s + c, 0) / Math.max(lastIdx, 1);
+            const isSpike = cur >= 2 && prevAvg > 0 && cur >= prevAvg * 2;
+            const trend   = cur > prev ? "up" : cur < prev ? "down" : "flat";
+            return { ...cat, counts, total, cur, prev, prevAvg, isSpike, trend, tickets: matched };
+          }).filter(c => c.total > 0).sort((a, b) => b.total - a.total);
+        }
+
+        const swStats  = buildSubStats(swTickets,  SW_SUBCATS);
+        const hwStats  = buildSubStats(hwTickets,  HW_SUBCATS);
+        const allStats = [...swStats, ...hwStats].sort((a, b) => b.total - a.total);
+        const spikes   = allStats.filter(c => c.isSpike);
+
+        // ── 공통 테이블 렌더 ─────────────────────────────────
+        function SubCatTable({ stats, mainLabel }: { stats: ReturnType<typeof buildSubStats>; mainLabel: string }) {
+          if (stats.length === 0) return (
+            <p className="text-xs text-gray-300 text-center py-6">데이터 없음</p>
+          );
+          return (
+            <div className="overflow-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="border-b-2 border-gray-100">
+                    <th className="text-left py-2.5 pr-4 text-gray-500 font-semibold whitespace-nowrap">세부 항목</th>
+                    {recentMonths.map(m => (
+                      <th key={m} className="text-center py-2.5 px-3 text-gray-500 font-semibold whitespace-nowrap">
+                        {monthLabel(m)}
+                      </th>
+                    ))}
+                    <th className="text-center py-2.5 px-3 text-gray-500 font-semibold">전월비</th>
+                    <th className="text-center py-2.5 px-3 text-gray-700 font-bold">합계</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stats.map(({ id, label, color, counts, total, cur, prev, isSpike, trend }) => {
+                    const maxCnt = Math.max(...counts, 1);
+                    return (
+                      <tr key={id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${isSpike ? "bg-red-50/40" : ""}`}>
+                        <td className="py-2.5 pr-4">
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: color }} />
+                            <span className="font-medium text-gray-700 whitespace-nowrap">{label}</span>
+                            {isSpike && <span className="text-[9px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold">급증</span>}
+                          </span>
+                        </td>
+                        {counts.map((cnt, i) => {
+                          const alpha = cnt > 0 ? Math.round((0.3 + (cnt / maxCnt) * 0.7) * 255).toString(16).padStart(2,"0") : "00";
+                          return (
+                            <td key={i} className="text-center py-2.5 px-3">
+                              {cnt > 0 ? (
+                                <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-white text-[11px] font-bold"
+                                  style={{ background: `${color}${alpha}` }}>
+                                  {cnt}
+                                </span>
+                              ) : <span className="text-gray-200">—</span>}
+                            </td>
+                          );
+                        })}
+                        <td className="text-center py-2.5 px-3">
+                          <span className={`text-sm font-bold ${trend === "up" ? "text-red-500" : trend === "down" ? "text-green-500" : "text-gray-300"}`}>
+                            {trend === "up" ? `↑${cur - prev}` : trend === "down" ? `↓${prev - cur}` : "→"}
+                          </span>
+                        </td>
+                        <td className="text-center py-2.5 px-3 font-bold text-gray-800">{total}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          );
+        }
 
         return (
-          <div className="space-y-4">
+          <div className="space-y-5">
+
+            {/* ── 메인 카테고리 분포 요약 ── */}
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: "SW 문의", count: swTickets.length,  color: "#3B82F6", bg: "#EFF6FF",  icon: "💿" },
+                { label: "HW 문의", count: hwTickets.length,  color: "#F59E0B", bg: "#FFFBEB",  icon: "🖥️" },
+                { label: "기타",    count: etcTickets.length, color: "#6B7280", bg: "#F9FAFB",  icon: "📋" },
+              ].map(item => (
+                <div key={item.label} className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3">
+                  <div className="text-2xl">{item.icon}</div>
+                  <div>
+                    <div className="text-xl font-extrabold" style={{ color: item.color }}>{item.count}건</div>
+                    <div className="text-xs text-gray-500 font-medium">{item.label}</div>
+                    <div className="text-[10px] text-gray-300">{displayTickets.length > 0 ? Math.round(item.count / displayTickets.length * 100) : 0}%</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* ── 급증 경보 ── */}
             {spikes.length > 0 && (
               <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-                <h3 className="text-sm font-bold text-red-700 mb-2">⚠️ 이번 달 급증 유형 감지</h3>
-                <div className="space-y-1">
-                  {spikes.map(({ type, curCount, otherAvg }) => (
-                    <div key={type} className="text-xs text-red-600 flex items-center gap-2">
-                      <span className="font-bold">{type}</span>
-                      <span>— 이번 달 {curCount}건</span>
-                      <span className="text-red-400">(월평균 {otherAvg.toFixed(1)}건 대비 {Math.round(curCount / Math.max(otherAvg, 0.1))}배)</span>
+                <h3 className="text-sm font-bold text-red-700 mb-2">⚠️ 이번 달 급증 항목 감지</h3>
+                <div className="space-y-1.5">
+                  {spikes.map(({ label, color, cur, prevAvg }) => (
+                    <div key={label} className="text-xs text-red-600 flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ background: color }} />
+                      <span className="font-bold">{label}</span>
+                      <span>— 이번 달 <strong>{cur}건</strong></span>
+                      <span className="text-red-400">
+                        (월평균 {prevAvg.toFixed(1)}건 대비 {Math.round(cur / Math.max(prevAvg, 0.1))}배)
+                      </span>
                     </div>
                   ))}
                 </div>
               </div>
             )}
 
+            {/* ── SW 세부 분석 ── */}
             <div className="bg-white border border-gray-200 rounded-xl p-5">
-              <h3 className="text-sm font-bold text-gray-800 mb-4">
-                유형별 문의 월간 추이
-                <span className="text-xs font-normal text-gray-400 ml-2">최근 6개월</span>
+              <h3 className="text-sm font-bold text-gray-800 mb-1 flex items-center gap-2">
+                <span className="text-base">💿</span> SW 문의 세부 분류
+                <span className="text-xs font-normal text-gray-400 ml-1">내용 분석 기반 · {swTickets.length}건</span>
               </h3>
-              <div className="overflow-auto">
-                <table className="w-full text-xs border-collapse">
-                  <thead>
-                    <tr className="border-b-2 border-gray-100">
-                      <th className="text-left py-2.5 pr-4 text-gray-500 font-semibold whitespace-nowrap">유형</th>
-                      {recentMonths.map(m => (
-                        <th key={m} className="text-center py-2.5 px-3 text-gray-500 font-semibold whitespace-nowrap">{monthLabel(m)}</th>
-                      ))}
-                      <th className="text-center py-2.5 px-3 text-gray-500 font-semibold">전월비</th>
-                      <th className="text-center py-2.5 px-3 text-gray-700 font-bold">합계</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {typeMonthly.map(({ type, color, counts, totalSum, curCount, prevCount, isSpike, trend }) => {
-                      const maxCnt = Math.max(...counts, 1);
-                      return (
-                        <tr key={type} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${isSpike ? "bg-red-50/40" : ""}`}>
-                          <td className="py-2.5 pr-4">
-                            <span className="flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ background: color }} />
-                              <span className="font-medium text-gray-700 whitespace-nowrap">{type}</span>
-                              {isSpike && <span className="text-[9px] bg-red-100 text-red-600 px-1 py-0.5 rounded font-bold">급증</span>}
-                            </span>
-                          </td>
-                          {counts.map((cnt, i) => {
-                            const alpha = cnt > 0 ? Math.round((0.25 + (cnt / maxCnt) * 0.75) * 255).toString(16).padStart(2, "0") : "00";
-                            return (
-                              <td key={i} className="text-center py-2.5 px-3">
-                                {cnt > 0 ? (
-                                  <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-white text-[11px] font-bold"
-                                    style={{ background: `${color}${alpha}` }}>
-                                    {cnt}
-                                  </span>
-                                ) : <span className="text-gray-200">—</span>}
-                              </td>
-                            );
-                          })}
-                          <td className="text-center py-2.5 px-3">
-                            <span className={`text-base font-bold ${trend === "up" ? "text-red-500" : trend === "down" ? "text-green-500" : "text-gray-300"}`}>
-                              {trend === "up" ? `↑${curCount - prevCount}` : trend === "down" ? `↓${prevCount - curCount}` : "→"}
-                            </span>
-                          </td>
-                          <td className="text-center py-2.5 px-3 font-bold text-gray-800">{totalSum}</td>
-                        </tr>
-                      );
-                    })}
-                    {typeMonthly.length === 0 && (
-                      <tr><td colSpan={recentMonths.length + 3} className="text-center py-10 text-gray-300">데이터 없음</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              <p className="text-[11px] text-gray-400 mb-4">어떤 소프트웨어·프로그램 문의가 많이 접수되는지 파악</p>
+              <SubCatTable stats={swStats} mainLabel="SW" />
             </div>
 
-            {typeMonthly.length > 0 && (
-              <div className="grid grid-cols-2 gap-4">
-                {typeMonthly.slice(0, 6).map(({ type, color, counts }) => {
-                  const maxVal = Math.max(...counts, 1);
-                  return (
-                    <div key={type} className="bg-white border border-gray-200 rounded-xl p-4">
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: color }} />
-                        <span className="text-xs font-bold text-gray-700 truncate">{type}</span>
+            {/* ── HW 세부 분석 ── */}
+            <div className="bg-white border border-gray-200 rounded-xl p-5">
+              <h3 className="text-sm font-bold text-gray-800 mb-1 flex items-center gap-2">
+                <span className="text-base">🖥️</span> HW 문의 세부 분류
+                <span className="text-xs font-normal text-gray-400 ml-1">내용 분석 기반 · {hwTickets.length}건</span>
+              </h3>
+              <p className="text-[11px] text-gray-400 mb-4">어떤 하드웨어·장비 문제가 반복 접수되는지 파악</p>
+              <SubCatTable stats={hwStats} mainLabel="HW" />
+            </div>
+
+            {/* ── 전체 세부 항목 미니 카드 ── */}
+            {allStats.length > 0 && (
+              <div className="bg-white border border-gray-200 rounded-xl p-5">
+                <h3 className="text-sm font-bold text-gray-800 mb-4">
+                  세부 항목 추이 (최근 6개월)
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {allStats.slice(0, 8).map(({ id, label, color, counts }) => {
+                    const maxVal = Math.max(...counts, 1);
+                    return (
+                      <div key={id} className="border border-gray-100 rounded-lg p-3">
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: color }} />
+                          <span className="text-[11px] font-bold text-gray-700 truncate">{label}</span>
+                        </div>
+                        <div className="flex items-end gap-1 h-12">
+                          {counts.map((cnt, i) => (
+                            <div key={i} className="flex-1 flex flex-col items-center justify-end gap-0.5">
+                              {cnt > 0 && <span className="text-[8px] text-gray-400">{cnt}</span>}
+                              <div className="w-full rounded-t-sm"
+                                style={{
+                                  height: `${Math.max((cnt / maxVal) * 100, cnt > 0 ? 10 : 0)}%`,
+                                  background: color,
+                                  opacity: 0.3 + (cnt / maxVal) * 0.7,
+                                }} />
+                              <span className="text-[8px] text-gray-300">
+                                {monthLabel(recentMonths[i]).slice(-2)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <div className="flex items-end gap-1 h-14">
-                        {counts.map((cnt, i) => (
-                          <div key={i} className="flex-1 flex flex-col items-center justify-end gap-0.5">
-                            {cnt > 0 && <span className="text-[9px] text-gray-400">{cnt}</span>}
-                            <div className="w-full rounded-t-sm"
-                              style={{
-                                height: `${Math.max((cnt / maxVal) * 100, cnt > 0 ? 8 : 0)}%`,
-                                background: color,
-                                opacity: 0.35 + (cnt / maxVal) * 0.65,
-                              }} />
-                            <span className="text-[8px] text-gray-300">{monthLabel(recentMonths[i]).slice(-2)}</span>
-                          </div>
-                        ))}
-                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* ── 미분류 샘플 (기타) ── */}
+            {etcTickets.length > 0 && (
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                <h3 className="text-sm font-semibold text-gray-600 mb-2">
+                  미분류 문의 <span className="text-xs font-normal text-gray-400">({etcTickets.length}건 · 키워드 미매칭)</span>
+                </h3>
+                <div className="space-y-1 max-h-40 overflow-auto">
+                  {etcTickets.slice(0, 10).map(t => (
+                    <div key={t.id} className="text-[11px] text-gray-500 flex items-start gap-2 py-1 border-b border-gray-100 last:border-0">
+                      <span className="text-gray-300 flex-shrink-0">{(t.submittedAt || "").slice(0,10)}</span>
+                      <span className="truncate">{t.content || t.title || "(내용 없음)"}</span>
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
             )}
           </div>
