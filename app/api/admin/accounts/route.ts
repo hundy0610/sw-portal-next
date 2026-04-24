@@ -2,6 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { Client } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
 import { decodeSession } from "@/lib/session";
+import { kvGet, kvSet, kvDel } from "@/lib/kv-store";
+
+const ACCOUNTS_CACHE_KEY = "admin:accounts";
+const ACCOUNTS_CACHE_TTL = 60; // 60초 — 계정은 자주 안 바뀌므로 짧게 유지
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 const ACCOUNTS_DB_ID = process.env.ACCOUNTS_DB_ID ?? "";
@@ -59,6 +63,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: true, accounts: [] });
   }
 
+  // Redis 캐시 우선 조회
+  const cached = await kvGet<ReturnType<typeof mapAccount>[]>(ACCOUNTS_CACHE_KEY);
+  if (cached) return NextResponse.json({ ok: true, accounts: cached });
+
   try {
     const accounts: ReturnType<typeof mapAccount>[] = [];
     let cursor: string | undefined;
@@ -79,6 +87,9 @@ export async function GET(request: NextRequest) {
 
       cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined;
     } while (cursor);
+
+    // 조회 성공 시 캐시 저장 (60초 TTL)
+    await kvSet(ACCOUNTS_CACHE_KEY, accounts, ACCOUNTS_CACHE_TTL);
 
     return NextResponse.json({ ok: true, accounts });
   } catch (e) {
@@ -114,6 +125,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    await kvDel(ACCOUNTS_CACHE_KEY); // 캐시 무효화
     return NextResponse.json({ ok: true, id: page.id });
   } catch (e) {
     console.error("[accounts POST]", e);
@@ -140,6 +152,7 @@ export async function PATCH(request: NextRequest) {
     if (active   !== undefined) props["활성화"]   = { checkbox:  active };
 
     await notion.pages.update({ page_id: id, properties: props as never });
+    await kvDel(ACCOUNTS_CACHE_KEY); // 캐시 무효화
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[accounts PATCH]", e);
@@ -162,6 +175,7 @@ export async function DELETE(request: NextRequest) {
       page_id: id,
       properties: { "활성화": { checkbox: false } },
     });
+    await kvDel(ACCOUNTS_CACHE_KEY); // 캐시 무효화
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[accounts DELETE]", e);

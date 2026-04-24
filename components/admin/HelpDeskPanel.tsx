@@ -512,38 +512,18 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
 
   useEffect(() => { load(); }, [load]);
 
-  // 완료 티켓의 피드백 로드
+  // 완료 티켓의 피드백 + 이메일 발송 여부를 단 1번의 배치 요청으로 로드 (N+1 → O(1))
   useEffect(() => {
     const completed = tickets.filter(t => t.status === "완료");
-    Promise.all(
-      completed.map(t =>
-        fetch(`/api/feedback?id=${t.id}`)
-          .then(r => r.json())
-          .then(res => res.data ? [t.id, res.data] as const : null)
-          .catch(() => null)
-      )
-    ).then(results => {
-      const map: Record<string, FeedbackEntry> = {};
-      results.forEach(r => { if (r) map[r[0]] = r[1]; });
-      setFeedbacks(map);
-    });
-  }, [tickets]);
-
-  // 완료 + 이메일 있는 티켓의 발송 여부 초기 확인
-  useEffect(() => {
-    const targets = tickets.filter(t => t.status === "완료" && t.requesterEmail);
-    if (targets.length === 0) return;
-    Promise.all(
-      targets.map(t =>
-        fetch(`/api/helpdesk/send-feedback?id=${t.id}`)
-          .then(r => r.json())
-          .then(res => res.sent ? t.id : null)
-          .catch(() => null)
-      )
-    ).then(results => {
-      const sentIds = results.filter(Boolean) as string[];
-      if (sentIds.length > 0) setEmailSentIds(new Set(sentIds));
-    });
+    if (completed.length === 0) return;
+    const ids = completed.map(t => t.id).join(",");
+    fetch(`/api/helpdesk/ticket-status?ids=${ids}`)
+      .then(r => r.json())
+      .then(res => {
+        if (res.feedbacks)  setFeedbacks(res.feedbacks);
+        if (res.emailSent)  setEmailSentIds(new Set(Object.keys(res.emailSent)));
+      })
+      .catch(() => {/* Redis 미설정 시 조용히 무시 */});
   }, [tickets]);
 
   const months = useMemo(() => last6Months(), []);

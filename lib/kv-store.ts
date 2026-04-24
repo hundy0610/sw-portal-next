@@ -64,6 +64,24 @@ export async function kvSetPermanent<T>(key: string, value: T): Promise<void> {
 }
 
 /**
+ * KV 다중 키 한 번에 읽기 (Redis MGET — 네트워크 왕복 1회)
+ * 순서 보장: 반환 배열 인덱스 = keys 인덱스
+ */
+export async function kvMGet<T>(keys: string[]): Promise<(T | null)[]> {
+  const client = getClient();
+  if (!client || keys.length === 0) return keys.map(() => null);
+  try {
+    const raws = await client.mget(...keys);
+    return raws.map(raw => {
+      if (!raw) return null;
+      try { return JSON.parse(raw) as T; } catch { return null; }
+    });
+  } catch {
+    return keys.map(() => null);
+  }
+}
+
+/**
  * KV 캐시 삭제. Notion 업데이트 후 캐시 무효화에 사용
  */
 export async function kvDel(...keys: string[]): Promise<void> {
