@@ -68,21 +68,18 @@ export default function FeedbackPage() {
     <div className="min-h-screen bg-gradient-to-br from-violet-50 to-white flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-lg p-10 max-w-md w-full text-center">
         <div className="text-5xl mb-4">🎉</div>
-        <h1 className="text-xl font-bold text-gray-800 mb-2">평가해 주셔서 감사합니다!</h1>
-        <p className="text-sm text-gray-500 leading-relaxed">
-          소중한 의견은 즉시 검토하여<br />
-          <span className="text-violet-600 font-semibold">더 나은 업무 환경</span>을 만드는 데 반영하겠습니다.
-        </p>
-        <div className="mt-6 flex justify-center gap-1">
+        <div className="mt-2 flex justify-center gap-1 mb-3">
           {STARS.map(s => (
             <span key={s} className="text-2xl" style={{ color: s <= rating ? "#F59E0B" : "#D1D5DB" }}>★</span>
           ))}
         </div>
-        <p className="mt-2 text-xs text-violet-600 font-semibold">{STAR_LABELS[rating - 1]}</p>
-        <div className="mt-6 p-4 bg-violet-50 rounded-xl text-xs text-gray-500 leading-relaxed">
-          여러분의 피드백 덕분에 IDS 자산관리파트가<br />
-          임직원 모두가 업무에만 집중할 수 있는<br />
-          환경을 만들어 나갈 수 있습니다.
+        <p className="text-xs text-violet-600 font-semibold mb-5">{STAR_LABELS[rating - 1]}</p>
+        <div className="p-5 bg-violet-50 rounded-xl">
+          <p className="text-base font-bold text-gray-800 mb-2">평가 해주셔서 감사합니다.</p>
+          <p className="text-sm text-gray-600 leading-relaxed">
+            업무에 몰두할 수 있는 환경을 만드는 데<br />최선을 다해 노력하겠습니다.
+          </p>
+          <p className="mt-4 text-sm font-semibold text-violet-600">— 자산관리파트 —</p>
         </div>
       </div>
     </div>
