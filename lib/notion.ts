@@ -86,6 +86,13 @@ function getPropPeople(props: NotionProps, key: string): string {
     .join(", ");
 }
 
+function getPropEmail(props: NotionProps, key: string): string {
+  const p = props[key];
+  if (!p) return "";
+  if (p.type === "email") return p.email ?? "";
+  return "";
+}
+
 function getPropFile(props: NotionProps, key: string): string {
   const p = props[key];
   if (!p || p.type !== "files") return "";
@@ -359,6 +366,7 @@ export interface HelpDeskTicket {
   company: string;
   department: string;
   requester: string;
+  requesterEmail: string;
   assetNo: string;
   content: string;
   urgency: string;
@@ -391,6 +399,7 @@ export async function fetchHelpDeskTickets(): Promise<HelpDeskTicket[]> {
       company: getPropSelect(p, "법인") || getPropText(p, "법인") || "",
       department: getPropText(p, "부서") || getPropText(p, "Department") || "",
       requester: getPropText(p, "문의자") || getPropPeople(p, "문의자") || getPropText(p, "Requester") || "",
+      requesterEmail: getPropText(p, "이메일") || getPropText(p, "Email") || getPropEmail(p, "이메일") || getPropEmail(p, "Email") || "",
       assetNo: getPropText(p, "자산번호") || "",
       content: getPropText(p, "문의내용") || getPropText(p, "Description") || "",
       urgency: getPropSelect(p, "긴급도") || "",

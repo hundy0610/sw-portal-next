@@ -40,9 +40,10 @@ const SUPER_MENU: { id: PageId; icon: string; label: string; desc: string }[] = 
 ];
 
 const COMPANY_MENU: { id: PageId; icon: string; label: string; desc: string }[] = [
-  { id: "hw",      icon: "💻", label: "HW 자산 관리",  desc: "NT/DT 재고 · 반납 관리" },
-  { id: "license", icon: "🔑", label: "라이선스 현황", desc: "영구 · 구독 통합"       },
-  { id: "report",  icon: "📊", label: "구독 리포트",   desc: "현황 분석 · 만료 알림"  },
+  { id: "hw",       icon: "💻", label: "HW 자산 관리",  desc: "NT/DT 재고 · 반납 관리" },
+  { id: "license",  icon: "🔑", label: "라이선스 현황", desc: "영구 · 구독 통합"       },
+  { id: "report",   icon: "📊", label: "구독 리포트",   desc: "현황 분석 · 만료 알림"  },
+  { id: "helpdesk", icon: "🎫", label: "문의 접수 현황", desc: "우리 법인 문의 현황"    },
 ];
 
 export default function AdminPage() {
@@ -176,7 +177,7 @@ export default function AdminPage() {
       case "report":      return <ReportPanel company={company} />;
       case "hw":          return <HwPanel company={company} initialStats={hwStatsPrefetch} />;
       case "assetmap":    return <AssetMapPanel />;
-      case "helpdesk":    return isSuper ? <HelpDeskPanel /> : null;
+      case "helpdesk":    return <HelpDeskPanel company={isSuper ? "" : company} />;
       case "accounts":    return isSuper ? <AccountsPanel /> : null;
       default:            return null;
     }

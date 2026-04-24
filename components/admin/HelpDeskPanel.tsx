@@ -396,9 +396,9 @@ function generateReportHTML(opts: {
 }
 
 // ── Main Panel ───────────────────────────────────────────────
-type Tab = "overview" | "type" | "company" | "list" | "report" | "assignee";
+type Tab = "overview" | "type" | "company" | "list" | "report" | "assignee" | "repeat";
 
-export default function HelpDeskPanel() {
+export default function HelpDeskPanel({ company: companyFilter = "" }: { company?: string }) {
   const [tickets, setTickets]       = useState<HelpDeskTicket[]>([]);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState<string | null>(null);
@@ -406,6 +406,8 @@ export default function HelpDeskPanel() {
   const [tab, setTab]               = useState<Tab>("overview");
   const [feedbacks, setFeedbacks]   = useState<Record<string, FeedbackEntry>>({});
   const [copiedId, setCopiedId]     = useState<string | null>(null);
+  const [sendingEmail, setSendingEmail] = useState<string | null>(null);
+  const [emailSentIds, setEmailSentIds] = useState<Set<string>>(new Set());
 
   const [listFilter, setListFilter] = useState({
     status: "all", type: "all", company: "all", urgency: "all", search: "",
@@ -451,12 +453,17 @@ export default function HelpDeskPanel() {
 
   const months = useMemo(() => last6Months(), []);
 
-  // ── Analytics ────────────────────────────────────────────
-  const total      = tickets.length;
-  const inProgress = tickets.filter(t => t.status === "진행 중").length;
-  const done       = tickets.filter(t => t.status === "완료").length;
+  const displayTickets = useMemo(() =>
+    companyFilter ? tickets.filter(t => t.company === companyFilter) : tickets,
+    [tickets, companyFilter]
+  );
 
-  const completedTickets = tickets.filter(t => t.status === "완료");
+  // ── Analytics ────────────────────────────────────────────
+  const total      = displayTickets.length;
+  const inProgress = displayTickets.filter(t => t.status === "진행 중").length;
+  const done       = displayTickets.filter(t => t.status === "완료").length;
+
+  const completedTickets = displayTickets.filter(t => t.status === "완료");
   const avgProcessDays = completedTickets.length > 0
     ? Math.round(completedTickets.reduce((s, t) => s + processingDays(t.submittedAt, t.lastEditedAt), 0) / completedTickets.length)
     : null;
@@ -468,43 +475,43 @@ export default function HelpDeskPanel() {
 
   const byType = useMemo(() => {
     const m = new Map<string, number>();
-    tickets.forEach(t => { if (t.inquiryType) m.set(t.inquiryType, (m.get(t.inquiryType) ?? 0) + 1); });
+    displayTickets.forEach(t => { if (t.inquiryType) m.set(t.inquiryType, (m.get(t.inquiryType) ?? 0) + 1); });
     return [...m.entries()].sort((a, b) => b[1] - a[1])
       .map(([type, count], i) => ({ type, count, color: TYPE_COLORS[i % TYPE_COLORS.length] }));
-  }, [tickets]);
+  }, [displayTickets]);
 
   const byCompany = useMemo(() => {
     const m = new Map<string, number>();
-    tickets.forEach(t => { if (t.company) m.set(t.company, (m.get(t.company) ?? 0) + 1); });
+    displayTickets.forEach(t => { if (t.company) m.set(t.company, (m.get(t.company) ?? 0) + 1); });
     return [...m.entries()].sort((a, b) => b[1] - a[1]);
-  }, [tickets]);
+  }, [displayTickets]);
 
   const byUrgency = useMemo(() => {
     const order = ["매우 급합니다", "조금 급합니다", "기다릴 수 있어요"];
     const m = new Map<string, number>();
-    tickets.forEach(t => { if (t.urgency) m.set(t.urgency, (m.get(t.urgency) ?? 0) + 1); });
+    displayTickets.forEach(t => { if (t.urgency) m.set(t.urgency, (m.get(t.urgency) ?? 0) + 1); });
     return order.filter(u => m.has(u)).map(u => [u, m.get(u)!] as [string, number]);
-  }, [tickets]);
+  }, [displayTickets]);
 
   const monthlyTotal = useMemo(() =>
-    months.map(m => ({ month: m, count: tickets.filter(t => (t.submittedAt || "").startsWith(m)).length })),
-    [tickets, months]);
+    months.map(m => ({ month: m, count: displayTickets.filter(t => (t.submittedAt || "").startsWith(m)).length })),
+    [displayTickets, months]);
 
   const companyMonthly = useMemo(() => {
-    const companies = [...new Set(tickets.map(t => t.company).filter(Boolean))].sort();
+    const companies = [...new Set(displayTickets.map(t => t.company).filter(Boolean))].sort();
     return companies.map(company => ({
       company,
-      monthlyCounts: months.map(m => tickets.filter(t => t.company === company && (t.submittedAt || "").startsWith(m)).length),
-      total: tickets.filter(t => t.company === company).length,
+      monthlyCounts: months.map(m => displayTickets.filter(t => t.company === company && (t.submittedAt || "").startsWith(m)).length),
+      total: displayTickets.filter(t => t.company === company).length,
     })).sort((a, b) => b.total - a.total);
-  }, [tickets, months]);
+  }, [displayTickets, months]);
 
   // ── List filters ─────────────────────────────────────────
-  const uniqueTypes     = [...new Set(tickets.map(t => t.inquiryType).filter(Boolean))].sort();
-  const uniqueCompanies = [...new Set(tickets.map(t => t.company).filter(Boolean))].sort();
-  const uniqueUrgencies = ["매우 급합니다", "조금 급합니다", "기다릴 수 있어요"].filter(u => tickets.some(t => t.urgency === u));
+  const uniqueTypes     = [...new Set(displayTickets.map(t => t.inquiryType).filter(Boolean))].sort();
+  const uniqueCompanies = [...new Set(displayTickets.map(t => t.company).filter(Boolean))].sort();
+  const uniqueUrgencies = ["매우 급합니다", "조금 급합니다", "기다릴 수 있어요"].filter(u => displayTickets.some(t => t.urgency === u));
 
-  const filteredList = useMemo(() => tickets.filter(t => {
+  const filteredList = useMemo(() => displayTickets.filter(t => {
     if (listFilter.status  !== "all" && t.status      !== listFilter.status)  return false;
     if (listFilter.type    !== "all" && t.inquiryType !== listFilter.type)    return false;
     if (listFilter.company !== "all" && t.company     !== listFilter.company) return false;
@@ -516,7 +523,7 @@ export default function HelpDeskPanel() {
         || (t.department || "").toLowerCase().includes(q);
     }
     return true;
-  }), [tickets, listFilter]);
+  }), [displayTickets, listFilter]);
 
   // ── Feedback link copy ───────────────────────────────────
   const copyFeedbackLink = (id: string) => {
@@ -525,6 +532,33 @@ export default function HelpDeskPanel() {
       setCopiedId(id);
       setTimeout(() => setCopiedId(null), 2000);
     });
+  };
+
+  // ── Send feedback email ───────────────────────────────────
+  const sendFeedbackEmail = async (ticket: HelpDeskTicket) => {
+    if (!ticket.requesterEmail) return;
+    setSendingEmail(ticket.id);
+    try {
+      const res = await fetch("/api/helpdesk/send-feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ticketId: ticket.id,
+          requesterEmail: ticket.requesterEmail,
+          requesterName: ticket.requester || "고객",
+          ticketContent: ticket.content || ticket.title || "",
+          assignee: ticket.assignee || "담당자",
+        }),
+      });
+      const data = await res.json();
+      if (res.ok || data.skipped) {
+        setEmailSentIds(prev => new Set([...prev, ticket.id]));
+      }
+    } catch (e) {
+      console.error("email send failed", e);
+    } finally {
+      setSendingEmail(null);
+    }
   };
 
   // ── HTML Report download ─────────────────────────────────
@@ -566,7 +600,7 @@ export default function HelpDeskPanel() {
         <div>
           <h2 className="text-xl font-bold text-gray-900 mb-0.5">문의 접수 현황</h2>
           <p className="text-sm text-gray-500">
-            IDS 자산관리파트 Help Desk · 전체 {total}건
+            IDS 자산관리파트 Help Desk{companyFilter ? ` · ${companyFilter}` : ""} · 전체 {total}건
             {lastSynced && (
               <span className="ml-2 text-gray-300 text-[10px]">
                 {new Date(lastSynced).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 동기화
@@ -609,6 +643,7 @@ export default function HelpDeskPanel() {
           ["type",      "🏷",  "유형분석"],
           ["company",   "🏢", "법인현황"],
           ["assignee",  "👤", "담당자"],
+          ["repeat",    "🔁", "반복분석"],
           ["list",      "📋", "목록"],
           ["report",    "📄", "보고서"],
         ] as [Tab, string, string][]).map(([id, icon, label]) => (
@@ -650,7 +685,7 @@ export default function HelpDeskPanel() {
                 <span className="text-xs font-normal text-gray-400 ml-1">최신 5건</span>
               </h3>
               <div className="space-y-1">
-                {tickets.slice(0, 5).map(t => (
+                {displayTickets.slice(0, 5).map(t => (
                   <div key={t.id} className="flex items-start gap-2 py-2 border-b border-gray-50 last:border-0">
                     <StatusBadge status={t.status} />
                     <div className="flex-1 min-w-0">
@@ -931,6 +966,17 @@ export default function HelpDeskPanel() {
                               {copiedId === t.id ? "✓ 복사됨" : "평가링크"}
                             </button>
                           )}
+                          {t.status === "완료" && t.requesterEmail && !emailSentIds.has(t.id) && (
+                            <button onClick={() => sendFeedbackEmail(t)}
+                              disabled={sendingEmail === t.id}
+                              title={`만족도 평가 이메일 발송 (${t.requesterEmail})`}
+                              className="text-blue-400 hover:text-blue-600 transition-colors text-[10px] font-medium whitespace-nowrap disabled:opacity-40">
+                              {sendingEmail === t.id ? "발송중..." : "이메일"}
+                            </button>
+                          )}
+                          {t.status === "완료" && emailSentIds.has(t.id) && (
+                            <span className="text-green-500 text-[10px] whitespace-nowrap">✓ 발송됨</span>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -949,15 +995,17 @@ export default function HelpDeskPanel() {
         const thisYear = now.getFullYear();
 
         // 평가가 있는 완료 티켓만 대상
-        const ratedTickets = tickets.filter(t => t.status === "완료" && feedbacks[t.id] && t.assignee);
+        const ratedTickets = displayTickets.filter(t => t.status === "완료" && feedbacks[t.id] && t.assignee);
+        // 전체 배정 티켓 (처리 통계용)
+        const assignedTickets = displayTickets.filter(t => t.assignee);
 
-        // 담당자 목록
-        const assigneeNames = [...new Set(ratedTickets.map(t => t.assignee))].sort();
+        // 담당자 목록 (배정 티켓 기준으로 확대)
+        const assigneeNames = [...new Set(assignedTickets.map(t => t.assignee))].sort();
 
         if (assigneeNames.length === 0) return (
           <div className="bg-white border border-gray-200 rounded-xl p-10 text-center text-gray-400 text-sm">
-            아직 수집된 만족도 평가가 없습니다.<br />
-            <span className="text-xs text-gray-300 mt-1 block">처리 완료 후 평가 링크를 사용자에게 전달해주세요.</span>
+            배정된 담당자가 없습니다.<br />
+            <span className="text-xs text-gray-300 mt-1 block">Notion에서 티켓에 담당자를 지정해주세요.</span>
           </div>
         );
 
@@ -966,16 +1014,26 @@ export default function HelpDeskPanel() {
 
         // 담당자별 통계 계산
         const assigneeStats = assigneeNames.map(name => {
-          const myTickets = ratedTickets.filter(t => t.assignee === name);
-          const ratings   = myTickets.map(t => feedbacks[t.id].rating);
+          const myRated   = ratedTickets.filter(t => t.assignee === name);
+          const myAll     = assignedTickets.filter(t => t.assignee === name);
+          const myDone    = myAll.filter(t => t.status === "완료");
+          const ratings   = myRated.map(t => feedbacks[t.id].rating);
 
-          // 전체 평균
+          // 처리 통계
+          const allCount      = myAll.length;
+          const doneCount     = myDone.length;
+          const completionRate = allCount > 0 ? Math.round((doneCount / allCount) * 100) : 0;
+          const avgDays = myDone.length > 0
+            ? Math.round(myDone.reduce((s, t) => s + processingDays(t.submittedAt, t.lastEditedAt), 0) / myDone.length)
+            : null;
+
+          // 만족도 평균
           const totalAvg = ratings.length > 0
             ? (ratings.reduce((s, r) => s + r, 0) / ratings.length)
             : null;
 
           // 연평균 (올해)
-          const yearRatings = myTickets
+          const yearRatings = myRated
             .filter(t => new Date(t.lastEditedAt).getFullYear() === thisYear)
             .map(t => feedbacks[t.id].rating);
           const yearAvg = yearRatings.length > 0
@@ -984,7 +1042,7 @@ export default function HelpDeskPanel() {
 
           // 월별 평균 (최근 6개월)
           const monthlyAvg = recentMonths.map(m => {
-            const mRatings = myTickets
+            const mRatings = myRated
               .filter(t => (t.lastEditedAt || "").startsWith(m))
               .map(t => feedbacks[t.id].rating);
             return {
@@ -996,8 +1054,8 @@ export default function HelpDeskPanel() {
             };
           });
 
-          return { name, totalAvg, yearAvg, monthlyAvg, totalCount: ratings.length };
-        }).sort((a, b) => (b.yearAvg ?? 0) - (a.yearAvg ?? 0));
+          return { name, totalAvg, yearAvg, monthlyAvg, totalCount: ratings.length, allCount, doneCount, completionRate, avgDays };
+        }).sort((a, b) => b.allCount - a.allCount);
 
         const fmtAvg = (v: number | null) =>
           v !== null ? v.toFixed(1) : "—";
@@ -1015,8 +1073,8 @@ export default function HelpDeskPanel() {
 
             {/* 담당자별 종합 카드 */}
             <div className="grid grid-cols-1 gap-3">
-              {assigneeStats.map(({ name, totalAvg, yearAvg, totalCount }) => (
-                <div key={name} className="bg-white border border-gray-200 rounded-xl p-5 flex items-center gap-5">
+              {assigneeStats.map(({ name, totalAvg, yearAvg, totalCount, allCount, doneCount, completionRate, avgDays }) => (
+                <div key={name} className="bg-white border border-gray-200 rounded-xl p-5 flex items-center gap-4 flex-wrap">
                   <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center flex-shrink-0">
                     <span className="text-sm font-bold text-violet-600">{name.slice(0, 1)}</span>
                   </div>
@@ -1024,26 +1082,99 @@ export default function HelpDeskPanel() {
                     <div className="font-bold text-gray-800 text-sm">{name}</div>
                     <div className="text-[10px] text-gray-400 mt-0.5">평가 수집 {totalCount}건</div>
                   </div>
-                  <div className="flex gap-6">
+                  <div className="flex gap-5 flex-wrap">
                     <div className="text-center">
-                      <div className="text-xl font-extrabold" style={{ color: ratingColor(yearAvg) }}>
+                      <div className="text-lg font-extrabold text-gray-800">{allCount}</div>
+                      <div className="text-[10px] text-gray-400 mt-0.5">총 배정</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-extrabold text-green-600">{doneCount}</div>
+                      <div className="text-[10px] text-gray-400 mt-0.5">완료</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-extrabold" style={{ color: completionRate >= 80 ? "#059669" : completionRate >= 50 ? "#F59E0B" : "#EF4444" }}>
+                        {completionRate}%
+                      </div>
+                      <div className="text-[10px] text-gray-400 mt-0.5">완료율</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-extrabold text-violet-600">
+                        {avgDays !== null ? `${avgDays}일` : "—"}
+                      </div>
+                      <div className="text-[10px] text-gray-400 mt-0.5">평균 처리일</div>
+                    </div>
+                    <div className="w-px bg-gray-100 self-stretch mx-1" />
+                    <div className="text-center">
+                      <div className="text-lg font-extrabold" style={{ color: ratingColor(yearAvg) }}>
                         {fmtAvg(yearAvg)}
                       </div>
-                      <div className="text-[10px] text-gray-400 mt-0.5">{thisYear}년 평균</div>
+                      <div className="text-[10px] text-gray-400 mt-0.5">{thisYear}년 만족도</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-xl font-extrabold" style={{ color: ratingColor(totalAvg) }}>
+                      <div className="text-lg font-extrabold" style={{ color: ratingColor(totalAvg) }}>
                         {fmtAvg(totalAvg)}
                       </div>
-                      <div className="text-[10px] text-gray-400 mt-0.5">전체 평균</div>
+                      <div className="text-[10px] text-gray-400 mt-0.5">전체 만족도</div>
                     </div>
-                    <div className="text-center">
-                      <Stars rating={Math.round(yearAvg ?? totalAvg ?? 0)} />
-                      <div className="text-[10px] text-gray-400 mt-0.5">별점</div>
-                    </div>
+                    {totalCount > 0 && (
+                      <div className="text-center">
+                        <Stars rating={Math.round(yearAvg ?? totalAvg ?? 0)} />
+                        <div className="text-[10px] text-gray-400 mt-0.5">별점</div>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* 처리 통계 요약 테이블 */}
+            <div className="bg-white border border-gray-200 rounded-xl p-5">
+              <h3 className="text-sm font-bold text-gray-800 mb-4">담당자별 처리 통계</h3>
+              <div className="overflow-auto">
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b-2 border-gray-100">
+                      <th className="text-left py-2.5 pr-4 text-gray-500 font-semibold">담당자</th>
+                      <th className="text-center py-2.5 px-3 text-gray-500 font-semibold">총 배정</th>
+                      <th className="text-center py-2.5 px-3 text-gray-500 font-semibold">완료</th>
+                      <th className="text-center py-2.5 px-3 text-gray-500 font-semibold">진행 중</th>
+                      <th className="text-center py-2.5 px-3 text-gray-500 font-semibold">완료율</th>
+                      <th className="text-center py-2.5 px-3 text-gray-500 font-semibold">평균 처리일</th>
+                      <th className="text-center py-2.5 px-3 text-gray-700 font-bold">만족도</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {assigneeStats.map(({ name, allCount, doneCount, completionRate, avgDays, totalAvg }) => (
+                      <tr key={name} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                        <td className="py-2.5 pr-4">
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-6 h-6 rounded-full bg-violet-100 inline-flex items-center justify-center text-[10px] font-bold text-violet-600 flex-shrink-0">
+                              {name.slice(0, 1)}
+                            </span>
+                            <span className="font-medium text-gray-700">{name}</span>
+                          </span>
+                        </td>
+                        <td className="text-center py-2.5 px-3 font-bold text-gray-800">{allCount}</td>
+                        <td className="text-center py-2.5 px-3 font-bold text-green-600">{doneCount}</td>
+                        <td className="text-center py-2.5 px-3 text-blue-600 font-medium">{allCount - doneCount}</td>
+                        <td className="text-center py-2.5 px-3">
+                          <span className="font-bold" style={{ color: completionRate >= 80 ? "#059669" : completionRate >= 50 ? "#F59E0B" : "#EF4444" }}>
+                            {completionRate}%
+                          </span>
+                        </td>
+                        <td className="text-center py-2.5 px-3 text-violet-600 font-medium">
+                          {avgDays !== null ? `${avgDays}일` : "—"}
+                        </td>
+                        <td className="text-center py-2.5 px-3">
+                          <span className="font-extrabold text-[13px]" style={{ color: ratingColor(totalAvg) }}>
+                            {fmtAvg(totalAvg)}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             {/* 월별 평균 테이블 */}
@@ -1142,6 +1273,138 @@ export default function HelpDeskPanel() {
                 </div>
               );
             })()}
+          </div>
+        );
+      })()}
+
+      {/* ════ Tab: 반복분석 */}
+      {tab === "repeat" && (() => {
+        const recentMonths = last6Months();
+
+        const typeMonthly = byType.map(({ type, color }) => {
+          const counts = recentMonths.map(m =>
+            displayTickets.filter(t => t.inquiryType === type && (t.submittedAt || "").startsWith(m)).length
+          );
+          const totalSum = counts.reduce((s, c) => s + c, 0);
+          const lastIdx  = counts.length - 1;
+          const curCount = counts[lastIdx];
+          const prevCount = counts[lastIdx - 1] ?? 0;
+          const otherCounts = counts.slice(0, lastIdx);
+          const otherAvg = otherCounts.length > 0
+            ? otherCounts.reduce((s, c) => s + c, 0) / otherCounts.length
+            : 0;
+          const isSpike = curCount >= 2 && otherAvg > 0 && curCount >= otherAvg * 2;
+          const trend = curCount > prevCount ? "up" : curCount < prevCount ? "down" : "flat";
+          return { type, color, counts, totalSum, curCount, prevCount, otherAvg, isSpike, trend };
+        }).filter(({ totalSum }) => totalSum > 0);
+
+        const spikes = typeMonthly.filter(t => t.isSpike);
+
+        return (
+          <div className="space-y-4">
+            {spikes.length > 0 && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                <h3 className="text-sm font-bold text-red-700 mb-2">⚠️ 이번 달 급증 유형 감지</h3>
+                <div className="space-y-1">
+                  {spikes.map(({ type, curCount, otherAvg }) => (
+                    <div key={type} className="text-xs text-red-600 flex items-center gap-2">
+                      <span className="font-bold">{type}</span>
+                      <span>— 이번 달 {curCount}건</span>
+                      <span className="text-red-400">(월평균 {otherAvg.toFixed(1)}건 대비 {Math.round(curCount / Math.max(otherAvg, 0.1))}배)</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="bg-white border border-gray-200 rounded-xl p-5">
+              <h3 className="text-sm font-bold text-gray-800 mb-4">
+                유형별 문의 월간 추이
+                <span className="text-xs font-normal text-gray-400 ml-2">최근 6개월</span>
+              </h3>
+              <div className="overflow-auto">
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b-2 border-gray-100">
+                      <th className="text-left py-2.5 pr-4 text-gray-500 font-semibold whitespace-nowrap">유형</th>
+                      {recentMonths.map(m => (
+                        <th key={m} className="text-center py-2.5 px-3 text-gray-500 font-semibold whitespace-nowrap">{monthLabel(m)}</th>
+                      ))}
+                      <th className="text-center py-2.5 px-3 text-gray-500 font-semibold">전월비</th>
+                      <th className="text-center py-2.5 px-3 text-gray-700 font-bold">합계</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {typeMonthly.map(({ type, color, counts, totalSum, curCount, prevCount, isSpike, trend }) => {
+                      const maxCnt = Math.max(...counts, 1);
+                      return (
+                        <tr key={type} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${isSpike ? "bg-red-50/40" : ""}`}>
+                          <td className="py-2.5 pr-4">
+                            <span className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ background: color }} />
+                              <span className="font-medium text-gray-700 whitespace-nowrap">{type}</span>
+                              {isSpike && <span className="text-[9px] bg-red-100 text-red-600 px-1 py-0.5 rounded font-bold">급증</span>}
+                            </span>
+                          </td>
+                          {counts.map((cnt, i) => {
+                            const alpha = cnt > 0 ? Math.round((0.25 + (cnt / maxCnt) * 0.75) * 255).toString(16).padStart(2, "0") : "00";
+                            return (
+                              <td key={i} className="text-center py-2.5 px-3">
+                                {cnt > 0 ? (
+                                  <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-white text-[11px] font-bold"
+                                    style={{ background: `${color}${alpha}` }}>
+                                    {cnt}
+                                  </span>
+                                ) : <span className="text-gray-200">—</span>}
+                              </td>
+                            );
+                          })}
+                          <td className="text-center py-2.5 px-3">
+                            <span className={`text-base font-bold ${trend === "up" ? "text-red-500" : trend === "down" ? "text-green-500" : "text-gray-300"}`}>
+                              {trend === "up" ? `↑${curCount - prevCount}` : trend === "down" ? `↓${prevCount - curCount}` : "→"}
+                            </span>
+                          </td>
+                          <td className="text-center py-2.5 px-3 font-bold text-gray-800">{totalSum}</td>
+                        </tr>
+                      );
+                    })}
+                    {typeMonthly.length === 0 && (
+                      <tr><td colSpan={recentMonths.length + 3} className="text-center py-10 text-gray-300">데이터 없음</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {typeMonthly.length > 0 && (
+              <div className="grid grid-cols-2 gap-4">
+                {typeMonthly.slice(0, 6).map(({ type, color, counts }) => {
+                  const maxVal = Math.max(...counts, 1);
+                  return (
+                    <div key={type} className="bg-white border border-gray-200 rounded-xl p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: color }} />
+                        <span className="text-xs font-bold text-gray-700 truncate">{type}</span>
+                      </div>
+                      <div className="flex items-end gap-1 h-14">
+                        {counts.map((cnt, i) => (
+                          <div key={i} className="flex-1 flex flex-col items-center justify-end gap-0.5">
+                            {cnt > 0 && <span className="text-[9px] text-gray-400">{cnt}</span>}
+                            <div className="w-full rounded-t-sm"
+                              style={{
+                                height: `${Math.max((cnt / maxVal) * 100, cnt > 0 ? 8 : 0)}%`,
+                                background: color,
+                                opacity: 0.35 + (cnt / maxVal) * 0.65,
+                              }} />
+                            <span className="text-[8px] text-gray-300">{monthLabel(recentMonths[i]).slice(-2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         );
       })()}
