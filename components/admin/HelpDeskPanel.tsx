@@ -523,8 +523,7 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
   }, []);
 
   const load = useCallback((force = false) => {
-    if (!force) setLoading(true);
-    setError(null);
+    if (!force) { setLoading(true); setError(null); }
     fetch(`/api/helpdesk${force ? "?refresh=1" : ""}`)
       .then(r => r.json())
       .then(res => {
@@ -551,8 +550,8 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
         setTickets(newTickets);
         setLastSynced(res.lastSynced ?? null);
       })
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false));
+      .catch(e => { if (!force) setError(e.message); })
+      .finally(() => { if (!force) setLoading(false); });
   }, [autoSendEmail]);
 
   // 초기 로드
