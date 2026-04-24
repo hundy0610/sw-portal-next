@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "IDS IT자산관리 <onboarding@resend.dev>",
+        from: process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev",
         to: recipients,
         subject: `[IDS] SW 라이선스 만료 예정 알림 - ${records.length}건 (${new Date().toLocaleDateString("ko-KR")})`,
         html,

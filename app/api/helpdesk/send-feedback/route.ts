@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "IDS 자산관리파트 <onboarding@resend.dev>",
+        from: process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev",
         to: [requesterEmail],
         subject: "[IDS Help Desk] 문의가 처리 완료되었습니다 - 만족도 평가 요청",
         html,
