@@ -66,8 +66,9 @@ export async function POST(req: NextRequest) {
 
     // 필요 데이터 추출
     const getEmail = (p: any) =>
-      p?.["이메일"]?.email || p?.["Email"]?.email ||
-      p?.["이메일"]?.rich_text?.[0]?.plain_text || p?.["Email"]?.rich_text?.[0]?.plain_text || "";
+      p?.["문의자 이메일"]?.email || p?.["문의자 이메일"]?.rich_text?.[0]?.plain_text ||
+      p?.["이메일"]?.email       || p?.["이메일"]?.rich_text?.[0]?.plain_text ||
+      p?.["Email"]?.email        || p?.["Email"]?.rich_text?.[0]?.plain_text || "";
     const getText = (p: any, key: string) =>
       p?.[key]?.rich_text?.[0]?.plain_text || p?.[key]?.title?.[0]?.plain_text || "";
     const getPeople = (p: any, key: string) =>

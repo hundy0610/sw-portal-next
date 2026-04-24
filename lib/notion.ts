@@ -399,7 +399,7 @@ export async function fetchHelpDeskTickets(): Promise<HelpDeskTicket[]> {
       company: getPropSelect(p, "법인") || getPropText(p, "법인") || "",
       department: getPropText(p, "부서") || getPropText(p, "Department") || "",
       requester: getPropText(p, "문의자") || getPropPeople(p, "문의자") || getPropText(p, "Requester") || "",
-      requesterEmail: getPropText(p, "이메일") || getPropText(p, "Email") || getPropEmail(p, "이메일") || getPropEmail(p, "Email") || "",
+      requesterEmail: getPropEmail(p, "문의자 이메일") || getPropText(p, "문의자 이메일") || getPropEmail(p, "이메일") || getPropText(p, "이메일") || getPropEmail(p, "Email") || getPropText(p, "Email") || "",
       assetNo: getPropText(p, "자산번호") || "",
       content: getPropText(p, "문의내용") || getPropText(p, "Description") || "",
       urgency: getPropSelect(p, "긴급도") || "",
@@ -546,7 +546,7 @@ export async function createHelpDeskTicket(data: {
     "문의유형": { select: { name: data.inquiryType } },
     "부서":     { rich_text: [{ text: { content: data.department } }] },
     "문의자":   { rich_text: [{ text: { content: data.requester } }] },
-    "이메일":   { email: data.requesterEmail },
+    "문의자 이메일": { email: data.requesterEmail },
     "문의내용": { rich_text: [{ text: { content: data.content } }] },
     "긴급도":   { select: { name: data.urgency } },
   };
