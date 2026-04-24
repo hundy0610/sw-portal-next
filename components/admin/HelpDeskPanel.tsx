@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import type { HelpDeskTicket } from "@/lib/notion";
+import type { FeedbackEntry } from "@/app/api/feedback/route";
 
 // ── Color configs ────────────────────────────────────────────
 const URGENCY: Record<string, { bg: string; text: string; bar: string }> = {
@@ -41,6 +42,29 @@ function processingDays(submittedAt: string, lastEditedAt: string): number {
   return Math.max(0, Math.round(diff / 86400000));
 }
 
+function getMonthRange(start: string, end: string): string[] {
+  const result: string[] = [];
+  const [sy, sm] = start.split("-").map(Number);
+  const [ey, em] = end.split("-").map(Number);
+  let y = sy, m = sm;
+  while (y < ey || (y === ey && m <= em)) {
+    result.push(`${y}-${String(m).padStart(2, "0")}`);
+    m++; if (m > 12) { m = 1; y++; }
+  }
+  return result;
+}
+
+function nowYearMonth(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function oneYearAgo(): string {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
 // ── Sub-components ───────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
   const c = STATUS[status] ?? { bg: "#F1F5F9", text: "#64748B" };
@@ -62,7 +86,7 @@ function UrgencyBadge({ urgency }: { urgency: string }) {
   );
 }
 
-function StatCard({ label, value, color, bg }: { label: string; value: string | number; color: string; bg: string }) {
+function StatCard({ label, value, color }: { label: string; value: string | number; color: string }) {
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-1">
       <div className="text-2xl font-extrabold" style={{ color }}>{value}</div>
@@ -71,17 +95,34 @@ function StatCard({ label, value, color, bg }: { label: string; value: string | 
   );
 }
 
-// ── Monthly Bar Chart (SVG) ──────────────────────────────────
-function MonthlyBarChart({ data }: { data: { month: string; count: number }[] }) {
+// ── Monthly Line Chart (SVG) ─────────────────────────────────
+function MonthlyLineChart({ data }: { data: { month: string; count: number }[] }) {
   const max = Math.max(...data.map(d => d.count), 1);
-  const W = 600, H = 170, PAD_X = 36, PAD_TOP = 20, PAD_BOT = 24;
+  const W = 600, H = 170, PAD_X = 40, PAD_TOP = 20, PAD_BOT = 28;
   const chartH = H - PAD_TOP - PAD_BOT;
   const chartW = W - PAD_X * 2;
-  const step = chartW / data.length;
-  const BAR_W = Math.min(40, step * 0.6);
+  const n = data.length;
+
+  const xOf = (i: number) => PAD_X + (i / Math.max(n - 1, 1)) * chartW;
+  const yOf = (v: number) => PAD_TOP + chartH * (1 - v / max);
+
+  const points = data.map((d, i) => `${xOf(i)},${yOf(d.count)}`).join(" ");
+  const areaPoints = [
+    `${xOf(0)},${PAD_TOP + chartH}`,
+    ...data.map((d, i) => `${xOf(i)},${yOf(d.count)}`),
+    `${xOf(n - 1)},${PAD_TOP + chartH}`,
+  ].join(" ");
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ overflow: "visible" }}>
+      <defs>
+        <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#7C3AED" stopOpacity="0.15" />
+          <stop offset="100%" stopColor="#7C3AED" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+
+      {/* Grid lines */}
       {[0, 0.25, 0.5, 0.75, 1].map(pct => {
         const y = PAD_TOP + chartH * (1 - pct);
         const val = Math.round(max * pct);
@@ -92,20 +133,27 @@ function MonthlyBarChart({ data }: { data: { month: string; count: number }[] })
           </g>
         );
       })}
+
+      {/* Area fill */}
+      {n > 1 && <polygon points={areaPoints} fill="url(#lineGrad)" />}
+
+      {/* Line */}
+      {n > 1 && (
+        <polyline points={points} fill="none" stroke="#7C3AED" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+      )}
+
+      {/* Dots + labels + x-axis */}
       {data.map((d, i) => {
-        const barH = max > 0 ? (d.count / max) * chartH : 0;
-        const x = PAD_X + i * step + (step - BAR_W) / 2;
-        const y = PAD_TOP + chartH - barH;
+        const cx = xOf(i), cy = yOf(d.count);
         return (
           <g key={d.month}>
-            <rect x={x} y={PAD_TOP} width={BAR_W} height={chartH} rx={4} fill="#F8FAFC" />
-            <rect x={x} y={y} width={BAR_W} height={barH} rx={4} fill="#3B82F6" opacity={0.85} />
+            <circle cx={cx} cy={cy} r={4} fill="white" stroke="#7C3AED" strokeWidth={2} />
             {d.count > 0 && (
-              <text x={x + BAR_W / 2} y={y - 5} textAnchor="middle" fontSize={10} fontWeight="700" fill="#1E40AF">
+              <text x={cx} y={cy - 9} textAnchor="middle" fontSize={10} fontWeight="700" fill="#5B21B6">
                 {d.count}
               </text>
             )}
-            <text x={x + BAR_W / 2} y={H - 4} textAnchor="middle" fontSize={10} fill="#94A3B8">
+            <text x={cx} y={H - 4} textAnchor="middle" fontSize={10} fill="#94A3B8">
               {monthLabel(d.month)}
             </text>
           </g>
@@ -139,43 +187,283 @@ function HBar({ label, count, total, color, note }: {
   );
 }
 
+// ── Star display ─────────────────────────────────────────────
+function Stars({ rating }: { rating: number }) {
+  return (
+    <span className="flex gap-0.5">
+      {[1,2,3,4,5].map(s => (
+        <span key={s} style={{ color: s <= rating ? "#F59E0B" : "#D1D5DB", fontSize: 13 }}>★</span>
+      ))}
+    </span>
+  );
+}
+
+// ── HTML Report Generator ────────────────────────────────────
+function generateReportHTML(opts: {
+  company: string;
+  startMonth: string;
+  endMonth: string;
+  tickets: HelpDeskTicket[];
+  feedbacks: Record<string, FeedbackEntry>;
+}): string {
+  const { company, startMonth, endMonth, tickets, feedbacks } = opts;
+  const months = getMonthRange(startMonth, endMonth);
+
+  const filtered = tickets.filter(t => {
+    const inRange = (t.submittedAt || "").slice(0, 7) >= startMonth
+                 && (t.submittedAt || "").slice(0, 7) <= endMonth;
+    const inCompany = company === "all" || t.company === company;
+    return inRange && inCompany;
+  });
+
+  const total     = filtered.length;
+  const done      = filtered.filter(t => t.status === "완료").length;
+  const inProg    = filtered.filter(t => t.status === "진행 중").length;
+  const completed = filtered.filter(t => t.status === "완료");
+  const avgDays   = completed.length > 0
+    ? Math.round(completed.reduce((s, t) => s + processingDays(t.submittedAt, t.lastEditedAt), 0) / completed.length)
+    : null;
+
+  const byType: Record<string, number> = {};
+  filtered.forEach(t => { if (t.inquiryType) byType[t.inquiryType] = (byType[t.inquiryType] ?? 0) + 1; });
+  const typeRows = Object.entries(byType).sort((a, b) => b[1] - a[1]);
+
+  const monthly = months.map(m => ({
+    label: monthLabel(m),
+    count: filtered.filter(t => (t.submittedAt || "").startsWith(m)).length,
+  }));
+
+  const fbList = filtered.map(t => feedbacks[t.id]).filter(Boolean) as FeedbackEntry[];
+  const avgRating = fbList.length > 0
+    ? (fbList.reduce((s, f) => s + f.rating, 0) / fbList.length).toFixed(1)
+    : null;
+
+  const periodLabel = startMonth === endMonth ? monthLabel(startMonth)
+    : `${monthLabel(startMonth)} ~ ${monthLabel(endMonth)}`;
+  const companyLabel = company === "all" ? "전체 법인" : company;
+  const today = new Date().toLocaleDateString("ko-KR");
+
+  const maxMonthly = Math.max(...monthly.map(m => m.count), 1);
+  const chartH = 120, chartW = 520, padX = 40, padY = 20;
+  const n = monthly.length;
+  const xOf = (i: number) => padX + (i / Math.max(n - 1, 1)) * (chartW - padX * 2);
+  const yOf = (v: number) => padY + (chartH - padY * 2) * (1 - v / maxMonthly);
+  const linePoints = monthly.map((m, i) => `${xOf(i)},${yOf(m.count)}`).join(" ");
+
+  const tableRows = filtered.slice(0, 200).map(t => `
+    <tr>
+      <td>${(t.submittedAt || "").slice(0, 10)}</td>
+      <td>${t.company || "—"}</td>
+      <td>${t.department || "—"}</td>
+      <td>${t.requester || "—"}</td>
+      <td>${t.inquiryType || "—"}</td>
+      <td>${t.urgency || "—"}</td>
+      <td class="content">${(t.content || t.title || "—").replace(/</g, "&lt;")}</td>
+      <td><span class="badge ${t.status === "완료" ? "done" : "prog"}">${t.status}</span></td>
+      <td>${t.assignee || "—"}</td>
+    </tr>`).join("");
+
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>문의 접수 현황 보고서 · ${companyLabel} · ${periodLabel}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; background: #F8FAFC; color: #1E293B; }
+  .page { max-width: 1000px; margin: 0 auto; padding: 40px 32px; }
+  .cover { text-align: center; padding: 60px 0 40px; border-bottom: 2px solid #E2E8F0; margin-bottom: 32px; }
+  .cover h1 { font-size: 28px; font-weight: 800; color: #1E293B; margin-bottom: 8px; }
+  .cover .meta { font-size: 14px; color: #64748B; margin-top: 6px; }
+  .cover .period { display: inline-block; background: #7C3AED; color: white; padding: 4px 16px; border-radius: 20px; font-size: 13px; font-weight: 700; margin-top: 12px; }
+  .section { margin-bottom: 32px; }
+  .section-title { font-size: 15px; font-weight: 700; color: #334155; border-left: 4px solid #7C3AED; padding-left: 10px; margin-bottom: 16px; }
+  .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 24px; }
+  .stat-card { background: white; border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px; text-align: center; }
+  .stat-card .value { font-size: 26px; font-weight: 800; color: #7C3AED; }
+  .stat-card .label { font-size: 11px; color: #94A3B8; margin-top: 4px; }
+  .chart-box { background: white; border: 1px solid #E2E8F0; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+  .chart-title { font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 12px; }
+  table { width: 100%; border-collapse: collapse; background: white; border-radius: 12px; overflow: hidden; border: 1px solid #E2E8F0; font-size: 12px; }
+  thead th { background: #F1F5F9; padding: 10px 12px; text-align: left; font-weight: 600; color: #475569; border-bottom: 1px solid #E2E8F0; white-space: nowrap; }
+  tbody td { padding: 9px 12px; border-bottom: 1px solid #F8FAFC; color: #334155; vertical-align: top; }
+  tbody tr:hover td { background: #F8FAFC; }
+  td.content { max-width: 260px; }
+  .badge { padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; }
+  .badge.done { background: #F0FDF4; color: #059669; }
+  .badge.prog { background: #EFF6FF; color: #1D4ED8; }
+  .type-bar { margin-bottom: 10px; }
+  .type-row { display: flex; align-items: center; gap-8px; margin-bottom: 8px; }
+  .type-label { font-size: 12px; color: #475569; width: 140px; flex-shrink: 0; }
+  .bar-wrap { flex: 1; background: #F1F5F9; border-radius: 6px; height: 20px; overflow: hidden; }
+  .bar-fill { height: 100%; background: #7C3AED; border-radius: 6px; display: flex; align-items: center; padding-left: 8px; }
+  .bar-fill span { color: white; font-size: 10px; font-weight: 700; }
+  .footer { text-align: center; padding: 24px 0 8px; font-size: 11px; color: #CBD5E1; border-top: 1px solid #E2E8F0; margin-top: 40px; }
+  @media print { body { background: white; } .page { padding: 20px; } }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="cover">
+    <h1>문의 접수 현황 보고서</h1>
+    <div class="meta">IDS 자산관리파트 Help Desk · ${companyLabel}</div>
+    <div><span class="period">${periodLabel}</span></div>
+    <div class="meta" style="margin-top:10px;">작성일: ${today}</div>
+  </div>
+
+  <!-- 요약 -->
+  <div class="section">
+    <div class="section-title">요약 통계</div>
+    <div class="stats">
+      <div class="stat-card"><div class="value">${total}</div><div class="label">전체 접수</div></div>
+      <div class="stat-card"><div class="value" style="color:#1D4ED8">${inProg}</div><div class="label">진행 중</div></div>
+      <div class="stat-card"><div class="value" style="color:#059669">${done}</div><div class="label">완료</div></div>
+      <div class="stat-card"><div class="value" style="color:#B45309">${avgDays !== null ? avgDays + "일" : "—"}</div><div class="label">평균 처리일</div></div>
+      <div class="stat-card"><div class="value" style="color:#F59E0B">${avgRating ? "★ " + avgRating : "—"}</div><div class="label">평균 만족도</div></div>
+    </div>
+  </div>
+
+  <!-- 월별 추이 -->
+  <div class="section">
+    <div class="section-title">월별 접수 추이</div>
+    <div class="chart-box">
+      <svg viewBox="0 0 ${chartW} ${chartH}" width="100%" style="overflow:visible">
+        <defs>
+          <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#7C3AED" stop-opacity="0.15"/>
+            <stop offset="100%" stop-color="#7C3AED" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        ${[0,0.25,0.5,0.75,1].map(p => {
+          const y = padY + (chartH - padY*2) * (1 - p);
+          return `<line x1="${padX}" y1="${y}" x2="${chartW - padX}" y2="${y}" stroke="#F1F5F9" stroke-width="1"/>
+                  <text x="${padX - 5}" y="${y + 4}" text-anchor="end" font-size="9" fill="#94A3B8">${Math.round(maxMonthly * p)}</text>`;
+        }).join("")}
+        ${n > 1 ? `<polygon points="${padX},${chartH - padY} ${linePoints} ${xOf(n-1)},${chartH - padY}" fill="url(#g)"/>` : ""}
+        ${n > 1 ? `<polyline points="${linePoints}" fill="none" stroke="#7C3AED" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>` : ""}
+        ${monthly.map((m, i) => {
+          const cx = xOf(i), cy = yOf(m.count);
+          return `<circle cx="${cx}" cy="${cy}" r="4" fill="white" stroke="#7C3AED" stroke-width="2"/>
+                  ${m.count > 0 ? `<text x="${cx}" y="${cy - 9}" text-anchor="middle" font-size="9" font-weight="700" fill="#5B21B6">${m.count}</text>` : ""}
+                  <text x="${cx}" y="${chartH - 2}" text-anchor="middle" font-size="9" fill="#94A3B8">${m.label}</text>`;
+        }).join("")}
+      </svg>
+    </div>
+  </div>
+
+  <!-- 유형별 현황 -->
+  ${typeRows.length > 0 ? `
+  <div class="section">
+    <div class="section-title">문의유형별 현황</div>
+    <div class="chart-box">
+      ${typeRows.map(([type, count]) => {
+        const pct = total > 0 ? Math.max((count / total) * 100, count > 0 ? 2 : 0) : 0;
+        return `<div style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+            <span style="color:#475569;font-weight:600">${type}</span>
+            <span style="color:#94A3B8">${count}건 · ${Math.round(count/total*100)}%</span>
+          </div>
+          <div style="background:#F1F5F9;border-radius:6px;height:20px;overflow:hidden">
+            <div style="width:${pct}%;background:#7C3AED;height:100%;border-radius:6px;display:flex;align-items:center;padding-left:8px">
+              <span style="color:white;font-size:10px;font-weight:700">${count}</span>
+            </div>
+          </div>
+        </div>`;
+      }).join("")}
+    </div>
+  </div>` : ""}
+
+  <!-- 목록 -->
+  <div class="section">
+    <div class="section-title">문의 목록 ${filtered.length > 200 ? "(최대 200건 표시)" : `(${filtered.length}건)`}</div>
+    <table>
+      <thead>
+        <tr>
+          <th>접수일</th><th>법인</th><th>부서</th><th>문의자</th>
+          <th>유형</th><th>긴급도</th><th>문의내용</th><th>상태</th><th>담당자</th>
+        </tr>
+      </thead>
+      <tbody>${tableRows || '<tr><td colspan="9" style="text-align:center;padding:20px;color:#94A3B8">데이터 없음</td></tr>'}</tbody>
+    </table>
+  </div>
+
+  <div class="footer">IDS 자산관리파트 · PC/OA 관리팀 · 본 보고서는 자동 생성되었습니다.</div>
+</div>
+</body>
+</html>`;
+}
+
 // ── Main Panel ───────────────────────────────────────────────
-type Tab = "overview" | "type" | "company" | "list";
+type Tab = "overview" | "type" | "company" | "list" | "report";
 
 export default function HelpDeskPanel() {
-  const [tickets, setTickets] = useState<HelpDeskTicket[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("overview");
+  const [tickets, setTickets]       = useState<HelpDeskTicket[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState<string | null>(null);
+  const [lastSynced, setLastSynced] = useState<string | null>(null);
+  const [tab, setTab]               = useState<Tab>("overview");
+  const [feedbacks, setFeedbacks]   = useState<Record<string, FeedbackEntry>>({});
+  const [copiedId, setCopiedId]     = useState<string | null>(null);
+
   const [listFilter, setListFilter] = useState({
     status: "all", type: "all", company: "all", urgency: "all", search: "",
   });
 
-  const load = () => {
+  // Report state
+  const [reportCompany,    setReportCompany]    = useState("all");
+  const [reportStartMonth, setReportStartMonth] = useState(oneYearAgo);
+  const [reportEndMonth,   setReportEndMonth]   = useState(nowYearMonth);
+
+  const load = useCallback((force = false) => {
     setLoading(true);
     setError(null);
-    fetch("/api/helpdesk")
+    fetch(`/api/helpdesk${force ? "?refresh=1" : ""}`)
       .then(r => r.json())
       .then(res => {
         if (res.error) setError(res.error);
         setTickets(res.data ?? []);
+        setLastSynced(res.lastSynced ?? null);
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  };
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
+
+  // 완료 티켓의 피드백 로드
+  useEffect(() => {
+    const completed = tickets.filter(t => t.status === "완료");
+    Promise.all(
+      completed.map(t =>
+        fetch(`/api/feedback?id=${t.id}`)
+          .then(r => r.json())
+          .then(res => res.data ? [t.id, res.data] as const : null)
+          .catch(() => null)
+      )
+    ).then(results => {
+      const map: Record<string, FeedbackEntry> = {};
+      results.forEach(r => { if (r) map[r[0]] = r[1]; });
+      setFeedbacks(map);
+    });
+  }, [tickets]);
 
   const months = useMemo(() => last6Months(), []);
 
   // ── Analytics ────────────────────────────────────────────
-  const total       = tickets.length;
-  const inProgress  = tickets.filter(t => t.status === "진행 중").length;
-  const done        = tickets.filter(t => t.status === "완료").length;
+  const total      = tickets.length;
+  const inProgress = tickets.filter(t => t.status === "진행 중").length;
+  const done       = tickets.filter(t => t.status === "완료").length;
 
   const completedTickets = tickets.filter(t => t.status === "완료");
   const avgProcessDays = completedTickets.length > 0
     ? Math.round(completedTickets.reduce((s, t) => s + processingDays(t.submittedAt, t.lastEditedAt), 0) / completedTickets.length)
+    : null;
+
+  const fbList     = Object.values(feedbacks);
+  const avgRating  = fbList.length > 0
+    ? (fbList.reduce((s, f) => s + f.rating, 0) / fbList.length).toFixed(1)
     : null;
 
   const byType = useMemo(() => {
@@ -214,8 +502,7 @@ export default function HelpDeskPanel() {
   // ── List filters ─────────────────────────────────────────
   const uniqueTypes     = [...new Set(tickets.map(t => t.inquiryType).filter(Boolean))].sort();
   const uniqueCompanies = [...new Set(tickets.map(t => t.company).filter(Boolean))].sort();
-  const uniqueUrgencies = ["매우 급합니다", "조금 급합니다", "기다릴 수 있어요"].filter(u =>
-    tickets.some(t => t.urgency === u));
+  const uniqueUrgencies = ["매우 급합니다", "조금 급합니다", "기다릴 수 있어요"].filter(u => tickets.some(t => t.urgency === u));
 
   const filteredList = useMemo(() => tickets.filter(t => {
     if (listFilter.status  !== "all" && t.status      !== listFilter.status)  return false;
@@ -230,6 +517,33 @@ export default function HelpDeskPanel() {
     }
     return true;
   }), [tickets, listFilter]);
+
+  // ── Feedback link copy ───────────────────────────────────
+  const copyFeedbackLink = (id: string) => {
+    const url = `${window.location.origin}/inquiry/feedback/${id}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
+  };
+
+  // ── HTML Report download ─────────────────────────────────
+  const downloadReport = () => {
+    const html = generateReportHTML({
+      company: reportCompany,
+      startMonth: reportStartMonth,
+      endMonth: reportEndMonth,
+      tickets,
+      feedbacks,
+    });
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    const compTag = reportCompany === "all" ? "전체" : reportCompany;
+    a.download = `헬프데스크_보고서_${compTag}_${reportStartMonth}~${reportEndMonth}.html`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
 
   // ── Render ───────────────────────────────────────────────
   if (loading) {
@@ -251,9 +565,16 @@ export default function HelpDeskPanel() {
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <div>
           <h2 className="text-xl font-bold text-gray-900 mb-0.5">문의 접수 현황</h2>
-          <p className="text-sm text-gray-500">IDS 자산관리파트 Help Desk · 전체 {total}건</p>
+          <p className="text-sm text-gray-500">
+            IDS 자산관리파트 Help Desk · 전체 {total}건
+            {lastSynced && (
+              <span className="ml-2 text-gray-300 text-[10px]">
+                {new Date(lastSynced).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 동기화
+              </span>
+            )}
+          </p>
         </div>
-        <button onClick={load}
+        <button onClick={() => load(true)}
           className="text-xs font-medium px-3 py-1.5 rounded border bg-white text-gray-600 border-gray-300 hover:border-gray-400 flex items-center gap-1 transition-colors">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
@@ -273,11 +594,12 @@ export default function HelpDeskPanel() {
       )}
 
       {/* ── Summary Cards ── */}
-      <div className="grid grid-cols-4 gap-3 mb-6">
-        <StatCard label="전체 접수" value={total}             color="#1E40AF" bg="#EFF6FF" />
-        <StatCard label="진행 중"   value={inProgress}        color="#1D4ED8" bg="#EFF6FF" />
-        <StatCard label="완료"      value={done}              color="#059669" bg="#F0FDF4" />
-        <StatCard label="평균 처리일" value={avgProcessDays !== null ? `${avgProcessDays}일` : "—"} color="#7C3AED" bg="#F5F3FF" />
+      <div className="grid grid-cols-5 gap-3 mb-6">
+        <StatCard label="전체 접수"  value={total}                                                    color="#1E40AF" />
+        <StatCard label="진행 중"    value={inProgress}                                               color="#1D4ED8" />
+        <StatCard label="완료"       value={done}                                                     color="#059669" />
+        <StatCard label="평균 처리일" value={avgProcessDays !== null ? `${avgProcessDays}일` : "—"}  color="#7C3AED" />
+        <StatCard label="평균 만족도" value={avgRating ? `★ ${avgRating}` : "—"}                     color="#F59E0B" />
       </div>
 
       {/* ── Tab Bar ── */}
@@ -287,6 +609,7 @@ export default function HelpDeskPanel() {
           ["type",     "🏷",  "유형분석"],
           ["company",  "🏢", "법인현황"],
           ["list",     "📋", "목록"],
+          ["report",   "📄", "보고서"],
         ] as [Tab, string, string][]).map(([id, icon, label]) => (
           <button key={id} onClick={() => setTab(id)}
             className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
@@ -297,19 +620,18 @@ export default function HelpDeskPanel() {
         ))}
       </div>
 
-      {/* ════════════════════════════════════════ Tab: 개요 */}
+      {/* ════ Tab: 개요 */}
       {tab === "overview" && (
         <div className="space-y-4">
-
-          {/* Monthly chart */}
           <div className="bg-white border border-gray-200 rounded-xl p-5">
-            <h3 className="text-sm font-bold text-gray-800 mb-4">월별 접수 추이 <span className="text-xs font-normal text-gray-400">(최근 6개월)</span></h3>
-            <MonthlyBarChart data={monthlyTotal} />
+            <h3 className="text-sm font-bold text-gray-800 mb-4">
+              월별 접수 추이
+              <span className="text-xs font-normal text-gray-400 ml-2">최근 6개월</span>
+            </h3>
+            <MonthlyLineChart data={monthlyTotal} />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-
-            {/* Urgency */}
             <div className="bg-white border border-gray-200 rounded-xl p-5">
               <h3 className="text-sm font-bold text-gray-800 mb-4">긴급도 분포</h3>
               <div className="space-y-3">
@@ -321,9 +643,11 @@ export default function HelpDeskPanel() {
               </div>
             </div>
 
-            {/* Recent 5 */}
             <div className="bg-white border border-gray-200 rounded-xl p-5">
-              <h3 className="text-sm font-bold text-gray-800 mb-4">최근 접수 <span className="text-xs font-normal text-gray-400">최신 5건</span></h3>
+              <h3 className="text-sm font-bold text-gray-800 mb-4">
+                최근 접수
+                <span className="text-xs font-normal text-gray-400 ml-1">최신 5건</span>
+              </h3>
               <div className="space-y-1">
                 {tickets.slice(0, 5).map(t => (
                   <div key={t.id} className="flex items-start gap-2 py-2 border-b border-gray-50 last:border-0">
@@ -343,14 +667,45 @@ export default function HelpDeskPanel() {
               </div>
             </div>
           </div>
+
+          {/* 만족도 요약 */}
+          {fbList.length > 0 && (
+            <div className="bg-white border border-gray-200 rounded-xl p-5">
+              <h3 className="text-sm font-bold text-gray-800 mb-4">
+                만족도 평가 현황
+                <span className="text-xs font-normal text-gray-400 ml-2">{fbList.length}건 수집</span>
+              </h3>
+              <div className="flex items-center gap-6">
+                <div className="text-center">
+                  <div className="text-3xl font-extrabold text-amber-500">{avgRating}</div>
+                  <Stars rating={Math.round(Number(avgRating))} />
+                  <div className="text-[10px] text-gray-400 mt-1">평균 평점</div>
+                </div>
+                <div className="flex-1 space-y-1.5">
+                  {[5,4,3,2,1].map(s => {
+                    const cnt = fbList.filter(f => f.rating === s).length;
+                    const pct = fbList.length > 0 ? (cnt / fbList.length) * 100 : 0;
+                    return (
+                      <div key={s} className="flex items-center gap-2 text-xs">
+                        <span className="w-3 text-gray-400 text-right">{s}</span>
+                        <span className="text-amber-400 text-[11px]">★</span>
+                        <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-amber-400 rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="w-6 text-gray-400 text-right">{cnt}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* ════════════════════════════════════════ Tab: 유형분석 */}
+      {/* ════ Tab: 유형분석 */}
       {tab === "type" && (
         <div className="space-y-4">
-
-          {/* Type bars */}
           <div className="bg-white border border-gray-200 rounded-xl p-5">
             <h3 className="text-sm font-bold text-gray-800 mb-4">문의유형별 현황</h3>
             <div className="space-y-3">
@@ -361,7 +716,6 @@ export default function HelpDeskPanel() {
             </div>
           </div>
 
-          {/* Cross-table: type × urgency */}
           <div className="bg-white border border-gray-200 rounded-xl p-5">
             <h3 className="text-sm font-bold text-gray-800 mb-4">유형 × 긴급도 교차 분석</h3>
             <div className="overflow-auto">
@@ -370,9 +724,7 @@ export default function HelpDeskPanel() {
                   <tr className="border-b-2 border-gray-100">
                     <th className="text-left py-2.5 pr-5 text-gray-500 font-semibold">문의유형</th>
                     {["매우 급합니다","조금 급합니다","기다릴 수 있어요"].map(u => (
-                      <th key={u} className="text-center py-2.5 px-4 text-gray-500 font-semibold whitespace-nowrap">
-                        {u}
-                      </th>
+                      <th key={u} className="text-center py-2.5 px-4 text-gray-500 font-semibold whitespace-nowrap">{u}</th>
                     ))}
                     <th className="text-center py-2.5 px-4 text-gray-700 font-bold">합계</th>
                   </tr>
@@ -418,11 +770,9 @@ export default function HelpDeskPanel() {
         </div>
       )}
 
-      {/* ════════════════════════════════════════ Tab: 법인현황 */}
+      {/* ════ Tab: 법인현황 */}
       {tab === "company" && (
         <div className="space-y-4">
-
-          {/* Company × Month grid */}
           <div className="bg-white border border-gray-200 rounded-xl p-5">
             <h3 className="text-sm font-bold text-gray-800 mb-4">
               법인별 월간 접수 현황
@@ -453,7 +803,7 @@ export default function HelpDeskPanel() {
                             <td key={i} className="text-center py-3 px-4">
                               {cnt > 0 ? (
                                 <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-white text-[11px] font-bold"
-                                  style={{ background: `rgba(37,99,235,${intensity})` }}>
+                                  style={{ background: `rgba(124,58,237,${intensity})` }}>
                                   {cnt}
                                 </span>
                               ) : <span className="text-gray-200">—</span>}
@@ -478,7 +828,6 @@ export default function HelpDeskPanel() {
             </div>
           </div>
 
-          {/* Company ranking bars */}
           <div className="bg-white border border-gray-200 rounded-xl p-5">
             <h3 className="text-sm font-bold text-gray-800 mb-4">법인별 접수 총계</h3>
             <div className="space-y-3">
@@ -492,84 +841,230 @@ export default function HelpDeskPanel() {
         </div>
       )}
 
-      {/* ════════════════════════════════════════ Tab: 목록 */}
+      {/* ════ Tab: 목록 */}
       {tab === "list" && (
         <div>
-          {/* Filter bar */}
           <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4 flex flex-wrap gap-2.5 items-center">
             <input type="text" placeholder="내용 · 요청자 · 부서 검색..."
               value={listFilter.search}
               onChange={e => setListFilter(f => ({ ...f, search: e.target.value }))}
-              className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 w-52" />
+              className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-violet-400 w-52" />
 
             {([
-              { key: "status",  opts: ["all","진행 중","완료"],       label: "상태" },
-              { key: "type",    opts: ["all",...uniqueTypes],         label: "유형" },
-              { key: "company", opts: ["all",...uniqueCompanies],     label: "법인" },
-              { key: "urgency", opts: ["all",...uniqueUrgencies],     label: "긴급도" },
+              { key: "status",  opts: ["all","진행 중","완료"],   label: "상태" },
+              { key: "type",    opts: ["all",...uniqueTypes],       label: "유형" },
+              { key: "company", opts: ["all",...uniqueCompanies],   label: "법인" },
+              { key: "urgency", opts: ["all",...uniqueUrgencies],   label: "긴급도" },
             ] as { key: string; opts: string[]; label: string }[]).map(({ key, opts, label }) => (
               <select key={key}
                 value={(listFilter as Record<string, string>)[key]}
                 onChange={e => setListFilter(f => ({ ...f, [key]: e.target.value }))}
-                className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white text-gray-700">
+                className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-violet-400 bg-white text-gray-700">
                 <option value="all">{label} 전체</option>
                 {opts.filter(o => o !== "all").map(o => <option key={o} value={o}>{o}</option>)}
               </select>
             ))}
-
             <span className="ml-auto text-xs text-gray-400">{filteredList.length}건</span>
           </div>
 
-          {/* Table */}
           <div className="bg-white border border-gray-200 rounded-xl overflow-auto">
             <table className="w-full text-xs border-collapse">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50 sticky top-0">
-                  {["상태","유형","긴급도","법인","부서","문의자","문의내용","접수일","담당자",""].map((h, i) => (
+                  {["상태","유형","긴급도","법인","부서","문의자","문의내용","접수일","담당자","만족도",""].map((h, i) => (
                     <th key={i} className="px-3 py-2.5 text-left font-semibold text-gray-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {filteredList.length === 0 ? (
-                  <tr><td colSpan={10} className="text-center py-12 text-gray-300">조건에 맞는 데이터가 없습니다</td></tr>
-                ) : filteredList.map(t => (
-                  <tr key={t.id} className="border-b border-gray-50 hover:bg-blue-50/30 transition-colors">
-                    <td className="px-3 py-2.5"><StatusBadge status={t.status} /></td>
-                    <td className="px-3 py-2.5">
-                      <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded whitespace-nowrap">
-                        {t.inquiryType}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5"><UrgencyBadge urgency={t.urgency} /></td>
-                    <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{t.company}</td>
-                    <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{t.department}</td>
-                    <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{t.requester}</td>
-                    <td className="px-3 py-2.5 max-w-[260px]">
-                      <p className="truncate text-gray-700" title={t.content || t.title}>
-                        {t.content || t.title || "—"}
-                      </p>
-                    </td>
-                    <td className="px-3 py-2.5 text-gray-400 whitespace-nowrap">
-                      {(t.submittedAt || "").slice(0, 10) || "—"}
-                    </td>
-                    <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{t.assignee || "—"}</td>
-                    <td className="px-3 py-2.5">
-                      {t.notionUrl && (
-                        <a href={t.notionUrl} target="_blank" rel="noopener noreferrer"
-                          className="text-blue-500 hover:text-blue-700 flex items-center gap-0.5 whitespace-nowrap transition-colors">
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
-                            <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-                          </svg>
-                          보기
-                        </a>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                  <tr><td colSpan={11} className="text-center py-12 text-gray-300">조건에 맞는 데이터가 없습니다</td></tr>
+                ) : filteredList.map(t => {
+                  const fb = feedbacks[t.id];
+                  return (
+                    <tr key={t.id} className="border-b border-gray-50 hover:bg-violet-50/20 transition-colors">
+                      <td className="px-3 py-2.5"><StatusBadge status={t.status} /></td>
+                      <td className="px-3 py-2.5">
+                        <span className="text-[10px] font-semibold text-violet-700 bg-violet-50 px-1.5 py-0.5 rounded whitespace-nowrap">
+                          {t.inquiryType}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5"><UrgencyBadge urgency={t.urgency} /></td>
+                      <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{t.company}</td>
+                      <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{t.department}</td>
+                      <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{t.requester}</td>
+                      <td className="px-3 py-2.5 max-w-[220px]">
+                        <p className="truncate text-gray-700" title={t.content || t.title}>
+                          {t.content || t.title || "—"}
+                        </p>
+                      </td>
+                      <td className="px-3 py-2.5 text-gray-400 whitespace-nowrap">
+                        {(t.submittedAt || "").slice(0, 10) || "—"}
+                      </td>
+                      <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{t.assignee || "—"}</td>
+                      <td className="px-3 py-2.5">
+                        {fb ? (
+                          <div className="flex flex-col gap-0.5">
+                            <Stars rating={fb.rating} />
+                            {fb.comment && <p className="text-[9px] text-gray-400 max-w-[100px] truncate" title={fb.comment}>{fb.comment}</p>}
+                          </div>
+                        ) : t.status === "완료" ? (
+                          <span className="text-[10px] text-gray-300">미평가</span>
+                        ) : null}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex items-center gap-1.5">
+                          {t.notionUrl && (
+                            <a href={t.notionUrl} target="_blank" rel="noopener noreferrer"
+                              className="text-blue-400 hover:text-blue-600 transition-colors" title="노션에서 보기">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
+                                <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                              </svg>
+                            </a>
+                          )}
+                          {t.status === "완료" && !fb && (
+                            <button onClick={() => copyFeedbackLink(t.id)}
+                              title="평가 링크 복사"
+                              className="text-violet-400 hover:text-violet-600 transition-colors text-[10px] font-medium whitespace-nowrap">
+                              {copiedId === t.id ? "✓ 복사됨" : "평가링크"}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* ════ Tab: 보고서 */}
+      {tab === "report" && (
+        <div className="space-y-4">
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h3 className="text-sm font-bold text-gray-800 mb-4">보고서 옵션</h3>
+            <div className="flex flex-wrap gap-4 items-end">
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-600">시작 월</label>
+                <input type="month" value={reportStartMonth}
+                  onChange={e => setReportStartMonth(e.target.value)}
+                  max={reportEndMonth}
+                  className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-violet-400" />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-600">종료 월</label>
+                <input type="month" value={reportEndMonth}
+                  onChange={e => setReportEndMonth(e.target.value)}
+                  min={reportStartMonth}
+                  max={nowYearMonth()}
+                  className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-violet-400" />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-600">법인</label>
+                <select value={reportCompany} onChange={e => setReportCompany(e.target.value)}
+                  className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-violet-400 bg-white text-gray-700">
+                  <option value="all">전체 법인</option>
+                  {uniqueCompanies.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+
+              {/* 빠른 기간 선택 */}
+              <div className="flex gap-1.5">
+                {[
+                  { label: "이번 달", fn: () => { setReportStartMonth(nowYearMonth()); setReportEndMonth(nowYearMonth()); } },
+                  { label: "최근 3개월", fn: () => {
+                    const d = new Date(); d.setMonth(d.getMonth() - 2);
+                    setReportStartMonth(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`);
+                    setReportEndMonth(nowYearMonth());
+                  }},
+                  { label: "최근 6개월", fn: () => {
+                    const d = new Date(); d.setMonth(d.getMonth() - 5);
+                    setReportStartMonth(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`);
+                    setReportEndMonth(nowYearMonth());
+                  }},
+                  { label: "올해", fn: () => {
+                    setReportStartMonth(`${new Date().getFullYear()}-01`);
+                    setReportEndMonth(nowYearMonth());
+                  }},
+                ].map(({ label, fn }) => (
+                  <button key={label} onClick={fn}
+                    className="text-[10px] font-medium px-2.5 py-1.5 rounded-lg border border-gray-200 bg-gray-50 text-gray-500 hover:border-violet-300 hover:text-violet-600 transition-colors">
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* 미리보기 요약 */}
+          {(() => {
+            const previewTickets = tickets.filter(t => {
+              const m = (t.submittedAt || "").slice(0, 7);
+              const inRange = m >= reportStartMonth && m <= reportEndMonth;
+              const inCo = reportCompany === "all" || t.company === reportCompany;
+              return inRange && inCo;
+            });
+            const previewDone = previewTickets.filter(t => t.status === "완료").length;
+            const previewFbs  = previewTickets.map(t => feedbacks[t.id]).filter(Boolean) as FeedbackEntry[];
+            const previewAvgR = previewFbs.length > 0
+              ? (previewFbs.reduce((s,f) => s + f.rating, 0) / previewFbs.length).toFixed(1)
+              : null;
+
+            return (
+              <div className="bg-violet-50 border border-violet-200 rounded-xl p-5">
+                <h3 className="text-sm font-bold text-violet-800 mb-3">
+                  보고서 미리보기
+                  <span className="text-xs font-normal text-violet-500 ml-2">
+                    {reportCompany === "all" ? "전체 법인" : reportCompany} · {monthLabel(reportStartMonth)}~{monthLabel(reportEndMonth)}
+                  </span>
+                </h3>
+                <div className="grid grid-cols-4 gap-3">
+                  {[
+                    { label: "접수 건수", value: previewTickets.length, color: "#7C3AED" },
+                    { label: "완료",      value: previewDone,            color: "#059669" },
+                    { label: "진행 중",   value: previewTickets.length - previewDone, color: "#1D4ED8" },
+                    { label: "평균 만족도", value: previewAvgR ? `★ ${previewAvgR}` : "—", color: "#F59E0B" },
+                  ].map(item => (
+                    <div key={item.label} className="bg-white rounded-lg p-3 text-center border border-violet-100">
+                      <div className="text-xl font-extrabold" style={{ color: item.color }}>{item.value}</div>
+                      <div className="text-[10px] text-gray-400 mt-0.5">{item.label}</div>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-3 text-xs text-violet-600">
+                  {previewTickets.length > 0
+                    ? `총 ${previewTickets.length}건의 데이터가 포함된 HTML 보고서를 생성합니다.`
+                    : "선택한 조건에 해당하는 데이터가 없습니다."}
+                </p>
+              </div>
+            );
+          })()}
+
+          <button onClick={downloadReport}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90"
+            style={{ background: "#7C3AED" }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            HTML 보고서 다운로드
+          </button>
+
+          {/* 만족도 평가 안내 */}
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h3 className="text-sm font-bold text-gray-800 mb-3">만족도 평가 링크 안내</h3>
+            <p className="text-xs text-gray-500 mb-3">
+              문의 처리 완료 후 <strong>목록 탭</strong>에서 완료된 티켓의 <span className="text-violet-600 font-semibold">평가링크</span> 버튼을 눌러 링크를 복사한 뒤 사용자에게 전달하세요.
+            </p>
+            <div className="bg-violet-50 border border-violet-100 rounded-lg px-4 py-3 font-mono text-[11px] text-violet-700 break-all">
+              {typeof window !== "undefined" ? window.location.origin : ""}/inquiry/feedback/[티켓ID]
+            </div>
           </div>
         </div>
       )}
