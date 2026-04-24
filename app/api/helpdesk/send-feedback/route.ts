@@ -19,6 +19,12 @@ function buildEmailHtml(opts: {
 <body style="margin:0;padding:0;background:#F8FAFC;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;">
 <div style="max-width:560px;margin:40px auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
 
+  <!-- 이미지/링크 차단 안내 -->
+  <div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:10px;padding:10px 16px;margin-bottom:12px;font-size:12px;color:#92400E;line-height:1.6;">
+    ⚠️ <strong>메일 상단에 '이미지/링크 보기'가 표시되는 경우</strong>, 반드시 클릭하신 후 별점 및 평가하기 버튼을 이용해 주세요.<br>
+    클릭하지 않으면 만족도 평가 링크가 정상적으로 작동하지 않을 수 있습니다.
+  </div>
+
   <!-- Header -->
   <div style="background:#7C3AED;padding:28px 32px;">
     <div style="color:white;font-size:18px;font-weight:800;">IDS 자산관리파트 Help Desk</div>
