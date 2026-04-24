@@ -94,10 +94,6 @@ async function createHwPage(row: ExcelRow) {
       "사용/재고/폐기/기타": {
         select: { name: "사용중" },
       },
-      // 출고진행상황 → 사용중
-      "출고진행상황": {
-        status: { name: "사용중" },
-      },
       // 단가
       ...(row.price > 0 ? {
         "단가": { number: row.price },
