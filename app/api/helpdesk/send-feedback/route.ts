@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { kvGet, kvSet } from "@/lib/kv-store";
+import nodemailer from "nodemailer";
 
 const SENT_KEY  = (id: string) => `feedback_email_sent:${id}`;
 const SENT_TTL  = 60 * 60 * 24 * 365; // 1년
@@ -78,11 +79,23 @@ function buildEmailHtml(opts: {
 </html>`;
 }
 
+function createTransporter() {
+  const user = process.env.GMAIL_USER;
+  const pass = process.env.GMAIL_APP_PASSWORD;
+  if (!user || !pass) return null;
+  return nodemailer.createTransport({
+    service: "gmail",
+    auth: { user, pass },
+  });
+}
+
 // POST /api/helpdesk/send-feedback
 // Body: { ticketId, requesterEmail, requesterName, ticketContent, assignee }
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) return NextResponse.json({ error: "RESEND_API_KEY 미설정" }, { status: 500 });
+  const transporter = createTransporter();
+  if (!transporter) {
+    return NextResponse.json({ error: "GMAIL_USER 또는 GMAIL_APP_PASSWORD 미설정" }, { status: 500 });
+  }
 
   try {
     const { ticketId, requesterEmail, requesterName, ticketContent, assignee } = await req.json();
@@ -103,31 +116,18 @@ export async function POST(req: NextRequest) {
       feedbackUrl,
     });
 
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev",
-        to: [requesterEmail],
-        subject: "[IDS Help Desk] 문의가 처리 완료되었습니다 - 만족도 평가 요청",
-        html,
-      }),
+    await transporter.sendMail({
+      from: `"IDS 자산관리파트 Help Desk" <${process.env.GMAIL_USER}>`,
+      to: requesterEmail,
+      subject: "[IDS Help Desk] 문의가 처리 완료되었습니다 - 만족도 평가 요청",
+      html,
     });
-
-    if (!res.ok) {
-      const err = await res.text();
-      console.error("[send-feedback] Resend error:", err);
-      return NextResponse.json({ error: "이메일 발송 실패", detail: err }, { status: 502 });
-    }
 
     await kvSet(SENT_KEY(ticketId), true, SENT_TTL);
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[POST /api/helpdesk/send-feedback]", e);
-    return NextResponse.json({ error: "서버 오류" }, { status: 500 });
+    return NextResponse.json({ error: "서버 오류", detail: String(e) }, { status: 500 });
   }
 }
 
