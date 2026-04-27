@@ -166,12 +166,14 @@ const STATUS_COLORS: Record<string, string> = {
 const CORP_COLORS = ["#3B82F6","#8B5CF6","#10B981","#F97316","#06B6D4","#EC4899","#EAB308","#6366F1","#84CC16","#F43F5E"];
 
 // ── 메인 컴포넌트 ──────────────────────────────────────────────
-export default function OverviewPanel() {
+export default function OverviewPanel({ company = "" }: { company?: string }) {
+  const isCompanyFiltered = company !== ""; // 법인 담당자 = 자기 법인만
+
   const [swDb,    setSwDb]    = useState<SwItem[]>([]);
   const [swRecs,  setSwRecs]  = useState<SwDbRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 글로벌 필터
+  // 글로벌 필터 (슈퍼어드민만 사용, 법인 담당자는 company prop으로 고정)
   const [filterCompany, setFilterCompany] = useState("전체");
   const [filterSwName,  setFilterSwName]  = useState("전체");
 
@@ -179,16 +181,20 @@ export default function OverviewPanel() {
   const [chartOpt, setChartOpt] = useState<ChartOptionId>("category");
 
   useEffect(() => {
+    const swRecUrl = isCompanyFiltered
+      ? `/api/sw-records?company=${encodeURIComponent(company)}`
+      : "/api/sw-records";
     Promise.all([
       fetch("/api/sw-db").then(r => r.json()),
-      fetch("/api/sw-records").then(r => r.json()),
+      fetch(swRecUrl).then(r => r.json()),
     ]).then(([sw, recs]) => {
       setSwDb(sw.data ?? []);
       setSwRecs(recs.data ?? []);
     }).finally(() => setLoading(false));
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [company]);
 
-  // ── 필터 옵션 ─────────────────────────────────────────────────
+  // ── 필터 옵션 (슈퍼어드민만 사용) ────────────────────────────
   const companyOptions = useMemo(() => {
     const set = new Set(swRecs.map(r => r.company).filter(Boolean));
     return ["전체", ...Array.from(set).sort()];
@@ -200,15 +206,16 @@ export default function OverviewPanel() {
   }, [swRecs]);
 
   // ── 필터 적용 레코드 ──────────────────────────────────────────
+  // 법인 담당자는 API에서 이미 필터된 데이터 수신 → 추가 필터는 SW명만 적용
   const filteredRecs = useMemo(() => {
     return swRecs.filter(r => {
-      if (filterCompany !== "전체" && r.company    !== filterCompany) return false;
-      if (filterSwName  !== "전체" && r.swCategory !== filterSwName)  return false;
+      if (!isCompanyFiltered && filterCompany !== "전체" && r.company !== filterCompany) return false;
+      if (filterSwName !== "전체" && r.swCategory !== filterSwName) return false;
       return true;
     });
-  }, [swRecs, filterCompany, filterSwName]);
+  }, [swRecs, filterCompany, filterSwName, isCompanyFiltered]);
 
-  const isFiltered = filterCompany !== "전체" || filterSwName !== "전체";
+  const isFiltered = (!isCompanyFiltered && filterCompany !== "전체") || filterSwName !== "전체";
 
   // ── 기본 통계 ─────────────────────────────────────────────────
   const approved  = swDb.filter(s => s.status === "approved").length;
@@ -243,12 +250,13 @@ export default function OverviewPanel() {
       color: renewingSoon > 0 ? "#DE350B" : "#6B778C",
       bg:    renewingSoon > 0 ? "#FFEBE6" : "#F4F5F7",
     },
-    {
+    // SW DB 관리 KPI는 슈퍼어드민 전용 (전사 데이터)
+    ...(!isCompanyFiltered ? [{
       label: "SW DB 관리",
       val: `${swDb.length}종`,
       sub: `승인 ${approved} · 금지 ${banned}`,
       color: "#6554C0", bg: "#EAE6FF",
-    },
+    }] : []),
   ];
 
   // ── 차트 데이터 계산 ──────────────────────────────────────────
@@ -323,28 +331,43 @@ export default function OverviewPanel() {
   return (
     <div className="fade-in">
       <div className="mb-5">
-        <h2 className="text-xl font-bold text-gray-900 mb-0.5">관리자 대시보드</h2>
-        <p className="text-sm text-gray-500">전사 소프트웨어 자산 현황 (실시간 Notion 연동)</p>
+        <h2 className="text-xl font-bold text-gray-900 mb-0.5">
+          {isCompanyFiltered ? `${company} 대시보드` : "관리자 대시보드"}
+        </h2>
+        <p className="text-sm text-gray-500">
+          {isCompanyFiltered
+            ? `${company} 소프트웨어 자산 현황 (실시간 Notion 연동)`
+            : "전사 소프트웨어 자산 현황 (실시간 Notion 연동)"}
+        </p>
       </div>
 
       {/* ── 글로벌 필터 ─────────────────────────────────────── */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 mb-5 flex flex-wrap items-center gap-3">
         <span className="text-xs font-semibold text-gray-500">🔍 데이터 필터</span>
 
-        <div className="relative">
-          <select
-            value={filterCompany}
-            onChange={e => setFilterCompany(e.target.value)}
-            className={`appearance-none pl-3 pr-7 py-2 border rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer transition-colors ${
-              filterCompany !== "전체"
-                ? "bg-blue-50 border-blue-300 text-blue-700"
-                : "bg-white border-gray-300 text-gray-600"
-            }`}
-          >
-            {companyOptions.map(c => <option key={c} value={c}>{c === "전체" ? "🏭 전체 법인" : c}</option>)}
-          </select>
-          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">▾</span>
-        </div>
+        {/* 법인 필터: 슈퍼어드민만 표시 */}
+        {!isCompanyFiltered && (
+          <div className="relative">
+            <select
+              value={filterCompany}
+              onChange={e => setFilterCompany(e.target.value)}
+              className={`appearance-none pl-3 pr-7 py-2 border rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer transition-colors ${
+                filterCompany !== "전체"
+                  ? "bg-blue-50 border-blue-300 text-blue-700"
+                  : "bg-white border-gray-300 text-gray-600"
+              }`}
+            >
+              {companyOptions.map(c => <option key={c} value={c}>{c === "전체" ? "🏭 전체 법인" : c}</option>)}
+            </select>
+            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">▾</span>
+          </div>
+        )}
+        {/* 법인 담당자: 소속 법인 뱃지 */}
+        {isCompanyFiltered && (
+          <span className="px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-xs font-semibold text-blue-700">
+            🏭 {company}
+          </span>
+        )}
 
         <div className="relative">
           <select
@@ -485,9 +508,9 @@ export default function OverviewPanel() {
           <div className="text-xs text-gray-400">{filteredRecs.length}건 기준</div>
         </div>
 
-        {/* 옵션 탭 */}
+        {/* 옵션 탭 — 법인 담당자는 "법인별" 차트 숨김 (데이터가 1개 법인뿐) */}
         <div className="flex flex-wrap gap-2 mb-5">
-          {CHART_OPTIONS.map(opt => (
+          {CHART_OPTIONS.filter(opt => !(isCompanyFiltered && opt.id === "company")).map(opt => (
             <button
               key={opt.id}
               onClick={() => setChartOpt(opt.id)}
