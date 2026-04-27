@@ -155,8 +155,12 @@ export default function AdminPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#F4F5F7" }}>
-        <div className="text-gray-400 text-sm">로딩 중...</div>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--page-bg)" }}>
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 rounded-[8px] flex items-center justify-center text-white font-extrabold text-[11px]"
+            style={{ background: "var(--orange)" }}>SW</div>
+          <div className="text-[13px] font-medium" style={{ color: "var(--text-4)" }}>로딩 중...</div>
+        </div>
       </div>
     );
   }
@@ -184,169 +188,173 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
-      {/* ── 상단 헤더 ── */}
-      <header className="bg-white border-b border-gray-200 h-[52px] flex items-center px-5 gap-3 sticky top-0 z-40">
-        <a
-          href="/"
-          className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800 px-2 py-1.5 rounded hover:bg-gray-100 transition-colors"
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M19 12H5M12 5l-7 7 7 7"/>
-          </svg>
-          직원 포털로 이동
-        </a>
-        <div className="w-px h-5 bg-gray-200 mx-1" />
+    <div className="flex min-h-screen" style={{ background: "var(--page-bg)" }}>
 
-        {/* 관리자 모드 뱃지 */}
-        <div className="flex items-center gap-2">
-          <div className={`w-7 h-7 rounded-md flex items-center justify-center ${isSuper ? "bg-purple-600" : "bg-blue-600"}`}>
-            <span className="text-white font-extrabold text-xs">{isSuper ? "SA" : "AD"}</span>
-          </div>
+      {/* ── 사이드바 ── */}
+      <aside className="sidenav flex flex-col w-[218px] min-w-[218px] fixed inset-y-0 left-0 z-40 overflow-y-auto">
+
+        {/* 로고 영역 */}
+        <div className="flex items-center gap-2.5 px-5 py-[17px]" style={{ borderBottom: "1px solid var(--sidebar-border)" }}>
+          <div className="sidenav-logo-mark">SW</div>
           <div>
-            <div className="font-bold text-xs text-gray-900">
+            <div className="font-bold text-[12.5px] text-white leading-tight tracking-tight">관리자 포털</div>
+            <div className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.38)" }}>
               {isSuper ? "슈퍼 어드민" : `${company} 담당자`}
             </div>
-            <div className="text-xs text-gray-400" style={{ fontSize: 10 }}>
-              {session.name} ({session.userId})
+          </div>
+        </div>
+
+        {/* 역할 배지 */}
+        <div className="mx-4 mt-3 mb-1 px-3 py-2 rounded-[8px]" style={{ background: "rgba(255,255,255,0.05)" }}>
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-[5px] flex items-center justify-center text-[10px] font-extrabold text-white"
+              style={{ background: isSuper ? "#7C3AED" : "#1648CC" }}>
+              {isSuper ? "SA" : "AD"}
+            </div>
+            <div>
+              <div className="text-[12px] font-semibold text-white leading-tight">{session.name}</div>
+              <div className="text-[10px]" style={{ color: "rgba(255,255,255,0.38)" }}>{session.userId}</div>
             </div>
           </div>
         </div>
 
-        <div className="ml-auto flex items-center gap-3">
-          {/* Notion 연동 상태 */}
-          <div className="flex items-center gap-1 text-xs text-gray-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-            Notion 연동 중
-          </div>
-
-          {/* 새로고침 버튼 */}
-          <div className="relative flex items-center">
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 px-2 py-1.5 rounded hover:bg-blue-50 transition-colors disabled:opacity-50"
-              title="Notion → KV 전체 데이터 동기화"
-            >
-              <svg
-                width="13" height="13" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" strokeWidth="2"
-                className={refreshing ? "animate-spin" : ""}
-              >
-                <polyline points="23 4 23 10 17 10" />
-                <polyline points="1 20 1 14 7 14" />
-                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-              </svg>
-              {refreshing ? "동기화 중..." : "데이터 동기화"}
-            </button>
-            {refreshMsg && (
-              <span className="absolute top-8 right-0 whitespace-nowrap text-xs bg-gray-800 text-white px-2 py-1 rounded shadow z-50">
-                {refreshMsg}
-              </span>
-            )}
-          </div>
-
-          {/* 로그아웃 버튼 */}
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-600 px-2 py-1.5 rounded hover:bg-red-50 transition-colors"
-            title="로그아웃"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
-            로그아웃
-          </button>
-        </div>
-      </header>
-
-      {/* ── 사이드바 + 콘텐츠 ── */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* 왼쪽 사이드바 */}
-        <aside className="sidenav w-[220px] min-w-[220px] flex flex-col pt-4 pb-4 overflow-y-auto">
-          <div className="sidenav-section">메뉴</div>
+        {/* 메뉴 */}
+        <div className="sidenav-section">메뉴</div>
+        <div className="flex flex-col gap-px px-1">
           {menu.map((m) => (
             <div
               key={m.id}
               className={`sidenav-item${page === m.id ? " active" : ""}`}
               onClick={() => {
                 setPage(m.id);
-                // 어사맵 진입 시 뱃지 즉시 숨김 (재진입 시 폴링이 갱신)
                 if (m.id === "assetmap") setPendingMonitorCount(0);
               }}
             >
-              <span style={{ fontSize: 14 }}>{m.icon}</span>
-              <div className="flex flex-col leading-tight flex-1 min-w-0">
-                <span>{m.label}</span>
-                <span className="text-xs opacity-50">{m.desc}</span>
+              <span className="sidenav-icon" style={{ fontSize: 13 }}>{m.icon}</span>
+              <div className="flex flex-col leading-snug flex-1 min-w-0">
+                <span className="text-[13px]">{m.label}</span>
+                <span className="text-[10.5px]" style={{ color: "rgba(255,255,255,0.28)" }}>{m.desc}</span>
               </div>
-              {/* 모니터 요청 대기 알림 뱃지 */}
               {m.id === "assetmap" && pendingMonitorCount > 0 && (
-                <span className="ml-auto flex-shrink-0 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1 animate-pulse">
+                <span className="ml-auto flex-shrink-0 min-w-[17px] h-[17px] flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1 animate-pulse">
                   {pendingMonitorCount > 99 ? "99+" : pendingMonitorCount}
                 </span>
               )}
             </div>
           ))}
+        </div>
 
-          {/* 법인 담당자: 소속 법인 표시 */}
-          {!isSuper && (
-            <div className="mx-3 mt-3 px-3 py-2.5 rounded-lg bg-white/10 border border-white/20">
-              <div className="text-xs text-white/40 mb-1">소속 법인</div>
-              <div className="text-sm font-bold text-white">{company}</div>
-            </div>
-          )}
-
-          {/* 하단 Notion 바로가기 (슈퍼어드민만) */}
-          {isSuper && (
-            <div className="mt-auto mx-3 pt-4 border-t border-white/10">
-              <div className="text-xs text-white/40 mb-2 px-1">Notion 바로가기</div>
-              <a
-                href={process.env.NEXT_PUBLIC_NOTION_TRACKER_URL || "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 px-2 py-2 rounded text-xs text-white/60 hover:text-white hover:bg-white/10 transition-colors"
-              >
-                <span>🗄</span> SW DB 편집
-              </a>
-              <a
-                href={process.env.NEXT_PUBLIC_NOTION_SW_UNIFIED_URL || "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 px-2 py-2 rounded text-xs text-white/60 hover:text-white hover:bg-white/10 transition-colors"
-              >
-                <span>📋</span> SW 데이터베이스
-              </a>
-              <a
-                href="https://www.notion.so/29967f4bfdac8086b468ef3545b3e471"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 px-2 py-2 rounded text-xs text-white/60 hover:text-white hover:bg-white/10 transition-colors"
-              >
-                <span>💻</span> NT/DT 트래커 (Notion)
-              </a>
-              <a
-                href="#"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 px-2 py-2 rounded text-xs text-white/60 hover:text-white hover:bg-white/10 transition-colors"
-              >
-                <span>🎫</span> 티켓 처리 (Notion)
-              </a>
-            </div>
-          )}
-
-          <div className="px-4 pt-2 mt-auto">
-            <div className="text-xs text-white/30">v2.2.0 · 법인별 계정</div>
+        {/* 법인 담당자: 소속 법인 */}
+        {!isSuper && (
+          <div className="mx-4 mt-3 px-3 py-2.5 rounded-[8px]" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>
+            <div className="text-[10px] font-semibold mb-1" style={{ color: "rgba(255,255,255,0.38)" }}>소속 법인</div>
+            <div className="text-[13px] font-bold text-white">{company}</div>
           </div>
-        </aside>
+        )}
+
+        {/* Notion 바로가기 (슈퍼어드민) */}
+        {isSuper && (
+          <div className="mt-auto mx-3 pt-3 pb-1" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="text-[10px] font-bold uppercase tracking-widest px-2 mb-1.5" style={{ color: "rgba(255,255,255,0.25)" }}>Notion</div>
+            {[
+              { href: process.env.NEXT_PUBLIC_NOTION_TRACKER_URL || "#", icon: "🗄", label: "SW DB 편집" },
+              { href: process.env.NEXT_PUBLIC_NOTION_SW_UNIFIED_URL || "#", icon: "📋", label: "SW 데이터베이스" },
+              { href: "https://www.notion.so/29967f4bfdac8086b468ef3545b3e471", icon: "💻", label: "NT/DT 트래커" },
+            ].map(link => (
+              <a key={link.label} href={link.href} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-2 px-2 py-1.5 rounded-[6px] text-[11.5px] transition-colors"
+                style={{ color: "rgba(255,255,255,0.45)" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.07)"; (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.8)"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.45)"; }}
+              >
+                <span>{link.icon}</span> {link.label}
+              </a>
+            ))}
+          </div>
+        )}
+
+        <div className="px-5 py-3">
+          <div className="text-[10px]" style={{ color: "rgba(255,255,255,0.2)" }}>v2.2.0</div>
+        </div>
+      </aside>
+
+      {/* ── 우측 영역 ── */}
+      <div className="flex flex-col flex-1 ml-[218px]">
+
+        {/* 상단 헤더 */}
+        <header className="admin-header">
+          <a href="/"
+            className="flex items-center gap-1.5 text-[12px] font-medium px-2.5 py-1.5 rounded-[6px] transition-colors"
+            style={{ color: "var(--slate-500)" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "var(--slate-100)"; (e.currentTarget as HTMLElement).style.color = "var(--slate-900)"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "var(--slate-500)"; }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M19 12H5M12 5l-7 7 7 7"/>
+            </svg>
+            직원 포털
+          </a>
+
+          <div className="w-px h-4 mx-1" style={{ background: "var(--slate-200)" }} />
+
+          <div className="text-[13px] font-semibold" style={{ color: "var(--slate-700)" }}>
+            {menu.find(m => m.id === page)?.label ?? "대시보드"}
+          </div>
+
+          <div className="ml-auto flex items-center gap-1.5">
+            {/* Notion 연동 */}
+            <div className="flex items-center gap-1.5 text-[11.5px] px-2.5 py-1 rounded-[6px]"
+              style={{ color: "var(--slate-400)", background: "var(--slate-50)" }}>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Notion 연동
+            </div>
+
+            {/* 동기화 */}
+            <div className="relative">
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="btn-ghost disabled:opacity-50"
+                style={{ fontSize: 11.5 }}
+                title="Notion → KV 전체 데이터 동기화"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                  className={refreshing ? "animate-spin" : ""}>
+                  <polyline points="23 4 23 10 17 10" />
+                  <polyline points="1 20 1 14 7 14" />
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                </svg>
+                {refreshing ? "동기화 중..." : "동기화"}
+              </button>
+              {refreshMsg && (
+                <span className="absolute top-9 right-0 whitespace-nowrap text-[11px] px-2.5 py-1 rounded-[6px] shadow-lg z-50"
+                  style={{ background: "var(--slate-900)", color: "#fff" }}>
+                  {refreshMsg}
+                </span>
+              )}
+            </div>
+
+            {/* 로그아웃 */}
+            <button onClick={handleLogout}
+              className="flex items-center gap-1 text-[11.5px] font-medium px-2.5 py-1.5 rounded-[6px] transition-colors"
+              style={{ color: "var(--slate-400)" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FEF2F2"; (e.currentTarget as HTMLElement).style.color = "#DC2626"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "var(--slate-400)"; }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+              로그아웃
+            </button>
+          </div>
+        </header>
 
         {/* 메인 콘텐츠 */}
         <main
-          className={`flex-1 overflow-y-auto ${page === "assetmap" ? "p-0" : "p-7"}`}
-          style={{ background: page === "assetmap" ? "#F9FAFB" : "#F4F5F7" }}
+          className={`flex-1 overflow-y-auto ${page === "assetmap" ? "p-0" : "p-6"}`}
+          style={{ background: page === "assetmap" ? "var(--slate-50)" : "var(--page-bg)" }}
         >
           <div className={page === "assetmap" ? "h-full" : "slide-in"}>{renderPanel()}</div>
         </main>

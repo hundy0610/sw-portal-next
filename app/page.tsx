@@ -10,18 +10,25 @@ type ResTab = ResourceCategory;
 
 const INQUIRY_URL = "https://assetify-desk.vercel.app/inquiry";
 
-/* ── 색상 토큰 (3종으로 통일) ── */
+/* ── 색상 토큰 — 그룹웨어(Bearworld/idsTrust) 기준 통일 ── */
 const C = {
-  brand:       "#1E3A8A",
-  primary:     "#2563EB",
-  primarySoft: "#EFF6FF",
-  text1:       "#0f172a",
-  text2:       "#334155",
-  text3:       "#64748b",
-  text4:       "#94a3b8",
-  border:      "#E2E8F0",
-  bg:          "#f0f4f8",
-  bgPage:      "#f6fafe",
+  brand:       "#B85510",   /* 오렌지 딥 */
+  primary:     "#F47C20",   /* 브랜드 오렌지 */
+  primaryDark: "#D9690F",   /* 호버 오렌지 */
+  primarySoft: "#FEF4EC",   /* 연한 오렌지 틴트 */
+  primarySoft2:"#FFF9F5",   /* 아주 연한 오렌지 */
+  text1:       "#1A1A1A",   /* 헤딩 */
+  text2:       "#3D3D3D",   /* 본문 */
+  text3:       "#767676",   /* 보조 */
+  text4:       "#AAAAAA",   /* 메타/힌트 */
+  border:      "#E5E5E5",   /* 경계선 */
+  borderLight: "#EFEFEF",   /* 약한 경계선 */
+  bg:          "#F0F0F0",   /* 태그/칩 배경 */
+  bgPage:      "#F5F6F8",   /* 페이지 배경 */
+  surface:     "#FFFFFF",   /* 카드 표면 */
+  sectionBg:   "#F9FAFB",   /* 섹션 배경 */
+  success:     "#0D9488",
+  successSoft: "#F0FDFA",
 } as const;
 
 /* ── D-day 동적 계산 ── */
@@ -81,55 +88,61 @@ export default function PortalPage() {
     <div className="flex min-h-screen" style={{ background: C.bgPage, color: C.text2 }}>
 
       {/* ── 사이드바 (데스크톱) ── */}
-      <aside className="hidden lg:flex flex-col fixed inset-y-0 left-0 z-50 bg-white"
-        style={{ width: 240, borderRight: `1px solid ${C.border}` }}>
-        <div className="flex items-center gap-3 px-6 py-5" style={{ borderBottom: `1px solid ${C.border}` }}>
-          <div className="flex items-center justify-center shrink-0 text-white font-black text-xs"
-            style={{ width: 38, height: 38, borderRadius: 10, background: C.primary }}>SW</div>
+      <aside className="hidden lg:flex flex-col fixed inset-y-0 left-0 z-50"
+        style={{ width: 220, background: C.surface, borderRight: `1px solid ${C.border}` }}>
+
+        {/* 로고 — 그룹웨어 스타일 */}
+        <div className="flex items-center gap-2.5 px-5 py-4" style={{ borderBottom: `1px solid ${C.borderLight}` }}>
+          <div className="flex items-center justify-center shrink-0 text-white font-extrabold"
+            style={{ width: 32, height: 32, borderRadius: 7, background: C.primary, fontSize: 10, letterSpacing: '-.3px' }}>SW</div>
           <div>
-            <div className="font-extrabold text-sm leading-tight" style={{ color: C.text1 }}>SW 자산관리 포털</div>
-            <div className="text-xs" style={{ color: C.text4 }}>IT 자산관리파트</div>
+            <div className="font-bold text-[13px] leading-tight" style={{ color: C.text1 }}>SW 자산관리 포털</div>
+            <div className="text-[11px] mt-0.5" style={{ color: C.text4 }}>IT 자산관리파트</div>
           </div>
         </div>
-        <nav className="flex-1 p-3 flex flex-col gap-0.5">
+
+        {/* 네비게이션 */}
+        <nav className="flex-1 py-2 px-2 flex flex-col gap-px">
           {NAV_ITEMS.map(({ id, icon, label }) => (
             <button key={id} onClick={() => setTab(id)}
-              className="flex items-center gap-3 px-3.5 py-2.5 w-full text-left text-sm transition-all"
+              className="flex items-center gap-2.5 px-3 py-2.5 w-full text-left rounded-[6px] transition-all"
               style={{
-                borderRadius: 10,
                 background: tab === id ? C.primarySoft : "transparent",
-                color:      tab === id ? C.primary    : C.text3,
-                fontWeight: tab === id ? 700           : 500,
+                color:      tab === id ? C.primary     : C.text3,
+                fontWeight: tab === id ? 700            : 500,
+                fontSize:   13.5,
+                borderLeft: tab === id ? `2px solid ${C.primary}` : "2px solid transparent",
               }}>
-              <Icon n={icon} s={16} />
+              <Icon n={icon} s={15} />
               {label}
             </button>
           ))}
         </nav>
-        <div className="p-3" style={{ borderTop: `1px solid ${C.border}` }}>
+
+        {/* 하단 CTA */}
+        <div className="p-3" style={{ borderTop: `1px solid ${C.borderLight}` }}>
           <a href={INQUIRY_URL} target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-2.5 px-4 py-3 text-white text-sm font-bold w-full"
-            style={{ borderRadius: 10, background: C.primary }}>
-            <Icon n="msg" s={15} /> IT 지원 문의하기
+            className="flex items-center gap-2 px-4 py-2.5 text-white text-[13px] font-bold w-full rounded-[7px] transition-all hover:opacity-90"
+            style={{ background: C.primary, boxShadow: "0 2px 8px rgba(244,124,32,0.30)" }}>
+            <Icon n="msg" s={14} /> IT 지원 문의하기
           </a>
-          {/* N4: opacity-0으로 숨긴 관리자 링크 */}
           <a href="/admin"
-            className="mt-3 block text-center text-xs transition-opacity opacity-0 hover:opacity-100"
+            className="mt-2 block text-center text-[11px] py-1 opacity-0 hover:opacity-100 transition-opacity"
             style={{ color: C.text4 }}>관리자</a>
         </div>
       </aside>
 
-      {/* ── C3: 모바일 상단 헤더 ── */}
-      <header className="lg:hidden fixed top-0 left-0 right-0 z-40 flex items-center px-4 bg-white/90"
-        style={{ height: 52, borderBottom: `1px solid ${C.border}`, backdropFilter: "blur(12px)" }}>
-        <div className="flex items-center justify-center shrink-0 text-white font-black text-[10px] mr-3"
-          style={{ width: 28, height: 28, borderRadius: 7, background: C.primary }}>SW</div>
-        <span className="font-bold text-sm" style={{ color: C.text1 }}>{currentNav.label}</span>
+      {/* ── 모바일 상단 헤더 ── */}
+      <header className="lg:hidden fixed top-0 left-0 right-0 z-40 flex items-center px-4"
+        style={{ height: 50, background: C.surface, borderBottom: `1px solid ${C.border}` }}>
+        <div className="flex items-center justify-center shrink-0 text-white font-extrabold mr-3"
+          style={{ width: 28, height: 28, borderRadius: 6, background: C.primary, fontSize: 10 }}>SW</div>
+        <span className="font-bold text-[13px]" style={{ color: C.text1 }}>{currentNav.label}</span>
       </header>
 
       {/* ── 메인 콘텐츠 ── */}
-      <main className="flex-1 lg:ml-[240px] min-h-screen pb-20 lg:pb-10 pt-14 lg:pt-0">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
+      <main className="flex-1 lg:ml-[220px] min-h-screen pb-20 lg:pb-8 pt-[50px] lg:pt-0">
+        <div className="max-w-[860px] mx-auto px-5 sm:px-6 py-6">
           {tab === "home"        && <HomeTab onNavigate={setTab} />}
           {tab === "education"   && <EducationTab />}
           {tab === "resources"   && <ResourcesTab />}
@@ -139,18 +152,17 @@ export default function PortalPage() {
       </main>
 
       {/* ── 모바일 바텀 네비 ── */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 flex items-stretch z-50 bg-white"
-        style={{ height: 64, borderTop: `1px solid ${C.border}` }}>
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 flex items-stretch z-50"
+        style={{ height: 58, background: C.surface, borderTop: `1px solid ${C.border}` }}>
         {NAV_ITEMS.map(({ id, icon, short }) => (
           <button key={id} onClick={() => setTab(id)}
-            className="flex-1 flex flex-col items-center justify-center gap-1 transition-colors"
+            className="flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors"
             style={{ color: tab === id ? C.primary : C.text4 }}>
-            {/* N1: uppercase 제거 */}
-            <div className="flex items-center justify-center w-8 h-8 rounded-lg transition-all"
+            <div className="flex items-center justify-center w-7 h-7 rounded-[6px] transition-all"
               style={{ background: tab === id ? C.primarySoft : "transparent" }}>
-              <Icon n={icon} s={17} />
+              <Icon n={icon} s={15} />
             </div>
-            <span style={{ fontSize: 9.5, fontWeight: 600 }}>{short}</span>
+            <span style={{ fontSize: 9, fontWeight: tab === id ? 700 : 500 }}>{short}</span>
           </button>
         ))}
       </nav>
@@ -170,125 +182,128 @@ function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
       .then(res => setNotices(res.data ?? []));
   }, []);
 
-  /* M5: 4개 균형 그리드 (자산 실사 추가) */
+  /* 바로가기 4개 — 그룹웨어 통일 오렌지 계열 */
   const SHORTCUTS = [
-    { tab: "education"   as Tab, icon: "edu",    title: "교육 센터", desc: "필수 이수 교육 및 SW 활용 자료",   bg: "#F3E8FF", color: "#7C3AED" },
-    { tab: "resources"   as Tab, icon: "folder", title: "자료실",    desc: "설치 가이드, 정책 지침, 양식 서식", bg: "#FEF3C7", color: "#D97706" },
-    { tab: "search"      as Tab, icon: "search", title: "SW 검색",   desc: "승인·금지 SW 여부 즉시 확인",      bg: "#DBEAFE", color: "#2563EB" },
-    { tab: "declaration" as Tab, icon: "clip",   title: "자산 실사", desc: "소프트웨어 자산 현황 신고하기",     bg: "#D1FAE5", color: "#059669" },
+    { tab: "education"   as Tab, icon: "edu",    title: "교육 센터", desc: "필수 이수 교육 및 SW 활용 자료",   bg: "#FEF4EC", color: "#D9690F" },
+    { tab: "resources"   as Tab, icon: "folder", title: "자료실",    desc: "설치 가이드, 정책 지침, 양식 서식", bg: "#FEF9EC", color: "#B45309" },
+    { tab: "search"      as Tab, icon: "search", title: "SW 검색",   desc: "승인·금지 SW 여부 즉시 확인",      bg: "#EFF6FF", color: "#2563EB" },
+    { tab: "declaration" as Tab, icon: "clip",   title: "자산 실사", desc: "소프트웨어 자산 현황 신고하기",     bg: "#F0FDF4", color: "#059669" },
   ];
 
   return (
     <div className="fade-in">
-      {/* 히어로 */}
-      <div className="rounded-[20px] text-white relative overflow-hidden mb-8 px-8 sm:px-10 py-10"
-        style={{ background: `linear-gradient(135deg, ${C.brand} 0%, ${C.primary} 60%, #3B82F6 100%)` }}>
-        <div className="absolute rounded-full pointer-events-none opacity-5"
-          style={{ width: 360, height: 360, top: -120, right: -80, background: "#fff" }} />
-        <div className="absolute rounded-full pointer-events-none"
-          style={{ width: 200, height: 200, bottom: -80, left: "40%", background: "rgba(255,255,255,0.04)" }} />
+      {/* ── 히어로 배너 — 오렌지 브랜드 ── */}
+      <div className="relative overflow-hidden rounded-[8px] text-white mb-5 px-7 py-8"
+        style={{ background: `linear-gradient(135deg, ${C.brand} 0%, ${C.primary} 55%, #F5A042 100%)` }}>
+        <div className="absolute pointer-events-none rounded-full"
+          style={{ width: 280, height: 280, top: -90, right: -50, background: 'rgba(255,255,255,0.05)' }} />
+        <div className="absolute pointer-events-none rounded-full"
+          style={{ width: 160, height: 160, bottom: -55, left: '40%', background: 'rgba(255,255,255,0.05)' }} />
 
-        <div className="relative flex flex-col sm:flex-row items-start justify-between gap-8">
+        <div className="relative flex flex-col sm:flex-row items-start justify-between gap-5">
           <div className="flex-1">
-            <div className="text-3xl font-extrabold mb-3" style={{ fontFamily: "Manrope, sans-serif" }}>
-              안녕하세요 👋
-            </div>
-            <div className="text-sm opacity-80 leading-relaxed mb-7 max-w-md">
-              SW 자산관리 포털에 오신 것을 환영합니다.<br />
-              SW 사용 정책을 확인하고 필요한 교육 자료를 이용하세요.
-            </div>
-            <div className="flex gap-3 flex-wrap">
+            <p className="text-[10.5px] font-semibold uppercase tracking-widest mb-2"
+              style={{ color: 'rgba(255,255,255,0.65)' }}>idsTrust · IT 자산관리파트</p>
+            <h1 className="text-[24px] font-extrabold mb-2 leading-tight tracking-tight">안녕하세요 👋</h1>
+            <p className="text-[12.5px] leading-relaxed mb-5 max-w-xs" style={{ color: 'rgba(255,255,255,0.8)' }}>
+              SW 사용 정책을 확인하고<br/>필요한 교육 자료를 이용하세요.
+            </p>
+            <div className="flex gap-2 flex-wrap">
               <button onClick={() => onNavigate("search")}
-                className="flex items-center gap-2 font-extrabold text-sm px-5 py-3 rounded-xl hover:opacity-90 transition-opacity"
-                style={{ background: "#fff", color: C.primary }}>
-                <Icon n="search" s={14} /> SW 정책 확인하기
+                className="flex items-center gap-1.5 font-bold text-[12.5px] px-4 py-2.5 rounded-[6px] transition-all hover:opacity-90"
+                style={{ background: C.surface, color: C.primary }}>
+                <Icon n="search" s={12} /> SW 정책 확인
               </button>
               <a href={INQUIRY_URL} target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-2 font-semibold text-sm px-5 py-3 rounded-xl"
-                style={{ background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", color: "#fff" }}>
-                <Icon n="msg" s={14} /> IT 지원 문의
+                className="flex items-center gap-1.5 font-semibold text-[12.5px] px-4 py-2.5 rounded-[6px] transition-all hover:bg-white/20"
+                style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)', color: '#fff' }}>
+                <Icon n="msg" s={12} /> IT 지원 문의
               </a>
             </div>
           </div>
 
-          {/* M4: D-day 동적 계산 */}
-          <div className="flex sm:flex-col gap-3 shrink-0">
+          {/* D-day 카운터 */}
+          <div className="flex sm:flex-col gap-2 shrink-0">
             {[
               { deadline: "2026-03-31", label: "보안 교육 마감" },
               { deadline: "2026-06-30", label: "자산 실사 마감" },
             ].map(c => (
-              <div key={c.label} className="text-center px-5 py-4 rounded-[16px]"
-                style={{ background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.12)", minWidth: 130 }}>
-                <div className="text-2xl font-extrabold" style={{ fontFamily: "Manrope, sans-serif" }}>
-                  {calcDday(c.deadline)}
-                </div>
-                <div className="text-xs font-bold opacity-85 mt-1">{c.label}</div>
-                <div className="text-xs opacity-50 mt-0.5">{c.deadline}</div>
+              <div key={c.label} className="text-center px-4 py-3 rounded-[6px]"
+                style={{ background: 'rgba(255,255,255,0.13)', border: '1px solid rgba(255,255,255,0.15)', minWidth: 110 }}>
+                <div className="text-[21px] font-extrabold leading-none">{calcDday(c.deadline)}</div>
+                <div className="text-[11px] font-medium mt-1.5" style={{ color: 'rgba(255,255,255,0.8)' }}>{c.label}</div>
+                <div className="text-[10px] mt-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>{c.deadline}</div>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* M5: 4개 균형 바로가기 */}
-      <div className="grid grid-cols-2 gap-4 mb-5">
+      {/* ── 바로가기 4개 — 그룹웨어 카드 스타일 ── */}
+      <div className="grid grid-cols-2 gap-3 mb-3.5">
         {SHORTCUTS.map(s => (
           <button key={s.tab} onClick={() => onNavigate(s.tab)}
-            className="bg-white text-left rounded-[20px] p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all"
-            style={{ border: `1px solid ${C.border}` }}>
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-3.5"
+            className="text-left rounded-[8px] p-4.5 transition-all group"
+            style={{ background: C.surface, border: `1px solid ${C.border}`,
+              padding: '16px 18px' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = C.primary; (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 8px rgba(244,124,32,0.10)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = C.border; (e.currentTarget as HTMLElement).style.boxShadow = 'none'; }}>
+            <div className="w-9 h-9 rounded-[7px] flex items-center justify-center mb-2.5"
               style={{ background: s.bg, color: s.color }}>
-              <Icon n={s.icon} s={22} />
+              <Icon n={s.icon} s={17} />
             </div>
-            <div className="font-extrabold text-sm mb-1.5"
-              style={{ color: C.text1, fontFamily: "Manrope, sans-serif" }}>{s.title}</div>
-            <div className="text-xs leading-relaxed" style={{ color: C.text3 }}>{s.desc}</div>
+            <div className="font-bold text-[13px] mb-1" style={{ color: C.text1 }}>{s.title}</div>
+            <div className="text-[11.5px] leading-relaxed" style={{ color: C.text3 }}>{s.desc}</div>
           </button>
         ))}
       </div>
 
-      {/* M5: IT 지원 문의 — 별도 CTA 행 */}
+      {/* ── IT 지원 문의 CTA ── */}
       <a href={INQUIRY_URL} target="_blank" rel="noopener noreferrer"
-        className="flex items-center gap-4 bg-white rounded-[20px] px-6 py-5 mb-7 hover:shadow-md transition-all"
-        style={{ border: `1px solid ${C.border}` }}>
-        <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+        className="flex items-center gap-3 rounded-[8px] px-4 py-3.5 mb-4 transition-all"
+        style={{ background: C.surface, border: `1px solid ${C.border}` }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = C.primary; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = C.border; }}>
+        <div className="w-9 h-9 rounded-[7px] flex items-center justify-center shrink-0"
           style={{ background: C.primarySoft, color: C.primary }}>
-          <Icon n="msg" s={20} />
+          <Icon n="msg" s={17} />
         </div>
         <div className="flex-1">
-          <div className="font-bold text-sm" style={{ color: C.text1 }}>IT 지원 문의하기</div>
-          <div className="text-xs mt-0.5" style={{ color: C.text3 }}>SW 신청, 오류 신고, 기타 문의</div>
+          <div className="font-bold text-[13px]" style={{ color: C.text1 }}>IT 지원 문의하기</div>
+          <div className="text-[11.5px] mt-0.5" style={{ color: C.text3 }}>SW 신청, 오류 신고, 기타 IT 문의</div>
         </div>
-        <span style={{ color: C.text4 }}><Icon n="chevron" s={16} /></span>
+        <span style={{ color: C.text4 }}><Icon n="chevron" s={14} /></span>
       </a>
 
-      {/* 공지사항 */}
-      <div className="bg-white rounded-[20px] overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
-        <div className="px-6 py-4 flex items-center justify-between"
-          style={{ borderBottom: `1px solid ${C.border}` }}>
-          <div className="flex items-center gap-2 font-bold text-sm"
-            style={{ color: C.text1, fontFamily: "Manrope, sans-serif" }}>
-            <Icon n="bell" s={15} /> 공지사항
+      {/* ── 공지사항 — 그룹웨어 테이블 스타일 ── */}
+      <div className="rounded-[8px] overflow-hidden" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+        <div className="px-4 py-3 flex items-center justify-between"
+          style={{ borderBottom: `1px solid ${C.border}`, background: C.sectionBg }}>
+          <div className="flex items-center gap-2 font-bold text-[13px]" style={{ color: C.text1 }}>
+            <Icon n="bell" s={13} /> 공지사항
           </div>
-          <span className="text-xs font-medium px-2 py-0.5 rounded-full"
-            style={{ background: C.bg, color: C.text3 }}>{notices.length}건</span>
+          <button className="text-[11.5px] font-medium flex items-center gap-0.5" style={{ color: C.text4 }}>
+            전체보기 <Icon n="chevron" s={12} />
+          </button>
         </div>
         <div>
           {notices.length === 0 ? (
-            <div className="px-6 py-8 text-center text-sm" style={{ color: C.text4 }}>
+            <div className="px-4 py-7 text-center text-[13px]" style={{ color: C.text4 }}>
               등록된 공지사항이 없습니다.
             </div>
-          ) : notices.map(n => (
-            <div key={n.id} className="flex items-center gap-3.5 px-6 py-3.5"
-              style={{ borderBottom: "1px solid #f8fafc" }}>
-              <span className="text-xs font-bold px-2 py-0.5 rounded-md shrink-0"
+          ) : notices.map((n, idx) => (
+            <div key={n.id} className="flex items-center gap-3 px-4 py-3 transition-colors"
+              style={{ borderBottom: idx < notices.length - 1 ? `1px solid ${C.borderLight}` : 'none' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = C.primarySoft2; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
+              <span className="text-[10.5px] font-bold px-1.5 py-0.5 rounded-[4px] shrink-0"
                 style={n.urgent
                   ? { background: "#FEE2E2", color: "#DC2626" }
-                  : { background: "#f1f5f9", color: C.text3 }}>
+                  : { background: C.bg, color: C.text3 }}>
                 {n.urgent ? "긴급" : "안내"}
               </span>
-              <span className="text-sm flex-1" style={{ color: C.text2 }}>{n.title}</span>
-              <span className="text-xs shrink-0 hidden sm:block" style={{ color: C.text4 }}>{n.date}</span>
+              <span className="text-[12.5px] flex-1 truncate" style={{ color: C.text2 }}>{n.title}</span>
+              <span className="text-[11px] shrink-0 hidden sm:block" style={{ color: C.text4 }}>{n.date}</span>
             </div>
           ))}
         </div>
