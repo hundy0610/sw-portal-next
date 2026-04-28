@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hero 프리뷰 — 3가지 버전</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Inter',sans-serif;background:#f5f0e8;padding:40px 24px 80px;color:#1c1006;}
+
+.wrap{max-width:860px;margin:0 auto;}
+
+.page-title{font-family:'Manrope',sans-serif;font-size:22px;font-weight:800;color:#1c1006;margin-bottom:6px;}
+.page-sub{font-size:13px;color:#78716c;margin-bottom:40px;}
+
+/* 버전 레이블 */
+.ver-label{
+  display:inline-flex;align-items:center;gap:8px;
+  font-family:'Manrope',sans-serif;font-size:13px;font-weight:800;
+  color:#92400e;background:#fef3c7;border:1.5px solid #fde68a;
+  border-radius:10px;padding:5px 14px;margin-bottom:14px;
+}
+.ver-desc{font-size:12px;color:#78716c;margin-bottom:18px;line-height:1.6;}
+
+.section{margin-bottom:52px;}
+
+/* ───────────────────────────────────────
+   공통 히어로 쉘
+─────────────────────────────────────── */
+.hero{
+  border-radius:22px;overflow:hidden;
+  position:relative;color:#fff;
+  background:linear-gradient(135deg,#D97706 0%,#F59E0B 55%,#FCD34D 100%);
+}
+/* 배경 도형 */
+.hero .bg-circle-1{position:absolute;width:380px;height:380px;top:-130px;right:-80px;background:#fff;border-radius:50%;opacity:.05;pointer-events:none;}
+.hero .bg-circle-2{position:absolute;width:220px;height:220px;bottom:-90px;left:38%;background:rgba(255,255,255,.04);border-radius:50%;pointer-events:none;}
+
+/* D-day 카드 공통 */
+.dday-card{
+  text-align:center;padding:14px 18px;border-radius:16px;
+  background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.18);
+  min-width:128px;
+}
+.dday-card .val{font-family:'Manrope',sans-serif;font-size:26px;font-weight:800;line-height:1;}
+.dday-card .lbl{font-size:11px;font-weight:700;opacity:.85;margin-top:5px;}
+.dday-card .date{font-size:10px;opacity:.5;margin-top:3px;}
+
+/* 버튼 공통 */
+.btn-white{display:inline-flex;align-items:center;gap:7px;background:#fff;border:none;border-radius:12px;padding:11px 20px;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap;}
+.btn-ghost{display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:12px;padding:11px 20px;font-size:13px;font-weight:600;color:#fff;cursor:pointer;white-space:nowrap;}
+
+/* stat pill */
+.stat-pill{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:10px;padding:8px 16px;text-align:center;backdrop-filter:blur(4px);}
+.stat-pill .n{font-family:'Manrope',sans-serif;font-size:22px;font-weight:800;line-height:1;}
+.stat-pill .l{font-size:10px;opacity:.65;margin-top:2px;font-weight:500;}
+
+/* tag badge */
+.tag{display:inline-block;background:rgba(255,255,255,.18);border-radius:20px;padding:3px 11px;font-size:11px;font-weight:600;opacity:.9;margin-bottom:12px;}
+
+/* ───────────────────────────────────────
+   버전 A — 통계 스탯 강조형
+─────────────────────────────────────── */
+.ver-a .inner{padding:36px 40px;}
+.ver-a .top-row{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:28px;}
+.ver-a .left{flex:1;}
+.ver-a h1{font-family:'Manrope',sans-serif;font-size:26px;font-weight:800;margin-bottom:8px;line-height:1.2;}
+.ver-a .desc{font-size:13px;opacity:.8;line-height:1.7;margin-bottom:20px;max-width:380px;}
+.ver-a .btns{display:flex;gap:10px;flex-wrap:wrap;}
+.ver-a .stats-row{display:flex;gap:10px;flex-wrap:wrap;}
+.ver-a .ddays{display:flex;flex-direction:column;gap:10px;flex-shrink:0;}
+/* stat-pill 컬러 변형 */
+.ver-a .sp-ok .n{color:#4ade80;}
+.ver-a .sp-warn .n{color:#fde047;}
+.ver-a .sp-ban .n{color:#fca5a5;}
+
+/* ───────────────────────────────────────
+   버전 B — 진행 바 + 태스크 리스트형
+─────────────────────────────────────── */
+.ver-b .inner{padding:36px 40px;}
+.ver-b h1{font-family:'Manrope',sans-serif;font-size:26px;font-weight:800;margin-bottom:8px;line-height:1.2;}
+.ver-b .desc{font-size:13px;opacity:.8;line-height:1.7;max-width:400px;}
+.ver-b .main-row{display:flex;gap:28px;align-items:flex-start;margin-top:24px;}
+.ver-b .left{flex:1;}
+.ver-b .right{display:flex;flex-direction:column;gap:10px;flex-shrink:0;}
+/* 체크리스트 아이템 */
+.task-item{
+  display:flex;align-items:center;gap:10px;
+  background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.18);
+  border-radius:12px;padding:12px 16px;min-width:210px;
+}
+.task-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.task-done{background:#4ade80;}
+.task-pend{background:rgba(255,255,255,.35);}
+.task-item .ti-label{font-size:12px;font-weight:600;flex:1;}
+.task-item .ti-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;}
+.badge-done{background:rgba(74,222,128,.25);color:#4ade80;}
+.badge-pend{background:rgba(255,255,255,.15);color:rgba(255,255,255,.7);}
+/* 진행바 */
+.prog-wrap{margin-top:20px;}
+.prog-label{display:flex;justify-content:space-between;font-size:11px;opacity:.7;margin-bottom:6px;}
+.prog-track{height:7px;background:rgba(255,255,255,.2);border-radius:99px;overflow:hidden;}
+.prog-fill{height:7px;background:#fff;border-radius:99px;}
+.ver-b .btns{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;}
+
+/* ───────────────────────────────────────
+   버전 C — 공지 + 인포 인라인형
+─────────────────────────────────────── */
+.ver-c .inner{padding:36px 40px 28px;}
+.ver-c h1{font-family:'Manrope',sans-serif;font-size:26px;font-weight:800;margin-bottom:8px;line-height:1.2;}
+.ver-c .desc{font-size:13px;opacity:.8;line-height:1.7;max-width:400px;margin-bottom:20px;}
+.ver-c .top-row{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;}
+.ver-c .left{flex:1;}
+.ver-c .btns{display:flex;gap:10px;margin-bottom:0;flex-wrap:wrap;}
+.ver-c .ddays{display:flex;flex-direction:column;gap:10px;flex-shrink:0;}
+/* 하단 공지 스트립 */
+.notice-strip{
+  margin-top:24px;
+  background:rgba(0,0,0,.12);border-top:1px solid rgba(255,255,255,.1);
+  padding:14px 40px;
+  display:flex;align-items:center;gap:0;overflow:hidden;
+}
+.notice-strip .ns-label{font-size:10px;font-weight:800;opacity:.6;letter-spacing:.08em;margin-right:16px;white-space:nowrap;text-transform:uppercase;}
+.ns-items{display:flex;gap:0;flex:1;overflow:hidden;}
+.ns-item{
+  display:flex;align-items:center;gap:10px;
+  padding:0 18px 0 0;
+  border-right:1px solid rgba(255,255,255,.15);
+  margin-right:18px;flex-shrink:0;
+}
+.ns-item:last-child{border-right:none;margin-right:0;}
+.ns-badge{font-size:9px;font-weight:800;padding:2px 7px;border-radius:20px;flex-shrink:0;}
+.ns-urgent{background:rgba(239,68,68,.3);color:#fca5a5;}
+.ns-info{background:rgba(255,255,255,.15);color:rgba(255,255,255,.8);}
+.ns-text{font-size:12px;font-weight:500;opacity:.85;white-space:nowrap;}
+.ns-date{font-size:10px;opacity:.45;flex-shrink:0;}
+
+/* ───── 선택 버튼 ───── */
+.select-btns{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;}
+.sel-btn{
+  padding:10px 22px;border-radius:10px;border:1.5px solid #fde68a;
+  background:#fff;font-size:13px;font-weight:700;color:#92400e;
+  cursor:pointer;transition:all .15s;font-family:'Manrope',sans-serif;
+}
+.sel-btn:hover{background:#F59E0B;color:#fff;border-color:#F59E0B;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="page-title">히어로 섹션 — 3가지 버전 프리뷰</div>
+  <div class="page-sub">마음에 드는 버전을 골라주세요. 선택한 버전으로 코드 반영합니다.</div>
+
+  <!-- ═══════════════════════════════════
+       버전 A — SW 현황 통계 강조형
+  ═══════════════════════════════════ -->
+  <div class="section">
+    <div class="ver-label">✦ 버전 A &nbsp;—&nbsp; SW 현황 통계 강조</div>
+    <div class="ver-desc">
+      히어로 안에 승인/금지/조건부 SW 건수를 stat 카드로 배치.<br>
+      포털을 처음 방문해도 사내 SW 현황을 즉시 파악 가능. D-day 카드는 오른쪽에 유지.
+    </div>
+    <div class="hero ver-a">
+      <div class="bg-circle-1"></div>
+      <div class="bg-circle-2"></div>
+      <div class="inner">
+        <div class="top-row">
+          <div class="left">
+            <div class="tag">IT 자산관리파트</div>
+            <h1>안녕하세요 👋<br>무엇을 도와드릴까요?</h1>
+            <div class="desc">
+              SW 사용 정책 확인부터 교육, 자산 실사까지<br>한 곳에서 빠르게 해결하세요.
+            </div>
+            <!-- 통계 스탯 -->
+            <div class="stats-row" style="margin-bottom:22px;">
+              <div class="stat-pill sp-ok">
+                <div class="n">18</div>
+                <div class="l">✅ 승인 SW</div>
+              </div>
+              <div class="stat-pill sp-warn">
+                <div class="n">4</div>
+                <div class="l">⚠️ 조건부</div>
+              </div>
+              <div class="stat-pill sp-ban">
+                <div class="n">6</div>
+                <div class="l">🚫 금지 SW</div>
+              </div>
+            </div>
+            <div class="btns">
+              <button class="btn-white" style="color:#F59E0B;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                SW 정책 확인하기
+              </button>
+              <button class="btn-ghost">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                IT 지원 문의
+              </button>
+            </div>
+          </div>
+          <!-- D-day -->
+          <div class="ddays">
+            <div class="dday-card">
+              <div class="val">마감</div>
+              <div class="lbl">보안 교육 마감</div>
+              <div class="date">2026-03-31</div>
+            </div>
+            <div class="dday-card">
+              <div class="val">D-63</div>
+              <div class="lbl">자산 실사 마감</div>
+              <div class="date">2026-06-30</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="select-btns">
+      <button class="sel-btn" onclick="alert('A 선택! 알려주시면 코드에 반영합니다.')">✓ 버전 A 선택</button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════
+       버전 B — 진행 현황 + 할 일 체크형
+  ═══════════════════════════════════ -->
+  <div class="section">
+    <div class="ver-label">✦ 버전 B &nbsp;—&nbsp; 진행 현황 + 할 일 체크</div>
+    <div class="ver-desc">
+      교육 이수·자산 신고 같은 "해야 할 일"을 체크리스트로 시각화.<br>
+      완료 여부를 색상으로 구분하고, 전체 진행률 바를 보여줌. 마감일이 다가올수록 유용.
+    </div>
+    <div class="hero ver-b">
+      <div class="bg-circle-1"></div>
+      <div class="bg-circle-2"></div>
+      <div class="inner">
+        <div class="tag">IT 자산관리파트</div>
+        <h1>안녕하세요 👋</h1>
+        <div class="desc">아직 완료하지 못한 항목이 있습니다. 확인해주세요.</div>
+        <div class="main-row">
+          <div class="left">
+            <!-- 진행률 바 -->
+            <div class="prog-wrap">
+              <div class="prog-label">
+                <span>전체 이행률</span>
+                <span style="font-weight:700;">1 / 3 완료</span>
+              </div>
+              <div class="prog-track"><div class="prog-fill" style="width:33%"></div></div>
+            </div>
+            <div class="btns">
+              <button class="btn-white" style="color:#F59E0B;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                SW 정책 확인하기
+              </button>
+              <button class="btn-ghost">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                IT 지원 문의
+              </button>
+            </div>
+          </div>
+          <!-- 오른쪽 할 일 목록 -->
+          <div class="right">
+            <div class="task-item">
+              <div class="task-dot task-done"></div>
+              <div class="ti-label">SW 라이선스 준수 교육</div>
+              <div class="ti-badge badge-done">완료</div>
+            </div>
+            <div class="task-item">
+              <div class="task-dot task-pend"></div>
+              <div class="ti-label">보안 교육 이수</div>
+              <div class="ti-badge badge-pend" style="color:#fde047;">D-마감</div>
+            </div>
+            <div class="task-item">
+              <div class="task-dot task-pend"></div>
+              <div class="ti-label">자산 실사 신고</div>
+              <div class="ti-badge badge-pend">D-63</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="select-btns">
+      <button class="sel-btn" onclick="alert('B 선택! 알려주시면 코드에 반영합니다.')">✓ 버전 B 선택</button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════
+       버전 C — 하단 공지 스트립 인라인형
+  ═══════════════════════════════════ -->
+  <div class="section">
+    <div class="ver-label">✦ 버전 C &nbsp;—&nbsp; 하단 공지 스트립 내장</div>
+    <div class="ver-desc">
+      히어로 하단에 공지사항 미리보기 스트립을 붙임.<br>
+      별도 공지 섹션 없이도 최신 공지를 바로 확인 가능. 통계 스탯도 함께 표시.
+    </div>
+    <div class="hero ver-c">
+      <div class="bg-circle-1"></div>
+      <div class="bg-circle-2"></div>
+      <div class="inner">
+        <div class="top-row">
+          <div class="left">
+            <div class="tag">IT 자산관리파트</div>
+            <h1>안녕하세요 👋<br>무엇을 도와드릴까요?</h1>
+            <div class="desc">SW 사용 정책 확인부터 교육, 자산 실사까지<br>한 곳에서 빠르게 해결하세요.</div>
+            <!-- stat 간략 -->
+            <div class="stats-row" style="display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap;">
+              <div class="stat-pill" style="min-width:0;padding:7px 14px;">
+                <div class="n" style="font-size:18px;color:#4ade80;">18</div>
+                <div class="l">승인 SW</div>
+              </div>
+              <div class="stat-pill" style="min-width:0;padding:7px 14px;">
+                <div class="n" style="font-size:18px;color:#fde047;">4</div>
+                <div class="l">조건부</div>
+              </div>
+              <div class="stat-pill" style="min-width:0;padding:7px 14px;">
+                <div class="n" style="font-size:18px;color:#fca5a5;">6</div>
+                <div class="l">금지 SW</div>
+              </div>
+            </div>
+            <div class="btns">
+              <button class="btn-white" style="color:#F59E0B;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                SW 정책 확인하기
+              </button>
+              <button class="btn-ghost">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                IT 지원 문의
+              </button>
+            </div>
+          </div>
+          <!-- D-day -->
+          <div class="ddays">
+            <div class="dday-card">
+              <div class="val">마감</div>
+              <div class="lbl">보안 교육 마감</div>
+              <div class="date">2026-03-31</div>
+            </div>
+            <div class="dday-card">
+              <div class="val">D-63</div>
+              <div class="lbl">자산 실사 마감</div>
+              <div class="date">2026-06-30</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- 하단 공지 스트립 -->
+      <div class="notice-strip">
+        <div class="ns-label">공지</div>
+        <div class="ns-items">
+          <div class="ns-item">
+            <span class="ns-badge ns-urgent">긴급</span>
+            <span class="ns-text">Q1 필수 보안 교육 마감 안내</span>
+            <span class="ns-date" style="margin-left:8px;">03-31</span>
+          </div>
+          <div class="ns-item">
+            <span class="ns-badge ns-info">안내</span>
+            <span class="ns-text">Adobe CC 라이선스 갱신 완료</span>
+            <span class="ns-date" style="margin-left:8px;">02-20</span>
+          </div>
+          <div class="ns-item">
+            <span class="ns-badge ns-urgent">긴급</span>
+            <span class="ns-text">보안 SW 필수 설치 공지</span>
+            <span class="ns-date" style="margin-left:8px;">02-10</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="select-btns">
+      <button class="sel-btn" onclick="alert('C 선택! 알려주시면 코드에 반영합니다.')">✓ 버전 C 선택</button>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
