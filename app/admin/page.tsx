@@ -56,6 +56,7 @@ export default function AdminPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
   const [darkMode, setDarkMode] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   // HW 통계 백그라운드 prefetch (경량 stats, ~수 KB)
   const [hwStatsPrefetch, setHwStatsPrefetch] = useState<any | null>(null);
   const hwFetchedRef = useRef(false);
@@ -191,6 +192,20 @@ export default function AdminPage() {
     <div className={`flex flex-col min-h-screen${darkMode ? " admin-dark" : ""}`}>
       {/* ── 상단 헤더 ── */}
       <header className="admin-header bg-white border-b border-gray-200 h-[52px] flex items-center px-5 gap-3 sticky top-0 z-40">
+        {/* 사이드바 토글 버튼 */}
+        <button
+          onClick={() => setSidebarOpen(o => !o)}
+          className="flex items-center justify-center w-7 h-7 rounded hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-800 shrink-0"
+          title={sidebarOpen ? "사이드바 숨기기" : "사이드바 열기"}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <line x1="3" y1="12" x2="21" y2="12"/>
+            <line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+        </button>
+        <div className="w-px h-5 bg-gray-200 mx-1" />
+
         <a
           href="/"
           className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800 px-2 py-1.5 rounded hover:bg-gray-100 transition-colors"
@@ -290,7 +305,11 @@ export default function AdminPage() {
       {/* ── 사이드바 + 콘텐츠 ── */}
       <div className="flex flex-1 overflow-hidden">
         {/* 왼쪽 사이드바 */}
-        <aside className="sidenav w-[220px] min-w-[220px] flex flex-col pt-4 pb-4 overflow-y-auto">
+        <aside
+          className={`sidenav flex flex-col pt-4 pb-4 overflow-y-auto transition-all duration-200 ease-in-out ${
+            sidebarOpen ? "w-[220px] min-w-[220px]" : "w-0 min-w-0 overflow-hidden p-0"
+          }`}
+        >
           <div className="sidenav-section">메뉴</div>
           {menu.map((m) => (
             <div
