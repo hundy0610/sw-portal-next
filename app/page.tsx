@@ -157,14 +157,24 @@ export default function PortalPage() {
 ══════════════════════════════════════════════════════ */
 function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
   const [notices, setNotices] = useState<Notice[]>([]);
+  const [swStats, setSwStats] = useState({ approved: 0, conditional: 0, banned: 0 });
 
   useEffect(() => {
     fetch("/api/notices")
       .then(r => r.json())
       .then(res => setNotices(res.data ?? []));
+    fetch("/api/sw-db")
+      .then(r => r.json())
+      .then(res => {
+        const items: SwItem[] = res.data ?? [];
+        setSwStats({
+          approved:    items.filter(s => s.status === "approved").length,
+          conditional: items.filter(s => s.status === "conditional").length,
+          banned:      items.filter(s => s.status === "banned").length,
+        });
+      });
   }, []);
 
-  /* M5: 4개 균형 그리드 (자산 실사 추가) */
   const SHORTCUTS = [
     { tab: "education"   as Tab, icon: "edu",    title: "교육 센터", desc: "필수 이수 교육 및 SW 활용 자료",   bg: "#F3E8FF", color: "#7C3AED" },
     { tab: "resources"   as Tab, icon: "folder", title: "자료실",    desc: "설치 가이드, 정책 지침, 양식 서식", bg: "#FEF3C7", color: "#D97706" },
@@ -174,9 +184,10 @@ function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
 
   return (
     <div className="fade-in">
-      {/* 히어로 */}
+      {/* 히어로 — 버전 A: SW 현황 통계 강조 */}
       <div className="rounded-[20px] text-white relative overflow-hidden mb-8 px-8 sm:px-10 py-10"
         style={{ background: `linear-gradient(135deg, ${C.brand} 0%, ${C.primary} 60%, #FCD34D 100%)` }}>
+        {/* 배경 도형 */}
         <div className="absolute rounded-full pointer-events-none opacity-5"
           style={{ width: 360, height: 360, top: -120, right: -80, background: "#fff" }} />
         <div className="absolute rounded-full pointer-events-none"
@@ -184,10 +195,40 @@ function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
 
         <div className="relative flex flex-col sm:flex-row items-start justify-between gap-8">
           <div className="flex-1">
-<div className="text-sm opacity-80 leading-relaxed mb-7 max-w-md">
-              SW 자산관리 포털에 오신 것을 환영합니다.<br />
-              SW 사용 정책을 확인하고 필요한 교육 자료를 이용하세요.
+            {/* 태그 */}
+            <div className="inline-block text-xs font-semibold px-3 py-1 rounded-full mb-4"
+              style={{ background: "rgba(255,255,255,0.18)" }}>
+              IT 자산관리파트
             </div>
+            {/* 헤드라인 */}
+            <div className="text-2xl font-extrabold mb-2 leading-snug"
+              style={{ fontFamily: "Manrope, sans-serif" }}>
+              안녕하세요
+            </div>
+            <div className="text-sm opacity-80 leading-relaxed mb-6 max-w-sm">
+              SW 사용 정책 확인부터 교육, 자산 실사까지<br />
+              한 곳에서 빠르게 해결하세요.
+            </div>
+
+            {/* SW 현황 스탯 */}
+            <div className="flex gap-2 flex-wrap mb-6">
+              {[
+                { val: swStats.approved,    label: "✅ 승인 SW",  valColor: "#4ade80" },
+                { val: swStats.conditional, label: "⚠️ 조건부",   valColor: "#fde047" },
+                { val: swStats.banned,      label: "🚫 금지 SW",  valColor: "#fca5a5" },
+              ].map(s => (
+                <div key={s.label} className="text-center px-4 py-2 rounded-[12px]"
+                  style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.18)", minWidth: 76 }}>
+                  <div className="text-xl font-extrabold leading-none"
+                    style={{ fontFamily: "Manrope, sans-serif", color: s.valColor }}>
+                    {s.val}
+                  </div>
+                  <div className="text-[10px] font-medium mt-1" style={{ opacity: 0.7 }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* 버튼 */}
             <div className="flex gap-3 flex-wrap">
               <button onClick={() => onNavigate("search")}
                 className="flex items-center gap-2 font-extrabold text-sm px-5 py-3 rounded-xl hover:opacity-90 transition-opacity"
@@ -202,7 +243,7 @@ function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
             </div>
           </div>
 
-          {/* M4: D-day 동적 계산 */}
+          {/* D-day 카드 */}
           <div className="flex sm:flex-col gap-3 shrink-0">
             {[
               { deadline: "2026-03-31", label: "보안 교육 마감" },
