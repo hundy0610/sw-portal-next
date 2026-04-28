@@ -14,6 +14,7 @@ const HwPanel           = dynamic(() => import("@/components/admin/HwPanel"),   
 const AccountsPanel     = dynamic(() => import("@/components/admin/AccountsPanel"),     { ssr: false });
 const AssetMapPanel     = dynamic(() => import("@/components/admin/AssetMapPanel"),     { ssr: false });
 const HelpDeskPanel     = dynamic(() => import("@/components/admin/HelpDeskPanel"),     { ssr: false });
+const ContractPanel     = dynamic(() => import("@/components/admin/ContractPanel"),     { ssr: false });
 
 // ── 세션 타입 ──────────────────────────────────────────────────
 interface SessionInfo {
@@ -24,7 +25,7 @@ interface SessionInfo {
   mustChangePassword?: boolean;
 }
 
-type PageId = "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "accounts" | "assetmap" | "helpdesk";
+type PageId = "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "accounts" | "assetmap" | "helpdesk" | "contracts";
 
 // ── 메뉴 정의 ──────────────────────────────────────────────────
 const SUPER_MENU: { id: PageId; icon: string; label: string; desc: string }[] = [
@@ -37,6 +38,7 @@ const SUPER_MENU: { id: PageId; icon: string; label: string; desc: string }[] = 
   { id: "assetmap",   icon: "🗺", label: "스마트오피스 모니터 관리", desc: "인터랙티브 자산 맵"    },
   { id: "helpdesk",   icon: "🎫", label: "문의 접수 현황", desc: "유형·법인별 분석"        },
   { id: "accounts",   icon: "👤", label: "계정 설정",     desc: "담당자 계정 관리"       },
+  { id: "contracts",  icon: "📋", label: "계약 관리",     desc: "PC/OA 유지보수 계약"    },
 ];
 
 const COMPANY_MENU: { id: PageId; icon: string; label: string; desc: string }[] = [
@@ -180,6 +182,7 @@ export default function AdminPage() {
       case "assetmap":    return isSuper ? <AssetMapPanel /> : null;            // 슈퍼어드민 전용
       case "helpdesk":    return <HelpDeskPanel company={isSuper ? "" : company} />;
       case "accounts":    return isSuper ? <AccountsPanel /> : null;            // 슈퍼어드민 전용
+      case "contracts":   return isSuper ? <ContractPanel /> : null;            // 슈퍼어드민 전용
       default:            return null;
     }
   }
