@@ -53,6 +53,7 @@ export default function AdminPage() {
   const [page, setPage]         = useState<PageId>("hw");
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
+  const [darkMode, setDarkMode] = useState(false);
   // HW 통계 백그라운드 prefetch (경량 stats, ~수 KB)
   const [hwStatsPrefetch, setHwStatsPrefetch] = useState<any | null>(null);
   const hwFetchedRef = useRef(false);
@@ -184,9 +185,9 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className={`flex flex-col min-h-screen${darkMode ? " admin-dark" : ""}`}>
       {/* ── 상단 헤더 ── */}
-      <header className="bg-white border-b border-gray-200 h-[52px] flex items-center px-5 gap-3 sticky top-0 z-40">
+      <header className="admin-header bg-white border-b border-gray-200 h-[52px] flex items-center px-5 gap-3 sticky top-0 z-40">
         <a
           href="/"
           className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800 px-2 py-1.5 rounded hover:bg-gray-100 transition-colors"
@@ -245,6 +246,27 @@ export default function AdminPage() {
               </span>
             )}
           </div>
+
+          {/* 다크모드 토글 */}
+          <button
+            onClick={() => setDarkMode(d => !d)}
+            className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 px-2 py-1.5 rounded hover:bg-blue-50 transition-colors"
+            title={darkMode ? "라이트 모드로 전환" : "다크 모드로 전환"}
+          >
+            {darkMode ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+              </svg>
+            )}
+            {darkMode ? "라이트" : "다크"}
+          </button>
 
           {/* 로그아웃 버튼 */}
           <button
@@ -345,8 +367,8 @@ export default function AdminPage() {
 
         {/* 메인 콘텐츠 */}
         <main
-          className={`flex-1 overflow-y-auto ${page === "assetmap" ? "p-0" : "p-7"}`}
-          style={{ background: page === "assetmap" ? "#F9FAFB" : "#F4F5F7" }}
+          className={`admin-main flex-1 overflow-y-auto ${page === "assetmap" ? "p-0" : "p-7"}`}
+          style={{ background: page === "assetmap" ? "#F9FAFB" : "var(--admin-content-bg, #F4F5F7)" }}
         >
           <div className={page === "assetmap" ? "h-full" : "slide-in"}>{renderPanel()}</div>
         </main>

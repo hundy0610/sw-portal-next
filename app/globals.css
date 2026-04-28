@@ -4,9 +4,22 @@
 @tailwind utilities;
 
 :root {
-  --sidebar-bg: #1c1006;
+  --sidebar-bg: #1e293b;
   --sidebar-hover: rgba(255,255,255,0.08);
-  --sidebar-active: rgba(245,158,11,0.18);
+  --sidebar-active: rgba(59,130,246,0.20);
+  /* 어드민 라이트 모드 */
+  --admin-header-bg: #ffffff;
+  --admin-header-border: #e5e7eb;
+  --admin-content-bg: #F4F5F7;
+  --admin-table-head-bg: #EFF6FF;
+  --admin-table-head-border: #BFDBFE;
+  --admin-table-row-border: #DBEAFE;
+  --admin-table-hover-bg: #EFF6FF;
+  --admin-input-bg: #ffffff;
+  --admin-input-border: #BFDBFE;
+  --admin-input-color: #1e293b;
+  --admin-text-primary: #1e293b;
+  --admin-text-secondary: #64748b;
 }
 
 * { box-sizing: border-box; }
@@ -39,7 +52,7 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
   transition: all 0.15s; margin: 0 8px 1px;
 }
 .sidenav-item:hover { background: var(--sidebar-hover); color: rgba(255,255,255,0.92); }
-.sidenav-item.active { background: var(--sidebar-active); color: #F59E0B; font-weight: 700; }
+.sidenav-item.active { background: var(--sidebar-active); color: #60A5FA; font-weight: 700; }
 .sidenav-section {
   font-size: 10.5px; font-weight: 600; letter-spacing: .08em;
   color: rgba(255,255,255,0.35); padding: 16px 16px 4px; text-transform: uppercase;
@@ -48,23 +61,67 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
 /* 데이터 테이블 */
 .data-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .data-table th {
-  background: #fef3d0; padding: 10px 14px; text-align: left;
+  background: var(--admin-table-head-bg); padding: 10px 14px; text-align: left;
   font-size: 11.5px; font-weight: 600; color: #6B778C;
   letter-spacing: .04em; text-transform: uppercase;
-  border-bottom: 2px solid #fde68a; white-space: nowrap;
+  border-bottom: 2px solid var(--admin-table-head-border); white-space: nowrap;
 }
-.data-table td { padding: 11px 14px; border-bottom: 1px solid #fde68a; color: #44403c; vertical-align: middle; }
-.data-table tbody tr:hover td { background: #fffbeb; }
+.data-table td { padding: 11px 14px; border-bottom: 1px solid var(--admin-table-row-border); color: var(--admin-text-primary); vertical-align: middle; }
+.data-table tbody tr:hover td { background: var(--admin-table-hover-bg); }
 .data-table tbody tr:last-child td { border-bottom: none; }
 
 /* 인풋 */
 .form-input {
-  border: 2px solid #fde68a; border-radius: 4px;
-  padding: 7px 12px; font-size: 13.5px; color: #1c1006;
-  outline: none; transition: border-color 0.15s; background: #fff; width: 100%;
+  border: 2px solid var(--admin-input-border); border-radius: 4px;
+  padding: 7px 12px; font-size: 13.5px; color: var(--admin-input-color);
+  outline: none; transition: border-color 0.15s; background: var(--admin-input-bg); width: 100%;
 }
-.form-input:focus { border-color: #F59E0B; box-shadow: 0 0 0 2px rgba(245,158,11,0.18); }
+.form-input:focus { border-color: #3B82F6; box-shadow: 0 0 0 2px rgba(59,130,246,0.18); }
 
 /* 프로그레스 바 */
 .prog-track { height: 6px; background: #EBECF0; border-radius: 99px; overflow: hidden; }
 .prog-fill  { height: 6px; border-radius: 99px; transition: width 0.8s ease; }
+
+/* ── 어드민 다크모드 (.admin-dark 클래스) ──────────────────── */
+.admin-dark {
+  --admin-header-bg: #1e293b;
+  --admin-header-border: #334155;
+  --admin-content-bg: #0f172a;
+  --admin-table-head-bg: #1e293b;
+  --admin-table-head-border: #334155;
+  --admin-table-row-border: #2d3f55;
+  --admin-table-hover-bg: #1e3a5f;
+  --admin-input-bg: #1e293b;
+  --admin-input-border: #334155;
+  --admin-input-color: #e2e8f0;
+  --admin-text-primary: #e2e8f0;
+  --admin-text-secondary: #94a3b8;
+  --sidebar-bg: #0c1829;
+  --sidebar-active: rgba(59,130,246,0.28);
+}
+
+.admin-dark header.admin-header {
+  background: var(--admin-header-bg) !important;
+  border-color: var(--admin-header-border) !important;
+}
+.admin-dark header.admin-header .text-gray-900 { color: #e2e8f0 !important; }
+.admin-dark header.admin-header .text-gray-400,
+.admin-dark header.admin-header .text-gray-500 { color: #64748b !important; }
+.admin-dark header.admin-header .hover\:text-gray-800:hover { color: #e2e8f0 !important; }
+.admin-dark header.admin-header .hover\:bg-gray-100:hover { background: rgba(255,255,255,0.08) !important; }
+.admin-dark header.admin-header .border-gray-200 { border-color: #334155 !important; }
+.admin-dark header.admin-header .bg-gray-800 { background: #3B82F6 !important; }
+.admin-dark main.admin-main { background: var(--admin-content-bg) !important; }
+.admin-dark .bg-white { background: #1e293b !important; }
+.admin-dark .border-gray-200 { border-color: #334155 !important; }
+.admin-dark .text-gray-900 { color: #e2e8f0 !important; }
+.admin-dark .text-gray-700 { color: #cbd5e1 !important; }
+.admin-dark .text-gray-600 { color: #94a3b8 !important; }
+.admin-dark .text-gray-500 { color: #94a3b8 !important; }
+.admin-dark .text-gray-400 { color: #64748b !important; }
+.admin-dark .bg-gray-50 { background: #1e3a5f !important; }
+.admin-dark .bg-gray-100 { background: #1e293b !important; }
+.admin-dark .hover\:bg-gray-100:hover { background: rgba(255,255,255,0.08) !important; }
+.admin-dark .hover\:bg-blue-50:hover { background: rgba(59,130,246,0.12) !important; }
+.admin-dark .hover\:bg-red-50:hover { background: rgba(239,68,68,0.12) !important; }
+.admin-dark .border-b { border-color: #334155; }

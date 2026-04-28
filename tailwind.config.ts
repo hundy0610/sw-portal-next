@@ -11,7 +11,7 @@ const config: Config = {
       colors: {
         primary: "#F59E0B",
         "primary-dark": "#D97706",
-        sidebar: "#1c1006",
+        sidebar: "#1e293b",
         "text-heading": "#1c1006",
         "text-body": "#44403c",
         "text-sub": "#6B778C",

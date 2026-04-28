@@ -8,7 +8,7 @@ import DeclarationPanel from "@/components/DeclarationPanel";
 type Tab    = "home" | "education" | "resources" | "search" | "declaration";
 type ResTab = ResourceCategory;
 
-const INQUIRY_URL = "https://assetify-desk.vercel.app/inquiry";
+const INQUIRY_URL = "https://assetify-desk-main.vercel.app/";
 
 /* ── 색상 토큰 (3종으로 통일) ── */
 const C = {
@@ -184,10 +184,7 @@ function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
 
         <div className="relative flex flex-col sm:flex-row items-start justify-between gap-8">
           <div className="flex-1">
-            <div className="text-3xl font-extrabold mb-3" style={{ fontFamily: "Manrope, sans-serif" }}>
-              안녕하세요 👋
-            </div>
-            <div className="text-sm opacity-80 leading-relaxed mb-7 max-w-md">
+<div className="text-sm opacity-80 leading-relaxed mb-7 max-w-md">
               SW 자산관리 포털에 오신 것을 환영합니다.<br />
               SW 사용 정책을 확인하고 필요한 교육 자료를 이용하세요.
             </div>
