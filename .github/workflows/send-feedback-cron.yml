@@ -1,0 +1,23 @@
+name: Send Feedback Emails (Cron)
+
+on:
+  schedule:
+    # 5분마다 실행 (UTC 기준)
+    - cron: '*/5 * * * *'
+  workflow_dispatch:  # 수동 실행 가능
+
+jobs:
+  send-feedback:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call send-feedback cron endpoint
+        run: |
+          response=$(curl -s -o /tmp/response.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://assetify-desk-main.vercel.app/api/cron/send-feedback)
+          echo "HTTP Status: $response"
+          cat /tmp/response.json
+          if [ "$response" != "200" ]; then
+            echo "Error: Non-200 response"
+            exit 1
+          fi

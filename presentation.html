@@ -1,0 +1,1351 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SW 자산관리 포털 — 기능 발표 자료</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<style>
+/* ── 리셋 & 루트 ── */
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --p:#F59E0B; --pd:#D97706; --pl:#FFFBEB;
+  --s:#fffdf8; --sl:#fffdf5; --sm:#fef3d0; --sh:#fde68a;
+  --bd:#fde68a; --t:#1c1006; --ts:#64748b; --tl:#94a3b8;
+  --w:#fff; --sw:240px;
+  --card-r:16px;
+}
+
+body{font-family:'Inter',-apple-system,sans-serif;background:var(--s);color:var(--t);min-height:100vh;line-height:1.6;}
+
+/* ── 아이콘 ── */
+.mi{font-family:'Material Symbols Outlined';font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;font-size:20px;line-height:1;vertical-align:middle;display:inline-block;user-select:none;}
+.mif{font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;}
+
+/* ── 스크롤바 ── */
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:var(--sh);border-radius:4px}
+
+/* ── 레이아웃 ── */
+.page-wrap{max-width:1080px;margin:0 auto;padding:44px 24px 80px;}
+
+/* ── 애니메이션 ── */
+@keyframes fi{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.section{animation:fi .3s ease both;}
+
+/* ═══════════════════════════════════
+   커버 카드
+═══════════════════════════════════ */
+.cover{
+  background:linear-gradient(135deg,#D97706,var(--p),#FCD34D);
+  border-radius:22px;padding:52px 48px;color:#fff;
+  margin-bottom:36px;position:relative;overflow:hidden;
+}
+.cover::before{content:'';position:absolute;width:340px;height:340px;top:-120px;right:-70px;background:#fff;border-radius:50%;opacity:.05;}
+.cover-badge{
+  display:inline-block;background:rgba(255,255,255,.15);
+  border:1px solid rgba(255,255,255,.3);border-radius:20px;
+  padding:4px 14px;font-size:11px;font-weight:700;letter-spacing:.5px;margin-bottom:14px;
+}
+.cover h1{font-family:'Manrope',sans-serif;font-size:32px;font-weight:800;margin-bottom:10px;line-height:1.2;}
+.cover p{font-size:14px;opacity:.8;max-width:540px;line-height:1.7;}
+.cover-meta{display:flex;gap:12px;margin-top:28px;flex-wrap:wrap;}
+.cover-stat{
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.15);
+  border-radius:14px;padding:14px 20px;text-align:center;min-width:110px;
+}
+.cover-stat .val{font-family:'Manrope',sans-serif;font-size:24px;font-weight:800;line-height:1;}
+.cover-stat .lbl{font-size:10px;opacity:.75;margin-top:4px;font-weight:600;}
+
+/* ═══════════════════════════════════
+   목차
+═══════════════════════════════════ */
+.toc{background:var(--w);border:1px solid var(--bd);border-radius:var(--card-r);padding:28px 32px;margin-bottom:36px;}
+.toc-title{font-family:'Manrope',sans-serif;font-size:15px;font-weight:800;color:var(--t);margin-bottom:18px;display:flex;align-items:center;gap:8px;}
+.toc-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 28px;}
+.toc-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--sm);font-size:13px;color:var(--ts);text-decoration:none;transition:color .15s;}
+.toc-item:hover{color:var(--p);}
+.toc-num{font-size:11px;font-weight:800;width:22px;height:22px;border-radius:7px;background:var(--sm);color:var(--pd);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+
+/* ═══════════════════════════════════
+   섹션 헤더
+═══════════════════════════════════ */
+.section{margin-bottom:44px;}
+.section-header{display:flex;align-items:center;gap:12px;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid var(--bd);}
+.section-icon{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.section-header h2{font-family:'Manrope',sans-serif;font-size:19px;font-weight:800;color:var(--t);}
+.section-header p{font-size:12px;color:var(--ts);margin-top:2px;}
+
+/* ═══════════════════════════════════
+   카드 그리드
+═══════════════════════════════════ */
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;}
+.card-grid-2{display:grid;grid-template-columns:repeat(auto-fill,minmax(440px,1fr));gap:14px;}
+
+.card{
+  background:var(--w);border:1px solid var(--bd);border-radius:var(--card-r);
+  padding:22px;transition:box-shadow .15s,transform .15s;
+}
+.card:hover{box-shadow:0 10px 28px rgba(28,16,6,.08);transform:translateY(-2px);}
+
+.card-head{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+.card-icon{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.card h3{font-family:'Manrope',sans-serif;font-size:14px;font-weight:800;color:var(--t);}
+.card .sub{font-size:11px;color:var(--ts);margin-top:1px;}
+
+.feature-list{list-style:none;display:flex;flex-direction:column;gap:7px;}
+.feature-list li{display:flex;align-items:flex-start;gap:8px;font-size:13px;color:var(--ts);line-height:1.5;}
+.feature-list li::before{content:'▸';color:var(--p);font-size:10px;margin-top:3px;flex-shrink:0;}
+.feature-list li strong{color:var(--t);font-weight:700;}
+
+/* ═══════════════════════════════════
+   배지
+═══════════════════════════════════ */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;}
+.badge-amber  {background:var(--sm);color:var(--pd);}
+.badge-green  {background:rgba(22,163,74,.1);color:#15803d;}
+.badge-red    {background:rgba(220,38,38,.1);color:#b91c1c;}
+.badge-yellow {background:rgba(234,179,8,.1);color:#a16207;}
+.badge-blue   {background:#eff6ff;color:#1d4ed8;}
+.badge-purple {background:#f5f3ff;color:#7c3aed;}
+.badge-gray   {background:#f1f5f9;color:#475569;}
+
+/* ═══════════════════════════════════
+   상태 칩
+═══════════════════════════════════ */
+.status-chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;}
+.info-chip{display:inline-flex;align-items:center;gap:5px;background:var(--sm);border-radius:8px;padding:4px 10px;font-size:12px;color:var(--ts);}
+.info-chip .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+
+/* ═══════════════════════════════════
+   하이라이트 박스
+═══════════════════════════════════ */
+.hl-box{border-radius:12px;padding:16px 20px;margin:14px 0;border-left:3px solid;}
+.hl-amber {background:var(--pl);border-color:var(--p);}
+.hl-green {background:#f0fdf4;border-color:#16a34a;}
+.hl-blue  {background:#eff6ff;border-color:#2563eb;}
+.hl-red   {background:#fef2f2;border-color:#dc2626;}
+.hl-box h4{font-size:13px;font-weight:700;color:var(--t);margin-bottom:5px;}
+.hl-box p {font-size:12px;color:var(--ts);}
+.hl-box ul{margin-top:8px;display:flex;flex-direction:column;gap:4px;}
+.hl-box ul li{font-size:12px;color:var(--ts);list-style:disc;margin-left:16px;}
+
+/* ═══════════════════════════════════
+   아키텍처 다이어그램
+═══════════════════════════════════ */
+.arch-wrap{background:var(--w);border:1px solid var(--bd);border-radius:var(--card-r);padding:28px;}
+.arch-row{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;margin-bottom:10px;}
+.arch-box{border-radius:11px;padding:10px 18px;font-size:12px;font-weight:700;text-align:center;min-width:110px;}
+.arch-arrow{text-align:center;font-size:18px;color:var(--tl);margin:2px 0;}
+
+/* ═══════════════════════════════════
+   역할 비교 테이블
+═══════════════════════════════════ */
+.role-table{width:100%;border-collapse:collapse;font-size:13px;}
+.role-table th{background:var(--sm);padding:10px 14px;text-align:left;font-weight:700;color:var(--t);border-bottom:2px solid var(--bd);}
+.role-table td{padding:10px 14px;border-bottom:1px solid var(--sm);color:var(--ts);vertical-align:top;}
+.role-table tr:hover td{background:var(--sl);}
+
+/* ═══════════════════════════════════
+   KPI 목업
+═══════════════════════════════════ */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;}
+.kpi-card{background:var(--w);border:1px solid var(--bd);border-radius:11px;padding:12px;border-left:3px solid;}
+.kpi-card .kv{font-family:'Manrope',sans-serif;font-size:20px;font-weight:800;}
+.kpi-card .kl{font-size:10px;color:var(--ts);margin-top:2px;}
+
+/* ═══════════════════════════════════
+   목업 UI
+═══════════════════════════════════ */
+.mockup{background:var(--sm);border:1px solid var(--bd);border-radius:14px;padding:16px;}
+.mockup-header{background:var(--w);border:1px solid var(--bd);border-radius:11px;padding:10px 14px;display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+.mockup-logo{width:30px;height:30px;background:var(--p);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:9px;flex-shrink:0;}
+.mockup-nav{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px;}
+.mockup-nav-item{padding:6px 12px;border-radius:8px;font-size:11px;font-weight:600;background:var(--w);border:1px solid var(--bd);color:var(--ts);}
+.mockup-nav-item.active{background:var(--pl);color:var(--p);border-color:var(--sh);}
+
+/* ═══════════════════════════════════
+   관리자 레이아웃 목업
+═══════════════════════════════════ */
+.admin-layout{display:flex;gap:0;border:1px solid var(--bd);border-radius:14px;overflow:hidden;}
+.admin-sidebar{width:176px;min-width:176px;background:#1c1006;padding:14px 8px;display:flex;flex-direction:column;gap:2px;}
+.admin-sidebar-sep{font-size:9px;color:rgba(255,255,255,.3);letter-spacing:1px;padding:8px 8px 4px;text-transform:uppercase;}
+.admin-sidebar-item{padding:7px 9px;border-radius:8px;font-size:11px;font-weight:600;color:rgba(255,255,255,.5);display:flex;gap:7px;align-items:center;}
+.admin-sidebar-item.active{background:var(--pl);color:var(--pd);}
+.admin-sidebar-item.active .mi{color:var(--p);}
+.admin-main{flex:1;background:var(--sm);padding:18px;}
+.admin-main h4{font-family:'Manrope',sans-serif;font-size:14px;font-weight:800;color:var(--t);margin-bottom:12px;}
+
+/* ═══════════════════════════════════
+   플로우
+═══════════════════════════════════ */
+.flow{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:10px 0;}
+.flow-step{background:var(--pl);color:var(--pd);border:1px solid var(--sh);border-radius:9px;padding:5px 12px;font-size:12px;font-weight:600;}
+.flow-arrow{color:var(--tl);font-size:13px;}
+
+/* ═══════════════════════════════════
+   구분선
+═══════════════════════════════════ */
+.divider{border:none;border-top:2px solid var(--bd);margin:32px 0;}
+
+/* ═══════════════════════════════════
+   반응형
+═══════════════════════════════════ */
+@media(max-width:640px){
+  .cover{padding:36px 24px;}
+  .cover h1{font-size:22px;}
+  .card-grid,.card-grid-2{grid-template-columns:1fr;}
+  .toc-grid{grid-template-columns:1fr;}
+  .kpi-row{grid-template-columns:repeat(2,1fr);}
+  .admin-layout{flex-direction:column;}
+  .admin-sidebar{width:100%;flex-direction:row;flex-wrap:wrap;}
+}
+@media print{.card:hover{box-shadow:none;transform:none;}}
+</style>
+</head>
+<body>
+<div class="page-wrap">
+
+<!-- ══════════════════════════════════════════
+     커버
+══════════════════════════════════════════ -->
+<div class="cover">
+  <div class="cover-badge">v2.16.0 · IT 자산관리파트</div>
+  <h1>SW 자산관리 포털<br>기능 발표 자료</h1>
+  <p>직원 포털과 관리자 페이지로 구성된 전사 소프트웨어 자산관리 시스템입니다.<br>
+  Notion 실시간 연동 · Next.js 기반 · Vercel KV 캐싱</p>
+  <div class="cover-meta">
+    <div class="cover-stat"><div class="val">5</div><div class="lbl">직원 포털 탭</div></div>
+    <div class="cover-stat"><div class="val">9</div><div class="lbl">관리자 패널</div></div>
+    <div class="cover-stat"><div class="val">2</div><div class="lbl">관리자 역할</div></div>
+    <div class="cover-stat"><div class="val">Notion</div><div class="lbl">데이터 백엔드</div></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     목차
+══════════════════════════════════════════ -->
+<div class="toc">
+  <div class="toc-title"><span class="mi mif" style="color:var(--p);">format_list_bulleted</span> 목차</div>
+  <div class="toc-grid">
+    <a href="#sys"     class="toc-item"><span class="toc-num">0</span> 시스템 구조 개요</a>
+    <a href="#a-dash"  class="toc-item"><span class="toc-num">6</span> 관리자 — 대시보드</a>
+    <a href="#p-home"  class="toc-item"><span class="toc-num">1</span> 직원 포털 — 홈</a>
+    <a href="#a-lic"   class="toc-item"><span class="toc-num">7</span> 관리자 — 라이선스 현황</a>
+    <a href="#p-edu"   class="toc-item"><span class="toc-num">2</span> 직원 포털 — 교육 센터</a>
+    <a href="#a-swdb"  class="toc-item"><span class="toc-num">8</span> 관리자 — SW DB 관리</a>
+    <a href="#p-res"   class="toc-item"><span class="toc-num">3</span> 직원 포털 — 자료실</a>
+    <a href="#a-hw"    class="toc-item"><span class="toc-num">9</span> 관리자 — HW 자산 관리</a>
+    <a href="#p-srch"  class="toc-item"><span class="toc-num">4</span> 직원 포털 — SW 검색</a>
+    <a href="#a-rep"   class="toc-item"><span class="toc-num">10</span> 관리자 — 구독 리포트</a>
+    <a href="#p-decl"  class="toc-item"><span class="toc-num">5</span> 직원 포털 — 자산 실사</a>
+    <a href="#a-map"   class="toc-item"><span class="toc-num">11</span> 관리자 — 스마트오피스 맵</a>
+    <a href="#a-role"  class="toc-item"><span class="toc-num">—</span> 관리자 역할 구분</a>
+    <a href="#a-hd"    class="toc-item"><span class="toc-num">12</span> 관리자 — 문의 접수 현황</a>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     0. 시스템 구조
+══════════════════════════════════════════ -->
+<div class="section" id="sys">
+  <div class="section-header">
+    <div class="section-icon" style="background:var(--sm);"><span class="mi" style="color:var(--pd);">architecture</span></div>
+    <div>
+      <h2>시스템 구조 개요</h2>
+      <p>전체 아키텍처 및 기술 스택</p>
+    </div>
+  </div>
+
+  <div class="arch-wrap">
+    <div class="arch-row">
+      <div class="arch-box" style="background:var(--pl);color:var(--pd);border:1.5px solid var(--sh);">
+        <span class="mi" style="font-size:16px;">person</span> 직원 (일반 사용자)
+      </div>
+      <div class="arch-box" style="background:#f5f3ff;color:#7c3aed;border:1.5px solid #ddd6fe;">
+        <span class="mi" style="font-size:16px;">admin_panel_settings</span> 관리자 (슈퍼/법인)
+      </div>
+    </div>
+    <div class="arch-arrow">↓</div>
+    <div class="arch-row">
+      <div class="arch-box" style="background:var(--pd);color:#fff;min-width:320px;">
+        <span class="mi" style="font-size:16px;">dns</span> Next.js 14 앱 (직원 포털 + 관리자 페이지)
+      </div>
+    </div>
+    <div class="arch-arrow">↓</div>
+    <div class="arch-row">
+      <div class="arch-box" style="background:#f0fdf4;color:#15803d;border:1.5px solid #bbf7d0;">
+        <span class="mi" style="font-size:16px;">bolt</span> Vercel KV (Redis 캐시)
+      </div>
+      <div class="arch-box" style="background:var(--sm);color:var(--pd);border:1.5px solid var(--sh);">
+        <span class="mi" style="font-size:16px;">table_chart</span> Notion DB (데이터 원본)
+      </div>
+      <div class="arch-box" style="background:#fef2f2;color:#dc2626;border:1.5px solid #fecaca;">
+        <span class="mi" style="font-size:16px;">lock</span> Iron Session (인증)
+      </div>
+    </div>
+    <div class="arch-arrow">↓</div>
+    <div class="arch-row">
+      <div class="arch-box" style="background:#f5f3ff;color:#7c3aed;border:1.5px solid #ddd6fe;min-width:260px;">
+        <span class="mi" style="font-size:16px;">smart_toy</span> GitHub Actions (Cron: 캐시 워밍 / 만료 알림 발송)
+      </div>
+    </div>
+  </div>
+
+  <div class="hl-box hl-amber" style="margin-top:14px;">
+    <h4>🔄 데이터 흐름</h4>
+    <p>Notion 데이터 편집 → 관리자 '데이터 동기화' 또는 Cron 자동 실행 → Vercel KV 캐시 갱신 → 직원 포털 즉시 반영</p>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ══════════════════════════════════════════
+     직원 포털 공통 구조
+══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon" style="background:var(--sm);"><span class="mi" style="color:var(--pd);">web</span></div>
+    <div>
+      <h2>직원 포털 — 공통 구조</h2>
+      <p>URL: / (루트) · 누구나 접근 가능 · 반응형 (PC 사이드바 / 모바일 바텀탭)</p>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">
+      <div class="mockup-logo">SW</div>
+      <div style="flex:1;">
+        <div style="font-size:12px;font-weight:700;color:var(--t);">SW 자산관리 포털</div>
+        <div style="font-size:10px;color:var(--tl);">IT 자산관리파트</div>
+      </div>
+      <span class="badge badge-amber"><span class="mi" style="font-size:12px;">support_agent</span> IT 지원 문의하기</span>
+    </div>
+    <div class="mockup-nav">
+      <div class="mockup-nav-item active"><span class="mi mif" style="font-size:14px;">home</span> 홈</div>
+      <div class="mockup-nav-item"><span class="mi" style="font-size:14px;">school</span> 교육 센터</div>
+      <div class="mockup-nav-item"><span class="mi" style="font-size:14px;">folder_open</span> 자료실</div>
+      <div class="mockup-nav-item"><span class="mi" style="font-size:14px;">manage_search</span> SW 검색</div>
+      <div class="mockup-nav-item"><span class="mi" style="font-size:14px;">fact_check</span> 자산 실사</div>
+    </div>
+    <div style="background:var(--w);border-radius:9px;padding:11px;font-size:11px;color:var(--ts);border:1px solid var(--bd);">
+      <strong>데스크톱</strong>: 좌측 고정 사이드바 (240px) ·
+      <strong>모바일</strong>: 상단 헤더 + 하단 바텀 네비게이션 5탭 ·
+      사이드바 하단 IT 지원 문의 버튼 고정 · 관리자 링크 숨김(hover 시 표시)
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     1. 직원 포털 — 홈
+══════════════════════════════════════════ -->
+<div class="section" id="p-home">
+  <div class="section-header">
+    <div class="section-icon" style="background:var(--sm);"><span class="mi mif" style="color:var(--p);">home</span></div>
+    <div>
+      <h2>직원 포털 탭 ① — 홈</h2>
+      <p>포털 진입점 · 공지사항 및 바로가기 모음</p>
+    </div>
+  </div>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:var(--sm);"><span class="mi mif" style="color:var(--p);">campaign</span></div>
+        <div><h3>히어로 배너</h3><div class="sub">상단 앰버 그라디언트 카드</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>환영 메시지 및 포털 소개 문구</li>
+        <li><strong>D-day 동적 계산</strong> — 보안 교육 마감 · 자산 실사 마감 (실시간, 날짜 기반)</li>
+        <li>'SW 정책 확인하기' 버튼 → SW 검색 탭 이동</li>
+        <li>'IT 지원 문의' 버튼 → 외부 헬프데스크 연결</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:#ecfdf5;"><span class="mi mif" style="color:#059669;">grid_view</span></div>
+        <div><h3>4개 바로가기 카드</h3><div class="sub">2×2 균형 그리드</div></div>
+      </div>
+      <ul class="feature-list">
+        <li><span class="mi" style="font-size:14px;color:var(--p);">manage_search</span> SW 정책 검색</li>
+        <li><span class="mi" style="font-size:14px;color:#059669;">school</span> 교육 센터</li>
+        <li><span class="mi" style="font-size:14px;color:#2563eb;">folder_open</span> 자료실</li>
+        <li><span class="mi" style="font-size:14px;color:#7c3aed;">fact_check</span> 자산 실사</li>
+        <li>각 카드 호버 시 그림자·이동 애니메이션</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:var(--pl);"><span class="mi mif" style="color:var(--p);">notifications</span></div>
+        <div><h3>공지사항</h3><div class="sub">Notion 연동 실시간 데이터</div></div>
+      </div>
+      <ul class="feature-list">
+        <li><strong>긴급</strong> 배지 (빨간색) / <strong>안내</strong> 배지 (회색) 구분</li>
+        <li>총 공지 건수 자동 표시</li>
+        <li>제목 · 날짜 · 유형 표시, 줄임 처리</li>
+        <li>데이터 없을 시 빈 상태 메시지</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:#f5f3ff;"><span class="mi mif" style="color:#7c3aed;">support_agent</span></div>
+        <div><h3>IT 지원 문의 CTA</h3><div class="sub">홈 중앙 전용 강조 카드</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>SW 신청 / 오류 신고 / 기타 문의 안내</li>
+        <li>외부 헬프데스크 시스템으로 연결</li>
+        <li>탭 전체에 항상 노출 (사이드바 하단)</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     2. 직원 포털 — 교육 센터
+══════════════════════════════════════════ -->
+<div class="section" id="p-edu">
+  <div class="section-header">
+    <div class="section-icon" style="background:#ecfdf5;"><span class="mi mif" style="color:#059669;">school</span></div>
+    <div>
+      <h2>직원 포털 탭 ② — 교육 센터</h2>
+      <p>필수 교육 · SW 활용 자료 · IT 정책 교육</p>
+    </div>
+  </div>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:#fef2f2;"><span class="mi mif" style="color:#dc2626;">security</span></div>
+        <div><h3>필수 교육</h3><div class="sub">카드형 그리드 레이아웃</div></div>
+      </div>
+      <ul class="feature-list">
+        <li><strong>D-day 배지</strong> — 7일 이내(빨강) · 30일 이내(노랑) · 진행중(초록) · 마감(회색)</li>
+        <li>교육 기간(duration) · 마감일 태그 표시</li>
+        <li>'교육 시작하기 →' 버튼 (URL 연결) / 준비 중 비활성 처리</li>
+        <li>과정 수 자동 집계</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:#eff6ff;"><span class="mi mif" style="color:#2563eb;">apps</span></div>
+        <div><h3>SW 활용 자료</h3><div class="sub">category: material</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>썸네일 이미지 지원 (thumbnailUrl)</li>
+        <li>제목 · 설명 · '자세히 보기 →' 외부 링크</li>
+        <li>이미지 없을 시 아이콘 기본값</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:var(--sm);"><span class="mi mif" style="color:var(--pd);">gavel</span></div>
+        <div><h3>IT 정책 교육</h3><div class="sub">순번 배지형 리스트 — category: policy</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>번호 배지 + 제목 + 설명</li>
+        <li>소요 시간 · 상세 보기 링크</li>
+        <li>과정 수 자동 집계</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:var(--pl);"><span class="mi" style="color:var(--p);">info</span></div>
+        <div><h3>교육 이수 확인 안내</h3><div class="sub">하단 고정 배너</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>동영상 시청 + 퀴즈 완료 후 이수 처리 안내</li>
+        <li>페이지 하단에 항상 노출</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     3. 직원 포털 — 자료실
+══════════════════════════════════════════ -->
+<div class="section" id="p-res">
+  <div class="section-header">
+    <div class="section-icon" style="background:#eff6ff;"><span class="mi mif" style="color:#2563eb;">folder_open</span></div>
+    <div>
+      <h2>직원 포털 탭 ③ — 자료실</h2>
+      <p>설치 가이드 · 정책 문서 · 양식 서식 · 기타</p>
+    </div>
+  </div>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:var(--sm);"><span class="mi mif" style="color:var(--pd);">tab</span></div>
+        <div><h3>4개 카테고리 탭 전환</h3><div class="sub">현재 탭 파일 수 · 전체 자료 수 표시</div></div>
+      </div>
+      <ul class="feature-list">
+        <li><strong>설치 가이드</strong> — SW 설치 매뉴얼</li>
+        <li><strong>정책 문서</strong> — 컴플라이언스, 내부 규정</li>
+        <li><strong>양식 서식</strong> — 신청서, 보고서 양식</li>
+        <li><strong>기타</strong> — 분류 외 자료</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:#f0fdf4;"><span class="mi mif" style="color:#16a34a;">description</span></div>
+        <div><h3>파일 목록</h3><div class="sub">타입별 색상 아이콘 구분</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>PDF (빨강) / XLSX (초록) / DOCX (파랑) 색상 구분</li>
+        <li>파일명 · 크기 · 최종 수정일 · 설명</li>
+        <li><strong>'다운로드'</strong> 버튼 (파일) / <strong>'바로가기'</strong> 버튼 (LINK 타입)</li>
+        <li>준비 중 비활성 상태 처리</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:var(--sm);"><span class="mi mif" style="color:var(--p);">update</span></div>
+        <div><h3>최근 업데이트 위젯</h3><div class="sub">사이드 패널 · 이번 달 현황</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>Q3 컴플라이언스·macOS 설치 스크립트 업데이트 알림</li>
+        <li>'변경 이력 보기' 버튼</li>
+        <li>현재 탭 자료 수 · 전체 자료 수 집계</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:#fef2f2;"><span class="mi mif" style="color:#dc2626;">upload_file</span></div>
+        <div><h3>자료 문의 / 제출 카드</h3><div class="sub">하단 2개 액션 카드</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>자료 없을 때 → IT팀 관리자 문의 (헬프데스크 연결)</li>
+        <li>내부 문서 업로드 → IT팀 검토 요청</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     4. 직원 포털 — SW 검색
+══════════════════════════════════════════ -->
+<div class="section" id="p-srch">
+  <div class="section-header">
+    <div class="section-icon" style="background:var(--sm);"><span class="mi mif" style="color:var(--pd);">manage_search</span></div>
+    <div>
+      <h2>직원 포털 탭 ④ — SW 검색</h2>
+      <p>사내 승인 · 금지 SW 즉시 확인 · 실시간 필터링</p>
+    </div>
+  </div>
+
+  <div class="hl-box hl-amber">
+    <h4><span class="mi" style="font-size:14px;">star</span> 핵심 기능</h4>
+    <p>직원이 SW 설치 전 사내 허용 여부를 즉시 확인합니다. SW명·벤더명·카테고리·대체SW 모두 검색 범위에 포함됩니다.</p>
+  </div>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:var(--sm);"><span class="mi" style="color:var(--pd);">search</span></div>
+        <div><h3>실시간 검색창</h3><div class="sub">1글자부터 즉시 필터링</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>SW명 · 벤더명 · 카테고리 · 대체SW 통합 검색</li>
+        <li>X 버튼으로 검색 초기화</li>
+        <li>페이지 진입 시 자동 포커스</li>
+        <li>포커스 시 앰버 테두리·글로우 효과</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:#f0fdf4;"><span class="mi mif" style="color:#16a34a;">label</span></div>
+        <div><h3>상태 필터 칩</h3><div class="sub">건수 실시간 표시</div></div>
+      </div>
+      <div class="status-chips">
+        <span class="badge badge-gray">전체 N건</span>
+        <span class="badge badge-green">✅ 승인됨</span>
+        <span class="badge badge-yellow">⚠️ 조건부</span>
+        <span class="badge badge-red">🚫 금지됨</span>
+      </div>
+      <ul class="feature-list" style="margin-top:8px;">
+        <li>상태별 건수 자동 표시</li>
+        <li>상태 필터 + 검색어 동시 적용 가능</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:var(--pl);"><span class="mi mif" style="color:var(--p);">bolt</span></div>
+        <div><h3>빠른 검색 &amp; 카테고리 탐색</h3><div class="sub">검색어 미입력 상태 UI</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>자주 검색되는 SW 버튼 (Photoshop · Teams · Notion · ChatGPT · 7-Zip · Figma · Claude 등)</li>
+        <li>카테고리별 빠른 탐색 (승인/금지/조건부 전체 보기)</li>
+        <li>사용 승인 요청 → IT팀 문의 링크</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:var(--sm);"><span class="mi mif" style="color:var(--pd);">open_in_new</span></div>
+        <div><h3>검색 결과 상세보기</h3><div class="sub">카드 클릭 시 확장 토글</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>카테고리 이니셜 색상 아바타 (보안·협업·개발·디자인·AI별 색상)</li>
+        <li><strong>필수 SW</strong> 배지 (mandatory 필드)</li>
+        <li>대체 가능 SW 목록 안내</li>
+        <li>승인 → "자유롭게 사용 가능"</li>
+        <li>금지 → "즉시 삭제 후 IT팀 신고"</li>
+        <li>조건부 → "IT팀 승인 요청 →" 링크 (클릭 시 헬프데스크)</li>
+        <li>결과 0건 → IT팀 문의 링크 표시</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     5. 직원 포털 — 자산 실사
+══════════════════════════════════════════ -->
+<div class="section" id="p-decl">
+  <div class="section-header">
+    <div class="section-icon" style="background:#f5f3ff;"><span class="mi mif" style="color:#7c3aed;">fact_check</span></div>
+    <div>
+      <h2>직원 포털 탭 ⑤ — 자산 실사 (DeclarationPanel)</h2>
+      <p>SW 자산 현황 신고 양식 · Notion 저장</p>
+    </div>
+  </div>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:var(--sm);"><span class="mi mif" style="color:var(--p);">business</span></div>
+        <div><h3>신고 기본 정보</h3><div class="sub">직원 직접 입력</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>법인 선택 (대웅제약·대웅바이오 등 30개 법인)</li>
+        <li>부서명 · 담당자 이름 · 연락처</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:#eff6ff;"><span class="mi mif" style="color:#2563eb;">storage</span></div>
+        <div><h3>SW 항목 신고</h3><div class="sub">동적 항목 추가 / 삭제</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>SW 카테고리 선택 (OFFICE · Adobe · Figma · ChatGPT · CURSOR AI 등 30+종)</li>
+        <li>업무 유형 <strong>자동 힌트</strong> (SW 선택 시 사무/디자인/AI 등 자동 추천)</li>
+        <li>라이선스 유형: 구독(웹) · 구독(업체) · 영구 (설명 툴팁 포함)</li>
+        <li>결제 방식: 법인카드 · 개인지불 후 청구 · 쉐어드 청구</li>
+        <li>계정 유형: 개인 · 법인 · 공용 (설명 툴팁)</li>
+        <li>갱신 주기 (월/연) · 버전 · 수량 · 비용(KRW) · 사용자 목록 · 비고</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="hl-box hl-green">
+    <h4><span class="mi" style="font-size:14px;">api</span> API 연동</h4>
+    <p>POST /api/declaration → Notion DB에 자산 신고 데이터 저장. 신고 완료 시 확인 메시지 표시.</p>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ══════════════════════════════════════════
+     관리자 역할 구분
+══════════════════════════════════════════ -->
+<div class="section" id="a-role">
+  <div class="section-header">
+    <div class="section-icon" style="background:#f5f3ff;"><span class="mi mif" style="color:#7c3aed;">admin_panel_settings</span></div>
+    <div>
+      <h2>관리자 역할 구분</h2>
+      <p>URL: /admin · Iron Session 쿠키 인증 · 최초 로그인 비밀번호 변경 강제</p>
+    </div>
+  </div>
+
+  <div class="card-grid-2">
+    <div class="card" style="border-top:3px solid #7c3aed;">
+      <div class="card-head">
+        <div class="card-icon" style="background:#f5f3ff;font-size:12px;font-weight:800;color:#7c3aed;">SA</div>
+        <div><h3>슈퍼 어드민 (Super Admin)</h3><div class="sub">전사 데이터 전체 접근</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>대시보드 (전사 통합 현황)</li>
+        <li>라이선스 현황 (전체 법인)</li>
+        <li><strong>계정 관리</strong> (SW 계정 ID/PW 목록) ← SA 전용</li>
+        <li><strong>SW DB 관리</strong> (화이트/블랙리스트) ← SA 전용</li>
+        <li>구독 리포트 (전사)</li>
+        <li>HW 자산 관리 (전체)</li>
+        <li><strong>스마트오피스 모니터 관리</strong> ← SA 전용</li>
+        <li>문의 접수 현황 (전 법인 통합)</li>
+        <li><strong>계정 설정</strong> (담당자 계정 CRUD) ← SA 전용</li>
+        <li>사이드바 하단 Notion 바로가기 링크</li>
+      </ul>
+    </div>
+
+    <div class="card" style="border-top:3px solid var(--p);">
+      <div class="card-head">
+        <div class="card-icon" style="background:var(--pl);font-size:12px;font-weight:800;color:var(--pd);">AD</div>
+        <div><h3>법인 담당자 (Company Admin)</h3><div class="sub">소속 법인 데이터만 접근</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>대시보드 (소속 법인 현황)</li>
+        <li>라이선스 현황 (소속 법인)</li>
+        <li>구독 리포트 (소속 법인)</li>
+        <li>HW 자산 관리 (소속 법인)</li>
+        <li>문의 접수 현황 (소속 법인)</li>
+        <li>사이드바에 소속 법인명 표시</li>
+        <li>차트에서 '법인별' 옵션 숨김</li>
+      </ul>
+      <div class="hl-box hl-amber" style="margin-top:12px;">
+        <h4>데이터 격리</h4>
+        <p>API 요청 시 company 파라미터 자동 전달 → Notion 쿼리에서 해당 법인 레코드만 반환</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 관리자 UI 목업 -->
+  <div class="admin-layout" style="margin-top:16px;">
+    <div class="admin-sidebar">
+      <div class="admin-sidebar-sep">메뉴</div>
+      <div class="admin-sidebar-item active"><span class="mi mif" style="font-size:14px;">bolt</span> 대시보드</div>
+      <div class="admin-sidebar-item"><span class="mi" style="font-size:14px;">key</span> 라이선스 현황</div>
+      <div class="admin-sidebar-item"><span class="mi" style="font-size:14px;">password</span> 계정 관리</div>
+      <div class="admin-sidebar-item"><span class="mi" style="font-size:14px;">dataset</span> SW DB 관리</div>
+      <div class="admin-sidebar-item"><span class="mi" style="font-size:14px;">bar_chart</span> 구독 리포트</div>
+      <div class="admin-sidebar-item"><span class="mi" style="font-size:14px;">laptop_mac</span> HW 자산 관리</div>
+      <div class="admin-sidebar-item"><span class="mi" style="font-size:14px;">map</span> 스마트오피스 맵</div>
+      <div class="admin-sidebar-item"><span class="mi" style="font-size:14px;">confirmation_number</span> 문의 접수</div>
+      <div class="admin-sidebar-item"><span class="mi" style="font-size:14px;">manage_accounts</span> 계정 설정</div>
+    </div>
+    <div class="admin-main">
+      <h4>관리자 페이지 — 사이드바 구조</h4>
+      <div style="font-size:12px;color:var(--ts);">상단 헤더: Notion 연동 상태 · 데이터 동기화 버튼 · 로그아웃 · 직원 포털 이동</div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+        <span class="badge badge-amber"><span class="mi mif" style="font-size:11px;color:#22c55e;">circle</span> Notion 연동 중</span>
+        <span class="badge badge-gray"><span class="mi" style="font-size:11px;">sync</span> 데이터 동기화</span>
+        <span class="badge badge-gray"><span class="mi" style="font-size:11px;">logout</span> 로그아웃</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     6. 관리자 — 대시보드
+══════════════════════════════════════════ -->
+<div class="section" id="a-dash">
+  <div class="section-header">
+    <div class="section-icon" style="background:var(--sm);"><span class="mi mif" style="color:var(--p);">bolt</span></div>
+    <div>
+      <h2>관리자 패널 ① — 대시보드 (OverviewPanel)</h2>
+      <p>전사/법인 SW 자산 현황 한눈에 파악</p>
+    </div>
+  </div>
+
+  <div class="mockup" style="margin-bottom:14px;">
+    <div class="kpi-row">
+      <div class="kpi-card" style="border-color:#0052CC;">
+        <div class="kv" style="color:#0052CC;">284건</div>
+        <div class="kl">전체 SW 레코드<br>영구 120 · 구독 164</div>
+      </div>
+      <div class="kpi-card" style="border-color:#00875A;">
+        <div class="kv" style="color:#00875A;">97개</div>
+        <div class="kl">구독 중인 SW</div>
+      </div>
+      <div class="kpi-card" style="border-color:#dc2626;">
+        <div class="kv" style="color:#dc2626;">12건</div>
+        <div class="kl">갱신 임박 (30일)</div>
+      </div>
+      <div class="kpi-card" style="border-color:#6554C0;">
+        <div class="kv" style="color:#6554C0;">215종</div>
+        <div class="kl">SW DB 관리<br>승인 180 · 금지 35</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--tl);text-align:center;">↑ KPI 카드 예시 (실제 데이터는 Notion 연동)</div>
+  </div>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:var(--sm);"><span class="mi" style="color:var(--pd);">filter_alt</span></div>
+        <div><h3>글로벌 데이터 필터</h3><div class="sub">슈퍼어드민: 법인+SW명 / 법인담당자: SW명만</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>법인 선택 드롭다운 (슈퍼어드민 전용)</li>
+        <li>SW명 선택 드롭다운</li>
+        <li>필터 초기화 버튼 · 적용 건수 실시간 표시</li>
+        <li>필터 적용 시 KPI·차트·목록 전체 연동 갱신</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:#ecfdf5;"><span class="mi mif" style="color:#059669;">donut_large</span></div>
+        <div><h3>인터랙티브 현황 차트</h3><div class="sub">도넛 / 수평 막대 자동 전환</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>SW 카테고리별 (문서/AI/개발/협업/디자인/보안) — 도넛</li>
+        <li>법인별 — 수평 막대 (슈퍼어드민만)</li>
+        <li>부서별 — 수평 막대</li>
+        <li>구독/영구 — 도넛</li>
+        <li>상태별 — 도넛</li>
+        <li>마우스 호버 시 세그먼트 강조 · 수치 표시</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:#fef2f2;"><span class="mi mif" style="color:#dc2626;">alarm</span></div>
+        <div><h3>갱신 임박 알림</h3><div class="sub">30일 이내 갱신 필요 항목</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>D-day 컬러 배지: 7일 이내(빨강) · 14일(주황) · 30일(노랑)</li>
+        <li>SW명 · 사용자 · 날짜 표시</li>
+        <li>최대 8건 표시 후 '더 있음' 안내</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:var(--sm);"><span class="mi" style="color:var(--pd);">open_in_new</span></div>
+        <div><h3>포털 관리 빠른 링크</h3><div class="sub">Notion 직접 편집 바로가기</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>SW DB 편집 (화이트/블랙리스트)</li>
+        <li>SW 데이터베이스 (라이선스·구독 통합)</li>
+        <li>라이선스 현황 추가·수정</li>
+        <li>티켓 처리 (Notion)</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     7. 관리자 — 라이선스 현황
+══════════════════════════════════════════ -->
+<div class="section" id="a-lic">
+  <div class="section-header">
+    <div class="section-icon" style="background:var(--pl);"><span class="mi mif" style="color:var(--p);">key</span></div>
+    <div>
+      <h2>관리자 패널 ② — 라이선스 현황 (LicensePanel)</h2>
+      <p>영구 · 구독 라이선스 통합 목록 · 페이지네이션 30건</p>
+    </div>
+  </div>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:#eff6ff;"><span class="mi mif" style="color:#2563eb;">table_rows</span></div>
+        <div><h3>라이선스 목록 테이블</h3><div class="sub">30건씩 페이지네이션</div></div>
+      </div>
+      <div class="status-chips">
+        <span class="info-chip"><span class="dot" style="background:#3b82f6;"></span>사용중</span>
+        <span class="info-chip"><span class="dot" style="background:#10b981;"></span>재고</span>
+        <span class="info-chip"><span class="dot" style="background:#f97316;"></span>갱신필요</span>
+        <span class="info-chip"><span class="dot" style="background:#9ca3af;"></span>만료</span>
+        <span class="info-chip"><span class="dot" style="background:#8b5cf6;"></span>신규등록</span>
+      </div>
+      <ul class="feature-list" style="margin-top:8px;">
+        <li>SW 카테고리 아이콘 (문서/AI/개발/협업/디자인/보안)</li>
+        <li>라이선스 유형: 영구(파랑) · 구독(업체)(보라) · 구독(웹)(청록)</li>
+        <li>갱신일 D-day 자동 계산 및 컬러 표시</li>
+        <li>클립보드 복사 버튼 · Notion 원본 링크</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:var(--sm);"><span class="mi" style="color:var(--pd);">search</span></div>
+        <div><h3>검색 및 다중 필터</h3><div class="sub">동시 적용 가능</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>SW명 키워드 검색</li>
+        <li>법인별 필터 (슈퍼어드민)</li>
+        <li>라이선스 유형 필터 (영구/구독)</li>
+        <li>상태별 필터</li>
+        <li>갱신 임박(30일 이내) 필터</li>
+        <li>필터 결과 건수 실시간 표시</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     8. 관리자 — SW DB 관리
+══════════════════════════════════════════ -->
+<div class="section" id="a-swdb">
+  <div class="section-header">
+    <div class="section-icon" style="background:#f5f3ff;"><span class="mi mif" style="color:#7c3aed;">dataset</span></div>
+    <div>
+      <h2>관리자 패널 ③ — SW DB 관리 (SwDbPanel)
+        <span class="badge badge-purple" style="font-size:10px;vertical-align:middle;margin-left:6px;">슈퍼어드민 전용</span>
+      </h2>
+      <p>사내 허용·금지 SW 목록 관리 · 직원 포털 SW 검색과 실시간 연동</p>
+    </div>
+  </div>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:#f0fdf4;"><span class="mi mif" style="color:#16a34a;">check_circle</span></div>
+        <div><h3>화이트리스트 (승인 SW)</h3><div class="sub">직원 포털 → '승인됨'으로 표시</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>SW명 · 벤더 · 카테고리 · 설명</li>
+        <li>다운로드 URL · 비고(주의사항)</li>
+        <li>카테고리: 문서작업/AI/개발/협업/디자인/보안/기타</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:#fef2f2;"><span class="mi mif" style="color:#dc2626;">cancel</span></div>
+        <div><h3>블랙리스트 (금지 SW)</h3><div class="sub">직원 포털 → '금지됨'으로 표시</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>SW명 · 위험 수준 (high/medium)</li>
+        <li>금지 사유 · 상세 설명</li>
+        <li>대체 가능 SW 목록</li>
+        <li>직원에게 즉시 삭제 + IT팀 신고 안내</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:#fefce8;"><span class="mi mif" style="color:#ca8a04;">error</span></div>
+        <div><h3>조건부 승인 SW</h3><div class="sub">IT팀 사전 승인 후 사용 가능</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>SW명 · 벤더 · 카테고리 · 사용 조건</li>
+        <li>직원이 '승인 요청 →' 클릭 시 헬프데스크 연결</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:var(--sm);"><span class="mi" style="color:var(--pd);">manage_search</span></div>
+        <div><h3>검색 및 필터</h3></div>
+      </div>
+      <ul class="feature-list">
+        <li>SW명 키워드 검색</li>
+        <li>상태 필터 (전체/승인/금지/조건부)</li>
+        <li>카테고리 필터</li>
+        <li>mandatory(필수) 필터</li>
+        <li>상태별 건수 통계</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     9. 관리자 — HW 자산 관리
+══════════════════════════════════════════ -->
+<div class="section" id="a-hw">
+  <div class="section-header">
+    <div class="section-icon" style="background:#eff6ff;"><span class="mi mif" style="color:#2563eb;">laptop_mac</span></div>
+    <div>
+      <h2>관리자 패널 ④ — HW 자산 관리 (HwPanel)</h2>
+      <p>NT/DT 재고 · 반납 관리 · 법인별 현황 · CSV 업로드</p>
+    </div>
+  </div>
+
+  <div class="hl-box hl-blue">
+    <h4>HW 레코드 필드</h4>
+    <ul>
+      <li>자산번호 · 사용자 · 모델 · 시리얼 · 제조사 · CPU · RAM</li>
+      <li>법인 · 부서 · 위치 · 상태 · 반납예정일 · 구매일 · 가격 · 문서번호</li>
+      <li>확인여부(verified) · 중복여부(duplicated)</li>
+    </ul>
+  </div>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:#eff6ff;"><span class="mi mif" style="color:#2563eb;">donut_large</span></div>
+        <div><h3>HW 통계 대시보드</h3><div class="sub">상단 KPI + 도넛 차트</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>전체 자산 수 · 사용중 · 재고 · 반납예정 KPI</li>
+        <li>상태별 도넛 차트 (16가지 컬러 팔레트)</li>
+        <li>법인별 현황 도넛 차트</li>
+        <li><strong>백그라운드 prefetch</strong> — 페이지 진입 즉시 통계 로딩</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:var(--sm);"><span class="mi mif" style="color:var(--pd);">view_list</span></div>
+        <div><h3>HW 목록 테이블</h3><div class="sub">검색 · 필터 · 정렬</div></div>
+      </div>
+      <div class="status-chips">
+        <span class="info-chip"><span class="dot" style="background:#3b82f6;"></span>사용중</span>
+        <span class="info-chip"><span class="dot" style="background:#8b5cf6;"></span>재고</span>
+        <span class="info-chip"><span class="dot" style="background:#eab308;"></span>반납예정</span>
+        <span class="info-chip"><span class="dot" style="background:#ef4444;"></span>폐기</span>
+        <span class="info-chip"><span class="dot" style="background:#f97316;"></span>출고준비중</span>
+      </div>
+      <ul class="feature-list" style="margin-top:8px;">
+        <li>법인별 · 상태별 · 사용자명 키워드 검색</li>
+        <li>반납예정일 D-day 자동 계산 (D+숫자 = 초과, 빨간색)</li>
+        <li>가격 원화 포맷 (₩ 표시)</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:var(--pl);"><span class="mi mif" style="color:var(--p);">edit_note</span></div>
+        <div><h3>인라인 편집</h3><div class="sub">모달 없이 행에서 직접 수정</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>상태 변경 드롭다운 (18가지 상태)</li>
+        <li>법인 변경 드롭다운 (26개 법인)</li>
+        <li>반납예정일 날짜 피커</li>
+        <li>변경 즉시 Notion API 업데이트</li>
+        <li>Notion 원본 페이지 바로가기 링크</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:#f5f3ff;"><span class="mi mif" style="color:#7c3aed;">upload_file</span></div>
+        <div><h3>CSV 일괄 업로드</h3><div class="sub">대량 데이터 등록</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>CSV 파일 업로드 → Notion 일괄 추가</li>
+        <li>업로드 결과 (성공/실패 건수) 표시</li>
+        <li>POST /api/hw/upload 엔드포인트</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     10. 관리자 — 구독 리포트
+══════════════════════════════════════════ -->
+<div class="section" id="a-rep">
+  <div class="section-header">
+    <div class="section-icon" style="background:#ecfdf5;"><span class="mi mif" style="color:#059669;">bar_chart</span></div>
+    <div>
+      <h2>관리자 패널 ⑤ — 구독 리포트 (ReportPanel)</h2>
+      <p>구독 현황 분석 · 비용 집계 · 만료 알림</p>
+    </div>
+  </div>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:var(--sm);"><span class="mi mif" style="color:var(--p);">payments</span></div>
+        <div><h3>비용 집계 KPI</h3><div class="sub">월별/연간 전환 · KRW+USD</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>총 구독 비용 (KRW · USD 환율 적용 통합)</li>
+        <li>월별 / 연간 보기 전환 버튼</li>
+        <li>환율 입력창 (USD → KRW 변환)</li>
+        <li>쉐어드 청구 항목 총액 제외 처리</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:#eff6ff;"><span class="mi mif" style="color:#2563eb;">table_chart</span></div>
+        <div><h3>카테고리별 구독 테이블</h3><div class="sub">사무/문서/정부/설계/디자인/AI/개발/협업/원격/RPA</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>카테고리별 색상 칩 (10가지)</li>
+        <li>SW명 · 법인 · 사용자 · 결제방식 · 갱신일 · 금액(KRW/USD)</li>
+        <li>행 클릭 시 서브 항목 펼치기/닫기</li>
+        <li>만료 임박 항목 강조</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:var(--pl);"><span class="mi mif" style="color:var(--p);">mark_email_read</span></div>
+        <div><h3>만료 알림 이메일</h3><div class="sub">Cron 자동 · 수동 트리거</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>30일 이내 갱신 필요 항목 자동 집계</li>
+        <li>GitHub Actions Cron 주기 발송</li>
+        <li>POST /api/expiry-alert 수동 트리거</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:var(--sm);"><span class="mi" style="color:var(--pd);">link</span></div>
+        <div><h3>Notion 직접 편집 링크</h3></div>
+      </div>
+      <ul class="feature-list">
+        <li>각 행 옆 Notion 원본 바로가기</li>
+        <li>SW 데이터베이스 편집 링크</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     11. 관리자 — 스마트오피스 모니터 관리
+══════════════════════════════════════════ -->
+<div class="section" id="a-map">
+  <div class="section-header">
+    <div class="section-icon" style="background:#f0fdf4;"><span class="mi mif" style="color:#059669;">map</span></div>
+    <div>
+      <h2>관리자 패널 ⑥ — 스마트오피스 모니터 관리 (AssetMapPanel)
+        <span class="badge badge-purple" style="font-size:10px;vertical-align:middle;margin-left:6px;">슈퍼어드민 전용</span>
+      </h2>
+      <p>인터랙티브 좌석 맵 · 모니터 현황 · 수리 요청 관리</p>
+    </div>
+  </div>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:#eff6ff;"><span class="mi mif" style="color:#2563eb;">corporate_fare</span></div>
+        <div><h3>건물/층 선택</h3><div class="sub">본관 · 신관 · S동</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>건물 3개 × 층별 선택 UI</li>
+        <li>층 평면도 JPG 이미지 기반 오버레이</li>
+        <li>SVG 좌석 그리드 자동 렌더링</li>
+        <li>구역(Zone)별 라벨 표시</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:#ecfdf5;"><span class="mi mif" style="color:#059669;">monitor</span></div>
+        <div><h3>모니터 타입별 현황</h3><div class="sub">색상 범례 + 건수 통계</div></div>
+      </div>
+      <div class="status-chips">
+        <span class="info-chip"><span class="dot" style="background:#2563EB;"></span>표준형 27"</span>
+        <span class="info-chip"><span class="dot" style="background:#0284C7;"></span>표준형 24"</span>
+        <span class="info-chip"><span class="dot" style="background:#7C3AED;"></span>개발자 34"</span>
+        <span class="info-chip"><span class="dot" style="background:#DC2626;"></span>미설치</span>
+        <span class="info-chip"><span class="dot" style="background:#F97316;"></span>수리 요청</span>
+        <span class="info-chip"><span class="dot" style="background:#EF4444;"></span>수리 중</span>
+        <span class="info-chip"><span class="dot" style="background:#94A3B8;"></span>미확인</span>
+      </div>
+      <ul class="feature-list" style="margin-top:8px;">
+        <li>타입별 건수 자동 집계 · 필터 모드</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:#fef2f2;"><span class="mi mif" style="color:#dc2626;">build</span></div>
+        <div><h3>수리 요청 관리</h3><div class="sub">사이드바 빨간 배지 (1분 폴링)</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>사이드바 탭에 <strong>빨간 뱃지</strong> (pending 건수, 1분 주기 폴링)</li>
+        <li>수리 요청 목록 — 좌석ID · 요청자 · 요청일시</li>
+        <li>승인/거부 처리 → Notion 업데이트</li>
+        <li>처리 시 뱃지 즉시 사라짐</li>
+        <li>Notion 변경 이력(history) 조회</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:var(--sm);"><span class="mi mif" style="color:var(--pd);">draw</span></div>
+        <div><h3>좌석 맵 에디터</h3><div class="sub">클릭 편집 · 뷰/편집 모드 전환</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>좌석 클릭 → 모니터 타입 변경</li>
+        <li>편집 모드 / 뷰 모드 전환</li>
+        <li>변경사항 저장 → PUT /api/floor-map</li>
+        <li>FloorMapEditor / FloorMapView 컴포넌트 분리</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     12. 관리자 — 문의 접수 현황
+══════════════════════════════════════════ -->
+<div class="section" id="a-hd">
+  <div class="section-header">
+    <div class="section-icon" style="background:var(--pl);"><span class="mi mif" style="color:var(--p);">confirmation_number</span></div>
+    <div>
+      <h2>관리자 패널 ⑦ — 문의 접수 현황 (HelpDeskPanel)</h2>
+      <p>헬프데스크 티켓 분석 · 유형별 · 법인별 통계</p>
+    </div>
+  </div>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:#eff6ff;"><span class="mi mif" style="color:#2563eb;">trending_up</span></div>
+        <div><h3>월별 추이 차트</h3><div class="sub">최근 6개월</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>월별 문의 건수 막대 차트</li>
+        <li>SW / HW / 기타 유형별 색상 분리</li>
+        <li>YY/MM 형식 월 라벨 자동 생성</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:var(--sm);"><span class="mi mif" style="color:var(--pd);">category</span></div>
+        <div><h3>문의 세부 분류 (키워드 자동 분류)</h3></div>
+      </div>
+      <ul class="feature-list">
+        <li><strong>SW 문의</strong>: MS Office · Outlook/이메일 · Teams/화상회의 · 보안/VPN · Windows/OS · 그룹웨어/ERP · 인터넷/브라우저 · SW 설치/라이선스</li>
+        <li><strong>HW 문의</strong>: 모니터 · 키보드/마우스 · 성능/속도 · 배터리/전원</li>
+        <li>문의 내용 텍스트에서 키워드 매칭으로 자동 분류</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:#fef2f2;"><span class="mi mif" style="color:#dc2626;">priority_high</span></div>
+        <div><h3>긴급도 분류</h3><div class="sub">3단계 컬러</div></div>
+      </div>
+      <div class="status-chips">
+        <span class="info-chip"><span class="dot" style="background:#ef4444;"></span>매우 급합니다</span>
+        <span class="info-chip"><span class="dot" style="background:#f59e0b;"></span>조금 급합니다</span>
+        <span class="info-chip"><span class="dot" style="background:#10b981;"></span>기다릴 수 있어요</span>
+      </div>
+      <ul class="feature-list" style="margin-top:8px;">
+        <li>진행 중 / 완료 상태 배지</li>
+        <li>처리 일수 자동 계산 (제출일 → 최종 수정일)</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-icon" style="background:var(--sm);"><span class="mi mif" style="color:var(--pd);">domain</span></div>
+        <div><h3>법인별 · 담당자별 분석</h3></div>
+      </div>
+      <ul class="feature-list">
+        <li>법인별 문의 건수 집계</li>
+        <li>담당자(assignee)별 처리 현황</li>
+        <li>슈퍼어드민: 전 법인 통합 / 법인담당자: 소속 법인만</li>
+        <li>피드백(만족도) 통계 연동</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     계정 관리 / 계정 설정
+══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon" style="background:#f5f3ff;"><span class="mi mif" style="color:#7c3aed;">manage_accounts</span></div>
+    <div>
+      <h2>관리자 패널 ⑧⑨ — 계정 관리 / 계정 설정
+        <span class="badge badge-purple" style="font-size:10px;vertical-align:middle;margin-left:6px;">슈퍼어드민 전용</span>
+      </h2>
+    </div>
+  </div>
+  <div class="card-grid">
+    <div class="card" style="border-top:2px solid #7c3aed;">
+      <div class="card-head">
+        <div class="card-icon" style="background:#f5f3ff;"><span class="mi mif" style="color:#7c3aed;">password</span></div>
+        <div><h3>계정 관리 (CredentialsPanel)</h3><div class="sub">슈퍼어드민 전용</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>사내 SW 계정 목록 (ID · PW · 서비스명)</li>
+        <li>클립보드 복사 버튼 (ID/PW 개별 복사)</li>
+        <li>Notion DB 연동 · 키워드 검색 필터</li>
+        <li>조회 전용 (편집은 Notion에서)</li>
+      </ul>
+    </div>
+
+    <div class="card" style="border-top:2px solid var(--p);">
+      <div class="card-head">
+        <div class="card-icon" style="background:var(--pl);"><span class="mi mif" style="color:var(--p);">settings</span></div>
+        <div><h3>계정 설정 (AccountsPanel)</h3><div class="sub">슈퍼어드민 전용</div></div>
+      </div>
+      <ul class="feature-list">
+        <li>법인 담당자 계정 추가 · 수정 · 삭제</li>
+        <li>역할 부여 (super / company)</li>
+        <li>비밀번호 초기화 → 다음 로그인 시 변경 강제</li>
+        <li>POST /api/admin/accounts</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ══════════════════════════════════════════
+     API 엔드포인트 요약
+══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon" style="background:#ecfdf5;"><span class="mi mif" style="color:#059669;">api</span></div>
+    <div>
+      <h2>주요 API 엔드포인트 요약</h2>
+      <p>Next.js 14 App Router — /app/api</p>
+    </div>
+  </div>
+
+  <div class="arch-wrap">
+    <table class="role-table">
+      <thead>
+        <tr>
+          <th>엔드포인트</th>
+          <th>메서드</th>
+          <th>기능</th>
+          <th>접근</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>/api/notices</td><td>GET</td><td>공지사항 목록</td><td>공개</td></tr>
+        <tr><td>/api/courses</td><td>GET</td><td>교육 과정 목록</td><td>공개</td></tr>
+        <tr><td>/api/resources</td><td>GET</td><td>자료실 파일 목록</td><td>공개</td></tr>
+        <tr><td>/api/sw-db</td><td>GET</td><td>SW 화이트/블랙리스트</td><td>공개</td></tr>
+        <tr><td>/api/sw-records</td><td>GET</td><td>SW 라이선스 레코드 (법인 필터)</td><td>공개</td></tr>
+        <tr><td>/api/declaration</td><td>POST</td><td>자산 실사 신고 저장</td><td>공개</td></tr>
+        <tr><td>/api/hw</td><td>GET</td><td>HW 자산 목록</td><td>공개</td></tr>
+        <tr><td>/api/hw/stats</td><td>GET</td><td>HW 통계 (경량, KV 캐시)</td><td>공개</td></tr>
+        <tr><td>/api/hw/update</td><td>PUT</td><td>HW 레코드 수정</td><td>관리자</td></tr>
+        <tr><td>/api/hw/upload</td><td>POST</td><td>HW CSV 일괄 업로드</td><td>관리자</td></tr>
+        <tr><td>/api/licenses</td><td>GET</td><td>라이선스 현황</td><td>공개</td></tr>
+        <tr><td>/api/subscriptions</td><td>GET</td><td>구독 리포트 데이터</td><td>공개</td></tr>
+        <tr><td>/api/helpdesk</td><td>GET</td><td>헬프데스크 티켓 목록</td><td>공개</td></tr>
+        <tr><td>/api/floor-map</td><td>GET / PUT</td><td>스마트오피스 맵 데이터</td><td>관리자</td></tr>
+        <tr><td>/api/monitor-requests</td><td>GET / POST</td><td>모니터 수리 요청</td><td>관리자</td></tr>
+        <tr><td>/api/admin/auth</td><td>GET / POST / DELETE</td><td>관리자 로그인·세션·로그아웃</td><td>관리자</td></tr>
+        <tr><td>/api/admin/accounts</td><td>GET / POST / DELETE</td><td>관리자 계정 CRUD</td><td>슈퍼어드민</td></tr>
+        <tr><td>/api/admin/revalidate</td><td>POST</td><td>Notion → KV 전체 동기화</td><td>관리자</td></tr>
+        <tr><td>/api/credentials</td><td>GET</td><td>SW 계정 목록</td><td>관리자</td></tr>
+        <tr><td>/api/expiry-alert</td><td>POST</td><td>만료 알림 이메일 발송</td><td>Cron/관리자</td></tr>
+        <tr><td>/api/cron/warm-cache</td><td>GET</td><td>KV 캐시 워밍 (GitHub Actions)</td><td>Cron</td></tr>
+        <tr><td>/api/inquiry</td><td>POST</td><td>IT 지원 문의 저장</td><td>공개</td></tr>
+        <tr><td>/api/feedback</td><td>GET / POST</td><td>만족도 피드백</td><td>혼합</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     마무리
+══════════════════════════════════════════ -->
+<div style="background:linear-gradient(135deg,#D97706,var(--p),#FCD34D);border-radius:20px;padding:40px 36px;color:#fff;text-align:center;margin-top:40px;position:relative;overflow:hidden;">
+  <div style="position:absolute;width:260px;height:260px;top:-100px;right:-60px;background:#fff;border-radius:50%;opacity:.05;pointer-events:none;"></div>
+  <div style="font-family:'Manrope',sans-serif;font-size:26px;font-weight:800;margin-bottom:8px;">SW 자산관리 포털 v2.16.0</div>
+  <div style="opacity:.8;font-size:13px;margin-bottom:24px;">Notion 실시간 연동 · 법인별 권한 분리 · 반응형 UI · 스마트오피스 모니터 관리</div>
+  <div style="display:flex;justify-content:center;gap:14px;flex-wrap:wrap;">
+    <div style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);border-radius:14px;padding:14px 22px;">
+      <div style="font-family:'Manrope',sans-serif;font-size:18px;font-weight:800;">직원 포털</div>
+      <div style="font-size:11px;opacity:.75;margin-top:3px;">홈 · 교육 · 자료실 · SW검색 · 자산실사</div>
+    </div>
+    <div style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);border-radius:14px;padding:14px 22px;">
+      <div style="font-family:'Manrope',sans-serif;font-size:18px;font-weight:800;">관리자 페이지</div>
+      <div style="font-size:11px;opacity:.75;margin-top:3px;">대시보드 · 라이선스 · HW · 리포트 · 맵</div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /page-wrap -->
+</body>
+</html>
