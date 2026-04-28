@@ -48,14 +48,23 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// DELETE /api/label-history?id=xxx  — delete one record
-// DELETE /api/label-history          — clear all
+// DELETE /api/label-history?id=xxx       — 단건 삭제
+// DELETE /api/label-history?keepLast=N   — 최근 N건만 남기고 나머지 삭제
+// DELETE /api/label-history              — 전체 삭제
 export async function DELETE(req: NextRequest) {
   try {
-    const id = new URL(req.url).searchParams.get("id");
+    const params   = new URL(req.url).searchParams;
+    const id       = params.get("id");
+    const keepLast = params.get("keepLast");
+
     if (id) {
       const existing = (await kvGet<PrintHistoryRecord[]>(KV_KEY)) ?? [];
       await kvSetPermanent(KV_KEY, existing.filter(r => r.id !== id));
+    } else if (keepLast !== null) {
+      const n        = Math.max(0, parseInt(keepLast, 10) || 0);
+      const existing = (await kvGet<PrintHistoryRecord[]>(KV_KEY)) ?? [];
+      // records are newest-first → keep first N
+      await kvSetPermanent(KV_KEY, existing.slice(0, n));
     } else {
       await kvSetPermanent(KV_KEY, []);
     }

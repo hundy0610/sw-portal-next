@@ -1065,10 +1065,12 @@ function LabelPrintTab({
   const [pickerSearch, setPickerSearch] = useState("");
 
   // 출력 이력
-  const [history, setHistory]             = useState<PrintHistoryRecord[]>([]);
+  const [history, setHistory]               = useState<PrintHistoryRecord[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [showHistory, setShowHistory]     = useState(false);
-  const [expandedId, setExpandedId]       = useState<string | null>(null);
+  const [showHistory, setShowHistory]       = useState(false);
+  const [historySearch, setHistorySearch]   = useState("");
+  const [showCleanup, setShowCleanup]       = useState(false);
+  const [cleanupBusy, setCleanupBusy]       = useState(false);
 
   useEffect(() => {
     if (!recordsReady) onLoadRecords();
@@ -1080,10 +1082,51 @@ function LabelPrintTab({
     setHistoryLoading(true);
     fetch("/api/label-history")
       .then(r => r.json())
-      .then(j => { if (j.ok) setHistory(j.history ?? []); })
+      .then(j => {
+        if (j.ok) {
+          const data: PrintHistoryRecord[] = j.history ?? [];
+          setHistory(data);
+          if (data.length >= 190) setShowCleanup(true);
+        }
+      })
       .catch(() => {})
       .finally(() => setHistoryLoading(false));
   }, []);
+
+  // 출력 이력 → 라벨별 플랫 행 변환 (각 라벨이 테이블 한 행)
+  const historyRows = useMemo(() => {
+    const rows: {
+      historyId: string; printedAt: string; senderInfo: string;
+      labelIndex: number; recipientOrg: string; recipientName: string;
+      user: string; assetNo: string; shipType: string;
+    }[] = [];
+    history.forEach(h => {
+      h.labels.forEach((l, i) => {
+        rows.push({
+          historyId: h.id, printedAt: h.printedAt, senderInfo: h.senderInfo,
+          labelIndex: i + 1,
+          recipientOrg: l.recipientOrg, recipientName: l.recipientName,
+          user: l.user, assetNo: l.assetNo, shipType: l.shipType,
+        });
+      });
+    });
+    return rows;
+  }, [history]);
+
+  // 키워드 필터
+  const filteredRows = useMemo(() => {
+    const q = historySearch.trim().toLowerCase();
+    if (!q) return historyRows;
+    return historyRows.filter(r =>
+      r.printedAt.includes(q) ||
+      r.senderInfo.toLowerCase().includes(q) ||
+      r.recipientOrg.toLowerCase().includes(q) ||
+      r.recipientName.toLowerCase().includes(q) ||
+      r.user.toLowerCase().includes(q) ||
+      r.assetNo.toLowerCase().includes(q) ||
+      r.shipType.toLowerCase().includes(q)
+    );
+  }, [historyRows, historySearch]);
 
   const filteredRecords = useMemo(() => {
     if (!pickerSearch.trim()) return records.slice(0, 50);
@@ -1240,6 +1283,23 @@ ${labelHtml}
     } catch { /* silent */ }
   }
 
+  async function cleanupHistory(keepLast: number | "all") {
+    setCleanupBusy(true);
+    try {
+      const url = keepLast === "all"
+        ? "/api/label-history"
+        : `/api/label-history?keepLast=${keepLast}`;
+      await fetch(url, { method: "DELETE" });
+      if (keepLast === "all") {
+        setHistory([]);
+      } else {
+        setHistory(prev => prev.slice(0, keepLast));
+      }
+      setShowCleanup(false);
+    } catch { /* silent */ }
+    finally { setCleanupBusy(false); }
+  }
+
   function formatDate(iso: string) {
     const d = new Date(iso);
     const pad = (n: number) => String(n).padStart(2, "0");
@@ -1339,17 +1399,71 @@ ${labelHtml}
         🖨️ 행낭 발송지 출력 ({labels.length}장) — A4 1매에 2장
       </button>
 
+      {/* ── 190건 경고 팝업 ── */}
+      {showCleanup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <span className="text-3xl">⚠️</span>
+              <div>
+                <div className="font-bold text-gray-800 text-base">출력 이력이 {history.length}건에 달했습니다</div>
+                <div className="text-xs text-gray-500 mt-0.5">최대 200건까지 저장됩니다. 오래된 이력을 정리해 주세요.</div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <button
+                disabled={cleanupBusy}
+                onClick={() => cleanupHistory(100)}
+                className="w-full py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition-colors disabled:opacity-50"
+              >
+                최근 100건만 남기기 ({Math.max(0, history.length - 100)}건 삭제)
+              </button>
+              <button
+                disabled={cleanupBusy}
+                onClick={() => cleanupHistory(50)}
+                className="w-full py-2.5 rounded-xl bg-amber-500 text-white text-sm font-bold hover:bg-amber-600 transition-colors disabled:opacity-50"
+              >
+                최근 50건만 남기기 ({Math.max(0, history.length - 50)}건 삭제)
+              </button>
+              <button
+                disabled={cleanupBusy}
+                onClick={() => cleanupHistory("all")}
+                className="w-full py-2.5 rounded-xl border border-red-300 text-red-500 text-sm font-bold hover:bg-red-50 transition-colors disabled:opacity-50"
+              >
+                전체 삭제
+              </button>
+            </div>
+            <button
+              onClick={() => setShowCleanup(false)}
+              className="w-full py-2 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              나중에 정리하기
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── 출력 이력 ── */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+
+        {/* 헤더 */}
         <button
           onClick={() => setShowHistory(v => !v)}
           className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
         >
           <span className="text-sm font-bold text-gray-700 flex items-center gap-2">
             📋 출력 이력
-            {history.length > 0 && (
+            {historyRows.length > 0 && (
               <span className="text-xs font-semibold bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full">
-                {history.length}건
+                {historyRows.length}행
+              </span>
+            )}
+            {history.length >= 190 && (
+              <span
+                onClick={e => { e.stopPropagation(); setShowCleanup(true); }}
+                className="text-xs font-bold bg-red-100 text-red-500 px-2 py-0.5 rounded-full cursor-pointer hover:bg-red-200 transition-colors"
+              >
+                ⚠️ 정리 필요
               </span>
             )}
           </span>
@@ -1358,68 +1472,111 @@ ${labelHtml}
 
         {showHistory && (
           <div className="border-t border-gray-100">
-            {historyLoading ? (
-              <div className="text-center py-6 text-sm text-gray-400 animate-pulse">이력 불러오는 중…</div>
-            ) : history.length === 0 ? (
-              <div className="text-center py-6 text-sm text-gray-400">출력 이력이 없습니다</div>
-            ) : (
-              <div className="divide-y divide-gray-50">
-                {history.map(h => (
-                  <div key={h.id} className="px-4 py-3">
-                    {/* 이력 요약 행 */}
-                    <div className="flex items-start justify-between gap-2">
-                      <button
-                        onClick={() => setExpandedId(prev => prev === h.id ? null : h.id)}
-                        className="flex-1 text-left min-w-0"
-                      >
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md whitespace-nowrap">
-                            {formatDate(h.printedAt)}
-                          </span>
-                          <span className="text-xs text-gray-500 truncate">{h.senderInfo}</span>
-                          <span className="text-xs text-gray-400 whitespace-nowrap">{h.labels.length}장</span>
-                        </div>
-                        {/* 수신자 요약 */}
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {h.labels.slice(0, 3).map((l, i) => (
-                            <span key={i} className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded-md">
-                              {l.recipientName || l.recipientOrg || "—"}
-                              {l.assetNo ? ` · ${l.assetNo}` : ""}
-                            </span>
-                          ))}
-                          {h.labels.length > 3 && (
-                            <span className="text-xs text-gray-400">+{h.labels.length - 3}건 더</span>
-                          )}
-                        </div>
-                      </button>
-                      <button
-                        onClick={() => deleteHistory(h.id)}
-                        className="text-gray-300 hover:text-red-400 text-sm shrink-0 mt-0.5 transition-colors"
-                        title="이력 삭제"
-                      >✕</button>
-                    </div>
 
-                    {/* 상세 펼치기 */}
-                    {expandedId === h.id && (
-                      <div className="mt-3 space-y-2 pl-1">
-                        {h.labels.map((l, i) => (
-                          <div key={i} className="bg-gray-50 rounded-lg px-3 py-2 text-xs space-y-0.5">
-                            <div className="font-bold text-gray-600 mb-1">{i + 1}번 라벨</div>
-                            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-gray-500">
-                              <span><span className="font-semibold text-gray-600">수신 :</span> {l.recipientOrg || "—"}</span>
-                              <span><span className="font-semibold text-gray-600">수신자 :</span> {l.recipientName || "—"}</span>
-                              <span><span className="font-semibold text-gray-600">실사용자 :</span> {l.user || "—"}</span>
-                              <span><span className="font-semibold text-gray-600">자산번호 :</span> {l.assetNo || "—"}</span>
-                              <span><span className="font-semibold text-gray-600">유형 :</span> {l.shipType}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
+            {/* 검색 입력 */}
+            <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+              <span className="text-gray-400 text-sm">🔍</span>
+              <input
+                value={historySearch}
+                onChange={e => setHistorySearch(e.target.value)}
+                placeholder="날짜, 발신, 수신처, 수신자, 자산번호 등으로 검색..."
+                className="flex-1 text-sm focus:outline-none text-gray-700 placeholder-gray-300"
+              />
+              {historySearch && (
+                <button onClick={() => setHistorySearch("")} className="text-gray-300 hover:text-gray-500 text-xs">
+                  ✕
+                </button>
+              )}
+              <span className="text-xs text-gray-400 whitespace-nowrap">
+                {filteredRows.length}건{historySearch && ` / ${historyRows.length}건`}
+              </span>
+            </div>
+
+            {/* 테이블 */}
+            {historyLoading ? (
+              <div className="text-center py-8 text-sm text-gray-400 animate-pulse">이력 불러오는 중…</div>
+            ) : historyRows.length === 0 ? (
+              <div className="text-center py-8 text-sm text-gray-400">출력 이력이 없습니다</div>
+            ) : filteredRows.length === 0 ? (
+              <div className="text-center py-8 text-sm text-gray-400">
+                <div className="text-2xl mb-2">😕</div>
+                &apos;{historySearch}&apos; 에 해당하는 이력이 없습니다
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs border-collapse min-w-[780px]">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200">
+                      {["출력일시", "발신", "수신(회사/부서)", "수신자 이름", "실사용자", "자산번호", "지급유형", ""].map(h => (
+                        <th key={h} className="px-3 py-2.5 text-left font-semibold text-gray-500 whitespace-nowrap">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredRows.map((row, idx) => {
+                      // 같은 출력건(historyId)의 첫 번째 행이면 날짜·발신·삭제버튼 표시
+                      const isFirstOfGroup =
+                        idx === 0 || filteredRows[idx - 1].historyId !== row.historyId;
+                      const groupRowCount = filteredRows.filter(r => r.historyId === row.historyId).length;
+
+                      return (
+                        <tr
+                          key={`${row.historyId}-${row.labelIndex}`}
+                          className={`border-b border-gray-50 hover:bg-indigo-50/30 transition-colors ${
+                            isFirstOfGroup && idx !== 0 ? "border-t-2 border-t-gray-200" : ""
+                          }`}
+                        >
+                          {/* 출력일시 — 같은 그룹 첫 행에만 표시 */}
+                          <td className="px-3 py-2.5 whitespace-nowrap align-top">
+                            {isFirstOfGroup ? (
+                              <div>
+                                <span className="font-bold text-indigo-600">{formatDate(row.printedAt)}</span>
+                                {groupRowCount > 1 && (
+                                  <span className="ml-1 text-[10px] text-gray-400">({groupRowCount}장)</span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-gray-200">│</span>
+                            )}
+                          </td>
+                          {/* 발신 — 같은 그룹 첫 행에만 표시 */}
+                          <td className="px-3 py-2.5 align-top max-w-[120px]">
+                            {isFirstOfGroup ? (
+                              <span className="text-gray-600 line-clamp-2">{row.senderInfo || "—"}</span>
+                            ) : null}
+                          </td>
+                          {/* 라벨 항목들 */}
+                          <td className="px-3 py-2.5 text-gray-700 font-medium">{row.recipientOrg || <span className="text-gray-300">—</span>}</td>
+                          <td className="px-3 py-2.5 text-gray-700 font-medium">{row.recipientName || <span className="text-gray-300">—</span>}</td>
+                          <td className="px-3 py-2.5 text-gray-700">{row.user || <span className="text-gray-300">—</span>}</td>
+                          <td className="px-3 py-2.5 font-mono text-gray-700">{row.assetNo || <span className="text-gray-300">—</span>}</td>
+                          <td className="px-3 py-2.5">
+                            <span className="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-md font-semibold whitespace-nowrap">
+                              {row.shipType}
+                            </span>
+                          </td>
+                          {/* 삭제 — 같은 그룹 첫 행에만 표시 */}
+                          <td className="px-2 py-2.5 text-right align-top">
+                            {isFirstOfGroup && (
+                              <button
+                                onClick={() => deleteHistory(row.historyId)}
+                                className="text-gray-300 hover:text-red-400 transition-colors px-1"
+                                title="이 출력건 삭제"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
+
           </div>
         )}
       </div>
