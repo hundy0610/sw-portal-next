@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import type { Contract } from "@/types/contract";
 
 const UNIT_PRICE_DEFAULT = 6000;
-const MAX_PDF_MB = 5;
+const MAX_PDF_MB = 4; // Vercel 서버리스 request body 한도 4.5MB 이내로 여유 설정
 
 // ── 유틸 ──────────────────────────────────────────────────────
 function fmt(d: string) {
