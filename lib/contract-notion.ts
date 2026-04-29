@@ -138,8 +138,12 @@ function toContract(page: PageObjectResponse): Contract {
   // c_xxx 형식 ID는 Notion REST API URL에서 UUID 검증 실패 → page.url 끝의 UUID 추출
   const apiId = (() => {
     if (!page.id.startsWith("c_")) return page.id;
+    console.log("[contract] c_xxx page detected — id:", page.id, "url:", page.url);
     const m = (page.url ?? "").match(/([0-9a-f]{32})$/i);
-    if (!m) return page.id;
+    if (!m) {
+      console.log("[contract] UUID 추출 실패, url 원문:", page.url);
+      return page.id;
+    }
     const h = m[1];
     return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
   })();
