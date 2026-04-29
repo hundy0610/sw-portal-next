@@ -353,7 +353,7 @@ export default function ContractPanel() {
 
   // ═════════════════════════════════════════════════════════════
   return (
-    <div className="max-w-6xl mx-auto fade-in">
+    <div className="fade-in">
       {/* 페이지 헤더 */}
       <div className="flex items-start justify-between mb-6">
         <div>
@@ -425,7 +425,7 @@ export default function ContractPanel() {
           </div>
 
           {/* 진행 단계 안내 화살표 */}
-          <div className="flex items-center gap-1 mb-4 overflow-x-auto pb-1 scrollbar-none">
+          <div className="flex items-center gap-1 mb-4 flex-wrap">
             {CONTRACT_STAGES.map((s, i) => (
               <div key={s.id} className="flex items-center gap-1 shrink-0">
                 <span className="text-xs font-semibold px-2 py-1 rounded-md whitespace-nowrap"
@@ -439,16 +439,9 @@ export default function ContractPanel() {
             ))}
           </div>
 
-          {/* 스크롤 힌트 */}
-          <p className="text-xs text-gray-400 mb-2 flex items-center gap-1">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="9 18 15 12 9 6" />
-            </svg>
-            좌우로 스크롤하여 모든 단계를 확인하세요
-          </p>
 
           {/* 칸반 보드 */}
-          <div className="flex gap-3 overflow-x-auto pb-4" style={{ minHeight: 420, cursor: "default" }}>
+          <div className="flex gap-3 pb-4" style={{ minHeight: 420, cursor: "default" }}>
             {CONTRACT_STAGES.map((stage) => {
               const colContracts = contracts.filter(c =>
                 (c.stage ?? "관리현황 파악") === stage.id &&
@@ -459,7 +452,7 @@ export default function ContractPanel() {
               return (
                 <div
                   key={stage.id}
-                  className="flex-none w-56 flex flex-col rounded-xl transition-all"
+                  className="flex-1 min-w-0 flex flex-col rounded-xl transition-all"
                   style={{
                     background: isDragTarget ? stage.color : "#F8FAFC",
                     border: `2px solid ${isDragTarget ? stage.border : "#E2E8F0"}`,
