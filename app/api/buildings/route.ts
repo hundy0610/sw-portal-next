@@ -14,16 +14,18 @@ export interface BuildingGroup {
 export interface BuildingsConfig {
   customBuildings: BuildingMeta[];
   extraFloors:     Record<string, FloorMeta[]>;
+  floorOverrides:  Record<string, FloorMeta[]>;
   groups:          BuildingGroup[];
 }
 
-const EMPTY: BuildingsConfig = { customBuildings: [], extraFloors: {}, groups: [] };
+const EMPTY: BuildingsConfig = { customBuildings: [], extraFloors: {}, floorOverrides: {}, groups: [] };
 
 // GET /api/buildings
 export async function GET() {
   try {
     const cfg = (await kvGet<BuildingsConfig>(KV_KEY)) ?? EMPTY;
     if (!cfg.groups) cfg.groups = [];
+    if (!cfg.floorOverrides) cfg.floorOverrides = {};
     return NextResponse.json({ ok: true, ...cfg });
   } catch (e) {
     return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });

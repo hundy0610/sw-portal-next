@@ -1363,6 +1363,7 @@ interface BuildingGroup {
 interface BuildingsConfig {
   customBuildings: BuildingMeta[];
   extraFloors:     Record<string, FloorMeta[]>;
+  floorOverrides:  Record<string, FloorMeta[]>; // 기본 층 포함 전체 재정의 (수정/삭제/순서 변경)
   groups:          BuildingGroup[];
 }
 
@@ -1378,9 +1379,17 @@ interface BldMgrState {
   newFloorTarget: string;
   newFloorLabel:  string;
   newFloorNote:   string;
+  // 층 인라인 편집
+  editFloorBldId:   string | null;
+  editFloorId:      string | null;
+  editFloorLabel:   string;
+  // 층 드래그 정렬
+  dragFloorBldId:   string | null;
+  dragFloorId:      string | null;
+  dragOverFloorId:  string | null;
   // 그룹 탭
   newGrpLabel:       string;
-  editGrpId:         string | null; // 현재 편집 중인 그룹 id
+  editGrpId:         string | null;
 }
 
 interface SessionInfo { role: string; userId: string; name: string; company: string; }
@@ -1398,10 +1407,12 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
   const [saveMsg,       setSaveMsg]       = useState<string>("");
 
   // ── 커스텀 건물/층/그룹 config ────────────────────────────────
-  const [bldConfig, setBldConfig] = useState<BuildingsConfig>({ customBuildings: [], extraFloors: {}, groups: [] });
+  const [bldConfig, setBldConfig] = useState<BuildingsConfig>({ customBuildings: [], extraFloors: {}, floorOverrides: {}, groups: [] });
   const [bldMgr, setBldMgr] = useState<BldMgrState>({
     open: false, tab: "buildings",
     newBldLabel: "", newFloorTarget: "", newFloorLabel: "", newFloorNote: "",
+    editFloorBldId: null, editFloorId: null, editFloorLabel: "",
+    dragFloorBldId: null, dragFloorId: null, dragOverFloorId: null,
     newGrpLabel: "", editGrpId: null,
   });
   const [accounts, setAccounts] = useState<AccountItem[]>([]);
@@ -1409,6 +1420,11 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
   // 하드코딩 + 커스텀을 합산한 전체 건물 목록 (권한 필터 전)
   const _allBuildings: BuildingData[] = useMemo(() => {
     const merged = BUILDINGS.map(b => {
+      // floorOverrides가 있으면 완전히 대체 (수정/삭제/순서 변경 반영)
+      const override = bldConfig.floorOverrides?.[b.id];
+      if (override) {
+        return { ...b, floors: override.map(f => ({ id: f.id, label: f.label, note: f.note, zones: [], rooms: [] })) };
+      }
       const extra = bldConfig.extraFloors[b.id] ?? [];
       if (!extra.length) return b;
       return {
@@ -1466,7 +1482,7 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
     fetch("/api/buildings")
       .then(r => r.json())
       .then(d => {
-        if (d.ok) setBldConfig({ customBuildings: d.customBuildings ?? [], extraFloors: d.extraFloors ?? {}, groups: d.groups ?? [] });
+        if (d.ok) setBldConfig({ customBuildings: d.customBuildings ?? [], extraFloors: d.extraFloors ?? {}, floorOverrides: d.floorOverrides ?? {}, groups: d.groups ?? [] });
       })
       .catch(() => {});
   }, []);
@@ -1567,6 +1583,68 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
     }
     await saveBldConfig(next);
   }, [bldConfig, saveBldConfig]);
+
+  // ── 건물의 현재 층 목록을 floorOverrides로 초기화 (기본 층 편집 활성화) ──
+  const getFloorList = useCallback((bldId: string): FloorMeta[] => {
+    const override = bldConfig.floorOverrides?.[bldId];
+    if (override) return override;
+    const hardcoded = BUILDINGS.find(b => b.id === bldId);
+    if (hardcoded) {
+      const extra = bldConfig.extraFloors[bldId] ?? [];
+      return [
+        ...hardcoded.floors.map(f => ({ id: f.id, label: f.label, note: f.note || "" })),
+        ...extra,
+      ];
+    }
+    return bldConfig.customBuildings.find(b => b.id === bldId)?.floors ?? [];
+  }, [bldConfig]);
+
+  const initOverrideIfNeeded = useCallback((bldId: string): BuildingsConfig => {
+    if (bldConfig.floorOverrides?.[bldId]) return bldConfig;
+    return { ...bldConfig, floorOverrides: { ...(bldConfig.floorOverrides ?? {}), [bldId]: getFloorList(bldId) } };
+  }, [bldConfig, getFloorList]);
+
+  // ── 층 이름 편집 저장 ─────────────────────────────────────────
+  const saveFloorLabel = useCallback(async (bldId: string, floorId: string, newLabel: string) => {
+    const base = initOverrideIfNeeded(bldId);
+    const next: BuildingsConfig = {
+      ...base,
+      floorOverrides: {
+        ...base.floorOverrides,
+        [bldId]: (base.floorOverrides?.[bldId] ?? []).map(f => f.id === floorId ? { ...f, label: newLabel } : f),
+      },
+    };
+    await saveBldConfig(next);
+  }, [initOverrideIfNeeded, saveBldConfig]);
+
+  // ── 층 삭제 (기본 포함) ───────────────────────────────────────
+  const deleteFloorAny = useCallback(async (bldId: string, floorId: string) => {
+    const base = initOverrideIfNeeded(bldId);
+    const next: BuildingsConfig = {
+      ...base,
+      floorOverrides: {
+        ...base.floorOverrides,
+        [bldId]: (base.floorOverrides?.[bldId] ?? []).filter(f => f.id !== floorId),
+      },
+    };
+    await saveBldConfig(next);
+  }, [initOverrideIfNeeded, saveBldConfig]);
+
+  // ── 층 순서 변경 (드래그앤드롭) ──────────────────────────────
+  const reorderFloors = useCallback(async (bldId: string, fromId: string, toId: string) => {
+    const base = initOverrideIfNeeded(bldId);
+    const floors = [...(base.floorOverrides?.[bldId] ?? [])];
+    const fromIdx = floors.findIndex(f => f.id === fromId);
+    const toIdx   = floors.findIndex(f => f.id === toId);
+    if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return;
+    const [moved] = floors.splice(fromIdx, 1);
+    floors.splice(toIdx, 0, moved);
+    const next: BuildingsConfig = {
+      ...base,
+      floorOverrides: { ...base.floorOverrides, [bldId]: floors },
+    };
+    await saveBldConfig(next);
+  }, [initOverrideIfNeeded, saveBldConfig]);
 
   // ── 그룹 추가 ────────────────────────────────────────────────
   const addGroup = useCallback(async () => {
@@ -1928,9 +2006,7 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
                 <div className="space-y-3">
                   {_allBuildings.map(b => {
                     const isHardcoded = BUILDINGS.some(hb => hb.id === b.id);
-                    const extraFl = isHardcoded ? (bldConfig.extraFloors[b.id] ?? []) : [];
-                    const customFl = isHardcoded ? [] : (bldConfig.customBuildings.find(c => c.id === b.id)?.floors ?? []);
-                    const addedFloors = isHardcoded ? extraFl : customFl;
+                    const floorList = getFloorList(b.id);
 
                     return (
                       <div key={b.id} className="border border-gray-200 rounded-xl p-3">
@@ -1942,30 +2018,70 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
                               : <span className="text-[10px] bg-blue-50 text-blue-500 px-1.5 py-0.5 rounded">추가됨</span>}
                           </div>
                           {!isHardcoded && (
-                            <button onClick={() => deleteBuilding(b.id)}
+                            <button type="button" onClick={() => deleteBuilding(b.id)}
                               className="text-[11px] text-red-400 hover:text-red-600 px-2 py-0.5 rounded border border-red-200 hover:border-red-400 transition-colors">
                               삭제
                             </button>
                           )}
                         </div>
-                        {/* 기본 층 목록 */}
-                        <div className="flex flex-wrap gap-1 mb-2">
-                          {b.floors.filter(f => {
-                            if (!isHardcoded) return true;
-                            return BUILDINGS.find(hb => hb.id === b.id)?.floors.some(hf => hf.id === f.id);
-                          }).map(f => (
-                            <span key={f.id} className="text-[11px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded">
-                              {f.label}
-                            </span>
-                          ))}
-                          {/* 추가된 층 */}
-                          {addedFloors.map(f => (
-                            <span key={f.id} className="text-[11px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded flex items-center gap-1">
-                              {f.label}
-                              <button onClick={() => deleteFloor(b.id, f.id)}
-                                className="text-blue-400 hover:text-red-500 leading-none">×</button>
-                            </span>
-                          ))}
+
+                        {/* 층 목록 — 드래그 정렬 + 편집/삭제 */}
+                        <div className="space-y-1 mb-2">
+                          {floorList.map(f => {
+                            const isEditingThis = bldMgr.editFloorBldId === b.id && bldMgr.editFloorId === f.id;
+                            const isDragging    = bldMgr.dragFloorBldId === b.id && bldMgr.dragFloorId === f.id;
+                            const isDragOver    = bldMgr.dragFloorBldId === b.id && bldMgr.dragOverFloorId === f.id;
+                            return (
+                              <div key={f.id}
+                                draggable
+                                onDragStart={() => setBldMgr(s => ({ ...s, dragFloorBldId: b.id, dragFloorId: f.id }))}
+                                onDragOver={e => { e.preventDefault(); setBldMgr(s => ({ ...s, dragOverFloorId: f.id })); }}
+                                onDragLeave={() => setBldMgr(s => ({ ...s, dragOverFloorId: null }))}
+                                onDrop={e => {
+                                  e.preventDefault();
+                                  if (bldMgr.dragFloorId && bldMgr.dragFloorId !== f.id) {
+                                    reorderFloors(b.id, bldMgr.dragFloorId, f.id);
+                                  }
+                                  setBldMgr(s => ({ ...s, dragFloorBldId: null, dragFloorId: null, dragOverFloorId: null }));
+                                }}
+                                onDragEnd={() => setBldMgr(s => ({ ...s, dragFloorBldId: null, dragFloorId: null, dragOverFloorId: null }))}
+                                className={`flex items-center gap-2 px-2 py-1.5 rounded-lg border transition-all cursor-grab active:cursor-grabbing ${
+                                  isDragOver  ? "border-blue-400 bg-blue-50" :
+                                  isDragging  ? "border-gray-300 bg-gray-50 opacity-50" :
+                                  "border-gray-100 bg-gray-50 hover:border-gray-300"
+                                }`}>
+                                {/* 드래그 핸들 */}
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-300 flex-none">
+                                  <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+                                  <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+                                </svg>
+                                {/* 층 이름 — 클릭 시 인라인 편집 */}
+                                {isEditingThis ? (
+                                  <input autoFocus
+                                    className="flex-1 text-xs bg-white border border-blue-300 rounded px-1.5 py-0.5 focus:outline-none"
+                                    value={bldMgr.editFloorLabel}
+                                    onChange={e => setBldMgr(s => ({ ...s, editFloorLabel: e.target.value }))}
+                                    onKeyDown={e => {
+                                      if (e.key === "Enter") { e.preventDefault(); saveFloorLabel(b.id, f.id, bldMgr.editFloorLabel); setBldMgr(s => ({ ...s, editFloorBldId: null, editFloorId: null })); }
+                                      if (e.key === "Escape") setBldMgr(s => ({ ...s, editFloorBldId: null, editFloorId: null }));
+                                    }}
+                                    onBlur={() => { saveFloorLabel(b.id, f.id, bldMgr.editFloorLabel); setBldMgr(s => ({ ...s, editFloorBldId: null, editFloorId: null })); }}
+                                  />
+                                ) : (
+                                  <span className="flex-1 text-xs text-gray-700 cursor-text"
+                                    onClick={() => setBldMgr(s => ({ ...s, editFloorBldId: b.id, editFloorId: f.id, editFloorLabel: f.label }))}>
+                                    {f.label}
+                                  </span>
+                                )}
+                                {/* 삭제 버튼 */}
+                                <button type="button"
+                                  onClick={() => deleteFloorAny(b.id, f.id)}
+                                  className="flex-none text-gray-300 hover:text-red-500 transition-colors leading-none text-sm">
+                                  ×
+                                </button>
+                              </div>
+                            );
+                          })}
                         </div>
                         {/* 층 추가 인라인 */}
                         {bldMgr.newFloorTarget === b.id ? (
