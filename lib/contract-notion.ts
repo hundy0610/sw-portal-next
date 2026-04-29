@@ -377,6 +377,6 @@ export async function updateContractStage(pageId: string, stage: ContractStage):
 
 /** 계약 삭제 (Notion 페이지 아카이브) */
 export async function deleteContract(pageId: string): Promise<void> {
-  await notionPagePatch(pageId, { archived: true });
+  await notionPagePatch(pageId, { in_trash: true });
   await kvDel(KV_KEY);
 }

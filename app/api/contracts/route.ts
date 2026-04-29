@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchContracts, createContract } from "@/lib/contract-notion";
+import { kvDel } from "@/lib/kv-store";
 import type { ContractStage } from "@/types/contract";
+
+// DELETE /api/contracts  — KV 캐시 강제 무효화
+export async function DELETE() {
+  await kvDel("contracts:list");
+  return NextResponse.json({ ok: true });
+}
 
 // GET /api/contracts
 export async function GET() {
