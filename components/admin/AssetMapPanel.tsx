@@ -1351,6 +1351,25 @@ function OverviewSidePanel({ building, floor, editorData }: { building: Building
 // ══════════════════════════════════════════════════════════════════════════════
 const EMPTY_EDITOR_DATA: EditorData = { imageUrl: null, items: [], zones: [], facilities: [], groups: [], renderOrder: [] };
 
+// ── 건물/층 메타 타입 ────────────────────────────────────────────
+interface FloorMeta   { id: string; label: string; note: string; }
+interface BuildingMeta{ id: string; label: string; isCustom: true; floors: FloorMeta[]; }
+interface BuildingsConfig {
+  customBuildings: BuildingMeta[];
+  extraFloors: Record<string, FloorMeta[]>;
+}
+
+// ── 건물 관리 모달 폼 타입 ─────────────────────────────────────
+interface BldMgrState {
+  open: boolean;
+  // 새 건물 추가 폼
+  newBldLabel: string;
+  // 새 층 추가 폼 (건물 ID별)
+  newFloorTarget: string;  // 어느 건물에 추가할지
+  newFloorLabel: string;
+  newFloorNote: string;
+}
+
 export default function AssetMapPanel() {
   const [buildingId,    setBuildingId]    = useState<string>("bw");
   const [floorId,       setFloorId]       = useState<string>("2F");
@@ -1361,6 +1380,132 @@ export default function AssetMapPanel() {
   const [editorData,    setEditorData]    = useState<EditorData>(EMPTY_EDITOR_DATA);
   const [isSaving,      setIsSaving]      = useState<boolean>(false);
   const [saveMsg,       setSaveMsg]       = useState<string>("");
+
+  // ── 커스텀 건물/층 config ──────────────────────────────────────
+  const [bldConfig, setBldConfig] = useState<BuildingsConfig>({ customBuildings: [], extraFloors: {} });
+  const [bldMgr, setBldMgr] = useState<BldMgrState>({
+    open: false, newBldLabel: "", newFloorTarget: "", newFloorLabel: "", newFloorNote: "",
+  });
+
+  // 하드코딩 + 커스텀을 합산한 최종 건물 목록
+  const allBuildings: BuildingData[] = useMemo(() => {
+    const merged = BUILDINGS.map(b => {
+      const extra = bldConfig.extraFloors[b.id] ?? [];
+      if (!extra.length) return b;
+      return {
+        ...b,
+        floors: [
+          ...b.floors,
+          ...extra.map(f => ({
+            id: f.id, label: f.label, note: f.note, zones: [], rooms: [],
+          })),
+        ],
+      };
+    });
+    const customs: BuildingData[] = bldConfig.customBuildings.map(c => ({
+      id: c.id, label: c.label,
+      floors: c.floors.map(f => ({ id: f.id, label: f.label, note: f.note, zones: [], rooms: [] })),
+    }));
+    return [...merged, ...customs];
+  }, [bldConfig]);
+
+  // ── 커스텀 건물/층 로드 ────────────────────────────────────────
+  useEffect(() => {
+    fetch("/api/buildings")
+      .then(r => r.json())
+      .then(d => {
+        if (d.ok) setBldConfig({ customBuildings: d.customBuildings ?? [], extraFloors: d.extraFloors ?? {} });
+      })
+      .catch(() => {});
+  }, []);
+
+  // ── 커스텀 config 저장 ────────────────────────────────────────
+  const saveBldConfig = useCallback(async (cfg: BuildingsConfig) => {
+    setBldConfig(cfg);
+    await fetch("/api/buildings", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(cfg),
+    });
+  }, []);
+
+  // ── 건물 추가 ────────────────────────────────────────────────
+  const addBuilding = useCallback(async () => {
+    const label = bldMgr.newBldLabel.trim();
+    if (!label) return;
+    const id = "custom_" + Date.now();
+    const next: BuildingsConfig = {
+      ...bldConfig,
+      customBuildings: [...bldConfig.customBuildings, { id, label, isCustom: true, floors: [] }],
+    };
+    await saveBldConfig(next);
+    setBldMgr(s => ({ ...s, newBldLabel: "", newFloorTarget: id }));
+  }, [bldMgr.newBldLabel, bldConfig, saveBldConfig]);
+
+  // ── 건물 삭제 ────────────────────────────────────────────────
+  const deleteBuilding = useCallback(async (id: string) => {
+    const next: BuildingsConfig = {
+      ...bldConfig,
+      customBuildings: bldConfig.customBuildings.filter(b => b.id !== id),
+    };
+    await saveBldConfig(next);
+    if (buildingId === id) {
+      setBuildingId(allBuildings[0]?.id ?? "bw");
+      setFloorId(allBuildings[0]?.floors[0]?.id ?? "2F");
+    }
+  }, [bldConfig, saveBldConfig, buildingId, allBuildings]);
+
+  // ── 층 추가 ──────────────────────────────────────────────────
+  const addFloor = useCallback(async () => {
+    const targetId  = bldMgr.newFloorTarget;
+    const floorLabel = bldMgr.newFloorLabel.trim();
+    if (!targetId || !floorLabel) return;
+    const floorId_  = floorLabel.replace(/[^a-zA-Z0-9가-힣]/g, "").toUpperCase() || `F${Date.now()}`;
+    const newFloor: FloorMeta = { id: floorId_, label: floorLabel, note: bldMgr.newFloorNote.trim() };
+
+    const isHardcoded = BUILDINGS.some(b => b.id === targetId);
+    let next: BuildingsConfig;
+    if (isHardcoded) {
+      next = {
+        ...bldConfig,
+        extraFloors: {
+          ...bldConfig.extraFloors,
+          [targetId]: [...(bldConfig.extraFloors[targetId] ?? []), newFloor],
+        },
+      };
+    } else {
+      next = {
+        ...bldConfig,
+        customBuildings: bldConfig.customBuildings.map(b =>
+          b.id === targetId ? { ...b, floors: [...b.floors, newFloor] } : b
+        ),
+      };
+    }
+    await saveBldConfig(next);
+    setBldMgr(s => ({ ...s, newFloorLabel: "", newFloorNote: "" }));
+  }, [bldMgr, bldConfig, saveBldConfig]);
+
+  // ── 층 삭제 ──────────────────────────────────────────────────
+  const deleteFloor = useCallback(async (targetBldId: string, targetFloorId: string) => {
+    const isHardcoded = BUILDINGS.some(b => b.id === targetBldId);
+    let next: BuildingsConfig;
+    if (isHardcoded) {
+      next = {
+        ...bldConfig,
+        extraFloors: {
+          ...bldConfig.extraFloors,
+          [targetBldId]: (bldConfig.extraFloors[targetBldId] ?? []).filter(f => f.id !== targetFloorId),
+        },
+      };
+    } else {
+      next = {
+        ...bldConfig,
+        customBuildings: bldConfig.customBuildings.map(b =>
+          b.id === targetBldId ? { ...b, floors: b.floors.filter(f => f.id !== targetFloorId) } : b
+        ),
+      };
+    }
+    await saveBldConfig(next);
+  }, [bldConfig, saveBldConfig]);
 
   // ── 편집도면 모니터 선택 (view mode) ──────────────────────────────
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
@@ -1406,7 +1551,7 @@ export default function AssetMapPanel() {
   }, [buildingId, floorId]);
 
   const handleZoneMove = useCallback((itemId: string, label: string, fromZone: string, toZone: string) => {
-    const bl = BUILDINGS.find(b => b.id === buildingId);
+    const bl = allBuildings.find(b => b.id === buildingId);
     const fl = bl?.floors.find(f => f.id === floorId);
     fetch("/api/monitor-history", {
       method: "POST",
@@ -1485,9 +1630,12 @@ export default function AssetMapPanel() {
     );
   }, []);
 
-  const building = useMemo(() => BUILDINGS.find(b => b.id === buildingId)!, [buildingId]);
+  const building = useMemo(
+    () => allBuildings.find(b => b.id === buildingId) ?? allBuildings[0],
+    [allBuildings, buildingId]
+  );
   const floor    = useMemo(
-    () => building.floors.find(f => f.id === floorId) ?? building.floors[0],
+    () => building?.floors.find(f => f.id === floorId) ?? building?.floors[0],
     [building, floorId]
   );
 
@@ -1515,7 +1663,8 @@ export default function AssetMapPanel() {
 
   const handleBldChange = (bid: string) => {
     setBuildingId(bid);
-    setFloorId(BUILDINGS.find(b => b.id === bid)!.floors[0].id);
+    const bld = allBuildings.find(b => b.id === bid);
+    setFloorId(bld?.floors[0]?.id ?? "");
     setSelected(null);
     setSelectedItemId(null);
   };
@@ -1569,7 +1718,7 @@ export default function AssetMapPanel() {
         {/* 건물 + 층 선택 */}
         <div className="ml-auto flex items-center gap-2 flex-wrap">
           <div className="flex rounded-lg border border-gray-200 overflow-hidden">
-            {BUILDINGS.map(b => (
+            {allBuildings.map(b => (
               <button key={b.id}
                 onClick={() => handleBldChange(b.id)}
                 className={`px-3 py-1.5 text-xs font-medium transition-colors border-r border-gray-200 last:border-0 ${
@@ -1578,7 +1727,7 @@ export default function AssetMapPanel() {
             ))}
           </div>
           <div className="flex gap-1 flex-wrap">
-            {building.floors.map(f => (
+            {(building?.floors ?? []).map(f => (
               <button key={f.id}
                 onClick={() => handleFloorChange(f.id)}
                 className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all ${
@@ -1588,8 +1737,138 @@ export default function AssetMapPanel() {
                 }`}>{f.label.replace("층","F")}</button>
             ))}
           </div>
+          {/* 건물/층 관리 버튼 */}
+          <button
+            onClick={() => setBldMgr(s => ({ ...s, open: true, newFloorTarget: buildingId }))}
+            className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:border-slate-400 hover:text-slate-700 text-xs transition-all"
+            title="건물/층 관리">⚙</button>
         </div>
       </div>
+
+      {/* ── 건물/층 관리 모달 ─────────────────────────────────────── */}
+      {bldMgr.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          onClick={() => setBldMgr(s => ({ ...s, open: false }))}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden"
+            onClick={e => e.stopPropagation()}>
+            {/* 헤더 */}
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <h2 className="text-base font-bold text-gray-900">건물 / 층 관리</h2>
+              <button onClick={() => setBldMgr(s => ({ ...s, open: false }))}
+                className="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5 space-y-6">
+
+              {/* ── 건물 목록 ── */}
+              <section>
+                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">등록된 건물</h3>
+                <div className="space-y-3">
+                  {allBuildings.map(b => {
+                    const isHardcoded = BUILDINGS.some(hb => hb.id === b.id);
+                    const extraFl = isHardcoded ? (bldConfig.extraFloors[b.id] ?? []) : [];
+                    const customFl = isHardcoded ? [] : (bldConfig.customBuildings.find(c => c.id === b.id)?.floors ?? []);
+                    const addedFloors = isHardcoded ? extraFl : customFl;
+
+                    return (
+                      <div key={b.id} className="border border-gray-200 rounded-xl p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-sm text-gray-800">{b.label}</span>
+                            {isHardcoded
+                              ? <span className="text-[10px] bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded">기본</span>
+                              : <span className="text-[10px] bg-blue-50 text-blue-500 px-1.5 py-0.5 rounded">추가됨</span>}
+                          </div>
+                          {!isHardcoded && (
+                            <button onClick={() => deleteBuilding(b.id)}
+                              className="text-[11px] text-red-400 hover:text-red-600 px-2 py-0.5 rounded border border-red-200 hover:border-red-400 transition-colors">
+                              삭제
+                            </button>
+                          )}
+                        </div>
+                        {/* 기본 층 목록 */}
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {b.floors.filter(f => {
+                            if (!isHardcoded) return true;
+                            return BUILDINGS.find(hb => hb.id === b.id)?.floors.some(hf => hf.id === f.id);
+                          }).map(f => (
+                            <span key={f.id} className="text-[11px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded">
+                              {f.label}
+                            </span>
+                          ))}
+                          {/* 추가된 층 */}
+                          {addedFloors.map(f => (
+                            <span key={f.id} className="text-[11px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded flex items-center gap-1">
+                              {f.label}
+                              <button onClick={() => deleteFloor(b.id, f.id)}
+                                className="text-blue-400 hover:text-red-500 leading-none">×</button>
+                            </span>
+                          ))}
+                        </div>
+                        {/* 층 추가 인라인 */}
+                        {bldMgr.newFloorTarget === b.id ? (
+                          <div className="flex gap-1 mt-1">
+                            <input
+                              className="flex-1 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-blue-400"
+                              placeholder="층 이름 (예: 10층)"
+                              value={bldMgr.newFloorLabel}
+                              onChange={e => setBldMgr(s => ({ ...s, newFloorLabel: e.target.value }))}
+                              onKeyDown={e => { if (e.key === "Enter") addFloor(); }}
+                            />
+                            <input
+                              className="w-28 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-blue-400"
+                              placeholder="설명 (선택)"
+                              value={bldMgr.newFloorNote}
+                              onChange={e => setBldMgr(s => ({ ...s, newFloorNote: e.target.value }))}
+                              onKeyDown={e => { if (e.key === "Enter") addFloor(); }}
+                            />
+                            <button onClick={addFloor}
+                              className="px-3 py-1 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-colors">
+                              추가
+                            </button>
+                            <button onClick={() => setBldMgr(s => ({ ...s, newFloorTarget: "", newFloorLabel: "", newFloorNote: "" }))}
+                              className="px-2 py-1 text-gray-400 hover:text-gray-600 text-xs">취소</button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setBldMgr(s => ({ ...s, newFloorTarget: b.id, newFloorLabel: "", newFloorNote: "" }))}
+                            className="text-[11px] text-blue-500 hover:text-blue-700 mt-1">
+                            + 층 추가
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+
+              {/* ── 건물 추가 ── */}
+              <section>
+                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">새 건물 추가</h3>
+                <div className="flex gap-2">
+                  <input
+                    className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-slate-400"
+                    placeholder="건물 이름 (예: C빌딩)"
+                    value={bldMgr.newBldLabel}
+                    onChange={e => setBldMgr(s => ({ ...s, newBldLabel: e.target.value }))}
+                    onKeyDown={e => { if (e.key === "Enter") addBuilding(); }}
+                  />
+                  <button onClick={addBuilding}
+                    className="px-4 py-2 bg-slate-800 text-white text-sm rounded-xl hover:bg-slate-700 transition-colors font-medium">
+                    추가
+                  </button>
+                </div>
+              </section>
+
+            </div>
+
+            <div className="px-5 py-3 border-t bg-gray-50 flex justify-end">
+              <button onClick={() => setBldMgr(s => ({ ...s, open: false }))}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900">닫기</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── 필터 바 ───────────────────────────────────────────────── */}
       <div className="flex-none bg-white border-b px-5 py-2 flex items-center gap-3 flex-wrap">
