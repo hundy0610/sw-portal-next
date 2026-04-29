@@ -708,9 +708,9 @@ function SeatDetailPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           itemId:      seat.id,
-          label:       `${building.label} ${floor.label} ${zone.label} ${rowLabel}행${seat.col + 1}번`,
-          building:    building.label,
-          floor:       floor.label,
+          label:       `${building?.label ?? ""} ${floor?.label ?? ""} ${zone.label} ${rowLabel}행${seat.col + 1}번`,
+          building:    building?.label ?? "",
+          floor:       floor?.label ?? "",
           eventType:   "repair_request",
           description: `${repairReason}${repairNote ? ` — ${repairNote}` : ""}`,
         }),
@@ -750,7 +750,7 @@ function SeatDetailPanel({
         <div>
           <div className="text-[10px] opacity-60 mb-0.5">좌석 상세 정보</div>
           <div className="text-lg font-extrabold tracking-widest leading-tight font-mono">{seat.id}</div>
-          <div className="text-[10px] opacity-60 mt-1">{building.label} · {floor.label} · {zone.label}</div>
+          <div className="text-[10px] opacity-60 mt-1">{building?.label ?? ""} · {floor?.label ?? ""} · {zone.label}</div>
         </div>
         <button onClick={onClose} className="opacity-60 hover:opacity-100 text-lg mt-0.5">✕</button>
       </div>
@@ -774,7 +774,7 @@ function SeatDetailPanel({
         <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
           <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">📍 위치</div>
           <div className="flex flex-wrap gap-1.5 mb-2">
-            {[building.label, floor.label, zone.label].map(tag => (
+            {[building?.label ?? "", floor?.label ?? "", zone.label].map(tag => (
               <span key={tag} className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-semibold border border-blue-100">{tag}</span>
             ))}
           </div>
@@ -788,8 +788,8 @@ function SeatDetailPanel({
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
           <div className="text-[10px] font-bold text-amber-700 mb-1.5">🗺 찾아가는 방법</div>
           <div className="text-[11px] text-amber-700 leading-relaxed">
-            {building.label} 건물 진입<br/>
-            → <strong>{floor.label}</strong> 이동 (계단/엘리베이터)<br/>
+            {building?.label ?? ""} 건물 진입<br/>
+            → <strong>{floor?.label ?? ""}</strong> 이동 (계단/엘리베이터)<br/>
             → <strong>{zone.label}</strong> 구역<br/>
             → <strong>{rowLabel}행 {seat.col + 1}번째 자리</strong>
           </div>
@@ -867,7 +867,7 @@ function SeatDetailPanel({
         {/* 위치 복사 */}
         <button
           className="w-full py-2 rounded-lg border border-gray-200 bg-white text-gray-600 text-xs font-semibold hover:bg-gray-50 transition-colors"
-          onClick={() => navigator.clipboard?.writeText(`${building.label} ${floor.label} ${zone.label} ${rowLabel}행 ${seat.col + 1}번 (${seat.id})`)}>
+          onClick={() => navigator.clipboard?.writeText(`${building?.label ?? ""} ${floor?.label ?? ""} ${zone.label} ${rowLabel}행 ${seat.col + 1}번 (${seat.id})`)}>
           📋 위치 텍스트 복사
         </button>
 
@@ -1262,7 +1262,7 @@ function OverviewSidePanel({ building, floor, editorData }: { building: Building
     <div className="flex flex-col h-full text-sm overflow-y-auto">
       <div className="px-4 py-3 bg-slate-800 text-white flex-shrink-0">
         <div className="text-[10px] opacity-60 mb-0.5">층 현황</div>
-        <div className="font-bold">{building.label} {floor.label}</div>
+        <div className="font-bold">{building?.label ?? ""} {floor?.label ?? ""}</div>
       </div>
 
       <div className="flex-1 p-3 space-y-3 overflow-y-auto">
@@ -1866,6 +1866,19 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
     setSelected(prev => prev?.seat.id === seat.id ? null : { seat: effective, zone });
   };
 
+  // building/floor가 없으면 빈 상태 표시 (접근 권한 없는 유저 or 로딩 중)
+  if (!building) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-2">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+        </svg>
+        <p className="text-sm">접근 가능한 건물이 없습니다.</p>
+        {isSuper && <p className="text-xs">⚙ 버튼에서 그룹을 먼저 설정해주세요.</p>}
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full min-h-0 bg-slate-50" style={{ fontFamily:"system-ui,-apple-system,sans-serif" }}>
 
@@ -2314,7 +2327,7 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
                 className="px-3 py-1 rounded-lg text-[11px] font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm">
                 {isSaving ? "저장 중…" : "💾 노션 저장"}
               </button>
-              <span className="text-[10px] text-amber-500">{building.label} {floor.label}</span>
+              <span className="text-[10px] text-amber-500">{building?.label ?? ""} {floor?.label ?? ""}</span>
             </div>
           </div>
           <FloorMapEditor data={editorData} onChange={handleEditorChange} onZoneMove={handleZoneMove}/>
@@ -2333,8 +2346,8 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
                 📊 시트 배치도
               </span>
             </div>
-            <h2 className="text-sm font-bold text-slate-700 ml-2">{floor.label}</h2>
-            {floor.note && <span className="text-xs text-gray-400">· {floor.note}</span>}
+            <h2 className="text-sm font-bold text-slate-700 ml-2">{floor?.label ?? ""}</h2>
+            {floor?.note && <span className="text-xs text-gray-400">· {floor?.note}</span>}
           </div>
 
           {/* 편집 도면 */}
@@ -2372,8 +2385,8 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
               <ItemDetailPanel
                 item={selectedItem}
                 editorData={editorData}
-                buildingLabel={building.label}
-                floorLabel={floor.label}
+                buildingLabel={building?.label ?? ""}
+                floorLabel={floor?.label ?? ""}
                 onClose={() => setSelectedItemId(null)}
                 onUpdateType={updateItemType}
               />
