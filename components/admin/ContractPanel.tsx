@@ -589,19 +589,19 @@ export default function ContractPanel() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="data-table">
+            <table className="data-table" style={{ tableLayout: "auto" }}>
               <thead>
                 <tr>
-                  <th>법인명</th>
-                  <th>담당자</th>
-                  <th>이메일</th>
-                  <th>계약기간</th>
-                  <th>PC 수량</th>
-                  <th>월 수익</th>
-                  <th>상태</th>
-                  <th>진행단계</th>
-                  <th>계약서</th>
-                  <th style={{ width: 90 }}>관리</th>
+                  <th style={{ minWidth: 130 }}>법인명</th>
+                  <th style={{ minWidth: 120 }}>담당자</th>
+                  <th style={{ minWidth: 180 }}>이메일</th>
+                  <th style={{ minWidth: 140 }}>계약기간</th>
+                  <th style={{ minWidth: 80 }}>PC 수량</th>
+                  <th style={{ minWidth: 130 }}>월 수익</th>
+                  <th style={{ minWidth: 60 }}>상태</th>
+                  <th style={{ minWidth: 130 }}>진행단계</th>
+                  <th style={{ minWidth: 60 }}>계약서</th>
+                  <th style={{ width: 90, minWidth: 90 }}>관리</th>
                 </tr>
               </thead>
               <tbody>
@@ -610,7 +610,7 @@ export default function ContractPanel() {
                   const monthly  = c.quantity * c.unitPrice;
                   return (
                     <tr key={c.id} style={expiring ? { background: "#FFFDF0" } : undefined}>
-                      <td>
+                      <td className="whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <span className="font-semibold text-gray-900">{c.company}</span>
                           {expiring && (
@@ -619,7 +619,7 @@ export default function ContractPanel() {
                           )}
                         </div>
                       </td>
-                      <td className="text-sm text-gray-900">{c.contactName}</td>
+                      <td className="text-sm text-gray-900 whitespace-nowrap">{c.contactName}</td>
                       <td><CopyEmail email={c.contactEmail} /></td>
                       <td className="whitespace-nowrap">
                         <div className="text-sm">{fmt(c.startDate)}</div>
