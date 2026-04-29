@@ -97,7 +97,7 @@ const EMPTY: FormState = {
   company: "", contactName: "", contactEmail: "",
   startDate: "", endDate: "", quantity: 1,
   unitPrice: UNIT_PRICE_DEFAULT,
-  stage: "관리현황파악",
+  stage: "관리현황 파악",
   notes: "",
 };
 
@@ -192,7 +192,7 @@ export default function ContractPanel() {
       endDate:      c.endDate,
       quantity:     c.quantity,
       unitPrice:    c.unitPrice,
-      stage:        c.stage ?? "관리현황파악",
+      stage:        c.stage ?? "관리현황 파악",
       notes:        c.notes,
     });
     setPdfFile(null);
@@ -417,7 +417,7 @@ export default function ContractPanel() {
           <div className="flex gap-3 overflow-x-auto pb-4" style={{ minHeight: 420 }}>
             {CONTRACT_STAGES.map((stage) => {
               const colContracts = contracts.filter(c =>
-                (c.stage ?? "관리현황파악") === stage.id &&
+                (c.stage ?? "관리현황 파악") === stage.id &&
                 (!search || c.company.includes(search) || c.contactName.includes(search))
               );
               const isDragTarget = dragOver === stage.id;
@@ -603,7 +603,7 @@ export default function ContractPanel() {
                         <div className="text-xs text-gray-400 font-normal">연 {won(monthly * 12)}</div>
                       </td>
                       <td><StatusBadge status={c.status} /></td>
-                      <td><StageBadge stage={c.stage ?? "관리현황파악"} /></td>
+                      <td><StageBadge stage={c.stage ?? "관리현황 파악"} /></td>
                       <td>
                         {c.pdfUrl ? (
                           <a href={c.pdfUrl} target="_blank" rel="noopener noreferrer"

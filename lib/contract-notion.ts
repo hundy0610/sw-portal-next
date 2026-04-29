@@ -79,8 +79,16 @@ function toContract(page: PageObjectResponse): Contract {
 
   // 진행단계 — Notion select "진행단계" 컬럼, 없으면 기본값
   const stageRaw = select("진행단계");
-  const VALID_STAGES = ["관리현황파악","계약담당자소통","계약서작성","내부기안상신","계약서날인","계약완료"];
-  const stage = (VALID_STAGES.includes(stageRaw) ? stageRaw : "관리현황파악") as ContractStage;
+  const VALID_STAGES = [
+    "관리현황 파악",
+    "각 사 계약담당자 소통 (계약 검토)",
+    "계약서 작성 (수정사항 있을시 반영)",
+    "내부기안 상신",
+    "각 사 날인된 계약서 송부",
+    "계약완료",
+    "재경팀과 소통하여 월별 서비스 비용 청구",
+  ];
+  const stage = (VALID_STAGES.includes(stageRaw) ? stageRaw : "관리현황 파악") as ContractStage;
 
   return {
     id:           page.id,
@@ -215,7 +223,7 @@ export async function createContract(data: {
     "PC수량":     { number: data.quantity },
     "단가":       { number: data.unitPrice },
     "메모":       { rich_text: [{ text: { content: data.notes || "" } }] },
-    "진행단계":   { select: { name: data.stage ?? "관리현황파악" } },
+    "진행단계":   { select: { name: data.stage ?? "관리현황 파악" } },
   };
   if (fileUploadId) {
     props["계약서"] = { files: [{ type: "file_upload", file_upload: { id: fileUploadId } }] };
