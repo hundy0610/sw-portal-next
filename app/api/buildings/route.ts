@@ -3,26 +3,34 @@ import { kvGet, kvSet, kvDel } from "@/lib/kv-store";
 
 const KV_KEY = "buildings:custom";
 
-export interface FloorMeta  { id: string; label: string; note: string; }
+export interface FloorMeta    { id: string; label: string; note: string; }
 export interface BuildingMeta { id: string; label: string; isCustom: true; floors: FloorMeta[]; }
+export interface BuildingGroup {
+  id:             string;
+  label:          string;       // 그룹 이름 (예: "서울 캠퍼스")
+  buildingIds:    string[];     // 포함된 건물 id 목록
+  allowedUserIds: string[];     // 접근 허용 userId 목록 (비어있으면 슈퍼만 접근)
+}
 export interface BuildingsConfig {
   customBuildings: BuildingMeta[];
-  extraFloors: Record<string, FloorMeta[]>; // 기존 건물(bw/ns/sb)에 추가된 층
+  extraFloors:     Record<string, FloorMeta[]>;
+  groups:          BuildingGroup[];
 }
 
-const EMPTY: BuildingsConfig = { customBuildings: [], extraFloors: {} };
+const EMPTY: BuildingsConfig = { customBuildings: [], extraFloors: {}, groups: [] };
 
 // GET /api/buildings
 export async function GET() {
   try {
     const cfg = (await kvGet<BuildingsConfig>(KV_KEY)) ?? EMPTY;
+    if (!cfg.groups) cfg.groups = [];
     return NextResponse.json({ ok: true, ...cfg });
   } catch (e) {
     return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
   }
 }
 
-// POST /api/buildings  — 전체 config 저장
+// POST /api/buildings — 전체 config 저장
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as BuildingsConfig;
@@ -33,7 +41,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// DELETE /api/buildings  — 전체 초기화
+// DELETE /api/buildings — 전체 초기화
 export async function DELETE() {
   try {
     await kvDel(KV_KEY);

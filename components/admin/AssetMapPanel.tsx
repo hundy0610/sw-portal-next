@@ -1351,26 +1351,42 @@ function OverviewSidePanel({ building, floor, editorData }: { building: Building
 // ══════════════════════════════════════════════════════════════════════════════
 const EMPTY_EDITOR_DATA: EditorData = { imageUrl: null, items: [], zones: [], facilities: [], groups: [], renderOrder: [] };
 
-// ── 건물/층 메타 타입 ────────────────────────────────────────────
+// ── 건물/층/그룹 메타 타입 ──────────────────────────────────────
 interface FloorMeta   { id: string; label: string; note: string; }
 interface BuildingMeta{ id: string; label: string; isCustom: true; floors: FloorMeta[]; }
+interface BuildingGroup {
+  id:             string;
+  label:          string;
+  buildingIds:    string[];
+  allowedUserIds: string[]; // 비어있으면 슈퍼만 접근
+}
 interface BuildingsConfig {
   customBuildings: BuildingMeta[];
-  extraFloors: Record<string, FloorMeta[]>;
+  extraFloors:     Record<string, FloorMeta[]>;
+  groups:          BuildingGroup[];
 }
+
+// ── 어카운트 타입 (유저 선택용) ──────────────────────────────────
+interface AccountItem { id: string; userId: string; name: string; role: string; }
 
 // ── 건물 관리 모달 폼 타입 ─────────────────────────────────────
 interface BldMgrState {
   open: boolean;
-  // 새 건물 추가 폼
-  newBldLabel: string;
-  // 새 층 추가 폼 (건물 ID별)
-  newFloorTarget: string;  // 어느 건물에 추가할지
-  newFloorLabel: string;
-  newFloorNote: string;
+  tab: "buildings" | "groups";
+  // 건물 탭
+  newBldLabel:    string;
+  newFloorTarget: string;
+  newFloorLabel:  string;
+  newFloorNote:   string;
+  // 그룹 탭
+  newGrpLabel:       string;
+  editGrpId:         string | null; // 현재 편집 중인 그룹 id
 }
 
-export default function AssetMapPanel() {
+interface SessionInfo { role: string; userId: string; name: string; company: string; }
+
+export default function AssetMapPanel({ session }: { session?: SessionInfo | null }) {
+  const isSuper = session?.role === "super";
   const [buildingId,    setBuildingId]    = useState<string>("bw");
   const [floorId,       setFloorId]       = useState<string>("2F");
   const [filter,        setFilter]        = useState<FilterMode>("all");
@@ -1381,14 +1397,17 @@ export default function AssetMapPanel() {
   const [isSaving,      setIsSaving]      = useState<boolean>(false);
   const [saveMsg,       setSaveMsg]       = useState<string>("");
 
-  // ── 커스텀 건물/층 config ──────────────────────────────────────
-  const [bldConfig, setBldConfig] = useState<BuildingsConfig>({ customBuildings: [], extraFloors: {} });
+  // ── 커스텀 건물/층/그룹 config ────────────────────────────────
+  const [bldConfig, setBldConfig] = useState<BuildingsConfig>({ customBuildings: [], extraFloors: {}, groups: [] });
   const [bldMgr, setBldMgr] = useState<BldMgrState>({
-    open: false, newBldLabel: "", newFloorTarget: "", newFloorLabel: "", newFloorNote: "",
+    open: false, tab: "buildings",
+    newBldLabel: "", newFloorTarget: "", newFloorLabel: "", newFloorNote: "",
+    newGrpLabel: "", editGrpId: null,
   });
+  const [accounts, setAccounts] = useState<AccountItem[]>([]);
 
-  // 하드코딩 + 커스텀을 합산한 최종 건물 목록
-  const allBuildings: BuildingData[] = useMemo(() => {
+  // 하드코딩 + 커스텀을 합산한 전체 건물 목록 (권한 필터 전)
+  const _allBuildings: BuildingData[] = useMemo(() => {
     const merged = BUILDINGS.map(b => {
       const extra = bldConfig.extraFloors[b.id] ?? [];
       if (!extra.length) return b;
@@ -1396,9 +1415,7 @@ export default function AssetMapPanel() {
         ...b,
         floors: [
           ...b.floors,
-          ...extra.map(f => ({
-            id: f.id, label: f.label, note: f.note, zones: [], rooms: [],
-          })),
+          ...extra.map(f => ({ id: f.id, label: f.label, note: f.note, zones: [], rooms: [] })),
         ],
       };
     });
@@ -1409,15 +1426,59 @@ export default function AssetMapPanel() {
     return [...merged, ...customs];
   }, [bldConfig]);
 
+  // 권한 필터 적용된 최종 건물 목록
+  const allBuildings: BuildingData[] = useMemo(() => {
+    if (isSuper) return _allBuildings;
+    const userId = session?.userId ?? "";
+    const groups = bldConfig.groups ?? [];
+    // 현재 유저가 접근 가능한 그룹의 buildingId 집합
+    const allowedIds = new Set<string>();
+    groups.forEach(g => {
+      if (g.allowedUserIds.includes(userId)) {
+        g.buildingIds.forEach(id => allowedIds.add(id));
+      }
+    });
+    return _allBuildings.filter(b => allowedIds.has(b.id));
+  }, [_allBuildings, bldConfig.groups, isSuper, session?.userId]);
+
+  // 그룹별 건물 묶음 (헤더 표시용) — 슈퍼는 전체 그룹, 일반은 접근 가능 그룹만
+  const visibleGroups: { group: BuildingGroup; buildings: BuildingData[] }[] = useMemo(() => {
+    const groups = bldConfig.groups ?? [];
+    const userId = session?.userId ?? "";
+    return groups
+      .filter(g => isSuper || g.allowedUserIds.includes(userId))
+      .map(g => ({
+        group: g,
+        buildings: _allBuildings.filter(b => g.buildingIds.includes(b.id)),
+      }))
+      .filter(item => item.buildings.length > 0);
+  }, [bldConfig.groups, _allBuildings, isSuper, session?.userId]);
+
+  // 그룹에 속하지 않은 건물 (슈퍼만 표시)
+  const ungroupedBuildings: BuildingData[] = useMemo(() => {
+    if (!isSuper) return [];
+    const grouped = new Set((bldConfig.groups ?? []).flatMap(g => g.buildingIds));
+    return _allBuildings.filter(b => !grouped.has(b.id));
+  }, [_allBuildings, bldConfig.groups, isSuper]);
+
   // ── 커스텀 건물/층 로드 ────────────────────────────────────────
   useEffect(() => {
     fetch("/api/buildings")
       .then(r => r.json())
       .then(d => {
-        if (d.ok) setBldConfig({ customBuildings: d.customBuildings ?? [], extraFloors: d.extraFloors ?? {} });
+        if (d.ok) setBldConfig({ customBuildings: d.customBuildings ?? [], extraFloors: d.extraFloors ?? {}, groups: d.groups ?? [] });
       })
       .catch(() => {});
   }, []);
+
+  // ── 계정 목록 로드 (그룹 유저 선택용, 슈퍼만) ──────────────────
+  useEffect(() => {
+    if (!isSuper) return;
+    fetch("/api/admin/accounts")
+      .then(r => r.json())
+      .then(d => { if (d.ok) setAccounts(d.accounts ?? []); })
+      .catch(() => {});
+  }, [isSuper]);
 
   // ── 커스텀 config 저장 ────────────────────────────────────────
   const saveBldConfig = useCallback(async (cfg: BuildingsConfig) => {
@@ -1504,6 +1565,55 @@ export default function AssetMapPanel() {
         ),
       };
     }
+    await saveBldConfig(next);
+  }, [bldConfig, saveBldConfig]);
+
+  // ── 그룹 추가 ────────────────────────────────────────────────
+  const addGroup = useCallback(async () => {
+    const label = bldMgr.newGrpLabel.trim();
+    if (!label) return;
+    const id = "grp_" + Date.now();
+    const next: BuildingsConfig = {
+      ...bldConfig,
+      groups: [...(bldConfig.groups ?? []), { id, label, buildingIds: [], allowedUserIds: [] }],
+    };
+    await saveBldConfig(next);
+    setBldMgr(s => ({ ...s, newGrpLabel: "", editGrpId: id }));
+  }, [bldMgr.newGrpLabel, bldConfig, saveBldConfig]);
+
+  // ── 그룹 삭제 ────────────────────────────────────────────────
+  const deleteGroup = useCallback(async (id: string) => {
+    const next: BuildingsConfig = {
+      ...bldConfig,
+      groups: (bldConfig.groups ?? []).filter(g => g.id !== id),
+    };
+    await saveBldConfig(next);
+    if (bldMgr.editGrpId === id) setBldMgr(s => ({ ...s, editGrpId: null }));
+  }, [bldConfig, saveBldConfig, bldMgr.editGrpId]);
+
+  // ── 그룹 건물 토글 ───────────────────────────────────────────
+  const toggleGroupBuilding = useCallback(async (grpId: string, bldId: string) => {
+    const next: BuildingsConfig = {
+      ...bldConfig,
+      groups: (bldConfig.groups ?? []).map(g => {
+        if (g.id !== grpId) return g;
+        const has = g.buildingIds.includes(bldId);
+        return { ...g, buildingIds: has ? g.buildingIds.filter(id => id !== bldId) : [...g.buildingIds, bldId] };
+      }),
+    };
+    await saveBldConfig(next);
+  }, [bldConfig, saveBldConfig]);
+
+  // ── 그룹 유저 토글 ───────────────────────────────────────────
+  const toggleGroupUser = useCallback(async (grpId: string, userId: string) => {
+    const next: BuildingsConfig = {
+      ...bldConfig,
+      groups: (bldConfig.groups ?? []).map(g => {
+        if (g.id !== grpId) return g;
+        const has = g.allowedUserIds.includes(userId);
+        return { ...g, allowedUserIds: has ? g.allowedUserIds.filter(id => id !== userId) : [...g.allowedUserIds, userId] };
+      }),
+    };
     await saveBldConfig(next);
   }, [bldConfig, saveBldConfig]);
 
@@ -1715,17 +1825,52 @@ export default function AssetMapPanel() {
           {editorMode ? "✏️ 편집 모드 ON" : "✏️ 편집 모드"}
         </button>
 
-        {/* 건물 + 층 선택 */}
+        {/* 건물 + 층 선택 (그룹 기반) */}
         <div className="ml-auto flex items-center gap-2 flex-wrap">
-          <div className="flex rounded-lg border border-gray-200 overflow-hidden">
-            {allBuildings.map(b => (
-              <button key={b.id}
-                onClick={() => handleBldChange(b.id)}
-                className={`px-3 py-1.5 text-xs font-medium transition-colors border-r border-gray-200 last:border-0 ${
-                  b.id === buildingId ? "bg-slate-800 text-white" : "text-slate-600 hover:bg-gray-50"
-                }`}>{b.label}</button>
+          {/* 그룹별 건물 버튼 */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {visibleGroups.map(({ group, buildings }) => (
+              <div key={group.id} className="flex items-center gap-1">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-1">{group.label}</span>
+                <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+                  {buildings.map(b => (
+                    <button key={b.id} onClick={() => handleBldChange(b.id)}
+                      className={`px-3 py-1.5 text-xs font-medium transition-colors border-r border-gray-200 last:border-0 ${
+                        b.id === buildingId ? "bg-slate-800 text-white" : "text-slate-600 hover:bg-gray-50"
+                      }`}>{b.label}</button>
+                  ))}
+                </div>
+              </div>
             ))}
+            {/* 미배정 건물 (슈퍼만) */}
+            {ungroupedBuildings.length > 0 && (
+              <div className="flex items-center gap-1">
+                {visibleGroups.length > 0 && (
+                  <span className="text-[10px] font-bold text-gray-300 uppercase tracking-wide px-1">미배정</span>
+                )}
+                <div className="flex rounded-lg border border-dashed border-gray-300 overflow-hidden">
+                  {ungroupedBuildings.map(b => (
+                    <button key={b.id} onClick={() => handleBldChange(b.id)}
+                      className={`px-3 py-1.5 text-xs font-medium transition-colors border-r border-gray-200 last:border-0 ${
+                        b.id === buildingId ? "bg-slate-800 text-white" : "text-slate-500 hover:bg-gray-50"
+                      }`}>{b.label}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* 그룹 없을 때 fallback */}
+            {visibleGroups.length === 0 && ungroupedBuildings.length === 0 && allBuildings.length > 0 && (
+              <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+                {allBuildings.map(b => (
+                  <button key={b.id} onClick={() => handleBldChange(b.id)}
+                    className={`px-3 py-1.5 text-xs font-medium transition-colors border-r border-gray-200 last:border-0 ${
+                      b.id === buildingId ? "bg-slate-800 text-white" : "text-slate-600 hover:bg-gray-50"
+                    }`}>{b.label}</button>
+                ))}
+              </div>
+            )}
           </div>
+          {/* 층 선택 */}
           <div className="flex gap-1 flex-wrap">
             {(building?.floors ?? []).map(f => (
               <button key={f.id}
@@ -1737,11 +1882,11 @@ export default function AssetMapPanel() {
                 }`}>{f.label.replace("층","F")}</button>
             ))}
           </div>
-          {/* 건물/층 관리 버튼 */}
-          <button
+          {/* 건물/층 관리 버튼 (슈퍼만) */}
+          {isSuper && <button
             onClick={() => setBldMgr(s => ({ ...s, open: true, newFloorTarget: buildingId }))}
             className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:border-slate-400 hover:text-slate-700 text-xs transition-all"
-            title="건물/층 관리">⚙</button>
+            title="건물/층/그룹 관리">⚙</button>}
         </div>
       </div>
 
@@ -1753,18 +1898,30 @@ export default function AssetMapPanel() {
             onClick={e => e.stopPropagation()}>
             {/* 헤더 */}
             <div className="flex items-center justify-between px-5 py-4 border-b">
-              <h2 className="text-base font-bold text-gray-900">건물 / 층 관리</h2>
+              <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+                {(["buildings","groups"] as const).map(t => (
+                  <button key={t} onClick={() => setBldMgr(s => ({ ...s, tab: t }))}
+                    className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                      bldMgr.tab === t ? "bg-white shadow text-slate-800" : "text-slate-500 hover:text-slate-700"
+                    }`}>
+                    {t === "buildings" ? "건물 / 층" : "그룹 / 권한"}
+                  </button>
+                ))}
+              </div>
               <button onClick={() => setBldMgr(s => ({ ...s, open: false }))}
-                className="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
+                className="text-gray-400 hover:text-gray-600 text-lg leading-none ml-4">✕</button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-5 space-y-6">
+
+            {/* ════ 건물/층 탭 ════ */}
+            {bldMgr.tab === "buildings" && (<>
 
               {/* ── 건물 목록 ── */}
               <section>
                 <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">등록된 건물</h3>
                 <div className="space-y-3">
-                  {allBuildings.map(b => {
+                  {_allBuildings.map(b => {
                     const isHardcoded = BUILDINGS.some(hb => hb.id === b.id);
                     const extraFl = isHardcoded ? (bldConfig.extraFloors[b.id] ?? []) : [];
                     const customFl = isHardcoded ? [] : (bldConfig.customBuildings.find(c => c.id === b.id)?.floors ?? []);
@@ -1859,6 +2016,104 @@ export default function AssetMapPanel() {
                   </button>
                 </div>
               </section>
+
+            </>)}
+
+            {/* ════ 그룹/권한 탭 ════ */}
+            {bldMgr.tab === "groups" && (<>
+
+              {/* ── 그룹 목록 ── */}
+              <section>
+                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">그룹 목록</h3>
+                {(bldConfig.groups ?? []).length === 0 && (
+                  <p className="text-xs text-gray-400">아직 그룹이 없습니다. 아래에서 추가하세요.</p>
+                )}
+                <div className="space-y-4">
+                  {(bldConfig.groups ?? []).map(g => (
+                    <div key={g.id} className={`border rounded-xl overflow-hidden ${bldMgr.editGrpId === g.id ? "border-blue-300" : "border-gray-200"}`}>
+                      {/* 그룹 헤더 */}
+                      <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-b border-gray-200">
+                        <button className="text-sm font-bold text-gray-800 hover:text-blue-600 text-left"
+                          onClick={() => setBldMgr(s => ({ ...s, editGrpId: s.editGrpId === g.id ? null : g.id }))}>
+                          {g.label}
+                          <span className="ml-2 text-[10px] font-normal text-gray-400">
+                            건물 {g.buildingIds.length}개 · 허용 {g.allowedUserIds.length}명
+                          </span>
+                        </button>
+                        <button onClick={() => deleteGroup(g.id)}
+                          className="text-[11px] text-red-400 hover:text-red-600 px-2 py-0.5 rounded border border-red-200 hover:border-red-400 transition-colors">
+                          삭제
+                        </button>
+                      </div>
+
+                      {bldMgr.editGrpId === g.id && (
+                        <div className="p-3 space-y-4">
+                          {/* 건물 선택 */}
+                          <div>
+                            <p className="text-[11px] font-semibold text-gray-500 mb-2">포함할 건물</p>
+                            <div className="flex flex-wrap gap-2">
+                              {_allBuildings.map(b => {
+                                const checked = g.buildingIds.includes(b.id);
+                                return (
+                                  <label key={b.id} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs cursor-pointer transition-all ${
+                                    checked ? "bg-slate-800 text-white border-slate-800" : "bg-white text-gray-600 border-gray-200 hover:border-slate-400"
+                                  }`}>
+                                    <input type="checkbox" className="hidden" checked={checked}
+                                      onChange={() => toggleGroupBuilding(g.id, b.id)} />
+                                    {b.label}
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                          {/* 허용 유저 선택 */}
+                          <div>
+                            <p className="text-[11px] font-semibold text-gray-500 mb-2">접근 허용 어드민</p>
+                            {accounts.filter(a => a.role !== "super").length === 0 && (
+                              <p className="text-xs text-gray-400">등록된 일반 어드민이 없습니다.</p>
+                            )}
+                            <div className="flex flex-wrap gap-2">
+                              {accounts.filter(a => a.role !== "super").map(a => {
+                                const checked = g.allowedUserIds.includes(a.userId);
+                                return (
+                                  <label key={a.userId} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs cursor-pointer transition-all ${
+                                    checked ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-200 hover:border-blue-300"
+                                  }`}>
+                                    <input type="checkbox" className="hidden" checked={checked}
+                                      onChange={() => toggleGroupUser(g.id, a.userId)} />
+                                    <span>{a.name}</span>
+                                    <span className={`${checked ? "text-blue-200" : "text-gray-400"} text-[10px]`}>({a.userId})</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              {/* ── 그룹 추가 ── */}
+              <section>
+                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">새 그룹 추가</h3>
+                <div className="flex gap-2">
+                  <input
+                    className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-slate-400"
+                    placeholder="그룹 이름 (예: 서울 캠퍼스)"
+                    value={bldMgr.newGrpLabel}
+                    onChange={e => setBldMgr(s => ({ ...s, newGrpLabel: e.target.value }))}
+                    onKeyDown={e => { if (e.key === "Enter") addGroup(); }}
+                  />
+                  <button onClick={addGroup}
+                    className="px-4 py-2 bg-slate-800 text-white text-sm rounded-xl hover:bg-slate-700 transition-colors font-medium">
+                    추가
+                  </button>
+                </div>
+              </section>
+
+            </>)}
 
             </div>
 
