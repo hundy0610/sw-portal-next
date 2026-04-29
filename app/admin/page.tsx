@@ -396,7 +396,7 @@ export default function AdminPage() {
           )}
 
           <div className="px-4 pt-2 mt-auto">
-            <div className="text-xs text-white/30">v2.16.1 · 법인별 계정</div>
+            <div className="text-xs text-white/30">v{process.env.NEXT_PUBLIC_APP_VERSION} · 법인별 계정</div>
           </div>
         </aside>
 
