@@ -1641,14 +1641,14 @@ export default function AssetMapPanel() {
 
   // override 적용된 zones (렌더링·통계 모두 이걸 사용)
   const effectiveZones = useMemo(() =>
-    floor.zones.map(z => ({
+    (floor?.zones ?? []).map(z => ({
       ...z,
       seats: z.seats.map(s => ({
         ...s,
         type: (seatOverrides[s.id] ?? s.type) as MonitorType,
       })),
     })),
-    [floor.zones, seatOverrides]
+    [floor?.zones, seatOverrides]
   );
 
   const flStats    = useMemo(() => calcStats(effectiveZones), [effectiveZones]);
