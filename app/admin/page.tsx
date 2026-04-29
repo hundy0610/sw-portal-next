@@ -330,57 +330,53 @@ export default function AdminPage() {
       </header>
 
       {/* ── 사이드바 + 콘텐츠 ── */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative">
+
         {/* 왼쪽 사이드바 */}
         <aside
-          className="sidenav flex flex-col pt-4 pb-4 overflow-y-auto overflow-x-hidden flex-shrink-0 transition-all duration-200"
-          style={{ width: sidebarCollapsed ? 56 : 220, minWidth: sidebarCollapsed ? 56 : 220 }}
+          className="sidenav flex flex-col pt-4 pb-4 overflow-y-auto overflow-x-hidden flex-shrink-0"
+          style={{
+            width:      sidebarCollapsed ? 0 : 220,
+            minWidth:   sidebarCollapsed ? 0 : 220,
+            opacity:    sidebarCollapsed ? 0 : 1,
+            visibility: sidebarCollapsed ? "hidden" : "visible",
+            transition: "width 0.22s ease, min-width 0.22s ease, opacity 0.18s ease",
+          }}
         >
-          {!sidebarCollapsed && <div className="sidenav-section">메뉴</div>}
+          <div className="sidenav-section">메뉴</div>
           {menu.map((m) => (
             <div
               key={m.id}
-              className={`sidenav-item${page === m.id ? " active" : ""}${sidebarCollapsed ? " justify-center px-0" : ""}`}
-              style={sidebarCollapsed ? { margin: "0 6px 1px", padding: "9px 0" } : undefined}
-              title={sidebarCollapsed ? m.label : undefined}
+              className={`sidenav-item${page === m.id ? " active" : ""}`}
+              title={m.label}
               onClick={() => {
                 setPage(m.id);
                 if (m.id === "assetmap") setPendingMonitorCount(0);
               }}
             >
-              <span style={{ fontSize: sidebarCollapsed ? 18 : 14, flexShrink: 0 }}>{m.icon}</span>
-              {!sidebarCollapsed && (
-                <>
-                  <div className="flex flex-col leading-tight flex-1 min-w-0">
-                    <span>{m.label}</span>
-                    <span className="text-xs opacity-50">{m.desc}</span>
-                  </div>
-                  {m.id === "assetmap" && pendingMonitorCount > 0 && (
-                    <span className="ml-auto flex-shrink-0 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1 animate-pulse">
-                      {pendingMonitorCount > 99 ? "99+" : pendingMonitorCount}
-                    </span>
-                  )}
-                </>
-              )}
-              {/* 접힌 상태에서 알림 뱃지 */}
-              {sidebarCollapsed && m.id === "assetmap" && pendingMonitorCount > 0 && (
-                <span className="absolute top-0 right-0 w-3.5 h-3.5 flex items-center justify-center rounded-full bg-red-500 text-white text-[8px] font-bold animate-pulse">
-                  {pendingMonitorCount > 9 ? "9+" : pendingMonitorCount}
+              <span style={{ fontSize: 14, flexShrink: 0 }}>{m.icon}</span>
+              <div className="flex flex-col leading-tight flex-1 min-w-0">
+                <span>{m.label}</span>
+                <span className="text-xs opacity-50">{m.desc}</span>
+              </div>
+              {m.id === "assetmap" && pendingMonitorCount > 0 && (
+                <span className="ml-auto flex-shrink-0 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1 animate-pulse">
+                  {pendingMonitorCount > 99 ? "99+" : pendingMonitorCount}
                 </span>
               )}
             </div>
           ))}
 
           {/* 법인 담당자: 소속 법인 표시 */}
-          {!isSuper && !sidebarCollapsed && (
+          {!isSuper && (
             <div className="mx-3 mt-3 px-3 py-2.5 rounded-lg bg-white/10 border border-white/20">
               <div className="text-xs text-white/40 mb-1">소속 법인</div>
               <div className="text-sm font-bold text-white">{company}</div>
             </div>
           )}
 
-          {/* 하단 Notion 바로가기 (슈퍼어드민만, 펼친 상태) */}
-          {isSuper && !sidebarCollapsed && (
+          {/* 하단 Notion 바로가기 (슈퍼어드민만) */}
+          {isSuper && (
             <div className="mt-auto mx-3 pt-4 border-t border-white/10">
               <div className="text-xs text-white/40 mb-2 px-1">Notion 바로가기</div>
               <a href={process.env.NEXT_PUBLIC_NOTION_TRACKER_URL || "#"} target="_blank" rel="noopener noreferrer"
@@ -398,12 +394,24 @@ export default function AdminPage() {
             </div>
           )}
 
-          {!sidebarCollapsed && (
-            <div className="px-4 pt-2 mt-auto">
-              <div className="text-xs text-white/30">v2.16.1 · 법인별 계정</div>
-            </div>
-          )}
+          <div className="px-4 pt-2 mt-auto">
+            <div className="text-xs text-white/30">v2.16.1 · 법인별 계정</div>
+          </div>
         </aside>
+
+        {/* 사이드바 숨김 시 — 좌측 고정 열기 버튼 */}
+        {sidebarCollapsed && (
+          <button
+            onClick={toggleSidebar}
+            className="absolute left-0 top-6 z-30 flex items-center justify-center w-5 h-10 rounded-r-lg shadow-md transition-colors"
+            style={{ background: "#1c1006" }}
+            title="사이드바 열기"
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="2.5">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </button>
+        )}
 
         {/* 메인 콘텐츠 */}
         <main
