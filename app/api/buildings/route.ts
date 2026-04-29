@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { kvGet, kvSet, kvDel } from "@/lib/kv-store";
+import { kvGet, kvSetPermanent, kvDel } from "@/lib/kv-store";
 
 const KV_KEY = "buildings:custom";
 
@@ -34,7 +34,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as BuildingsConfig;
-    await kvSet(KV_KEY, body, 0); // TTL 0 = 영구
+    await kvSetPermanent(KV_KEY, body);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
