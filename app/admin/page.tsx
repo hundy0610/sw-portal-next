@@ -308,8 +308,8 @@ export default function AdminPage() {
             >
               <span style={{ fontSize: 14, flexShrink: 0 }}>{m.icon}</span>
               <div className="flex flex-col leading-tight flex-1 min-w-0">
-                <span>{m.label}</span>
-                <span className="text-xs opacity-50">{m.desc}</span>
+                <span className="truncate">{m.label}</span>
+                <span className="text-xs opacity-50 truncate">{m.desc}</span>
               </div>
               {m.id === "assetmap" && pendingMonitorCount > 0 && (
                 <span className="ml-auto flex-shrink-0 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1 animate-pulse">
