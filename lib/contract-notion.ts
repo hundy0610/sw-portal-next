@@ -135,8 +135,17 @@ function toContract(page: PageObjectResponse): Contract {
   ];
   const stage = (VALID_STAGES.includes(stageRaw) ? stageRaw : "관리현황 파악") as ContractStage;
 
+  // c_xxx 형식 ID는 Notion REST API URL에서 UUID 검증 실패 → page.url 끝의 UUID 추출
+  const apiId = (() => {
+    if (!page.id.startsWith("c_")) return page.id;
+    const m = (page.url ?? "").match(/([0-9a-f]{32})$/i);
+    if (!m) return page.id;
+    const h = m[1];
+    return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
+  })();
+
   return {
-    id:           page.id,
+    id:           apiId,
     company:      text("법인명"),
     contactName:  text("담당자"),
     contactEmail: text("이메일"),
@@ -252,8 +261,12 @@ async function buildFilesProp(
 export async function fetchContracts(): Promise<Contract[]> {
   const cached = await kvGet<Contract[]>(KV_KEY);
   if (cached) {
-    // 캐시 히트: 상태만 재계산 (날짜 의존)
-    return cached.map((c) => ({ ...c, status: calcStatus(c.startDate, c.endDate) }));
+    // c_xxx ID가 캐시에 남아있으면 무효화 후 재조회
+    if (cached.some((c) => c.id.startsWith("c_"))) {
+      await kvDel(KV_KEY);
+    } else {
+      return cached.map((c) => ({ ...c, status: calcStatus(c.startDate, c.endDate) }));
+    }
   }
 
   const dbId = process.env.NOTION_DB_CONTRACTS;
