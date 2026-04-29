@@ -6,6 +6,10 @@
  * KV 캐시: contracts:list (TTL 5분)
  *   - Notion File URL이 1시간 유효하므로 5분 캐시는 안전
  *   - 생성/수정/삭제 시 kvDel로 즉시 무효화
+ *
+ * ※ Notion SDK(v2.2.x)는 page_id를 UUID로 강제 검증하여
+ *   신규 ID 포맷(c_xxx 등)을 거부함 → pages.create / pages.update /
+ *   pages.archive 는 raw fetch 로 대체, query는 SDK 유지
  */
 
 import { Client } from "@notionhq/client";
@@ -16,6 +20,47 @@ import type { Contract, ContractStage } from "@/types/contract";
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 const KV_KEY = "contracts:list";
 const KV_TTL = 300; // 5분
+
+// ── Raw Notion Pages API (SDK UUID 검증 우회) ─────────────────
+// SDK는 page_id 를 UUID로 검증 → 신규 Notion ID(c_xxx)에서 실패
+// raw fetch 를 사용하면 API 서버가 직접 ID를 검증하므로 문제 없음
+const NOTION_VER = "2022-06-28";
+
+function notionHeaders(): Record<string, string> {
+  const token = process.env.NOTION_TOKEN;
+  if (!token) throw new Error("NOTION_TOKEN이 설정되지 않았습니다.");
+  return {
+    Authorization: `Bearer ${token}`,
+    "Notion-Version": NOTION_VER,
+    "Content-Type": "application/json",
+  };
+}
+
+async function notionPageCreate(body: Record<string, unknown>): Promise<PageObjectResponse> {
+  const res = await fetch("https://api.notion.com/v1/pages", {
+    method: "POST",
+    headers: notionHeaders(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const msg = await res.text();
+    throw new Error(`Notion pages 생성 실패: ${msg}`);
+  }
+  return res.json() as Promise<PageObjectResponse>;
+}
+
+async function notionPagePatch(pageId: string, body: Record<string, unknown>): Promise<PageObjectResponse> {
+  const res = await fetch(`https://api.notion.com/v1/pages/${encodeURIComponent(pageId)}`, {
+    method: "PATCH",
+    headers: notionHeaders(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const msg = await res.text();
+    throw new Error(`Notion pages 수정 실패: ${msg}`);
+  }
+  return res.json() as Promise<PageObjectResponse>;
+}
 
 // ── 날짜 기준 상태 자동 계산 ──────────────────────────────────
 function calcStatus(startDate: string, endDate: string): Contract["status"] {
@@ -171,27 +216,6 @@ async function queryAll(dbId: string): Promise<PageObjectResponse[]> {
   return pages;
 }
 
-// ══════════════════════════════════════════════════════════════
-// Public API
-// ══════════════════════════════════════════════════════════════
-
-/** 계약 목록 조회 (KV 캐시 → Notion fallback) */
-export async function fetchContracts(): Promise<Contract[]> {
-  const cached = await kvGet<Contract[]>(KV_KEY);
-  if (cached) {
-    // 캐시 히트: 상태만 재계산 (날짜 의존)
-    return cached.map((c) => ({ ...c, status: calcStatus(c.startDate, c.endDate) }));
-  }
-
-  const dbId = process.env.NOTION_DB_CONTRACTS;
-  if (!dbId) return [];
-
-  const pages  = await queryAll(dbId);
-  const result = pages.map(toContract);
-  await kvSet(KV_KEY, result, KV_TTL);
-  return result;
-}
-
 // ── 계약서 files 프로퍼티 빌더 ────────────────────────────────
 async function buildFilesProp(
   pdfBuffer?: Buffer,
@@ -220,6 +244,27 @@ async function buildFilesProp(
   return undefined;
 }
 
+// ══════════════════════════════════════════════════════════════
+// Public API
+// ══════════════════════════════════════════════════════════════
+
+/** 계약 목록 조회 (KV 캐시 → Notion fallback) */
+export async function fetchContracts(): Promise<Contract[]> {
+  const cached = await kvGet<Contract[]>(KV_KEY);
+  if (cached) {
+    // 캐시 히트: 상태만 재계산 (날짜 의존)
+    return cached.map((c) => ({ ...c, status: calcStatus(c.startDate, c.endDate) }));
+  }
+
+  const dbId = process.env.NOTION_DB_CONTRACTS;
+  if (!dbId) return [];
+
+  const pages  = await queryAll(dbId);
+  const result = pages.map(toContract);
+  await kvSet(KV_KEY, result, KV_TTL);
+  return result;
+}
+
 /** 계약 생성 */
 export async function createContract(data: {
   company: string;
@@ -240,7 +285,7 @@ export async function createContract(data: {
 
   const filesProp = await buildFilesProp(data.pdfBuffer, data.pdfFileName, data.pdfLink);
 
-  const props: Record<string, unknown> = {
+  const properties: Record<string, unknown> = {
     "법인명":     { title:     [{ text: { content: data.company } }] },
     "담당자":     { rich_text: [{ text: { content: data.contactName } }] },
     "이메일":     { email: data.contactEmail || null },
@@ -251,15 +296,15 @@ export async function createContract(data: {
     "메모":       { rich_text: [{ text: { content: data.notes || "" } }] },
     "진행단계":   { select: { name: data.stage ?? "관리현황 파악" } },
   };
-  if (filesProp) props["계약서"] = filesProp;
+  if (filesProp) properties["계약서"] = filesProp;
 
-  const page = await notion.pages.create({
+  const page = await notionPageCreate({
     parent: { database_id: dbId },
-    properties: props as Parameters<typeof notion.pages.create>[0]["properties"],
+    properties,
   });
 
   await kvDel(KV_KEY);
-  return toContract(page as PageObjectResponse);
+  return toContract(page);
 }
 
 /** 계약 수정 */
@@ -280,45 +325,41 @@ export async function updateContract(
     pdfLink?: string;
   }
 ): Promise<Contract> {
-  const props: Record<string, unknown> = {};
-  if (data.company      !== undefined) props["법인명"]     = { title:     [{ text: { content: data.company } }] };
-  if (data.contactName  !== undefined) props["담당자"]     = { rich_text: [{ text: { content: data.contactName } }] };
-  if (data.contactEmail !== undefined) props["이메일"]     = { email: data.contactEmail || null };
-  if (data.startDate    !== undefined) props["계약시작일"] = { date: { start: data.startDate } };
-  if (data.endDate      !== undefined) props["계약종료일"] = { date: { start: data.endDate } };
-  if (data.quantity     !== undefined) props["PC수량"]     = { number: data.quantity };
-  if (data.unitPrice    !== undefined) props["단가"]       = { number: data.unitPrice };
-  if (data.notes        !== undefined) props["메모"]       = { rich_text: [{ text: { content: data.notes } }] };
-  if (data.stage        !== undefined) props["진행단계"]   = { select: { name: data.stage } };
+  const properties: Record<string, unknown> = {};
+  if (data.company      !== undefined) properties["법인명"]     = { title:     [{ text: { content: data.company } }] };
+  if (data.contactName  !== undefined) properties["담당자"]     = { rich_text: [{ text: { content: data.contactName } }] };
+  if (data.contactEmail !== undefined) properties["이메일"]     = { email: data.contactEmail || null };
+  if (data.startDate    !== undefined) properties["계약시작일"] = { date: { start: data.startDate } };
+  if (data.endDate      !== undefined) properties["계약종료일"] = { date: { start: data.endDate } };
+  if (data.quantity     !== undefined) properties["PC수량"]     = { number: data.quantity };
+  if (data.unitPrice    !== undefined) properties["단가"]       = { number: data.unitPrice };
+  if (data.notes        !== undefined) properties["메모"]       = { rich_text: [{ text: { content: data.notes } }] };
+  if (data.stage        !== undefined) properties["진행단계"]   = { select: { name: data.stage } };
 
   // 파일 첨부: 직접 업로드 우선, 없으면 URL 링크
   if (data.pdfBuffer || data.pdfLink) {
     const filesProp = await buildFilesProp(data.pdfBuffer, data.pdfFileName, data.pdfLink);
-    if (filesProp) props["계약서"] = filesProp;
+    if (filesProp) properties["계약서"] = filesProp;
   }
 
-  const page = await notion.pages.update({
-    page_id: pageId,
-    properties: props as Parameters<typeof notion.pages.update>[0]["properties"],
-  });
+  const page = await notionPagePatch(pageId, { properties });
 
   await kvDel(KV_KEY);
-  return toContract(page as PageObjectResponse);
+  return toContract(page);
 }
 
-/** 진행 단계만 빠르게 업데이트 (칸반 드래그앤드롭용) */
+/** 진행 단계만 빠르게 업데이트 (칸반 드래그앤드롭 / 목록 인라인 변경) */
 export async function updateContractStage(pageId: string, stage: ContractStage): Promise<void> {
-  await notion.pages.update({
-    page_id: pageId,
+  await notionPagePatch(pageId, {
     properties: {
       "진행단계": { select: { name: stage } },
-    } as Parameters<typeof notion.pages.update>[0]["properties"],
+    },
   });
   await kvDel(KV_KEY);
 }
 
 /** 계약 삭제 (Notion 페이지 아카이브) */
 export async function deleteContract(pageId: string): Promise<void> {
-  await notion.pages.update({ page_id: pageId, archived: true });
+  await notionPagePatch(pageId, { archived: true });
   await kvDel(KV_KEY);
 }

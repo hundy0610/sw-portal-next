@@ -116,10 +116,22 @@ export default function ContractPanel() {
   const [toast,    setToast]    = useState<{ msg: string; type: "ok" | "err" } | null>(null);
   const [filter,   setFilter]   = useState<"all" | "active" | "expired" | "pending">("all");
   const [search,   setSearch]   = useState("");
-  const [view,     setView]     = useState<"table" | "kanban">("table");
-  const [dragId,   setDragId]   = useState<string | null>(null);
-  const [dragOver, setDragOver] = useState<ContractStage | null>(null);
+  const [view,         setView]         = useState<"table" | "kanban">("table");
+  const [dragId,       setDragId]       = useState<string | null>(null);
+  const [dragOver,     setDragOver]     = useState<ContractStage | null>(null);
+  const [stagePopover, setStagePopover] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── 단계 팝오버 외부 클릭 닫기 ──────────────────────────────
+  useEffect(() => {
+    if (!stagePopover) return;
+    function onClickOut(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      if (!target.closest("[data-stage-popover]")) setStagePopover(null);
+    }
+    document.addEventListener("mousedown", onClickOut);
+    return () => document.removeEventListener("mousedown", onClickOut);
+  }, [stagePopover]);
 
   // ── 백스페이스 → 브라우저 뒤로가기 방지 ─────────────────────
   useEffect(() => {
@@ -410,10 +422,10 @@ export default function ContractPanel() {
           </div>
 
           {/* 진행 단계 안내 화살표 */}
-          <div className="flex items-center gap-1 mb-4 overflow-x-auto pb-1">
+          <div className="flex items-center gap-1 mb-4 overflow-x-auto pb-1 scrollbar-none">
             {CONTRACT_STAGES.map((s, i) => (
               <div key={s.id} className="flex items-center gap-1 shrink-0">
-                <span className="text-xs font-semibold px-2 py-1 rounded-md"
+                <span className="text-xs font-semibold px-2 py-1 rounded-md whitespace-nowrap"
                   style={{ background: s.color, color: s.tc }}>
                   {s.icon} {s.label}
                 </span>
@@ -424,8 +436,16 @@ export default function ContractPanel() {
             ))}
           </div>
 
+          {/* 스크롤 힌트 */}
+          <p className="text-xs text-gray-400 mb-2 flex items-center gap-1">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+            좌우로 스크롤하여 모든 단계를 확인하세요
+          </p>
+
           {/* 칸반 보드 */}
-          <div className="flex gap-3 overflow-x-auto pb-4" style={{ minHeight: 420 }}>
+          <div className="flex gap-3 overflow-x-auto pb-4" style={{ minHeight: 420, cursor: "default" }}>
             {CONTRACT_STAGES.map((stage) => {
               const colContracts = contracts.filter(c =>
                 (c.stage ?? "관리현황 파악") === stage.id &&
@@ -614,7 +634,42 @@ export default function ContractPanel() {
                         <div className="text-xs text-gray-400 font-normal">연 {won(monthly * 12)}</div>
                       </td>
                       <td><StatusBadge status={c.status} /></td>
-                      <td><StageBadge stage={c.stage ?? "관리현황 파악"} /></td>
+                      <td>
+                        <div className="relative" data-stage-popover>
+                          <button
+                            className="flex items-center gap-1 group"
+                            title="클릭하여 단계 변경"
+                            onClick={() => setStagePopover(stagePopover === c.id ? null : c.id)}
+                          >
+                            <StageBadge stage={c.stage ?? "관리현황 파악"} />
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2.5" className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                              <polyline points="6 9 12 15 18 9" />
+                            </svg>
+                          </button>
+                          {stagePopover === c.id && (
+                            <div className="absolute left-0 top-full mt-1 z-30 bg-white border border-gray-200 rounded-xl shadow-xl p-1.5 w-60">
+                              <p className="text-xs text-gray-400 px-2 py-1 mb-0.5">단계 선택</p>
+                              {CONTRACT_STAGES.map(s => (
+                                <button
+                                  key={s.id}
+                                  onClick={() => {
+                                    handleStageChange(c.id, s.id);
+                                    setStagePopover(null);
+                                  }}
+                                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 transition-colors text-left"
+                                >
+                                  <StageBadge stage={s.id} />
+                                  {(c.stage ?? "관리현황 파악") === s.id && (
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0052CC" strokeWidth="3" className="ml-auto flex-shrink-0">
+                                      <polyline points="20 6 9 17 4 12" />
+                                    </svg>
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </td>
                       <td>
                         {c.pdfUrl ? (
                           <a href={c.pdfUrl} target="_blank" rel="noopener noreferrer"
