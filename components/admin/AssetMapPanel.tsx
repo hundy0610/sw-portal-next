@@ -1383,6 +1383,7 @@ interface BldMgrState {
   editFloorBldId:   string | null;
   editFloorId:      string | null;
   editFloorLabel:   string;
+  editFloorNote:    string;
   // 층 드래그 정렬
   dragFloorBldId:   string | null;
   dragFloorId:      string | null;
@@ -1411,7 +1412,7 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
   const [bldMgr, setBldMgr] = useState<BldMgrState>({
     open: false, tab: "buildings",
     newBldLabel: "", newFloorTarget: "", newFloorLabel: "", newFloorNote: "",
-    editFloorBldId: null, editFloorId: null, editFloorLabel: "",
+    editFloorBldId: null, editFloorId: null, editFloorLabel: "", editFloorNote: "",
     dragFloorBldId: null, dragFloorId: null, dragOverFloorId: null,
     newGrpLabel: "", editGrpId: null,
   });
@@ -1604,14 +1605,16 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
     return { ...bldConfig, floorOverrides: { ...(bldConfig.floorOverrides ?? {}), [bldId]: getFloorList(bldId) } };
   }, [bldConfig, getFloorList]);
 
-  // ── 층 이름 편집 저장 ─────────────────────────────────────────
-  const saveFloorLabel = useCallback(async (bldId: string, floorId: string, newLabel: string) => {
+  // ── 층 이름 + 설명 편집 저장 ──────────────────────────────────
+  const saveFloor = useCallback(async (bldId: string, floorId: string, newLabel: string, newNote: string) => {
     const base = initOverrideIfNeeded(bldId);
     const next: BuildingsConfig = {
       ...base,
       floorOverrides: {
         ...base.floorOverrides,
-        [bldId]: (base.floorOverrides?.[bldId] ?? []).map(f => f.id === floorId ? { ...f, label: newLabel } : f),
+        [bldId]: (base.floorOverrides?.[bldId] ?? []).map(f =>
+          f.id === floorId ? { ...f, label: newLabel, note: newNote } : f
+        ),
       },
     };
     await saveBldConfig(next);
@@ -2055,23 +2058,42 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
                                   <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
                                   <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
                                 </svg>
-                                {/* 층 이름 — 클릭 시 인라인 편집 */}
+                                {/* 층 이름 + 설명 — 클릭 시 인라인 편집 */}
                                 {isEditingThis ? (
-                                  <input autoFocus
-                                    className="flex-1 text-xs bg-white border border-blue-300 rounded px-1.5 py-0.5 focus:outline-none"
-                                    value={bldMgr.editFloorLabel}
-                                    onChange={e => setBldMgr(s => ({ ...s, editFloorLabel: e.target.value }))}
-                                    onKeyDown={e => {
-                                      if (e.key === "Enter") { e.preventDefault(); saveFloorLabel(b.id, f.id, bldMgr.editFloorLabel); setBldMgr(s => ({ ...s, editFloorBldId: null, editFloorId: null })); }
-                                      if (e.key === "Escape") setBldMgr(s => ({ ...s, editFloorBldId: null, editFloorId: null }));
-                                    }}
-                                    onBlur={() => { saveFloorLabel(b.id, f.id, bldMgr.editFloorLabel); setBldMgr(s => ({ ...s, editFloorBldId: null, editFloorId: null })); }}
-                                  />
+                                  <div className="flex-1 flex flex-col gap-1">
+                                    <input autoFocus
+                                      className="text-xs bg-white border border-blue-300 rounded px-1.5 py-0.5 focus:outline-none w-full"
+                                      placeholder="층 이름"
+                                      value={bldMgr.editFloorLabel}
+                                      onChange={e => setBldMgr(s => ({ ...s, editFloorLabel: e.target.value }))}
+                                      onKeyDown={e => { if (e.key === "Escape") setBldMgr(s => ({ ...s, editFloorBldId: null, editFloorId: null })); }}
+                                    />
+                                    <input
+                                      className="text-xs bg-white border border-blue-200 rounded px-1.5 py-0.5 focus:outline-none w-full text-gray-400"
+                                      placeholder="설명 (선택)"
+                                      value={bldMgr.editFloorNote}
+                                      onChange={e => setBldMgr(s => ({ ...s, editFloorNote: e.target.value }))}
+                                      onKeyDown={e => { if (e.key === "Escape") setBldMgr(s => ({ ...s, editFloorBldId: null, editFloorId: null })); }}
+                                    />
+                                    <div className="flex gap-1">
+                                      <button type="button"
+                                        className="text-[11px] px-2 py-0.5 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                        onClick={() => { saveFloor(b.id, f.id, bldMgr.editFloorLabel, bldMgr.editFloorNote); setBldMgr(s => ({ ...s, editFloorBldId: null, editFloorId: null })); }}>
+                                        저장
+                                      </button>
+                                      <button type="button"
+                                        className="text-[11px] px-2 py-0.5 text-gray-400 hover:text-gray-600"
+                                        onClick={() => setBldMgr(s => ({ ...s, editFloorBldId: null, editFloorId: null }))}>
+                                        취소
+                                      </button>
+                                    </div>
+                                  </div>
                                 ) : (
-                                  <span className="flex-1 text-xs text-gray-700 cursor-text"
-                                    onClick={() => setBldMgr(s => ({ ...s, editFloorBldId: b.id, editFloorId: f.id, editFloorLabel: f.label }))}>
-                                    {f.label}
-                                  </span>
+                                  <div className="flex-1 cursor-text"
+                                    onClick={() => setBldMgr(s => ({ ...s, editFloorBldId: b.id, editFloorId: f.id, editFloorLabel: f.label, editFloorNote: f.note ?? "" }))}>
+                                    <div className="text-xs text-gray-700">{f.label}</div>
+                                    {f.note && <div className="text-[10px] text-gray-400">{f.note}</div>}
+                                  </div>
                                 )}
                                 {/* 삭제 버튼 */}
                                 <button type="button"
