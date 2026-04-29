@@ -1970,16 +1970,16 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
                               placeholder="층 이름 (예: 10층)"
                               value={bldMgr.newFloorLabel}
                               onChange={e => setBldMgr(s => ({ ...s, newFloorLabel: e.target.value }))}
-                              onKeyDown={e => { if (e.key === "Enter") addFloor(); }}
+                              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addFloor(); } }}
                             />
                             <input
                               className="w-28 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-blue-400"
                               placeholder="설명 (선택)"
                               value={bldMgr.newFloorNote}
                               onChange={e => setBldMgr(s => ({ ...s, newFloorNote: e.target.value }))}
-                              onKeyDown={e => { if (e.key === "Enter") addFloor(); }}
+                              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addFloor(); } }}
                             />
-                            <button onClick={addFloor}
+                            <button type="button" onClick={addFloor}
                               className="px-3 py-1 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-colors">
                               추가
                             </button>
@@ -2008,9 +2008,9 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
                     placeholder="건물 이름 (예: C빌딩)"
                     value={bldMgr.newBldLabel}
                     onChange={e => setBldMgr(s => ({ ...s, newBldLabel: e.target.value }))}
-                    onKeyDown={e => { if (e.key === "Enter") addBuilding(); }}
+                    onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addBuilding(); } }}
                   />
-                  <button onClick={addBuilding}
+                  <button type="button" onClick={addBuilding}
                     className="px-4 py-2 bg-slate-800 text-white text-sm rounded-xl hover:bg-slate-700 transition-colors font-medium">
                     추가
                   </button>
@@ -2104,9 +2104,9 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
                     placeholder="그룹 이름 (예: 서울 캠퍼스)"
                     value={bldMgr.newGrpLabel}
                     onChange={e => setBldMgr(s => ({ ...s, newGrpLabel: e.target.value }))}
-                    onKeyDown={e => { if (e.key === "Enter") addGroup(); }}
+                    onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addGroup(); } }}
                   />
-                  <button onClick={addGroup}
+                  <button type="button" onClick={addGroup}
                     className="px-4 py-2 bg-slate-800 text-white text-sm rounded-xl hover:bg-slate-700 transition-colors font-medium">
                     추가
                   </button>
