@@ -26,11 +26,13 @@ export async function PUT(
       pdfBuffer   = Buffer.from(await pdfFile.arrayBuffer());
       pdfFileName = pdfFile.name;
     }
+    const pdfLink = (formData.get("pdfLink") as string | null) || undefined;
 
     const contract = await updateContract(params.id, {
       ...(data as Parameters<typeof updateContract>[1]),
       pdfBuffer,
       pdfFileName,
+      pdfLink,
     });
     return NextResponse.json({ ok: true, contract });
   } catch (e) {

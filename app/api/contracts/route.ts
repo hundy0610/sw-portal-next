@@ -39,11 +39,12 @@ export async function POST(req: NextRequest) {
       pdfBuffer   = Buffer.from(await pdfFile.arrayBuffer());
       pdfFileName = pdfFile.name;
     }
+    const pdfLink = (formData.get("pdfLink") as string | null) || undefined;
 
     const contract = await createContract({
       company, contactName, contactEmail,
       startDate, endDate, quantity, unitPrice, stage, notes,
-      pdfBuffer, pdfFileName,
+      pdfBuffer, pdfFileName, pdfLink,
     });
 
     return NextResponse.json({ ok: true, contract });

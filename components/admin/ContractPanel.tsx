@@ -108,8 +108,10 @@ export default function ContractPanel() {
   const [showModal, setShowModal] = useState(false);
   const [editTarget, setEditTarget] = useState<Contract | null>(null);
   const [form,  setForm]  = useState<FormState>({ ...EMPTY });
-  const [pdfFile,  setPdfFile]  = useState<File | null>(null);
-  const [saving,   setSaving]   = useState(false);
+  const [pdfFile,    setPdfFile]    = useState<File | null>(null);
+  const [pdfLink,    setPdfLink]    = useState("");
+  const [attachMode, setAttachMode] = useState<"upload" | "link">("upload");
+  const [saving,     setSaving]     = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [toast,    setToast]    = useState<{ msg: string; type: "ok" | "err" } | null>(null);
   const [filter,   setFilter]   = useState<"all" | "active" | "expired" | "pending">("all");
@@ -179,6 +181,8 @@ export default function ContractPanel() {
     setEditTarget(null);
     setForm({ ...EMPTY });
     setPdfFile(null);
+    setPdfLink("");
+    setAttachMode("upload");
     setShowModal(true);
   }
 
@@ -196,12 +200,15 @@ export default function ContractPanel() {
       notes:        c.notes,
     });
     setPdfFile(null);
+    setPdfLink("");
+    setAttachMode("upload");
     setShowModal(true);
   }
 
   function closeModal() {
     setShowModal(false);
     setPdfFile(null);
+    setPdfLink("");
   }
 
   // ── 저장 (FormData → multipart) ─────────────────────────────
@@ -227,7 +234,11 @@ export default function ContractPanel() {
       fd.append("unitPrice",    String(form.unitPrice));
       fd.append("stage",        form.stage);
       fd.append("notes",        form.notes);
-      if (pdfFile) fd.append("pdf", pdfFile);
+      if (attachMode === "upload" && pdfFile) {
+        fd.append("pdf", pdfFile);
+      } else if (attachMode === "link" && pdfLink.trim()) {
+        fd.append("pdfLink", pdfLink.trim());
+      }
 
       const url    = editTarget ? `/api/contracts/${editTarget.id}` : "/api/contracts";
       const method = editTarget ? "PUT" : "POST";
@@ -753,58 +764,109 @@ export default function ContractPanel() {
                 </div>
               )}
 
-              {/* 계약서 PDF 업로드 */}
+              {/* 계약서 첨부 */}
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">
-                  계약서 PDF
-                  <span className="ml-1 text-gray-400 font-normal">(최대 {MAX_PDF_MB}MB)</span>
-                </label>
+                <label className="block text-xs font-semibold text-gray-600 mb-2">계약서 첨부</label>
 
-                {/* 기존 파일 표시 (수정 모드) */}
-                {editTarget?.pdfUrl && !pdfFile && (
+                {/* 기존 파일 표시 (수정 모드, 새 첨부 없을 때) */}
+                {editTarget?.pdfUrl && !pdfFile && !pdfLink && (
                   <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-100">
                     <span className="text-base">📄</span>
                     <a href={editTarget.pdfUrl} target="_blank" rel="noopener noreferrer"
                       className="text-xs text-blue-600 hover:underline flex-1 truncate">
                       {editTarget.pdfName || "계약서 파일"}
                     </a>
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="text-xs text-gray-500 hover:text-gray-700 px-2 py-0.5 rounded border border-gray-200 hover:bg-gray-50">
-                      교체
-                    </button>
+                    <span className="text-xs text-gray-400 font-normal">교체하려면 아래에서 선택</span>
                   </div>
                 )}
 
-                {/* 새 파일 선택됨 */}
-                {pdfFile && (
-                  <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded-lg bg-green-50 border border-green-100">
-                    <span className="text-base">📄</span>
-                    <span className="text-xs text-green-700 flex-1 truncate">{pdfFile.name}</span>
-                    <span className="text-xs text-gray-400">
-                      {(pdfFile.size / 1024 / 1024).toFixed(1)}MB
-                    </span>
-                    <button
-                      onClick={() => { setPdfFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
-                      className="text-xs text-red-500 hover:text-red-700 px-2 py-0.5 rounded border border-red-100 hover:bg-red-50">
-                      제거
-                    </button>
-                  </div>
-                )}
-
-                {/* 파일 선택 버튼 (기존 파일 없거나 새로 교체할 때) */}
-                {!pdfFile && !(editTarget?.pdfUrl) && (
+                {/* 탭 토글 */}
+                <div className="flex rounded-lg border border-gray-200 overflow-hidden mb-3 text-xs font-semibold">
                   <button
                     type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 border-dashed border-gray-200 text-sm text-gray-500 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-colors">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    onClick={() => { setAttachMode("upload"); setPdfLink(""); }}
+                    className="flex-1 py-2 flex items-center justify-center gap-1.5 transition-colors"
+                    style={{
+                      background: attachMode === "upload" ? "#0052CC" : "#F8FAFC",
+                      color:      attachMode === "upload" ? "#fff"     : "#6B7280",
+                    }}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                       <polyline points="17 8 12 3 7 8" />
                       <line x1="12" y1="3" x2="12" y2="15" />
                     </svg>
-                    PDF 파일 선택
+                    파일 업로드
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => { setAttachMode("link"); setPdfFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                    className="flex-1 py-2 flex items-center justify-center gap-1.5 transition-colors"
+                    style={{
+                      background: attachMode === "link" ? "#0052CC" : "#F8FAFC",
+                      color:      attachMode === "link" ? "#fff"    : "#6B7280",
+                    }}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                    </svg>
+                    링크 첨부
+                  </button>
+                </div>
+
+                {/* 파일 업로드 탭 */}
+                {attachMode === "upload" && (
+                  <>
+                    {pdfFile ? (
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-50 border border-green-100">
+                        <span className="text-base">📄</span>
+                        <span className="text-xs text-green-700 flex-1 truncate">{pdfFile.name}</span>
+                        <span className="text-xs text-gray-400">
+                          {(pdfFile.size / 1024 / 1024).toFixed(1)}MB
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => { setPdfFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                          className="text-xs text-red-500 hover:text-red-700 px-2 py-0.5 rounded border border-red-100 hover:bg-red-50">
+                          제거
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 border-dashed border-gray-200 text-sm text-gray-500 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-colors">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <polyline points="17 8 12 3 7 8" />
+                          <line x1="12" y1="3" x2="12" y2="15" />
+                        </svg>
+                        PDF 파일 선택
+                        <span className="text-xs text-gray-400">(최대 {MAX_PDF_MB}MB)</span>
+                      </button>
+                    )}
+                  </>
+                )}
+
+                {/* 링크 첨부 탭 */}
+                {attachMode === "link" && (
+                  <div>
+                    <input
+                      className="form-input"
+                      placeholder="Google Drive, OneDrive, Dropbox 등 공유 링크"
+                      value={pdfLink}
+                      onChange={(e) => setPdfLink(e.target.value)}
+                    />
+                    {pdfLink.trim() && (
+                      <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                        </svg>
+                        링크는 공유 권한이 설정된 URL을 입력하세요
+                      </p>
+                    )}
+                  </div>
                 )}
 
                 <input

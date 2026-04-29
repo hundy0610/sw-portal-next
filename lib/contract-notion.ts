@@ -192,6 +192,34 @@ export async function fetchContracts(): Promise<Contract[]> {
   return result;
 }
 
+// ── 계약서 files 프로퍼티 빌더 ────────────────────────────────
+async function buildFilesProp(
+  pdfBuffer?: Buffer,
+  pdfFileName?: string,
+  pdfLink?: string,
+): Promise<Record<string, unknown> | undefined> {
+  // 1) 파일 직접 업로드
+  if (pdfBuffer && pdfFileName) {
+    try {
+      const id = await uploadPdfToNotion(pdfBuffer, pdfFileName);
+      return { files: [{ type: "file_upload", file_upload: { id } }] };
+    } catch (e) {
+      console.warn("[contract] Notion 파일 업로드 실패, URL fallback 시도:", e);
+      // 업로드 실패 시 URL이 있으면 external로 저장
+      if (pdfLink) {
+        return { files: [{ type: "external", name: pdfFileName, external: { url: pdfLink } }] };
+      }
+      return undefined;
+    }
+  }
+  // 2) URL 링크 첨부
+  if (pdfLink) {
+    const name = pdfLink.split("/").pop()?.split("?")[0] || "계약서";
+    return { files: [{ type: "external", name, external: { url: pdfLink } }] };
+  }
+  return undefined;
+}
+
 /** 계약 생성 */
 export async function createContract(data: {
   company: string;
@@ -205,14 +233,12 @@ export async function createContract(data: {
   stage?: ContractStage;
   pdfBuffer?: Buffer;
   pdfFileName?: string;
+  pdfLink?: string;
 }): Promise<Contract> {
   const dbId = process.env.NOTION_DB_CONTRACTS;
   if (!dbId) throw new Error("NOTION_DB_CONTRACTS 환경변수가 설정되지 않았습니다.");
 
-  let fileUploadId: string | undefined;
-  if (data.pdfBuffer && data.pdfFileName) {
-    fileUploadId = await uploadPdfToNotion(data.pdfBuffer, data.pdfFileName);
-  }
+  const filesProp = await buildFilesProp(data.pdfBuffer, data.pdfFileName, data.pdfLink);
 
   const props: Record<string, unknown> = {
     "법인명":     { title:     [{ text: { content: data.company } }] },
@@ -225,9 +251,7 @@ export async function createContract(data: {
     "메모":       { rich_text: [{ text: { content: data.notes || "" } }] },
     "진행단계":   { select: { name: data.stage ?? "관리현황 파악" } },
   };
-  if (fileUploadId) {
-    props["계약서"] = { files: [{ type: "file_upload", file_upload: { id: fileUploadId } }] };
-  }
+  if (filesProp) props["계약서"] = filesProp;
 
   const page = await notion.pages.create({
     parent: { database_id: dbId },
@@ -253,13 +277,9 @@ export async function updateContract(
     stage?: ContractStage;
     pdfBuffer?: Buffer;
     pdfFileName?: string;
+    pdfLink?: string;
   }
 ): Promise<Contract> {
-  let fileUploadId: string | undefined;
-  if (data.pdfBuffer && data.pdfFileName) {
-    fileUploadId = await uploadPdfToNotion(data.pdfBuffer, data.pdfFileName);
-  }
-
   const props: Record<string, unknown> = {};
   if (data.company      !== undefined) props["법인명"]     = { title:     [{ text: { content: data.company } }] };
   if (data.contactName  !== undefined) props["담당자"]     = { rich_text: [{ text: { content: data.contactName } }] };
@@ -270,8 +290,11 @@ export async function updateContract(
   if (data.unitPrice    !== undefined) props["단가"]       = { number: data.unitPrice };
   if (data.notes        !== undefined) props["메모"]       = { rich_text: [{ text: { content: data.notes } }] };
   if (data.stage        !== undefined) props["진행단계"]   = { select: { name: data.stage } };
-  if (fileUploadId) {
-    props["계약서"] = { files: [{ type: "file_upload", file_upload: { id: fileUploadId } }] };
+
+  // 파일 첨부: 직접 업로드 우선, 없으면 URL 링크
+  if (data.pdfBuffer || data.pdfLink) {
+    const filesProp = await buildFilesProp(data.pdfBuffer, data.pdfFileName, data.pdfLink);
+    if (filesProp) props["계약서"] = filesProp;
   }
 
   const page = await notion.pages.update({
