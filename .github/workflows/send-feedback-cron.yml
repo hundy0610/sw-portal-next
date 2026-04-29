@@ -14,7 +14,7 @@ jobs:
         run: |
           response=$(curl -s -o /tmp/response.json -w "%{http_code}" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            https://assetify-desk-main.vercel.app/api/cron/send-feedback)
+            https://swportal.vercel.app/api/cron/send-feedback)
           echo "HTTP Status: $response"
           cat /tmp/response.json
           if [ "$response" != "200" ]; then
