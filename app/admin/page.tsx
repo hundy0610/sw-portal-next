@@ -268,7 +268,7 @@ export default function AdminPage() {
           {/* 다크모드 토글 */}
           <button
             onClick={toggleDark}
-            className="flex items-center gap-1 text-xs text-gray-400 hover:text-amber-600 px-2 py-1.5 rounded hover:bg-amber-50 transition-colors"
+            className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 px-2 py-1.5 rounded hover:bg-blue-50 transition-colors"
             title={darkMode ? "라이트 모드로 전환" : "다크 모드로 전환"}
           >
             {darkMode ? (
@@ -292,7 +292,7 @@ export default function AdminPage() {
             <button
               onClick={handleRefresh}
               disabled={refreshing}
-              className="flex items-center gap-1 text-xs text-gray-400 hover:text-amber-600 px-2 py-1.5 rounded hover:bg-amber-50 transition-colors disabled:opacity-50"
+              className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 px-2 py-1.5 rounded hover:bg-blue-50 transition-colors disabled:opacity-50"
               title="Notion → KV 전체 데이터 동기화"
             >
               <svg
@@ -404,7 +404,7 @@ export default function AdminPage() {
           <button
             onClick={toggleSidebar}
             className="absolute left-0 top-6 z-30 flex items-center justify-center w-5 h-10 rounded-r-lg shadow-md transition-colors"
-            style={{ background: "#1c1006" }}
+            style={{ background: "#1C2B4A" }}
             title="사이드바 열기"
           >
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="2.5">

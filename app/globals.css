@@ -4,22 +4,22 @@
 @tailwind utilities;
 
 :root {
-  --sidebar-bg: #1c1006;
+  --sidebar-bg: #1C2B4A;
   --sidebar-hover: rgba(255,255,255,0.08);
-  --sidebar-active: rgba(245,158,11,0.18);
+  --sidebar-active: rgba(255,255,255,0.15);
 
   /* 어드민 라이트 모드 */
   --admin-content-bg: #F4F5F7;
   --admin-header-bg: #ffffff;
   --admin-header-border: #e5e7eb;
-  --admin-table-head-bg: #fef3d0;
-  --admin-table-head-border: #fde68a;
-  --admin-table-row-border: #fde68a;
-  --admin-table-hover-bg: #fffbeb;
+  --admin-table-head-bg: #F4F5F7;
+  --admin-table-head-border: #DFE1E6;
+  --admin-table-row-border: #EBECF0;
+  --admin-table-hover-bg: #F4F5F7;
   --admin-input-bg: #ffffff;
-  --admin-input-border: #fde68a;
-  --admin-input-color: #1c1006;
-  --admin-text-primary: #44403c;
+  --admin-input-border: #DFE1E6;
+  --admin-input-color: #172B4D;
+  --admin-text-primary: #344563;
   --admin-text-secondary: #6B778C;
 }
 
@@ -53,7 +53,7 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
   transition: all 0.15s; margin: 0 8px 1px;
 }
 .sidenav-item:hover { background: var(--sidebar-hover); color: rgba(255,255,255,0.92); }
-.sidenav-item.active { background: var(--sidebar-active); color: #F59E0B; font-weight: 700; }
+.sidenav-item.active { background: var(--sidebar-active); color: #fff; font-weight: 700; }
 .sidenav-section {
   font-size: 10.5px; font-weight: 600; letter-spacing: .08em;
   color: rgba(255,255,255,0.35); padding: 16px 16px 4px; text-transform: uppercase;
@@ -77,7 +77,7 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
   padding: 7px 12px; font-size: 13.5px; color: var(--admin-input-color);
   outline: none; transition: border-color 0.15s; background: var(--admin-input-bg); width: 100%;
 }
-.form-input:focus { border-color: #F59E0B; box-shadow: 0 0 0 2px rgba(245,158,11,0.18); }
+.form-input:focus { border-color: #4C9AFF; box-shadow: 0 0 0 2px rgba(76,154,255,0.2); }
 
 /* 프로그레스 바 */
 .prog-track { height: 6px; background: #EBECF0; border-radius: 99px; overflow: hidden; }
@@ -85,44 +85,72 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
 
 /* ── 어드민 다크모드 (.admin-dark) ──────────────────────────── */
 .admin-dark {
-  --admin-content-bg: #160e03;
-  --admin-header-bg: #1c1006;
-  --admin-header-border: #2d1f0a;
-  --admin-table-head-bg: #1c1006;
-  --admin-table-head-border: #2d1f0a;
-  --admin-table-row-border: #2d1f0a;
-  --admin-table-hover-bg: #2a1a06;
-  --admin-input-bg: #1c1006;
-  --admin-input-border: #3d2a0e;
-  --admin-input-color: #fef3d0;
-  --admin-text-primary: #fde68a;
-  --admin-text-secondary: #a3856a;
-  --sidebar-bg: #0e0803;
-  --sidebar-active: rgba(245,158,11,0.25);
+  --admin-content-bg:        #0d1526;
+  --admin-header-bg:         #111e35;
+  --admin-header-border:     #1e2d47;
+  --admin-table-head-bg:     #111e35;
+  --admin-table-head-border: #1e2d47;
+  --admin-table-row-border:  #1a2840;
+  --admin-table-hover-bg:    #162038;
+  --admin-input-bg:          #111e35;
+  --admin-input-border:      #2d4a6e;
+  --admin-input-color:       #e2e8f0;
+  --admin-text-primary:      #cbd5e1;
+  --admin-text-secondary:    #64748b;
+  --sidebar-bg:              #080f1f;
+  --sidebar-hover:           rgba(255,255,255,0.07);
+  --sidebar-active:          rgba(96,165,250,0.18);
 }
 
+/* 헤더 */
 .admin-dark header.admin-header {
   background: var(--admin-header-bg) !important;
   border-color: var(--admin-header-border) !important;
 }
-.admin-dark header.admin-header .text-gray-900 { color: #fde68a !important; }
+.admin-dark header.admin-header .text-gray-900  { color: #e2e8f0 !important; }
 .admin-dark header.admin-header .text-gray-400,
-.admin-dark header.admin-header .text-gray-500 { color: #a3856a !important; }
-.admin-dark header.admin-header .hover\:text-gray-800:hover { color: #fef3d0 !important; }
-.admin-dark header.admin-header .hover\:bg-gray-100:hover { background: rgba(255,255,255,0.06) !important; }
-.admin-dark header.admin-header .border-gray-200 { border-color: #2d1f0a !important; }
+.admin-dark header.admin-header .text-gray-500  { color: #64748b !important; }
+.admin-dark header.admin-header .hover\:text-gray-800:hover { color: #f1f5f9 !important; }
+.admin-dark header.admin-header .hover\:bg-gray-100:hover   { background: rgba(255,255,255,0.06) !important; }
+.admin-dark header.admin-header .border-gray-200            { border-color: #1e2d47 !important; }
+
+/* 사이드바 활성 아이템 */
+.admin-dark .sidenav-item.active { color: #93c5fd !important; }
+
+/* 메인 콘텐츠 */
 .admin-dark main.admin-main { background: var(--admin-content-bg) !important; }
-.admin-dark .bg-white { background: #1c1006 !important; }
-.admin-dark .border-gray-100 { border-color: #2d1f0a !important; }
-.admin-dark .border-gray-200 { border-color: #2d1f0a !important; }
-.admin-dark .text-gray-900 { color: #fef3d0 !important; }
-.admin-dark .text-gray-700 { color: #fde68a !important; }
-.admin-dark .text-gray-600 { color: #c4a46a !important; }
-.admin-dark .text-gray-500 { color: #a3856a !important; }
-.admin-dark .text-gray-400 { color: #7a5c3a !important; }
-.admin-dark .bg-gray-50  { background: #241505 !important; }
-.admin-dark .bg-gray-100 { background: #1c1006 !important; }
-.admin-dark .hover\:bg-gray-100:hover { background: rgba(245,158,11,0.08) !important; }
-.admin-dark .hover\:bg-amber-50:hover { background: rgba(245,158,11,0.12) !important; }
-.admin-dark .hover\:bg-red-50:hover   { background: rgba(239,68,68,0.10) !important; }
-.admin-dark .border-b { border-color: #2d1f0a !important; }
+
+/* 배경 */
+.admin-dark .bg-white    { background: #111e35 !important; }
+.admin-dark .bg-gray-50  { background: #0d1526 !important; }
+.admin-dark .bg-gray-100 { background: #111e35 !important; }
+
+/* 텍스트 */
+.admin-dark .text-gray-900 { color: #e2e8f0 !important; }
+.admin-dark .text-gray-800 { color: #cbd5e1 !important; }
+.admin-dark .text-gray-700 { color: #94a3b8 !important; }
+.admin-dark .text-gray-600 { color: #94a3b8 !important; }
+.admin-dark .text-gray-500 { color: #64748b !important; }
+.admin-dark .text-gray-400 { color: #475569 !important; }
+
+/* 테두리 */
+.admin-dark .border-gray-100,
+.admin-dark .border-gray-200 { border-color: #1e2d47 !important; }
+.admin-dark .border-b        { border-color: #1a2840 !important; }
+
+/* 호버 */
+.admin-dark .hover\:bg-gray-100:hover  { background: rgba(255,255,255,0.05) !important; }
+.admin-dark .hover\:bg-blue-50:hover   { background: rgba(96,165,250,0.10) !important; }
+.admin-dark .hover\:bg-amber-50:hover  { background: rgba(251,191,36,0.08)  !important; }
+.admin-dark .hover\:bg-red-50:hover    { background: rgba(239,68,68,0.10)   !important; }
+
+/* 포커스 인풋 */
+.admin-dark .form-input:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 2px rgba(59,130,246,0.25) !important;
+}
+
+/* 배지 / 칩 배경 (gray 계열) */
+.admin-dark .bg-gray-200  { background: #1e2d47 !important; }
+.admin-dark .text-indigo-600,
+.admin-dark .text-blue-600  { color: #93c5fd !important; }
