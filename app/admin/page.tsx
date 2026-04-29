@@ -55,6 +55,14 @@ export default function AdminPage() {
   const [page, setPage]         = useState<PageId>("hw");
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
+  const [darkMode,        setDarkMode]        = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("admin-dark") === "1";
+    return false;
+  });
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("admin-sidebar-collapsed") === "1";
+    return false;
+  });
   // HW 통계 백그라운드 prefetch (경량 stats, ~수 KB)
   const [hwStatsPrefetch, setHwStatsPrefetch] = useState<any | null>(null);
   const hwFetchedRef = useRef(false);
@@ -186,10 +194,44 @@ export default function AdminPage() {
     }
   }
 
+  function toggleDark() {
+    setDarkMode(d => {
+      const next = !d;
+      localStorage.setItem("admin-dark", next ? "1" : "0");
+      return next;
+    });
+  }
+  function toggleSidebar() {
+    setSidebarCollapsed(c => {
+      const next = !c;
+      localStorage.setItem("admin-sidebar-collapsed", next ? "1" : "0");
+      return next;
+    });
+  }
+
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className={`flex flex-col min-h-screen${darkMode ? " admin-dark" : ""}`}>
       {/* ── 상단 헤더 ── */}
-      <header className="bg-white border-b border-gray-200 h-[52px] flex items-center px-5 gap-3 sticky top-0 z-40">
+      <header className="admin-header bg-white border-b border-gray-200 h-[52px] flex items-center px-5 gap-3 sticky top-0 z-40">
+        {/* 사이드바 토글 */}
+        <button
+          onClick={toggleSidebar}
+          className="flex items-center justify-center w-7 h-7 rounded hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-700 flex-shrink-0"
+          title={sidebarCollapsed ? "사이드바 펼치기" : "사이드바 접기"}
+        >
+          {sidebarCollapsed ? (
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/>
+              <polyline points="13 8 17 12 13 16"/>
+            </svg>
+          ) : (
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/>
+              <polyline points="15 8 11 12 15 16"/>
+            </svg>
+          )}
+        </button>
+
         <a
           href="/"
           className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800 px-2 py-1.5 rounded hover:bg-gray-100 transition-colors"
@@ -223,12 +265,34 @@ export default function AdminPage() {
             Notion 연동 중
           </div>
 
+          {/* 다크모드 토글 */}
+          <button
+            onClick={toggleDark}
+            className="flex items-center gap-1 text-xs text-gray-400 hover:text-amber-600 px-2 py-1.5 rounded hover:bg-amber-50 transition-colors"
+            title={darkMode ? "라이트 모드로 전환" : "다크 모드로 전환"}
+          >
+            {darkMode ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="5"/>
+                <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+              </svg>
+            )}
+            {darkMode ? "라이트" : "다크"}
+          </button>
+
           {/* 새로고침 버튼 */}
           <div className="relative flex items-center">
             <button
               onClick={handleRefresh}
               disabled={refreshing}
-              className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 px-2 py-1.5 rounded hover:bg-blue-50 transition-colors disabled:opacity-50"
+              className="flex items-center gap-1 text-xs text-gray-400 hover:text-amber-600 px-2 py-1.5 rounded hover:bg-amber-50 transition-colors disabled:opacity-50"
               title="Notion → KV 전체 데이터 동기화"
             >
               <svg
@@ -268,88 +332,83 @@ export default function AdminPage() {
       {/* ── 사이드바 + 콘텐츠 ── */}
       <div className="flex flex-1 overflow-hidden">
         {/* 왼쪽 사이드바 */}
-        <aside className="sidenav w-[220px] min-w-[220px] flex flex-col pt-4 pb-4 overflow-y-auto">
-          <div className="sidenav-section">메뉴</div>
+        <aside
+          className="sidenav flex flex-col pt-4 pb-4 overflow-y-auto overflow-x-hidden flex-shrink-0 transition-all duration-200"
+          style={{ width: sidebarCollapsed ? 56 : 220, minWidth: sidebarCollapsed ? 56 : 220 }}
+        >
+          {!sidebarCollapsed && <div className="sidenav-section">메뉴</div>}
           {menu.map((m) => (
             <div
               key={m.id}
-              className={`sidenav-item${page === m.id ? " active" : ""}`}
+              className={`sidenav-item${page === m.id ? " active" : ""}${sidebarCollapsed ? " justify-center px-0" : ""}`}
+              style={sidebarCollapsed ? { margin: "0 6px 1px", padding: "9px 0" } : undefined}
+              title={sidebarCollapsed ? m.label : undefined}
               onClick={() => {
                 setPage(m.id);
-                // 어사맵 진입 시 뱃지 즉시 숨김 (재진입 시 폴링이 갱신)
                 if (m.id === "assetmap") setPendingMonitorCount(0);
               }}
             >
-              <span style={{ fontSize: 14 }}>{m.icon}</span>
-              <div className="flex flex-col leading-tight flex-1 min-w-0">
-                <span>{m.label}</span>
-                <span className="text-xs opacity-50">{m.desc}</span>
-              </div>
-              {/* 모니터 요청 대기 알림 뱃지 */}
-              {m.id === "assetmap" && pendingMonitorCount > 0 && (
-                <span className="ml-auto flex-shrink-0 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1 animate-pulse">
-                  {pendingMonitorCount > 99 ? "99+" : pendingMonitorCount}
+              <span style={{ fontSize: sidebarCollapsed ? 18 : 14, flexShrink: 0 }}>{m.icon}</span>
+              {!sidebarCollapsed && (
+                <>
+                  <div className="flex flex-col leading-tight flex-1 min-w-0">
+                    <span>{m.label}</span>
+                    <span className="text-xs opacity-50">{m.desc}</span>
+                  </div>
+                  {m.id === "assetmap" && pendingMonitorCount > 0 && (
+                    <span className="ml-auto flex-shrink-0 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1 animate-pulse">
+                      {pendingMonitorCount > 99 ? "99+" : pendingMonitorCount}
+                    </span>
+                  )}
+                </>
+              )}
+              {/* 접힌 상태에서 알림 뱃지 */}
+              {sidebarCollapsed && m.id === "assetmap" && pendingMonitorCount > 0 && (
+                <span className="absolute top-0 right-0 w-3.5 h-3.5 flex items-center justify-center rounded-full bg-red-500 text-white text-[8px] font-bold animate-pulse">
+                  {pendingMonitorCount > 9 ? "9+" : pendingMonitorCount}
                 </span>
               )}
             </div>
           ))}
 
           {/* 법인 담당자: 소속 법인 표시 */}
-          {!isSuper && (
+          {!isSuper && !sidebarCollapsed && (
             <div className="mx-3 mt-3 px-3 py-2.5 rounded-lg bg-white/10 border border-white/20">
               <div className="text-xs text-white/40 mb-1">소속 법인</div>
               <div className="text-sm font-bold text-white">{company}</div>
             </div>
           )}
 
-          {/* 하단 Notion 바로가기 (슈퍼어드민만) */}
-          {isSuper && (
+          {/* 하단 Notion 바로가기 (슈퍼어드민만, 펼친 상태) */}
+          {isSuper && !sidebarCollapsed && (
             <div className="mt-auto mx-3 pt-4 border-t border-white/10">
               <div className="text-xs text-white/40 mb-2 px-1">Notion 바로가기</div>
-              <a
-                href={process.env.NEXT_PUBLIC_NOTION_TRACKER_URL || "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 px-2 py-2 rounded text-xs text-white/60 hover:text-white hover:bg-white/10 transition-colors"
-              >
+              <a href={process.env.NEXT_PUBLIC_NOTION_TRACKER_URL || "#"} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-2 px-2 py-2 rounded text-xs text-white/60 hover:text-white hover:bg-white/10 transition-colors">
                 <span>🗄</span> SW DB 편집
               </a>
-              <a
-                href={process.env.NEXT_PUBLIC_NOTION_SW_UNIFIED_URL || "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 px-2 py-2 rounded text-xs text-white/60 hover:text-white hover:bg-white/10 transition-colors"
-              >
+              <a href={process.env.NEXT_PUBLIC_NOTION_SW_UNIFIED_URL || "#"} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-2 px-2 py-2 rounded text-xs text-white/60 hover:text-white hover:bg-white/10 transition-colors">
                 <span>📋</span> SW 데이터베이스
               </a>
-              <a
-                href="https://www.notion.so/29967f4bfdac8086b468ef3545b3e471"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 px-2 py-2 rounded text-xs text-white/60 hover:text-white hover:bg-white/10 transition-colors"
-              >
+              <a href="https://www.notion.so/29967f4bfdac8086b468ef3545b3e471" target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-2 px-2 py-2 rounded text-xs text-white/60 hover:text-white hover:bg-white/10 transition-colors">
                 <span>💻</span> NT/DT 트래커 (Notion)
-              </a>
-              <a
-                href="#"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 px-2 py-2 rounded text-xs text-white/60 hover:text-white hover:bg-white/10 transition-colors"
-              >
-                <span>🎫</span> 티켓 처리 (Notion)
               </a>
             </div>
           )}
 
-          <div className="px-4 pt-2 mt-auto">
-            <div className="text-xs text-white/30">v2.2.0 · 법인별 계정</div>
-          </div>
+          {!sidebarCollapsed && (
+            <div className="px-4 pt-2 mt-auto">
+              <div className="text-xs text-white/30">v2.16.1 · 법인별 계정</div>
+            </div>
+          )}
         </aside>
 
         {/* 메인 콘텐츠 */}
         <main
-          className={`flex-1 overflow-y-auto ${page === "assetmap" ? "p-0" : "p-7"}`}
-          style={{ background: page === "assetmap" ? "#F9FAFB" : "#F4F5F7" }}
+          className={`admin-main flex-1 overflow-y-auto ${page === "assetmap" ? "p-0" : "p-7"}`}
+          style={{ background: page === "assetmap" ? "#F9FAFB" : "var(--admin-content-bg, #F4F5F7)" }}
         >
           <div className={page === "assetmap" ? "h-full" : "slide-in"}>{renderPanel()}</div>
         </main>
