@@ -8,7 +8,7 @@ import DeclarationPanel from "@/components/DeclarationPanel";
 type Tab    = "home" | "education" | "resources" | "search" | "declaration";
 type ResTab = ResourceCategory;
 
-const INQUIRY_URL = "https://assetify-desk.vercel.app/inquiry";
+const INQUIRY_URL = "https://assetify-desk-main.vercel.app";
 
 /* ── 색상 토큰 (3종으로 통일) ── */
 const C = {
@@ -175,51 +175,84 @@ function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
   return (
     <div className="fade-in">
       {/* 히어로 */}
-      <div className="rounded-[20px] text-white relative overflow-hidden mb-8 px-8 sm:px-10 py-10"
+      <div className="rounded-[20px] text-white relative overflow-hidden mb-8 px-7 sm:px-9 py-7"
         style={{ background: `linear-gradient(135deg, ${C.brand} 0%, ${C.primary} 60%, #FCD34D 100%)` }}>
         <div className="absolute rounded-full pointer-events-none opacity-5"
-          style={{ width: 360, height: 360, top: -120, right: -80, background: "#fff" }} />
+          style={{ width: 280, height: 280, top: -90, right: -60, background: "#fff" }} />
         <div className="absolute rounded-full pointer-events-none"
-          style={{ width: 200, height: 200, bottom: -80, left: "40%", background: "rgba(255,255,255,0.04)" }} />
+          style={{ width: 160, height: 160, bottom: -60, left: "40%", background: "rgba(255,255,255,0.04)" }} />
 
-        <div className="relative flex flex-col sm:flex-row items-start justify-between gap-8">
+        <div className="relative flex flex-col sm:flex-row items-start justify-between gap-5">
           <div className="flex-1">
-            <div className="text-3xl font-extrabold mb-3" style={{ fontFamily: "Manrope, sans-serif" }}>
-              안녕하세요 👋
+            <div className="text-2xl font-extrabold mb-2" style={{ fontFamily: "Manrope, sans-serif" }}>
+              안녕하세요
             </div>
-            <div className="text-sm opacity-80 leading-relaxed mb-7 max-w-md">
+            <div className="text-sm opacity-80 leading-relaxed mb-5 max-w-md">
               SW 자산관리 포털에 오신 것을 환영합니다.<br />
               SW 사용 정책을 확인하고 필요한 교육 자료를 이용하세요.
             </div>
-            <div className="flex gap-3 flex-wrap">
+            <div className="flex gap-2.5 flex-wrap">
               <button onClick={() => onNavigate("search")}
-                className="flex items-center gap-2 font-extrabold text-sm px-5 py-3 rounded-xl hover:opacity-90 transition-opacity"
+                className="flex items-center gap-2 font-extrabold text-xs px-4 py-2.5 rounded-xl hover:opacity-90 transition-opacity"
                 style={{ background: "#fff", color: C.primary }}>
-                <Icon n="search" s={14} /> SW 정책 확인하기
+                <Icon n="search" s={13} /> SW 정책 확인하기
               </button>
               <a href={INQUIRY_URL} target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-2 font-semibold text-sm px-5 py-3 rounded-xl"
+                className="flex items-center gap-2 font-semibold text-xs px-4 py-2.5 rounded-xl"
                 style={{ background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", color: "#fff" }}>
-                <Icon n="msg" s={14} /> IT 지원 문의
+                <Icon n="msg" s={13} /> IT 지원 문의
               </a>
             </div>
           </div>
 
-          {/* M4: D-day 동적 계산 */}
-          <div className="flex sm:flex-col gap-3 shrink-0">
+          {/* D-day 동적 계산 */}
+          <div className="flex sm:flex-col gap-2 shrink-0">
             {[
               { deadline: "2026-03-31", label: "보안 교육 마감" },
               { deadline: "2026-06-30", label: "자산 실사 마감" },
             ].map(c => (
-              <div key={c.label} className="text-center px-5 py-4 rounded-[16px]"
-                style={{ background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.12)", minWidth: 130 }}>
-                <div className="text-2xl font-extrabold" style={{ fontFamily: "Manrope, sans-serif" }}>
+              <div key={c.label} className="text-center px-4 py-3 rounded-[14px]"
+                style={{ background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.12)", minWidth: 110 }}>
+                <div className="text-xl font-extrabold" style={{ fontFamily: "Manrope, sans-serif" }}>
                   {calcDday(c.deadline)}
                 </div>
-                <div className="text-xs font-bold opacity-85 mt-1">{c.label}</div>
-                <div className="text-xs opacity-50 mt-0.5">{c.deadline}</div>
+                <div className="text-xs font-bold opacity-85 mt-0.5">{c.label}</div>
+                <div className="text-xs opacity-50">{c.deadline}</div>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* 주요 기능 카드 */}
+        <div className="relative mt-5 pt-5" style={{ borderTop: "1px solid rgba(255,255,255,0.2)" }}>
+          <div className="text-xs font-bold opacity-60 uppercase tracking-widest mb-2.5">주요 기능</div>
+          <div className="grid grid-cols-2 gap-2.5">
+            <button onClick={() => onNavigate("search")}
+              className="flex items-center gap-3 rounded-[12px] px-4 py-3 text-left hover:opacity-90 transition-opacity"
+              style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.18)" }}>
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                style={{ background: "rgba(255,255,255,0.2)" }}>
+                <Icon n="search" s={16} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-xs" style={{ fontFamily: "Manrope, sans-serif" }}>SW 정책</div>
+                <div className="text-xs opacity-70 mt-0.5">승인·금지 SW 정책 즉시 확인</div>
+              </div>
+              <Icon n="chevron" s={13} />
+            </button>
+            <a href={INQUIRY_URL} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-3 rounded-[12px] px-4 py-3 hover:opacity-90 transition-opacity"
+              style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.18)" }}>
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                style={{ background: "rgba(255,255,255,0.2)" }}>
+                <Icon n="msg" s={16} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-xs" style={{ fontFamily: "Manrope, sans-serif" }}>IT 지원 문의</div>
+                <div className="text-xs opacity-70 mt-0.5">SW 신청, 오류 신고, 기타 문의</div>
+              </div>
+              <Icon n="chevron" s={13} />
+            </a>
           </div>
         </div>
       </div>
