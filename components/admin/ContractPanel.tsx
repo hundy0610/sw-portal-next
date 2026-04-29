@@ -463,11 +463,16 @@ export default function ContractPanel() {
                     minHeight: 380,
                   }}
                   onDragOver={(e) => { e.preventDefault(); setDragOver(stage.id); }}
-                  onDragLeave={() => setDragOver(null)}
+                  onDragLeave={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                      setDragOver(null);
+                    }
+                  }}
                   onDrop={(e) => {
                     e.preventDefault();
                     setDragOver(null);
-                    if (dragId && dragId !== stage.id) {
+                    const dragged = contracts.find(c => c.id === dragId);
+                    if (dragId && dragged && dragged.stage !== stage.id) {
                       handleStageChange(dragId, stage.id);
                     }
                     setDragId(null);
