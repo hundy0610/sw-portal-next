@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { Contract } from "@/types/contract";
+import type { Contract, ContractStage } from "@/types/contract";
+import { CONTRACT_STAGES } from "@/types/contract";
 
 const UNIT_PRICE_DEFAULT = 6000;
 const MAX_PDF_MB = 4; // Vercel 서버리스 request body 한도 4.5MB 이내로 여유 설정
@@ -68,6 +69,17 @@ function StatusBadge({ status }: { status: Contract["status"] }) {
   );
 }
 
+// ── 진행단계 뱃지 ─────────────────────────────────────────────
+function StageBadge({ stage }: { stage: ContractStage }) {
+  const s = CONTRACT_STAGES.find(s => s.id === stage) ?? CONTRACT_STAGES[0];
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap"
+      style={{ background: s.color, color: s.tc, border: `1px solid ${s.border}40` }}>
+      {s.icon} {s.label}
+    </span>
+  );
+}
+
 // ── 빈 폼 ─────────────────────────────────────────────────────
 type FormState = {
   company: string;
@@ -77,13 +89,16 @@ type FormState = {
   endDate: string;
   quantity: number;
   unitPrice: number;
+  stage: ContractStage;
   notes: string;
 };
 
 const EMPTY: FormState = {
   company: "", contactName: "", contactEmail: "",
   startDate: "", endDate: "", quantity: 1,
-  unitPrice: UNIT_PRICE_DEFAULT, notes: "",
+  unitPrice: UNIT_PRICE_DEFAULT,
+  stage: "관리현황파악",
+  notes: "",
 };
 
 // ═════════════════════════════════════════════════════════════
@@ -99,6 +114,9 @@ export default function ContractPanel() {
   const [toast,    setToast]    = useState<{ msg: string; type: "ok" | "err" } | null>(null);
   const [filter,   setFilter]   = useState<"all" | "active" | "expired" | "pending">("all");
   const [search,   setSearch]   = useState("");
+  const [view,     setView]     = useState<"table" | "kanban">("table");
+  const [dragId,   setDragId]   = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState<ContractStage | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── 백스페이스 → 브라우저 뒤로가기 방지 ─────────────────────
@@ -174,6 +192,7 @@ export default function ContractPanel() {
       endDate:      c.endDate,
       quantity:     c.quantity,
       unitPrice:    c.unitPrice,
+      stage:        c.stage ?? "관리현황파악",
       notes:        c.notes,
     });
     setPdfFile(null);
@@ -206,6 +225,7 @@ export default function ContractPanel() {
       fd.append("endDate",      form.endDate);
       fd.append("quantity",     String(form.quantity));
       fd.append("unitPrice",    String(form.unitPrice));
+      fd.append("stage",        form.stage);
       fd.append("notes",        form.notes);
       if (pdfFile) fd.append("pdf", pdfFile);
 
@@ -242,6 +262,26 @@ export default function ContractPanel() {
       }
     } catch {
       showToast("삭제 중 오류가 발생했습니다", "err");
+    }
+  }
+
+  // ── 진행 단계 변경 (칸반 드래그앤드롭) ─────────────────────────
+  async function handleStageChange(contractId: string, newStage: ContractStage) {
+    // 낙관적 업데이트 — UI 즉시 반영
+    setContracts(prev =>
+      prev.map(c => c.id === contractId ? { ...c, stage: newStage } : c)
+    );
+    try {
+      const res = await fetch(`/api/contracts/${contractId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage: newStage }),
+      });
+      if (!res.ok) throw new Error("stage 업데이트 실패");
+    } catch {
+      // 실패 시 롤백
+      showToast("단계 변경에 실패했습니다", "err");
+      await load();
     }
   }
 
@@ -294,15 +334,34 @@ export default function ContractPanel() {
           <h1 className="text-xl font-bold text-gray-900">계약 관리</h1>
           <p className="text-sm text-gray-500 mt-0.5">PC/OA 유지보수 서비스 계약 현황</p>
         </div>
-        <button
-          onClick={openAdd}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
-          style={{ background: "#0052CC" }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = "#0747A6")}
-          onMouseLeave={(e) => (e.currentTarget.style.background = "#0052CC")}
-        >
-          <span className="text-base">+</span> 계약 등록
-        </button>
+        <div className="flex items-center gap-2">
+          {/* 뷰 토글 */}
+          <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden text-xs font-semibold">
+            <button
+              onClick={() => setView("table")}
+              className="px-3 py-2 transition-colors flex items-center gap-1"
+              style={{ background: view === "table" ? "#0052CC" : "#fff", color: view === "table" ? "#fff" : "#6B7280" }}
+            >
+              ☰ 목록
+            </button>
+            <button
+              onClick={() => setView("kanban")}
+              className="px-3 py-2 transition-colors flex items-center gap-1"
+              style={{ background: view === "kanban" ? "#0052CC" : "#fff", color: view === "kanban" ? "#fff" : "#6B7280" }}
+            >
+              ⊞ 칸반
+            </button>
+          </div>
+          <button
+            onClick={openAdd}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
+            style={{ background: "#0052CC" }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#0747A6")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "#0052CC")}
+          >
+            <span className="text-base">+</span> 계약 등록
+          </button>
+        </div>
       </div>
 
       {AlertBanner}
@@ -326,7 +385,146 @@ export default function ContractPanel() {
         ))}
       </div>
 
-      {/* 필터 + 테이블 */}
+      {/* ══ 칸반 뷰 ══ */}
+      {view === "kanban" && (
+        <div>
+          {/* 검색 */}
+          <div className="mb-4">
+            <input
+              className="form-input w-64"
+              placeholder="법인명 · 담당자 검색"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          {/* 진행 단계 안내 화살표 */}
+          <div className="flex items-center gap-1 mb-4 overflow-x-auto pb-1">
+            {CONTRACT_STAGES.map((s, i) => (
+              <div key={s.id} className="flex items-center gap-1 shrink-0">
+                <span className="text-xs font-semibold px-2 py-1 rounded-md"
+                  style={{ background: s.color, color: s.tc }}>
+                  {s.icon} {s.label}
+                </span>
+                {i < CONTRACT_STAGES.length - 1 && (
+                  <span className="text-gray-300 text-sm">→</span>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* 칸반 보드 */}
+          <div className="flex gap-3 overflow-x-auto pb-4" style={{ minHeight: 420 }}>
+            {CONTRACT_STAGES.map((stage) => {
+              const colContracts = contracts.filter(c =>
+                (c.stage ?? "관리현황파악") === stage.id &&
+                (!search || c.company.includes(search) || c.contactName.includes(search))
+              );
+              const isDragTarget = dragOver === stage.id;
+
+              return (
+                <div
+                  key={stage.id}
+                  className="flex-none w-56 flex flex-col rounded-xl transition-all"
+                  style={{
+                    background: isDragTarget ? stage.color : "#F8FAFC",
+                    border: `2px solid ${isDragTarget ? stage.border : "#E2E8F0"}`,
+                    minHeight: 380,
+                  }}
+                  onDragOver={(e) => { e.preventDefault(); setDragOver(stage.id); }}
+                  onDragLeave={() => setDragOver(null)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOver(null);
+                    if (dragId && dragId !== stage.id) {
+                      handleStageChange(dragId, stage.id);
+                    }
+                    setDragId(null);
+                  }}
+                >
+                  {/* 컬럼 헤더 */}
+                  <div className="px-3 py-2.5 rounded-t-xl flex items-center justify-between"
+                    style={{ background: stage.color, borderBottom: `2px solid ${stage.border}30` }}>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm">{stage.icon}</span>
+                      <span className="text-xs font-bold" style={{ color: stage.tc }}>{stage.label}</span>
+                    </div>
+                    <span className="text-xs font-bold px-1.5 py-0.5 rounded-full"
+                      style={{ background: stage.border + "20", color: stage.tc }}>
+                      {colContracts.length}
+                    </span>
+                  </div>
+
+                  {/* 카드 목록 */}
+                  <div className="flex-1 p-2 space-y-2 overflow-y-auto">
+                    {colContracts.length === 0 && (
+                      <div className="text-center py-8 text-xs text-gray-300">
+                        {isDragTarget ? "여기에 놓기" : "계약 없음"}
+                      </div>
+                    )}
+                    {colContracts.map(c => {
+                      const expiring = isExpiringSoon(c);
+                      const monthly  = c.quantity * c.unitPrice;
+                      return (
+                        <div
+                          key={c.id}
+                          draggable
+                          onDragStart={() => setDragId(c.id)}
+                          onDragEnd={() => { setDragId(null); setDragOver(null); }}
+                          className="bg-white rounded-lg p-3 shadow-sm border cursor-grab active:cursor-grabbing transition-all hover:shadow-md"
+                          style={{
+                            borderColor: expiring ? "#FFE380" : "#E2E8F0",
+                            background: dragId === c.id ? "#F0F4FF" : "#FFFFFF",
+                            opacity: dragId === c.id ? 0.6 : 1,
+                          }}
+                        >
+                          <div className="flex items-start justify-between gap-1 mb-1.5">
+                            <span className="text-sm font-bold text-gray-900 leading-tight line-clamp-1">{c.company}</span>
+                            <StatusBadge status={c.status} />
+                          </div>
+                          <div className="text-xs text-gray-500 mb-1">👤 {c.contactName}</div>
+                          <div className="text-xs text-gray-400 mb-1.5">
+                            {fmt(c.startDate)} ~ {fmt(c.endDate)}
+                            {c.status === "active" && daysUntil(c.endDate) > 0 && (
+                              <span className={`ml-1 font-medium ${expiring ? "text-amber-500" : ""}`}>
+                                ({daysUntil(c.endDate)}일)
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold" style={{ color: "#0052CC" }}>
+                              {won(monthly)}/월
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onMouseDown={(e) => e.stopPropagation()}
+                                onClick={(e) => { e.stopPropagation(); openEdit(c); }}
+                                className="text-xs text-blue-500 hover:text-blue-700 px-1.5 py-0.5 rounded hover:bg-blue-50 transition-colors"
+                              >
+                                수정
+                              </button>
+                              <button
+                                onMouseDown={(e) => e.stopPropagation()}
+                                onClick={(e) => { e.stopPropagation(); setDeleteId(c.id); }}
+                                className="text-xs text-red-400 hover:text-red-600 px-1.5 py-0.5 rounded hover:bg-red-50 transition-colors"
+                              >
+                                삭제
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ══ 목록 뷰 ══ */}
+      {view === "table" && (
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
           <div className="flex items-center gap-1">
@@ -370,6 +568,7 @@ export default function ContractPanel() {
                   <th>PC 수량</th>
                   <th>월 수익</th>
                   <th>상태</th>
+                  <th>진행단계</th>
                   <th>계약서</th>
                   <th style={{ width: 90 }}>관리</th>
                 </tr>
@@ -404,6 +603,7 @@ export default function ContractPanel() {
                         <div className="text-xs text-gray-400 font-normal">연 {won(monthly * 12)}</div>
                       </td>
                       <td><StatusBadge status={c.status} /></td>
+                      <td><StageBadge stage={c.stage ?? "관리현황파악"} /></td>
                       <td>
                         {c.pdfUrl ? (
                           <a href={c.pdfUrl} target="_blank" rel="noopener noreferrer"
@@ -446,6 +646,7 @@ export default function ContractPanel() {
           </div>
         )}
       </div>
+      )}
 
       {/* ══ 등록 / 수정 모달 ══ */}
       {showModal && (
@@ -616,6 +817,29 @@ export default function ContractPanel() {
                     setPdfFile(f);
                   }}
                 />
+              </div>
+
+              {/* 진행 단계 */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-2">진행 단계</label>
+                <div className="flex flex-wrap gap-2">
+                  {CONTRACT_STAGES.map(s => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setForm(prev => ({ ...prev, stage: s.id }))}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold border-2 transition-all"
+                      style={{
+                        background:   form.stage === s.id ? s.color        : "#F8FAFC",
+                        borderColor:  form.stage === s.id ? s.border        : "#E2E8F0",
+                        color:        form.stage === s.id ? s.tc            : "#9CA3AF",
+                        fontWeight:   form.stage === s.id ? 700             : 500,
+                      }}
+                    >
+                      {s.icon} {s.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* 메모 */}

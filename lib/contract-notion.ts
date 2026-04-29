@@ -11,7 +11,7 @@
 import { Client } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
 import { kvGet, kvSet, kvDel } from "@/lib/kv-store";
-import type { Contract } from "@/types/contract";
+import type { Contract, ContractStage } from "@/types/contract";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 const KV_KEY = "contracts:list";
@@ -68,8 +68,19 @@ function toContract(page: PageObjectResponse): Contract {
     return prop.files[0].name ?? "";
   };
 
+  const select = (key: string): string => {
+    const prop = p[key];
+    if (!prop || prop.type !== "select") return "";
+    return prop.select?.name ?? "";
+  };
+
   const startDate = date("계약시작일");
   const endDate   = date("계약종료일");
+
+  // 진행단계 — Notion select "진행단계" 컬럼, 없으면 기본값
+  const stageRaw = select("진행단계");
+  const VALID_STAGES = ["관리현황파악","계약담당자소통","계약서작성","내부기안상신","계약서날인","계약완료"];
+  const stage = (VALID_STAGES.includes(stageRaw) ? stageRaw : "관리현황파악") as ContractStage;
 
   return {
     id:           page.id,
@@ -83,6 +94,7 @@ function toContract(page: PageObjectResponse): Contract {
     pdfUrl:       fileUrl("계약서"),
     pdfName:      fileName("계약서"),
     status:       calcStatus(startDate, endDate),
+    stage,
     notes:        text("메모"),
     createdAt:    page.created_time,
     updatedAt:    page.last_edited_time,
@@ -182,6 +194,7 @@ export async function createContract(data: {
   quantity: number;
   unitPrice: number;
   notes?: string;
+  stage?: ContractStage;
   pdfBuffer?: Buffer;
   pdfFileName?: string;
 }): Promise<Contract> {
@@ -202,6 +215,7 @@ export async function createContract(data: {
     "PC수량":     { number: data.quantity },
     "단가":       { number: data.unitPrice },
     "메모":       { rich_text: [{ text: { content: data.notes || "" } }] },
+    "진행단계":   { select: { name: data.stage ?? "관리현황파악" } },
   };
   if (fileUploadId) {
     props["계약서"] = { files: [{ type: "file_upload", file_upload: { id: fileUploadId } }] };
@@ -228,6 +242,7 @@ export async function updateContract(
     quantity?: number;
     unitPrice?: number;
     notes?: string;
+    stage?: ContractStage;
     pdfBuffer?: Buffer;
     pdfFileName?: string;
   }
@@ -246,6 +261,7 @@ export async function updateContract(
   if (data.quantity     !== undefined) props["PC수량"]     = { number: data.quantity };
   if (data.unitPrice    !== undefined) props["단가"]       = { number: data.unitPrice };
   if (data.notes        !== undefined) props["메모"]       = { rich_text: [{ text: { content: data.notes } }] };
+  if (data.stage        !== undefined) props["진행단계"]   = { select: { name: data.stage } };
   if (fileUploadId) {
     props["계약서"] = { files: [{ type: "file_upload", file_upload: { id: fileUploadId } }] };
   }
@@ -257,6 +273,17 @@ export async function updateContract(
 
   await kvDel(KV_KEY);
   return toContract(page as PageObjectResponse);
+}
+
+/** 진행 단계만 빠르게 업데이트 (칸반 드래그앤드롭용) */
+export async function updateContractStage(pageId: string, stage: ContractStage): Promise<void> {
+  await notion.pages.update({
+    page_id: pageId,
+    properties: {
+      "진행단계": { select: { name: stage } },
+    } as Parameters<typeof notion.pages.update>[0]["properties"],
+  });
+  await kvDel(KV_KEY);
 }
 
 /** 계약 삭제 (Notion 페이지 아카이브) */

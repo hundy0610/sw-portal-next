@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchContracts, createContract } from "@/lib/contract-notion";
+import type { ContractStage } from "@/types/contract";
 
 // GET /api/contracts
 export async function GET() {
@@ -24,6 +25,7 @@ export async function POST(req: NextRequest) {
     const endDate      = (formData.get("endDate")      as string) ?? "";
     const quantity     = Number(formData.get("quantity")  ?? 1);
     const unitPrice    = Number(formData.get("unitPrice") ?? 6000);
+    const stage        = ((formData.get("stage") as string) || "관리현황파악") as ContractStage;
     const notes        = (formData.get("notes")        as string) ?? "";
 
     if (!company || !contactName || !startDate || !endDate) {
@@ -40,7 +42,7 @@ export async function POST(req: NextRequest) {
 
     const contract = await createContract({
       company, contactName, contactEmail,
-      startDate, endDate, quantity, unitPrice, notes,
+      startDate, endDate, quantity, unitPrice, stage, notes,
       pdfBuffer, pdfFileName,
     });
 
