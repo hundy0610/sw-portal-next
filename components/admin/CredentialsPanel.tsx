@@ -252,6 +252,7 @@ export default function CredentialsPanel() {
   const [error,   setError]   = useState<string | null>(null);
   const [search,  setSearch]  = useState("");
   const [revealId, setRevealId] = useState<string | null>(null);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   // 모달 상태
   const [showAdd,     setShowAdd]     = useState(false);
@@ -260,6 +261,14 @@ export default function CredentialsPanel() {
   const [saving,   setSaving]   = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [toast,    setToast]    = useState<{ msg: string; type: "success"|"error" } | null>(null);
+
+  function toggleGroup(groupName: string) {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      next.has(groupName) ? next.delete(groupName) : next.add(groupName);
+      return next;
+    });
+  }
 
   function showToast(msg: string, type: "success"|"error" = "success") {
     setToast({ msg, type });
@@ -354,6 +363,17 @@ export default function CredentialsPanel() {
       c.memo.toLowerCase().includes(q)
     );
   }, [creds, search]);
+
+  // 카테고리(memo)별 그룹핑 — 검색 없을 때만 사용
+  const grouped = useMemo(() => {
+    const map = new Map<string, SwCredential[]>();
+    for (const c of creds) {
+      const key = c.memo?.trim() || "미분류";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(c);
+    }
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0], "ko"));
+  }, [creds]);
 
   // ── 렌더링 ──
   return (
@@ -457,56 +477,35 @@ export default function CredentialsPanel() {
             </div>
           )}
 
-          {/* ── 계정 카드 목록 ── */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {filtered.map(c => {
+          {/* ── 카드 렌더 함수 ── */}
+          {(() => {
+            function CredCard({ c }: { c: SwCredential }) {
               const icon = getSwIcon(c.swName);
               const isRevealed = revealId === c.id;
               return (
-                <div
-                  key={c.id}
-                  className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition-all hover:border-blue-200 flex flex-col gap-3"
-                >
-                  {/* SW명 + 수정/삭제 */}
+                <div className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition-all hover:border-blue-200 flex flex-col gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-xl shrink-0">
-                      {icon}
-                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-xl shrink-0">{icon}</div>
                     <div className="flex-1 min-w-0">
                       <div className="font-bold text-sm text-gray-900 truncate">{c.swName}</div>
-                      {c.memo && <div className="text-xs text-gray-400 truncate mt-0.5">{c.memo}</div>}
+                      {search && c.memo && <div className="text-xs text-gray-400 truncate mt-0.5">{c.memo}</div>}
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <button onClick={() => setEditTarget(c)}
-                        className="p-1.5 rounded-lg border border-gray-200 text-gray-400 hover:bg-amber-50 hover:border-amber-300 hover:text-amber-600 transition-all"
-                        title="수정">✏️</button>
-                      <button onClick={() => setDeleteTarget(c)}
-                        className="p-1.5 rounded-lg border border-gray-200 text-gray-400 hover:bg-red-50 hover:border-red-300 hover:text-red-500 transition-all"
-                        title="삭제">🗑️</button>
+                      <button onClick={() => setEditTarget(c)} className="p-1.5 rounded-lg border border-gray-200 text-gray-400 hover:bg-amber-50 hover:border-amber-300 hover:text-amber-600 transition-all" title="수정">✏️</button>
+                      <button onClick={() => setDeleteTarget(c)} className="p-1.5 rounded-lg border border-gray-200 text-gray-400 hover:bg-red-50 hover:border-red-300 hover:text-red-500 transition-all" title="삭제">🗑️</button>
                     </div>
                   </div>
-
                   <div className="border-t border-gray-100" />
-
-                  {/* 계정 ID */}
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-400 w-14 shrink-0">아이디</span>
-                    <span className="flex-1 font-mono text-xs text-gray-800 truncate bg-gray-50 px-2 py-1 rounded border border-gray-100">
-                      {c.accountId || "—"}
-                    </span>
+                    <span className="flex-1 font-mono text-xs text-gray-800 truncate bg-gray-50 px-2 py-1 rounded border border-gray-100">{c.accountId || "—"}</span>
                     {c.accountId && <CopyBtn text={c.accountId} label="ID" />}
                   </div>
-
-                  {/* 비밀번호 */}
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-400 w-14 shrink-0">비밀번호</span>
                     <div className="flex-1 flex items-center gap-1.5 min-w-0">
                       <span
-                        className={`font-mono text-xs px-2 py-1 rounded border flex-1 truncate select-none cursor-pointer transition-all ${
-                          isRevealed
-                            ? "bg-yellow-50 border-yellow-200 text-gray-800"
-                            : "bg-gray-50 border-gray-100 text-gray-300 tracking-widest"
-                        }`}
+                        className={`font-mono text-xs px-2 py-1 rounded border flex-1 truncate select-none cursor-pointer transition-all ${isRevealed ? "bg-yellow-50 border-yellow-200 text-gray-800" : "bg-gray-50 border-gray-100 text-gray-300 tracking-widest"}`}
                         onClick={() => setRevealId(isRevealed ? null : c.id)}
                         title={isRevealed ? "클릭하여 숨기기" : "클릭하여 표시"}
                       >
@@ -515,26 +514,18 @@ export default function CredentialsPanel() {
                       {c.password && (
                         <button
                           onClick={() => setRevealId(isRevealed ? null : c.id)}
-                          className={`shrink-0 p-1.5 rounded-lg border text-xs transition-all ${
-                            isRevealed
-                              ? "bg-yellow-50 border-yellow-200 text-yellow-700"
-                              : "bg-gray-50 border-gray-200 text-gray-400 hover:bg-gray-100"
-                          }`}
+                          className={`shrink-0 p-1.5 rounded-lg border text-xs transition-all ${isRevealed ? "bg-yellow-50 border-yellow-200 text-yellow-700" : "bg-gray-50 border-gray-200 text-gray-400 hover:bg-gray-100"}`}
                           title={isRevealed ? "숨기기" : "보기"}
                         >{isRevealed ? "🙈" : "👁"}</button>
                       )}
                     </div>
                     {c.password && <CopyBtn text={c.password} label="PW" />}
                   </div>
-
-                  {/* 사이트 링크 – 하단 전체 너비 버튼 */}
                   {c.siteUrl && (
                     <a
                       href={c.siteUrl.startsWith("http") ? c.siteUrl : `https://${c.siteUrl}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      target="_blank" rel="noopener noreferrer"
                       className="mt-1 flex items-center justify-center gap-1.5 w-full py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition-colors"
-                      title={`${c.swName} 사이트 열기`}
                     >
                       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                         <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
@@ -545,8 +536,61 @@ export default function CredentialsPanel() {
                   )}
                 </div>
               );
-            })}
-          </div>
+            }
+
+            // 검색 중 → 기존 플랫 리스트
+            if (search) {
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {filtered.map(c => <CredCard key={c.id} c={c} />)}
+                </div>
+              );
+            }
+
+            // 검색 없음 → 카테고리 아코디언
+            return (
+              <div className="flex flex-col gap-3">
+                {grouped.map(([groupName, items]) => {
+                  const isOpen = expandedGroups.has(groupName);
+                  return (
+                    <div key={groupName} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                      {/* 카테고리 헤더 */}
+                      <button
+                        onClick={() => toggleGroup(groupName)}
+                        className="w-full flex items-center gap-3 px-5 py-4 hover:bg-gray-50 transition-colors text-left"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2">
+                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                          </svg>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="font-bold text-sm text-gray-900">{groupName}</span>
+                          <span className="ml-2 text-xs text-gray-400">{items.length}개</span>
+                        </div>
+                        <svg
+                          width="16" height="16" viewBox="0 0 24 24" fill="none"
+                          stroke="currentColor" strokeWidth="2"
+                          className={`text-gray-400 transition-transform duration-200 shrink-0 ${isOpen ? "rotate-180" : ""}`}
+                        >
+                          <path d="M6 9l6 6 6-6"/>
+                        </svg>
+                      </button>
+
+                      {/* 카드 목록 */}
+                      {isOpen && (
+                        <div className="border-t border-gray-100 p-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                            {items.map(c => <CredCard key={c.id} c={c} />)}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
 
           {creds.length > 0 && (
             <div className="mt-6 text-center text-xs text-gray-400">
