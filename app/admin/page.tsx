@@ -35,7 +35,7 @@ const SUPER_MENU: { id: PageId; icon: string; label: string; desc: string }[] = 
   { id: "swdb",       icon: "🗄", label: "SW DB 관리",    desc: "승인 / 금지 목록"       },
   { id: "report",     icon: "📊", label: "구독 리포트",   desc: "현황 분석 · 만료 알림"  },
   { id: "hw",         icon: "💻", label: "HW 자산 관리",  desc: "NT/DT 재고 · 반납 관리" },
-  { id: "assetmap",   icon: "🗺", label: "스마트오피스 모니터 관리", desc: "인터랙티브 자산 맵"    },
+  { id: "assetmap",   icon: "🖥️", label: "스마트오피스 모니터 관리", desc: "인터랙티브 자산 맵"    },
   { id: "helpdesk",   icon: "🎫", label: "문의 접수 현황", desc: "유형·법인별 분석"        },
   { id: "accounts",   icon: "👤", label: "계정 설정",     desc: "담당자 계정 관리"       },
   { id: "contracts",  icon: "📋", label: "계약 관리",     desc: "PC/OA 유지보수 계약"    },
