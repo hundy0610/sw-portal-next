@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { Contract, ContractStage } from "@/types/contract";
@@ -27,7 +27,7 @@ function CopyEmail({ email }: { email: string }) {
   if (!email) return <span className="text-gray-300 text-xs">-</span>;
   return (
     <button
-      className="group flex items-center gap-1 text-xs text-gray-600 hover:text-blue-600 transition-colors"
+      className="group flex items-center gap-1 text-xs text-gray-600 hover:text-amber-600 transition-colors"
       onClick={(e) => {
         e.stopPropagation();
         navigator.clipboard.writeText(email).then(() => {
@@ -363,14 +363,14 @@ export default function ContractPanel() {
             <button
               onClick={() => setView("table")}
               className="px-3 py-2 transition-colors flex items-center gap-1"
-              style={{ background: view === "table" ? "#0052CC" : "#fff", color: view === "table" ? "#fff" : "#6B7280" }}
+              style={{ background: view === "table" ? "#D97706" : "#fff", color: view === "table" ? "#fff" : "#6B7280" }}
             >
               ☰ 목록
             </button>
             <button
               onClick={() => setView("kanban")}
               className="px-3 py-2 transition-colors flex items-center gap-1"
-              style={{ background: view === "kanban" ? "#0052CC" : "#fff", color: view === "kanban" ? "#fff" : "#6B7280" }}
+              style={{ background: view === "kanban" ? "#D97706" : "#fff", color: view === "kanban" ? "#fff" : "#6B7280" }}
             >
               ⊞ 칸반
             </button>
@@ -378,9 +378,9 @@ export default function ContractPanel() {
           <button
             onClick={openAdd}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
-            style={{ background: "#0052CC" }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "#0747A6")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "#0052CC")}
+            style={{ background: "#D97706" }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#B45309")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "#D97706")}
           >
             <span className="text-base">+</span> 계약 등록
           </button>
@@ -392,7 +392,7 @@ export default function ContractPanel() {
       {/* KPI 카드 */}
       <div className="grid grid-cols-4 gap-4 mb-6">
         {[
-          { label: "진행중 계약",  value: `${active.length}건`,            icon: "📋", bg: "#E9F2FF", tc: "#0052CC" },
+          { label: "진행중 계약",  value: `${active.length}건`,            icon: "📋", bg: "#FEF3C7", tc: "#D97706" },
           { label: "총 관리 PC",   value: `${totalQty.toLocaleString()}대`, icon: "💻", bg: "#E3FCEF", tc: "#006644" },
           { label: "월 수익",      value: won(monthlyRevenue),              icon: "💰", bg: "#FFFAE6", tc: "#974F0C" },
           { label: "연 수익",      value: won(monthlyRevenue * 12),         icon: "📈", bg: "#FFEBE6", tc: "#BF2600" },
@@ -523,14 +523,14 @@ export default function ContractPanel() {
                             )}
                           </div>
                           <div className="flex items-center justify-between">
-                            <span className="text-xs font-semibold" style={{ color: "#0052CC" }}>
+                            <span className="text-xs font-semibold" style={{ color: "#D97706" }}>
                               {won(monthly)}/월
                             </span>
                             <div className="flex items-center gap-1">
                               <button
                                 onMouseDown={(e) => e.stopPropagation()}
                                 onClick={(e) => { e.stopPropagation(); openEdit(c); }}
-                                className="text-xs text-blue-500 hover:text-blue-700 px-1.5 py-0.5 rounded hover:bg-blue-50 transition-colors"
+                                className="text-xs text-amber-500 hover:text-amber-700 px-1.5 py-0.5 rounded hover:bg-amber-50 transition-colors"
                               >
                                 수정
                               </button>
@@ -566,7 +566,7 @@ export default function ContractPanel() {
                 <button key={f}
                   onClick={() => setFilter(f)}
                   className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
-                    filter === f ? "bg-blue-600 text-white" : "text-gray-500 hover:bg-gray-100"
+                    filter === f ? "bg-amber-600 text-white" : "text-gray-500 hover:bg-gray-100"
                   }`}>
                   {labels[f]} ({cnt})
                 </button>
@@ -629,7 +629,7 @@ export default function ContractPanel() {
                         )}
                       </td>
                       <td className="text-right font-medium">{c.quantity.toLocaleString()}대</td>
-                      <td className="text-right font-medium" style={{ color: "#0052CC" }}>
+                      <td className="text-right font-medium" style={{ color: "#D97706" }}>
                         {won(monthly)}
                         <div className="text-xs text-gray-400 font-normal">연 {won(monthly * 12)}</div>
                       </td>
@@ -660,7 +660,7 @@ export default function ContractPanel() {
                                 >
                                   <StageBadge stage={s.id} />
                                   {(c.stage ?? "관리현황 파악") === s.id && (
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0052CC" strokeWidth="3" className="ml-auto flex-shrink-0">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="3" className="ml-auto flex-shrink-0">
                                       <polyline points="20 6 9 17 4 12" />
                                     </svg>
                                   )}
@@ -673,7 +673,7 @@ export default function ContractPanel() {
                       <td>
                         {c.pdfUrl ? (
                           <a href={c.pdfUrl} target="_blank" rel="noopener noreferrer"
-                            className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                            className="text-xs text-amber-600 hover:underline flex items-center gap-1">
                             📄 {c.pdfName || "보기"}
                           </a>
                         ) : (
@@ -683,7 +683,7 @@ export default function ContractPanel() {
                       <td>
                         <div className="flex items-center gap-1">
                           <button onClick={() => openEdit(c)}
-                            className="px-2 py-1 text-xs rounded text-blue-600 hover:bg-blue-50 transition-colors font-medium">
+                            className="px-2 py-1 text-xs rounded text-amber-600 hover:bg-amber-50 transition-colors font-medium">
                             수정
                           </button>
                           <button onClick={() => setDeleteId(c.id)}
@@ -806,15 +806,15 @@ export default function ContractPanel() {
               {/* 수익 미리보기 */}
               {form.quantity > 0 && form.unitPrice > 0 && (
                 <div className="flex items-center gap-4 px-4 py-3 rounded-lg text-sm"
-                  style={{ background: "#E9F2FF" }}>
+                  style={{ background: "#FEF3C7" }}>
                   <div>
                     <span className="text-gray-500 text-xs">월 수익</span>
-                    <div className="font-bold text-blue-700">{won(form.quantity * form.unitPrice)}</div>
+                    <div className="font-bold text-amber-700">{won(form.quantity * form.unitPrice)}</div>
                   </div>
-                  <div className="w-px h-8 bg-blue-200" />
+                  <div className="w-px h-8 bg-amber-200" />
                   <div>
                     <span className="text-gray-500 text-xs">연 수익</span>
-                    <div className="font-bold text-blue-700">{won(form.quantity * form.unitPrice * 12)}</div>
+                    <div className="font-bold text-amber-700">{won(form.quantity * form.unitPrice * 12)}</div>
                   </div>
                 </div>
               )}
@@ -825,10 +825,10 @@ export default function ContractPanel() {
 
                 {/* 기존 파일 표시 (수정 모드, 새 첨부 없을 때) */}
                 {editTarget?.pdfUrl && !pdfFile && !pdfLink && (
-                  <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-100">
+                  <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-100">
                     <span className="text-base">📄</span>
                     <a href={editTarget.pdfUrl} target="_blank" rel="noopener noreferrer"
-                      className="text-xs text-blue-600 hover:underline flex-1 truncate">
+                      className="text-xs text-amber-600 hover:underline flex-1 truncate">
                       {editTarget.pdfName || "계약서 파일"}
                     </a>
                     <span className="text-xs text-gray-400 font-normal">교체하려면 아래에서 선택</span>
@@ -842,7 +842,7 @@ export default function ContractPanel() {
                     onClick={() => { setAttachMode("upload"); setPdfLink(""); }}
                     className="flex-1 py-2 flex items-center justify-center gap-1.5 transition-colors"
                     style={{
-                      background: attachMode === "upload" ? "#0052CC" : "#F8FAFC",
+                      background: attachMode === "upload" ? "#D97706" : "#F8FAFC",
                       color:      attachMode === "upload" ? "#fff"     : "#6B7280",
                     }}
                   >
@@ -858,7 +858,7 @@ export default function ContractPanel() {
                     onClick={() => { setAttachMode("link"); setPdfFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
                     className="flex-1 py-2 flex items-center justify-center gap-1.5 transition-colors"
                     style={{
-                      background: attachMode === "link" ? "#0052CC" : "#F8FAFC",
+                      background: attachMode === "link" ? "#D97706" : "#F8FAFC",
                       color:      attachMode === "link" ? "#fff"    : "#6B7280",
                     }}
                   >
@@ -891,7 +891,7 @@ export default function ContractPanel() {
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 border-dashed border-gray-200 text-sm text-gray-500 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-colors">
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 border-dashed border-gray-200 text-sm text-gray-500 hover:border-amber-300 hover:text-amber-600 hover:bg-amber-50 transition-colors">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                           <polyline points="17 8 12 3 7 8" />
@@ -978,9 +978,9 @@ export default function ContractPanel() {
                 onClick={handleSave}
                 disabled={saving}
                 className="px-5 py-2 text-sm rounded-lg text-white font-semibold transition-colors disabled:opacity-60"
-                style={{ background: "#0052CC" }}
-                onMouseEnter={(e) => !saving && (e.currentTarget.style.background = "#0747A6")}
-                onMouseLeave={(e) => !saving && (e.currentTarget.style.background = "#0052CC")}
+                style={{ background: "#D97706" }}
+                onMouseEnter={(e) => !saving && (e.currentTarget.style.background = "#B45309")}
+                onMouseLeave={(e) => !saving && (e.currentTarget.style.background = "#D97706")}
               >
                 {saving ? "저장 중..." : editTarget ? "수정 완료" : "등록하기"}
               </button>
@@ -1025,3 +1025,4 @@ export default function ContractPanel() {
     </div>
   );
 }
+

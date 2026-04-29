@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import type { HwStats } from "@/lib/hw";
 
@@ -44,14 +44,14 @@ const STATUSES = [
 ];
 
 const STATUS_COLOR: Record<string, string> = {
-  "사용중":               "bg-blue-100 text-blue-700",
+  "사용중":               "bg-amber-100 text-amber-700",
   "재고":                 "bg-purple-100 text-purple-700",
   "반납예정":             "bg-yellow-100 text-yellow-700",
   "출고준비중":           "bg-orange-100 text-orange-700",
   "출고준비완료":         "bg-amber-100 text-amber-700",
   "수리":                 "bg-pink-100 text-pink-700",
   "렌탈":                 "bg-cyan-100 text-cyan-700",
-  "임시지급":             "bg-indigo-100 text-indigo-700",
+  "임시지급":             "bg-amber-100 text-amber-700",
   "폐기":                 "bg-red-100 text-red-700",
   "폐기확정(리스트화)":   "bg-red-50 text-red-500",
   "폐기완료":             "bg-red-200 text-red-800",
@@ -202,7 +202,7 @@ function DashboardTab({ stats, loading, onRefresh }: { stats: HwStats | null; lo
           {!loading && stats && <p className="text-xs text-gray-400 mt-0.5">노션 등록 전체 {total}건 기준</p>}
         </div>
         <button onClick={onRefresh} disabled={loading}
-          className="px-4 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+          className="px-4 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 disabled:opacity-50 transition-colors">
           {loading ? "불러오는 중…" : "새로고침"}
         </button>
       </div>
@@ -212,15 +212,15 @@ function DashboardTab({ stats, loading, onRefresh }: { stats: HwStats | null; lo
       ) : (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard icon="💻" label="총 자산"   value={total}        sub={totalValue>0 ? `₩${Math.round(totalValue/1000000)}M` : undefined} cls="bg-indigo-50 text-indigo-700 border-indigo-100" />
-            <StatCard icon="✅" label="사용중"    value={activeCount}   sub={total>0 ? `${Math.round(activeCount/total*100)}%` : undefined}    cls="bg-blue-50 text-blue-700 border-blue-100" />
+            <StatCard icon="💻" label="총 자산"   value={total}        sub={totalValue>0 ? `₩${Math.round(totalValue/1000000)}M` : undefined} cls="bg-amber-50 text-amber-700 border-amber-100" />
+            <StatCard icon="✅" label="사용중"    value={activeCount}   sub={total>0 ? `${Math.round(activeCount/total*100)}%` : undefined}    cls="bg-amber-50 text-amber-700 border-blue-100" />
             <StatCard icon="📦" label="재고"      value={stockCount}    cls="bg-purple-50 text-purple-700 border-purple-100" />
             <StatCard icon="📤" label="출고 대기" value={shipCount}     cls="bg-orange-50 text-orange-700 border-orange-100" />
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <StatCard icon="🔧" label="수리 중"   value={repairCount}   cls="bg-pink-50 text-pink-700 border-pink-100" />
             <StatCard icon="🚗" label="렌탈"      value={rentalCount}   cls="bg-cyan-50 text-cyan-700 border-cyan-100" />
-            <StatCard icon="📋" label="임시지급"  value={tempCount}     cls="bg-indigo-50 text-indigo-700 border-indigo-100" />
+            <StatCard icon="📋" label="임시지급"  value={tempCount}     cls="bg-amber-50 text-amber-700 border-amber-100" />
             <StatCard icon="📅" label="반납 예정" value={returnCount}   cls="bg-yellow-50 text-yellow-700 border-yellow-100" />
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -253,7 +253,7 @@ function DashboardTab({ stats, loading, onRefresh }: { stats: HwStats | null; lo
                       <tr key={company} className="hover:bg-gray-50">
                         <td className="px-4 py-2 font-medium text-gray-800">{company}</td>
                         <td className="px-4 py-2 text-right font-bold text-gray-900">{t}</td>
-                        <td className="px-4 py-2 text-right text-blue-600 font-semibold">{active||"-"}</td>
+                        <td className="px-4 py-2 text-right text-amber-600 font-semibold">{active||"-"}</td>
                         <td className="px-4 py-2 text-right text-purple-600 font-semibold">{stock||"-"}</td>
                       </tr>
                     ))}
@@ -306,8 +306,8 @@ function ShipmentTab({ records, loading, onRefresh, onUpdate }: TabProps) {
                   <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{fmtDate(r.useDate)}</td>
                   <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.location||"-"}</td>
                   <td className="px-3 py-2.5 flex items-center gap-2">
-                    {r.notionUrl && <a href={r.notionUrl} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-600 underline underline-offset-2">Notion ↗</a>}
-                    <button onClick={() => setEditRecord(r)} className="px-2 py-0.5 rounded text-[11px] font-medium bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors">수정</button>
+                    {r.notionUrl && <a href={r.notionUrl} target="_blank" rel="noreferrer" className="text-amber-400 hover:text-amber-600 underline underline-offset-2">Notion ↗</a>}
+                    <button onClick={() => setEditRecord(r)} className="px-2 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-600 hover:bg-amber-100 transition-colors">수정</button>
                   </td>
                 </tr>
               ))}
@@ -477,7 +477,7 @@ function EditModal({ record, fields, onSave, onClose }: EditModalProps) {
 
         <div className="flex gap-2 pt-1">
           <button onClick={handleSave} disabled={saving}
-            className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+            className="flex-1 py-2.5 rounded-xl bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-50 transition-colors">
             {saving ? "저장 중…" : "✅ Notion에 저장"}
           </button>
           <button onClick={onClose}
@@ -519,8 +519,8 @@ function ReturnTab({ records, loading, onRefresh, onUpdate }: TabProps) {
         <td className="px-3 py-2.5 font-mono text-gray-600 whitespace-nowrap text-xs">{r.assetNo||"-"}</td>
         <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap max-w-[130px] truncate text-xs">{r.model||"-"}</td>
         <td className="px-3 py-2.5 text-xs flex items-center gap-2">
-          {r.notionUrl && <a href={r.notionUrl} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-600 underline underline-offset-2">Notion ↗</a>}
-          <button onClick={() => setEditRecord(r)} className="px-2 py-0.5 rounded text-[11px] font-medium bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors">수정</button>
+          {r.notionUrl && <a href={r.notionUrl} target="_blank" rel="noreferrer" className="text-amber-400 hover:text-amber-600 underline underline-offset-2">Notion ↗</a>}
+          <button onClick={() => setEditRecord(r)} className="px-2 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-600 hover:bg-amber-100 transition-colors">수정</button>
         </td>
       </tr>
     );
@@ -663,7 +663,7 @@ function SearchTab({ companyLock = "", onUpdate }: { companyLock?: string; onUpd
             </select>
           </div>
           <button onClick={load} disabled={loading}
-            className="px-5 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors">
+            className="px-5 py-2 rounded-lg bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-50 transition-colors">
             {loading ? "검색 중…" : "🔍 검색"}
           </button>
           <button onClick={() => { setSearch(""); setCompany(""); setLocation(""); setStatus(""); setRecords([]); setSearched(false); }}
@@ -708,8 +708,8 @@ function SearchTab({ companyLock = "", onUpdate }: { companyLock?: string; onUpd
                         {r.verified ? <span className="text-green-600 font-bold">✓</span> : <span className="text-gray-300">−</span>}
                       </td>
                       <td className="px-3 py-2.5 flex items-center gap-2">
-                        {r.notionUrl && <a href={r.notionUrl} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-600 underline underline-offset-2">Notion ↗</a>}
-                        {onUpdate && <button onClick={() => setEditRecord(r)} className="px-2 py-0.5 rounded text-[11px] font-medium bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors">수정</button>}
+                        {r.notionUrl && <a href={r.notionUrl} target="_blank" rel="noreferrer" className="text-amber-400 hover:text-amber-600 underline underline-offset-2">Notion ↗</a>}
+                        {onUpdate && <button onClick={() => setEditRecord(r)} className="px-2 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-600 hover:bg-amber-100 transition-colors">수정</button>}
                       </td>
                     </tr>
                   ))}
@@ -813,7 +813,7 @@ function DuplicateModal({dups,cleanCount,onSkipDups,onUploadAll,onCancel}:{
                   <td className="px-4 py-2.5 whitespace-nowrap">
                     <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${STATUS_COLOR[d.existingStatus]??"bg-gray-100 text-gray-600"}`}>{d.existingStatus||"-"}</span>
                   </td>
-                  <td className="px-4 py-2.5">{d.existingNotionUrl&&<a href={d.existingNotionUrl} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-600 underline underline-offset-2">열기 ↗</a>}</td>
+                  <td className="px-4 py-2.5">{d.existingNotionUrl&&<a href={d.existingNotionUrl} target="_blank" rel="noreferrer" className="text-amber-400 hover:text-amber-600 underline underline-offset-2">열기 ↗</a>}</td>
                 </tr>
               ))}
             </tbody>
@@ -1328,7 +1328,7 @@ ${labelHtml}
           <h3 className="text-sm font-bold text-gray-700">🏷️ 발송 라벨 ({labels.length}장)</h3>
           <button
             onClick={addLabel}
-            className="text-xs font-semibold text-indigo-600 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors"
+            className="text-xs font-semibold text-amber-600 border border-amber-200 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg transition-colors"
           >
             + 라벨 추가
           </button>
@@ -1341,7 +1341,7 @@ ${labelHtml}
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => { setPickerTarget(label.id); setPickerSearch(""); setShowPicker(true); }}
-                  className="text-xs text-blue-600 border border-blue-200 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg font-semibold transition-colors"
+                  className="text-xs text-amber-600 border border-blue-200 bg-amber-50 hover:bg-amber-100 px-2.5 py-1 rounded-lg font-semibold transition-colors"
                 >
                   📋 자산에서 불러오기
                 </button>
@@ -1394,7 +1394,7 @@ ${labelHtml}
       {/* 출력 버튼 */}
       <button
         onClick={printLabels}
-        className="w-full py-3 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition-colors shadow-sm"
+        className="w-full py-3 rounded-xl bg-amber-600 text-white text-sm font-bold hover:bg-amber-700 transition-colors shadow-sm"
       >
         🖨️ 행낭 발송지 출력 ({labels.length}장) — A4 1매에 2장
       </button>
@@ -1414,7 +1414,7 @@ ${labelHtml}
               <button
                 disabled={cleanupBusy}
                 onClick={() => cleanupHistory(100)}
-                className="w-full py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                className="w-full py-2.5 rounded-xl bg-amber-600 text-white text-sm font-bold hover:bg-amber-700 transition-colors disabled:opacity-50"
               >
                 최근 100건만 남기기 ({Math.max(0, history.length - 100)}건 삭제)
               </button>
@@ -1454,7 +1454,7 @@ ${labelHtml}
           <span className="text-sm font-bold text-gray-700 flex items-center gap-2">
             📋 출력 이력
             {historyRows.length > 0 && (
-              <span className="text-xs font-semibold bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full">
+              <span className="text-xs font-semibold bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full">
                 {historyRows.length}행
               </span>
             )}
@@ -1524,7 +1524,7 @@ ${labelHtml}
                       return (
                         <tr
                           key={`${row.historyId}-${row.labelIndex}`}
-                          className={`border-b border-gray-50 hover:bg-indigo-50/30 transition-colors ${
+                          className={`border-b border-gray-50 hover:bg-amber-50/30 transition-colors ${
                             isFirstOfGroup && idx !== 0 ? "border-t-2 border-t-gray-200" : ""
                           }`}
                         >
@@ -1532,7 +1532,7 @@ ${labelHtml}
                           <td className="px-3 py-2.5 whitespace-nowrap align-top">
                             {isFirstOfGroup ? (
                               <div>
-                                <span className="font-bold text-indigo-600">{formatDate(row.printedAt)}</span>
+                                <span className="font-bold text-amber-600">{formatDate(row.printedAt)}</span>
                                 {groupRowCount > 1 && (
                                   <span className="ml-1 text-[10px] text-gray-400">({groupRowCount}장)</span>
                                 )}
@@ -1553,7 +1553,7 @@ ${labelHtml}
                           <td className="px-3 py-2.5 text-gray-700">{row.user || <span className="text-gray-300">—</span>}</td>
                           <td className="px-3 py-2.5 font-mono text-gray-700">{row.assetNo || <span className="text-gray-300">—</span>}</td>
                           <td className="px-3 py-2.5">
-                            <span className="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-md font-semibold whitespace-nowrap">
+                            <span className="bg-amber-50 text-amber-600 px-2 py-0.5 rounded-md font-semibold whitespace-nowrap">
                               {row.shipType}
                             </span>
                           </td>
@@ -1609,7 +1609,7 @@ ${labelHtml}
             <div className="overflow-y-auto flex-1">
               {filteredRecords.map(r => (
                 <button key={r.id} onClick={() => pickRecord(r)}
-                  className="w-full text-left px-5 py-3 hover:bg-indigo-50 border-b border-gray-50 last:border-0 transition-colors">
+                  className="w-full text-left px-5 py-3 hover:bg-amber-50 border-b border-gray-50 last:border-0 transition-colors">
                   <div className="text-sm font-semibold text-gray-800">{r.user || "사용자 없음"}</div>
                   <div className="text-xs text-gray-400 mt-0.5 flex gap-2">
                     {r.assetNo && <span className="font-mono">{r.assetNo}</span>}
@@ -1745,7 +1745,7 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
       {/* 패널 헤더 */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center shrink-0">
+          <div className="w-9 h-9 rounded-xl bg-amber-600 flex items-center justify-center shrink-0">
             <span className="text-white text-lg">💻</span>
           </div>
           <div>
@@ -1753,14 +1753,14 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
             <p className="text-xs text-gray-400 mt-0.5">
               NT/DT/MOT 트래커 연동
               {stats && (
-                <span className="ml-1 text-indigo-500 font-semibold">· 총 {stats.total}개</span>
+                <span className="ml-1 text-amber-500 font-semibold">· 총 {stats.total}개</span>
               )}
             </p>
           </div>
         </div>
         {(statsLoading || (isRecordsTab && recordsLoading)) && (
           <div className="flex items-center gap-1.5 text-xs text-gray-400">
-            <svg className="animate-spin w-3.5 h-3.5 text-indigo-400" viewBox="0 0 24 24" fill="none">
+            <svg className="animate-spin w-3.5 h-3.5 text-amber-400" viewBox="0 0 24 24" fill="none">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
             </svg>
@@ -1794,3 +1794,4 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
     </div>
   );
 }
+
