@@ -54,8 +54,7 @@ export default function AdminPage() {
   const [session, setSession]   = useState<SessionInfo | null>(null);
   const [loading, setLoading]   = useState(true);
   const [page, setPage]         = useState<PageId>("hw");
-  const [refreshing, setRefreshing] = useState(false);
-  const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
+
   const [darkMode,        setDarkMode]        = useState(() => {
     if (typeof window !== "undefined") return localStorage.getItem("admin-dark") === "1";
     return false;
@@ -140,29 +139,6 @@ export default function AdminPage() {
     router.push("/admin/login");
   }
 
-  // Notion → Vercel KV 전체 동기화 (즉시 캐시 갱신)
-  async function handleRefresh() {
-    setRefreshing(true);
-    setRefreshMsg(null);
-    try {
-      const res = await fetch("/api/admin/sync", { method: "POST" });
-      const data = await res.json();
-      if (data.ok) {
-        setRefreshMsg(`✓ 동기화 완료 (${data.elapsed})`);
-        // 패널 재로드를 위해 page를 잠깐 리셋 후 복원
-        const cur = page;
-        setPage("overview" as PageId);
-        setTimeout(() => setPage(cur), 50);
-      } else {
-        setRefreshMsg("동기화 실패");
-      }
-    } catch {
-      setRefreshMsg("동기화 실패");
-    } finally {
-      setRefreshing(false);
-      setTimeout(() => setRefreshMsg(null), 5000);
-    }
-  }
 
   if (loading) {
     return (
@@ -288,31 +264,6 @@ export default function AdminPage() {
             {darkMode ? "라이트" : "다크"}
           </button>
 
-          {/* 새로고침 버튼 */}
-          <div className="relative flex items-center">
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 px-2 py-1.5 rounded hover:bg-blue-50 transition-colors disabled:opacity-50"
-              title="Notion → KV 전체 데이터 동기화"
-            >
-              <svg
-                width="13" height="13" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" strokeWidth="2"
-                className={refreshing ? "animate-spin" : ""}
-              >
-                <polyline points="23 4 23 10 17 10" />
-                <polyline points="1 20 1 14 7 14" />
-                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-              </svg>
-              {refreshing ? "동기화 중..." : "데이터 동기화"}
-            </button>
-            {refreshMsg && (
-              <span className="absolute top-8 right-0 whitespace-nowrap text-xs bg-gray-800 text-white px-2 py-1 rounded shadow z-50">
-                {refreshMsg}
-              </span>
-            )}
-          </div>
 
           {/* 로그아웃 버튼 */}
           <button
