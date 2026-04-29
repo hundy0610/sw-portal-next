@@ -300,10 +300,13 @@ export default function ContractPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ stage: newStage }),
       });
-      if (!res.ok) throw new Error("stage 업데이트 실패");
-    } catch {
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+    } catch (e) {
       // 실패 시 롤백
-      showToast("단계 변경에 실패했습니다", "err");
+      showToast(`단계 변경 실패: ${e instanceof Error ? e.message : String(e)}`, "err");
       await load();
     }
   }
