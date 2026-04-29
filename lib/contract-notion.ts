@@ -24,7 +24,7 @@ const KV_TTL = 300; // 5분
 // ── Raw Notion Pages API (SDK UUID 검증 우회) ─────────────────
 // SDK는 page_id 를 UUID로 검증 → 신규 Notion ID(c_xxx)에서 실패
 // raw fetch 를 사용하면 API 서버가 직접 ID를 검증하므로 문제 없음
-const NOTION_VER = "2022-06-28";
+const NOTION_VER = "2026-03-11";
 
 function notionHeaders(): Record<string, string> {
   const token = process.env.NOTION_TOKEN;
