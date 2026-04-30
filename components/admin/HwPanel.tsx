@@ -65,6 +65,8 @@ const PALETTE = [
   "#64748b","#e11d48","#059669","#d97706",
 ];
 
+const CONTRACT_QUANTITY = 3837;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 유틸
 // ─────────────────────────────────────────────────────────────────────────────
@@ -167,7 +169,9 @@ function DashboardTab({ stats, loading, onRefresh }: { stats: HwStats | null; lo
 
   const stData = useMemo<ChartSlice[]>(() => {
     if (!stats) return [];
-    return Object.entries(stats.byStatus).sort((a,b)=>b[1]-a[1]).slice(0,10)
+    return Object.entries(stats.byStatus)
+      .filter(([label]) => label !== "미확인")
+      .sort((a,b)=>b[1]-a[1]).slice(0,10)
       .map(([label,value],i)=>({ label, value, color: PALETTE[i%PALETTE.length] }));
   }, [stats]);
 
@@ -192,14 +196,15 @@ function DashboardTab({ stats, loading, onRefresh }: { stats: HwStats | null; lo
 
   const { total=0, activeCount=0, stockCount=0, shipCount=0, repairCount=0,
           rentalCount=0, tempCount=0, returnCount=0, disposalCount=0,
-          verifiedCount=0, totalValue=0, companyTable=[] } = stats ?? {};
+          verifiedCount=0, totalValue=0, companyTable=[], byStatus={} } = stats ?? {};
+  const confirmedTotal = total - (byStatus["미확인"] ?? 0);
 
   return (
     <div className="space-y-5">
       <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center justify-between">
         <div>
           <p className="text-sm font-semibold text-gray-700">전체 자산 현황 대시보드</p>
-          {!loading && stats && <p className="text-xs text-gray-400 mt-0.5">노션 등록 전체 {total}건 기준</p>}
+          {!loading && stats && <p className="text-xs text-gray-400 mt-0.5">계약 수량 {CONTRACT_QUANTITY.toLocaleString()}건 기준 (미확인 제외 {confirmedTotal.toLocaleString()}건)</p>}
         </div>
         <button onClick={onRefresh} disabled={loading}
           className="px-4 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 disabled:opacity-50 transition-colors">
@@ -212,7 +217,7 @@ function DashboardTab({ stats, loading, onRefresh }: { stats: HwStats | null; lo
       ) : (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard icon="💻" label="총 자산"   value={total}        sub={totalValue>0 ? `₩${Math.round(totalValue/1000000)}M` : undefined} cls="bg-amber-50 text-amber-700 border-amber-100" />
+            <StatCard icon="💻" label="총 자산"   value={`${confirmedTotal.toLocaleString()} / ${CONTRACT_QUANTITY.toLocaleString()}`} sub={totalValue>0 ? `₩${Math.round(totalValue/1000000)}M` : undefined} cls="bg-amber-50 text-amber-700 border-amber-100" />
             <StatCard icon="✅" label="사용중"    value={activeCount}   sub={total>0 ? `${Math.round(activeCount/total*100)}%` : undefined}    cls="bg-amber-50 text-amber-700 border-blue-100" />
             <StatCard icon="📦" label="재고"      value={stockCount}    cls="bg-purple-50 text-purple-700 border-purple-100" />
             <StatCard icon="📤" label="출고 대기" value={shipCount}     cls="bg-orange-50 text-orange-700 border-orange-100" />
@@ -225,7 +230,7 @@ function DashboardTab({ stats, loading, onRefresh }: { stats: HwStats | null; lo
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <StatCard icon="🗑️" label="폐기 대상" value={disposalCount} cls="bg-red-50 text-red-700 border-red-100" />
-            <StatCard icon="✓"  label="실사 확인" value={verifiedCount} sub={total>0 ? `확인율 ${Math.round(verifiedCount/total*100)}%` : undefined} cls="bg-green-50 text-green-700 border-green-100" />
+            <StatCard icon="✓"  label="실사 확인" value={verifiedCount} sub={`확인율 ${Math.round(verifiedCount/CONTRACT_QUANTITY*100)}%`} cls="bg-green-50 text-green-700 border-green-100" />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -29,25 +29,25 @@ type PageId = "overview" | "license" | "credentials" | "swdb" | "report" | "hw" 
 
 // ── 메뉴 정의 ──────────────────────────────────────────────────
 const SUPER_MENU: { id: PageId; icon: string; label: string; desc: string }[] = [
-  { id: "overview",   icon: "⚡", label: "대시보드",      desc: "현황 요약"              },
-  { id: "license",    icon: "🔑", label: "라이선스 현황", desc: "영구 · 구독 통합"       },
-  { id: "credentials",icon: "🔐", label: "계정 관리",     desc: "ID / PW 목록"           },
-  { id: "swdb",       icon: "🗄", label: "SW DB 관리",    desc: "승인 / 금지 목록"       },
-  { id: "report",     icon: "📊", label: "구독 리포트",   desc: "현황 분석 · 만료 알림"  },
-  { id: "hw",         icon: "💻", label: "HW 자산 관리",  desc: "NT/DT 재고 · 반납 관리" },
+  { id: "overview",   icon: "⚡", label: "전사 라이선스 현황",       desc: "현황 요약"              },
+  { id: "license",    icon: "🔑", label: "상용 라이선스 자산관리",   desc: "영구 · 구독 통합"       },
+  { id: "credentials",icon: "🔐", label: "계정 관리",                desc: "ID / PW 목록"           },
+  { id: "swdb",       icon: "🗄", label: "라이선스 설치 정책 관리",  desc: "승인 / 금지 목록"       },
+  { id: "report",     icon: "📊", label: "구독형 라이선스 현황",     desc: "현황 분석 · 만료 알림"  },
+  { id: "hw",         icon: "💻", label: "노트북/데스크탑 자산관리", desc: "NT/DT 재고 · 반납 관리" },
   { id: "assetmap",   icon: "🖥️", label: "스마트오피스 모니터 관리", desc: "인터랙티브 자산 맵"    },
-  { id: "helpdesk",   icon: "🎫", label: "문의 접수 현황", desc: "유형·법인별 분석"        },
-  { id: "accounts",   icon: "👤", label: "계정 설정",     desc: "담당자 계정 관리"       },
-  { id: "contracts",  icon: "📋", label: "계약 관리",     desc: "PC/OA 유지보수 계약"    },
+  { id: "helpdesk",   icon: "🎫", label: "문의 접수 현황",           desc: "유형·법인별 분석"        },
+  { id: "accounts",   icon: "👤", label: "계정 권한 설정",           desc: "담당자 계정 관리"       },
+  { id: "contracts",  icon: "📋", label: "계약 관리",                desc: "PC/OA 유지보수 계약"    },
 ];
 
 const COMPANY_MENU: { id: PageId; icon: string; label: string; desc: string }[] = [
-  { id: "overview",  icon: "⚡", label: "대시보드",      desc: "우리 법인 현황 요약"    },
-  { id: "license",   icon: "🔑", label: "라이선스 현황", desc: "영구 · 구독 통합"       },
-  { id: "report",    icon: "📊", label: "구독 리포트",   desc: "현황 분석 · 만료 알림"  },
-  { id: "hw",        icon: "💻", label: "HW 자산 관리",  desc: "NT/DT 재고 · 반납 관리" },
+  { id: "overview",  icon: "⚡", label: "전사 라이선스 현황",       desc: "우리 법인 현황 요약"    },
+  { id: "license",   icon: "🔑", label: "상용 라이선스 자산관리",   desc: "영구 · 구독 통합"       },
+  { id: "report",    icon: "📊", label: "구독형 라이선스 현황",     desc: "현황 분석 · 만료 알림"  },
+  { id: "hw",        icon: "💻", label: "노트북/데스크탑 자산관리", desc: "NT/DT 재고 · 반납 관리" },
   { id: "assetmap",  icon: "🗺", label: "스마트오피스 모니터 관리", desc: "인터랙티브 자산 맵" },
-  { id: "helpdesk",  icon: "🎫", label: "문의 접수 현황", desc: "우리 법인 문의 현황"   },
+  { id: "helpdesk",  icon: "🎫", label: "문의 접수 현황",           desc: "우리 법인 문의 현황"   },
 ];
 
 export default function AdminPage() {
