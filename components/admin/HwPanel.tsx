@@ -217,7 +217,7 @@ function DashboardTab({ stats, loading, onRefresh }: { stats: HwStats | null; lo
       ) : (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard icon="💻" label="총 자산"   value={`${confirmedTotal.toLocaleString()} / ${CONTRACT_QUANTITY.toLocaleString()}`} sub={totalValue>0 ? `₩${Math.round(totalValue/1000000)}M` : undefined} cls="bg-amber-50 text-amber-700 border-amber-100" />
+            <StatCard icon="💻" label="계약 수량" value={CONTRACT_QUANTITY.toLocaleString()} sub={totalValue>0 ? `₩${Math.round(totalValue/1000000)}M` : undefined} cls="bg-amber-50 text-amber-700 border-amber-100" />
             <StatCard icon="✅" label="사용중"    value={activeCount}   sub={total>0 ? `${Math.round(activeCount/total*100)}%` : undefined}    cls="bg-amber-50 text-amber-700 border-blue-100" />
             <StatCard icon="📦" label="재고"      value={stockCount}    cls="bg-purple-50 text-purple-700 border-purple-100" />
             <StatCard icon="📤" label="출고 대기" value={shipCount}     cls="bg-orange-50 text-orange-700 border-orange-100" />
