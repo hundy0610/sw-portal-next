@@ -7,6 +7,18 @@ import { SyncBanner } from "@/components/ui/SyncBanner";
 
 type StatusFilter = "all" | "시작 전" | "진행 중" | "완료" | "이관" | "기타";
 
+interface HwRecord {
+  id: string; notionUrl: string;
+  user: string; assetNo: string; model: string; serial: string;
+  maker: string; cpu: string; ram: string;
+  company: string; dept: string; location: string;
+  status: string;
+  returnDue: string; returnDate: string;
+  purchaseDate: string; useDate: string;
+  price: number; note: string;
+  verified: boolean;
+}
+
 const STATUS_COLORS: Record<string, string> = {
   "시작 전": "text-gray-700",
   "진행 중": "text-orange-600",
@@ -21,11 +33,122 @@ const PRIORITY_LABEL: Record<string, string> = {
   "기다릴 수 있어요.": "낮음",
 };
 
+function AssetModal({ assetId, onClose }: { assetId: string; onClose: () => void }) {
+  const [state, setState] = useState<"loading" | "found" | "notfound" | "error">("loading");
+  const [record, setRecord] = useState<HwRecord | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/hw?search=${encodeURIComponent(assetId)}`)
+      .then((r) => r.json())
+      .then((json) => {
+        const match = (json.records as HwRecord[])?.find(
+          (r) => r.assetNo.toLowerCase() === assetId.toLowerCase()
+        );
+        if (match) { setRecord(match); setState("found"); }
+        else setState("notfound");
+      })
+      .catch(() => setState("error"));
+  }, [assetId]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: "rgba(0,0,0,0.45)" }}
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden"
+        style={{ maxHeight: "90vh", overflowY: "auto" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div>
+            <h2 className="font-bold text-gray-900 text-base">자산 상세 정보</h2>
+            <p className="text-xs text-gray-400 mt-0.5 font-mono">{assetId}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 text-2xl leading-none w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="px-6 py-5">
+          {state === "loading" && (
+            <p className="text-center text-gray-400 py-8">조회 중...</p>
+          )}
+          {state === "notfound" && (
+            <p className="text-center text-gray-400 py-8">트래커 DB에서 <span className="font-mono text-gray-600">{assetId}</span>를 찾을 수 없습니다.</p>
+          )}
+          {state === "error" && (
+            <p className="text-center text-red-400 py-8">조회 중 오류가 발생했습니다.</p>
+          )}
+          {state === "found" && record && (
+            <div className="space-y-3">
+              <Row label="사용자"    value={record.user} />
+              <Row label="자산번호"  value={record.assetNo} mono />
+              <Row label="모델명"    value={record.model} />
+              <Row label="시리얼"    value={record.serial} mono />
+              <Row label="제조사"    value={record.maker} />
+              <Row label="CPU"       value={record.cpu} />
+              <Row label="RAM"       value={record.ram} />
+              <Row label="법인"      value={record.company} />
+              <Row label="부서"      value={record.dept} />
+              <Row label="위치"      value={record.location} />
+              <Row label="상태"      value={record.status} />
+              <Row label="구매일자"  value={record.purchaseDate} />
+              <Row label="사용일자"  value={record.useDate} />
+              {record.returnDue  && <Row label="반납예정일" value={record.returnDue} />}
+              {record.returnDate && <Row label="반납일자"   value={record.returnDate} />}
+              {record.price > 0  && <Row label="단가" value={record.price.toLocaleString() + "원"} />}
+              {record.note       && <Row label="기타" value={record.note} />}
+              {record.notionUrl && (
+                <div className="pt-2">
+                  <a
+                    href={record.notionUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-blue-600 hover:underline flex items-center gap-1"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
+                      <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                    </svg>
+                    노션에서 보기
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Row({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+  if (!value) return null;
+  return (
+    <div className="flex items-start gap-3">
+      <span className="text-xs text-gray-400 w-20 shrink-0 pt-0.5">{label}</span>
+      <span className={`text-sm text-gray-800 ${mono ? "font-mono" : ""}`}>{value}</span>
+    </div>
+  );
+}
+
 export default function RepairPanel() {
   const [tickets, setTickets] = useState<RepairTicket[]>([]);
   const [lastSynced, setLastSynced] = useState("");
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<StatusFilter>("all");
+  const [modalAssetId, setModalAssetId] = useState<string | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -121,7 +244,18 @@ export default function RepairPanel() {
                   </div>
                 </td>
                 <td className="text-sm text-gray-600">{t.company || "—"}</td>
-                <td className="text-sm text-gray-500 font-mono">{t.assetId || "—"}</td>
+                <td className="text-sm font-mono">
+                  {t.assetId ? (
+                    <button
+                      onClick={() => setModalAssetId(t.assetId)}
+                      className="text-blue-600 hover:underline hover:text-blue-700 transition-colors"
+                    >
+                      {t.assetId}
+                    </button>
+                  ) : (
+                    <span className="text-gray-400">—</span>
+                  )}
+                </td>
                 <td>
                   <Badge value={PRIORITY_LABEL[t.priority] ?? t.priority} />
                 </td>
@@ -151,6 +285,10 @@ export default function RepairPanel() {
           </tbody>
         </table>
       </div>
+
+      {modalAssetId && (
+        <AssetModal assetId={modalAssetId} onClose={() => setModalAssetId(null)} />
+      )}
     </div>
   );
 }
