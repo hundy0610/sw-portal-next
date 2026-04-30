@@ -35,6 +35,11 @@ function buildProperties(fields: FieldMap) {
 
   if (fields.returnDue   !== undefined) dt("반납예정일", String(fields.returnDue  ?? ""));
   if (fields.returnDate  !== undefined) dt("반납일자",   String(fields.returnDate ?? ""));
+  if (fields.useDate     !== undefined) dt("사용일자",   String(fields.useDate    ?? ""));
+
+  if (fields.verified !== undefined) {
+    props["실사확인"] = { checkbox: !!fields.verified };
+  }
 
   return props;
 }

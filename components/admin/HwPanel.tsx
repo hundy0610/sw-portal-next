@@ -367,7 +367,7 @@ function ShipmentTab({ records, loading, onRefresh, onUpdate }: TabProps) {
 // ─────────────────────────────────────────────────────────────────────────────
 // 편집 모달
 // ─────────────────────────────────────────────────────────────────────────────
-type EditField = "status"|"returnDue"|"user"|"company"|"dept"|"location"|"note";
+type EditField = "status"|"returnDue"|"returnDate"|"useDate"|"verified"|"user"|"company"|"dept"|"location"|"note";
 
 interface EditModalProps {
   record: HwRecord;
@@ -384,11 +384,15 @@ function EditModal({ record, fields, onSave, onClose }: EditModalProps) {
   // 초기값 세팅
   useEffect(() => {
     const init: Partial<HwRecord> = {};
-    fields.forEach(f => { (init as Record<string, unknown>)[f] = (record as Record<string, unknown>)[f] ?? ""; });
+    fields.forEach(f => {
+      const val = (record as Record<string, unknown>)[f];
+      (init as Record<string, unknown>)[f] = val ?? (f === "verified" ? false : "");
+    });
     setForm(init);
   }, [record, fields]);
 
   const set = (f: string, v: string) => setForm(prev => ({ ...prev, [f]: v }));
+  const setBool = (f: string, v: boolean) => setForm(prev => ({ ...prev, [f]: v }));
 
   const handleSave = async () => {
     setSaving(true); setError("");
@@ -402,6 +406,9 @@ function EditModal({ record, fields, onSave, onClose }: EditModalProps) {
   const labelMap: Record<string, string> = {
     status: "상태",
     returnDue: "반납예정일",
+    returnDate: "반납일자",
+    useDate: "사용일자",
+    verified: "실사확인",
     user: "사용자", company: "법인명", dept: "부서", location: "위치", note: "비고",
   };
 
@@ -431,6 +438,27 @@ function EditModal({ record, fields, onSave, onClose }: EditModalProps) {
               <label className="block text-xs font-semibold text-gray-500 mb-1">{labelMap.returnDue}</label>
               <input type="date" value={String(form.returnDue ?? "")} onChange={e => set("returnDue", e.target.value)}
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-300" />
+            </div>
+          )}
+          {fields.includes("returnDate") && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">{labelMap.returnDate}</label>
+              <input type="date" value={String(form.returnDate ?? "")} onChange={e => set("returnDate", e.target.value)}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-300" />
+            </div>
+          )}
+          {fields.includes("useDate") && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">{labelMap.useDate}</label>
+              <input type="date" value={String(form.useDate ?? "")} onChange={e => set("useDate", e.target.value)}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+            </div>
+          )}
+          {fields.includes("verified") && (
+            <div className="flex items-center gap-3">
+              <label className="text-xs font-semibold text-gray-500">{labelMap.verified}</label>
+              <input type="checkbox" checked={!!form.verified} onChange={e => setBool("verified", e.target.checked)}
+                className="w-4 h-4 rounded accent-indigo-600 cursor-pointer" />
             </div>
           )}
           {fields.includes("user") && (
@@ -727,7 +755,7 @@ function SearchTab({ companyLock = "", onUpdate }: { companyLock?: string; onUpd
       {editRecord && onUpdate && (
         <EditModal
           record={editRecord}
-          fields={["status","returnDue","user","company","dept","location","note"]}
+          fields={["status","returnDue","returnDate","useDate","verified","user","company","dept","location","note"]}
           onSave={async (id, fields) => {
             await onUpdate(id, fields);
             setRecords(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r));
