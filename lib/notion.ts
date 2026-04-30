@@ -5,7 +5,7 @@ import type {
   BlockObjectResponse,
   PartialBlockObjectResponse,
 } from "@notionhq/client/build/src/api-endpoints";
-import type { SwItem, SwDbRecord, Subscription, LicenseItem, LicenseRecord, Ticket } from "@/types";
+import type { SwItem, SwDbRecord, Subscription, LicenseItem, LicenseRecord, Ticket, RepairTicket } from "@/types";
 import type { SwCredential } from "@/components/admin/CredentialsPanel";
 
 // ────────────────────────────────────────────────────────────
@@ -432,6 +432,48 @@ export async function fetchTickets(): Promise<Ticket[]> {
       assignee: getPropText(p, "Assignee") || getPropPeople(p, "담당자") || undefined,
       createdAt: getPropDate(p, "Created") || page.created_time.split("T")[0],
       description: getPropText(p, "Description") || getPropText(p, "내용"),
+      notionUrl: getPageUrl(page.id),
+    };
+  });
+}
+
+// ────────────────────────────────────────────────────────────
+// 수리 접수 DB 조회
+// ────────────────────────────────────────────────────────────
+function getPropUniqueId(props: NotionProps, key: string): string {
+  const p = props[key];
+  if (!p || p.type !== "unique_id") return "";
+  const prefix = p.unique_id.prefix ? `${p.unique_id.prefix}-` : "";
+  return `${prefix}${p.unique_id.number ?? ""}`;
+}
+
+export async function fetchRepairTickets(): Promise<RepairTicket[]> {
+  const dbId = process.env.NOTION_DB_REPAIR_TICKETS;
+  if (!dbId) throw new Error("NOTION_DB_REPAIR_TICKETS 환경변수가 설정되지 않았습니다.");
+
+  const pages = await queryAllPages(dbId, undefined, [
+    { timestamp: "created_time", direction: "descending" },
+  ]);
+
+  return pages.map((page) => {
+    const p = page.properties;
+    return {
+      id: page.id,
+      ticketNumber: getPropUniqueId(p, "Ticket"),
+      title: getPropText(p, "고장증상"),
+      faultTypes: getPropMultiSelect(p, "고장 내역"),
+      status: (getPropSelect(p, "상태") || "시작 전") as RepairTicket["status"],
+      priority: getPropSelect(p, "긴급도"),
+      company: getPropSelect(p, "법인"),
+      department: getPropText(p, "부서"),
+      location: getPropText(p, "실제 근무 위치"),
+      assetId: getPropText(p, "자산번호"),
+      requester: getPropText(p, "문의자"),
+      assignee: getPropPeople(p, "담당자"),
+      repairDate: getPropDate(p, "수리 일정"),
+      actionNote: getPropText(p, "조치내용"),
+      consentGiven: getPropCheckbox(p, "수리 진행 동의서"),
+      createdAt: page.created_time.split("T")[0],
       notionUrl: getPageUrl(page.id),
     };
   });

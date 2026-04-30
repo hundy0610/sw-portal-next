@@ -15,6 +15,7 @@ const AccountsPanel     = dynamic(() => import("@/components/admin/AccountsPanel
 const AssetMapPanel     = dynamic(() => import("@/components/admin/AssetMapPanel"),     { ssr: false });
 const HelpDeskPanel     = dynamic(() => import("@/components/admin/HelpDeskPanel"),     { ssr: false });
 const ContractPanel     = dynamic(() => import("@/components/admin/ContractPanel"),     { ssr: false });
+const RepairPanel       = dynamic(() => import("@/components/admin/RepairPanel"),       { ssr: false });
 
 // ── 세션 타입 ──────────────────────────────────────────────────
 interface SessionInfo {
@@ -25,7 +26,7 @@ interface SessionInfo {
   mustChangePassword?: boolean;
 }
 
-type PageId = "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "accounts" | "assetmap" | "helpdesk" | "contracts";
+type PageId = "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "accounts" | "assetmap" | "helpdesk" | "contracts" | "repair";
 
 // ── 메뉴 정의 ──────────────────────────────────────────────────
 const SUPER_MENU: { id: PageId; icon: string; label: string; desc: string }[] = [
@@ -37,6 +38,7 @@ const SUPER_MENU: { id: PageId; icon: string; label: string; desc: string }[] = 
   { id: "hw",         icon: "💻", label: "HW 자산 관리",  desc: "NT/DT 재고 · 반납 관리" },
   { id: "assetmap",   icon: "🖥️", label: "스마트오피스 모니터 관리", desc: "인터랙티브 자산 맵"    },
   { id: "helpdesk",   icon: "🎫", label: "문의 접수 현황", desc: "유형·법인별 분석"        },
+  { id: "repair",     icon: "🔧", label: "수리 접수 현황", desc: "기기 수리 접수 · 처리"  },
   { id: "accounts",   icon: "👤", label: "계정 설정",     desc: "담당자 계정 관리"       },
   { id: "contracts",  icon: "📋", label: "계약 관리",     desc: "PC/OA 유지보수 계약"    },
 ];
@@ -165,6 +167,7 @@ export default function AdminPage() {
       case "hw":          return <HwPanel company={company} initialStats={hwStatsPrefetch} />;
       case "assetmap":    return <AssetMapPanel session={session} />;
       case "helpdesk":    return <HelpDeskPanel company={isSuper ? "" : company} />;
+      case "repair":      return isSuper ? <RepairPanel /> : null;
       case "accounts":    return isSuper ? <AccountsPanel /> : null;            // 슈퍼어드민 전용
       case "contracts":   return isSuper ? <ContractPanel /> : null;            // 슈퍼어드민 전용
       default:            return null;
