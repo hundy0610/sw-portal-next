@@ -39,14 +39,34 @@ const HW_STATUSES = [
   "3층문서고/매각", "3층문서고/폐기", "지하창고/폐기", "지하창고/매각",
 ];
 
+function LoadingSpinner({ slow }: { slow: boolean }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-10 gap-3">
+      <svg className="animate-spin h-7 w-7 text-gray-400" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+      </svg>
+      <p className="text-sm text-gray-400">노션에서 불러오는 중...</p>
+      {slow && (
+        <p className="text-xs text-amber-500 text-center max-w-xs">
+          응답이 오래 걸리고 있어요.<br />
+          Notion API가 느리거나 연결이 불안정할 수 있습니다.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function AssetModal({ assetId, onClose }: { assetId: string; onClose: () => void }) {
   const [state, setState] = useState<"loading" | "found" | "notfound" | "error">("loading");
   const [record, setRecord] = useState<HwRecord | null>(null);
   const [selectedStatus, setSelectedStatus] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<"idle" | "done" | "error">("idle");
+  const [slow, setSlow] = useState(false);
 
   useEffect(() => {
+    const slowTimer = setTimeout(() => setSlow(true), 8000);
     fetch(`/api/hw?search=${encodeURIComponent(assetId)}`)
       .then((r) => r.json())
       .then((json) => {
@@ -56,7 +76,9 @@ function AssetModal({ assetId, onClose }: { assetId: string; onClose: () => void
         if (match) { setRecord(match); setSelectedStatus(match.status); setState("found"); }
         else setState("notfound");
       })
-      .catch(() => setState("error"));
+      .catch(() => setState("error"))
+      .finally(() => clearTimeout(slowTimer));
+    return () => clearTimeout(slowTimer);
   }, [assetId]);
 
   const saveStatus = async () => {
@@ -114,9 +136,7 @@ function AssetModal({ assetId, onClose }: { assetId: string; onClose: () => void
         </div>
 
         <div className="px-6 py-5">
-          {state === "loading" && (
-            <p className="text-center text-gray-400 py-8">조회 중...</p>
-          )}
+          {state === "loading" && <LoadingSpinner slow={slow} />}
           {state === "notfound" && (
             <p className="text-center text-gray-400 py-8">트래커 DB에서 <span className="font-mono text-gray-600">{assetId}</span>를 찾을 수 없습니다.</p>
           )}
@@ -205,25 +225,28 @@ export default function RepairPanel() {
   const [tickets, setTickets] = useState<RepairTicket[]>([]);
   const [lastSynced, setLastSynced] = useState("");
   const [loading, setLoading] = useState(true);
+  const [slowMain, setSlowMain] = useState(false);
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [modalAssetId, setModalAssetId] = useState<string | null>(null);
 
   const load = () => {
     setLoading(true);
+    setSlowMain(false);
+    const slowTimer = setTimeout(() => setSlowMain(true), 8000);
     fetch("/api/repair-tickets")
       .then((r) => r.json())
       .then((res) => {
         setTickets(res.data ?? []);
         setLastSynced(res.lastSynced ?? "");
       })
-      .finally(() => setLoading(false));
+      .finally(() => { setLoading(false); clearTimeout(slowTimer); });
   };
 
   useEffect(() => { load(); }, []);
 
   const list = filter === "all" ? tickets : tickets.filter((t) => t.status === filter);
 
-  if (loading) return <div className="text-center py-20 text-gray-400">노션에서 불러오는 중...</div>;
+  if (loading) return <LoadingSpinner slow={slowMain} />;
 
   return (
     <div className="fade-in">
