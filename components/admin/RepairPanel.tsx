@@ -33,9 +33,18 @@ const PRIORITY_LABEL: Record<string, string> = {
   "기다릴 수 있어요.": "낮음",
 };
 
+const HW_STATUSES = [
+  "사용중", "재고", "반납예정", "출고준비중", "출고준비완료",
+  "수리", "렌탈", "임시지급", "폐기", "폐기확정(리스트화)", "폐기완료",
+  "3층문서고/매각", "3층문서고/폐기", "지하창고/폐기", "지하창고/매각",
+];
+
 function AssetModal({ assetId, onClose }: { assetId: string; onClose: () => void }) {
   const [state, setState] = useState<"loading" | "found" | "notfound" | "error">("loading");
   const [record, setRecord] = useState<HwRecord | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveResult, setSaveResult] = useState<"idle" | "done" | "error">("idle");
 
   useEffect(() => {
     fetch(`/api/hw?search=${encodeURIComponent(assetId)}`)
@@ -44,11 +53,35 @@ function AssetModal({ assetId, onClose }: { assetId: string; onClose: () => void
         const match = (json.records as HwRecord[])?.find(
           (r) => r.assetNo.toLowerCase() === assetId.toLowerCase()
         );
-        if (match) { setRecord(match); setState("found"); }
+        if (match) { setRecord(match); setSelectedStatus(match.status); setState("found"); }
         else setState("notfound");
       })
       .catch(() => setState("error"));
   }, [assetId]);
+
+  const saveStatus = async () => {
+    if (!record || selectedStatus === record.status) return;
+    setSaving(true);
+    setSaveResult("idle");
+    try {
+      const res = await fetch("/api/hw/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: record.id, fields: { status: selectedStatus } }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setRecord((prev) => prev ? { ...prev, status: selectedStatus } : prev);
+        setSaveResult("done");
+      } else {
+        setSaveResult("error");
+      }
+    } catch {
+      setSaveResult("error");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -102,7 +135,32 @@ function AssetModal({ assetId, onClose }: { assetId: string; onClose: () => void
               <Row label="법인"      value={record.company} />
               <Row label="부서"      value={record.dept} />
               <Row label="위치"      value={record.location} />
-              <Row label="상태"      value={record.status} />
+
+              {/* 상태 변경 */}
+              <div className="flex items-center gap-3 pt-1">
+                <span className="text-xs text-gray-400 w-20 shrink-0">상태</span>
+                <div className="flex items-center gap-2 flex-1">
+                  <select
+                    value={selectedStatus}
+                    onChange={(e) => { setSelectedStatus(e.target.value); setSaveResult("idle"); }}
+                    className="flex-1 text-sm border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  >
+                    {HW_STATUSES.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={saveStatus}
+                    disabled={saving || selectedStatus === record.status}
+                    className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {saving ? "저장 중…" : "저장"}
+                  </button>
+                </div>
+              </div>
+              {saveResult === "done"  && <p className="text-xs text-green-600 pl-24">✓ 상태가 변경되었습니다.</p>}
+              {saveResult === "error" && <p className="text-xs text-red-500 pl-24">저장에 실패했습니다. 다시 시도해주세요.</p>}
+
               <Row label="구매일자"  value={record.purchaseDate} />
               <Row label="사용일자"  value={record.useDate} />
               {record.returnDue  && <Row label="반납예정일" value={record.returnDue} />}
