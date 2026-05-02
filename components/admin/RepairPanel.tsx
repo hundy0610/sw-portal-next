@@ -752,16 +752,6 @@ export default function RepairPanel() {
     return order.filter(p => m.has(p)).map(p => [p, m.get(p)!] as [string, number]);
   }, [tickets]);
 
-  const byAssignee = useMemo(() => {
-    const m = new Map<string, { total: number; done: number }>();
-    tickets.forEach(t => {
-      const a = t.assignee || "미배정";
-      const cur = m.get(a) ?? { total: 0, done: 0 };
-      m.set(a, { total: cur.total + 1, done: cur.done + (t.status === "완료" ? 1 : 0) });
-    });
-    return [...m.entries()].sort((a, b) => b[1].total - a[1].total);
-  }, [tickets]);
-
   const companyMonthly = useMemo(() => {
     const companies = [...new Set(tickets.map(t => t.company).filter(Boolean))].sort();
     return companies.map(company => ({
@@ -1062,56 +1052,197 @@ export default function RepairPanel() {
       )}
 
       {/* ── 담당자 ── */}
-      {tab === "assignee" && (
-        <div className="bg-white border border-gray-200 rounded-xl p-5">
-          <h3 className="text-sm font-bold text-gray-800 mb-4">담당자별 처리 현황</h3>
-          {byAssignee.length === 0 ? (
-            <p className="text-xs text-gray-300 text-center py-6">데이터 없음</p>
-          ) : (
-            <div className="overflow-auto">
-              <table className="w-full text-xs border-collapse">
-                <thead>
-                  <tr className="border-b-2 border-gray-100">
-                    <th className="text-left py-2.5 pr-5 text-gray-500 font-semibold">담당자</th>
-                    <th className="text-center py-2.5 px-4 text-gray-500 font-semibold">전체</th>
-                    <th className="text-center py-2.5 px-4 text-gray-500 font-semibold">완료</th>
-                    <th className="text-center py-2.5 px-4 text-gray-500 font-semibold">완료율</th>
-                    <th className="text-center py-2.5 px-4 text-gray-500 font-semibold">진행 중</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {byAssignee.map(([assignee, { total: t, done: d }]) => {
-                    const inProg = tickets.filter(tick => (tick.assignee || "미배정") === assignee && tick.status === "진행 중").length;
-                    const rate = t > 0 ? Math.round(d / t * 100) : 0;
-                    return (
-                      <tr key={assignee} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                        <td className="py-2.5 pr-5 font-semibold text-gray-700">{assignee}</td>
-                        <td className="text-center py-2.5 px-4 text-gray-600">{t}</td>
-                        <td className="text-center py-2.5 px-4 text-green-600 font-medium">{d}</td>
-                        <td className="text-center py-2.5 px-4">
-                          <span className="text-xs font-bold" style={{ color: rate >= 80 ? "#059669" : rate >= 50 ? "#B45309" : "#DC2626" }}>
-                            {rate}%
+      {tab === "assignee" && (() => {
+        const assignedTickets = tickets.filter(t => t.assignee);
+        const assigneeNames = [...new Set(assignedTickets.map(t => t.assignee))].sort();
+
+        if (assigneeNames.length === 0) return (
+          <div className="bg-white border border-gray-200 rounded-xl p-10 text-center text-gray-400 text-sm">
+            배정된 담당자가 없습니다.<br />
+            <span className="text-xs text-gray-300 mt-1 block">Notion에서 티켓에 담당자를 지정해주세요.</span>
+          </div>
+        );
+
+        const assigneeStats = assigneeNames.map(name => {
+          const myAll       = assignedTickets.filter(t => t.assignee === name);
+          const myDone      = myAll.filter(t => t.status === "완료");
+          const myInProg    = myAll.filter(t => t.status === "진행 중");
+          const allCount    = myAll.length;
+          const doneCount   = myDone.length;
+          const inProgCount = myInProg.length;
+          const notStarted  = allCount - doneCount - inProgCount;
+          const completionRate = allCount > 0 ? Math.round(doneCount / allCount * 100) : 0;
+          const monthlyCount = months.map(m => ({
+            month: m,
+            count: myAll.filter(t => (t.createdAt || "").startsWith(m)).length,
+          }));
+          return { name, allCount, doneCount, inProgCount, notStarted, completionRate, monthlyCount };
+        }).sort((a, b) => b.allCount - a.allCount);
+
+        const totalAssigned = assignedTickets.length;
+        const totalDone     = assignedTickets.filter(t => t.status === "완료").length;
+        const totalInProg   = assignedTickets.filter(t => t.status === "진행 중").length;
+        const totalRate     = totalAssigned > 0 ? Math.round(totalDone / totalAssigned * 100) : 0;
+
+        return (
+          <div className="space-y-4">
+
+            {/* 담당자별 종합 카드 */}
+            <div className="grid grid-cols-1 gap-3">
+              {assigneeStats.map(({ name, allCount, doneCount, inProgCount, completionRate }) => (
+                <div key={name} className="bg-white border border-gray-200 rounded-xl p-5 flex items-center gap-4 flex-wrap">
+                  <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                    <span className="text-sm font-bold text-orange-600">{name.slice(0, 1)}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-gray-800 text-sm">{name}</div>
+                    <div className="text-[10px] text-gray-400 mt-0.5">수리 담당자</div>
+                  </div>
+                  <div className="flex gap-6 flex-wrap">
+                    <div className="text-center">
+                      <div className="text-lg font-extrabold text-gray-800">{allCount}</div>
+                      <div className="text-[10px] text-gray-400 mt-0.5">총 배정</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-extrabold text-green-600">{doneCount}</div>
+                      <div className="text-[10px] text-gray-400 mt-0.5">완료</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-extrabold text-orange-500">{inProgCount}</div>
+                      <div className="text-[10px] text-gray-400 mt-0.5">진행 중</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-extrabold" style={{ color: completionRate >= 80 ? "#059669" : completionRate >= 50 ? "#F59E0B" : "#EF4444" }}>
+                        {completionRate}%
+                      </div>
+                      <div className="text-[10px] text-gray-400 mt-0.5">완료율</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* 처리 통계 요약 테이블 */}
+            <div className="bg-white border border-gray-200 rounded-xl p-5">
+              <h3 className="text-sm font-bold text-gray-800 mb-4">담당자별 처리 통계</h3>
+              <div className="overflow-auto">
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b-2 border-gray-100">
+                      <th className="text-left py-2.5 pr-4 text-gray-500 font-semibold">담당자</th>
+                      <th className="text-center py-2.5 px-3 text-gray-500 font-semibold">총 배정</th>
+                      <th className="text-center py-2.5 px-3 text-gray-500 font-semibold">완료</th>
+                      <th className="text-center py-2.5 px-3 text-gray-500 font-semibold">진행 중</th>
+                      <th className="text-center py-2.5 px-3 text-gray-500 font-semibold">시작 전</th>
+                      <th className="text-center py-2.5 px-3 text-gray-500 font-semibold">완료율</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {assigneeStats.map(({ name, allCount, doneCount, inProgCount, notStarted, completionRate }) => (
+                      <tr key={name} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                        <td className="py-2.5 pr-4">
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-6 h-6 rounded-full bg-orange-100 inline-flex items-center justify-center text-[10px] font-bold text-orange-600 flex-shrink-0">
+                              {name.slice(0, 1)}
+                            </span>
+                            <span className="font-medium text-gray-700">{name}</span>
                           </span>
                         </td>
-                        <td className="text-center py-2.5 px-4 text-orange-600 font-medium">{inProg}</td>
+                        <td className="text-center py-2.5 px-3 font-bold text-gray-800">{allCount}</td>
+                        <td className="text-center py-2.5 px-3 font-bold text-green-600">{doneCount}</td>
+                        <td className="text-center py-2.5 px-3 text-orange-500 font-medium">{inProgCount}</td>
+                        <td className="text-center py-2.5 px-3 text-gray-400">{notStarted > 0 ? notStarted : "—"}</td>
+                        <td className="text-center py-2.5 px-3">
+                          <span className="font-bold" style={{ color: completionRate >= 80 ? "#059669" : completionRate >= 50 ? "#F59E0B" : "#EF4444" }}>
+                            {completionRate}%
+                          </span>
+                        </td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-gray-200 bg-gray-50 font-bold">
-                    <td className="py-2.5 pr-5 text-gray-700">합계</td>
-                    <td className="text-center py-2.5 px-4 text-gray-700">{total}</td>
-                    <td className="text-center py-2.5 px-4 text-green-600">{done}</td>
-                    <td className="text-center py-2.5 px-4 text-gray-700">{total > 0 ? Math.round(done / total * 100) : 0}%</td>
-                    <td className="text-center py-2.5 px-4 text-orange-600">{inProgress}</td>
-                  </tr>
-                </tfoot>
-              </table>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-gray-200 bg-gray-50 font-bold">
+                      <td className="py-2.5 pr-4 text-gray-700">합계</td>
+                      <td className="text-center py-2.5 px-3 text-gray-700">{totalAssigned}</td>
+                      <td className="text-center py-2.5 px-3 text-green-600">{totalDone}</td>
+                      <td className="text-center py-2.5 px-3 text-orange-500">{totalInProg}</td>
+                      <td className="text-center py-2.5 px-3 text-gray-400">
+                        {totalAssigned - totalDone - totalInProg > 0 ? totalAssigned - totalDone - totalInProg : "—"}
+                      </td>
+                      <td className="text-center py-2.5 px-3 text-gray-700">{totalRate}%</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
             </div>
-          )}
-        </div>
-      )}
+
+            {/* 월별 처리 현황 */}
+            <div className="bg-white border border-gray-200 rounded-xl p-5">
+              <h3 className="text-sm font-bold text-gray-800 mb-4">
+                담당자별 월별 처리 현황
+                <span className="text-xs font-normal text-gray-400 ml-2">최근 6개월</span>
+              </h3>
+              <div className="overflow-auto">
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b-2 border-gray-100">
+                      <th className="text-left py-2.5 pr-6 text-gray-500 font-semibold whitespace-nowrap">담당자</th>
+                      {months.map(m => (
+                        <th key={m} className="text-center py-2.5 px-4 text-gray-500 font-semibold whitespace-nowrap">
+                          {monthLabel(m)}
+                        </th>
+                      ))}
+                      <th className="text-center py-2.5 px-4 text-gray-700 font-bold">합계</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {assigneeStats.map(({ name, allCount, monthlyCount }) => {
+                      const colMax = Math.max(...monthlyCount.map(m => m.count), 1);
+                      return (
+                        <tr key={name} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                          <td className="py-3 pr-6 whitespace-nowrap">
+                            <span className="flex items-center gap-1.5">
+                              <span className="w-6 h-6 rounded-full bg-orange-100 inline-flex items-center justify-center text-[10px] font-bold text-orange-600 flex-shrink-0">
+                                {name.slice(0, 1)}
+                              </span>
+                              <span className="font-semibold text-gray-700">{name}</span>
+                            </span>
+                          </td>
+                          {monthlyCount.map(({ month, count }) => {
+                            const intensity = count > 0 ? 0.3 + (count / colMax) * 0.7 : 0;
+                            return (
+                              <td key={month} className="text-center py-3 px-4">
+                                {count > 0 ? (
+                                  <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-white text-[11px] font-bold"
+                                    style={{ background: `rgba(249,115,22,${intensity})` }}>
+                                    {count}
+                                  </span>
+                                ) : <span className="text-gray-200">—</span>}
+                              </td>
+                            );
+                          })}
+                          <td className="text-center py-3 px-4 font-bold text-gray-800">{allCount}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-gray-200 bg-gray-50">
+                      <td className="py-2.5 pr-6 font-bold text-gray-700">합계</td>
+                      {months.map((m, mi) => {
+                        const sum = assigneeStats.reduce((s, stat) => s + stat.monthlyCount[mi].count, 0);
+                        return <td key={m} className="text-center py-2.5 px-4 font-bold text-gray-700">{sum || "—"}</td>;
+                      })}
+                      <td className="text-center py-2.5 px-4 font-bold text-gray-900">{totalAssigned}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        );
+      })()}
 
       {/* ── 목록 ── */}
       {tab === "list" && (
