@@ -33,8 +33,10 @@ const date = (p: Props, k: string) => {
 
 const num = (p: Props, k: string) => {
   const v = p[k];
-  if (!v || v.type !== "number") return 0;
-  return v.number ?? 0;
+  if (!v) return 0;
+  if (v.type === "number") return v.number ?? 0;
+  if (v.type === "formula" && v.formula.type === "number") return v.formula.number ?? 0;
+  return 0;
 };
 
 function mapPage(page: PageObjectResponse) {
@@ -58,6 +60,7 @@ function mapPage(page: PageObjectResponse) {
     purchaseDate: date(p, "구매일자"),
     useDate:      date(p, "사용일자"),
     price:        num(p, "단가"),
+    residualValue: num(p, "잔존가치"),
     note:         txt(p, "기타"),
     docNo:        txt(p, "결재문서번호"),
     verified:     p["실사확인"]?.type === "checkbox" ? p["실사확인"].checkbox : false,

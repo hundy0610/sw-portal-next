@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchAllHwRecords, computeHwStats, type HwRecord } from "@/lib/hw";
 import { kvGet, kvSet } from "@/lib/kv-store";
-import { memGet, memSet } from "@/lib/mem-cache";
+import { memGet, memSet, memDel } from "@/lib/mem-cache";
 
 export const dynamic = "force-dynamic";
 
@@ -12,8 +12,12 @@ export async function GET(req: NextRequest) {
   const status    = searchParams.get("status")?.trim()    || "";
   const location  = searchParams.get("location")?.trim()  || "";
   const returnDue = searchParams.get("returnDue") === "1";
+  const refresh   = searchParams.get("refresh") === "1";
 
   try {
+    // refresh=1 이면 인메모리 캐시 무효화
+    if (refresh) memDel("hw:all", "hw:stats");
+
     // 1. 인메모리 캐시 (0ms)
     let records = memGet<HwRecord[]>("hw:all");
 
