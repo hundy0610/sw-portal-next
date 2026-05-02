@@ -33,8 +33,10 @@ const date = (p: Props, k: string) => {
 
 const num = (p: Props, k: string) => {
   const v = p[k];
-  if (!v || v.type !== "number") return 0;
-  return v.number ?? 0;
+  if (!v) return 0;
+  if (v.type === "number") return v.number ?? 0;
+  if (v.type === "formula" && v.formula.type === "number") return v.formula.number ?? 0;
+  return 0;
 };
 
 function mapPage(page: PageObjectResponse) {
