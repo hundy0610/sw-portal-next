@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import type { HelpDeskTicket } from "@/lib/notion";
 import type { FeedbackEntry } from "@/app/api/feedback/route";
+import { AssetModalInner, HwRecord, HW_STATUSES } from "@/components/admin/AssetModal";
 
 // ── Color configs ────────────────────────────────────────────
 const URGENCY: Record<string, { bg: string; text: string; bar: string }> = {
@@ -12,6 +13,7 @@ const URGENCY: Record<string, { bg: string; text: string; bar: string }> = {
 };
 
 const STATUS: Record<string, { bg: string; text: string }> = {
+  "시작 전": { bg: "#F8FAFC", text: "#64748B" },
   "진행 중": { bg: "#EFF6FF", text: "#1D4ED8" },
   "완료":    { bg: "#F0FDF4", text: "#059669" },
 };
@@ -141,6 +143,427 @@ function oneYearAgo(): string {
   const d = new Date();
   d.setFullYear(d.getFullYear() - 1);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+// ── Inline Table Cells ───────────────────────────────────────
+function InlineStatusCell({
+  ticket,
+  statuses,
+  onUpdated,
+}: {
+  ticket: HelpDeskTicket;
+  statuses: string[];
+  onUpdated: (id: string, fields: Partial<HelpDeskTicket>) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [result, setResult] = useState<"idle" | "done" | "error">("idle");
+
+  const handleChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newStatus = e.target.value;
+    setSaving(true); setResult("idle");
+    try {
+      const res = await fetch("/api/helpdesk/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: ticket.id, fields: { status: newStatus } }),
+      });
+      const json = await res.json();
+      if (json.ok) { onUpdated(ticket.id, { status: newStatus }); setResult("done"); }
+      else setResult("error");
+    } catch { setResult("error"); }
+    finally { setSaving(false); setTimeout(() => setResult("idle"), 2000); }
+  };
+
+  const c = STATUS[ticket.status] ?? { bg: "#F1F5F9", text: "#64748B" };
+  return (
+    <div className="flex items-center gap-1">
+      <select
+        value={ticket.status}
+        onChange={handleChange}
+        disabled={saving}
+        style={{ background: c.bg, color: c.text }}
+        className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-transparent focus:outline-none focus:ring-1 focus:ring-violet-200 cursor-pointer disabled:opacity-50 appearance-none"
+      >
+        {/* 현재 상태가 목록에 없는 경우 fallback */}
+        {ticket.status && !statuses.includes(ticket.status) && (
+          <option value={ticket.status}>{ticket.status}</option>
+        )}
+        {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+      </select>
+      {saving && (
+        <svg className="animate-spin w-3 h-3 text-gray-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity="0.25"/><path d="M21 12a9 9 0 00-9-9"/>
+        </svg>
+      )}
+      {result === "done"  && <span className="text-[9px] text-green-600 flex-shrink-0">✓</span>}
+      {result === "error" && <span className="text-[9px] text-red-500 flex-shrink-0">!</span>}
+    </div>
+  );
+}
+
+function InlineAssigneeCell({
+  ticket,
+  assigneeList,
+  onUpdated,
+}: {
+  ticket: HelpDeskTicket;
+  assigneeList: { id: string; name: string }[];
+  onUpdated: (id: string, fields: Partial<HelpDeskTicket>) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [result, setResult] = useState<"idle" | "done" | "error">("idle");
+
+  const handleChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newName = e.target.value;
+    setSaving(true); setResult("idle");
+    try {
+      const found = assigneeList.find(u => u.name === newName);
+      const res = await fetch("/api/helpdesk/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: ticket.id, fields: { assigneeId: found?.id ?? "" } }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        onUpdated(ticket.id, { assignee: newName || undefined, assigneeId: found?.id ?? undefined });
+        setResult("done");
+      } else setResult("error");
+    } catch { setResult("error"); }
+    finally { setSaving(false); setTimeout(() => setResult("idle"), 2000); }
+  };
+
+  return (
+    <div className="flex items-center gap-1">
+      <select
+        value={ticket.assignee ?? ""}
+        onChange={handleChange}
+        disabled={saving}
+        className="text-xs text-gray-600 border border-transparent hover:border-gray-200 bg-transparent focus:outline-none focus:ring-1 focus:ring-violet-200 rounded-lg px-1 py-0.5 cursor-pointer disabled:opacity-50 max-w-[96px]"
+      >
+        <option value="">미배정</option>
+        {ticket.assignee && !assigneeList.find(u => u.name === ticket.assignee) && (
+          <option value={ticket.assignee}>{ticket.assignee}</option>
+        )}
+        {assigneeList.map(u => <option key={u.id || u.name} value={u.name}>{u.name}</option>)}
+      </select>
+      {saving && (
+        <svg className="animate-spin w-3 h-3 text-gray-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity="0.25"/><path d="M21 12a9 9 0 00-9-9"/>
+        </svg>
+      )}
+      {result === "done"  && <span className="text-[9px] text-green-600 flex-shrink-0">✓</span>}
+      {result === "error" && <span className="text-[9px] text-red-500 flex-shrink-0">!</span>}
+    </div>
+  );
+}
+
+// ── HelpDesk Ticket Detail Modal ─────────────────────────────
+const HELPDESK_EDIT_STATUSES = ["시작 전", "진행 중", "완료"] as const;
+
+function HelpDeskTicketFloating({
+  ticket,
+  assigneeList,
+  statuses,
+  onClose,
+  onUpdated,
+}: {
+  ticket: HelpDeskTicket;
+  assigneeList: { id: string; name: string }[];
+  statuses: string[];
+  onClose: () => void;
+  onUpdated?: (id: string, fields: Partial<HelpDeskTicket>) => void;
+}) {
+  const [selectedStatus,   setSelectedStatus]   = useState(ticket.status);
+  const [selectedAssignee, setSelectedAssignee] = useState(ticket.assignee ?? "");
+  const [saving,    setSaving]    = useState<"status" | "assignee" | null>(null);
+  const [saveResult,setSaveResult]= useState<Record<string, "done" | "error">>({});
+  const [copied,    setCopied]    = useState(false);
+  const [assetData,       setAssetData]       = useState<HwRecord | null>(null);
+  const [assetState,      setAssetState]      = useState<"idle" | "loading" | "found" | "notfound" | "error">("idle");
+  const [assetStatus,     setAssetStatus]     = useState("");
+  const [assetSaving,     setAssetSaving]     = useState(false);
+  const [assetSaveResult, setAssetSaveResult] = useState<"idle" | "done" | "error">("idle");
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const copyRequester = () => {
+    navigator.clipboard.writeText(ticket.requester || "").then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  const loadAsset = () => {
+    if (!ticket.assetNo || assetState === "loading") return;
+    setAssetState("loading");
+    fetch(`/api/hw?search=${encodeURIComponent(ticket.assetNo)}`)
+      .then(r => r.json())
+      .then(json => {
+        const match = (json.records as HwRecord[])?.find(
+          r => r.assetNo.toLowerCase() === ticket.assetNo.toLowerCase()
+        );
+        if (match) { setAssetData(match); setAssetStatus(match.status); setAssetState("found"); }
+        else setAssetState("notfound");
+      })
+      .catch(() => setAssetState("error"));
+  };
+
+  const saveAssetStatus = async () => {
+    if (!assetData || assetStatus === assetData.status) return;
+    setAssetSaving(true); setAssetSaveResult("idle");
+    try {
+      const res = await fetch("/api/hw/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: assetData.id, fields: { status: assetStatus } }),
+      });
+      const json = await res.json();
+      if (json.ok) { setAssetData(prev => prev ? { ...prev, status: assetStatus } : prev); setAssetSaveResult("done"); }
+      else setAssetSaveResult("error");
+    } catch { setAssetSaveResult("error"); }
+    finally { setAssetSaving(false); }
+  };
+
+  const saveField = async (field: "status" | "assignee") => {
+    setSaving(field);
+    setSaveResult(prev => ({ ...prev, [field]: undefined as unknown as "done" }));
+    try {
+      const fields: Record<string, string> = {};
+      if (field === "status") {
+        fields.status = selectedStatus;
+      } else {
+        const found = assigneeList.find(u => u.name === selectedAssignee);
+        fields.assigneeId = found?.id ?? "";
+      }
+      const res = await fetch("/api/helpdesk/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: ticket.id, fields }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setSaveResult(prev => ({ ...prev, [field]: "done" }));
+        if (field === "status")   onUpdated?.(ticket.id, { status: selectedStatus });
+        if (field === "assignee") onUpdated?.(ticket.id, { assignee: selectedAssignee });
+      } else setSaveResult(prev => ({ ...prev, [field]: "error" }));
+    } catch { setSaveResult(prev => ({ ...prev, [field]: "error" })); }
+    finally { setSaving(null); }
+  };
+
+  const DR = ({ label, children }: { label: string; children: React.ReactNode }) => (
+    <div className="flex items-start gap-4 py-3 border-b border-gray-50 last:border-0">
+      <span className="text-xs text-gray-400 w-20 shrink-0 pt-0.5">{label}</span>
+      <div className="flex-1 text-sm text-gray-800">{children}</div>
+    </div>
+  );
+
+  const allStatuses = [...new Set([...HELPDESK_EDIT_STATUSES, ...statuses])];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: "rgba(0,0,0,0.4)" }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden"
+        style={{ maxHeight: "88vh", overflowY: "auto" }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-7 py-5 border-b border-gray-100 flex items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              {ticket.inquiryType && (
+                <span className="text-[11px] font-semibold text-violet-700 bg-violet-50 px-2 py-0.5 rounded">
+                  {ticket.inquiryType}
+                </span>
+              )}
+              {ticket.urgency && <UrgencyBadge urgency={ticket.urgency} />}
+            </div>
+            <h2 className="text-lg font-bold text-gray-900 leading-snug">
+              {ticket.content || ticket.title || "—"}
+            </h2>
+          </div>
+          <button onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 text-2xl leading-none w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 shrink-0">
+            ×
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-7 py-1">
+          {/* 상태 변경 */}
+          <DR label="상태">
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedStatus}
+                onChange={e => { setSelectedStatus(e.target.value); setSaveResult(p => ({ ...p, status: undefined as unknown as "done" })); }}
+                className="text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-violet-200"
+              >
+                {allStatuses.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <button
+                onClick={() => saveField("status")}
+                disabled={saving === "status" || selectedStatus === ticket.status}
+                className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                {saving === "status" ? "저장 중…" : "저장"}
+              </button>
+              {saveResult.status === "done"  && <span className="text-xs text-green-600">✓ 변경됨</span>}
+              {saveResult.status === "error" && <span className="text-xs text-red-500">실패</span>}
+            </div>
+          </DR>
+
+          {/* 문의자 */}
+          <DR label="문의자">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={copyRequester}
+                className="text-sm text-gray-800 hover:text-blue-600 transition-colors flex items-center gap-1.5 group"
+                title="클릭하여 복사"
+              >
+                {ticket.requester || "—"}
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                  className="opacity-30 group-hover:opacity-70">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                </svg>
+              </button>
+              {copied && <span className="text-xs text-green-600 font-medium">복사됨!</span>}
+              {ticket.company && <span className="text-gray-400 text-xs">· {ticket.company}</span>}
+            </div>
+          </DR>
+
+          {ticket.department && <DR label="부서"><span>{ticket.department}</span></DR>}
+          {ticket.assetNo && (
+            <DR label="자산번호">
+              <div>
+                <button
+                  onClick={loadAsset}
+                  className="font-mono text-blue-600 hover:underline hover:text-blue-700 transition-colors text-sm"
+                >
+                  {ticket.assetNo}
+                </button>
+                {assetState === "loading" && (
+                  <div className="mt-3 flex items-center gap-2 text-xs text-gray-400">
+                    <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity="0.25"/><path d="M21 12a9 9 0 00-9-9"/>
+                    </svg>
+                    불러오는 중...
+                  </div>
+                )}
+                {assetState === "notfound" && <p className="mt-2 text-xs text-gray-400">트래커 DB에서 찾을 수 없습니다.</p>}
+                {assetState === "error"    && <p className="mt-2 text-xs text-red-400">조회 중 오류가 발생했습니다.</p>}
+                {assetState === "found" && assetData && (
+                  <div className="mt-3 bg-gray-50 rounded-xl p-4 space-y-2 text-sm">
+                    {([ ["사용자", assetData.user], ["모델명", assetData.model], ["시리얼", assetData.serial],
+                        ["제조사", assetData.maker], ["CPU", assetData.cpu], ["RAM", assetData.ram],
+                        ["법인", assetData.company], ["부서", assetData.dept],
+                    ] as [string, string][]).map(([label, value]) => value ? (
+                      <div key={label} className="flex gap-3">
+                        <span className="text-xs text-gray-400 w-16 shrink-0">{label}</span>
+                        <span className="text-gray-700">{value}</span>
+                      </div>
+                    ) : null)}
+                    {assetData.price > 0 && (
+                      <div className="flex gap-3">
+                        <span className="text-xs text-gray-400 w-16 shrink-0">단가</span>
+                        <span className="text-gray-700">{assetData.price.toLocaleString()}원</span>
+                      </div>
+                    )}
+                    {assetData.residualValue > 0 && (
+                      <div className="flex gap-3">
+                        <span className="text-xs text-gray-400 w-16 shrink-0">잔존가치</span>
+                        <span className="text-gray-700 font-medium">{assetData.residualValue.toLocaleString()}원</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 pt-1">
+                      <span className="text-xs text-gray-400 w-16 shrink-0">상태</span>
+                      <select
+                        value={assetStatus}
+                        onChange={e => { setAssetStatus(e.target.value); setAssetSaveResult("idle"); }}
+                        className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none"
+                      >
+                        {HW_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                      <button
+                        onClick={saveAssetStatus}
+                        disabled={assetSaving || assetStatus === assetData.status}
+                        className="text-xs px-2.5 py-1 rounded-lg bg-gray-700 text-white font-medium hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {assetSaving ? "저장 중…" : "저장"}
+                      </button>
+                      {assetSaveResult === "done"  && <span className="text-xs text-green-600">✓</span>}
+                      {assetSaveResult === "error" && <span className="text-xs text-red-500">실패</span>}
+                    </div>
+                    {assetData.notionUrl && (
+                      <a href={assetData.notionUrl} target="_blank" rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:underline flex items-center gap-1 pt-1">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
+                          <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                        </svg>
+                        노션에서 보기
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
+            </DR>
+          )}
+
+          {/* 담당자 변경 */}
+          <DR label="담당자">
+            <div className="flex items-center gap-2 flex-wrap">
+              <select
+                value={selectedAssignee}
+                onChange={e => { setSelectedAssignee(e.target.value); setSaveResult(p => ({ ...p, assignee: undefined as unknown as "done" })); }}
+                className="text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-violet-200"
+              >
+                <option value="">미배정</option>
+                {ticket.assignee && !assigneeList.find(u => u.name === ticket.assignee) && (
+                  <option value={ticket.assignee}>{ticket.assignee}</option>
+                )}
+                {assigneeList.map(u => <option key={u.id || u.name} value={u.name}>{u.name}</option>)}
+              </select>
+              <button
+                onClick={() => saveField("assignee")}
+                disabled={saving === "assignee" || selectedAssignee === (ticket.assignee ?? "")}
+                className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                {saving === "assignee" ? "저장 중…" : "저장"}
+              </button>
+              {saveResult.assignee === "done"  && <span className="text-xs text-green-600">✓ 변경됨</span>}
+              {saveResult.assignee === "error" && <span className="text-xs text-red-500">실패</span>}
+            </div>
+          </DR>
+
+          {ticket.submittedAt && (
+            <DR label="접수일"><span>{ticket.submittedAt.slice(0, 10)}</span></DR>
+          )}
+        </div>
+
+        {/* Footer */}
+        {ticket.notionUrl && (
+          <div className="px-7 py-4 border-t border-gray-100">
+            <a href={ticket.notionUrl} target="_blank" rel="noopener noreferrer"
+              className="text-sm text-blue-600 hover:underline flex items-center gap-1.5">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
+                <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+              </svg>
+              노션에서 보기
+            </a>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 // ── Sub-components ───────────────────────────────────────────
@@ -474,7 +897,7 @@ function generateReportHTML(opts: {
 }
 
 // ── Main Panel ───────────────────────────────────────────────
-type Tab = "overview" | "type" | "company" | "list" | "report" | "assignee" | "repeat";
+type Tab = "overview" | "type" | "company" | "list" | "status_list" | "report" | "assignee" | "repeat";
 
 export default function HelpDeskPanel({ company: companyFilter = "" }: { company?: string }) {
   const [tickets, setTickets]       = useState<HelpDeskTicket[]>([]);
@@ -484,12 +907,36 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
   const [tab, setTab]               = useState<Tab>("overview");
   const [feedbacks, setFeedbacks]   = useState<Record<string, FeedbackEntry>>({});
   const [copiedId, setCopiedId]     = useState<string | null>(null);
+  const [copiedRequesterId, setCopiedRequesterId] = useState<string | null>(null);
+  const [modalAssetId, setModalAssetId] = useState<string | null>(null);
+  const [floatingTicket, setFloatingTicket] = useState<HelpDeskTicket | null>(null);
   const [sendingEmail, setSendingEmail] = useState<string | null>(null);
   const [emailSentIds, setEmailSentIds] = useState<Set<string>>(new Set());
 
   const [listFilter, setListFilter] = useState({
     status: "all", type: "all", company: "all", urgency: "all", search: "",
   });
+
+  const assigneeList = useMemo(() => {
+    const seen = new Map<string, string>();
+    tickets.forEach(t => {
+      if (t.assignee) seen.set(t.assigneeId || `name:${t.assignee}`, t.assignee);
+    });
+    const EXCLUDED = ["이상목", "조성빈"];
+    return [...seen.entries()].map(([id, name]) => ({ id: id.startsWith("name:") ? "" : id, name }))
+      .filter(({ name }) => !EXCLUDED.includes(name))
+      .sort((a, b) => a.name.localeCompare(b.name, "ko"));
+  }, [tickets]);
+
+  const uniqueStatuses = useMemo(() => {
+    const fromData = [...new Set(tickets.map(t => t.status).filter(Boolean))].sort();
+    const defaults = ["시작 전", "진행 중", "완료"];
+    return [...new Set([...defaults, ...fromData])];
+  }, [tickets]);
+
+  const handleTicketUpdated = useCallback((id: string, fields: Partial<HelpDeskTicket>) => {
+    setTickets(prev => prev.map(t => t.id === id ? { ...t, ...fields } : t));
+  }, []);
 
   // Report state
   const [reportCompany,    setReportCompany]    = useState("all");
@@ -771,6 +1218,7 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
           ["assignee",  "👤", "담당자"],
           ["repeat",    "🔁", "반복분석"],
           ["list",      "📋", "목록"],
+          ["status_list", "📊", "접수 현황"],
           ["report",    "📄", "보고서"],
         ] as [Tab, string, string][]).map(([id, icon, label]) => (
           <button key={id} onClick={() => setTab(id)}
@@ -1124,6 +1572,151 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
             </table>
           </div>
         </div>
+      )}
+
+      {/* ════ Tab: 접수 현황 */}
+      {tab === "status_list" && (
+        <div className="space-y-3">
+          <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-wrap gap-3 items-center">
+            <input
+              type="text"
+              placeholder="내용 · 요청자 · 부서 검색..."
+              value={listFilter.search}
+              onChange={e => setListFilter(f => ({ ...f, search: e.target.value }))}
+              className="flex-1 min-w-48 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-violet-200"
+            />
+            {([
+              { key: "status",  opts: ["all","진행 중","완료"],   label: "전체 상태" },
+              { key: "type",    opts: ["all",...uniqueTypes],       label: "전체 유형" },
+              { key: "company", opts: ["all",...uniqueCompanies],   label: "전체 법인" },
+              { key: "urgency", opts: ["all",...uniqueUrgencies],   label: "전체 긴급도" },
+            ] as { key: string; opts: string[]; label: string }[]).map(({ key, opts, label }) => (
+              <select key={key}
+                value={(listFilter as Record<string, string>)[key]}
+                onChange={e => setListFilter(f => ({ ...f, [key]: e.target.value }))}
+                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none">
+                <option value="all">{label}</option>
+                {opts.filter(o => o !== "all").map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            ))}
+            {(listFilter.status !== "all" || listFilter.type !== "all" || listFilter.company !== "all" || listFilter.urgency !== "all" || listFilter.search) && (
+              <button
+                onClick={() => setListFilter({ status: "all", type: "all", company: "all", urgency: "all", search: "" })}
+                className="text-xs text-gray-400 hover:text-gray-600 underline"
+              >
+                초기화
+              </button>
+            )}
+            <span className="text-xs text-gray-400 ml-auto">{filteredList.length}건</span>
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-xl overflow-auto">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  {["상태","유형","긴급도","법인","부서","문의자","자산번호","문의내용","접수일","담당자","노션"].map(h => (
+                    <th key={h}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredList.length === 0 ? (
+                  <tr><td colSpan={11} className="text-center text-gray-400 py-10">데이터 없음</td></tr>
+                ) : filteredList.map(t => (
+                  <tr key={t.id}>
+                    <td><InlineStatusCell ticket={t} statuses={uniqueStatuses} onUpdated={handleTicketUpdated} /></td>
+                    <td>
+                      <span className="text-[10px] font-semibold text-violet-700 bg-violet-50 px-1.5 py-0.5 rounded whitespace-nowrap">
+                        {t.inquiryType || "—"}
+                      </span>
+                    </td>
+                    <td><UrgencyBadge urgency={t.urgency} /></td>
+                    <td className="text-sm text-gray-600 whitespace-nowrap">{t.company || "—"}</td>
+                    <td className="text-sm text-gray-500 max-w-[7rem]">
+                      <p className="truncate" title={t.department}>{t.department || "—"}</p>
+                    </td>
+                    <td>
+                      {t.requester ? (
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(t.requester);
+                            setCopiedRequesterId(t.id);
+                            setTimeout(() => setCopiedRequesterId(prev => prev === t.id ? null : prev), 2000);
+                          }}
+                          className="text-sm text-gray-600 hover:text-violet-600 transition-colors flex items-center gap-1 group"
+                          title="클릭하여 복사"
+                        >
+                          {t.requester}
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                            className="opacity-0 group-hover:opacity-50 transition-opacity flex-shrink-0">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                            <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                          </svg>
+                          {copiedRequesterId === t.id && (
+                            <span className="text-[9px] text-green-600 font-medium">복사됨</span>
+                          )}
+                        </button>
+                      ) : (
+                        <span className="text-sm text-gray-400">—</span>
+                      )}
+                    </td>
+                    <td className="text-sm font-mono">
+                      {t.assetNo ? (
+                        <button
+                          onClick={() => setModalAssetId(t.assetNo)}
+                          className="text-blue-600 hover:underline hover:text-blue-700 transition-colors"
+                        >
+                          {t.assetNo}
+                        </button>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </td>
+                    <td className="max-w-xs">
+                      <button
+                        onClick={e => { e.stopPropagation(); setFloatingTicket(t); }}
+                        className="text-left w-full hover:text-violet-600 transition-colors"
+                      >
+                        <p className="truncate text-gray-700 text-sm underline decoration-dotted underline-offset-2" title={t.content || t.title}>
+                          {t.content || t.title || "—"}
+                        </p>
+                      </button>
+                    </td>
+                    <td className="text-xs text-gray-400 whitespace-nowrap">
+                      {(t.submittedAt || "").slice(0, 10) || "—"}
+                    </td>
+                    <td><InlineAssigneeCell ticket={t} assigneeList={assigneeList} onUpdated={handleTicketUpdated} /></td>
+                    <td>
+                      {t.notionUrl && (
+                        <a href={t.notionUrl} target="_blank" rel="noopener noreferrer"
+                          className="text-blue-600 text-xs flex items-center gap-1 hover:underline">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
+                            <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                          </svg>
+                          보기
+                        </a>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {modalAssetId && (
+        <AssetModalInner assetId={modalAssetId} onClose={() => setModalAssetId(null)} />
+      )}
+      {floatingTicket && (
+        <HelpDeskTicketFloating
+          ticket={floatingTicket}
+          assigneeList={assigneeList}
+          statuses={uniqueStatuses}
+          onClose={() => setFloatingTicket(null)}
+          onUpdated={handleTicketUpdated}
+        />
       )}
 
       {/* ════ Tab: 담당자 */}
