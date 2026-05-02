@@ -338,6 +338,111 @@ function AssetModalInner({ assetId, onClose }: { assetId: string; onClose: () =>
   );
 }
 
+// ── Inline Table Cells ───────────────────────────────────────
+const REPAIR_STATUSES_CONST = ["시작 전", "진행 중", "완료", "이관", "기타"] as const;
+
+function InlineStatusCell({
+  ticket,
+  onUpdated,
+}: {
+  ticket: RepairTicket;
+  onUpdated: (id: string, fields: Partial<RepairTicket>) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [result, setResult] = useState<"idle" | "done" | "error">("idle");
+
+  const handleChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newStatus = e.target.value as RepairTicket["status"];
+    setSaving(true); setResult("idle");
+    try {
+      const res = await fetch("/api/repair-tickets/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: ticket.id, fields: { status: newStatus } }),
+      });
+      const json = await res.json();
+      if (json.ok) { onUpdated(ticket.id, { status: newStatus }); setResult("done"); }
+      else setResult("error");
+    } catch { setResult("error"); }
+    finally { setSaving(false); setTimeout(() => setResult("idle"), 2000); }
+  };
+
+  const c = STATUS_STYLE[ticket.status] ?? { bg: "#F1F5F9", text: "#64748B" };
+  return (
+    <div className="flex items-center gap-1">
+      <select
+        value={ticket.status}
+        onChange={handleChange}
+        disabled={saving}
+        style={{ background: c.bg, color: c.text }}
+        className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-transparent focus:outline-none focus:ring-1 focus:ring-orange-200 cursor-pointer disabled:opacity-50 appearance-none"
+      >
+        {REPAIR_STATUSES_CONST.map(s => <option key={s} value={s}>{s}</option>)}
+      </select>
+      {saving && (
+        <svg className="animate-spin w-3 h-3 text-gray-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity="0.25"/><path d="M21 12a9 9 0 00-9-9"/>
+        </svg>
+      )}
+      {result === "done"  && <span className="text-[9px] text-green-600 flex-shrink-0">✓</span>}
+      {result === "error" && <span className="text-[9px] text-red-500 flex-shrink-0">!</span>}
+    </div>
+  );
+}
+
+function InlineAssigneeCell({
+  ticket,
+  assigneeList,
+  onUpdated,
+}: {
+  ticket: RepairTicket;
+  assigneeList: { id: string; name: string }[];
+  onUpdated: (id: string, fields: Partial<RepairTicket>) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [result, setResult] = useState<"idle" | "done" | "error">("idle");
+
+  const handleChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newName = e.target.value;
+    setSaving(true); setResult("idle");
+    try {
+      const found = assigneeList.find(u => u.name === newName);
+      const res = await fetch("/api/repair-tickets/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: ticket.id, fields: { assigneeId: found?.id ?? "" } }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        onUpdated(ticket.id, { assignee: newName || undefined, assigneeId: found?.id ?? undefined });
+        setResult("done");
+      } else setResult("error");
+    } catch { setResult("error"); }
+    finally { setSaving(false); setTimeout(() => setResult("idle"), 2000); }
+  };
+
+  return (
+    <div className="flex items-center gap-1">
+      <select
+        value={ticket.assignee ?? ""}
+        onChange={handleChange}
+        disabled={saving}
+        className="text-xs text-gray-600 border border-transparent hover:border-gray-200 bg-transparent focus:outline-none focus:ring-1 focus:ring-orange-200 rounded-lg px-1 py-0.5 cursor-pointer disabled:opacity-50 max-w-[96px]"
+      >
+        <option value="">미배정</option>
+        {assigneeList.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+      </select>
+      {saving && (
+        <svg className="animate-spin w-3 h-3 text-gray-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity="0.25"/><path d="M21 12a9 9 0 00-9-9"/>
+        </svg>
+      )}
+      {result === "done"  && <span className="text-[9px] text-green-600 flex-shrink-0">✓</span>}
+      {result === "error" && <span className="text-[9px] text-red-500 flex-shrink-0">!</span>}
+    </div>
+  );
+}
+
 // ── Ticket Detail Modal ───────────────────────────────────────
 function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
   ticket: RepairTicket;
@@ -679,6 +784,7 @@ export default function RepairPanel() {
   const [tab, setTab]               = useState<Tab>("overview");
   const [modalAssetId, setModalAssetId] = useState<string | null>(null);
   const [floatingTicket, setFloatingTicket] = useState<{ ticket: RepairTicket; rect: DOMRect } | null>(null);
+  const [copiedRequesterId, setCopiedRequesterId] = useState<string | null>(null);
 
   // 실제 티켓 데이터에서 담당자 목록 추출 (중복 제거)
   const assigneeList = useMemo(() => {
@@ -1317,7 +1423,7 @@ export default function RepairPanel() {
                 ) : filteredList.map(t => (
                   <tr key={t.id}>
                     <td className="text-xs text-gray-400 font-mono">{t.ticketNumber || "—"}</td>
-                    <td><StatusBadge status={t.status} /></td>
+                    <td><InlineStatusCell ticket={t} onUpdated={handleTicketUpdated} /></td>
                     <td className="text-sm text-gray-600">{t.company || "—"}</td>
                     <td className="text-sm font-mono">
                       {t.assetId ? (
@@ -1331,7 +1437,31 @@ export default function RepairPanel() {
                         <span className="text-gray-400">—</span>
                       )}
                     </td>
-                    <td className="text-sm text-gray-600">{t.requester || "—"}</td>
+                    <td>
+                      {t.requester ? (
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(t.requester);
+                            setCopiedRequesterId(t.id);
+                            setTimeout(() => setCopiedRequesterId(prev => prev === t.id ? null : prev), 2000);
+                          }}
+                          className="text-sm text-gray-600 hover:text-blue-600 transition-colors flex items-center gap-1 group"
+                          title="클릭하여 복사"
+                        >
+                          {t.requester}
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                            className="opacity-0 group-hover:opacity-50 transition-opacity flex-shrink-0">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                            <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                          </svg>
+                          {copiedRequesterId === t.id && (
+                            <span className="text-[9px] text-green-600 font-medium">복사됨</span>
+                          )}
+                        </button>
+                      ) : (
+                        <span className="text-sm text-gray-400">—</span>
+                      )}
+                    </td>
                     <td>
                       <div className="flex flex-wrap gap-1">
                         {t.faultTypes.map(f => (
@@ -1350,7 +1480,7 @@ export default function RepairPanel() {
                         )}
                       </button>
                     </td>
-                    <td className="text-sm text-gray-500">{t.assignee || "—"}</td>
+                    <td><InlineAssigneeCell ticket={t} assigneeList={assigneeList} onUpdated={handleTicketUpdated} /></td>
                     <td>
                       {t.consentGiven
                         ? <span className="text-green-600 text-xs font-medium">✓</span>
