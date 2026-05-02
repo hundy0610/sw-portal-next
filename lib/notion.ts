@@ -86,6 +86,14 @@ function getPropPeople(props: NotionProps, key: string): string {
     .join(", ");
 }
 
+function getPropPeopleList(props: NotionProps, key: string): { id: string; name: string }[] {
+  const p = props[key];
+  if (!p || p.type !== "people") return [];
+  return p.people
+    .filter((person): person is typeof person & { id: string; name: string } => "name" in person && !!person.name)
+    .map(person => ({ id: person.id, name: person.name as string }));
+}
+
 function getPropEmail(props: NotionProps, key: string): string {
   const p = props[key];
   if (!p) return "";
@@ -470,6 +478,7 @@ export async function fetchRepairTickets(): Promise<RepairTicket[]> {
       assetId: getPropText(p, "자산번호"),
       requester: getPropText(p, "문의자"),
       assignee: getPropPeople(p, "담당자"),
+      assigneeId: getPropPeopleList(p, "담당자")[0]?.id ?? "",
       repairDate: getPropDate(p, "수리 일정"),
       actionNote: getPropText(p, "조치내용"),
       consentGiven: getPropCheckbox(p, "수리 진행 동의서"),
