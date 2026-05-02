@@ -674,6 +674,18 @@ function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
                         <span className="text-gray-700">{value}</span>
                       </div>
                     ) : null)}
+                    {assetData.price > 0 && (
+                      <div className="flex gap-3">
+                        <span className="text-xs text-gray-400 w-16 shrink-0">단가</span>
+                        <span className="text-gray-700">{assetData.price.toLocaleString()}원</span>
+                      </div>
+                    )}
+                    {assetData.residualValue > 0 && (
+                      <div className="flex gap-3">
+                        <span className="text-xs text-gray-400 w-16 shrink-0">잔존가치</span>
+                        <span className="text-gray-700 font-medium">{assetData.residualValue.toLocaleString()}원</span>
+                      </div>
+                    )}
                     <div className="flex items-center gap-2 pt-1">
                       <span className="text-xs text-gray-400 w-16 shrink-0">상태</span>
                       <select
