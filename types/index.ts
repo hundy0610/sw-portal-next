@@ -136,7 +136,8 @@ export interface RepairTicket {
   location: string;        // 실제 근무 위치 (rich_text)
   assetId: string;         // 자산번호 (rich_text)
   requester: string;       // 문의자 (rich_text)
-  assignee: string;        // 담당자 (people)
+  assignee: string;        // 담당자 이름 (people)
+  assigneeId: string;      // 담당자 Notion user ID
   repairDate: string;      // 수리 일정 (date)
   actionNote: string;      // 조치내용 (rich_text)
   consentGiven: boolean;   // 수리 진행 동의서 (checkbox)
