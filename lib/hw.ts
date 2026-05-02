@@ -58,6 +58,7 @@ function mapPage(page: PageObjectResponse) {
     purchaseDate: date(p, "구매일자"),
     useDate:      date(p, "사용일자"),
     price:        num(p, "단가"),
+    residualValue: num(p, "잔존가치"),
     note:         txt(p, "기타"),
     docNo:        txt(p, "결재문서번호"),
     verified:     p["실사확인"]?.type === "checkbox" ? p["실사확인"].checkbox : false,

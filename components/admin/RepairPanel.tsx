@@ -50,7 +50,7 @@ interface HwRecord {
   status: string;
   returnDue: string; returnDate: string;
   purchaseDate: string; useDate: string;
-  price: number; note: string;
+  price: number; residualValue: number; note: string;
   verified: boolean;
 }
 
@@ -316,8 +316,9 @@ function AssetModalInner({ assetId, onClose }: { assetId: string; onClose: () =>
               <Row label="사용일자"  value={record.useDate} />
               {record.returnDue  && <Row label="반납예정일" value={record.returnDue} />}
               {record.returnDate && <Row label="반납일자"   value={record.returnDate} />}
-              {record.price > 0  && <Row label="단가" value={record.price.toLocaleString() + "원"} />}
-              {record.note       && <Row label="기타" value={record.note} />}
+              {record.price > 0          && <Row label="단가"    value={record.price.toLocaleString() + "원"} />}
+              {record.residualValue > 0  && <Row label="잔존가치" value={record.residualValue.toLocaleString() + "원"} />}
+              {record.note               && <Row label="기타"    value={record.note} />}
               {record.notionUrl && (
                 <div className="pt-2">
                   <a href={record.notionUrl} target="_blank" rel="noopener noreferrer"
