@@ -380,6 +380,7 @@ export interface HelpDeskTicket {
   urgency: string;
   team: string;
   assignee: string;
+  assigneeId: string;
   submittedAt: string;
   lastEditedAt: string;
   notionUrl: string;
@@ -413,6 +414,7 @@ export async function fetchHelpDeskTickets(): Promise<HelpDeskTicket[]> {
       urgency: getPropSelect(p, "긴급도") || "",
       team: getPropMultiSelect(p, "Team").join(", ") || getPropSelect(p, "Team") || "",
       assignee: getPropPeople(p, "담당자") || getPropPeople(p, "Assignee") || "",
+      assigneeId: getPropPeopleList(p, "담당자")[0]?.id ?? "",
       submittedAt,
       lastEditedAt: page.last_edited_time,
       notionUrl: getPageUrl(page.id),
