@@ -450,53 +450,6 @@ function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
             </DetailRow>
           )}
 
-          {/* 조치내용 */}
-          <DetailRow label="조치내용">
-            {editingNote ? (
-              <div className="flex flex-col gap-2">
-                <textarea
-                  ref={textareaRef}
-                  defaultValue={noteValue}
-                  rows={4}
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-orange-200 resize-none"
-                  placeholder="조치 내역을 입력하세요"
-                  autoFocus
-                />
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={saveNote}
-                    disabled={noteSaving}
-                    className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {noteSaving ? "저장 중…" : "저장"}
-                  </button>
-                  <button
-                    onClick={() => { setEditingNote(false); setNoteValue(ticket.actionNote ?? ""); setNoteSaveResult("idle"); }}
-                    className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
-                  >
-                    취소
-                  </button>
-                  {noteSaveResult === "error" && <span className="text-xs text-red-500">저장 실패</span>}
-                </div>
-              </div>
-            ) : (
-              <div
-                onClick={() => { setEditingNote(true); setNoteSaveResult("idle"); }}
-                className="group cursor-pointer rounded-lg px-3 py-2 -mx-3 hover:bg-gray-50 transition-colors min-h-[2.5rem] flex items-start gap-2"
-              >
-                <p className="leading-relaxed text-gray-700 flex-1 whitespace-pre-wrap">
-                  {noteValue || <span className="text-gray-400 italic">클릭하여 조치 내역 입력</span>}
-                </p>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                  className="shrink-0 mt-0.5 opacity-0 group-hover:opacity-40 transition-opacity">
-                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                </svg>
-                {noteSaveResult === "done" && <span className="text-xs text-green-600 shrink-0">✓ 저장됨</span>}
-              </div>
-            )}
-          </DetailRow>
-
           {/* 문의자 — 클릭 시 복사 */}
           <DetailRow label="문의자">
             <div className="flex items-center gap-2">
@@ -641,6 +594,53 @@ function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
               {saveResult.assignee === "done"  && <span className="text-xs text-green-600">✓ 변경됨</span>}
               {saveResult.assignee === "error" && <span className="text-xs text-red-500">실패</span>}
             </div>
+          </DetailRow>
+
+          {/* 조치내용 */}
+          <DetailRow label="조치내용">
+            {editingNote ? (
+              <div className="flex flex-col gap-2">
+                <textarea
+                  ref={textareaRef}
+                  defaultValue={noteValue}
+                  rows={4}
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-orange-200 resize-none"
+                  placeholder="조치 내역을 입력하세요"
+                  autoFocus
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={saveNote}
+                    disabled={noteSaving}
+                    className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {noteSaving ? "저장 중…" : "저장"}
+                  </button>
+                  <button
+                    onClick={() => { setEditingNote(false); setNoteSaveResult("idle"); }}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    취소
+                  </button>
+                  {noteSaveResult === "error" && <span className="text-xs text-red-500">저장 실패</span>}
+                </div>
+              </div>
+            ) : (
+              <div
+                onClick={() => { setEditingNote(true); setNoteSaveResult("idle"); }}
+                className="group cursor-pointer rounded-lg px-3 py-2 -mx-3 hover:bg-gray-50 transition-colors min-h-[2.5rem] flex items-start gap-2"
+              >
+                <p className="leading-relaxed text-gray-700 flex-1 whitespace-pre-wrap">
+                  {noteValue || <span className="text-gray-400 italic">클릭하여 조치 내역 입력</span>}
+                </p>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                  className="shrink-0 mt-0.5 opacity-0 group-hover:opacity-40 transition-opacity">
+                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+                {noteSaveResult === "done" && <span className="text-xs text-green-600 shrink-0">✓ 저장됨</span>}
+              </div>
+            )}
           </DetailRow>
 
           {ticket.repairDate && <DetailRow label="수리일정"><span>{ticket.repairDate}</span></DetailRow>}
