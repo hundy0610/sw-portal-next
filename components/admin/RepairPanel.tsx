@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import type { RepairTicket } from "@/types";
 import { AssetModalInner, HwRecord, HW_STATUSES } from "@/components/admin/AssetModal";
 
@@ -282,6 +282,7 @@ function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
   const [noteValue, setNoteValue]             = useState(ticket.actionNote ?? "");
   const [noteSaving, setNoteSaving]           = useState(false);
   const [noteSaveResult, setNoteSaveResult]   = useState<"idle" | "done" | "error">("idle");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [assetData, setAssetData]             = useState<HwRecord | null>(null);
   const [assetState, setAssetState]           = useState<"idle" | "loading" | "found" | "notfound" | "error">("idle");
   const [assetStatus, setAssetStatus]         = useState("");
@@ -334,18 +335,20 @@ function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
   };
 
   const saveNote = async () => {
+    const value = textareaRef.current?.value ?? noteValue;
     setNoteSaving(true); setNoteSaveResult("idle");
     try {
       const res = await fetch("/api/repair-tickets/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: ticket.id, fields: { actionNote: noteValue } }),
+        body: JSON.stringify({ id: ticket.id, fields: { actionNote: value } }),
       });
       const json = await res.json();
       if (json.ok) {
+        setNoteValue(value);
         setNoteSaveResult("done");
         setEditingNote(false);
-        onUpdated?.(ticket.id, { actionNote: noteValue });
+        onUpdated?.(ticket.id, { actionNote: value });
       } else setNoteSaveResult("error");
     } catch { setNoteSaveResult("error"); }
     finally { setNoteSaving(false); }
@@ -452,8 +455,8 @@ function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
             {editingNote ? (
               <div className="flex flex-col gap-2">
                 <textarea
-                  value={noteValue}
-                  onChange={e => setNoteValue(e.target.value)}
+                  ref={textareaRef}
+                  defaultValue={noteValue}
                   rows={4}
                   className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-orange-200 resize-none"
                   placeholder="조치 내역을 입력하세요"
