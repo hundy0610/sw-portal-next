@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
   try {
     const { id, fields } = await req.json() as {
       id: string;
-      fields: { status?: string; assigneeId?: string };
+      fields: { status?: string; assigneeId?: string; actionNote?: string; actionCategory?: string[] };
     };
 
     if (!id) return NextResponse.json({ ok: false, error: "id 필수" }, { status: 400 });
@@ -23,6 +23,12 @@ export async function POST(req: NextRequest) {
       properties["담당자"] = fields.assigneeId
         ? { people: [{ object: "user", id: fields.assigneeId }] }
         : { people: [] };
+    }
+    if (fields.actionNote !== undefined) {
+      properties["조치 내용"] = { rich_text: [{ text: { content: fields.actionNote } }] };
+    }
+    if (fields.actionCategory !== undefined) {
+      properties["조치분류"] = { multi_select: fields.actionCategory.map(name => ({ name })) };
     }
 
     if (Object.keys(properties).length === 0) {

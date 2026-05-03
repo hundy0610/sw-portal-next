@@ -384,6 +384,8 @@ export interface HelpDeskTicket {
   submittedAt: string;
   lastEditedAt: string;
   notionUrl: string;
+  actionNote: string;
+  actionCategory: string[];
 }
 
 export async function fetchHelpDeskTickets(): Promise<HelpDeskTicket[]> {
@@ -418,6 +420,8 @@ export async function fetchHelpDeskTickets(): Promise<HelpDeskTicket[]> {
       submittedAt,
       lastEditedAt: page.last_edited_time,
       notionUrl: getPageUrl(page.id),
+      actionNote: getPropText(p, "조치 내용") || "",
+      actionCategory: getPropMultiSelect(p, "조치분류"),
     };
   });
 }

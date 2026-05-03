@@ -259,6 +259,7 @@ function InlineAssigneeCell({
 
 // ── HelpDesk Ticket Detail Modal ─────────────────────────────
 const HELPDESK_EDIT_STATUSES = ["시작 전", "진행 중", "완료"] as const;
+const HELPDESK_ACTION_CATEGORIES = ["기본점검", "원격조치", "단순안내", "SW재설치/OS재설치", "HW수리", "타부서이관", "기타"] as const;
 
 function HelpDeskTicketFloating({
   ticket,
@@ -278,6 +279,14 @@ function HelpDeskTicketFloating({
   const [saving,    setSaving]    = useState<"status" | "assignee" | null>(null);
   const [saveResult,setSaveResult]= useState<Record<string, "done" | "error">>({});
   const [copied,    setCopied]    = useState(false);
+  const [editingNote,       setEditingNote]       = useState(false);
+  const [noteValue,         setNoteValue]         = useState(ticket.actionNote ?? "");
+  const [noteSaving,        setNoteSaving]        = useState(false);
+  const [noteSaveResult,    setNoteSaveResult]    = useState<"idle" | "done" | "error">("idle");
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(ticket.actionCategory ?? []);
+  const [categorySaving,     setCategorySaving]     = useState(false);
+  const [categorySaveResult, setCategorySaveResult] = useState<"idle" | "done" | "error">("idle");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [assetData,       setAssetData]       = useState<HwRecord | null>(null);
   const [assetState,      setAssetState]      = useState<"idle" | "loading" | "found" | "notfound" | "error">("idle");
   const [assetStatus,     setAssetStatus]     = useState("");
@@ -326,6 +335,43 @@ function HelpDeskTicketFloating({
       else setAssetSaveResult("error");
     } catch { setAssetSaveResult("error"); }
     finally { setAssetSaving(false); }
+  };
+
+  const saveNote = async () => {
+    const value = textareaRef.current?.value ?? noteValue;
+    setNoteSaving(true); setNoteSaveResult("idle");
+    try {
+      const res = await fetch("/api/helpdesk/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: ticket.id, fields: { actionNote: value } }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setNoteValue(value);
+        setNoteSaveResult("done");
+        setEditingNote(false);
+        onUpdated?.(ticket.id, { actionNote: value });
+      } else setNoteSaveResult("error");
+    } catch { setNoteSaveResult("error"); }
+    finally { setNoteSaving(false); }
+  };
+
+  const saveCategory = async () => {
+    setCategorySaving(true); setCategorySaveResult("idle");
+    try {
+      const res = await fetch("/api/helpdesk/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: ticket.id, fields: { actionCategory: selectedCategories } }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setCategorySaveResult("done");
+        onUpdated?.(ticket.id, { actionCategory: selectedCategories });
+      } else setCategorySaveResult("error");
+    } catch { setCategorySaveResult("error"); }
+    finally { setCategorySaving(false); }
   };
 
   const saveField = async (field: "status" | "assignee") => {
@@ -541,6 +587,88 @@ function HelpDeskTicketFloating({
               {saveResult.assignee === "done"  && <span className="text-xs text-green-600">✓ 변경됨</span>}
               {saveResult.assignee === "error" && <span className="text-xs text-red-500">실패</span>}
             </div>
+          </DR>
+
+          {/* 조치분류 */}
+          <DR label="조치분류">
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                {HELPDESK_ACTION_CATEGORIES.map(c => (
+                  <label key={c} className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={selectedCategories.includes(c)}
+                      onChange={e => {
+                        setSelectedCategories(prev =>
+                          e.target.checked ? [...prev, c] : prev.filter(x => x !== c)
+                        );
+                        setCategorySaveResult("idle");
+                      }}
+                      className="rounded border-gray-300 text-violet-600 focus:ring-violet-200"
+                    />
+                    <span className="text-sm text-gray-700">{c}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={saveCategory}
+                  disabled={categorySaving}
+                  className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  {categorySaving ? "저장 중…" : "저장"}
+                </button>
+                {categorySaveResult === "done"  && <span className="text-xs text-green-600">✓ 변경됨</span>}
+                {categorySaveResult === "error" && <span className="text-xs text-red-500">실패</span>}
+              </div>
+            </div>
+          </DR>
+
+          {/* 조치내용 */}
+          <DR label="조치내용">
+            {editingNote ? (
+              <div className="flex flex-col gap-2">
+                <textarea
+                  ref={textareaRef}
+                  defaultValue={noteValue}
+                  rows={4}
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-violet-200 resize-none"
+                  placeholder="조치 내역을 입력하세요"
+                  autoFocus
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={saveNote}
+                    disabled={noteSaving}
+                    className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {noteSaving ? "저장 중…" : "저장"}
+                  </button>
+                  <button
+                    onClick={() => { setEditingNote(false); setNoteSaveResult("idle"); }}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    취소
+                  </button>
+                  {noteSaveResult === "error" && <span className="text-xs text-red-500">저장 실패</span>}
+                </div>
+              </div>
+            ) : (
+              <div
+                onClick={() => { setEditingNote(true); setNoteSaveResult("idle"); }}
+                className="group cursor-pointer rounded-lg px-3 py-2 -mx-3 hover:bg-gray-50 transition-colors min-h-[2.5rem] flex items-start gap-2"
+              >
+                <p className="leading-relaxed text-gray-700 flex-1 whitespace-pre-wrap">
+                  {noteValue || <span className="text-gray-400 italic">클릭하여 조치 내역 입력</span>}
+                </p>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                  className="shrink-0 mt-0.5 opacity-0 group-hover:opacity-40 transition-opacity">
+                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+                {noteSaveResult === "done" && <span className="text-xs text-green-600 shrink-0">✓ 저장됨</span>}
+              </div>
+            )}
           </DR>
 
           {ticket.submittedAt && (
