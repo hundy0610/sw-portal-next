@@ -278,6 +278,10 @@ function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
   const [saving, setSaving]                   = useState<"status" | "assignee" | null>(null);
   const [saveResult, setSaveResult]           = useState<Record<string, "done" | "error">>({});
   const [copied, setCopied]                   = useState(false);
+  const [editingNote, setEditingNote]         = useState(false);
+  const [noteValue, setNoteValue]             = useState(ticket.actionNote ?? "");
+  const [noteSaving, setNoteSaving]           = useState(false);
+  const [noteSaveResult, setNoteSaveResult]   = useState<"idle" | "done" | "error">("idle");
   const [assetData, setAssetData]             = useState<HwRecord | null>(null);
   const [assetState, setAssetState]           = useState<"idle" | "loading" | "found" | "notfound" | "error">("idle");
   const [assetStatus, setAssetStatus]         = useState("");
@@ -327,6 +331,24 @@ function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
       else setAssetSaveResult("error");
     } catch { setAssetSaveResult("error"); }
     finally { setAssetSaving(false); }
+  };
+
+  const saveNote = async () => {
+    setNoteSaving(true); setNoteSaveResult("idle");
+    try {
+      const res = await fetch("/api/repair-tickets/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: ticket.id, fields: { actionNote: noteValue } }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setNoteSaveResult("done");
+        setEditingNote(false);
+        onUpdated?.(ticket.id, { actionNote: noteValue });
+      } else setNoteSaveResult("error");
+    } catch { setNoteSaveResult("error"); }
+    finally { setNoteSaving(false); }
   };
 
   const saveField = async (field: "status" | "assignee") => {
@@ -426,11 +448,51 @@ function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
           )}
 
           {/* 조치내용 */}
-          {ticket.actionNote && (
-            <DetailRow label="조치내용">
-              <p className="leading-relaxed text-gray-700">{ticket.actionNote}</p>
-            </DetailRow>
-          )}
+          <DetailRow label="조치내용">
+            {editingNote ? (
+              <div className="flex flex-col gap-2">
+                <textarea
+                  value={noteValue}
+                  onChange={e => setNoteValue(e.target.value)}
+                  rows={4}
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-orange-200 resize-none"
+                  placeholder="조치 내역을 입력하세요"
+                  autoFocus
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={saveNote}
+                    disabled={noteSaving}
+                    className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {noteSaving ? "저장 중…" : "저장"}
+                  </button>
+                  <button
+                    onClick={() => { setEditingNote(false); setNoteValue(ticket.actionNote ?? ""); setNoteSaveResult("idle"); }}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    취소
+                  </button>
+                  {noteSaveResult === "error" && <span className="text-xs text-red-500">저장 실패</span>}
+                </div>
+              </div>
+            ) : (
+              <div
+                onClick={() => { setEditingNote(true); setNoteSaveResult("idle"); }}
+                className="group cursor-pointer rounded-lg px-3 py-2 -mx-3 hover:bg-gray-50 transition-colors min-h-[2.5rem] flex items-start gap-2"
+              >
+                <p className="leading-relaxed text-gray-700 flex-1 whitespace-pre-wrap">
+                  {noteValue || <span className="text-gray-400 italic">클릭하여 조치 내역 입력</span>}
+                </p>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                  className="shrink-0 mt-0.5 opacity-0 group-hover:opacity-40 transition-opacity">
+                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+                {noteSaveResult === "done" && <span className="text-xs text-green-600 shrink-0">✓ 저장됨</span>}
+              </div>
+            )}
+          </DetailRow>
 
           {/* 문의자 — 클릭 시 복사 */}
           <DetailRow label="문의자">
