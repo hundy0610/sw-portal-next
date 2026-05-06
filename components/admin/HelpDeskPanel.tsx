@@ -257,9 +257,131 @@ function InlineAssigneeCell({
   );
 }
 
+// ── Action Category Tree ─────────────────────────────────────
+function IndeterminateCheckbox({ checked, indeterminate, onChange }: {
+  checked: boolean; indeterminate: boolean; onChange: () => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (ref.current) ref.current.indeterminate = indeterminate; }, [indeterminate]);
+  return (
+    <input ref={ref} type="checkbox" checked={checked} onChange={onChange}
+      className="rounded border-gray-300 text-violet-600 focus:ring-violet-200 cursor-pointer" />
+  );
+}
+
+function ActionCategoryTree({ selected, onChange }: {
+  selected: string[];
+  onChange: (v: string[]) => void;
+}) {
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(
+    Object.fromEntries(ACTION_TREE.map(g => [g.label, true]))
+  );
+
+  const childKey = (parent: string, child: string) => `${parent} > ${child}`;
+
+  const toggleChild = (parent: string, child: string) => {
+    const key = childKey(parent, child);
+    onChange(selected.includes(key) ? selected.filter(s => s !== key) : [...selected, key]);
+  };
+
+  const toggleParent = (parent: string, children: string[]) => {
+    const keys = children.map(c => childKey(parent, c));
+    const allSelected = keys.every(k => selected.includes(k));
+    onChange(allSelected
+      ? selected.filter(s => !keys.includes(s))
+      : [...selected, ...keys.filter(k => !selected.includes(k))]
+    );
+  };
+
+  const legacy = selected.filter(s => !ALL_TREE_KEYS.includes(s));
+
+  return (
+    <div className="space-y-0.5">
+      {ACTION_TREE.map(group => {
+        const keys = group.children.map(c => childKey(group.label, c));
+        const selectedCount = keys.filter(k => selected.includes(k)).length;
+        const allSelected = selectedCount === keys.length;
+        const someSelected = selectedCount > 0 && !allSelected;
+        return (
+          <div key={group.label}>
+            <div className="flex items-center gap-2 py-1.5">
+              <IndeterminateCheckbox
+                checked={allSelected}
+                indeterminate={someSelected}
+                onChange={() => toggleParent(group.label, group.children)}
+              />
+              <button
+                type="button"
+                onClick={() => setExpanded(p => ({ ...p, [group.label]: !p[group.label] }))}
+                className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 hover:text-gray-900"
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                  className={`transition-transform flex-shrink-0 ${expanded[group.label] ? "rotate-90" : ""}`}>
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+                {group.label}
+                {selectedCount > 0 && (
+                  <span className="text-[10px] text-violet-600 font-bold bg-violet-50 px-1.5 py-0.5 rounded-full leading-none">
+                    {selectedCount}
+                  </span>
+                )}
+              </button>
+            </div>
+            {expanded[group.label] && (
+              <div className="ml-6 space-y-0.5 pb-1">
+                {group.children.map(child => {
+                  const key = childKey(group.label, child);
+                  return (
+                    <label key={key} className="flex items-center gap-2 py-1 cursor-pointer select-none group">
+                      <input
+                        type="checkbox"
+                        checked={selected.includes(key)}
+                        onChange={() => toggleChild(group.label, child)}
+                        className="rounded border-gray-300 text-violet-600 focus:ring-violet-200"
+                      />
+                      <span className="text-sm text-gray-600 group-hover:text-gray-800">{child}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {legacy.length > 0 && (
+        <div className="pt-1 flex flex-wrap gap-1.5">
+          {legacy.map(s => (
+            <span key={s} className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full flex items-center gap-1">
+              {s}
+              <button type="button" onClick={() => onChange(selected.filter(x => x !== s))}
+                className="text-gray-400 hover:text-gray-600 leading-none">×</button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── HelpDesk Ticket Detail Modal ─────────────────────────────
 const HELPDESK_EDIT_STATUSES = ["시작 전", "진행 중", "완료"] as const;
-const HELPDESK_ACTION_CATEGORIES = ["기본점검", "원격조치", "단순안내", "SW재설치/OS재설치", "HW수리", "타부서이관", "기타"] as const;
+
+const ACTION_TREE = [
+  {
+    label: "하드웨어",
+    children: ["단순 점검", "청소 및 정비", "부품 교체", "외부업체 수리", "자산 교체(노후화)", "자산 교체(고장 및 파손)", "기타"],
+  },
+  {
+    label: "소프트웨어",
+    children: ["OS 점검", "OS 재설치", "드라이버 업데이트", "악성코드 점검", "충돌 보안프로그램 점검", "라이선스 재고 지급", "라이선스 신규구매 안내", "라이선스 갱신 안내", "라이선스 설치", "라이선스 계정 관리", "기타"],
+  },
+  {
+    label: "기타",
+    children: ["단순 안내", "자산 반납", "자산 이관", "타부서 이관", "해결 불가"],
+  },
+];
+
+const ALL_TREE_KEYS = ACTION_TREE.flatMap(g => g.children.map(c => `${g.label} > ${c}`));
 
 function HelpDeskTicketFloating({
   ticket,
@@ -592,25 +714,11 @@ function HelpDeskTicketFloating({
           {/* 조치분류 */}
           <DR label="조치분류">
             <div className="flex flex-col gap-2">
-              <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-                {HELPDESK_ACTION_CATEGORIES.map(c => (
-                  <label key={c} className="flex items-center gap-1.5 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={selectedCategories.includes(c)}
-                      onChange={e => {
-                        setSelectedCategories(prev =>
-                          e.target.checked ? [...prev, c] : prev.filter(x => x !== c)
-                        );
-                        setCategorySaveResult("idle");
-                      }}
-                      className="rounded border-gray-300 text-violet-600 focus:ring-violet-200"
-                    />
-                    <span className="text-sm text-gray-700">{c}</span>
-                  </label>
-                ))}
-              </div>
-              <div className="flex items-center gap-2">
+              <ActionCategoryTree
+                selected={selectedCategories}
+                onChange={v => { setSelectedCategories(v); setCategorySaveResult("idle"); }}
+              />
+              <div className="flex items-center gap-2 pt-1">
                 <button
                   onClick={saveCategory}
                   disabled={categorySaving}
