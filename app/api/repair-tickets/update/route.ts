@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     const properties: Record<string, unknown> = {};
 
     if (fields.status !== undefined) {
-      properties["상태"] = { select: { name: fields.status } };
+      properties["상태"] = { status: { name: fields.status } };
     }
     if (fields.assigneeId !== undefined) {
       properties["담당자"] = fields.assigneeId
