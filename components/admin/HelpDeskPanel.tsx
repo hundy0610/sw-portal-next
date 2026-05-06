@@ -408,6 +408,9 @@ function HelpDeskTicketFloating({
   const [selectedCategories, setSelectedCategories] = useState<string[]>(ticket.actionCategory ?? []);
   const [categorySaving,     setCategorySaving]     = useState(false);
   const [categorySaveResult, setCategorySaveResult] = useState<"idle" | "done" | "error">("idle");
+  const [selectedMethod,     setSelectedMethod]     = useState(ticket.actionMethod ?? "");
+  const [methodSaving,       setMethodSaving]       = useState(false);
+  const [methodSaveResult,   setMethodSaveResult]   = useState<"idle" | "done" | "error">("idle");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [assetData,       setAssetData]       = useState<HwRecord | null>(null);
   const [assetState,      setAssetState]      = useState<"idle" | "loading" | "found" | "notfound" | "error">("idle");
@@ -494,6 +497,24 @@ function HelpDeskTicketFloating({
       } else setCategorySaveResult("error");
     } catch { setCategorySaveResult("error"); }
     finally { setCategorySaving(false); }
+  };
+
+  const saveMethod = async (method: string) => {
+    setMethodSaving(true); setMethodSaveResult("idle");
+    try {
+      const res = await fetch("/api/helpdesk/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: ticket.id, fields: { actionMethod: method } }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setMethodSaveResult("done");
+        onUpdated?.(ticket.id, { actionMethod: method });
+        setTimeout(() => setMethodSaveResult("idle"), 2000);
+      } else setMethodSaveResult("error");
+    } catch { setMethodSaveResult("error"); }
+    finally { setMethodSaving(false); }
   };
 
   const saveField = async (field: "status" | "assignee") => {
@@ -728,6 +749,40 @@ function HelpDeskTicketFloating({
                 </button>
                 {categorySaveResult === "done"  && <span className="text-xs text-green-600">✓ 변경됨</span>}
                 {categorySaveResult === "error" && <span className="text-xs text-red-500">실패</span>}
+              </div>
+            </div>
+          </DR>
+
+          {/* 조치방법 */}
+          <DR label="조치방법">
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap gap-2">
+                {(["원격", "방문", "메신저/메일", "기타"] as const).map(m => (
+                  <button
+                    key={m}
+                    type="button"
+                    disabled={methodSaving}
+                    onClick={() => {
+                      const next = selectedMethod === m ? "" : m;
+                      setSelectedMethod(next);
+                      saveMethod(next);
+                    }}
+                    className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors disabled:opacity-50 ${
+                      selectedMethod === m
+                        ? "bg-violet-600 border-violet-600 text-white"
+                        : "bg-white border-gray-200 text-gray-600 hover:border-violet-300 hover:text-violet-600"
+                    }`}
+                  >
+                    {m}
+                  </button>
+                ))}
+                {methodSaving && (
+                  <svg className="animate-spin w-3.5 h-3.5 text-gray-400 self-center" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity="0.25"/><path d="M21 12a9 9 0 00-9-9"/>
+                  </svg>
+                )}
+                {methodSaveResult === "done"  && <span className="text-xs text-green-600 self-center">✓</span>}
+                {methodSaveResult === "error" && <span className="text-xs text-red-500 self-center">실패</span>}
               </div>
             </div>
           </DR>
