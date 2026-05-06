@@ -1853,6 +1853,9 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
                         <p className="truncate text-gray-700" title={t.content || t.title}>
                           {t.content || t.title || "—"}
                         </p>
+                        {t.actionNote && (
+                          <p className="truncate text-[10px] text-gray-400 mt-0.5" title={t.actionNote}>{t.actionNote}</p>
+                        )}
                       </td>
                       <td className="px-3 py-2.5 text-gray-400 whitespace-nowrap">
                         {(t.submittedAt || "").slice(0, 10) || "—"}
@@ -2033,6 +2036,9 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
                         <p className="truncate text-gray-700 text-sm underline decoration-dotted underline-offset-2" title={t.content || t.title}>
                           {t.content || t.title || "—"}
                         </p>
+                        {t.actionNote && (
+                          <p className="truncate text-xs text-gray-400 mt-0.5" title={t.actionNote}>{t.actionNote}</p>
+                        )}
                       </button>
                     </td>
                     <td className="text-xs text-gray-400 whitespace-nowrap">
