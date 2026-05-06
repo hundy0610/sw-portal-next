@@ -386,7 +386,6 @@ export interface HelpDeskTicket {
   notionUrl: string;
   actionNote: string;
   actionCategory: string[];
-  actionMethod: string;
 }
 
 export async function fetchHelpDeskTickets(): Promise<HelpDeskTicket[]> {
@@ -423,7 +422,6 @@ export async function fetchHelpDeskTickets(): Promise<HelpDeskTicket[]> {
       notionUrl: getPageUrl(page.id),
       actionNote: getPropText(p, "조치 내용") || "",
       actionCategory: getPropMultiSelect(p, "조치분류"),
-      actionMethod: getPropSelect(p, "조치방법") || "",
     };
   });
 }
