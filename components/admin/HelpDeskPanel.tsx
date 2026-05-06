@@ -1806,36 +1806,39 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
       {/* ════ Tab: 목록 */}
       {tab === "list" && (
         <div>
-          <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4 flex flex-wrap gap-2.5 items-center">
-            <input type="text" placeholder="내용 · 요청자 · 부서 검색..."
-              value={listFilter.search}
-              onChange={e => setListFilter(f => ({ ...f, search: e.target.value }))}
-              className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-violet-400 w-52" />
-
-            {([
-              { key: "status",  opts: ["all","진행 중","완료"],   label: "상태" },
-              { key: "type",    opts: ["all",...uniqueTypes],       label: "유형" },
-              { key: "company", opts: ["all",...uniqueCompanies],   label: "법인" },
-              { key: "urgency", opts: ["all",...uniqueUrgencies],   label: "긴급도" },
-            ] as { key: string; opts: string[]; label: string }[]).map(({ key, opts, label }) => (
-              <select key={key}
-                value={(listFilter as Record<string, string>)[key]}
-                onChange={e => setListFilter(f => ({ ...f, [key]: e.target.value }))}
-                className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-violet-400 bg-white text-gray-700">
-                <option value="all">{label} 전체</option>
-                {opts.filter(o => o !== "all").map(o => <option key={o} value={o}>{o}</option>)}
-              </select>
-            ))}
-            <span className="text-xs text-gray-400">{filteredList.length}건</span>
-            <button
-              onClick={() => load(true)}
-              className="ml-auto flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:text-gray-800 transition-colors"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
-              </svg>
-              새로고침
-            </button>
+          <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4">
+            <div className="flex items-center justify-between gap-2 mb-2.5">
+              <span className="text-xs text-gray-400">{filteredList.length}건</span>
+              <button
+                onClick={() => load(true)}
+                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:text-gray-800 transition-colors"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+                </svg>
+                새로고침
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2.5 items-center">
+              <input type="text" placeholder="내용 · 요청자 · 부서 검색..."
+                value={listFilter.search}
+                onChange={e => setListFilter(f => ({ ...f, search: e.target.value }))}
+                className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-violet-400 w-52" />
+              {([
+                { key: "status",  opts: ["all","진행 중","완료"],   label: "상태" },
+                { key: "type",    opts: ["all",...uniqueTypes],       label: "유형" },
+                { key: "company", opts: ["all",...uniqueCompanies],   label: "법인" },
+                { key: "urgency", opts: ["all",...uniqueUrgencies],   label: "긴급도" },
+              ] as { key: string; opts: string[]; label: string }[]).map(({ key, opts, label }) => (
+                <select key={key}
+                  value={(listFilter as Record<string, string>)[key]}
+                  onChange={e => setListFilter(f => ({ ...f, [key]: e.target.value }))}
+                  className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-violet-400 bg-white text-gray-700">
+                  <option value="all">{label} 전체</option>
+                  {opts.filter(o => o !== "all").map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              ))}
+            </div>
           </div>
 
           <div className="bg-white border border-gray-200 rounded-xl overflow-auto">
