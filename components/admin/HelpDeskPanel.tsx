@@ -1020,6 +1020,29 @@ function generateReportHTML(opts: {
   filtered.forEach(t => { if (t.inquiryType) byType[t.inquiryType] = (byType[t.inquiryType] ?? 0) + 1; });
   const typeRows = Object.entries(byType).sort((a, b) => b[1] - a[1]);
 
+  // 조치 분석 데이터
+  const completedFiltered = filtered.filter(t => t.status === "완료");
+  const withMethod   = completedFiltered.filter(t => !!t.actionMethod).length;
+  const withCategory = completedFiltered.filter(t => (t.actionCategory ?? []).length > 0).length;
+  const withNote     = completedFiltered.filter(t => !!t.actionNote).length;
+
+  const methodCounts: Record<string, number> = {};
+  filtered.forEach(t => {
+    if (t.actionMethod) methodCounts[t.actionMethod] = (methodCounts[t.actionMethod] ?? 0) + 1;
+  });
+  const methodRows = Object.entries(methodCounts).sort((a, b) => b[1] - a[1]);
+  const totalMethodCount = Object.values(methodCounts).reduce((s, v) => s + v, 0);
+
+  const catCounts: Record<string, number> = {};
+  filtered.forEach(t => {
+    (t.actionCategory ?? []).forEach(cat => {
+      catCounts[cat] = (catCounts[cat] ?? 0) + 1;
+    });
+  });
+  const catRows = Object.entries(catCounts).sort((a, b) => b[1] - a[1]).slice(0, 12);
+  const totalCatCount = Object.values(catCounts).reduce((s, v) => s + v, 0);
+
+
   const monthly = months.map(m => ({
     label: monthLabel(m),
     count: filtered.filter(t => (t.submittedAt || "").startsWith(m)).length,
@@ -1042,18 +1065,6 @@ function generateReportHTML(opts: {
   const yOf = (v: number) => padY + (chartH - padY * 2) * (1 - v / maxMonthly);
   const linePoints = monthly.map((m, i) => `${xOf(i)},${yOf(m.count)}`).join(" ");
 
-  const tableRows = filtered.slice(0, 200).map(t => `
-    <tr>
-      <td>${(t.submittedAt || "").slice(0, 10)}</td>
-      <td>${t.company || "—"}</td>
-      <td>${t.department || "—"}</td>
-      <td>${t.requester || "—"}</td>
-      <td>${t.inquiryType || "—"}</td>
-      <td>${t.urgency || "—"}</td>
-      <td class="content">${(t.content || t.title || "—").replace(/</g, "&lt;")}</td>
-      <td><span class="badge ${t.status === "완료" ? "done" : "prog"}">${t.status}</span></td>
-      <td>${t.assignee || "—"}</td>
-    </tr>`).join("");
 
   return `<!DOCTYPE html>
 <html lang="ko">
@@ -1081,17 +1092,12 @@ function generateReportHTML(opts: {
   thead th { background: #F1F5F9; padding: 10px 12px; text-align: left; font-weight: 600; color: #475569; border-bottom: 1px solid #E2E8F0; white-space: nowrap; }
   tbody td { padding: 9px 12px; border-bottom: 1px solid #F8FAFC; color: #334155; vertical-align: top; }
   tbody tr:hover td { background: #F8FAFC; }
-  td.content { max-width: 260px; }
-  .badge { padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; }
-  .badge.done { background: #F0FDF4; color: #059669; }
-  .badge.prog { background: #EFF6FF; color: #1D4ED8; }
-  .type-bar { margin-bottom: 10px; }
-  .type-row { display: flex; align-items: center; gap-8px; margin-bottom: 8px; }
-  .type-label { font-size: 12px; color: #475569; width: 140px; flex-shrink: 0; }
-  .bar-wrap { flex: 1; background: #F1F5F9; border-radius: 6px; height: 20px; overflow: hidden; }
-  .bar-fill { height: 100%; background: #7C3AED; border-radius: 6px; display: flex; align-items: center; padding-left: 8px; }
-  .bar-fill span { color: white; font-size: 10px; font-weight: 700; }
   .footer { text-align: center; padding: 24px 0 8px; font-size: 11px; color: #CBD5E1; border-top: 1px solid #E2E8F0; margin-top: 40px; }
+  .action-rate { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+  .rate-card { background: white; border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px; text-align: center; }
+  .rate-card .rate { font-size: 24px; font-weight: 800; }
+  .rate-card .rate-label { font-size: 11px; color: #94A3B8; margin-top: 4px; }
+  .rate-card .rate-sub { font-size: 10px; color: #CBD5E1; margin-top: 2px; }
   @media print { body { background: white; } .page { padding: 20px; } }
 </style>
 </head>
@@ -1167,19 +1173,68 @@ function generateReportHTML(opts: {
     </div>
   </div>` : ""}
 
-  <!-- 목록 -->
+  <!-- 조치 처리 분석 -->
+  ${completedFiltered.length > 0 ? `
   <div class="section">
-    <div class="section-title">문의 목록 ${filtered.length > 200 ? "(최대 200건 표시)" : `(${filtered.length}건)`}</div>
-    <table>
-      <thead>
-        <tr>
-          <th>접수일</th><th>법인</th><th>부서</th><th>문의자</th>
-          <th>유형</th><th>긴급도</th><th>문의내용</th><th>상태</th><th>담당자</th>
-        </tr>
-      </thead>
-      <tbody>${tableRows || '<tr><td colspan="9" style="text-align:center;padding:20px;color:#94A3B8">데이터 없음</td></tr>'}</tbody>
-    </table>
-  </div>
+    <div class="section-title">조치 처리 분석 (완료 ${completedFiltered.length}건)</div>
+
+    <div class="action-rate">
+      <div class="rate-card">
+        <div class="rate" style="color:#6366F1">${completedFiltered.length > 0 ? Math.round(withMethod / completedFiltered.length * 100) : 0}%</div>
+        <div class="rate-label">조치방법 입력률</div>
+        <div class="rate-sub">${withMethod} / ${completedFiltered.length}건</div>
+      </div>
+      <div class="rate-card">
+        <div class="rate" style="color:#10B981">${completedFiltered.length > 0 ? Math.round(withCategory / completedFiltered.length * 100) : 0}%</div>
+        <div class="rate-label">조치분류 입력률</div>
+        <div class="rate-sub">${withCategory} / ${completedFiltered.length}건</div>
+      </div>
+      <div class="rate-card">
+        <div class="rate" style="color:#7C3AED">${completedFiltered.length > 0 ? Math.round(withNote / completedFiltered.length * 100) : 0}%</div>
+        <div class="rate-label">조치내용 입력률</div>
+        <div class="rate-sub">${withNote} / ${completedFiltered.length}건</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+      <div class="chart-box" style="margin:0">
+        <div class="chart-title">조치방법별 현황</div>
+        ${methodRows.length > 0 ? methodRows.map(([method, count]) => {
+          const pct = totalMethodCount > 0 ? Math.max((count / totalMethodCount) * 100, 2) : 0;
+          const color = ({ "원격": "#6366F1", "방문": "#F59E0B", "메신저/메일": "#0EA5E9", "기타": "#9CA3AF" } as Record<string,string>)[method] ?? "#7C3AED";
+          return `<div style="margin-bottom:10px">
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+              <span style="color:#475569;font-weight:600">${method}</span>
+              <span style="color:#94A3B8">${count}건 · ${Math.round(count / totalMethodCount * 100)}%</span>
+            </div>
+            <div style="background:#F1F5F9;border-radius:6px;height:20px;overflow:hidden">
+              <div style="width:${pct}%;background:${color};height:100%;border-radius:6px;display:flex;align-items:center;padding-left:8px">
+                <span style="color:white;font-size:10px;font-weight:700">${count}</span>
+              </div>
+            </div>
+          </div>`;
+        }).join("") : '<p style="color:#CBD5E1;text-align:center;padding:20px;font-size:12px">데이터 없음</p>'}
+      </div>
+      <div class="chart-box" style="margin:0">
+        <div class="chart-title">조치분류별 현황 (상위 12항목)</div>
+        ${catRows.length > 0 ? catRows.map(([cat, count]) => {
+          const pct = totalCatCount > 0 ? Math.max((count / totalCatCount) * 100, 2) : 0;
+          const label = cat.split(" > ")[1] ?? cat;
+          return `<div style="margin-bottom:8px">
+            <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
+              <span style="color:#475569;font-weight:600">${label}</span>
+              <span style="color:#94A3B8">${count}건</span>
+            </div>
+            <div style="background:#F1F5F9;border-radius:5px;height:16px;overflow:hidden">
+              <div style="width:${pct}%;background:#7C3AED;height:100%;border-radius:5px"></div>
+            </div>
+          </div>`;
+        }).join("") : '<p style="color:#CBD5E1;text-align:center;padding:20px;font-size:12px">데이터 없음</p>'}
+      </div>
+    </div>
+
+  </div>` : ""}
+
 
   <div class="footer">IDS 자산관리파트 · PC/OA 관리팀 · 본 보고서는 자동 생성되었습니다.</div>
 </div>
@@ -1188,7 +1243,7 @@ function generateReportHTML(opts: {
 }
 
 // ── Main Panel ───────────────────────────────────────────────
-type Tab = "overview" | "type" | "company" | "list" | "status_list" | "report" | "assignee" | "repeat";
+type Tab = "overview" | "type" | "company" | "list" | "status_list" | "report" | "assignee" | "analysis";
 
 export default function HelpDeskPanel({ company: companyFilter = "" }: { company?: string }) {
   const [tickets, setTickets]       = useState<HelpDeskTicket[]>([]);
@@ -1507,7 +1562,7 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
           ["type",      "🏷",  "유형분석"],
           ["company",   "🏢", "법인현황"],
           ["assignee",  "👤", "담당자"],
-          ["repeat",    "🔁", "반복분석"],
+          ["analysis",  "📊", "분석"],
           ["list",      "📋", "목록"],
           ["status_list", "📊", "접수 현황"],
           ["report",    "📄", "보고서"],
@@ -2306,8 +2361,49 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
         );
       })()}
 
-      {/* ════ Tab: 반복분석 */}
-      {tab === "repeat" && (() => {
+      {/* ════ Tab: 분석 */}
+      {tab === "analysis" && (() => {
+        // ── 조치 분석 변수 ────────────────────────────────────
+        const METHOD_COLORS: Record<string, string> = {
+          "원격": "#6366F1", "방문": "#F59E0B", "메신저/메일": "#0EA5E9", "기타": "#9CA3AF",
+        };
+        const METHODS = ["원격", "방문", "메신저/메일", "기타"];
+
+        const methodCounts = new Map<string, number>();
+        displayTickets.forEach(t => {
+          if (t.actionMethod) methodCounts.set(t.actionMethod, (methodCounts.get(t.actionMethod) ?? 0) + 1);
+        });
+        const byMethod = METHODS.filter(m => methodCounts.has(m))
+          .map(m => ({ method: m, count: methodCounts.get(m)!, color: METHOD_COLORS[m] }));
+        const totalMethodActions = byMethod.reduce((s, m) => s + m.count, 0);
+        const unfilledMethod = displayTickets.filter(t => !t.actionMethod).length;
+
+        const mainCatCounts: Record<string, number> = { "하드웨어": 0, "소프트웨어": 0, "기타": 0 };
+        const detailCounts = new Map<string, number>();
+        displayTickets.forEach(t => {
+          (t.actionCategory ?? []).forEach(cat => {
+            const main = cat.split(" > ")[0];
+            if (main in mainCatCounts) mainCatCounts[main]++;
+            detailCounts.set(cat, (detailCounts.get(cat) ?? 0) + 1);
+          });
+        });
+        const MAIN_COLORS: Record<string, string> = { "하드웨어": "#3B82F6", "소프트웨어": "#10B981", "기타": "#9CA3AF" };
+        const totalCatActions = Object.values(mainCatCounts).reduce((s, v) => s + v, 0);
+
+        const byDetail = [...detailCounts.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .map(([label, count], i) => ({ label, count, color: TYPE_COLORS[i % TYPE_COLORS.length] }));
+
+        const withMethod   = completedTickets.filter(t => !!t.actionMethod).length;
+        const withCategory = completedTickets.filter(t => (t.actionCategory ?? []).length > 0).length;
+        const withNote     = completedTickets.filter(t => !!t.actionNote).length;
+        const completedCount = completedTickets.length;
+
+        const recentCompleted = [...completedTickets]
+          .sort((a, b) => new Date(b.lastEditedAt).getTime() - new Date(a.lastEditedAt).getTime())
+          .slice(0, 10);
+
+        // ── 반복 분석 변수 ────────────────────────────────────
         const recentMonths = last6Months();
 
         // ── 문의 내용 기반 분류 집계 ─────────────────────────
@@ -2402,6 +2498,134 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
 
         return (
           <div className="space-y-5">
+
+            {/* ══ 조치 분석 ══════════════════════════════════════ */}
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1">조치 현황</p>
+
+            {/* 입력률 카드 */}
+            <div className="grid grid-cols-3 gap-3">
+              {([
+                { label: "조치방법 입력률 (완료)", filled: withMethod,   color: "#6366F1" },
+                { label: "조치분류 입력률 (완료)", filled: withCategory, color: "#10B981" },
+                { label: "조치내용 입력률 (완료)", filled: withNote,     color: "#7C3AED" },
+              ] as { label: string; filled: number; color: string }[]).map(({ label, filled, color }) => (
+                <div key={label} className="bg-white border border-gray-200 rounded-xl p-4">
+                  <div className="text-2xl font-extrabold" style={{ color }}>
+                    {completedCount > 0 ? `${Math.round(filled / completedCount * 100)}%` : "—"}
+                  </div>
+                  <div className="text-xs font-medium text-gray-500 mt-0.5">{label}</div>
+                  <div className="text-[10px] text-gray-400 mt-1">{filled} / {completedCount}건</div>
+                </div>
+              ))}
+            </div>
+
+            {/* 조치방법 + 조치분류 대분류 */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white border border-gray-200 rounded-xl p-5">
+                <h3 className="text-sm font-bold text-gray-800 mb-4">조치방법별 분포</h3>
+                <div className="space-y-3">
+                  {byMethod.map(({ method, count, color }) => (
+                    <HBar key={method} label={method} count={count} total={totalMethodActions} color={color} />
+                  ))}
+                  {byMethod.length === 0 && <p className="text-xs text-gray-300 text-center py-6">데이터 없음</p>}
+                </div>
+                {unfilledMethod > 0 && (
+                  <p className="text-[10px] text-gray-300 mt-3">미입력 {unfilledMethod}건 제외</p>
+                )}
+              </div>
+              <div className="bg-white border border-gray-200 rounded-xl p-5">
+                <h3 className="text-sm font-bold text-gray-800 mb-4">조치분류 대분류</h3>
+                <div className="space-y-3">
+                  {(Object.entries(mainCatCounts) as [string, number][])
+                    .filter(([, cnt]) => cnt > 0)
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([label, count]) => (
+                      <HBar key={label} label={label} count={count} total={totalCatActions} color={MAIN_COLORS[label]} />
+                    ))}
+                  {totalCatActions === 0 && <p className="text-xs text-gray-300 text-center py-6">데이터 없음</p>}
+                </div>
+              </div>
+            </div>
+
+            {/* 조치분류 세부 항목 */}
+            {byDetail.length > 0 && (
+              <div className="bg-white border border-gray-200 rounded-xl p-5">
+                <h3 className="text-sm font-bold text-gray-800 mb-4">
+                  조치분류 세부 항목
+                  <span className="text-xs font-normal text-gray-400 ml-2">총 {totalCatActions}건</span>
+                </h3>
+                <div className="space-y-2.5">
+                  {byDetail.slice(0, 15).map(({ label, count, color }) => (
+                    <HBar key={label} label={label} count={count} total={totalCatActions} color={color} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 최근 완료 처리 내역 */}
+            {recentCompleted.length > 0 && (
+              <div className="bg-white border border-gray-200 rounded-xl p-5">
+                <h3 className="text-sm font-bold text-gray-800 mb-4">
+                  최근 완료 처리 내역
+                  <span className="text-xs font-normal text-gray-400 ml-2">최신 10건</span>
+                </h3>
+                <div className="overflow-auto">
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b-2 border-gray-100">
+                        <th className="text-left py-2.5 pr-3 text-gray-500 font-semibold">문의 내용</th>
+                        <th className="text-left py-2.5 px-3 text-gray-500 font-semibold whitespace-nowrap">조치방법</th>
+                        <th className="text-left py-2.5 px-3 text-gray-500 font-semibold whitespace-nowrap">조치분류</th>
+                        <th className="text-left py-2.5 px-3 text-gray-500 font-semibold">조치내용</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentCompleted.map(t => (
+                        <tr key={t.id} className="border-b border-gray-50 hover:bg-gray-50">
+                          <td className="py-2.5 pr-3">
+                            <div className="max-w-[160px] truncate font-medium text-gray-700" title={t.content || t.title}>
+                              {t.content || t.title || "—"}
+                            </div>
+                            <div className="text-[10px] text-gray-400 mt-0.5">
+                              {[t.company, t.requester].filter(Boolean).join(" · ")}
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-3 whitespace-nowrap">
+                            {t.actionMethod ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                                style={{ background: `${METHOD_COLORS[t.actionMethod] ?? "#9CA3AF"}22`, color: METHOD_COLORS[t.actionMethod] ?? "#9CA3AF" }}>
+                                {t.actionMethod}
+                              </span>
+                            ) : <span className="text-gray-300">—</span>}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <div className="flex flex-wrap gap-1 max-w-[160px]">
+                              {(t.actionCategory ?? []).length > 0
+                                ? (t.actionCategory ?? []).map(c => (
+                                    <span key={c} className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded whitespace-nowrap">
+                                      {c.split(" > ")[1] ?? c}
+                                    </span>
+                                  ))
+                                : <span className="text-gray-300">—</span>}
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-3 max-w-xs">
+                            <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">
+                              {t.actionNote || <span className="text-gray-300 italic">미입력</span>}
+                            </p>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* ── 구분선 ── */}
+            <div className="border-t border-gray-100 pt-2">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1">반복 유형 분석</p>
+            </div>
 
             {/* ── 메인 카테고리 분포 요약 ── */}
             <div className="grid grid-cols-3 gap-3">
