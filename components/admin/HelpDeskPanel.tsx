@@ -1972,6 +1972,15 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
               </button>
             )}
             <span className="text-xs text-gray-400 ml-auto">{filteredList.length}건</span>
+            <button
+              onClick={() => load(true)}
+              className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:text-gray-800 transition-colors"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+              </svg>
+              새로고침
+            </button>
           </div>
 
           <div className="bg-white border border-gray-200 rounded-xl overflow-auto">
