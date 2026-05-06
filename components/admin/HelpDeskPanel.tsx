@@ -257,6 +257,16 @@ function InlineAssigneeCell({
   );
 }
 
+// ── Shared row layout for ticket detail modal ────────────────
+function DR({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-4 py-3 border-b border-gray-50 last:border-0">
+      <span className="text-xs text-gray-400 w-20 shrink-0 pt-0.5">{label}</span>
+      <div className="flex-1 text-sm text-gray-800">{children}</div>
+    </div>
+  );
+}
+
 // ── Action Category Tree ─────────────────────────────────────
 function IndeterminateCheckbox({ checked, indeterminate, onChange }: {
   checked: boolean; indeterminate: boolean; onChange: () => void;
@@ -274,7 +284,7 @@ function ActionCategoryTree({ selected, onChange }: {
   onChange: (v: string[]) => void;
 }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>(
-    Object.fromEntries(ACTION_TREE.map(g => [g.label, true]))
+    Object.fromEntries(ACTION_TREE.map(g => [g.label, false]))
   );
 
   const childKey = (parent: string, child: string) => `${parent} > ${child}`;
@@ -542,13 +552,6 @@ function HelpDeskTicketFloating({
     } catch { setSaveResult(prev => ({ ...prev, [field]: "error" })); }
     finally { setSaving(null); }
   };
-
-  const DR = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div className="flex items-start gap-4 py-3 border-b border-gray-50 last:border-0">
-      <span className="text-xs text-gray-400 w-20 shrink-0 pt-0.5">{label}</span>
-      <div className="flex-1 text-sm text-gray-800">{children}</div>
-    </div>
-  );
 
   const allStatuses = [...new Set([...HELPDESK_EDIT_STATUSES, ...statuses])];
 
