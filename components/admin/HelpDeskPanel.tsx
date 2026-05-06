@@ -509,6 +509,45 @@ function HelpDeskTicketFloating({
     finally { setCategorySaving(false); }
   };
 
+  const [allSaving,    setAllSaving]    = useState(false);
+  const [allSaveResult,setAllSaveResult]= useState<"idle" | "done" | "error">("idle");
+
+  const saveAll = async () => {
+    setAllSaving(true); setAllSaveResult("idle");
+    try {
+      const found = assigneeList.find(u => u.name === selectedAssignee);
+      const noteText = textareaRef.current?.value ?? noteValue;
+      const res = await fetch("/api/helpdesk/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: ticket.id,
+          fields: {
+            status: selectedStatus,
+            assigneeId: found?.id ?? "",
+            actionCategory: selectedCategories,
+            actionMethod: selectedMethod,
+            actionNote: noteText,
+          },
+        }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setNoteValue(noteText);
+        setAllSaveResult("done");
+        onUpdated?.(ticket.id, {
+          status: selectedStatus,
+          assignee: selectedAssignee,
+          actionCategory: selectedCategories,
+          actionMethod: selectedMethod,
+          actionNote: noteText,
+        });
+        setTimeout(() => setAllSaveResult("idle"), 2500);
+      } else setAllSaveResult("error");
+    } catch { setAllSaveResult("error"); }
+    finally { setAllSaving(false); }
+  };
+
   const saveMethod = async (method: string) => {
     setMethodSaving(true); setMethodSaveResult("idle");
     try {
@@ -562,12 +601,12 @@ function HelpDeskTicketFloating({
       onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden"
-        style={{ maxHeight: "88vh", overflowY: "auto" }}
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 flex flex-col"
+        style={{ maxHeight: "88vh" }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="px-7 py-5 border-b border-gray-100 flex items-start justify-between gap-4">
+        {/* Sticky Header */}
+        <div className="px-7 py-5 border-b border-gray-100 flex items-start justify-between gap-4 flex-shrink-0">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2 flex-wrap">
               {ticket.inquiryType && (
@@ -582,13 +621,13 @@ function HelpDeskTicketFloating({
             </h2>
           </div>
           <button onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-2xl leading-none w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 shrink-0">
-            ×
+            className="text-gray-400 hover:text-gray-600 text-xl leading-none w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 flex-shrink-0 border border-transparent hover:border-gray-200 transition-colors">
+            ✕
           </button>
         </div>
 
-        {/* Body */}
-        <div className="px-7 py-1">
+        {/* Scrollable Body */}
+        <div className="px-7 py-1 overflow-y-auto flex-1">
           {/* 상태 변경 */}
           <DR label="상태">
             <div className="flex items-center gap-2">
@@ -842,19 +881,38 @@ function HelpDeskTicketFloating({
           )}
         </div>
 
-        {/* Footer */}
-        {ticket.notionUrl && (
-          <div className="px-7 py-4 border-t border-gray-100">
-            <a href={ticket.notionUrl} target="_blank" rel="noopener noreferrer"
-              className="text-sm text-blue-600 hover:underline flex items-center gap-1.5">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
-                <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-              </svg>
-              노션에서 보기
-            </a>
+        {/* Sticky Footer */}
+        <div className="px-7 py-4 border-t border-gray-100 flex items-center justify-between gap-3 flex-shrink-0">
+          <div>
+            {ticket.notionUrl && (
+              <a href={ticket.notionUrl} target="_blank" rel="noopener noreferrer"
+                className="text-sm text-blue-600 hover:underline flex items-center gap-1.5">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
+                  <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                </svg>
+                노션에서 보기
+              </a>
+            )}
           </div>
-        )}
+          <div className="flex items-center gap-2">
+            {allSaveResult === "done"  && <span className="text-xs text-green-600">✓ 저장됨</span>}
+            {allSaveResult === "error" && <span className="text-xs text-red-500">저장 실패</span>}
+            <button
+              onClick={onClose}
+              className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+            >
+              닫기
+            </button>
+            <button
+              onClick={saveAll}
+              disabled={allSaving}
+              className="text-sm px-4 py-2 rounded-lg bg-gray-900 text-white font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              {allSaving ? "저장 중…" : "전체 저장"}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -1768,7 +1826,16 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
                 {opts.filter(o => o !== "all").map(o => <option key={o} value={o}>{o}</option>)}
               </select>
             ))}
-            <span className="ml-auto text-xs text-gray-400">{filteredList.length}건</span>
+            <span className="text-xs text-gray-400">{filteredList.length}건</span>
+            <button
+              onClick={() => load(true)}
+              className="ml-auto flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:text-gray-800 transition-colors"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+              </svg>
+              새로고침
+            </button>
           </div>
 
           <div className="bg-white border border-gray-200 rounded-xl overflow-auto">
