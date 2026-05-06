@@ -937,11 +937,23 @@ function ExcelUploadTab(){
     setShowDupModal(false);setUploading(true);setProgress(0);setResults(null);setSummary(null);
     try{
       const timer=setInterval(()=>setProgress(p=>Math.min(p+Math.random()*12,88)),400);
+      const convertedRows=targetRows.map(r=>({...r,purchaseDate:excelDateToStr(r.purchaseDate as string|number),useDate:excelDateToStr(r.useDate as string|number)}));
       const res=await fetch("/api/hw/upload",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({rows:targetRows.map(r=>({...r,purchaseDate:excelDateToStr(r.purchaseDate as string|number),useDate:excelDateToStr(r.useDate as string|number)}))})});
+        body:JSON.stringify({rows:convertedRows})});
       const json=await res.json();clearInterval(timer);setProgress(100);
       if(!json.ok) throw new Error(json.error);
       setResults(json.results);setSummary({success:json.success,failed:json.failed});
+      // 신규 지급 이력 기록 (성공 건만)
+      const successSet=new Set<number>((json.results as UploadResult[]).filter((r:UploadResult)=>r.ok).map((r:UploadResult)=>r.index));
+      if(successSet.size>0){
+        const now=new Date().toISOString();
+        const events=convertedRows.filter((_,i)=>successSet.has(i)).map(r=>({
+          id:crypto.randomUUID(),dispatchedAt:now,type:"신규" as const,
+          assetNo:r.assetNo||"",model:r.model||"",serial:r.serial||"",
+          user:r.user||"",company:r.company||"",dept:r.dept||"",useDate:r.useDate||"",
+        }));
+        fetch("/api/hw/dispatch-history",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(events)}).catch(console.error);
+      }
     }catch(e){setPErr(String(e));}finally{setUploading(false);}
   };
   const reset=()=>{setRows([]);setFile("");setPErr("");setResults(null);setSummary(null);setProgress(0);setShowDupModal(false);setDupItems([]);setCleanRows([]);if(fileRef.current)fileRef.current.value="";};
@@ -1666,9 +1678,259 @@ ${labelHtml}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 자산지급 현황 탭
+// ─────────────────────────────────────────────────────────────────────────────
+function DispatchHistoryTab() {
+  const [history, setHistory] = useState<DispatchRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"전체"|"재고"|"신규">("전체");
+  const [yearFilter, setYearFilter] = useState(() => String(new Date().getFullYear()));
+
+  const load = useCallback(async () => {
+    setLoading(true); setError("");
+    try {
+      const res = await fetch("/api/hw/dispatch-history");
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error);
+      setHistory(json.history);
+    } catch (e) { setError(String(e)); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const years = useMemo(() => {
+    const ys = new Set<string>();
+    for (const r of history) ys.add(r.dispatchedAt.slice(0, 4));
+    ys.add(String(new Date().getFullYear()));
+    return [...ys].sort().reverse();
+  }, [history]);
+
+  const filtered = useMemo(() => {
+    let h = history.filter(r => r.dispatchedAt.startsWith(yearFilter));
+    if (typeFilter !== "전체") h = h.filter(r => r.type === typeFilter);
+    return h;
+  }, [history, yearFilter, typeFilter]);
+
+  const monthlyStats = useMemo(() => {
+    const result: { month: string; label: string; stock: number; newCount: number; total: number }[] = [];
+    for (let m = 1; m <= 12; m++) {
+      result.push({ month: `${yearFilter}-${String(m).padStart(2,"0")}`, label: `${m}월`, stock: 0, newCount: 0, total: 0 });
+    }
+    for (const r of history.filter(r => r.dispatchedAt.startsWith(yearFilter))) {
+      const idx = parseInt(r.dispatchedAt.slice(5, 7), 10) - 1;
+      if (idx >= 0 && idx < 12) {
+        if (r.type === "재고") result[idx].stock++;
+        else result[idx].newCount++;
+        result[idx].total++;
+      }
+    }
+    return result;
+  }, [history, yearFilter]);
+
+  const maxMonthly = Math.max(...monthlyStats.map(m => m.total), 1);
+  const stockTotal = filtered.filter(r => r.type === "재고").length;
+  const newTotal   = filtered.filter(r => r.type === "신규").length;
+
+  const chartW = 560; const chartH = 160; const barArea = chartH - 10;
+  const slotW  = chartW / 12; const barW = Math.floor(slotW * 0.32);
+
+  return (
+    <div className="space-y-4">
+      {/* 헤더 / 필터 */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap items-center gap-3">
+        <div className="flex-1 min-w-[160px]">
+          <p className="text-sm font-bold text-gray-800">자산지급 현황</p>
+          <p className="text-xs text-gray-400 mt-0.5">재고/신규 노트북 지급 이력 및 월별 건수</p>
+        </div>
+        <select value={yearFilter} onChange={e => setYearFilter(e.target.value)}
+          className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
+          {years.map(y => <option key={y} value={y}>{y}년</option>)}
+        </select>
+        <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-semibold">
+          {(["전체","재고","신규"] as const).map(t => (
+            <button key={t} onClick={() => setTypeFilter(t)}
+              className={`px-3 py-2 transition-colors ${typeFilter===t ? "bg-indigo-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>
+              {t}
+            </button>
+          ))}
+        </div>
+        <button onClick={load} disabled={loading}
+          className="px-4 py-2 rounded-lg bg-indigo-500 text-white text-sm font-semibold hover:bg-indigo-600 disabled:opacity-50 transition-colors">
+          {loading ? "불러오는 중…" : "새로고침"}
+        </button>
+      </div>
+
+      {error && <div className="px-4 py-3 bg-red-50 rounded-xl text-sm text-red-600">⚠️ {error}</div>}
+
+      {/* 요약 카드 */}
+      {!loading && (
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
+            <p className="text-xs font-semibold text-indigo-500">전체 지급</p>
+            <p className="text-2xl font-bold text-indigo-700 mt-1">{filtered.length}<span className="text-sm font-normal ml-1">건</span></p>
+            <p className="text-xs text-indigo-400 mt-0.5">{yearFilter}년</p>
+          </div>
+          <div className="bg-purple-50 border border-purple-100 rounded-xl p-4">
+            <p className="text-xs font-semibold text-purple-500">재고 지급</p>
+            <p className="text-2xl font-bold text-purple-700 mt-1">{stockTotal}<span className="text-sm font-normal ml-1">건</span></p>
+            <p className="text-xs text-purple-400 mt-0.5">재고 노트북 출고완료</p>
+          </div>
+          <div className="bg-teal-50 border border-teal-100 rounded-xl p-4">
+            <p className="text-xs font-semibold text-teal-500">신규 지급</p>
+            <p className="text-2xl font-bold text-teal-700 mt-1">{newTotal}<span className="text-sm font-normal ml-1">건</span></p>
+            <p className="text-xs text-teal-400 mt-0.5">신규 구매 엑셀 등록</p>
+          </div>
+        </div>
+      )}
+
+      {/* 월별 막대 차트 */}
+      {!loading && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <p className="text-sm font-bold text-gray-700 mb-4">{yearFilter}년 월별 지급 현황</p>
+          <div className="overflow-x-auto">
+            <svg width="100%" viewBox={`0 0 ${chartW} ${chartH + 28}`} style={{ minWidth: 360 }}>
+              {/* 격자선 */}
+              {[0.25,0.5,0.75,1].map(f => {
+                const y = chartH - f * barArea;
+                return (
+                  <g key={f}>
+                    <line x1={0} y1={y} x2={chartW} y2={y} stroke="#f3f4f6" strokeWidth={1}/>
+                    <text x={2} y={y-2} fontSize={8} fill="#d1d5db">{Math.round(f*maxMonthly)}</text>
+                  </g>
+                );
+              })}
+              {/* 막대 */}
+              {monthlyStats.map((m, i) => {
+                const cx   = slotW * i + slotW / 2;
+                const sH   = maxMonthly > 0 ? (m.stock    / maxMonthly) * barArea : 0;
+                const nH   = maxMonthly > 0 ? (m.newCount / maxMonthly) * barArea : 0;
+                const topY = chartH - Math.max(sH, nH);
+                return (
+                  <g key={m.month}>
+                    <rect x={cx-barW-1} y={chartH-sH} width={barW} height={sH} fill="#a855f7" rx={2} opacity={0.85}/>
+                    <rect x={cx+1}      y={chartH-nH} width={barW} height={nH} fill="#14b8a6" rx={2} opacity={0.85}/>
+                    <text x={cx} y={chartH+13} textAnchor="middle" fontSize={9} fill="#9ca3af">{m.label}</text>
+                    {m.total > 0 && (
+                      <text x={cx} y={topY-3} textAnchor="middle" fontSize={9} fill="#374151" fontWeight="600">{m.total}</text>
+                    )}
+                  </g>
+                );
+              })}
+            </svg>
+          </div>
+          <div className="flex items-center gap-4 mt-1 text-xs text-gray-500">
+            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-purple-400 inline-block"/>재고 지급</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-teal-400 inline-block"/>신규 지급</span>
+          </div>
+        </div>
+      )}
+
+      {/* 월별 집계 테이블 */}
+      {!loading && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-100">
+            <p className="text-sm font-bold text-gray-700">월별 집계</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-gray-50 text-gray-500 font-semibold">
+                <tr>
+                  <th className="px-4 py-2.5 text-left">월</th>
+                  <th className="px-4 py-2.5 text-right">재고 지급</th>
+                  <th className="px-4 py-2.5 text-right">신규 지급</th>
+                  <th className="px-4 py-2.5 text-right">합계</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {monthlyStats.map(m => (
+                  <tr key={m.month} className={`hover:bg-gray-50 ${m.total===0?"opacity-40":""}`}>
+                    <td className="px-4 py-2.5 font-medium text-gray-800">{m.label}</td>
+                    <td className="px-4 py-2.5 text-right text-purple-600 font-semibold">{m.stock||"-"}</td>
+                    <td className="px-4 py-2.5 text-right text-teal-600 font-semibold">{m.newCount||"-"}</td>
+                    <td className="px-4 py-2.5 text-right font-bold text-gray-900">{m.total||"-"}</td>
+                  </tr>
+                ))}
+                <tr className="bg-gray-50 font-bold border-t-2 border-gray-200">
+                  <td className="px-4 py-2.5 text-gray-700">합계</td>
+                  <td className="px-4 py-2.5 text-right text-purple-700">{monthlyStats.reduce((s,m)=>s+m.stock,0)}</td>
+                  <td className="px-4 py-2.5 text-right text-teal-700">{monthlyStats.reduce((s,m)=>s+m.newCount,0)}</td>
+                  <td className="px-4 py-2.5 text-right text-gray-900">{monthlyStats.reduce((s,m)=>s+m.total,0)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 지급 이력 상세 */}
+      {!loading && filtered.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+            <p className="text-sm font-bold text-gray-700">지급 이력</p>
+            <span className="text-xs text-gray-400">{filtered.length}건</span>
+          </div>
+          <div className="overflow-x-auto overflow-y-auto max-h-96">
+            <table className="w-full text-xs">
+              <thead className="bg-gray-50 text-gray-500 font-semibold sticky top-0">
+                <tr>{["지급일자","유형","자산번호","사용자","법인","부서","모델명","시리얼"].map(h=>(
+                  <th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>
+                ))}</tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filtered.slice(0,300).map(r=>(
+                  <tr key={r.id} className="hover:bg-gray-50">
+                    <td className="px-3 py-2.5 whitespace-nowrap text-gray-500">{r.dispatchedAt.slice(0,10)}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${r.type==="재고"?"bg-purple-100 text-purple-700":"bg-teal-100 text-teal-700"}`}>
+                        {r.type}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 font-mono whitespace-nowrap">{r.assetNo||"-"}</td>
+                    <td className="px-3 py-2.5 font-medium whitespace-nowrap">{r.user||"-"}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">{r.company||"-"}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">{r.dept||"-"}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap max-w-[130px] truncate">{r.model||"-"}</td>
+                    <td className="px-3 py-2.5 font-mono whitespace-nowrap">{r.serial||"-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {!loading && filtered.length === 0 && !error && (
+        <div className="py-16 text-center text-gray-300">
+          <p className="text-4xl mb-3">📋</p>
+          <p className="text-sm">지급 이력이 없습니다</p>
+          <p className="text-xs mt-2 text-gray-300">출고준비완료 전환 또는 엑셀 등록 시 자동으로 기록됩니다</p>
+        </div>
+      )}
+
+      {loading && <div className="py-16 text-center text-gray-300 text-sm">불러오는 중…</div>}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 메인 HwPanel — 데이터 1회 fetch, 모든 탭에 props 전달
 // ─────────────────────────────────────────────────────────────────────────────
-type Tab = "dashboard"|"shipment"|"return"|"search"|"upload"|"label";
+type Tab = "dashboard"|"shipment"|"return"|"search"|"upload"|"dispatch"|"label";
+
+interface DispatchRecord {
+  id: string;
+  dispatchedAt: string;
+  type: "재고" | "신규";
+  assetNo: string;
+  model: string;
+  serial: string;
+  user: string;
+  company: string;
+  dept: string;
+  useDate: string;
+}
 
 export default function HwPanel({ company = "", initialStats }: { company?: string; initialStats?: HwStats | null }) {
   const [tab, setTab] = useState<Tab>("dashboard");
@@ -1680,6 +1942,8 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
 
   // ── 목록 탭용 전체 레코드 (필요 시 lazy load) ─────────────────────────────
   const [records,      setRecords]      = useState<HwRecord[]>([]);
+  const recordsRef = useRef<HwRecord[]>([]);
+  recordsRef.current = records;
   const [recordsLoading, setRecordsLoading] = useState(false);
   const [recordsReady,   setRecordsReady]   = useState(false);
   const [recordsError,   setRecordsError]   = useState("");
@@ -1743,7 +2007,7 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
 
   // 목록 탭 전환 시 레코드 lazy load
   useEffect(() => {
-    if (tab !== "dashboard" && tab !== "search" && tab !== "upload") {
+    if (tab !== "dashboard" && tab !== "search" && tab !== "upload" && tab !== "dispatch") {
       loadAll();
     }
   }, [tab, loadAll]);
@@ -1757,21 +2021,45 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
     });
     const json = await res.json();
     if (!json.ok) throw new Error(json.error ?? "Notion 업데이트 실패");
+    // 출고준비완료 전환 시 재고 지급 이력 기록
+    if (fields.status === "출고준비완료") {
+      const original = recordsRef.current.find(r => r.id === id);
+      if (original) {
+        const merged = { ...original, ...fields };
+        fetch("/api/hw/dispatch-history", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify([{
+            id: crypto.randomUUID(),
+            dispatchedAt: new Date().toISOString(),
+            type: "재고",
+            assetNo: merged.assetNo || "",
+            model: merged.model || "",
+            serial: merged.serial || "",
+            user: merged.user || "",
+            company: merged.company || "",
+            dept: merged.dept || "",
+            useDate: merged.useDate || "",
+          }]),
+        }).catch(console.error);
+      }
+    }
     // 로컬 상태 즉시 반영
     setRecords(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r));
   }, []);
 
   const TABS: { id: Tab; label: string; icon: string }[] = [
-    { id: "dashboard", label: "대시보드",   icon: "📊" },
-    { id: "shipment",  label: "출고 현황",  icon: "📤" },
-    { id: "return",    label: "반납 대상자",icon: "📅" },
-    { id: "search",    label: "자산 검색",  icon: "🔍" },
-    { id: "upload",    label: "엑셀 등록",  icon: "📂" },
-    { id: "label",     label: "행낭 발송지",icon: "🏷️" },
+    { id: "dashboard", label: "대시보드",    icon: "📊" },
+    { id: "shipment",  label: "출고 현황",   icon: "📤" },
+    { id: "return",    label: "반납 대상자", icon: "📅" },
+    { id: "search",    label: "자산 검색",   icon: "🔍" },
+    { id: "upload",    label: "엑셀 등록",   icon: "📂" },
+    { id: "dispatch",  label: "자산지급 현황",icon: "📋" },
+    { id: "label",     label: "행낭 발송지", icon: "🏷️" },
   ];
 
   const recordsTabProps: TabProps = { records, loading: recordsLoading, onRefresh: handleRefreshAll, onUpdate: handleUpdate };
-  const isRecordsTab = tab !== "dashboard" && tab !== "search" && tab !== "upload" && tab !== "label";
+  const isRecordsTab = tab !== "dashboard" && tab !== "search" && tab !== "upload" && tab !== "label" && tab !== "dispatch";
 
   return (
     <div className="space-y-4">
@@ -1823,6 +2111,7 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
       {tab === "return"    && <ReturnTab     {...recordsTabProps} />}
       {tab === "search"    && <SearchTab companyLock={company} onUpdate={handleUpdate} />}
       {tab === "upload"    && <ExcelUploadTab />}
+      {tab === "dispatch"  && <DispatchHistoryTab />}
       {tab === "label"     && <LabelPrintTab records={records} recordsReady={recordsReady} onLoadRecords={loadAll} />}
     </div>
   );

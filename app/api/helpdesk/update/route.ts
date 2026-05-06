@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
   try {
     const { id, fields } = await req.json() as {
       id: string;
-      fields: { status?: string; assigneeId?: string; actionNote?: string; actionCategory?: string[]; actionMethod?: string };
+      fields: { status?: string; assigneeId?: string; actionNote?: string; actionCategory?: string[] };
     };
 
     if (!id) return NextResponse.json({ ok: false, error: "id 필수" }, { status: 400 });
@@ -29,11 +29,6 @@ export async function POST(req: NextRequest) {
     }
     if (fields.actionCategory !== undefined) {
       properties["조치분류"] = { multi_select: fields.actionCategory.map(name => ({ name })) };
-    }
-    if (fields.actionMethod !== undefined) {
-      properties["조치방법"] = fields.actionMethod
-        ? { select: { name: fields.actionMethod } }
-        : { select: null };
     }
 
     if (Object.keys(properties).length === 0) {
