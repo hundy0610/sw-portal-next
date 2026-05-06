@@ -257,9 +257,109 @@ function InlineAssigneeCell({
   );
 }
 
+// ── Shared row layout ────────────────────────────────────────
+function DR({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-4 py-3 border-b border-gray-50 last:border-0">
+      <span className="text-xs text-gray-400 w-20 shrink-0 pt-0.5">{label}</span>
+      <div className="flex-1 text-sm text-gray-800">{children}</div>
+    </div>
+  );
+}
+
+// ── Action Category Tree ─────────────────────────────────────
+const ACTION_TREE = [
+  { label: "하드웨어", children: ["단순 점검", "청소 및 정비", "부품 교체", "외부업체 수리", "자산 교체(노후화)", "자산 교체(고장 및 파손)", "기타"] },
+  { label: "소프트웨어", children: ["OS 점검", "OS 재설치", "드라이버 업데이트", "악성코드 점검", "충돌 보안프로그램 점검", "라이선스 재고 지급", "라이선스 신규구매 안내", "라이선스 갱신 안내", "라이선스 설치", "라이선스 계정 관리", "기타"] },
+  { label: "기타", children: ["단순 안내", "자산 반납", "자산 이관", "타부서 이관", "해결 불가"] },
+];
+const ALL_TREE_KEYS = ACTION_TREE.flatMap(g => g.children.map(c => `${g.label} > ${c}`));
+
+function IndeterminateCheckbox({ checked, indeterminate, onChange }: {
+  checked: boolean; indeterminate: boolean; onChange: () => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (ref.current) ref.current.indeterminate = indeterminate; }, [indeterminate]);
+  return (
+    <input ref={ref} type="checkbox" checked={checked} onChange={onChange}
+      className="rounded border-gray-300 text-violet-600 focus:ring-violet-200 cursor-pointer" />
+  );
+}
+
+function ActionCategoryTree({ selected, onChange }: { selected: string[]; onChange: (v: string[]) => void }) {
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(
+    Object.fromEntries(ACTION_TREE.map(g => [g.label, false]))
+  );
+  const childKey = (parent: string, child: string) => `${parent} > ${child}`;
+  const toggleChild = (parent: string, child: string) => {
+    const key = childKey(parent, child);
+    onChange(selected.includes(key) ? selected.filter(s => s !== key) : [...selected, key]);
+  };
+  const toggleParent = (parent: string, children: string[]) => {
+    const keys = children.map(c => childKey(parent, c));
+    const allSelected = keys.every(k => selected.includes(k));
+    onChange(allSelected ? selected.filter(s => !keys.includes(s)) : [...selected, ...keys.filter(k => !selected.includes(k))]);
+  };
+  const legacy = selected.filter(s => !ALL_TREE_KEYS.includes(s));
+  return (
+    <div className="space-y-0.5">
+      {ACTION_TREE.map(group => {
+        const keys = group.children.map(c => childKey(group.label, c));
+        const selectedCount = keys.filter(k => selected.includes(k)).length;
+        const allSelected = selectedCount === keys.length;
+        const someSelected = selectedCount > 0 && !allSelected;
+        return (
+          <div key={group.label}>
+            <div className="flex items-center gap-2 py-1.5">
+              <IndeterminateCheckbox checked={allSelected} indeterminate={someSelected}
+                onChange={() => toggleParent(group.label, group.children)} />
+              <button type="button"
+                onClick={() => setExpanded(p => ({ ...p, [group.label]: !p[group.label] }))}
+                className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 hover:text-gray-900">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                  className={`transition-transform flex-shrink-0 ${expanded[group.label] ? "rotate-90" : ""}`}>
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+                {group.label}
+                {selectedCount > 0 && (
+                  <span className="text-[10px] text-violet-600 font-bold bg-violet-50 px-1.5 py-0.5 rounded-full leading-none">{selectedCount}</span>
+                )}
+              </button>
+            </div>
+            {expanded[group.label] && (
+              <div className="ml-6 space-y-0.5 pb-1">
+                {group.children.map(child => {
+                  const key = childKey(group.label, child);
+                  return (
+                    <label key={key} className="flex items-center gap-2 py-1 cursor-pointer select-none group">
+                      <input type="checkbox" checked={selected.includes(key)} onChange={() => toggleChild(group.label, child)}
+                        className="rounded border-gray-300 text-violet-600 focus:ring-violet-200" />
+                      <span className="text-sm text-gray-600 group-hover:text-gray-800">{child}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {legacy.length > 0 && (
+        <div className="pt-1 flex flex-wrap gap-1.5">
+          {legacy.map(s => (
+            <span key={s} className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full flex items-center gap-1">
+              {s}
+              <button type="button" onClick={() => onChange(selected.filter(x => x !== s))}
+                className="text-gray-400 hover:text-gray-600 leading-none">×</button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── HelpDesk Ticket Detail Modal ─────────────────────────────
 const HELPDESK_EDIT_STATUSES = ["시작 전", "진행 중", "완료"] as const;
-const HELPDESK_ACTION_CATEGORIES = ["기본점검", "원격조치", "단순안내", "SW재설치/OS재설치", "HW수리", "타부서이관", "기타"] as const;
 
 function HelpDeskTicketFloating({
   ticket,
@@ -286,6 +386,11 @@ function HelpDeskTicketFloating({
   const [selectedCategories, setSelectedCategories] = useState<string[]>(ticket.actionCategory ?? []);
   const [categorySaving,     setCategorySaving]     = useState(false);
   const [categorySaveResult, setCategorySaveResult] = useState<"idle" | "done" | "error">("idle");
+  const [selectedMethod,     setSelectedMethod]     = useState(ticket.actionMethod ?? "");
+  const [methodSaving,       setMethodSaving]       = useState(false);
+  const [methodSaveResult,   setMethodSaveResult]   = useState<"idle" | "done" | "error">("idle");
+  const [allSaving,          setAllSaving]          = useState(false);
+  const [allSaveResult,      setAllSaveResult]      = useState<"idle" | "done" | "error">("idle");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [assetData,       setAssetData]       = useState<HwRecord | null>(null);
   const [assetState,      setAssetState]      = useState<"idle" | "loading" | "found" | "notfound" | "error">("idle");
@@ -374,6 +479,54 @@ function HelpDeskTicketFloating({
     finally { setCategorySaving(false); }
   };
 
+  const saveMethod = async (method: string) => {
+    setMethodSaving(true); setMethodSaveResult("idle");
+    try {
+      const res = await fetch("/api/helpdesk/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: ticket.id, fields: { actionMethod: method } }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setMethodSaveResult("done");
+        onUpdated?.(ticket.id, { actionMethod: method });
+        setTimeout(() => setMethodSaveResult("idle"), 2000);
+      } else setMethodSaveResult("error");
+    } catch { setMethodSaveResult("error"); }
+    finally { setMethodSaving(false); }
+  };
+
+  const saveAll = async () => {
+    setAllSaving(true); setAllSaveResult("idle");
+    try {
+      const found = assigneeList.find(u => u.name === selectedAssignee);
+      const noteText = textareaRef.current?.value ?? noteValue;
+      const res = await fetch("/api/helpdesk/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: ticket.id,
+          fields: {
+            status: selectedStatus,
+            assigneeId: found?.id ?? "",
+            actionCategory: selectedCategories,
+            actionMethod: selectedMethod,
+            actionNote: noteText,
+          },
+        }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setNoteValue(noteText);
+        setAllSaveResult("done");
+        onUpdated?.(ticket.id, { status: selectedStatus, assignee: selectedAssignee, actionCategory: selectedCategories, actionMethod: selectedMethod, actionNote: noteText });
+        setTimeout(() => setAllSaveResult("idle"), 2500);
+      } else setAllSaveResult("error");
+    } catch { setAllSaveResult("error"); }
+    finally { setAllSaving(false); }
+  };
+
   const saveField = async (field: "status" | "assignee") => {
     setSaving(field);
     setSaveResult(prev => ({ ...prev, [field]: undefined as unknown as "done" }));
@@ -400,13 +553,6 @@ function HelpDeskTicketFloating({
     finally { setSaving(null); }
   };
 
-  const DR = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div className="flex items-start gap-4 py-3 border-b border-gray-50 last:border-0">
-      <span className="text-xs text-gray-400 w-20 shrink-0 pt-0.5">{label}</span>
-      <div className="flex-1 text-sm text-gray-800">{children}</div>
-    </div>
-  );
-
   const allStatuses = [...new Set([...HELPDESK_EDIT_STATUSES, ...statuses])];
 
   return (
@@ -416,12 +562,12 @@ function HelpDeskTicketFloating({
       onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden"
-        style={{ maxHeight: "88vh", overflowY: "auto" }}
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 flex flex-col"
+        style={{ maxHeight: "88vh" }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-7 py-5 border-b border-gray-100 flex items-start justify-between gap-4">
+        <div className="px-7 py-5 border-b border-gray-100 flex items-start justify-between gap-4 flex-shrink-0">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2 flex-wrap">
               {ticket.inquiryType && (
@@ -442,7 +588,7 @@ function HelpDeskTicketFloating({
         </div>
 
         {/* Body */}
-        <div className="px-7 py-1">
+        <div className="px-7 py-1 overflow-y-auto flex-1">
           {/* 상태 변경 */}
           <DR label="상태">
             <div className="flex items-center gap-2">
@@ -592,35 +738,38 @@ function HelpDeskTicketFloating({
           {/* 조치분류 */}
           <DR label="조치분류">
             <div className="flex flex-col gap-2">
-              <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-                {HELPDESK_ACTION_CATEGORIES.map(c => (
-                  <label key={c} className="flex items-center gap-1.5 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={selectedCategories.includes(c)}
-                      onChange={e => {
-                        setSelectedCategories(prev =>
-                          e.target.checked ? [...prev, c] : prev.filter(x => x !== c)
-                        );
-                        setCategorySaveResult("idle");
-                      }}
-                      className="rounded border-gray-300 text-violet-600 focus:ring-violet-200"
-                    />
-                    <span className="text-sm text-gray-700">{c}</span>
-                  </label>
-                ))}
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={saveCategory}
-                  disabled={categorySaving}
-                  className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
+              <ActionCategoryTree
+                selected={selectedCategories}
+                onChange={v => { setSelectedCategories(v); setCategorySaveResult("idle"); }}
+              />
+              <div className="flex items-center gap-2 pt-1">
+                <button onClick={saveCategory} disabled={categorySaving}
+                  className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                   {categorySaving ? "저장 중…" : "저장"}
                 </button>
                 {categorySaveResult === "done"  && <span className="text-xs text-green-600">✓ 변경됨</span>}
                 {categorySaveResult === "error" && <span className="text-xs text-red-500">실패</span>}
               </div>
+            </div>
+          </DR>
+
+          {/* 조치방법 */}
+          <DR label="조치방법">
+            <div className="flex flex-wrap gap-2">
+              {(["원격", "방문", "메신저/메일", "기타"] as const).map(m => (
+                <button key={m} type="button" disabled={methodSaving}
+                  onClick={() => { const next = selectedMethod === m ? "" : m; setSelectedMethod(next); saveMethod(next); }}
+                  className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors disabled:opacity-50 ${
+                    selectedMethod === m
+                      ? "bg-violet-600 border-violet-600 text-white"
+                      : "bg-white border-gray-200 text-gray-600 hover:border-violet-300 hover:text-violet-600"
+                  }`}>
+                  {m}
+                </button>
+              ))}
+              {methodSaving && <svg className="animate-spin w-3.5 h-3.5 text-gray-400 self-center" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity="0.25"/><path d="M21 12a9 9 0 00-9-9"/></svg>}
+              {methodSaveResult === "done"  && <span className="text-xs text-green-600 self-center">✓</span>}
+              {methodSaveResult === "error" && <span className="text-xs text-red-500 self-center">실패</span>}
             </div>
           </DR>
 
@@ -676,19 +825,33 @@ function HelpDeskTicketFloating({
           )}
         </div>
 
-        {/* Footer */}
-        {ticket.notionUrl && (
-          <div className="px-7 py-4 border-t border-gray-100">
-            <a href={ticket.notionUrl} target="_blank" rel="noopener noreferrer"
-              className="text-sm text-blue-600 hover:underline flex items-center gap-1.5">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
-                <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-              </svg>
-              노션에서 보기
-            </a>
+        {/* Sticky Footer */}
+        <div className="px-7 py-4 border-t border-gray-100 flex items-center justify-between gap-3 flex-shrink-0">
+          <div>
+            {ticket.notionUrl && (
+              <a href={ticket.notionUrl} target="_blank" rel="noopener noreferrer"
+                className="text-sm text-blue-600 hover:underline flex items-center gap-1.5">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
+                  <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                </svg>
+                노션에서 보기
+              </a>
+            )}
           </div>
-        )}
+          <div className="flex items-center gap-2">
+            {allSaveResult === "done"  && <span className="text-xs text-green-600">✓ 저장됨</span>}
+            {allSaveResult === "error" && <span className="text-xs text-red-500">저장 실패</span>}
+            <button onClick={onClose}
+              className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
+              닫기
+            </button>
+            <button onClick={saveAll} disabled={allSaving}
+              className="text-sm px-4 py-2 rounded-lg bg-gray-900 text-white font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              {allSaving ? "저장 중…" : "전체 저장"}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -1736,6 +1899,13 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
               </button>
             )}
             <span className="text-xs text-gray-400 ml-auto">{filteredList.length}건</span>
+            <button onClick={() => load(true)}
+              className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:text-gray-800 transition-colors">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+              </svg>
+              새로고침
+            </button>
           </div>
 
           <div className="bg-white border border-gray-200 rounded-xl overflow-auto">
