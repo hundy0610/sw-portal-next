@@ -4,6 +4,9 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "SW 자산관리 포털",
   description: "전사 소프트웨어 자산 관리 시스템",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({
