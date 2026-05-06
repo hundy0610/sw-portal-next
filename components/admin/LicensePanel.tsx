@@ -5,33 +5,37 @@ import type { SwDbRecord } from "@/types";
 
 const PAGE_SIZE = 30;
 
-// ── SW 매크로 카테고리 ──────────────────────────────────────────────────
+// ── SW 매크로 카테고리 (Notion DB 실제 분류 기준) ────────────────────────
 const SW_CAT_RULES: {
   label: string; icon: string; color: string; bg: string; keywords: string[];
 }[] = [
   {
-    label: "문서작업용", icon: "📝", color: "text-blue-700", bg: "bg-blue-50",
-    keywords: ["office","word","excel","powerpoint","365","한컴","hwp","acrobat","pdf","한글","한셀","한쇼","thinkfree","docs","sheets","slides"],
+    label: "문서/오피스", icon: "📄", color: "text-blue-700", bg: "bg-blue-50",
+    keywords: ["office","hancom","pdf","ezpdf","nspdf"],
   },
   {
     label: "AI 툴", icon: "🤖", color: "text-violet-700", bg: "bg-violet-50",
-    keywords: ["copilot","chatgpt","gpt","claude","midjourney","cursor","tabnine","gemini","codeium","ai","stable diffusion"],
+    keywords: ["gpt","claude","copilot","cursor","google ai"],
   },
   {
     label: "개발 툴", icon: "💻", color: "text-emerald-700", bg: "bg-emerald-50",
-    keywords: ["vscode","vs code","intellij","pycharm","eclipse","xcode","git","github","gitlab","docker","postman","dbeaver","sourcetree","datagrip","rider","goland","clion","webstorm","터미널","terminal"],
+    keywords: ["jetbrains","postman","sendbird"],
   },
   {
     label: "협업 툴", icon: "🤝", color: "text-orange-700", bg: "bg-orange-50",
-    keywords: ["notion","slack","teams","zoom","webex","google meet","trello","asana","monday","카카오워크","miro","confluence","jira"],
+    keywords: ["notion","slack","confluence","jira","채널"],
   },
   {
-    label: "디자인 툴", icon: "🎨", color: "text-pink-700", bg: "bg-pink-50",
-    keywords: ["figma","photoshop","illustrator","indesign","adobe cc","adobe creative","sketch","after effects","premiere","lightroom","xd","canva","blender"],
+    label: "디자인/그래픽", icon: "🎨", color: "text-pink-700", bg: "bg-pink-50",
+    keywords: ["figma","keyshot","adobe"],
   },
   {
-    label: "보안/관리", icon: "🛡️", color: "text-red-700", bg: "bg-red-50",
-    keywords: ["v3","ahnlab","vpn","lastpass","1password","norton","kaspersky","dlp","endpoint","antivirus","백신","보안"],
+    label: "설계/CAD", icon: "📐", color: "text-cyan-700", bg: "bg-cyan-50",
+    keywords: ["cad","zwcad","sketch up","sketchup","cadian"],
+  },
+  {
+    label: "RPA/자동화", icon: "⚙️", color: "text-amber-700", bg: "bg-amber-50",
+    keywords: ["robot","uipath"],
   },
 ];
 
@@ -113,12 +117,24 @@ function CopyButton({ text, label = "복사" }: { text: string; label?: string }
   );
 }
 
-// ── 정렬 아이콘 ─────────────────────────────────────────────────────────
-type SortKey = "swCategory" | "licenseType" | "department" | "user" | "company" | "status" | "renewalDate" | "usageDate";
-
-function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: "asc" | "desc" }) {
-  if (sortKey !== col) return <span className="ml-0.5 text-gray-300">↕</span>;
-  return <span className="ml-0.5 text-blue-600">{sortDir === "asc" ? "↑" : "↓"}</span>;
+// ── 컬럼 드롭다운 필터 ──────────────────────────────────────────────────
+function ColFilter({ label, value, options, onChange }: {
+  label: string; value: string; options: string[]; onChange: (v: string) => void;
+}) {
+  const active = value !== "전체";
+  return (
+    <div className="relative inline-flex items-center gap-0.5">
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className={`appearance-none pr-3.5 py-0 text-xs font-semibold bg-transparent border-none cursor-pointer focus:outline-none ${active ? "text-blue-600" : "text-gray-500 hover:text-gray-700"}`}
+      >
+        <option value="전체">{label}</option>
+        {options.filter(o => o !== "전체").map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
+      <span className={`pointer-events-none absolute right-0 text-[10px] ${active ? "text-blue-500" : "text-gray-400"}`}>▾</span>
+    </div>
+  );
 }
 
 // ── 페이지네이션 ────────────────────────────────────────────────────────
@@ -163,7 +179,6 @@ function Pagination({ total, page, size, onChange }: {
 // ── SW 인라인 편집 모달 ─────────────────────────────────────────────────
 const SW_STATUS_OPTIONS = ["사용중","재고","갱신필요","만료","신규등록","반납예정","출고준비중","임시지급","미확인"];
 const SW_LICENSE_OPTIONS = ["영구","구독(업체)","구독(웹)"];
-const SW_RETURN_REASON_OPTIONS = ["퇴사","부서이동","계약종료","기기불량","기타"];
 
 function SwEditModal({
   record,
@@ -180,17 +195,15 @@ function SwEditModal({
 
   useEffect(() => {
     setForm({
-      status:              record.status,
-      user:                record.user,
-      department:          record.department,
-      company:             record.company,
-      licenseType:         record.licenseType,
-      licenseKey:          record.licenseKey,
-      swDetail:            record.swDetail,
-      renewalDate:         record.renewalDate,
-      returnScheduledDate: record.returnScheduledDate,
-      returnReason:        record.returnReason,
-      vendor:              record.vendor,
+      status:      record.status,
+      user:        record.user,
+      department:  record.department,
+      company:     record.company,
+      licenseType: record.licenseType,
+      licenseKey:  record.licenseKey,
+      swDetail:    record.swDetail,
+      renewalDate: record.renewalDate,
+      vendor:      record.vendor,
     });
   }, [record]);
 
@@ -278,21 +291,6 @@ function SwEditModal({
             <input type="date" value={String(form.renewalDate ?? "")} onChange={e => set("renewalDate", e.target.value)}
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
           </div>
-          {/* 반납예정일 */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">반납예정일</label>
-            <input type="date" value={String(form.returnScheduledDate ?? "")} onChange={e => set("returnScheduledDate", e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-          </div>
-          {/* 반납사유 */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">반납사유</label>
-            <select value={String(form.returnReason ?? "")} onChange={e => set("returnReason", e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
-              <option value="">—</option>
-              {SW_RETURN_REASON_OPTIONS.map(o => <option key={o}>{o}</option>)}
-            </select>
-          </div>
           {/* 구매처 */}
           <div>
             <label className="block text-xs font-semibold text-gray-500 mb-1">구매처</label>
@@ -332,7 +330,7 @@ function CategoryView({ records, onEdit }: { records: SwDbRecord[]; onEdit: (r: 
       if (!catMap[label]) catMap[label] = [];
       catMap[label].push(r);
     }
-    const ORDER = ["문서작업용", "AI 툴", "개발 툴", "협업 툴", "디자인 툴", "보안/관리", "기타"];
+    const ORDER = ["문서/오피스", "AI 툴", "개발 툴", "협업 툴", "디자인/그래픽", "설계/CAD", "RPA/자동화", "기타"];
     return ORDER.filter(label => catMap[label]).map(label => {
       const info = label === "기타" ? EXTRA_CAT : (SW_CAT_RULES.find(r => r.label === label) ?? EXTRA_CAT);
       const recs = catMap[label];
@@ -487,7 +485,7 @@ function CategoryView({ records, onEdit }: { records: SwDbRecord[]; onEdit: (r: 
 export default function LicensePanel({ company = "" }: { company?: string }) {
   const [records,  setRecords]  = useState<SwDbRecord[]>([]);
   const [loading,  setLoading]  = useState(true);
-  const [detailView, setDetailView] = useState<"category" | "list">("category");
+  const [detailView, setDetailView] = useState<"category" | "list">("list");
   const [editRecord, setEditRecord] = useState<SwDbRecord | null>(null);
 
   const handleUpdate = useCallback(async (id: string, fields: Partial<SwDbRecord>) => {
@@ -504,15 +502,14 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
   // 필터 상태
   const [search,           setSearch]           = useState("");
   const [filterMacrocat,   setFilterMacrocat]   = useState("전체");
+  const [filterSwName,     setFilterSwName]     = useState("전체");   // SW대분류 정확값
+  const [filterVersion,    setFilterVersion]    = useState("전체");   // 버전
   const [filterStatus,     setFilterStatus]     = useState("전체");
   const [filterType,       setFilterType]       = useState("전체");   // 영구 / 구독(업체) / 구독(웹)
   const [filterCompany,    setFilterCompany]    = useState("전체");   // company prop 있으면 데이터가 이미 필터됨
-  const [filterDept,       setFilterDept]       = useState("전체");
   const [showExpiringSoon, setShowExpiringSoon] = useState(false);
 
-  // 정렬 / 페이지
-  const [sortKey,     setSortKey]     = useState<SortKey>("swCategory");
-  const [sortDir,     setSortDir]     = useState<"asc" | "desc">("asc");
+  // 페이지
   const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
@@ -523,18 +520,30 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
       .finally(() => setLoading(false));
   }, [company]);
 
+  // filterMacrocat 변경 시 SW명 필터 초기화
+  useEffect(() => { setFilterSwName("전체"); }, [filterMacrocat]);
+
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, filterMacrocat, filterStatus, filterType, filterCompany, filterDept, showExpiringSoon]);
+  }, [search, filterMacrocat, filterSwName, filterVersion, filterStatus, filterType, filterCompany, showExpiringSoon]);
 
   // ── 드롭다운 옵션 ───────────────────────────────────────────────────
   const statusOptions  = useMemo(() => ["전체", ...Array.from(new Set(records.map(r => r.status).filter(Boolean)))], [records]);
-  const typeOptions    = useMemo(() => ["전체", "영구", "구독(업체)", "구독(웹)"], []);
   const companyOptions = useMemo(() => ["전체", ...Array.from(new Set(records.map(r => r.company).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ko"))], [records]);
-  const deptOptions    = useMemo(() => ["전체", ...Array.from(new Set(records.map(r => r.department).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ko"))], [records]);
   const macroCatOptions = useMemo(() => {
     const cats = Array.from(new Set(records.map(r => getSwMacroCategory(r.swCategory).label)));
-    return ["전체", ...["문서작업용","AI 툴","개발 툴","협업 툴","디자인 툴","보안/관리","기타"].filter(c => cats.includes(c))];
+    return ["전체", ...["문서/오피스","AI 툴","개발 툴","협업 툴","디자인/그래픽","설계/CAD","RPA/자동화","기타"].filter(c => cats.includes(c))];
+  }, [records]);
+  // SW명: 매크로 분류 선택 시 해당 분류의 SW만 표시
+  const swNameOptions = useMemo(() => {
+    const relevant = filterMacrocat === "전체"
+      ? records
+      : records.filter(r => getSwMacroCategory(r.swCategory).label === filterMacrocat);
+    return ["전체", ...Array.from(new Set(relevant.map(r => r.swCategory).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ko"))];
+  }, [records, filterMacrocat]);
+  const versionOptions = useMemo(() => {
+    const all = records.flatMap(r => r.version ?? []).filter(Boolean);
+    return ["전체", ...Array.from(new Set(all)).sort((a, b) => a.localeCompare(b, "ko"))];
   }, [records]);
 
   // ── 필터링 ─────────────────────────────────────────────────────────
@@ -542,8 +551,9 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
     if (filterType      !== "전체" && r.licenseType !== filterType)    return false;
     if (filterStatus    !== "전체" && r.status      !== filterStatus)  return false;
     if (filterCompany   !== "전체" && r.company     !== filterCompany) return false;
-    if (filterDept      !== "전체" && r.department  !== filterDept)    return false;
     if (filterMacrocat  !== "전체" && getSwMacroCategory(r.swCategory).label !== filterMacrocat) return false;
+    if (filterSwName    !== "전체" && r.swCategory  !== filterSwName)  return false;
+    if (filterVersion   !== "전체" && !(r.version ?? []).includes(filterVersion)) return false;
     if (showExpiringSoon) {
       const d = daysLeft(r.renewalDate);
       if (d === null || d < 0 || d > 30) return false;
@@ -554,51 +564,39 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
         .filter(Boolean).some(v => v.toLowerCase().includes(q))) return false;
     }
     return true;
-  }), [records, filterType, filterStatus, filterCompany, filterDept, filterMacrocat, showExpiringSoon, search]);
-
-  // ── 정렬 ───────────────────────────────────────────────────────────
-  const sorted = useMemo(() => [...filtered].sort((a, b) => {
-    let av = (a[sortKey] ?? "") as string;
-    let bv = (b[sortKey] ?? "") as string;
-    if (Array.isArray(av)) av = (av as string[])[0] ?? "";
-    if (Array.isArray(bv)) bv = (bv as string[])[0] ?? "";
-    return sortDir === "asc" ? av.localeCompare(bv, "ko") : bv.localeCompare(av, "ko");
-  }), [filtered, sortKey, sortDir]);
+  }), [records, filterType, filterStatus, filterCompany, filterMacrocat, filterSwName, filterVersion, showExpiringSoon, search]);
 
   const paginated = useMemo(() =>
-    sorted.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
-    [sorted, currentPage]
+    filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [filtered, currentPage]
   );
 
-  function toggleSort(col: SortKey) {
-    if (sortKey === col) setSortDir(d => d === "asc" ? "desc" : "asc");
-    else { setSortKey(col); setSortDir("asc"); }
-  }
-
   const activeFilters = [
-    { label: `분류: ${filterMacrocat}`,  active: filterMacrocat !== "전체",  clear: () => setFilterMacrocat("전체")  },
-    { label: `유형: ${filterType}`,       active: filterType     !== "전체",  clear: () => setFilterType("전체")      },
-    { label: `상태: ${filterStatus}`,     active: filterStatus   !== "전체",  clear: () => setFilterStatus("전체")    },
-    { label: `법인: ${filterCompany}`,    active: filterCompany  !== "전체",  clear: () => setFilterCompany("전체")   },
-    { label: `부서: ${filterDept}`,       active: filterDept     !== "전체",  clear: () => setFilterDept("전체")      },
-    { label: "갱신임박 30일",              active: showExpiringSoon,            clear: () => setShowExpiringSoon(false) },
+    { label: `분류: ${filterMacrocat}`,   active: filterMacrocat !== "전체",  clear: () => setFilterMacrocat("전체")  },
+    { label: `SW: ${filterSwName}`,        active: filterSwName   !== "전체",  clear: () => setFilterSwName("전체")    },
+    { label: `버전: ${filterVersion}`,     active: filterVersion  !== "전체",  clear: () => setFilterVersion("전체")   },
+    { label: `상태: ${filterStatus}`,      active: filterStatus   !== "전체",  clear: () => setFilterStatus("전체")    },
+    { label: `법인: ${filterCompany}`,     active: filterCompany  !== "전체",  clear: () => setFilterCompany("전체")   },
+    { label: "갱신임박 30일",               active: showExpiringSoon,            clear: () => setShowExpiringSoon(false) },
   ].filter(f => f.active);
 
   function resetFilters() {
-    setSearch(""); setFilterMacrocat("전체"); setFilterType("전체");
-    setFilterStatus("전체"); setFilterCompany("전체"); setFilterDept("전체"); setShowExpiringSoon(false);
+    setSearch(""); setFilterMacrocat("전체"); setFilterSwName("전체"); setFilterVersion("전체");
+    setFilterStatus("전체"); setFilterCompany("전체"); setShowExpiringSoon(false);
   }
 
   // ── 빠른 통계 ──────────────────────────────────────────────────────
   const quickStats = useMemo(() => ({
     total:    records.length,
-    permanent: records.filter(r => r.licenseType === "영구").length,
-    subscribe: records.filter(r => r.licenseType === "구독(업체)" || r.licenseType === "구독(웹)").length,
+    byType: {
+      "영구":       records.filter(r => r.licenseType === "영구").length,
+      "구독(업체)": records.filter(r => r.licenseType === "구독(업체)").length,
+      "구독(웹)":   records.filter(r => r.licenseType === "구독(웹)").length,
+    },
     using:    records.filter(r => r.status === "사용중" || r.status === "신규등록").length,
     expiring: records.filter(r => { const d = daysLeft(r.renewalDate); return d !== null && d >= 0 && d <= 30; }).length,
   }), [records]);
 
-  const thB = "px-3 py-2.5 text-left text-xs font-semibold text-gray-500 select-none cursor-pointer hover:text-blue-600 whitespace-nowrap";
   const thS = "px-3 py-2.5 text-left text-xs font-semibold text-gray-500 whitespace-nowrap";
 
   if (loading) return <div className="text-center py-20 text-gray-400">Notion 데이터 로딩 중...</div>;
@@ -611,24 +609,40 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
         <p className="text-sm text-gray-500">영구 · 구독 통합 SW 라이선스 검색 (Notion 실시간 연동)</p>
       </div>
 
+      {/* ── 라이선스 유형 탭 ── */}
+      <div className="flex gap-1.5 p-1.5 bg-gray-100 rounded-xl mb-4">
+        {([
+          { value: "전체",      label: "전체",         count: quickStats.total,              color: "text-gray-800"   },
+          { value: "영구",      label: "영구라이선스",  count: quickStats.byType["영구"],      color: "text-blue-700"   },
+          { value: "구독(업체)", label: "구독형(업체)", count: quickStats.byType["구독(업체)"], color: "text-purple-700" },
+          { value: "구독(웹)",  label: "구독형(웹)",   count: quickStats.byType["구독(웹)"],   color: "text-cyan-700"   },
+        ] as const).map(tab => (
+          <button key={tab.value} onClick={() => setFilterType(tab.value)}
+            className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+              filterType === tab.value
+                ? `bg-white shadow-sm ${tab.color}`
+                : "text-gray-500 hover:text-gray-700"
+            }`}>
+            {tab.label}
+            <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${
+              filterType === tab.value ? "bg-gray-100" : "bg-gray-200 text-gray-500"
+            }`}>{tab.count}</span>
+          </button>
+        ))}
+      </div>
+
       {/* ── 빠른 통계 뱃지 ── */}
-      <div className="flex flex-wrap gap-2 mb-5">
-        {[
-          { label: "전체",   value: quickStats.total,     accent: "bg-gray-100 text-gray-700",       active: filterType === "전체" && !showExpiringSoon, onClick: () => { setFilterType("전체"); setShowExpiringSoon(false); } },
-          { label: "영구",   value: quickStats.permanent, accent: "bg-blue-50 text-blue-700",        active: filterType === "영구",                      onClick: () => setFilterType("영구") },
-          { label: "구독",   value: quickStats.subscribe, accent: "bg-purple-50 text-purple-700",    active: filterType === "구독(업체)" || filterType === "구독(웹)", onClick: () => setFilterType("구독(업체)") },
-          { label: "사용중", value: quickStats.using,     accent: "bg-blue-50 text-blue-600",        active: filterStatus === "사용중",                  onClick: () => setFilterStatus("사용중") },
+      <div className="flex flex-wrap gap-2 mb-4">
+        {([
+          { label: "사용중",    value: quickStats.using,     accent: "bg-blue-50 text-blue-600",  active: filterStatus === "사용중",  onClick: () => setFilterStatus(v => v === "사용중" ? "전체" : "사용중") },
           { label: "⏰ 갱신임박", value: quickStats.expiring, accent: quickStats.expiring > 0 ? "bg-red-50 text-red-600" : "bg-gray-100 text-gray-400", active: showExpiringSoon, onClick: () => setShowExpiringSoon(v => !v) },
-        ].map(s => (
-          <button
-            key={s.label}
-            onClick={s.onClick}
+        ] as const).map(s => (
+          <button key={s.label} onClick={s.onClick}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
               s.active
                 ? "border-blue-500 ring-1 ring-blue-400 " + s.accent
                 : "border-transparent " + s.accent + " hover:border-gray-300"
-            }`}
-          >
+            }`}>
             {s.label}
             <span className="font-bold">{s.value}</span>
           </button>
@@ -664,10 +678,10 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
         <div className="flex flex-wrap gap-2">
           {[
             { label: "분류",  value: filterMacrocat, options: macroCatOptions, setter: setFilterMacrocat, show: true     },
-            { label: "유형",  value: filterType,     options: typeOptions,     setter: setFilterType,     show: true     },
+            { label: "SW명",  value: filterSwName,   options: swNameOptions,   setter: setFilterSwName,   show: true     },
+            { label: "버전",  value: filterVersion,  options: versionOptions,  setter: setFilterVersion,  show: true     },
             { label: "상태",  value: filterStatus,   options: statusOptions,   setter: setFilterStatus,   show: true     },
             { label: "법인",  value: filterCompany,  options: companyOptions,  setter: setFilterCompany,  show: !company },
-            { label: "부서",  value: filterDept,     options: deptOptions,     setter: setFilterDept,     show: true     },
           ].filter(f => f.show).map(({ label, value, options, setter }) => (
             <div key={label} className="relative">
               <select value={value} onChange={e => setter(e.target.value)}
@@ -742,14 +756,24 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
-                  <th className={thB} onClick={() => toggleSort("swCategory")}>SW <SortIcon col="swCategory" sortKey={sortKey} sortDir={sortDir} /></th>
-                  <th className={thB} onClick={() => toggleSort("licenseType")}>유형 <SortIcon col="licenseType" sortKey={sortKey} sortDir={sortDir} /></th>
-                  <th className={thS}>버전</th>
-                  <th className={thB} onClick={() => toggleSort("user")}>사용자 <SortIcon col="user" sortKey={sortKey} sortDir={sortDir} /></th>
-                  <th className={thB} onClick={() => toggleSort("department")}>부서 <SortIcon col="department" sortKey={sortKey} sortDir={sortDir} /></th>
-                  <th className={thB} onClick={() => toggleSort("company")}>법인 <SortIcon col="company" sortKey={sortKey} sortDir={sortDir} /></th>
-                  <th className={thB} onClick={() => toggleSort("status")}>상태 <SortIcon col="status" sortKey={sortKey} sortDir={sortDir} /></th>
-                  <th className={thB} onClick={() => toggleSort("renewalDate")}>갱신일 <SortIcon col="renewalDate" sortKey={sortKey} sortDir={sortDir} /></th>
+                  <th className="px-3 py-2.5 text-left whitespace-nowrap">
+                    <ColFilter label="SW 분류" value={filterMacrocat} options={macroCatOptions} onChange={setFilterMacrocat} />
+                  </th>
+                  <th className="px-3 py-2.5 text-left whitespace-nowrap">
+                    <ColFilter label="유형" value={filterType} options={["전체","영구","구독(업체)","구독(웹)"]} onChange={setFilterType} />
+                  </th>
+                  <th className="px-3 py-2.5 text-left whitespace-nowrap">
+                    <ColFilter label="버전" value={filterVersion} options={versionOptions} onChange={setFilterVersion} />
+                  </th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">사용자</th>
+                  <th className={thS}>부서</th>
+                  <th className="px-3 py-2.5 text-left whitespace-nowrap">
+                    <ColFilter label="법인" value={filterCompany} options={companyOptions} onChange={setFilterCompany} />
+                  </th>
+                  <th className="px-3 py-2.5 text-left whitespace-nowrap">
+                    <ColFilter label="상태" value={filterStatus} options={statusOptions} onChange={setFilterStatus} />
+                  </th>
+                  <th className={thS}>갱신일</th>
                   <th className={thS}>인증키</th>
                   <th className={thS}>노션</th>
                 </tr>
