@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { HwStats } from "@/lib/hw";
+import type { HwStats, HwRecord } from "@/lib/hw";
 import type { HelpDeskTicket } from "@/lib/notion";
 import type { RepairTicket } from "@/types";
 
@@ -111,6 +111,8 @@ const REPAIR_STATUS: Record<string, { bg: string; text: string }> = {
   "기타":    { bg: "#FAF5FF", text: "#7E22CE" },
 };
 
+const SHIP_NEXT_STATUSES = ["사용중", "재고", "출고준비중", "출고준비완료"];
+
 function StatusBadge({ status, map }: { status: string; map: Record<string, { bg: string; text: string }> }) {
   const c = map[status] ?? { bg: "#F1F5F9", text: "#64748B" };
   return (
@@ -146,6 +148,12 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
 
   const [rpLoading,  setRpLoading]  = useState(true);
   const [rpTickets,  setRpTickets]  = useState<RepairTicket[]>([]);
+
+  const [shipLoading,  setShipLoading]  = useState(true);
+  const [shipRecords,  setShipRecords]  = useState<HwRecord[]>([]);
+  const [openStatusId, setOpenStatusId] = useState<string | null>(null);
+  const [updatingId,   setUpdatingId]   = useState<string | null>(null);
+  const [detailRecord, setDetailRecord] = useState<HwRecord | null>(null);
 
   // 로딩 시간 (ms)
   const [loadTimes, setLoadTimes] = useState<Record<string, number>>({});
@@ -233,6 +241,39 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
       .finally(() => setRpLoading(false));
   }, [company, isFiltered]);
 
+  // 출고준비 현황
+  useEffect(() => {
+    const co = isFiltered ? `&company=${encodeURIComponent(company)}` : "";
+    const t0 = performance.now();
+    Promise.all([
+      fetch(`/api/hw?status=${encodeURIComponent("출고준비중")}${co}`).then(r => r.json()),
+      fetch(`/api/hw?status=${encodeURIComponent("출고준비완료")}${co}`).then(r => r.json()),
+    ]).then(([r1, r2]) => {
+      setTime("출고준비", Math.round(performance.now() - t0));
+      const all: HwRecord[] = [...(r1.records ?? []), ...(r2.records ?? [])];
+      setShipRecords(all.sort((a, b) => (a.status > b.status ? 1 : -1)));
+    }).finally(() => setShipLoading(false));
+  }, [company, isFiltered]);
+
+  async function updateShipStatus(id: string, status: string) {
+    setUpdatingId(id);
+    try {
+      await fetch("/api/hw/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, fields: { status } }),
+      });
+      if (status === "출고준비중" || status === "출고준비완료") {
+        setShipRecords(prev => prev.map(r => r.id === id ? { ...r, status } : r));
+      } else {
+        setShipRecords(prev => prev.filter(r => r.id !== id));
+      }
+    } finally {
+      setUpdatingId(null);
+      setOpenStatusId(null);
+    }
+  }
+
   const hwSegs: DonutSeg[] = hwStats
     ? Object.entries(
         isFiltered
@@ -280,23 +321,7 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
               전체 보기 →
             </button>
           </div>
-          {hwLoading ? <LoadingBox /> : (
-            <>
-              <DonutChart data={hwSegs} title="법인별" />
-              {hwStats && (
-                <div className="mt-3 pt-3 border-t border-gray-100 flex gap-2">
-                  <div className="flex-1 bg-orange-50 rounded-lg py-2 px-3 text-center">
-                    <div className="text-[10px] text-orange-500 font-medium">출고준비중</div>
-                    <div className="text-xl font-bold text-orange-600 mt-0.5">{hwStats.byStatus["출고준비중"] ?? 0}</div>
-                  </div>
-                  <div className="flex-1 bg-amber-50 rounded-lg py-2 px-3 text-center">
-                    <div className="text-[10px] text-amber-600 font-medium">출고준비완료</div>
-                    <div className="text-xl font-bold text-amber-700 mt-0.5">{hwStats.byStatus["출고준비완료"] ?? 0}</div>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
+          {hwLoading ? <LoadingBox /> : <DonutChart data={hwSegs} title="법인별" />}
         </div>
       </div>
 
@@ -361,11 +386,157 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
         </div>
       </div>
 
+      {/* 출고준비 현황 */}
+      <div className="grid grid-cols-2 gap-5">
+        {(["출고준비중", "출고준비완료"] as const).map(targetStatus => {
+          const list = shipRecords.filter(r => r.status === targetStatus);
+          const isReady = targetStatus === "출고준비완료";
+          return (
+            <div key={targetStatus} className="bg-white rounded-xl border border-gray-200 p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-gray-700">{targetStatus}</span>
+                  {!shipLoading && (
+                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${isReady ? "bg-amber-50 text-amber-600" : "bg-orange-50 text-orange-600"}`}>
+                      {list.length}
+                    </span>
+                  )}
+                </div>
+                <button onClick={() => onNavigate("hw")} className="text-xs text-blue-500 hover:text-blue-700 transition-colors">
+                  전체 보기 →
+                </button>
+              </div>
+              {shipLoading ? (
+                <LoadingBox />
+              ) : list.length === 0 ? (
+                <div className="text-xs text-gray-400 py-6 text-center">항목 없음</div>
+              ) : (
+                <div>
+                  {/* 헤더 */}
+                  <div className="grid text-[10px] text-gray-400 font-medium px-2 pb-1 border-b border-gray-100"
+                    style={{ gridTemplateColumns: "80px 90px 72px 64px 64px 64px 1fr 72px" }}>
+                    <span>상태</span><span>자산번호</span><span>법인</span>
+                    <span>부서</span><span>이름</span><span>위치</span>
+                    <span>모델명</span><span>사용일자</span>
+                  </div>
+                  {/* 행 */}
+                  {list.map(r => (
+                    <div key={r.id} className="relative grid items-center px-2 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
+                      style={{ gridTemplateColumns: "80px 90px 72px 64px 64px 64px 1fr 72px" }}>
+                      {/* 상태 뱃지 — 클릭 시 상태 변경 */}
+                      <div className="relative">
+                        <button
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap cursor-pointer
+                            ${isReady ? "bg-amber-50 text-amber-600 hover:bg-amber-100" : "bg-orange-50 text-orange-600 hover:bg-orange-100"}`}
+                          onClick={() => setOpenStatusId(openStatusId === r.id ? null : r.id)}
+                        >
+                          {updatingId === r.id ? "저장 중..." : r.status}
+                        </button>
+                        {openStatusId === r.id && (
+                          <>
+                            <div className="fixed inset-0 z-10" onClick={() => setOpenStatusId(null)} />
+                            <div
+                              className="absolute left-0 bottom-7 z-20 bg-white border border-gray-200 rounded-lg shadow-lg p-1 flex flex-col gap-0.5 min-w-[120px]"
+                              onClick={e => e.stopPropagation()}
+                            >
+                              {SHIP_NEXT_STATUSES.map(s => (
+                                <button
+                                  key={s}
+                                  disabled={updatingId === r.id}
+                                  className={`text-xs px-3 py-1.5 rounded text-left whitespace-nowrap transition-colors
+                                    ${r.status === s ? "font-bold text-blue-600 bg-blue-50" : "text-gray-700 hover:bg-gray-100"}
+                                    ${updatingId === r.id ? "opacity-50 cursor-not-allowed" : ""}`}
+                                  onClick={() => updateShipStatus(r.id, s)}
+                                >
+                                  {s}
+                                </button>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                      <button
+                        className="text-[11px] text-blue-600 hover:underline font-medium text-left truncate pr-1"
+                        onClick={() => setDetailRecord(r)}
+                      >
+                        {r.assetNo || "—"}
+                      </button>
+                      <span className="text-[11px] text-gray-500 truncate pr-1">{r.company || "—"}</span>
+                      <span className="text-[11px] text-gray-500 truncate pr-1">{r.dept || "—"}</span>
+                      <span className="text-[11px] text-gray-500 truncate pr-1">{r.user || "—"}</span>
+                      <span className="text-[11px] text-gray-500 truncate pr-1">{r.location || "—"}</span>
+                      <span className="text-[11px] text-gray-700 truncate pr-1">{r.model || "—"}</span>
+                      <span className="text-[11px] text-gray-400 truncate">{r.useDate ? r.useDate.slice(0, 10) : "—"}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 세부정보 모달 */}
+      {detailRecord && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => setDetailRecord(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-[520px] max-h-[80vh] overflow-y-auto p-6"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h2 className="text-base font-extrabold text-gray-900">{detailRecord.assetNo || "자산번호 없음"}</h2>
+                <p className="text-xs text-gray-400 mt-0.5">{detailRecord.status}</p>
+              </div>
+              <button onClick={() => setDetailRecord(null)} className="text-gray-400 hover:text-gray-700 text-xl leading-none">×</button>
+            </div>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+              {([
+                ["모델명",      detailRecord.model],
+                ["법인",        detailRecord.company],
+                ["부서",        detailRecord.dept],
+                ["이름",        detailRecord.user],
+                ["위치",        detailRecord.location],
+                ["사용일자",    detailRecord.useDate],
+                ["구매일자",    detailRecord.purchaseDate],
+                ["반납일자",    detailRecord.returnDate],
+                ["시리얼번호",  detailRecord.serial],
+                ["제조사",      detailRecord.maker],
+                ["CPU",         detailRecord.cpu],
+                ["RAM",         detailRecord.ram],
+                ["결재문서번호", detailRecord.docNo],
+                ["단가",        detailRecord.price ? detailRecord.price.toLocaleString() + "원" : ""],
+                ["잔존가치",    detailRecord.residualValue ? detailRecord.residualValue.toLocaleString() + "원" : ""],
+                ["기타",        detailRecord.note],
+              ] as [string, string][]).map(([label, val]) => val ? (
+                <div key={label}>
+                  <div className="text-[10px] text-gray-400 font-medium">{label}</div>
+                  <div className="text-xs text-gray-800 mt-0.5 break-all">{val}</div>
+                </div>
+              ) : null)}
+            </div>
+            {detailRecord.notionUrl && (
+              <a
+                href={detailRecord.notionUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-5 flex items-center gap-1 text-xs text-blue-500 hover:underline"
+              >
+                Notion에서 열기 →
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* 로딩 시간 표시 */}
       {Object.keys(loadTimes).length > 0 && (
         <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-1 px-1">
           <span className="text-xs text-gray-400 font-medium">초기 로딩 시간</span>
-          {["SW 라이선스", "HW 현황", "문의 접수", "수리 접수"].map(key => {
+          {["SW 라이선스", "HW 현황", "문의 접수", "수리 접수", "출고준비"].map(key => {
             const ms = loadTimes[key];
             if (ms === undefined) return null;
             const color = ms === 0 ? "text-blue-500"
