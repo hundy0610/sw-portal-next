@@ -28,6 +28,9 @@ function mapPage(page: any) {
 
 // ── GET: 전체 조회 ────────────────────────────────────────
 export async function GET() {
+  for (const v of ["NOTION_TOKEN", "NOTION_PAGE_CREDENTIALS"]) {
+    if (!process.env[v]) return NextResponse.json({ missingEnv: v, error: `환경변수 ${v} 가 설정되지 않았습니다.` }, { status: 503 });
+  }
   try {
     // 1. 인메모리 캐시 (0ms)
     const mem = memGet<object[]>("credentials:all");

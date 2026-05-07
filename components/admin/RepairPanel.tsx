@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import type { RepairTicket } from "@/types";
 import { AssetModalInner, HwRecord, HW_STATUSES } from "@/components/admin/AssetModal";
+import EnvVarMissing from "@/components/ui/EnvVarMissing";
 
 // ── Color configs ────────────────────────────────────────────
 const PRIORITY_COLORS: Record<string, { bg: string; text: string; bar: string }> = {
@@ -673,9 +674,10 @@ function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
 
 // ── Main Panel ────────────────────────────────────────────────
 export default function RepairPanel() {
-  const [tickets, setTickets]       = useState<RepairTicket[]>([]);
-  const [loading, setLoading]       = useState(true);
-  const [error, setError]           = useState<string | null>(null);
+  const [tickets,    setTickets]    = useState<RepairTicket[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState<string | null>(null);
+  const [missingEnv, setMissingEnv] = useState<string | null>(null);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
   const [tab, setTab]               = useState<Tab>("overview");
   const [modalAssetId, setModalAssetId] = useState<string | null>(null);
@@ -711,6 +713,7 @@ export default function RepairPanel() {
     fetch(`/api/repair-tickets${force ? "?refresh=1" : ""}`)
       .then(r => r.json())
       .then(res => {
+        if (res.missingEnv) { setMissingEnv(res.missingEnv); return; }
         if (res.error) { setError(res.error); return; }
         setTickets(res.data ?? []);
         setLastSynced(res.lastSynced ?? null);
@@ -787,6 +790,7 @@ export default function RepairPanel() {
   }), [tickets, listFilter]);
 
   // ── Render ───────────────────────────────────────────────
+  if (missingEnv) return <EnvVarMissing varName={missingEnv} />;
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24 text-gray-400 text-sm gap-2">

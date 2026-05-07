@@ -1,6 +1,7 @@
 ﻿"use client";
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import type { HwStats } from "@/lib/hw";
+import EnvVarMissing from "@/components/ui/EnvVarMissing";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 타입
@@ -1938,7 +1939,8 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
   // ── 대시보드 전용 경량 통계 (즉시 로드) ──────────────────────────────────
   const [stats,       setStats]       = useState<HwStats | null>(initialStats ?? null);
   const [statsLoading, setStatsLoading] = useState(!initialStats);
-  const [statsError,  setStatsError]  = useState("");
+  const [statsError,   setStatsError]  = useState("");
+  const [missingEnv,   setMissingEnv]  = useState<string | null>(null);
 
   // ── 목록 탭용 전체 레코드 (필요 시 lazy load) ─────────────────────────────
   const [records,      setRecords]      = useState<HwRecord[]>([]);
@@ -1954,6 +1956,7 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
     try {
       const res  = await fetch("/api/hw/stats");
       const json = await res.json();
+      if (json.missingEnv) { setMissingEnv(json.missingEnv); return; }
       if (!json.ok) throw new Error(json.error);
       setStats(json.stats);
     } catch (e) { setStatsError(String(e)); }
@@ -2060,6 +2063,8 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
 
   const recordsTabProps: TabProps = { records, loading: recordsLoading, onRefresh: handleRefreshAll, onUpdate: handleUpdate };
   const isRecordsTab = tab !== "dashboard" && tab !== "search" && tab !== "upload" && tab !== "label" && tab !== "dispatch";
+
+  if (missingEnv) return <EnvVarMissing varName={missingEnv} />;
 
   return (
     <div className="space-y-4">

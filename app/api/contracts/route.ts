@@ -11,6 +11,9 @@ export async function DELETE() {
 
 // GET /api/contracts
 export async function GET() {
+  for (const v of ["NOTION_TOKEN", "NOTION_DB_CONTRACTS"]) {
+    if (!process.env[v]) return NextResponse.json({ missingEnv: v, error: `환경변수 ${v} 가 설정되지 않았습니다.` }, { status: 503 });
+  }
   try {
     const contracts = await fetchContracts();
     return NextResponse.json({ ok: true, contracts });

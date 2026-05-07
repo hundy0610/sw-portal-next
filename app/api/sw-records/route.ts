@@ -7,6 +7,9 @@ import type { SwDbRecord } from "@/types";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
+  for (const v of ["NOTION_TOKEN", "NOTION_DB_SW_UNIFIED"]) {
+    if (!process.env[v]) return NextResponse.json({ missingEnv: v, error: `환경변수 ${v} 가 설정되지 않았습니다.` }, { status: 503 });
+  }
   try {
     const { searchParams } = new URL(request.url);
     const filterCompany = searchParams.get("company")?.trim() || "";

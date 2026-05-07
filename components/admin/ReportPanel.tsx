@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, Fragment } from "react";
 import type { ReportData, SubRow } from "@/lib/reportTypes";
+import EnvVarMissing from "@/components/ui/EnvVarMissing";
 
 // ─── 카테고리 색상 맵 ────────────────────────────────────────────────────
 const CATEGORY_BADGE: Record<string, string> = {
@@ -287,9 +288,10 @@ function buildView(
 
 // ─── 메인 컴포넌트 ────────────────────────────────────────────────────────
 export default function ReportPanel({ company = "" }: { company?: string }) {
-  const [data, setData] = useState<ReportData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [data,       setData]       = useState<ReportData | null>(null);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState<string | null>(null);
+  const [missingEnv, setMissingEnv] = useState<string | null>(null);
   const [rate, setRate]   = useState<number>(1380);
 
   // 필터 (법인 담당자면 company가 이미 고정됨)
@@ -308,6 +310,7 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
+      if (json.missingEnv) { setMissingEnv(json.missingEnv); return; }
       if (!json.ok) throw new Error(json.error || "API 오류");
       setData(json.data);
     } catch (e: unknown) {
@@ -333,6 +336,7 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
       <span className="ml-3 text-indigo-500 font-medium">데이터 로드 중...</span>
     </div>
   );
+  if (missingEnv) return <EnvVarMissing varName={missingEnv} />;
   if (error) return (
     <div className="p-6 bg-red-50 rounded-xl border border-red-200">
       <p className="text-red-600 font-semibold">오류 발생</p>

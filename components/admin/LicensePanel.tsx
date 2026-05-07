@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import type { SwDbRecord } from "@/types";
+import EnvVarMissing from "@/components/ui/EnvVarMissing";
 
 const PAGE_SIZE = 30;
 
@@ -483,8 +484,9 @@ function CategoryView({ records, onEdit }: { records: SwDbRecord[]; onEdit: (r: 
 
 // ── 메인 컴포넌트 ───────────────────────────────────────────────────────
 export default function LicensePanel({ company = "" }: { company?: string }) {
-  const [records,  setRecords]  = useState<SwDbRecord[]>([]);
-  const [loading,  setLoading]  = useState(true);
+  const [records,    setRecords]    = useState<SwDbRecord[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [missingEnv, setMissingEnv] = useState<string | null>(null);
   const [detailView, setDetailView] = useState<"category" | "list">("list");
   const [editRecord, setEditRecord] = useState<SwDbRecord | null>(null);
 
@@ -516,7 +518,10 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
     const url = company ? `/api/sw-records?company=${encodeURIComponent(company)}` : "/api/sw-records";
     fetch(url)
       .then(r => r.json())
-      .then(res => setRecords(res.data ?? []))
+      .then(res => {
+        if (res.missingEnv) { setMissingEnv(res.missingEnv); return; }
+        setRecords(res.data ?? []);
+      })
       .finally(() => setLoading(false));
   }, [company]);
 
@@ -600,6 +605,7 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
   const thS = "px-3 py-2.5 text-left text-xs font-semibold text-gray-500 whitespace-nowrap";
 
   if (loading) return <div className="text-center py-20 text-gray-400">Notion 데이터 로딩 중...</div>;
+  if (missingEnv) return <EnvVarMissing varName={missingEnv} />;
 
   return (
     <div className="fade-in">
