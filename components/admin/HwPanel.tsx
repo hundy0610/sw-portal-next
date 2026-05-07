@@ -277,8 +277,8 @@ function DashboardTab({ stats, loading, onRefresh }: { stats: HwStats | null; lo
 // ─────────────────────────────────────────────────────────────────────────────
 // 출고 현황 탭
 // ─────────────────────────────────────────────────────────────────────────────
-function ShipmentTab({ records, loading, onRefresh, onUpdate }: TabProps) {
-  const [company, setCompany] = useState("");
+function ShipmentTab({ records, loading, onRefresh, onUpdate, companyLock = "" }: TabProps & { companyLock?: string }) {
+  const [company, setCompany] = useState(companyLock);
   const [editRecord, setEditRecord] = useState<HwRecord | null>(null);
 
   const filtered      = useMemo(() => company ? records.filter(r => r.company === company) : records, [records, company]);
@@ -327,15 +327,17 @@ function ShipmentTab({ records, loading, onRefresh, onUpdate }: TabProps) {
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap items-center gap-3">
-        <div className="w-44">
-          <label className="block text-xs font-semibold text-gray-500 mb-1">법인명 필터</label>
-          <select value={company} onChange={e => setCompany(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300">
-            <option value="">전체 법인</option>
-            {COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
-        <div className="mt-5">
+        {!companyLock && (
+          <div className="w-44">
+            <label className="block text-xs font-semibold text-gray-500 mb-1">법인명 필터</label>
+            <select value={company} onChange={e => setCompany(e.target.value)}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300">
+              <option value="">전체 법인</option>
+              {COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+        )}
+        <div className={companyLock ? "" : "mt-5"}>
           <button onClick={onRefresh} disabled={loading}
             className="px-4 py-2 rounded-lg bg-orange-500 text-white text-sm font-semibold hover:bg-orange-600 disabled:opacity-50 transition-colors">
             {loading ? "불러오는 중…" : "새로고침"}
@@ -527,8 +529,8 @@ function EditModal({ record, fields, onSave, onClose }: EditModalProps) {
 // ─────────────────────────────────────────────────────────────────────────────
 // 반납 대상자 탭
 // ─────────────────────────────────────────────────────────────────────────────
-function ReturnTab({ records, loading, onRefresh, onUpdate }: TabProps) {
-  const [company, setCompany] = useState("");
+function ReturnTab({ records, loading, onRefresh, onUpdate, companyLock = "" }: TabProps & { companyLock?: string }) {
+  const [company, setCompany] = useState(companyLock);
   const [editRecord, setEditRecord] = useState<HwRecord | null>(null);
   const today = Date.now();
 
@@ -583,15 +585,17 @@ function ReturnTab({ records, loading, onRefresh, onUpdate }: TabProps) {
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap items-center gap-3">
-        <div className="w-44">
-          <label className="block text-xs font-semibold text-gray-500 mb-1">법인명 필터</label>
-          <select value={company} onChange={e => setCompany(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-300">
-            <option value="">전체 법인</option>
-            {COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
-        <div className="mt-5">
+        {!companyLock && (
+          <div className="w-44">
+            <label className="block text-xs font-semibold text-gray-500 mb-1">법인명 필터</label>
+            <select value={company} onChange={e => setCompany(e.target.value)}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-300">
+              <option value="">전체 법인</option>
+              {COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+        )}
+        <div className={companyLock ? "" : "mt-5"}>
           <button onClick={onRefresh} disabled={loading}
             className="px-4 py-2 rounded-lg bg-yellow-500 text-white text-sm font-semibold hover:bg-yellow-600 disabled:opacity-50 transition-colors">
             {loading ? "불러오는 중…" : "새로고침"}
@@ -1954,14 +1958,15 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
   const loadStats = useCallback(async () => {
     setStatsLoading(true); setStatsError("");
     try {
-      const res  = await fetch("/api/hw/stats");
+      const statsUrl = company ? `/api/hw/stats?company=${encodeURIComponent(company)}` : "/api/hw/stats";
+      const res  = await fetch(statsUrl);
       const json = await res.json();
       if (json.missingEnv) { setMissingEnv(json.missingEnv); return; }
       if (!json.ok) throw new Error(json.error);
       setStats(json.stats);
     } catch (e) { setStatsError(String(e)); }
     finally { setStatsLoading(false); }
-  }, []);
+  }, [company]);
 
   // 전체 레코드 로드 (목록 탭 진입 시)
   const loadAll = useCallback(async () => {
@@ -1982,13 +1987,14 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
   const handleRefreshStats = useCallback(async () => {
     setStatsLoading(true); setStatsError("");
     try {
-      const res  = await fetch("/api/hw/stats");
+      const statsUrl = company ? `/api/hw/stats?company=${encodeURIComponent(company)}` : "/api/hw/stats";
+      const res  = await fetch(statsUrl);
       const json = await res.json();
       if (!json.ok) throw new Error(json.error);
       setStats(json.stats);
     } catch (e) { setStatsError(String(e)); }
     finally { setStatsLoading(false); }
-  }, []);
+  }, [company]);
 
   const handleRefreshAll = useCallback(async () => {
     setRecordsLoading(true); setRecordsError("");
@@ -2112,8 +2118,8 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
       </div>
 
       {tab === "dashboard" && <DashboardTab  stats={stats} loading={statsLoading} onRefresh={handleRefreshStats} />}
-      {tab === "shipment"  && <ShipmentTab   {...recordsTabProps} />}
-      {tab === "return"    && <ReturnTab     {...recordsTabProps} />}
+      {tab === "shipment"  && <ShipmentTab   {...recordsTabProps} companyLock={company} />}
+      {tab === "return"    && <ReturnTab     {...recordsTabProps} companyLock={company} />}
       {tab === "search"    && <SearchTab companyLock={company} onUpdate={handleUpdate} />}
       {tab === "upload"    && <ExcelUploadTab />}
       {tab === "dispatch"  && <DispatchHistoryTab />}
