@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 
 // 서버사이드 렌더링 없이 클라이언트에서만 로드
+const DashboardHome     = dynamic(() => import("@/components/admin/DashboardHome"),     { ssr: false });
 const OverviewPanel     = dynamic(() => import("@/components/admin/OverviewPanel"),     { ssr: false });
 const LicensePanel      = dynamic(() => import("@/components/admin/LicensePanel"),      { ssr: false });
 const CredentialsPanel  = dynamic(() => import("@/components/admin/CredentialsPanel"),  { ssr: false });
@@ -16,6 +17,7 @@ const AssetMapPanel     = dynamic(() => import("@/components/admin/AssetMapPanel
 const HelpDeskPanel     = dynamic(() => import("@/components/admin/HelpDeskPanel"),     { ssr: false });
 const ContractPanel     = dynamic(() => import("@/components/admin/ContractPanel"),     { ssr: false });
 const RepairPanel       = dynamic(() => import("@/components/admin/RepairPanel"),       { ssr: false });
+const RentalHwPanel     = dynamic(() => import("@/components/admin/RentalHwPanel"),     { ssr: false });
 
 // ── 세션 타입 ──────────────────────────────────────────────────
 interface SessionInfo {
@@ -26,36 +28,69 @@ interface SessionInfo {
   mustChangePassword?: boolean;
 }
 
-type PageId = "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "accounts" | "assetmap" | "helpdesk" | "contracts" | "repair";
+type PageId = "home" | "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "rental-hw" | "accounts" | "assetmap" | "helpdesk" | "contracts" | "repair";
+
+// 슈퍼어드민 전용 페이지 (company 계정은 접근 불가)
+const SUPER_ONLY_PAGES = new Set<PageId>(["credentials", "swdb", "repair", "accounts", "contracts", "rental-hw"]);
 
 // ── 메뉴 정의 ──────────────────────────────────────────────────
-const SUPER_MENU: { id: PageId; icon: string; label: string; desc: string }[] = [
-  { id: "overview",   icon: "⚡", label: "전사 라이선스 현황",       desc: "현황 요약"              },
-  { id: "license",    icon: "🔑", label: "상용 라이선스 자산관리",   desc: "영구 · 구독 통합"       },
-  { id: "credentials",icon: "🔐", label: "계정 관리",                desc: "ID / PW 목록"           },
-  { id: "swdb",       icon: "🗄", label: "라이선스 설치 정책 관리",  desc: "승인 / 금지 목록"       },
-  { id: "report",     icon: "📊", label: "구독형 라이선스 현황",     desc: "현황 분석 · 만료 알림"  },
-  { id: "hw",         icon: "💻", label: "노트북/데스크탑 자산관리", desc: "NT/DT 재고 · 반납 관리" },
-  { id: "assetmap",   icon: "🖥️", label: "스마트오피스 모니터 관리", desc: "인터랙티브 자산 맵"    },
-  { id: "helpdesk",   icon: "🎫", label: "문의 접수 현황", desc: "유형·법인별 분석"        },
-  { id: "repair",     icon: "🔧", label: "수리 접수 현황", desc: "기기 수리 접수 · 처리"  },
-  { id: "accounts",   icon: "👤", label: "계정 권한 설정", desc: "담당자 계정 관리"       },
-  { id: "contracts",  icon: "📋", label: "계약 관리",      desc: "PC/OA 유지보수 계약"    },
+type MenuItem = { id: PageId; icon: string; label: string; desc: string };
+type MenuGroup = { label: string; items: MenuItem[] };
+
+const SUPER_GROUPS: MenuGroup[] = [
+  {
+    label: "",
+    items: [
+      { id: "home",    icon: "",   label: "대시보드",  desc: "전사 현황 요약" },
+    ],
+  },
+  {
+    label: "소프트웨어 자산",
+    items: [
+      { id: "overview",    icon: "⚡", label: "전사 라이선스 현황",      desc: "현황 요약"             },
+      { id: "license",     icon: "🔑", label: "상용 라이선스 자산관리",  desc: "영구 · 구독 통합"      },
+      { id: "credentials", icon: "🔐", label: "계정 관리",               desc: "ID / PW 목록"          },
+      { id: "swdb",        icon: "🗄", label: "라이선스 설치 정책 관리", desc: "승인 / 금지 목록"      },
+      { id: "report",      icon: "📊", label: "구독형 라이선스 현황",    desc: "현황 분석 · 만료 알림" },
+    ],
+  },
+  {
+    label: "하드웨어 자산",
+    items: [
+      { id: "hw",        icon: "💻", label: "노트북/데스크탑 자산관리", desc: "NT/DT 재고 · 반납 관리" },
+      { id: "rental-hw", icon: "📦", label: "임대노트북 현황 관리",     desc: "임시 PC 대여 · 반납 관리" },
+      { id: "assetmap",  icon: "🖥️", label: "스마트오피스 모니터 관리", desc: "인터랙티브 자산 맵"    },
+    ],
+  },
+  {
+    label: "사용자 지원",
+    items: [
+      { id: "helpdesk", icon: "🎫", label: "문의 접수 현황", desc: "유형·법인별 분석"       },
+      { id: "repair",   icon: "🔧", label: "수리 접수 현황", desc: "기기 수리 접수 · 처리" },
+    ],
+  },
+  {
+    label: "관리",
+    items: [
+      { id: "accounts",  icon: "👤", label: "계정 권한 설정", desc: "담당자 계정 관리"    },
+      { id: "contracts", icon: "📋", label: "계약 관리",      desc: "PC/OA 유지보수 계약" },
+    ],
+  },
 ];
 
-const COMPANY_MENU: { id: PageId; icon: string; label: string; desc: string }[] = [
-  { id: "overview",  icon: "⚡", label: "전사 라이선스 현황",       desc: "우리 법인 현황 요약"    },
-  { id: "license",   icon: "🔑", label: "상용 라이선스 자산관리",   desc: "영구 · 구독 통합"       },
-  { id: "report",    icon: "📊", label: "구독형 라이선스 현황",     desc: "현황 분석 · 만료 알림"  },
-  { id: "hw",        icon: "💻", label: "노트북/데스크탑 자산관리", desc: "NT/DT 재고 · 반납 관리" },
-  { id: "assetmap",  icon: "🗺", label: "스마트오피스 모니터 관리", desc: "인터랙티브 자산 맵" },
-  { id: "helpdesk",  icon: "🎫", label: "문의 접수 현황",           desc: "우리 법인 문의 현황"   },
-];
+function AccessDenied() {
+  return (
+    <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-400">
+      <span className="text-4xl">🔒</span>
+      <p className="text-sm font-medium">— 접근권한이 없습니다. —</p>
+    </div>
+  );
+}
 
 export default function AdminPage() {
   const [session, setSession]   = useState<SessionInfo | null>(null);
   const [loading, setLoading]   = useState(true);
-  const [page, setPage]         = useState<PageId>("hw");
+  const [page, setPage]         = useState<PageId>("home");
 
   const [darkMode,        setDarkMode]        = useState(() => {
     if (typeof window !== "undefined") return localStorage.getItem("admin-dark") === "1";
@@ -65,6 +100,7 @@ export default function AdminPage() {
     if (typeof window !== "undefined") return localStorage.getItem("admin-sidebar-collapsed") === "1";
     return false;
   });
+  const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
   // HW 통계 백그라운드 prefetch (경량 stats, ~수 KB)
   const [hwStatsPrefetch, setHwStatsPrefetch] = useState<any | null>(null);
   const hwFetchedRef = useRef(false);
@@ -94,8 +130,8 @@ export default function AdminPage() {
           userId:  data.userId ?? "",
         };
         setSession(s);
-        // 초기 페이지: 둘 다 대시보드로 시작
-        setPage("overview");
+        // 초기 페이지: 홈 대시보드
+        setPage("home");
         // HW 데이터 백그라운드 prefetch (stats + 전체 레코드 KV 워밍, 한 번만)
         if (!hwFetchedRef.current) {
           hwFetchedRef.current = true;
@@ -153,23 +189,29 @@ export default function AdminPage() {
   if (!session) return null;
 
   const isSuper = session.role === "super";
-  const menu    = isSuper ? SUPER_MENU : COMPANY_MENU;
-  const company = session.company; // "" = 슈퍼어드민 (전체), "OO법인" = 법인 담당자
+  const groups  = SUPER_GROUPS;
+  const company = session.company;
+
+  function canAccess(id: PageId) {
+    return isSuper || !SUPER_ONLY_PAGES.has(id);
+  } // "" = 슈퍼어드민 (전체), "OO법인" = 법인 담당자
 
   // ── 패널 렌더링 ────────────────────────────────────────────
   function renderPanel() {
     switch (page) {
+      case "home":        return <DashboardHome company={company} initialHwStats={hwStatsPrefetch} onNavigate={(p) => setPage(p as PageId)} />;
       case "overview":    return <OverviewPanel company={company} />;           // 슈퍼: company="" → 전체, 법인: company="OO" → 필터
       case "license":     return <LicensePanel company={company} />;
-      case "credentials": return isSuper ? <CredentialsPanel /> : null;         // 슈퍼어드민 전용
-      case "swdb":        return isSuper ? <SwDbPanel /> : null;                // 슈퍼어드민 전용
+      case "credentials": return canAccess("credentials") ? <CredentialsPanel /> : <AccessDenied />;
+      case "swdb":        return canAccess("swdb")        ? <SwDbPanel />       : <AccessDenied />;
       case "report":      return <ReportPanel company={company} />;
       case "hw":          return <HwPanel company={company} initialStats={hwStatsPrefetch} />;
+      case "rental-hw":   return canAccess("rental-hw") ? <RentalHwPanel /> : <AccessDenied />;
       case "assetmap":    return <AssetMapPanel session={session} />;
       case "helpdesk":    return <HelpDeskPanel company={isSuper ? "" : company} />;
-      case "repair":      return isSuper ? <RepairPanel /> : null;
-      case "accounts":    return isSuper ? <AccountsPanel /> : null;            // 슈퍼어드민 전용
-      case "contracts":   return isSuper ? <ContractPanel /> : null;            // 슈퍼어드민 전용
+      case "repair":      return canAccess("repair")      ? <RepairPanel />     : <AccessDenied />;
+      case "accounts":    return canAccess("accounts")    ? <AccountsPanel />   : <AccessDenied />;
+      case "contracts":   return canAccess("contracts")   ? <ContractPanel />   : <AccessDenied />;
       default:            return null;
     }
   }
@@ -298,29 +340,64 @@ export default function AdminPage() {
             transition: "width 0.22s ease, min-width 0.22s ease, opacity 0.18s ease",
           }}
         >
-          <div className="sidenav-section">메뉴</div>
-          {menu.map((m) => (
-            <div
-              key={m.id}
-              className={`sidenav-item${page === m.id ? " active" : ""}`}
-              title={m.label}
-              onClick={() => {
-                setPage(m.id);
-                if (m.id === "assetmap") setPendingMonitorCount(0);
-              }}
-            >
-              <span style={{ fontSize: 14, flexShrink: 0 }}>{m.icon}</span>
-              <div className="flex flex-col leading-tight flex-1 min-w-0">
-                <span className="truncate">{m.label}</span>
-                <span className="text-xs opacity-50 truncate">{m.desc}</span>
+          {groups.map((group, gi) => {
+            const groupKey = group.label || "__home";
+            const hasLabel = !!group.label;
+            const isActiveGroup = group.items.some(m => m.id === page);
+            const isExpanded = !hasLabel || isActiveGroup || hoveredGroup === groupKey;
+            return (
+              <div
+                key={groupKey}
+                onMouseEnter={() => hasLabel && setHoveredGroup(groupKey)}
+                onMouseLeave={() => setHoveredGroup(null)}
+              >
+                {gi > 0 && !hasLabel && <div className="sidenav-divider" />}
+                {hasLabel && (
+                  <div className={`sidenav-section${gi > 0 ? " mt-1" : ""} cursor-default select-none`}>
+                    {group.label}
+                    <span className="ml-auto text-white/30 text-[10px] transition-transform duration-200"
+                      style={{ display: "inline-block", transform: isExpanded ? "rotate(0deg)" : "rotate(-90deg)" }}>
+                      ▾
+                    </span>
+                  </div>
+                )}
+                <div style={{
+                  maxHeight: isExpanded ? `${group.items.length * 60}px` : "0px",
+                  overflow: "hidden",
+                  transition: "max-height 0.22s ease",
+                }}>
+                  {group.items.map((m) => {
+                    const accessible = canAccess(m.id);
+                    return (
+                      <div
+                        key={m.id}
+                        className={`sidenav-item${page === m.id ? " active" : ""}${!accessible ? " opacity-40" : ""}`}
+                        title={accessible ? m.label : "접근권한이 없습니다"}
+                        style={{ cursor: accessible ? "pointer" : "default" }}
+                        onClick={() => {
+                          setPage(m.id);
+                          if (m.id === "assetmap") setPendingMonitorCount(0);
+                        }}
+                      >
+                        <span style={{ fontSize: 14, flexShrink: 0 }}>{accessible ? m.icon : "🔒"}</span>
+                        <div className="flex flex-col leading-tight flex-1 min-w-0">
+                          <span className="truncate">{m.label}</span>
+                          <span className="text-xs opacity-50 truncate">
+                            {accessible ? m.desc : "접근권한이 없습니다"}
+                          </span>
+                        </div>
+                        {accessible && m.id === "assetmap" && pendingMonitorCount > 0 && (
+                          <span className="ml-auto flex-shrink-0 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1 animate-pulse">
+                            {pendingMonitorCount > 99 ? "99+" : pendingMonitorCount}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-              {m.id === "assetmap" && pendingMonitorCount > 0 && (
-                <span className="ml-auto flex-shrink-0 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1 animate-pulse">
-                  {pendingMonitorCount > 99 ? "99+" : pendingMonitorCount}
-                </span>
-              )}
-            </div>
-          ))}
+            );
+          })}
 
           {/* 법인 담당자: 소속 법인 표시 */}
           {!isSuper && (
