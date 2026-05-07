@@ -14,17 +14,20 @@ export async function GET(req: Request) {
   }
   const { searchParams } = new URL(req.url);
   const refresh = searchParams.get("refresh") === "1";
+  const company = searchParams.get("company")?.trim() || "";
+
+  const applyFilter = (data: HelpDeskTicket[]) =>
+    company ? data.filter(t => t.company === company) : data;
 
   try {
     if (!refresh) {
       const cached = await kvGet<{ data: HelpDeskTicket[]; lastSynced: string }>(CACHE_KEY);
-      if (cached) return NextResponse.json({ ...cached, cached: true });
+      if (cached) return NextResponse.json({ ...cached, data: applyFilter(cached.data), cached: true });
     }
 
     const data = await fetchHelpDeskTickets();
-    const result = { data, lastSynced: new Date().toISOString(), cached: false };
-    await kvSet(CACHE_KEY, { data, lastSynced: result.lastSynced }, CACHE_TTL);
-    return NextResponse.json(result);
+    await kvSet(CACHE_KEY, { data, lastSynced: new Date().toISOString() }, CACHE_TTL);
+    return NextResponse.json({ data: applyFilter(data), lastSynced: new Date().toISOString(), cached: false });
   } catch (error) {
     console.error("[API GET /helpdesk]", error);
     return NextResponse.json(

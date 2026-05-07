@@ -673,7 +673,7 @@ function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
 }
 
 // ── Main Panel ────────────────────────────────────────────────
-export default function RepairPanel() {
+export default function RepairPanel({ company = "" }: { company?: string }) {
   const [tickets,    setTickets]    = useState<RepairTicket[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [error,      setError]      = useState<string | null>(null);
@@ -703,14 +703,18 @@ export default function RepairPanel() {
   }, []);
 
   const [listFilter, setListFilter] = useState({
-    status: "all", fault: "all", company: "all", priority: "all", search: "",
+    status: "all", fault: "all", company: company || "all", priority: "all", search: "",
   });
 
   const months = useMemo(() => last6Months(), []);
 
   const load = useCallback((force = false) => {
     if (!force) { setLoading(true); setError(null); }
-    fetch(`/api/repair-tickets${force ? "?refresh=1" : ""}`)
+    const params = new URLSearchParams();
+    if (force) params.set("refresh", "1");
+    if (company) params.set("company", company);
+    const qs = params.toString();
+    fetch(`/api/repair-tickets${qs ? `?${qs}` : ""}`)
       .then(r => r.json())
       .then(res => {
         if (res.missingEnv) { setMissingEnv(res.missingEnv); return; }
@@ -720,7 +724,7 @@ export default function RepairPanel() {
       })
       .catch(e => { if (!force) setError(e.message); })
       .finally(() => { if (!force) setLoading(false); });
-  }, []);
+  }, [company]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -1283,14 +1287,16 @@ export default function RepairPanel() {
               <option value="all">전체 고장유형</option>
               {uniqueFaults.map(f => <option key={f} value={f}>{f}</option>)}
             </select>
-            <select
-              value={listFilter.company}
-              onChange={e => setListFilter(f => ({ ...f, company: e.target.value }))}
-              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none"
-            >
-              <option value="all">전체 법인</option>
-              {uniqueCompanies.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
+            {!company && (
+              <select
+                value={listFilter.company}
+                onChange={e => setListFilter(f => ({ ...f, company: e.target.value }))}
+                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none"
+              >
+                <option value="all">전체 법인</option>
+                {uniqueCompanies.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            )}
             <select
               value={listFilter.priority}
               onChange={e => setListFilter(f => ({ ...f, priority: e.target.value }))}
@@ -1299,9 +1305,9 @@ export default function RepairPanel() {
               <option value="all">전체 긴급도</option>
               {uniquePriorities.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
-            {(listFilter.status !== "all" || listFilter.fault !== "all" || listFilter.company !== "all" || listFilter.priority !== "all" || listFilter.search) && (
+            {(listFilter.status !== "all" || listFilter.fault !== "all" || (!company && listFilter.company !== "all") || listFilter.priority !== "all" || listFilter.search) && (
               <button
-                onClick={() => setListFilter({ status: "all", fault: "all", company: "all", priority: "all", search: "" })}
+                onClick={() => setListFilter({ status: "all", fault: "all", company: company || "all", priority: "all", search: "" })}
                 className="text-xs text-gray-400 hover:text-gray-600 underline"
               >
                 초기화
