@@ -280,7 +280,23 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
               전체 보기 →
             </button>
           </div>
-          {hwLoading ? <LoadingBox /> : <DonutChart data={hwSegs} title="법인별" />}
+          {hwLoading ? <LoadingBox /> : (
+            <>
+              <DonutChart data={hwSegs} title="법인별" />
+              {hwStats && (
+                <div className="mt-3 pt-3 border-t border-gray-100 flex gap-2">
+                  <div className="flex-1 bg-orange-50 rounded-lg py-2 px-3 text-center">
+                    <div className="text-[10px] text-orange-500 font-medium">출고준비중</div>
+                    <div className="text-xl font-bold text-orange-600 mt-0.5">{hwStats.byStatus["출고준비중"] ?? 0}</div>
+                  </div>
+                  <div className="flex-1 bg-amber-50 rounded-lg py-2 px-3 text-center">
+                    <div className="text-[10px] text-amber-600 font-medium">출고준비완료</div>
+                    <div className="text-xl font-bold text-amber-700 mt-0.5">{hwStats.byStatus["출고준비완료"] ?? 0}</div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
 
