@@ -28,10 +28,125 @@ function DDay({ date }: { date: string }) {
 
 function StatusBadge({ status }: { status: string }) {
   const s = status.replace(/^[^\w가-힣]*\s*/, "");
-  const cls = status.includes("재고")    ? "bg-blue-50 text-blue-700"
-            : status.includes("미반납")  ? "bg-red-50 text-red-600"
+  const cls = status.includes("재고")   ? "bg-blue-50 text-blue-700"
+            : status.includes("미반납") ? "bg-red-50 text-red-600"
             : "bg-gray-100 text-gray-500";
   return <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${cls}`}>{s || "—"}</span>;
+}
+
+// ── 클립보드 복사 훅 ──────────────────────────────────────────────────────────
+function useCopy() {
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  function copy(id: string, text: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 1500);
+    });
+  }
+  return { copiedId, copy };
+}
+
+// ── HW 자산 조회 모달 ─────────────────────────────────────────────────────────
+interface HwRecord { id: string; assetNo: string; user: string; model: string; serial: string; maker: string; cpu: string; ram: string; company: string; dept: string; location: string; status: string; returnDue: string; purchaseDate: string; note: string; notionUrl: string; }
+
+function HwLookupModal({ assetNoOld, onClose }: { assetNoOld: string; onClose: () => void }) {
+  const [data,    setData]    = useState<HwRecord | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState("");
+
+  useEffect(() => {
+    fetch(`/api/hw?search=${encodeURIComponent(assetNoOld)}`)
+      .then(r => r.json())
+      .then(res => {
+        const match = (res.data ?? []).find((r: HwRecord) =>
+          r.assetNo?.toLowerCase() === assetNoOld.toLowerCase()
+        );
+        if (match) setData(match);
+        else setError("해당 자산번호를 NT/DT DB에서 찾을 수 없습니다.");
+      })
+      .catch(() => setError("데이터 조회 실패"))
+      .finally(() => setLoading(false));
+  }, [assetNoOld]);
+
+  const row = (label: string, value: string | number | undefined) =>
+    value ? (
+      <div key={label} className="flex gap-2 py-1.5 border-b border-gray-50 last:border-0">
+        <span className="text-xs text-gray-400 w-24 shrink-0">{label}</span>
+        <span className="text-xs text-gray-800 font-medium break-all">{value}</span>
+      </div>
+    ) : null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-4 bg-gray-800 text-white flex items-start justify-between shrink-0">
+          <div>
+            <div className="font-bold text-base">NT/DT 자산 조회</div>
+            <div className="text-xs opacity-70 mt-0.5">기존번호: {assetNoOld}</div>
+          </div>
+          <button onClick={onClose} className="text-white/60 hover:text-white text-2xl leading-none ml-4">✕</button>
+        </div>
+        <div className="px-5 py-4">
+          {loading && <div className="text-center py-6 text-gray-400 text-sm">조회 중…</div>}
+          {error   && <div className="text-center py-6 text-red-500 text-sm">{error}</div>}
+          {data && (
+            <div>
+              {row("자산번호",  data.assetNo)}
+              {row("사용자",    data.user)}
+              {row("모델",      data.model)}
+              {row("제조사",    data.maker)}
+              {row("시리얼",    data.serial)}
+              {row("CPU",       data.cpu)}
+              {row("RAM",       data.ram)}
+              {row("법인",      data.company)}
+              {row("부서",      data.dept)}
+              {row("위치",      data.location)}
+              {row("상태",      data.status)}
+              {row("구매일자",  data.purchaseDate)}
+              {row("반납예정",  data.returnDue)}
+              {row("비고",      data.note)}
+              {data.notionUrl && (
+                <a href={data.notionUrl} target="_blank" rel="noopener noreferrer"
+                  className="mt-3 flex items-center gap-1.5 text-xs text-blue-500 hover:underline">
+                  Notion에서 보기 →
+                </a>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 상태 변경 팝오버 ──────────────────────────────────────────────────────────
+function StatusPopover({ record, onSave, onClose }: {
+  record: RentalRecord;
+  onSave: (id: string, fields: object) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  async function toggle(inStock: boolean) {
+    setSaving(true);
+    try { await onSave(record.id, { inStock }); onClose(); }
+    finally { setSaving(false); }
+  }
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-xl p-4 min-w-[180px] flex flex-col gap-2" onClick={e => e.stopPropagation()}>
+        <div className="text-xs text-gray-400 font-semibold mb-1">{record.assetNo} 상태 변경</div>
+        <button disabled={saving || !record.inStock} onClick={() => toggle(false)}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-colors disabled:opacity-40 hover:bg-red-50 text-red-600">
+          🔴 임대중 (미반납)
+        </button>
+        <button disabled={saving || record.inStock} onClick={() => toggle(true)}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-colors disabled:opacity-40 hover:bg-blue-50 text-blue-600">
+          🔵 반납완료 (재고)
+        </button>
+      </div>
+    </div>
+  );
 }
 
 // ── 등록 모달 ────────────────────────────────────────────────────────────────
@@ -260,8 +375,11 @@ export default function RentalHwPanel() {
   const [filterStatus,  setFilterStatus]  = useState("전체");
   const [showOverdue,   setShowOverdue]   = useState(false);
   const [currentPage,   setCurrentPage]   = useState(1);
-  const [createOpen,  setCreateOpen]  = useState(false);
-  const [editRecord,  setEditRecord]  = useState<RentalRecord | null>(null);
+  const [createOpen,    setCreateOpen]    = useState(false);
+  const [editRecord,    setEditRecord]    = useState<RentalRecord | null>(null);
+  const [hwLookup,      setHwLookup]      = useState<string | null>(null);   // 기존번호
+  const [statusPopover, setStatusPopover] = useState<RentalRecord | null>(null);
+  const { copiedId, copy } = useCopy();
 
   const load = useCallback(async (refresh = false) => {
     setLoading(true);
@@ -397,7 +515,7 @@ export default function RentalHwPanel() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50">
-              {["자산번호","기존번호","실사용자/지급사유","요청인","법인","부서","DLP 계정","사용시작일","반납예정일","상태"].map(h => (
+              {["자산번호","상태","사용시작일","반납예정일","법인","부서","요청인","지급사유","DLP 계정","기존번호"].map(h => (
                 <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -406,24 +524,59 @@ export default function RentalHwPanel() {
             {paginated.length === 0 ? (
               <tr><td colSpan={10} className="text-center py-12 text-gray-400">검색 결과가 없습니다</td></tr>
             ) : paginated.map(r => (
-              <tr key={r.id} className="border-b border-gray-50 hover:bg-blue-50/30 transition-colors cursor-pointer"
-                onClick={() => setEditRecord(r)}>
-                <td className="px-3 py-3 whitespace-nowrap">
+              <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50/80 transition-colors">
+
+                {/* 자산번호 — 클릭 시 편집 모달 */}
+                <td className="px-3 py-3 whitespace-nowrap cursor-pointer"
+                  onClick={() => setEditRecord(r)}>
                   <span className="text-xs font-mono font-semibold text-blue-600 hover:underline">
                     {r.assetNo || "—"}
                   </span>
                 </td>
-                <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">{r.assetNoOld || "—"}</td>
-                <td className="px-3 py-3 text-xs text-gray-800 max-w-[180px]">
-                  <div className="truncate" title={r.userAndReason}>{r.userAndReason || "—"}</div>
+
+                {/* 상태 — 클릭 시 변경 팝오버 */}
+                <td className="px-3 py-3 whitespace-nowrap cursor-pointer"
+                  onClick={() => setStatusPopover(r)}>
+                  <span className="hover:opacity-75 transition-opacity">
+                    <StatusBadge status={r.status} />
+                  </span>
                 </td>
-                <td className="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">{r.requester || "—"}</td>
+
+                <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">{fmtDate(r.startDate)}</td>
+                <td className="px-3 py-3 whitespace-nowrap">
+                  {r.returnDue ? <DDay date={r.returnDue} /> : <span className="text-gray-400 text-xs">—</span>}
+                </td>
                 <td className="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">{r.company || "—"}</td>
                 <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">{r.dept || "—"}</td>
+                {/* 요청인 — 클릭 시 클립보드 복사 */}
+                <td className="px-3 py-3 whitespace-nowrap cursor-pointer"
+                  onClick={e => r.requester && copy(r.id, r.requester, e)}>
+                  <div className="flex items-center gap-1 group">
+                    <span className="text-xs text-gray-600">{r.requester || "—"}</span>
+                    {r.requester && (
+                      <span className="text-[10px] shrink-0 opacity-0 group-hover:opacity-50 transition-opacity">
+                        {copiedId === r.id ? "✓" : "📋"}
+                      </span>
+                    )}
+                  </div>
+                </td>
+
+                <td className="px-3 py-3 max-w-[200px] text-xs text-gray-800 truncate" title={r.userAndReason}>
+                  {r.userAndReason || "—"}
+                </td>
+
                 <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">{r.dlpAccount || "—"}</td>
-                <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">{fmtDate(r.startDate)}</td>
-                <td className="px-3 py-3 whitespace-nowrap">{r.returnDue ? <DDay date={r.returnDue} /> : <span className="text-gray-400 text-xs">—</span>}</td>
-                <td className="px-3 py-3 whitespace-nowrap"><StatusBadge status={r.status} /></td>
+
+                {/* 기존번호 — 클릭 시 NT/DT DB 조회 */}
+                <td className="px-3 py-3 whitespace-nowrap">
+                  {r.assetNoOld
+                    ? <span className="text-xs font-mono text-gray-600 hover:text-blue-600 hover:underline cursor-pointer transition-colors"
+                        onClick={() => setHwLookup(r.assetNoOld)}>
+                        {r.assetNoOld}
+                      </span>
+                    : <span className="text-gray-300 text-xs">—</span>
+                  }
+                </td>
               </tr>
             ))}
           </tbody>
@@ -432,8 +585,10 @@ export default function RentalHwPanel() {
 
       <Pagination total={filtered.length} page={currentPage} size={PAGE_SIZE} onChange={setCurrentPage} />
 
-      {createOpen && <CreateModal onSave={handleCreate} onClose={() => setCreateOpen(false)} />}
-      {editRecord  && <EditModal  record={editRecord}  onSave={handleUpdate} onClose={() => setEditRecord(null)} />}
+      {createOpen    && <CreateModal onSave={handleCreate} onClose={() => setCreateOpen(false)} />}
+      {editRecord    && <EditModal   record={editRecord}   onSave={handleUpdate} onClose={() => setEditRecord(null)} />}
+      {hwLookup      && <HwLookupModal assetNoOld={hwLookup} onClose={() => setHwLookup(null)} />}
+      {statusPopover && <StatusPopover record={statusPopover} onSave={handleUpdate} onClose={() => setStatusPopover(null)} />}
     </div>
   );
 }
