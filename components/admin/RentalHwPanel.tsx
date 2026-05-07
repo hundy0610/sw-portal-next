@@ -368,9 +368,10 @@ function Pagination({ total, page, size, onChange }: {
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
 export default function RentalHwPanel() {
-  const [records, setRecords] = useState<RentalRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search,  setSearch]  = useState("");
+  const [records,    setRecords]    = useState<RentalRecord[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [missingEnv, setMissingEnv] = useState<string | null>(null);
+  const [search,     setSearch]     = useState("");
   const [filterCompany, setFilterCompany] = useState("전체");
   const [filterStatus,  setFilterStatus]  = useState("전체");
   const [showOverdue,   setShowOverdue]   = useState(false);
@@ -386,6 +387,7 @@ export default function RentalHwPanel() {
     try {
       const res  = await fetch(`/api/rental-hw${refresh ? "?refresh=1" : ""}`);
       const json = await res.json();
+      if (json.missingEnv) { setMissingEnv(json.missingEnv); return; }
       setRecords(json.data ?? []);
     } finally { setLoading(false); }
   }, []);
@@ -434,6 +436,19 @@ export default function RentalHwPanel() {
     filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE), [filtered, currentPage]);
 
   if (loading) return <div className="text-center py-20 text-gray-400">데이터 로딩 중…</div>;
+
+  if (missingEnv) return (
+    <div className="flex flex-col items-center justify-center py-20 gap-4">
+      <div className="text-3xl">⚙️</div>
+      <div className="text-center">
+        <p className="text-sm font-semibold text-gray-700 mb-1">환경변수가 설정되지 않았습니다</p>
+        <p className="text-xs text-gray-400 mb-4">Vercel 대시보드 → Settings → Environment Variables 에서 아래 변수를 추가해주세요.</p>
+        <code className="inline-block bg-gray-100 border border-gray-200 text-red-600 font-mono text-sm px-4 py-2 rounded-lg">
+          {missingEnv}
+        </code>
+      </div>
+    </div>
+  );
 
   return (
     <div className="fade-in">
