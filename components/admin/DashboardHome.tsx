@@ -215,8 +215,11 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
 
   // 최근 수리 접수
   useEffect(() => {
+    const url = isFiltered
+      ? `/api/repair-tickets?company=${encodeURIComponent(company)}`
+      : "/api/repair-tickets";
     const t0 = performance.now();
-    fetch("/api/repair-tickets")
+    fetch(url)
       .then(r => r.json())
       .then(d => {
         setTime("수리 접수", Math.round(performance.now() - t0));
@@ -228,7 +231,7 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
         );
       })
       .finally(() => setRpLoading(false));
-  }, []);
+  }, [company, isFiltered]);
 
   const hwSegs: DonutSeg[] = hwStats
     ? Object.entries(

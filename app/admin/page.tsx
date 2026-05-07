@@ -31,7 +31,7 @@ interface SessionInfo {
 type PageId = "home" | "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "rental-hw" | "accounts" | "assetmap" | "helpdesk" | "contracts" | "repair";
 
 // 슈퍼어드민 전용 페이지 (company 계정은 접근 불가)
-const SUPER_ONLY_PAGES = new Set<PageId>(["credentials", "swdb", "repair", "accounts", "contracts", "rental-hw"]);
+const SUPER_ONLY_PAGES = new Set<PageId>(["credentials", "swdb", "accounts", "contracts", "rental-hw"]);
 
 // ── 메뉴 정의 ──────────────────────────────────────────────────
 type MenuItem = { id: PageId; icon: string; label: string; desc: string };
@@ -210,7 +210,7 @@ export default function AdminPage() {
       case "rental-hw":   return canAccess("rental-hw") ? <RentalHwPanel /> : <AccessDenied />;
       case "assetmap":    return <AssetMapPanel session={session} />;
       case "helpdesk":    return <HelpDeskPanel company={isSuper ? "" : company} />;
-      case "repair":      return canAccess("repair")      ? <RepairPanel />     : <AccessDenied />;
+      case "repair":      return <RepairPanel company={company} />;
       case "accounts":    return canAccess("accounts")    ? <AccountsPanel />   : <AccessDenied />;
       case "contracts":   return canAccess("contracts")   ? <ContractPanel />   : <AccessDenied />;
       default:            return null;
