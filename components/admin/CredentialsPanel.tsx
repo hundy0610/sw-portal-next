@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import EnvVarMissing from "@/components/ui/EnvVarMissing";
 
 // ────────────────────────────────────────────────────────────
 // 타입
@@ -247,9 +248,10 @@ function DeleteConfirmModal({
 // 메인 컴포넌트
 // ────────────────────────────────────────────────────────────
 export default function CredentialsPanel() {
-  const [creds,   setCreds]   = useState<SwCredential[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState<string | null>(null);
+  const [creds,      setCreds]      = useState<SwCredential[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState<string | null>(null);
+  const [missingEnv, setMissingEnv] = useState<string | null>(null);
   const [search,  setSearch]  = useState("");
   const [revealId, setRevealId] = useState<string | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -280,6 +282,7 @@ export default function CredentialsPanel() {
     fetch("/api/credentials?t=" + Date.now())
       .then(r => r.json())
       .then(res => {
+        if (res.missingEnv) { setMissingEnv(res.missingEnv); return; }
         if (res.error) setError(res.error);
         else setCreds(res.data ?? []);
       })
@@ -427,6 +430,7 @@ export default function CredentialsPanel() {
       {loading && (
         <div className="text-center py-20 text-gray-400">계정 목록 불러오는 중...</div>
       )}
+      {!loading && missingEnv && <EnvVarMissing varName={missingEnv} />}
 
       {!loading && error && (
         <div className="text-center py-20">

@@ -9,6 +9,9 @@ const CACHE_KEY = "helpdesk:tickets";
 const CACHE_TTL = 300; // 5분
 
 export async function GET(req: Request) {
+  for (const v of ["NOTION_TOKEN", "NOTION_DB_HELPDESK"]) {
+    if (!process.env[v]) return NextResponse.json({ missingEnv: v, error: `환경변수 ${v} 가 설정되지 않았습니다.` }, { status: 503 });
+  }
   const { searchParams } = new URL(req.url);
   const refresh = searchParams.get("refresh") === "1";
 

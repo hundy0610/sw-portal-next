@@ -6,6 +6,7 @@ import { memGet, memSet, memDel } from "@/lib/mem-cache";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  if (!process.env.NOTION_TOKEN) return NextResponse.json({ missingEnv: "NOTION_TOKEN", error: "환경변수 NOTION_TOKEN 이 설정되지 않았습니다." }, { status: 503 });
   const { searchParams } = new URL(req.url);
   const search    = searchParams.get("search")?.trim()    || "";
   const company   = searchParams.get("company")?.trim()   || "";

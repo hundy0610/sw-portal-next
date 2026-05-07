@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { Contract, ContractStage } from "@/types/contract";
 import { CONTRACT_STAGES } from "@/types/contract";
+import EnvVarMissing from "@/components/ui/EnvVarMissing";
 
 const UNIT_PRICE_DEFAULT = 6000;
 const MAX_PDF_MB = 4; // Vercel 서버리스 request body 한도 4.5MB 이내로 여유 설정
@@ -103,8 +104,9 @@ const EMPTY: FormState = {
 
 // ═════════════════════════════════════════════════════════════
 export default function ContractPanel() {
-  const [contracts, setContracts] = useState<Contract[]>([]);
-  const [loading,   setLoading]   = useState(true);
+  const [contracts,  setContracts]  = useState<Contract[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [missingEnv, setMissingEnv] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [editTarget, setEditTarget] = useState<Contract | null>(null);
   const [form,  setForm]  = useState<FormState>({ ...EMPTY });
@@ -171,6 +173,7 @@ export default function ContractPanel() {
     try {
       const res  = await fetch("/api/contracts");
       const data = await res.json();
+      if (data.missingEnv) { setMissingEnv(data.missingEnv); return; }
       if (data.ok) setContracts(data.contracts ?? []);
       else showToast("데이터 로드 실패", "err");
     } catch {
@@ -582,7 +585,9 @@ export default function ContractPanel() {
           />
         </div>
 
-        {loading ? (
+        {missingEnv ? (
+          <EnvVarMissing varName={missingEnv} />
+        ) : loading ? (
           <div className="text-center py-16 text-gray-400 text-sm">로딩 중...</div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16 text-gray-400 text-sm">

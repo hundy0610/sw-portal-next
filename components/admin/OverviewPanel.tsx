@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import type { SwItem, SwDbRecord } from "@/types";
 import { ProgressBar } from "@/components/ui/ProgressBar";
+import EnvVarMissing from "@/components/ui/EnvVarMissing";
 
 // ── SW 매크로 카테고리 규칙 ──────────────────────────────────────
 const SW_CAT_RULES: { label: string; icon: string; keywords: string[]; chartColor: string }[] = [
@@ -169,9 +170,10 @@ const CORP_COLORS = ["#3B82F6","#8B5CF6","#10B981","#F97316","#06B6D4","#EC4899"
 export default function OverviewPanel({ company = "" }: { company?: string }) {
   const isCompanyFiltered = company !== ""; // 법인 담당자 = 자기 법인만
 
-  const [swDb,    setSwDb]    = useState<SwItem[]>([]);
-  const [swRecs,  setSwRecs]  = useState<SwDbRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [swDb,       setSwDb]       = useState<SwItem[]>([]);
+  const [swRecs,     setSwRecs]     = useState<SwDbRecord[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [missingEnv, setMissingEnv] = useState<string | null>(null);
 
   // 글로벌 필터 (슈퍼어드민만 사용, 법인 담당자는 company prop으로 고정)
   const [filterCompany, setFilterCompany] = useState("전체");
@@ -188,6 +190,7 @@ export default function OverviewPanel({ company = "" }: { company?: string }) {
       fetch("/api/sw-db").then(r => r.json()),
       fetch(swRecUrl).then(r => r.json()),
     ]).then(([sw, recs]) => {
+      if (recs.missingEnv) { setMissingEnv(recs.missingEnv); return; }
       setSwDb(sw.data ?? []);
       setSwRecs(recs.data ?? []);
     }).finally(() => setLoading(false));
@@ -327,6 +330,7 @@ export default function OverviewPanel({ company = "" }: { company?: string }) {
   const selectedOpt = CHART_OPTIONS.find(o => o.id === chartOpt)!;
 
   if (loading) return <div className="text-center py-20 text-gray-400">노션 데이터 로딩 중...</div>;
+  if (missingEnv) return <EnvVarMissing varName={missingEnv} />;
 
   return (
     <div className="fade-in">
