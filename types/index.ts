@@ -146,6 +146,31 @@ export interface RepairTicket {
 }
 
 // ────────────────────────────────────────────────────────────
+// HW 외부 수리 추적
+// ────────────────────────────────────────────────────────────
+export interface HwRepairRecord {
+  id: string;
+  assetId: string;         // 자산번호 (title)
+  company: string;         // 법인 (select)
+  department: string;      // 부서 (rich_text)
+  user: string;            // 사용자 (rich_text)
+  vendor: string;          // 수리업체 (select)
+  stage: string;           // 현재단계 (select)
+  receivedAt: string;      // 접수일 (date) YYYY-MM-DD
+  completedAt: string;     // 실제완료일 (date) YYYY-MM-DD
+  faultType: string;       // 과실여부 (select)
+  receiptUrl: string[];    // 수리영수증 (files)
+  consentUrl: string[];    // 진행동의서 (files)
+  taxInvoiceUrl: string[]; // 세금계산서결재 (files)
+  approvalUrl: string[];   // 내부결재내용 (files)
+  assignee: string;        // 담당자 이름 (people)
+  assigneeId: string;      // 담당자 Notion user ID
+  note: string;            // 수리내용 (rich_text)
+  lastEditedAt: string;    // 최종 편집 일시 (last_edited_time)
+  notionUrl: string;
+}
+
+// ────────────────────────────────────────────────────────────
 // API 응답 래퍼
 // ────────────────────────────────────────────────────────────
 export interface ApiResponse<T> {
