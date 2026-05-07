@@ -5,7 +5,7 @@ import type {
   BlockObjectResponse,
   PartialBlockObjectResponse,
 } from "@notionhq/client/build/src/api-endpoints";
-import type { SwItem, SwDbRecord, Subscription, LicenseItem, LicenseRecord, Ticket, RepairTicket } from "@/types";
+import type { SwItem, SwDbRecord, Subscription, LicenseItem, LicenseRecord, Ticket, RepairTicket, HwRepairRecord } from "@/types";
 import type { SwCredential } from "@/components/admin/CredentialsPanel";
 
 // ────────────────────────────────────────────────────────────
@@ -109,6 +109,16 @@ function getPropFile(props: NotionProps, key: string): string {
   if (file.type === "external") return file.external.url;
   if (file.type === "file") return file.file.url;
   return "";
+}
+
+function getPropFiles(props: NotionProps, key: string): string[] {
+  const p = props[key];
+  if (!p || p.type !== "files") return [];
+  return p.files.map(file => {
+    if (file.type === "external") return file.external.url;
+    if (file.type === "file") return file.file.url;
+    return "";
+  }).filter(Boolean);
 }
 
 function getPageUrl(pageId: string): string {
@@ -491,6 +501,43 @@ export async function fetchRepairTickets(): Promise<RepairTicket[]> {
       actionNote: getPropText(p, "조치내용"),
       consentGiven: getPropCheckbox(p, "수리 진행 동의서"),
       createdAt: page.created_time.split("T")[0],
+      notionUrl: getPageUrl(page.id),
+    };
+  });
+}
+
+// ────────────────────────────────────────────────────────────
+// HW 외부 수리 추적
+// ────────────────────────────────────────────────────────────
+export async function fetchHwRepairs(): Promise<HwRepairRecord[]> {
+  const dbId = process.env.NOTION_DB_HW_REPAIR;
+  if (!dbId) throw new Error("NOTION_DB_HW_REPAIR 환경변수가 설정되지 않았습니다.");
+
+  const pages = await queryAllPages(dbId, undefined, [
+    { timestamp: "last_edited_time", direction: "descending" },
+  ]);
+
+  return pages.map((page) => {
+    const p = page.properties;
+    return {
+      id: page.id,
+      assetId: getPropText(p, "자산번호"),
+      company: getPropSelect(p, "법인"),
+      department: getPropText(p, "부서"),
+      user: getPropText(p, "사용자"),
+      vendor: getPropSelect(p, "수리업체"),
+      stage: getPropSelect(p, "현재단계") || "수리접수",
+      receivedAt: getPropDate(p, "접수일"),
+      completedAt: getPropDate(p, "실제완료일"),
+      faultType: getPropSelect(p, "과실여부"),
+      receiptUrl: getPropFiles(p, "수리영수증"),
+      consentUrl: getPropFiles(p, "진행동의서"),
+      taxInvoiceUrl: getPropFiles(p, "세금계산서결재"),
+      approvalUrl: getPropFiles(p, "내부결재내용"),
+      assignee: getPropPeople(p, "담당자"),
+      assigneeId: getPropPeopleList(p, "담당자")[0]?.id ?? "",
+      note: getPropText(p, "수리내용"),
+      lastEditedAt: page.last_edited_time,
       notionUrl: getPageUrl(page.id),
     };
   });
