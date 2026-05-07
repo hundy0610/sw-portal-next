@@ -139,17 +139,29 @@ export function computeHwStats(records: HwRecord[]): HwStats {
   };
 }
 
+async function queryWithRetry(params: Parameters<typeof notion.databases.query>[0], maxRetries = 3) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await notion.databases.query(params);
+    } catch (e: unknown) {
+      const status = (e as { status?: number })?.status;
+      if ((status === 502 || status === 503) && attempt < maxRetries - 1) {
+        await new Promise(res => setTimeout(res, 1000 * (attempt + 1)));
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw new Error("Notion query failed after retries");
+}
+
 export async function fetchAllHwRecords(): Promise<HwRecord[]> {
-  // 1페이지를 먼저 받아 총 페이지 수를 추정한 뒤, 이후 페이지는 병렬로 큐잉
-  // Notion cursor 기반 특성상 완전 병렬화는 불가하나,
-  // sort 제거(서버사이드→클라이언트 정렬)로 각 요청 속도 단축
   const records: HwRecord[] = [];
   let cursor: string | undefined;
 
   do {
-    const res = await notion.databases.query({
+    const res = await queryWithRetry({
       database_id: DB_ID,
-      // sorts 제거 → Notion 서버 부담 감소, 응답 속도 향상 (정렬은 클라이언트에서)
       page_size: 100,
       start_cursor: cursor,
     });
