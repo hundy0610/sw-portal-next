@@ -251,7 +251,7 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
     ]).then(([r1, r2]) => {
       setTime("출고준비", Math.round(performance.now() - t0));
       const all: HwRecord[] = [...(r1.records ?? []), ...(r2.records ?? [])];
-      setShipRecords(all.sort((a, b) => (a.status > b.status ? 1 : -1)));
+      setShipRecords(all.sort((a, b) => (a.useDate || "").localeCompare(b.useDate || "")));
     }).finally(() => setShipLoading(false));
   }, [company, isFiltered]);
 
