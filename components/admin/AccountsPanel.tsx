@@ -202,6 +202,7 @@ export default function AccountsPanel({ isSuperAdmin = true }: { isSuperAdmin?: 
   const [showModal,   setShowModal]   = useState(false);
   const [editTarget,  setEditTarget]  = useState<Account | undefined>(undefined);
   const [savingGm,    setSavingGm]    = useState<string | null>(null);  // userId of currently toggling
+  const [sendingTemp, setSendingTemp] = useState<string | null>(null); // id of account sending temp pw
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -258,6 +259,27 @@ export default function AccountsPanel({ isSuperAdmin = true }: { isSuperAdmin?: 
       body: JSON.stringify({ id: account.id }),
     });
     load();
+  }
+
+  // 임시 비밀번호 재발송
+  async function handleSendTemp(acc: Account) {
+    if (!confirm(`"${acc.name}" 계정에 임시 비밀번호를 재발급하고 ${acc.email}로 발송하겠습니까?`)) return;
+    setSendingTemp(acc.id);
+    try {
+      const res = await fetch("/api/admin/accounts", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: acc.id, resendTemp: true }),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "실패");
+      alert(`✅ ${acc.email}로 임시 비밀번호를 발송했습니다.`);
+      load();
+    } catch (e) {
+      alert(`❌ 발송 실패: ${String(e)}`);
+    } finally {
+      setSendingTemp(null);
+    }
   }
 
   // 총무관리자 역할 인라인 토글
@@ -393,11 +415,21 @@ export default function AccountsPanel({ isSuperAdmin = true }: { isSuperAdmin?: 
                     {/* 관리 버튼 */}
                     {isSuperAdmin && (
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <button
                             onClick={() => { setEditTarget(acc); setShowModal(true); }}
                             className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
                           >수정</button>
+                          {acc.active && acc.email && (
+                            <button
+                              onClick={() => handleSendTemp(acc)}
+                              disabled={sendingTemp === acc.id}
+                              className="text-xs text-amber-600 hover:text-amber-800 hover:underline disabled:opacity-40"
+                              title="임시 비밀번호 재발급 후 이메일 발송"
+                            >
+                              {sendingTemp === acc.id ? "발송 중..." : "임시PW"}
+                            </button>
+                          )}
                           {acc.active && (
                             <button
                               onClick={() => handleDeactivate(acc)}
