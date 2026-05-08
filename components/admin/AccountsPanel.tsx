@@ -421,23 +421,11 @@ export default function AccountsPanel({ isSuperAdmin = true }: { isSuperAdmin?: 
         <span className="text-emerald-600 font-medium">총무관리자 {accounts.filter(a => a.role === "general" && a.active).length}명</span>
       </div>
 
-      {/* Notion DB 설정 안내 */}
-      {accounts.length === 0 && !error && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700">
-          <div className="font-semibold mb-1">⚙️ Notion 계정 DB 설정 필요</div>
-          <p>Notion에 계정 관리 DB를 생성하고, 아래 컬럼을 추가한 뒤 환경변수 <code className="bg-amber-100 px-1 rounded">ACCOUNTS_DB_ID</code>를 설정하세요:</p>
-          <ul className="mt-2 space-y-0.5 list-disc list-inside text-xs">
-            <li><code>이름</code> (제목/Title)</li>
-            <li><code>아이디</code> (텍스트)</li>
-            <li><code>비밀번호</code> (텍스트)</li>
-            <li><code>메일</code> (텍스트)</li>
-            <li><code>부서명</code> (텍스트)</li>
-            <li><code>법인명</code> (선택/Select)</li>
-            <li><code>역할</code> (선택/Select: <code>super</code> / <code>company</code> / <code>general</code>)</li>
-            <li><code>활성화</code> (체크박스)</li>
-            <li><code>비번변경필요</code> (체크박스)</li>
-            <li><code>마지막로그인</code> (텍스트)</li>
-          </ul>
+      {/* 빈 상태 안내 */}
+      {accounts.length === 0 && !error && isSuperAdmin && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-700">
+          <div className="font-semibold mb-1">👤 등록된 계정이 없습니다</div>
+          <p>오른쪽 상단의 <strong>+ 계정 추가</strong> 버튼으로 첫 번째 계정을 등록하세요.</p>
         </div>
       )}
 
