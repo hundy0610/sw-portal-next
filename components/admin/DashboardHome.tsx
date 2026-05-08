@@ -91,6 +91,23 @@ const SW_STATUS_COLORS: Record<string, string> = {
   "만료": "#9CA3AF", "미확인": "#D1D5DB",
 };
 
+const HW_STATUS_COLORS: Record<string, string> = {
+  "사용중":     "#3B82F6",
+  "재고":       "#10B981",
+  "출고준비중": "#06B6D4",
+  "출고준비완료":"#0EA5E9",
+  "수리":       "#F97316",
+  "렌탈":       "#8B5CF6",
+  "임시지급":   "#EAB308",
+  "반납예정":   "#EC4899",
+  "미분류":     "#D1D5DB",
+};
+
+// 폐기 관련 상태 — 계약 수량에서 제외
+const HW_DISPOSAL_STATUSES = new Set([
+  "폐기","폐기확정(리스트화)","폐기완료","3층문서고/폐기","지하창고/폐기",
+]);
+
 const PALETTE = [
   "#6366f1","#f59e0b","#10b981","#ef4444","#3b82f6","#8b5cf6",
   "#ec4899","#14b8a6","#f97316","#84cc16","#06b6d4","#a855f7",
@@ -188,7 +205,7 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
       .finally(() => setSwLoading(false));
   }, [company, isFiltered]);
 
-  // HW 현황 (법인별)
+  // HW 현황 (상태별)
   useEffect(() => {
     if (hwStats) { setHwLoading(false); setTime("HW 현황", 0); return; }
     const t0 = performance.now();
@@ -274,16 +291,16 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
     }
   }
 
+  // 상태별 도넛 (폐기 제외 → 계약 수량 기준)
   const hwSegs: DonutSeg[] = hwStats
-    ? Object.entries(
-        isFiltered
-          ? { [company]: hwStats.byCompany[company] ?? 0 }
-          : hwStats.byCompany
-      )
-        .filter(([, v]) => v > 0)
+    ? Object.entries(hwStats.byStatus)
+        .filter(([label, v]) => v > 0 && !HW_DISPOSAL_STATUSES.has(label))
         .sort((a, b) => b[1] - a[1])
-        .slice(0, 12)
-        .map(([label, value], i) => ({ label, value, color: PALETTE[i % PALETTE.length] }))
+        .map(([label, value], i) => ({
+          label,
+          value,
+          color: HW_STATUS_COLORS[label] ?? PALETTE[i % PALETTE.length],
+        }))
     : [];
 
   return (
@@ -321,7 +338,7 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
               전체 보기 →
             </button>
           </div>
-          {hwLoading ? <LoadingBox /> : <DonutChart data={hwSegs} title="법인별" />}
+          {hwLoading ? <LoadingBox /> : <DonutChart data={hwSegs} title="계약 수량" />}
         </div>
       </div>
 
