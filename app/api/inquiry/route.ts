@@ -44,6 +44,14 @@ export async function POST(req: NextRequest) {
     // 헬프데스크 캐시 무효화 (다음 조회 시 최신 반영)
     await kvDel("helpdesk:tickets");
 
+    // 담당자 알림 메일 (fire-and-forget — 실패해도 접수 응답에 영향 없음)
+    const origin = process.env.NEXT_PUBLIC_APP_URL || "https://assetify-desk-main.vercel.app";
+    fetch(`${origin}/api/helpdesk/notify-new-inquiry`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ requester, company, department, inquiryType, urgency, content, assetNo }),
+    }).catch(e => console.error("[inquiry] notify failed:", e));
+
     return NextResponse.json({ ok: true, pageId }, { status: 201 });
   } catch (e) {
     console.error("[POST /api/inquiry]", e);

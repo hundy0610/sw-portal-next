@@ -1261,6 +1261,13 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
   const [sendingEmail, setSendingEmail] = useState<string | null>(null);
   const [emailSentIds, setEmailSentIds] = useState<Set<string>>(new Set());
 
+  // 신규 문의 알림 이메일 관리
+  const [notifyEmails,    setNotifyEmails]    = useState<string[]>([]);
+  const [notifyInput,     setNotifyInput]     = useState("");
+  const [notifyOpen,      setNotifyOpen]      = useState(false);
+  const [notifySaving,    setNotifySaving]    = useState(false);
+  const [notifyMsg,       setNotifyMsg]       = useState<{ type: "ok" | "err"; text: string } | null>(null);
+
   const [listFilter, setListFilter] = useState({
     status: "all", type: "all", company: "all", urgency: "all", search: "",
   });
@@ -1352,6 +1359,45 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
 
   // 초기 로드
   useEffect(() => { load(); }, [load]);
+
+  // 알림 이메일 목록 로드
+  useEffect(() => {
+    fetch("/api/helpdesk/notify-emails")
+      .then(r => r.json())
+      .then(res => { if (res.ok) setNotifyEmails(res.emails); })
+      .catch(() => {});
+  }, []);
+
+  const handleNotifyAdd = () => {
+    const email = notifyInput.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+    if (notifyEmails.includes(email)) { setNotifyInput(""); return; }
+    setNotifyEmails(prev => [...prev, email]);
+    setNotifyInput("");
+  };
+
+  const handleNotifyRemove = (email: string) => {
+    setNotifyEmails(prev => prev.filter(e => e !== email));
+  };
+
+  const handleNotifySave = async () => {
+    setNotifySaving(true); setNotifyMsg(null);
+    try {
+      const res = await fetch("/api/helpdesk/notify-emails", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emails: notifyEmails }),
+      });
+      const json = await res.json();
+      if (json.ok) setNotifyMsg({ type: "ok", text: "저장되었습니다." });
+      else setNotifyMsg({ type: "err", text: json.error || "저장 실패" });
+    } catch {
+      setNotifyMsg({ type: "err", text: "저장 실패" });
+    } finally {
+      setNotifySaving(false);
+      setTimeout(() => setNotifyMsg(null), 3000);
+    }
+  };
 
   // 30초마다 자동 새로고침 (Notion 최신 데이터 반영)
   useEffect(() => {
@@ -1549,6 +1595,78 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
           )}
         </div>
       )}
+
+      {/* ── 신규 문의 알림 이메일 관리 ── */}
+      <div className="mb-5 border border-gray-200 rounded-xl overflow-hidden">
+        <button
+          onClick={() => setNotifyOpen(o => !o)}
+          className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-sm font-semibold text-gray-700">
+          <span className="flex items-center gap-2">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2.5">
+              <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/>
+            </svg>
+            신규 문의 알림 수신자 관리
+            <span className="text-xs font-normal text-gray-400">({notifyEmails.length}명)</span>
+          </span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+            style={{ transform: notifyOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>
+            <path d="M6 9l6 6 6-6"/>
+          </svg>
+        </button>
+
+        {notifyOpen && (
+          <div className="px-4 py-4 bg-white space-y-3">
+            <p className="text-xs text-gray-500">신규 문의가 접수될 때 아래 이메일로 알림을 발송합니다.</p>
+
+            {/* 이메일 추가 입력 */}
+            <div className="flex gap-2">
+              <input
+                type="email"
+                value={notifyInput}
+                onChange={e => setNotifyInput(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleNotifyAdd(); } }}
+                placeholder="알림 받을 이메일 입력"
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-300 transition"
+              />
+              <button
+                onClick={handleNotifyAdd}
+                className="px-3 py-2 bg-violet-600 text-white text-xs font-bold rounded-lg hover:bg-violet-700 transition-colors">
+                추가
+              </button>
+            </div>
+
+            {/* 이메일 목록 */}
+            {notifyEmails.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {notifyEmails.map(email => (
+                  <span key={email} className="flex items-center gap-1.5 px-3 py-1 bg-violet-50 border border-violet-200 rounded-full text-xs text-violet-700 font-medium">
+                    {email}
+                    <button onClick={() => handleNotifyRemove(email)}
+                      className="text-violet-400 hover:text-violet-700 transition-colors leading-none">×</button>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 text-center py-2">수신자가 없습니다</p>
+            )}
+
+            {/* 저장 버튼 */}
+            <div className="flex items-center justify-end gap-3">
+              {notifyMsg && (
+                <span className={`text-xs font-medium ${notifyMsg.type === "ok" ? "text-green-600" : "text-red-500"}`}>
+                  {notifyMsg.text}
+                </span>
+              )}
+              <button
+                onClick={handleNotifySave}
+                disabled={notifySaving}
+                className="px-4 py-1.5 bg-violet-600 text-white text-xs font-bold rounded-lg hover:bg-violet-700 disabled:opacity-50 transition-colors">
+                {notifySaving ? "저장 중..." : "저장"}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* ── Summary Cards ── */}
       <div className="grid grid-cols-5 gap-3 mb-6">
