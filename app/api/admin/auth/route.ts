@@ -1,96 +1,46 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { Client } from "@notionhq/client";
-import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
 import { encodeSession, decodeSession, type AdminSession } from "@/lib/session";
 import { verifyPassword } from "@/lib/crypto";
+import { kvGet } from "@/lib/kv-store";
+import type { Account } from "@/app/api/admin/accounts/route";
 
-const notion = new Client({ auth: process.env.NOTION_TOKEN });
-const ACCOUNTS_DB_ID = process.env.ACCOUNTS_DB_ID ?? "";
-
+const ACCOUNTS_KEY   = "sw:accounts";
 const SUPER_ADMIN_ID = process.env.SUPER_ADMIN_ID ?? "admin";
 const SUPER_ADMIN_PW = process.env.SUPER_ADMIN_PW ?? "3589";
 
-type Props = PageObjectResponse["properties"];
-
-const txt = (p: Props, k: string) => {
-  const v = p[k];
-  if (!v) return "";
-  if (v.type === "title")     return v.title.map(t => t.plain_text).join("");
-  if (v.type === "rich_text") return v.rich_text.map(t => t.plain_text).join("");
-  return "";
-};
-
-const sel = (p: Props, k: string) => {
-  const v = p[k];
-  if (!v || v.type !== "select") return "";
-  return v.select?.name ?? "";
-};
-
-const chk = (p: Props, k: string) => {
-  const v = p[k];
-  if (!v || v.type !== "checkbox") return false;
-  return v.checkbox;
-};
-
 async function lookupAccount(userId: string, password: string): Promise<AdminSession | null> {
-  if (!ACCOUNTS_DB_ID) return null;
-
   try {
-    const res = await notion.databases.query({
-      database_id: ACCOUNTS_DB_ID,
-      filter: {
-        and: [
-          { property: "아이디", rich_text: { equals: userId } },
-          { property: "활성화", checkbox: { equals: true } },
-        ],
-      },
-    });
+    if (!process.env.REDIS_URL) return null;
+    const accounts = (await kvGet<Account[]>(ACCOUNTS_KEY)) ?? [];
 
-    for (const page of res.results) {
-      if (page.object !== "page" || !("properties" in page)) continue;
-      const p = (page as PageObjectResponse).properties;
-      const storedPw = txt(p, "비밀번호");
+    const account = accounts.find(a => a.userId === userId && a.active);
+    if (!account) return null;
 
-      // 비밀번호가 없는 계정 (신규 미설정) — 로그인 불가, 비밀번호 초기화 필요
-      if (!storedPw) continue;
-      if (!verifyPassword(password, storedPw)) continue;
+    // 비밀번호 미설정 계정 — 로그인 불가, 비밀번호 초기화 필요
+    if (!account.password) return null;
+    if (!verifyPassword(password, account.password)) return null;
 
-      const roleRaw = sel(p, "역할");
-      const role = roleRaw === "super" ? "super" : roleRaw === "general" ? "general" : "company";
-      const mustChangePassword = chk(p, "비번변경필요");
-
-      notion.pages.update({
-        page_id: page.id,
-        properties: {
-          "마지막로그인": {
-            rich_text: [{ text: { content: new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" }) } }],
-          },
-        },
-      }).catch(() => {});
-
-      return {
-        notionPageId: page.id,
-        userId,
-        name:       txt(p, "이름"),
-        email:      txt(p, "메일"),
-        department: txt(p, "부서명"),
-        company:    role === "super" ? "" : sel(p, "법인명"),
-        role,
-        mustChangePassword,
-      };
-    }
+    return {
+      notionPageId: account.id,   // account.id 를 세션 식별자로 재사용
+      userId:       account.userId,
+      name:         account.name,
+      email:        account.email,
+      company:      account.company,
+      department:   account.department,
+      role:         account.role,
+      mustChangePassword: account.mustChangePassword,
+    };
   } catch (e) {
-    console.error("[auth] Notion lookup error:", e);
+    console.error("[auth] Redis lookup error:", e);
+    return null;
   }
-
-  return null;
 }
 
 // ── POST /api/admin/auth — 로그인 ────────────────────────────
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const userId: string = (body.userId ?? "").trim();
+    const userId: string   = (body.userId ?? "").trim();
     const password: string = body.password ?? "";
 
     if (!userId || !password) {
@@ -103,39 +53,42 @@ export async function POST(request: Request) {
     if (userId === SUPER_ADMIN_ID && password === SUPER_ADMIN_PW) {
       session = {
         notionPageId: "env-super",
-        userId: SUPER_ADMIN_ID,
-        name: "슈퍼 어드민",
-        email: process.env.SUPER_ADMIN_EMAIL ?? "",
-        company: "",
-        department: "",
-        role: "super",
+        userId:       SUPER_ADMIN_ID,
+        name:         "슈퍼 어드민",
+        email:        process.env.SUPER_ADMIN_EMAIL ?? "",
+        company:      "",
+        department:   "",
+        role:         "super",
       };
     }
 
-    // 2. Notion 계정 DB 조회
+    // 2. Redis 계정 DB 조회
     if (!session) {
       session = await lookupAccount(userId, password);
     }
 
     if (!session) {
-      return NextResponse.json({ error: "아이디 또는 비밀번호가 올바르지 않습니다" }, { status: 401 });
+      return NextResponse.json(
+        { error: "아이디 또는 비밀번호가 올바르지 않습니다" },
+        { status: 401 },
+      );
     }
 
     const token = encodeSession(session);
     const response = NextResponse.json({
       success: true,
-      role: session.role,
-      company: session.company,
-      name: session.name,
+      role:               session.role,
+      company:            session.company,
+      name:               session.name,
       mustChangePassword: session.mustChangePassword ?? false,
     });
 
     response.cookies.set("admin_session", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure:   process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7,
-      path: "/",
+      maxAge:   60 * 60 * 24 * 7,
+      path:     "/",
     });
 
     response.cookies.set("admin_key", "", { httpOnly: true, maxAge: 0, path: "/" });
@@ -155,12 +108,12 @@ export async function GET(request: NextRequest) {
     const session = decodeSession(token);
     if (session) {
       return NextResponse.json({
-        ok: true,
-        role: session.role,
-        company: session.company,
-        name: session.name,
-        email: session.email,
-        userId: session.userId,
+        ok:                 true,
+        role:               session.role,
+        company:            session.company,
+        name:               session.name,
+        email:              session.email,
+        userId:             session.userId,
         mustChangePassword: session.mustChangePassword ?? false,
       });
     }
@@ -172,12 +125,12 @@ export async function GET(request: NextRequest) {
     const ADMIN_KEY = process.env.ADMIN_SECRET_KEY ?? "3589";
     if (key === ADMIN_KEY) {
       return NextResponse.json({
-        ok: true,
-        role: "super",
+        ok:      true,
+        role:    "super",
         company: "",
-        name: "슈퍼 어드민",
-        email: "",
-        userId: "admin",
+        name:    "슈퍼 어드민",
+        email:   "",
+        userId:  "admin",
       });
     }
   }
@@ -190,10 +143,10 @@ export async function DELETE() {
   const response = NextResponse.json({ success: true });
   response.cookies.set("admin_session", "", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure:   process.env.NODE_ENV === "production",
     sameSite: "lax",
-    maxAge: 0,
-    path: "/",
+    maxAge:   0,
+    path:     "/",
   });
   response.cookies.set("admin_key", "", { httpOnly: true, maxAge: 0, path: "/" });
   return response;

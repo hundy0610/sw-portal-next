@@ -1,9 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { Client } from "@notionhq/client";
 import { decodeSession, encodeSession, type AdminSession } from "@/lib/session";
 import { hashPassword } from "@/lib/crypto";
+import { kvGet, kvSetPermanent } from "@/lib/kv-store";
+import type { Account } from "@/app/api/admin/accounts/route";
 
-const notion = new Client({ auth: process.env.NOTION_TOKEN });
+const ACCOUNTS_KEY = "sw:accounts";
 
 export async function POST(request: NextRequest) {
   const token = request.cookies.get("admin_session")?.value;
@@ -26,14 +27,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "비밀번호 확인이 일치하지 않습니다" }, { status: 400 });
     }
 
-    if (session.notionPageId && session.notionPageId !== "env-super") {
-      await notion.pages.update({
-        page_id: session.notionPageId,
-        properties: {
-          "비밀번호":     { rich_text: [{ text: { content: hashPassword(newPassword) } }] },
-          "비번변경필요": { checkbox: false },
-        },
-      });
+    // ENV 슈퍼어드민은 비밀번호 변경 불필요
+    if (session.notionPageId && session.notionPageId !== "env-super" && process.env.REDIS_URL) {
+      const accounts = (await kvGet<Account[]>(ACCOUNTS_KEY)) ?? [];
+      const idx = accounts.findIndex(a => a.id === session.notionPageId);
+      if (idx !== -1) {
+        accounts[idx] = {
+          ...accounts[idx],
+          password:           hashPassword(newPassword),
+          mustChangePassword: false,
+        };
+        await kvSetPermanent(ACCOUNTS_KEY, accounts);
+      }
     }
 
     const newSession: AdminSession = { ...session, mustChangePassword: false };
@@ -42,10 +47,10 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json({ ok: true });
     response.cookies.set("admin_session", newToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure:   process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7,
-      path: "/",
+      maxAge:   60 * 60 * 24 * 7,
+      path:     "/",
     });
 
     return response;

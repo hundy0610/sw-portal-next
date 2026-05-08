@@ -1,32 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { Client } from "@notionhq/client";
-import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
-import { kvGet, kvSet, kvDel } from "@/lib/kv-store";
+import { kvGet, kvSet, kvDel, kvSetPermanent } from "@/lib/kv-store";
 import { hashPassword } from "@/lib/crypto";
-import nodemailer from "nodemailer";
+import { createMailTransporter } from "@/lib/mail";
+import type { Account } from "@/app/api/admin/accounts/route";
 import crypto from "crypto";
 
-const notion = new Client({ auth: process.env.NOTION_TOKEN });
-const ACCOUNTS_DB_ID = process.env.ACCOUNTS_DB_ID ?? "";
-
-const RESET_KEY = (userId: string) => `pw-reset:${userId}`;
-const RESET_TTL = 60 * 10; // 10분
-
-type Props = PageObjectResponse["properties"];
-const txt = (p: Props, k: string) => {
-  const v = p[k];
-  if (!v) return "";
-  if (v.type === "title")     return v.title.map(t => t.plain_text).join("");
-  if (v.type === "rich_text") return v.rich_text.map(t => t.plain_text).join("");
-  return "";
-};
-
-function createTransporter() {
-  const user = process.env.GMAIL_USER;
-  const pass = process.env.GMAIL_APP_PASSWORD;
-  if (!user || !pass) return null;
-  return nodemailer.createTransport({ service: "gmail", auth: { user, pass } });
-}
+const ACCOUNTS_KEY = "sw:accounts";
+const RESET_KEY    = (userId: string) => `pw-reset:${userId}`;
+const RESET_TTL    = 60 * 10; // 10분
 
 // ── POST /api/admin/reset-password — 인증코드 발송 요청 ──────
 // Body: { userId, email }
@@ -37,45 +18,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "아이디와 이메일을 입력해주세요" }, { status: 400 });
     }
 
-    if (!ACCOUNTS_DB_ID) {
+    if (!process.env.REDIS_URL) {
       return NextResponse.json({ error: "계정 DB가 설정되지 않았습니다" }, { status: 500 });
     }
 
-    // Notion에서 userId + email 일치하는 활성 계정 조회
-    const res = await notion.databases.query({
-      database_id: ACCOUNTS_DB_ID,
-      filter: {
-        and: [
-          { property: "아이디", rich_text: { equals: userId } },
-          { property: "활성화", checkbox: { equals: true } },
-        ],
-      },
-    });
+    // Redis에서 userId + email 일치하는 활성 계정 조회
+    const accounts = (await kvGet<Account[]>(ACCOUNTS_KEY)) ?? [];
+    const account  = accounts.find(
+      a => a.userId === userId && a.active && a.email.toLowerCase() === email.toLowerCase(),
+    );
 
-    let notionPageId: string | null = null;
-    for (const page of res.results) {
-      if (page.object !== "page" || !("properties" in page)) continue;
-      const p = (page as PageObjectResponse).properties;
-      const storedEmail = txt(p, "메일");
-      if (storedEmail.toLowerCase() === email.toLowerCase()) {
-        notionPageId = page.id;
-        break;
-      }
-    }
-
-    if (!notionPageId) {
-      // 보안상 항상 성공처럼 응답 (계정 존재 여부 노출 방지)
+    // 보안상 계정 존재 여부와 무관하게 항상 성공 응답
+    if (!account) {
       return NextResponse.json({ ok: true });
     }
 
-    // 6자리 인증코드 생성
+    // 6자리 인증코드 생성 및 Redis 저장
     const code = crypto.randomInt(100000, 999999).toString();
-    await kvSet(RESET_KEY(userId), { code, notionPageId }, RESET_TTL);
+    await kvSet(RESET_KEY(userId), { code, accountId: account.id }, RESET_TTL);
 
-    const transporter = createTransporter();
+    // Gmail 발송
+    const transporter = createMailTransporter();
     if (transporter) {
-      const html = `
-<!DOCTYPE html>
+      const html = `<!DOCTYPE html>
 <html lang="ko">
 <head><meta charset="UTF-8"></head>
 <body style="margin:0;padding:0;background:#F8FAFC;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;">
@@ -84,7 +49,10 @@ export async function POST(request: NextRequest) {
     <div style="color:white;font-size:16px;font-weight:800;">SW 포털 비밀번호 초기화</div>
   </div>
   <div style="padding:28px 32px;">
-    <p style="font-size:14px;color:#475569;margin:0 0 20px;">아래 인증코드를 입력하여 비밀번호를 초기화하세요.<br>인증코드는 <strong>10분간</strong> 유효합니다.</p>
+    <p style="font-size:14px;color:#475569;margin:0 0 20px;">
+      아래 인증코드를 입력하여 비밀번호를 초기화하세요.<br>
+      인증코드는 <strong>10분간</strong> 유효합니다.
+    </p>
     <div style="background:#F3F0FF;border:2px solid #7C3AED;border-radius:12px;padding:20px;text-align:center;margin-bottom:24px;">
       <div style="font-size:36px;font-weight:900;letter-spacing:8px;color:#7C3AED;">${code}</div>
     </div>
@@ -94,8 +62,8 @@ export async function POST(request: NextRequest) {
 </body>
 </html>`;
       await transporter.sendMail({
-        from: `"SW 포털" <${process.env.GMAIL_USER}>`,
-        to: email,
+        from:    `"SW 포털" <${process.env.GMAIL_USER}>`,
+        to:      email,
         subject: "[SW 포털] 비밀번호 초기화 인증코드",
         html,
       });
@@ -123,18 +91,29 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "비밀번호는 6자 이상이어야 합니다" }, { status: 400 });
     }
 
-    const stored = await kvGet<{ code: string; notionPageId: string }>(RESET_KEY(userId));
+    const stored = await kvGet<{ code: string; accountId: string }>(RESET_KEY(userId));
     if (!stored || stored.code !== code) {
-      return NextResponse.json({ error: "인증코드가 올바르지 않거나 만료되었습니다" }, { status: 400 });
+      return NextResponse.json(
+        { error: "인증코드가 올바르지 않거나 만료되었습니다" },
+        { status: 400 },
+      );
     }
 
-    await notion.pages.update({
-      page_id: stored.notionPageId,
-      properties: {
-        "비밀번호":     { rich_text: [{ text: { content: hashPassword(newPassword) } }] },
-        "비번변경필요": { checkbox: false },
-      },
-    });
+    if (!process.env.REDIS_URL) {
+      return NextResponse.json({ error: "계정 DB가 설정되지 않았습니다" }, { status: 500 });
+    }
+
+    // Redis 계정 배열에서 해당 계정 비밀번호 업데이트
+    const accounts = (await kvGet<Account[]>(ACCOUNTS_KEY)) ?? [];
+    const idx = accounts.findIndex(a => a.id === stored.accountId);
+    if (idx !== -1) {
+      accounts[idx] = {
+        ...accounts[idx],
+        password:           hashPassword(newPassword),
+        mustChangePassword: false,
+      };
+      await kvSetPermanent(ACCOUNTS_KEY, accounts);
+    }
 
     await kvDel(RESET_KEY(userId));
     return NextResponse.json({ ok: true });
