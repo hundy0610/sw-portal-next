@@ -2,7 +2,14 @@ import { NextResponse, type NextRequest } from "next/server";
 import { decodeSession } from "@/lib/session";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { hashPassword } from "@/lib/crypto";
+import { createMailTransporter, buildWelcomeEmail } from "@/lib/mail";
 import crypto from "crypto";
+
+// 임시 비밀번호 생성 (혼동하기 쉬운 문자 제외)
+function generateTempPassword(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+  return Array.from({ length: 8 }, () => chars[crypto.randomInt(chars.length)]).join("");
+}
 
 const ACCOUNTS_KEY    = "sw:accounts";
 const GM_KEY          = "sw:general-managers";
@@ -104,11 +111,14 @@ export async function POST(request: NextRequest) {
     const validRole: Account["role"] =
       role === "super" ? "super" : role === "general" ? "general" : "company";
 
+    // 임시 비밀번호 생성 및 해시
+    const tempPassword = generateTempPassword();
+
     const newAccount: Account = {
       id: `acc-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`,
       name,
       userId,
-      password: "",           // 초기화 flow로 설정
+      password: hashPassword(tempPassword),
       email,
       department: department || "",
       company:    company    || "",
@@ -123,6 +133,17 @@ export async function POST(request: NextRequest) {
 
     if (validRole === "general") {
       await syncGmLists(accounts);
+    }
+
+    // 임시 비밀번호 이메일 발송
+    const transporter = createMailTransporter();
+    if (transporter) {
+      await transporter.sendMail({
+        from:    `"SW 포털" <${process.env.GMAIL_USER}>`,
+        to:      email,
+        subject: "[SW 포털] 계정이 생성되었습니다",
+        html:    buildWelcomeEmail({ name, userId, tempPassword }),
+      }).catch(e => console.error("[accounts] welcome mail error:", e));
     }
 
     const { password: _pw, ...safe } = newAccount;
