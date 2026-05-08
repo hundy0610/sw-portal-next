@@ -1,18 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <defs>
-    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#F59E0B"/>
-      <stop offset="100%" stop-color="#B45309"/>
-    </linearGradient>
-  </defs>
-  <rect width="32" height="32" rx="7" fill="url(#g)"/>
-  <text
-    x="16" y="22"
-    font-family="'Arial Black', Arial, sans-serif"
-    font-size="13"
-    font-weight="900"
-    fill="white"
-    text-anchor="middle"
-    letter-spacing="-0.5"
-  >SW</text>
+  <!-- DW Orange #E98300 배경 -->
+  <rect width="32" height="32" rx="6" fill="#E98300"/>
+
+  <!-- 상승 막대 그래프 형태 - 자산관리/데이터 포털 이미지 -->
+  <rect x="5"  y="20" width="6" height="9" rx="2" fill="white"/>
+  <rect x="13" y="13" width="6" height="16" rx="2" fill="white"/>
+  <rect x="21" y="7"  width="6" height="22" rx="2" fill="white"/>
 </svg>
