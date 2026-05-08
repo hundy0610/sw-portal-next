@@ -7,6 +7,48 @@ export function createMailTransporter() {
   return nodemailer.createTransport({ service: "gmail", auth: { user, pass } });
 }
 
+export function buildWelcomeEmail(opts: {
+  name: string;
+  userId: string;
+  tempPassword: string;
+}): string {
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#F8FAFC;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;">
+<div style="max-width:480px;margin:40px auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+  <div style="background:#7C3AED;padding:24px 32px;">
+    <div style="color:white;font-size:17px;font-weight:800;">SW 자산관리 포털</div>
+    <div style="color:rgba(255,255,255,0.8);font-size:12px;margin-top:4px;">계정이 생성되었습니다</div>
+  </div>
+  <div style="padding:28px 32px;">
+    <p style="font-size:14px;color:#374151;margin:0 0 6px;">안녕하세요, <strong>${opts.name}</strong>님.</p>
+    <p style="font-size:14px;color:#475569;margin:0 0 20px;">
+      SW 자산관리 포털 계정이 생성되었습니다.<br>
+      아래 임시 비밀번호로 로그인 후 반드시 비밀번호를 변경해주세요.
+    </p>
+    <div style="background:#F5F3FF;border:2px solid #7C3AED;border-radius:12px;padding:20px;margin-bottom:20px;">
+      <table style="width:100%;border-collapse:collapse;">
+        <tr>
+          <td style="font-size:12px;color:#6B7280;padding:4px 0;width:90px;">아이디</td>
+          <td style="font-size:14px;font-weight:700;color:#111827;font-family:monospace;">${opts.userId}</td>
+        </tr>
+        <tr>
+          <td style="font-size:12px;color:#6B7280;padding:8px 0 4px;vertical-align:top;">임시 비밀번호</td>
+          <td style="font-size:24px;font-weight:900;letter-spacing:4px;color:#7C3AED;font-family:monospace;padding-top:4px;">${opts.tempPassword}</td>
+        </tr>
+      </table>
+    </div>
+    <p style="font-size:12px;color:#EF4444;margin:0 0 20px;">
+      ⚠️ 로그인 후 즉시 비밀번호를 변경해주세요. 임시 비밀번호를 그대로 사용하지 마세요.
+    </p>
+    <p style="font-size:11px;color:#94A3B8;margin:0;">본 메일을 요청하지 않으셨다면 관리자에게 문의하세요.</p>
+  </div>
+</div>
+</body>
+</html>`;
+}
+
 export function buildMonitorRepairEmail(opts: {
   building: string;
   floor: string;

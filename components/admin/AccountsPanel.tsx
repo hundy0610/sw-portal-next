@@ -164,8 +164,9 @@ function AccountFormModal({
 
           {/* 신규 계정 안내 */}
           {!initial && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700">
-              계정 생성 후 담당자가 로그인 화면 하단 <strong>비밀번호 초기화</strong>를 통해 비밀번호를 직접 설정합니다.
+            <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-700">
+              계정 생성 시 <strong>임시 비밀번호가 등록된 이메일로 자동 발송</strong>됩니다.<br />
+              담당자는 임시 비밀번호로 첫 로그인 후 비밀번호를 변경해야 합니다.
             </div>
           )}
 
