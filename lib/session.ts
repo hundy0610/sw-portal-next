@@ -3,43 +3,37 @@
 // ────────────────────────────────────────────────────────────
 
 export interface AdminSession {
-  notionPageId: string;    // Notion 계정 페이지 ID ("env-super" for ENV-based)
-  userId: string;          // 로그인 아이디
-  name: string;            // 담당자 이름
-  company: string;         // 법인명 ("" = 슈퍼어드민)
-  role: "super" | "company"; // 권한
-  mustChangePassword?: boolean; // 초기 비번 변경 필요 여부
+  notionPageId: string;      // Notion 계정 페이지 ID ("env-super" for ENV-based)
+  userId: string;            // 로그인 아이디
+  name: string;              // 담당자 이름
+  email: string;             // 등록 이메일
+  company: string;           // 법인명 ("" = 슈퍼어드민)
+  department: string;        // 부서명
+  role: "super" | "company" | "general"; // 권한 (general = 총무관리자)
+  mustChangePassword?: boolean;          // 초기 비번 변경 필요 여부
 }
 
-/**
- * 세션 객체 → base64 인코딩 토큰
- */
 export function encodeSession(session: AdminSession): string {
   return Buffer.from(JSON.stringify(session)).toString("base64");
 }
 
-/**
- * base64 토큰 → 세션 객체 (실패 시 null)
- */
 export function decodeSession(token: string): AdminSession | null {
   try {
     const json = Buffer.from(token, "base64").toString("utf-8");
     const s = JSON.parse(json) as AdminSession;
     if (!s.userId || !s.role) return null;
+    // backward compat: fill missing fields
+    if (!s.email) s.email = "";
+    if (!s.department) s.department = "";
     return s;
   } catch {
     return null;
   }
 }
 
-/**
- * NextRequest 쿠키에서 세션 읽기
- * admin_session 쿠키 우선, 없으면 구버전 admin_key 쿠키로 fallback
- */
 export function getSessionFromCookieHeader(cookieHeader: string | null): AdminSession | null {
   if (!cookieHeader) return null;
 
-  // admin_session 쿠키 찾기
   const sessionMatch = cookieHeader.match(/admin_session=([^;]+)/);
   if (sessionMatch) {
     return decodeSession(decodeURIComponent(sessionMatch[1]));
@@ -55,7 +49,9 @@ export function getSessionFromCookieHeader(cookieHeader: string | null): AdminSe
         notionPageId: "legacy",
         userId: "admin",
         name: "슈퍼 어드민",
+        email: "",
         company: "",
+        department: "",
         role: "super",
       };
     }

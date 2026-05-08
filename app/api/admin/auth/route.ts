@@ -2,15 +2,14 @@ import { NextResponse, type NextRequest } from "next/server";
 import { Client } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
 import { encodeSession, decodeSession, type AdminSession } from "@/lib/session";
+import { verifyPassword } from "@/lib/crypto";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 const ACCOUNTS_DB_ID = process.env.ACCOUNTS_DB_ID ?? "";
 
-// 슈퍼어드민 환경변수 (Notion DB가 없어도 접근 가능)
 const SUPER_ADMIN_ID = process.env.SUPER_ADMIN_ID ?? "admin";
 const SUPER_ADMIN_PW = process.env.SUPER_ADMIN_PW ?? "3589";
 
-// ── 프로퍼티 파서 ────────────────────────────────────────────
 type Props = PageObjectResponse["properties"];
 
 const txt = (p: Props, k: string) => {
@@ -33,7 +32,6 @@ const chk = (p: Props, k: string) => {
   return v.checkbox;
 };
 
-// ── Notion 계정 DB 조회 ──────────────────────────────────────
 async function lookupAccount(userId: string, password: string): Promise<AdminSession | null> {
   if (!ACCOUNTS_DB_ID) return null;
 
@@ -51,13 +49,16 @@ async function lookupAccount(userId: string, password: string): Promise<AdminSes
     for (const page of res.results) {
       if (page.object !== "page" || !("properties" in page)) continue;
       const p = (page as PageObjectResponse).properties;
-      const pw = txt(p, "비밀번호");
-      if (pw !== password) continue;
+      const storedPw = txt(p, "비밀번호");
 
-      const role = sel(p, "역할") === "super" ? "super" : "company";
+      // 비밀번호가 없는 계정 (신규 미설정) — 로그인 불가, 비밀번호 초기화 필요
+      if (!storedPw) continue;
+      if (!verifyPassword(password, storedPw)) continue;
+
+      const roleRaw = sel(p, "역할");
+      const role = roleRaw === "super" ? "super" : roleRaw === "general" ? "general" : "company";
       const mustChangePassword = chk(p, "비번변경필요");
 
-      // 마지막 로그인 시각 업데이트 (비동기, 실패해도 무시)
       notion.pages.update({
         page_id: page.id,
         properties: {
@@ -70,8 +71,10 @@ async function lookupAccount(userId: string, password: string): Promise<AdminSes
       return {
         notionPageId: page.id,
         userId,
-        name: txt(p, "이름"),
-        company: role === "super" ? "" : sel(p, "법인명"),
+        name:       txt(p, "이름"),
+        email:      txt(p, "메일"),
+        department: txt(p, "부서명"),
+        company:    role === "super" ? "" : sel(p, "법인명"),
         role,
         mustChangePassword,
       };
@@ -96,13 +99,15 @@ export async function POST(request: Request) {
 
     let session: AdminSession | null = null;
 
-    // 1. ENV 슈퍼어드민 우선 확인
+    // 1. ENV 슈퍼어드민 (평문 비교 유지)
     if (userId === SUPER_ADMIN_ID && password === SUPER_ADMIN_PW) {
       session = {
         notionPageId: "env-super",
         userId: SUPER_ADMIN_ID,
         name: "슈퍼 어드민",
+        email: process.env.SUPER_ADMIN_EMAIL ?? "",
         company: "",
+        department: "",
         role: "super",
       };
     }
@@ -122,17 +127,17 @@ export async function POST(request: Request) {
       role: session.role,
       company: session.company,
       name: session.name,
+      mustChangePassword: session.mustChangePassword ?? false,
     });
 
     response.cookies.set("admin_session", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7, // 7일
+      maxAge: 60 * 60 * 24 * 7,
       path: "/",
     });
 
-    // 구버전 쿠키 정리
     response.cookies.set("admin_key", "", { httpOnly: true, maxAge: 0, path: "/" });
 
     return response;
@@ -154,13 +159,14 @@ export async function GET(request: NextRequest) {
         role: session.role,
         company: session.company,
         name: session.name,
+        email: session.email,
         userId: session.userId,
         mustChangePassword: session.mustChangePassword ?? false,
       });
     }
   }
 
-  // 구버전 admin_key 쿠키 fallback (하위 호환)
+  // 구버전 admin_key 쿠키 fallback
   const key = request.cookies.get("admin_key")?.value;
   if (key) {
     const ADMIN_KEY = process.env.ADMIN_SECRET_KEY ?? "3589";
@@ -170,6 +176,7 @@ export async function GET(request: NextRequest) {
         role: "super",
         company: "",
         name: "슈퍼 어드민",
+        email: "",
         userId: "admin",
       });
     }
@@ -188,10 +195,6 @@ export async function DELETE() {
     maxAge: 0,
     path: "/",
   });
-  response.cookies.set("admin_key", "", {
-    httpOnly: true,
-    maxAge: 0,
-    path: "/",
-  });
+  response.cookies.set("admin_key", "", { httpOnly: true, maxAge: 0, path: "/" });
   return response;
 }

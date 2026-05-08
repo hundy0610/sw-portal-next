@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { decodeSession } from "@/lib/session";
+import { createMailTransporter, buildMonitorRepairEmail } from "@/lib/mail";
+import type { GmDetail } from "@/app/api/admin/accounts/route";
 
 function getSession(req: NextRequest) {
   const token = req.cookies.get("admin_session")?.value;
@@ -9,6 +11,8 @@ function getSession(req: NextRequest) {
 }
 
 const REQUESTS_KEY = "sw:monitor-requests";
+const GM_KEY       = "sw:general-managers";
+const GM_DETAILS_KEY = "sw:gm-details";
 
 export interface MonitorRequest {
   id: string;
@@ -19,7 +23,7 @@ export interface MonitorRequest {
   type: "repair" | "replace";
   status: "pending" | "in_progress" | "done";
   createdAt: string;
-  createdBy: string;   // userId
+  createdBy: string;
   createdByName: string;
   note?: string;
   updatedAt?: string;
@@ -36,8 +40,50 @@ async function getRequests(): Promise<MonitorRequest[]> {
 
 async function saveRequests(requests: MonitorRequest[]): Promise<void> {
   if (!process.env.REDIS_URL) return;
-  // 영구 저장 (TTL 없음) — 요청 기록은 휘발되면 안 됨
   await kvSetPermanent(REQUESTS_KEY, requests);
+}
+
+async function getGeneralManagers(): Promise<string[]> {
+  try {
+    if (!process.env.REDIS_URL) return [];
+    return (await kvGet<string[]>(GM_KEY)) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+// 총무관리자에게 이메일 발송
+async function notifyGMs(request: MonitorRequest) {
+  try {
+    if (!process.env.REDIS_URL) return;
+    const details = (await kvGet<GmDetail[]>(GM_DETAILS_KEY)) ?? [];
+    const emails = details.map(d => d.email).filter(Boolean);
+    if (emails.length === 0) return;
+
+    const transporter = createMailTransporter();
+    if (!transporter) return;
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://swportal.vercel.app";
+    const html = buildMonitorRepairEmail({
+      building: request.building,
+      floor: request.floor,
+      zone: request.zone,
+      seatId: request.seatId,
+      requestType: request.type,
+      requestedBy: request.createdByName,
+      note: request.note,
+      appUrl,
+    });
+
+    await transporter.sendMail({
+      from: `"SW 포털 자산관리" <${process.env.GMAIL_USER}>`,
+      to: emails.join(", "),
+      subject: `[자산관리] 모니터 ${request.type === "repair" ? "수리" : "교체"} 요청 — ${request.building} ${request.floor} ${request.zone}`,
+      html,
+    });
+  } catch (e) {
+    console.error("[notifyGMs]", e);
+  }
 }
 
 // GET /api/monitor-requests — 요청 목록 조회
@@ -46,17 +92,13 @@ export async function GET(req: NextRequest) {
   if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
   const requests = await getRequests();
-
-  // 총무 관리자 or 슈퍼어드민만 전체 조회 가능
-  // 일반 사용자는 자기가 낸 요청만
   const managers = await getGeneralManagers();
-  const isPrivileged = session.role === "super" || managers.includes(session.userId);
+  const isPrivileged = session.role === "super" || session.role === "general" || managers.includes(session.userId);
 
   const filtered = isPrivileged
     ? requests
     : requests.filter(r => r.createdBy === session.userId);
 
-  // 최신 순 정렬
   filtered.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
   return NextResponse.json({ ok: true, requests: filtered });
@@ -92,15 +134,8 @@ export async function POST(req: NextRequest) {
   requests.push(newReq);
   await saveRequests(requests);
 
-  return NextResponse.json({ ok: true, request: newReq });
-}
+  // 총무관리자에게 이메일 알림 (비동기, 실패해도 요청 등록은 성공)
+  notifyGMs(newReq).catch(() => {});
 
-// 내부 헬퍼 (general-managers 조회)
-async function getGeneralManagers(): Promise<string[]> {
-  try {
-    if (!process.env.REDIS_URL) return [];
-    return (await kvGet<string[]>("sw:general-managers")) ?? [];
-  } catch {
-    return [];
-  }
+  return NextResponse.json({ ok: true, request: newReq });
 }

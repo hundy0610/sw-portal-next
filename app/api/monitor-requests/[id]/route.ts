@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { decodeSession } from "@/lib/session";
+import { createMailTransporter, buildMonitorCompleteEmail } from "@/lib/mail";
 import type { MonitorRequest } from "../route";
 
 function getSession(req: NextRequest) {
@@ -10,6 +11,7 @@ function getSession(req: NextRequest) {
 }
 
 const REQUESTS_KEY = "sw:monitor-requests";
+const GM_KEY       = "sw:general-managers";
 
 async function getRequests(): Promise<MonitorRequest[]> {
   try {
@@ -28,13 +30,44 @@ async function saveRequests(requests: MonitorRequest[]): Promise<void> {
 async function getGeneralManagers(): Promise<string[]> {
   try {
     if (!process.env.REDIS_URL) return [];
-    return (await kvGet<string[]>("sw:general-managers")) ?? [];
+    return (await kvGet<string[]>(GM_KEY)) ?? [];
   } catch {
     return [];
   }
 }
 
-// PATCH /api/monitor-requests/[id] — 상태 변경 (처리중 / 완료)
+// 슈퍼어드민에게 완료 이메일 발송
+async function notifySuperAdmins(request: MonitorRequest, completedBy: string) {
+  try {
+    const superEmail = process.env.SUPER_ADMIN_EMAIL;
+    if (!superEmail) return;
+
+    const transporter = createMailTransporter();
+    if (!transporter) return;
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://swportal.vercel.app";
+    const html = buildMonitorCompleteEmail({
+      building: request.building,
+      floor: request.floor,
+      zone: request.zone,
+      seatId: request.seatId,
+      requestType: request.type,
+      completedBy,
+      appUrl,
+    });
+
+    await transporter.sendMail({
+      from: `"SW 포털 자산관리" <${process.env.GMAIL_USER}>`,
+      to: superEmail,
+      subject: `[자산관리] 모니터 ${request.type === "repair" ? "수리" : "교체"} 완료 — ${request.building} ${request.floor} ${request.zone}`,
+      html,
+    });
+  } catch (e) {
+    console.error("[notifySuperAdmins]", e);
+  }
+}
+
+// PATCH /api/monitor-requests/[id] — 상태 변경
 export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -42,9 +75,8 @@ export async function PATCH(
   const session = await getSession(req);
   if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
-  // 총무 관리자 or 슈퍼어드민만 상태 변경 가능
   const managers = await getGeneralManagers();
-  const isPrivileged = session.role === "super" || managers.includes(session.userId);
+  const isPrivileged = session.role === "super" || session.role === "general" || managers.includes(session.userId);
   if (!isPrivileged) {
     return NextResponse.json({ ok: false, error: "권한 없음" }, { status: 403 });
   }
@@ -62,12 +94,18 @@ export async function PATCH(
     return NextResponse.json({ ok: false, error: "요청 없음" }, { status: 404 });
   }
 
+  const prevStatus = requests[idx].status;
   requests[idx] = {
     ...requests[idx],
     status,
     updatedAt: new Date().toISOString(),
   };
   await saveRequests(requests);
+
+  // 완료(done) 로 변경된 경우 슈퍼어드민에게 이메일 (비동기)
+  if (status === "done" && prevStatus !== "done") {
+    notifySuperAdmins(requests[idx], session.name).catch(() => {});
+  }
 
   return NextResponse.json({ ok: true, request: requests[idx] });
 }

@@ -7,14 +7,17 @@ interface Account {
   id: string;
   name: string;
   userId: string;
-  password: string;
+  email: string;
+  department: string;
   company: string;
-  role: "super" | "company";
+  role: "super" | "company" | "general";
   active: boolean;
 }
 
+type RoleType = "super" | "company" | "general";
+
 const EMPTY_FORM: Omit<Account, "id"> = {
-  name: "", userId: "", password: "",
+  name: "", userId: "", email: "", department: "",
   company: "", role: "company", active: true,
 };
 
@@ -26,46 +29,60 @@ const COMPANIES = [
   "석천나눔재단","HR코리아","힐코","블루넷",
 ];
 
+const ROLE_LABELS: Record<RoleType, string> = {
+  super:   "슈퍼어드민",
+  company: "법인담당자",
+  general: "총무관리자",
+};
+
 // ── 역할 뱃지 ───────────────────────────────────────────────────────────────
-function RoleBadge({ role }: { role: string }) {
-  return role === "super"
-    ? <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">슈퍼어드민</span>
-    : <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">법인 담당자</span>;
+function RoleBadge({ role }: { role: RoleType }) {
+  if (role === "super")
+    return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">슈퍼어드민</span>;
+  if (role === "general")
+    return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">총무관리자</span>;
+  return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">법인담당자</span>;
 }
 
 // ── 모달: 계정 추가/수정 ────────────────────────────────────────────────────
 function AccountFormModal({
-  initial, onSave, onClose,
+  initial, onSave, onClose, isSuperAdmin,
 }: {
   initial?: Account;
-  onSave: (data: Omit<Account, "id">) => Promise<void>;
+  onSave: (data: Omit<Account, "id"> & { resetPassword?: string }) => Promise<void>;
   onClose: () => void;
+  isSuperAdmin: boolean;
 }) {
   const [form, setForm] = useState<Omit<Account, "id">>(
-    initial ? { name: initial.name, userId: initial.userId, password: initial.password,
-                company: initial.company, role: initial.role, active: initial.active }
-             : { ...EMPTY_FORM }
+    initial
+      ? { name: initial.name, userId: initial.userId, email: initial.email,
+          department: initial.department, company: initial.company,
+          role: initial.role, active: initial.active }
+      : { ...EMPTY_FORM }
   );
-  const [saving, setSaving] = useState(false);
+  const [resetPassword, setResetPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
-    await onSave(form);
+    await onSave({ ...form, ...(resetPassword ? { resetPassword } : {}) });
     setSaving(false);
   }
 
+  const needsCompany = form.role === "company";
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-      <div className="bg-white rounded-2xl shadow-xl w-[440px] p-6">
+      <div className="bg-white rounded-2xl shadow-xl w-[460px] p-6 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-5">
           <h3 className="font-bold text-gray-900">{initial ? "계정 수정" : "계정 추가"}</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          {/* 이름 */}
+          {/* 담당자 이름 */}
           <div>
             <label className="block text-xs font-semibold text-gray-500 mb-1">담당자 이름 *</label>
             <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
@@ -77,54 +94,78 @@ function AccountFormModal({
           <div>
             <label className="block text-xs font-semibold text-gray-500 mb-1">아이디 *</label>
             <input value={form.userId} onChange={e => setForm({ ...form, userId: e.target.value })}
-              placeholder="loign_id" required
+              placeholder="login_id" required
               className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
           </div>
 
-          {/* 비밀번호 */}
+          {/* 이메일 */}
           <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">
-              비밀번호 {initial ? "(변경 시만 입력)" : "*"}
-            </label>
-            <div className="relative">
-              <input value={form.password}
-                onChange={e => setForm({ ...form, password: e.target.value })}
-                type={showPw ? "text" : "password"}
-                placeholder="비밀번호 입력"
-                required={!initial}
-                className="w-full px-3 py-2 pr-10 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
-              <button type="button" onClick={() => setShowPw(!showPw)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs">
-                {showPw ? "숨김" : "표시"}
-              </button>
-            </div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">메일 주소 *</label>
+            <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
+              placeholder="user@company.com" required
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
           </div>
 
-          {/* 역할 */}
+          {/* 권한 */}
           <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">역할 *</label>
-            <div className="flex gap-3">
-              {(["company", "super"] as const).map(r => (
+            <label className="block text-xs font-semibold text-gray-500 mb-1">권한 *</label>
+            <div className="flex gap-3 flex-wrap">
+              {(["company", "general", "super"] as RoleType[]).map(r => (
                 <label key={r} className="flex items-center gap-1.5 cursor-pointer">
                   <input type="radio" value={r} checked={form.role === r}
                     onChange={() => setForm({ ...form, role: r, company: r === "super" ? "" : form.company })}
                     className="accent-purple-600" />
-                  <span className="text-sm">{r === "super" ? "슈퍼어드민" : "법인 담당자"}</span>
+                  <span className="text-sm">{ROLE_LABELS[r]}</span>
                 </label>
               ))}
             </div>
           </div>
 
-          {/* 법인명 (법인 담당자만) */}
-          {form.role === "company" && (
+          {/* 법인명 (법인담당자만) */}
+          {needsCompany && (
             <div>
               <label className="block text-xs font-semibold text-gray-500 mb-1">법인명 *</label>
               <select value={form.company} onChange={e => setForm({ ...form, company: e.target.value })}
-                required={form.role === "company"}
+                required
                 className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">
                 <option value="">선택</option>
                 {COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
+            </div>
+          )}
+
+          {/* 부서명 */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">부서명</label>
+            <input value={form.department} onChange={e => setForm({ ...form, department: e.target.value })}
+              placeholder="자산관리파트"
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+          </div>
+
+          {/* 비밀번호 직접 설정 (수정 시 슈퍼어드민만, 신규 계정은 불필요) */}
+          {initial && isSuperAdmin && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">
+                비밀번호 재설정 <span className="font-normal text-gray-400">(입력 시만 변경)</span>
+              </label>
+              <div className="relative">
+                <input value={resetPassword}
+                  onChange={e => setResetPassword(e.target.value)}
+                  type={showPw ? "text" : "password"}
+                  placeholder="새 비밀번호 (선택)"
+                  className="w-full px-3 py-2 pr-10 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                <button type="button" onClick={() => setShowPw(!showPw)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs">
+                  {showPw ? "숨김" : "표시"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 신규 계정 안내 */}
+          {!initial && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700">
+              계정 생성 후 담당자가 로그인 화면 하단 <strong>비밀번호 초기화</strong>를 통해 비밀번호를 직접 설정합니다.
             </div>
           )}
 
@@ -153,34 +194,21 @@ function AccountFormModal({
 }
 
 // ── 메인: AccountsPanel ─────────────────────────────────────────────────────
-export default function AccountsPanel() {
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState("");
-  const [showModal, setShowModal] = useState(false);
-  const [editTarget, setEditTarget] = useState<Account | undefined>(undefined);
-  const [showPw, setShowPw] = useState<string | null>(null);
-
-  // 총무 관리자 지정 상태
-  const [gmList, setGmList]     = useState<string[]>([]);   // userId 목록
-  const [gmSaving, setGmSaving] = useState(false);
-  const [gmMsg, setGmMsg]       = useState<string | null>(null);
-
-  const hasDb = true; // ACCOUNTS_DB_ID 환경변수 필요
+export default function AccountsPanel({ isSuperAdmin = true }: { isSuperAdmin?: boolean }) {
+  const [accounts,    setAccounts]    = useState<Account[]>([]);
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState("");
+  const [showModal,   setShowModal]   = useState(false);
+  const [editTarget,  setEditTarget]  = useState<Account | undefined>(undefined);
+  const [savingGm,    setSavingGm]    = useState<string | null>(null);  // userId of currently toggling
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const [accRes, gmRes] = await Promise.all([
-        fetch("/api/admin/accounts"),
-        fetch("/api/general-managers"),
-      ]);
-      const accJson = await accRes.json();
-      if (!accJson.ok) throw new Error(accJson.error || "불러오기 실패");
-      setAccounts(accJson.accounts);
-
-      const gmJson = await gmRes.json();
-      if (gmJson.ok) setGmList(gmJson.managers ?? []);
+      const res = await fetch("/api/admin/accounts");
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "불러오기 실패");
+      setAccounts(json.accounts);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -190,29 +218,30 @@ export default function AccountsPanel() {
 
   useEffect(() => { load(); }, [load]);
 
-  async function handleSave(data: Omit<Account, "id">) {
+  async function handleSave(data: Omit<Account, "id"> & { resetPassword?: string }) {
+    const { resetPassword, ...rest } = data;
     if (editTarget) {
-      // 수정 (비밀번호 빈 경우 기존 유지)
       const body: Record<string, unknown> = {
         id: editTarget.id,
-        name: data.name,
-        userId: data.userId,
-        company: data.company,
-        role: data.role,
-        active: data.active,
+        name: rest.name,
+        userId: rest.userId,
+        email: rest.email,
+        department: rest.department,
+        company: rest.company,
+        role: rest.role,
+        active: rest.active,
       };
-      if (data.password) body.password = data.password;
+      if (resetPassword) body.password = resetPassword;
       await fetch("/api/admin/accounts", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
     } else {
-      // 추가
       await fetch("/api/admin/accounts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(rest),
       });
     }
     setShowModal(false);
@@ -230,30 +259,17 @@ export default function AccountsPanel() {
     load();
   }
 
-  function toggleGm(userId: string) {
-    setGmList(prev =>
-      prev.includes(userId) ? prev.filter(u => u !== userId) : [...prev, userId]
-    );
-    setGmMsg(null);
-  }
-
-  async function saveGmList() {
-    setGmSaving(true); setGmMsg(null);
-    try {
-      const res = await fetch("/api/general-managers", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ managers: gmList }),
-      });
-      const json = await res.json();
-      if (!json.ok) throw new Error(json.error || "저장 실패");
-      setGmMsg("✓ 저장 완료");
-    } catch (e) {
-      setGmMsg(`⚠ ${String(e)}`);
-    } finally {
-      setGmSaving(false);
-      setTimeout(() => setGmMsg(null), 3000);
-    }
+  // 총무관리자 역할 인라인 토글
+  async function toggleGmRole(account: Account) {
+    const newRole: RoleType = account.role === "general" ? "company" : "general";
+    setSavingGm(account.userId);
+    await fetch("/api/admin/accounts", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: account.id, role: newRole }),
+    });
+    setSavingGm(null);
+    load();
   }
 
   if (loading) {
@@ -270,105 +286,124 @@ export default function AccountsPanel() {
       {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">계정 설정</h2>
-          <p className="text-sm text-gray-500 mt-0.5">법인별 담당자 계정을 관리합니다</p>
+          <h2 className="text-xl font-bold text-gray-900">계정 권한 설정</h2>
+          <p className="text-sm text-gray-500 mt-0.5">
+            법인·담당자별 계정과 권한을 관리합니다. 총무관리자 열의 체크박스로 총무 권한을 즉시 변경할 수 있습니다.
+          </p>
         </div>
-        <button
-          onClick={() => { setEditTarget(undefined); setShowModal(true); }}
-          className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700 transition-colors"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-          </svg>
-          계정 추가
-        </button>
+        {isSuperAdmin && (
+          <button
+            onClick={() => { setEditTarget(undefined); setShowModal(true); }}
+            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700 transition-colors"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            계정 추가
+          </button>
+        )}
       </div>
 
-      {/* ACCOUNTS_DB_ID 안내 */}
-      {!process.env.NEXT_PUBLIC_ACCOUNTS_DB_READY && accounts.length === 0 && !error && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700">
-          <div className="font-semibold mb-1">⚙️ Notion 계정 DB 설정 필요</div>
-          <p>Notion에 계정 관리 DB를 생성하고, 아래 컬럼을 추가한 뒤 환경변수 <code className="bg-amber-100 px-1 rounded">ACCOUNTS_DB_ID</code>에 DB ID를 설정하세요:</p>
-          <ul className="mt-2 space-y-0.5 list-disc list-inside text-xs">
-            <li><code>이름</code> (제목/Title)</li>
-            <li><code>아이디</code> (텍스트)</li>
-            <li><code>비밀번호</code> (텍스트)</li>
-            <li><code>법인명</code> (선택/Select)</li>
-            <li><code>역할</code> (선택/Select: <code>super</code> / <code>company</code>)</li>
-            <li><code>활성화</code> (체크박스)</li>
-          </ul>
-        </div>
-      )}
-
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">
-          ⚠️ {error}
-        </div>
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">⚠️ {error}</div>
       )}
 
-      {/* 계정 테이블 */}
+      {/* 통합 계정 테이블 */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">이름</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">아이디</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">비밀번호</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">법인명</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">역할</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">상태</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">관리</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">이름 / 아이디</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">이메일</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">법인 / 부서</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">권한</th>
+                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 whitespace-nowrap">총무관리자</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">상태</th>
+                {isSuperAdmin && (
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">관리</th>
+                )}
               </tr>
             </thead>
             <tbody>
               {accounts.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-gray-400 text-sm">
+                  <td colSpan={isSuperAdmin ? 7 : 6} className="px-4 py-10 text-center text-gray-400 text-sm">
                     등록된 계정이 없습니다
                   </td>
                 </tr>
               ) : (
                 accounts.map(acc => (
-                  <tr key={acc.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${!acc.active ? "opacity-50" : ""}`}>
-                    <td className="px-4 py-3 font-medium text-gray-900">{acc.name}</td>
-                    <td className="px-4 py-3 text-gray-600 font-mono text-xs">{acc.userId}</td>
+                  <tr key={acc.id}
+                    className={`border-b border-gray-50 hover:bg-gray-50/50 transition-colors ${!acc.active ? "opacity-50" : ""}`}>
+
+                    {/* 이름 / 아이디 */}
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-1">
-                        <span className="font-mono text-xs text-gray-600">
-                          {showPw === acc.id ? acc.password : "••••••••"}
-                        </span>
+                      <div className="font-medium text-gray-900">{acc.name}</div>
+                      <div className="text-xs text-gray-400 font-mono mt-0.5">{acc.userId}</div>
+                    </td>
+
+                    {/* 이메일 */}
+                    <td className="px-4 py-3 text-xs text-gray-600">
+                      {acc.email || <span className="text-gray-300">—</span>}
+                    </td>
+
+                    {/* 법인 / 부서 */}
+                    <td className="px-4 py-3">
+                      {acc.company && <div className="text-sm text-gray-700">{acc.company}</div>}
+                      {acc.department && <div className="text-xs text-gray-400 mt-0.5">{acc.department}</div>}
+                      {!acc.company && !acc.department && <span className="text-gray-300">—</span>}
+                    </td>
+
+                    {/* 권한 뱃지 */}
+                    <td className="px-4 py-3">
+                      <RoleBadge role={acc.role} />
+                    </td>
+
+                    {/* 총무관리자 토글 (슈퍼어드민은 토글 불가) */}
+                    <td className="px-4 py-3 text-center">
+                      {acc.role === "super" ? (
+                        <span className="text-gray-200 text-xs">—</span>
+                      ) : (
                         <button
-                          onClick={() => setShowPw(showPw === acc.id ? null : acc.id)}
-                          className="text-xs text-gray-400 hover:text-gray-600 px-1"
+                          onClick={() => acc.active && isSuperAdmin && toggleGmRole(acc)}
+                          disabled={!acc.active || !isSuperAdmin || savingGm === acc.userId}
+                          title={acc.role === "general" ? "총무관리자 해제" : "총무관리자로 지정"}
+                          className={`w-9 h-5 rounded-full transition-colors relative ${
+                            acc.role === "general" ? "bg-emerald-500" : "bg-gray-200"
+                          } ${(!acc.active || !isSuperAdmin) ? "cursor-default" : "cursor-pointer"}`}
                         >
-                          {showPw === acc.id ? "숨김" : "표시"}
+                          <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                            acc.role === "general" ? "translate-x-4" : "translate-x-0.5"
+                          }`} />
                         </button>
-                      </div>
+                      )}
                     </td>
-                    <td className="px-4 py-3 text-gray-700">
-                      {acc.role === "super" ? <span className="text-gray-400">—</span> : acc.company}
-                    </td>
-                    <td className="px-4 py-3"><RoleBadge role={acc.role} /></td>
+
+                    {/* 상태 */}
                     <td className="px-4 py-3">
                       {acc.active
                         ? <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">활성</span>
                         : <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-500">비활성</span>}
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => { setEditTarget(acc); setShowModal(true); }}
-                          className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
-                        >수정</button>
-                        {acc.active && (
+
+                    {/* 관리 버튼 */}
+                    {isSuperAdmin && (
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
                           <button
-                            onClick={() => handleDeactivate(acc)}
-                            className="text-xs text-red-500 hover:text-red-700 hover:underline"
-                          >비활성화</button>
-                        )}
-                      </div>
-                    </td>
+                            onClick={() => { setEditTarget(acc); setShowModal(true); }}
+                            className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                          >수정</button>
+                          {acc.active && (
+                            <button
+                              onClick={() => handleDeactivate(acc)}
+                              className="text-xs text-red-500 hover:text-red-700 hover:underline"
+                            >비활성화</button>
+                          )}
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -377,72 +412,34 @@ export default function AccountsPanel() {
         </div>
       </div>
 
-      <div className="text-xs text-gray-400">
-        총 {accounts.length}개 계정 · Notion DB 연동
-        {accounts.length > 0 && ` · 활성 ${accounts.filter(a => a.active).length}개`}
+      {/* 요약 */}
+      <div className="text-xs text-gray-400 flex items-center gap-3 flex-wrap">
+        <span>총 {accounts.length}개 계정</span>
+        <span>·</span>
+        <span>활성 {accounts.filter(a => a.active).length}개</span>
+        <span>·</span>
+        <span className="text-emerald-600 font-medium">총무관리자 {accounts.filter(a => a.role === "general" && a.active).length}명</span>
       </div>
 
-      {/* ── 총무 관리자 지정 섹션 ── */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <div>
-            <h3 className="font-semibold text-gray-900 text-sm">🔧 총무 관리자 지정</h3>
-            <p className="text-xs text-gray-400 mt-0.5">
-              지정된 담당자는 모니터 교체·수리 요청을 확인·처리할 수 있습니다
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            {gmMsg && (
-              <span className={`text-xs font-medium ${gmMsg.startsWith("✓") ? "text-emerald-600" : "text-red-600"}`}>
-                {gmMsg}
-              </span>
-            )}
-            <button
-              onClick={saveGmList}
-              disabled={gmSaving}
-              className="px-3 py-1.5 bg-purple-600 text-white text-xs font-semibold rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors"
-            >
-              {gmSaving ? "저장 중..." : "저장"}
-            </button>
-          </div>
+      {/* Notion DB 설정 안내 */}
+      {accounts.length === 0 && !error && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700">
+          <div className="font-semibold mb-1">⚙️ Notion 계정 DB 설정 필요</div>
+          <p>Notion에 계정 관리 DB를 생성하고, 아래 컬럼을 추가한 뒤 환경변수 <code className="bg-amber-100 px-1 rounded">ACCOUNTS_DB_ID</code>를 설정하세요:</p>
+          <ul className="mt-2 space-y-0.5 list-disc list-inside text-xs">
+            <li><code>이름</code> (제목/Title)</li>
+            <li><code>아이디</code> (텍스트)</li>
+            <li><code>비밀번호</code> (텍스트)</li>
+            <li><code>메일</code> (텍스트)</li>
+            <li><code>부서명</code> (텍스트)</li>
+            <li><code>법인명</code> (선택/Select)</li>
+            <li><code>역할</code> (선택/Select: <code>super</code> / <code>company</code> / <code>general</code>)</li>
+            <li><code>활성화</code> (체크박스)</li>
+            <li><code>비번변경필요</code> (체크박스)</li>
+            <li><code>마지막로그인</code> (텍스트)</li>
+          </ul>
         </div>
-
-        {accounts.filter(a => a.active).length === 0 ? (
-          <div className="px-5 py-8 text-center text-gray-400 text-sm">활성 계정이 없습니다</div>
-        ) : (
-          <div className="divide-y divide-gray-50">
-            {accounts.filter(a => a.active).map(acc => {
-              const isGm = gmList.includes(acc.userId);
-              return (
-                <label
-                  key={acc.id}
-                  className={`flex items-center gap-3 px-5 py-3 cursor-pointer transition-colors hover:bg-gray-50 ${isGm ? "bg-purple-50/50" : ""}`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={isGm}
-                    onChange={() => toggleGm(acc.userId)}
-                    className="accent-purple-600 w-4 h-4"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <span className="font-medium text-sm text-gray-900">{acc.name}</span>
-                    <span className="text-xs text-gray-400 ml-2 font-mono">{acc.userId}</span>
-                    {acc.role === "super" && (
-                      <span className="ml-2 text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full font-semibold">슈퍼어드민</span>
-                    )}
-                  </div>
-                  {acc.company && (
-                    <span className="text-xs text-gray-400 shrink-0">{acc.company}</span>
-                  )}
-                  {isGm && (
-                    <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-semibold shrink-0">총무 관리자</span>
-                  )}
-                </label>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      )}
 
       {/* 모달 */}
       {showModal && (
@@ -450,6 +447,7 @@ export default function AccountsPanel() {
           initial={editTarget}
           onSave={handleSave}
           onClose={() => { setShowModal(false); setEditTarget(undefined); }}
+          isSuperAdmin={isSuperAdmin}
         />
       )}
     </div>

@@ -1,0 +1,132 @@
+import nodemailer from "nodemailer";
+
+export function createMailTransporter() {
+  const user = process.env.GMAIL_USER;
+  const pass = process.env.GMAIL_APP_PASSWORD;
+  if (!user || !pass) return null;
+  return nodemailer.createTransport({ service: "gmail", auth: { user, pass } });
+}
+
+export function buildMonitorRepairEmail(opts: {
+  building: string;
+  floor: string;
+  zone: string;
+  seatId: string;
+  requestType: "repair" | "replace";
+  requestedBy: string;
+  note?: string;
+  appUrl: string;
+}): string {
+  const typeLabel = opts.requestType === "repair" ? "수리" : "교체";
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#F8FAFC;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;">
+<div style="max-width:520px;margin:40px auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+  <div style="background:#059669;padding:24px 32px;">
+    <div style="color:white;font-size:17px;font-weight:800;">🖥️ 모니터 ${typeLabel} 요청</div>
+    <div style="color:rgba(255,255,255,0.8);font-size:12px;margin-top:4px;">스마트오피스 자산관리</div>
+  </div>
+  <div style="padding:28px 32px;">
+    <p style="font-size:14px;color:#475569;margin:0 0 20px;">
+      아래 위치의 모니터 <strong>${typeLabel} 요청</strong>이 접수되었습니다. 확인 후 조치해주세요.
+    </p>
+    <div style="background:#F0FDF4;border:1px solid #86EFAC;border-radius:12px;padding:18px;margin-bottom:20px;">
+      <table style="width:100%;border-collapse:collapse;">
+        <tr>
+          <td style="font-size:12px;color:#6B7280;padding:4px 0;width:80px;">건물</td>
+          <td style="font-size:14px;font-weight:700;color:#111827;">${opts.building}</td>
+        </tr>
+        <tr>
+          <td style="font-size:12px;color:#6B7280;padding:4px 0;">층</td>
+          <td style="font-size:14px;font-weight:700;color:#111827;">${opts.floor}</td>
+        </tr>
+        <tr>
+          <td style="font-size:12px;color:#6B7280;padding:4px 0;">구역</td>
+          <td style="font-size:14px;font-weight:700;color:#111827;">${opts.zone}</td>
+        </tr>
+        <tr>
+          <td style="font-size:12px;color:#6B7280;padding:4px 0;">모니터 ID</td>
+          <td style="font-size:14px;font-weight:700;color:#111827;font-family:monospace;">${opts.seatId}</td>
+        </tr>
+        <tr>
+          <td style="font-size:12px;color:#6B7280;padding:4px 0;">요청 유형</td>
+          <td style="font-size:14px;font-weight:700;color:#059669;">${typeLabel}</td>
+        </tr>
+        <tr>
+          <td style="font-size:12px;color:#6B7280;padding:4px 0;">요청자</td>
+          <td style="font-size:14px;color:#374151;">${opts.requestedBy}</td>
+        </tr>
+        ${opts.note ? `
+        <tr>
+          <td style="font-size:12px;color:#6B7280;padding:4px 0;">비고</td>
+          <td style="font-size:13px;color:#374151;">${opts.note}</td>
+        </tr>` : ""}
+      </table>
+    </div>
+    <div style="text-align:center;margin-bottom:16px;">
+      <a href="${opts.appUrl}/admin" target="_blank"
+        style="display:inline-block;background:#059669;color:white;font-size:13px;font-weight:700;padding:11px 28px;border-radius:10px;text-decoration:none;">
+        관리자 페이지에서 처리하기
+      </a>
+    </div>
+    <p style="font-size:11px;color:#94A3B8;text-align:center;margin:0;">본 메일은 발신 전용입니다.</p>
+  </div>
+</div>
+</body>
+</html>`;
+}
+
+export function buildMonitorCompleteEmail(opts: {
+  building: string;
+  floor: string;
+  zone: string;
+  seatId: string;
+  requestType: "repair" | "replace";
+  completedBy: string;
+  appUrl: string;
+}): string {
+  const typeLabel = opts.requestType === "repair" ? "수리" : "교체";
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#F8FAFC;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;">
+<div style="max-width:520px;margin:40px auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+  <div style="background:#7C3AED;padding:24px 32px;">
+    <div style="color:white;font-size:17px;font-weight:800;">✅ 모니터 ${typeLabel} 완료</div>
+    <div style="color:rgba(255,255,255,0.8);font-size:12px;margin-top:4px;">스마트오피스 자산관리</div>
+  </div>
+  <div style="padding:28px 32px;">
+    <p style="font-size:14px;color:#475569;margin:0 0 20px;">
+      모니터 ${typeLabel} 요청이 <strong>${opts.completedBy}</strong>에 의해 처리 완료되었습니다.
+    </p>
+    <div style="background:#F5F3FF;border:1px solid #C4B5FD;border-radius:12px;padding:18px;margin-bottom:20px;">
+      <table style="width:100%;border-collapse:collapse;">
+        <tr>
+          <td style="font-size:12px;color:#6B7280;padding:4px 0;width:80px;">건물</td>
+          <td style="font-size:14px;font-weight:700;color:#111827;">${opts.building}</td>
+        </tr>
+        <tr>
+          <td style="font-size:12px;color:#6B7280;padding:4px 0;">층</td>
+          <td style="font-size:14px;font-weight:700;color:#111827;">${opts.floor}</td>
+        </tr>
+        <tr>
+          <td style="font-size:12px;color:#6B7280;padding:4px 0;">구역</td>
+          <td style="font-size:14px;font-weight:700;color:#111827;">${opts.zone}</td>
+        </tr>
+        <tr>
+          <td style="font-size:12px;color:#6B7280;padding:4px 0;">모니터 ID</td>
+          <td style="font-size:14px;font-weight:700;color:#111827;font-family:monospace;">${opts.seatId}</td>
+        </tr>
+        <tr>
+          <td style="font-size:12px;color:#6B7280;padding:4px 0;">처리자</td>
+          <td style="font-size:14px;color:#374151;">${opts.completedBy}</td>
+        </tr>
+      </table>
+    </div>
+    <p style="font-size:11px;color:#94A3B8;text-align:center;margin:0;">본 메일은 발신 전용입니다.</p>
+  </div>
+</div>
+</body>
+</html>`;
+}

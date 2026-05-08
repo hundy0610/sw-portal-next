@@ -22,7 +22,7 @@ const HwRepairPanel     = dynamic(() => import("@/components/admin/HwRepairPanel
 
 // ── 세션 타입 ──────────────────────────────────────────────────
 interface SessionInfo {
-  role: "super" | "company";
+  role: "super" | "company" | "general";
   company: string;
   name: string;
   userId: string;
@@ -154,7 +154,7 @@ export default function AdminPage() {
 
   // ── 모니터 요청 알림 폴링 (슈퍼어드민 전용) ─────────────────
   useEffect(() => {
-    if (!session || session.role !== "super") return;
+    if (!session || (session.role !== "super" && session.role !== "general")) return;
 
     function fetchPending() {
       fetch("/api/monitor-requests")
@@ -214,7 +214,7 @@ export default function AdminPage() {
       case "helpdesk":    return <HelpDeskPanel company={isSuper ? "" : company} />;
       case "repair":      return <RepairPanel company={company} />;
       case "hw-repair":   return canAccess("hw-repair") ? <HwRepairPanel /> : <AccessDenied />;
-      case "accounts":    return canAccess("accounts")    ? <AccountsPanel />   : <AccessDenied />;
+      case "accounts":    return canAccess("accounts")    ? <AccountsPanel isSuperAdmin={session?.role === "super"} />   : <AccessDenied />;
       case "contracts":   return canAccess("contracts")   ? <ContractPanel />   : <AccessDenied />;
       default:            return null;
     }
