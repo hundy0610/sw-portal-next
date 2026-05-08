@@ -230,14 +230,14 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
-// ── DELETE — 계정 비활성화 ───────────────────────────────────
+// ── DELETE — 계정 비활성화 또는 영구 삭제 ────────────────────
 export async function DELETE(request: NextRequest) {
   if (!requireSuper(request)) {
     return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 });
   }
 
   try {
-    const { id } = await request.json();
+    const { id, permanent } = await request.json();
     if (!id) return NextResponse.json({ error: "id가 필요합니다" }, { status: 400 });
 
     const accounts = await getAccounts();
@@ -246,7 +246,14 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "계정을 찾을 수 없습니다" }, { status: 404 });
     }
 
-    accounts[idx] = { ...accounts[idx], active: false };
+    if (permanent) {
+      // 영구 삭제
+      accounts.splice(idx, 1);
+    } else {
+      // 비활성화
+      accounts[idx] = { ...accounts[idx], active: false };
+    }
+
     await saveAccounts(accounts);
     await syncGmLists(accounts);
 

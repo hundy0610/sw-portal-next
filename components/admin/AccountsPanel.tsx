@@ -271,6 +271,16 @@ export default function AccountsPanel({ isSuperAdmin = true }: { isSuperAdmin?: 
     load();
   }
 
+  async function handleDelete(account: Account) {
+    if (!confirm(`"${account.name} (${account.userId})" 계정을 완전히 삭제하겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return;
+    await fetch("/api/admin/accounts", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: account.id, permanent: true }),
+    });
+    load();
+  }
+
   // 임시 비밀번호 재발송
   async function handleSendTemp(acc: Account) {
     if (!confirm(`"${acc.name}" 계정에 임시 비밀번호를 재발급하고 ${acc.email}로 발송하겠습니까?`)) return;
@@ -446,10 +456,16 @@ export default function AccountsPanel({ isSuperAdmin = true }: { isSuperAdmin?: 
                               className="text-xs text-red-500 hover:text-red-700 hover:underline"
                             >비활성화</button>
                           ) : (
-                            <button
-                              onClick={() => handleActivate(acc)}
-                              className="text-xs text-emerald-600 hover:text-emerald-800 hover:underline"
-                            >활성화</button>
+                            <>
+                              <button
+                                onClick={() => handleActivate(acc)}
+                                className="text-xs text-emerald-600 hover:text-emerald-800 hover:underline"
+                              >활성화</button>
+                              <button
+                                onClick={() => handleDelete(acc)}
+                                className="text-xs text-red-500 hover:text-red-700 hover:underline"
+                              >삭제</button>
+                            </>
                           )}
                         </div>
                       </td>
