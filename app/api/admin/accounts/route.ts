@@ -2,7 +2,14 @@ import { NextResponse, type NextRequest } from "next/server";
 import { decodeSession } from "@/lib/session";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { hashPassword } from "@/lib/crypto";
+import { createMailTransporter, buildWelcomeEmail } from "@/lib/mail";
 import crypto from "crypto";
+
+// 임시 비밀번호 생성 (혼동하기 쉬운 문자 제외)
+function generateTempPassword(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+  return Array.from({ length: 8 }, () => chars[crypto.randomInt(chars.length)]).join("");
+}
 
 const ACCOUNTS_KEY    = "sw:accounts";
 const GM_KEY          = "sw:general-managers";
@@ -104,11 +111,14 @@ export async function POST(request: NextRequest) {
     const validRole: Account["role"] =
       role === "super" ? "super" : role === "general" ? "general" : "company";
 
+    // 임시 비밀번호 생성 및 해시
+    const tempPassword = generateTempPassword();
+
     const newAccount: Account = {
       id: `acc-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`,
       name,
       userId,
-      password: "",           // 초기화 flow로 설정
+      password: hashPassword(tempPassword),
       email,
       department: department || "",
       company:    company    || "",
@@ -125,6 +135,17 @@ export async function POST(request: NextRequest) {
       await syncGmLists(accounts);
     }
 
+    // 임시 비밀번호 이메일 발송
+    const transporter = createMailTransporter();
+    if (transporter) {
+      await transporter.sendMail({
+        from:    `"SW 포털" <${process.env.GMAIL_USER}>`,
+        to:      email,
+        subject: "[SW 포털] 계정이 생성되었습니다",
+        html:    buildWelcomeEmail({ name, userId, tempPassword }),
+      }).catch(e => console.error("[accounts] welcome mail error:", e));
+    }
+
     const { password: _pw, ...safe } = newAccount;
     return NextResponse.json({ ok: true, account: safe });
   } catch (e) {
@@ -133,15 +154,15 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// ── PATCH — 계정 수정 ────────────────────────────────────────
+// ── PATCH — 계정 수정 / 임시 비밀번호 재발송 ─────────────────
 export async function PATCH(request: NextRequest) {
   if (!requireSuper(request)) {
     return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 });
   }
 
   try {
-    const { id, name, userId, password, email, department, company, role, active } =
-      await request.json();
+    const body = await request.json();
+    const { id, name, userId, password, email, department, company, role, active, resendTemp } = body;
     if (!id) return NextResponse.json({ error: "id가 필요합니다" }, { status: 400 });
 
     const accounts = await getAccounts();
@@ -150,6 +171,31 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "계정을 찾을 수 없습니다" }, { status: 404 });
     }
 
+    // ── 임시 비밀번호 재발송 ─────────────────────────────────
+    if (resendTemp) {
+      const acc = accounts[idx];
+      const tempPassword = generateTempPassword();
+      accounts[idx] = {
+        ...acc,
+        password:           hashPassword(tempPassword),
+        mustChangePassword: true,
+      };
+      await saveAccounts(accounts);
+
+      const transporter = createMailTransporter();
+      if (transporter) {
+        await transporter.sendMail({
+          from:    `"SW 포털" <${process.env.GMAIL_USER}>`,
+          to:      acc.email,
+          subject: "[SW 포털] 임시 비밀번호가 발급되었습니다",
+          html:    buildWelcomeEmail({ name: acc.name, userId: acc.userId, tempPassword }),
+        }).catch(e => console.error("[accounts] resend temp mail error:", e));
+      }
+
+      return NextResponse.json({ ok: true });
+    }
+
+    // ── 일반 수정 ────────────────────────────────────────────
     const prev = accounts[idx];
     const updated: Account = {
       ...prev,

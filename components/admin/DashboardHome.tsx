@@ -103,10 +103,8 @@ const HW_STATUS_COLORS: Record<string, string> = {
   "미분류":     "#D1D5DB",
 };
 
-// 폐기 관련 상태 — 계약 수량에서 제외
-const HW_DISPOSAL_STATUSES = new Set([
-  "폐기","폐기확정(리스트화)","폐기완료","3층문서고/폐기","지하창고/폐기",
-]);
+// 차트에서 제외할 상태 (미분류·미확인만 숨김)
+const HW_HIDDEN_STATUSES = new Set(["미확인", "미분류"]);
 
 const PALETTE = [
   "#6366f1","#f59e0b","#10b981","#ef4444","#3b82f6","#8b5cf6",
@@ -291,10 +289,10 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
     }
   }
 
-  // 상태별 도넛 (폐기 제외 → 계약 수량 기준)
+  // 상태별 도넛 (미확인/미분류 제외)
   const hwSegs: DonutSeg[] = hwStats
     ? Object.entries(hwStats.byStatus)
-        .filter(([label, v]) => v > 0 && !HW_DISPOSAL_STATUSES.has(label))
+        .filter(([label, v]) => v > 0 && !HW_HIDDEN_STATUSES.has(label))
         .sort((a, b) => b[1] - a[1])
         .map(([label, value], i) => ({
           label,
@@ -338,7 +336,7 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
               전체 보기 →
             </button>
           </div>
-          {hwLoading ? <LoadingBox /> : <DonutChart data={hwSegs} title="계약 수량" />}
+          {hwLoading ? <LoadingBox /> : <DonutChart data={hwSegs} title="상태" />}
         </div>
       </div>
 

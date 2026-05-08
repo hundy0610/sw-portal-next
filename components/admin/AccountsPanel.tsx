@@ -164,8 +164,9 @@ function AccountFormModal({
 
           {/* 신규 계정 안내 */}
           {!initial && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700">
-              계정 생성 후 담당자가 로그인 화면 하단 <strong>비밀번호 초기화</strong>를 통해 비밀번호를 직접 설정합니다.
+            <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-700">
+              계정 생성 시 <strong>임시 비밀번호가 등록된 이메일로 자동 발송</strong>됩니다.<br />
+              담당자는 임시 비밀번호로 첫 로그인 후 비밀번호를 변경해야 합니다.
             </div>
           )}
 
@@ -201,6 +202,7 @@ export default function AccountsPanel({ isSuperAdmin = true }: { isSuperAdmin?: 
   const [showModal,   setShowModal]   = useState(false);
   const [editTarget,  setEditTarget]  = useState<Account | undefined>(undefined);
   const [savingGm,    setSavingGm]    = useState<string | null>(null);  // userId of currently toggling
+  const [sendingTemp, setSendingTemp] = useState<string | null>(null); // id of account sending temp pw
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -259,6 +261,27 @@ export default function AccountsPanel({ isSuperAdmin = true }: { isSuperAdmin?: 
     load();
   }
 
+  // 임시 비밀번호 재발송
+  async function handleSendTemp(acc: Account) {
+    if (!confirm(`"${acc.name}" 계정에 임시 비밀번호를 재발급하고 ${acc.email}로 발송하겠습니까?`)) return;
+    setSendingTemp(acc.id);
+    try {
+      const res = await fetch("/api/admin/accounts", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: acc.id, resendTemp: true }),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "실패");
+      alert(`✅ ${acc.email}로 임시 비밀번호를 발송했습니다.`);
+      load();
+    } catch (e) {
+      alert(`❌ 발송 실패: ${String(e)}`);
+    } finally {
+      setSendingTemp(null);
+    }
+  }
+
   // 총무관리자 역할 인라인 토글
   async function toggleGmRole(account: Account) {
     const newRole: RoleType = account.role === "general" ? "company" : "general";
@@ -292,15 +315,17 @@ export default function AccountsPanel({ isSuperAdmin = true }: { isSuperAdmin?: 
           </p>
         </div>
         {isSuperAdmin && (
-          <button
-            onClick={() => { setEditTarget(undefined); setShowModal(true); }}
-            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700 transition-colors"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-            계정 추가
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { setEditTarget(undefined); setShowModal(true); }}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700 transition-colors"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              계정 추가
+            </button>
+          </div>
         )}
       </div>
 
@@ -390,11 +415,21 @@ export default function AccountsPanel({ isSuperAdmin = true }: { isSuperAdmin?: 
                     {/* 관리 버튼 */}
                     {isSuperAdmin && (
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <button
                             onClick={() => { setEditTarget(acc); setShowModal(true); }}
                             className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
                           >수정</button>
+                          {acc.active && acc.email && (
+                            <button
+                              onClick={() => handleSendTemp(acc)}
+                              disabled={sendingTemp === acc.id}
+                              className="text-xs text-amber-600 hover:text-amber-800 hover:underline disabled:opacity-40"
+                              title="임시 비밀번호 재발급 후 이메일 발송"
+                            >
+                              {sendingTemp === acc.id ? "발송 중..." : "임시PW"}
+                            </button>
+                          )}
                           {acc.active && (
                             <button
                               onClick={() => handleDeactivate(acc)}
@@ -421,23 +456,11 @@ export default function AccountsPanel({ isSuperAdmin = true }: { isSuperAdmin?: 
         <span className="text-emerald-600 font-medium">총무관리자 {accounts.filter(a => a.role === "general" && a.active).length}명</span>
       </div>
 
-      {/* Notion DB 설정 안내 */}
-      {accounts.length === 0 && !error && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700">
-          <div className="font-semibold mb-1">⚙️ Notion 계정 DB 설정 필요</div>
-          <p>Notion에 계정 관리 DB를 생성하고, 아래 컬럼을 추가한 뒤 환경변수 <code className="bg-amber-100 px-1 rounded">ACCOUNTS_DB_ID</code>를 설정하세요:</p>
-          <ul className="mt-2 space-y-0.5 list-disc list-inside text-xs">
-            <li><code>이름</code> (제목/Title)</li>
-            <li><code>아이디</code> (텍스트)</li>
-            <li><code>비밀번호</code> (텍스트)</li>
-            <li><code>메일</code> (텍스트)</li>
-            <li><code>부서명</code> (텍스트)</li>
-            <li><code>법인명</code> (선택/Select)</li>
-            <li><code>역할</code> (선택/Select: <code>super</code> / <code>company</code> / <code>general</code>)</li>
-            <li><code>활성화</code> (체크박스)</li>
-            <li><code>비번변경필요</code> (체크박스)</li>
-            <li><code>마지막로그인</code> (텍스트)</li>
-          </ul>
+      {/* 빈 상태 안내 */}
+      {accounts.length === 0 && !error && isSuperAdmin && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-700">
+          <div className="font-semibold mb-1">👤 등록된 계정이 없습니다</div>
+          <p>오른쪽 상단의 <strong>+ 계정 추가</strong> 버튼으로 첫 번째 계정을 등록하세요.</p>
         </div>
       )}
 

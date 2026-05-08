@@ -140,6 +140,9 @@ export default function AdminLoginPage() {
               className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
               required
             />
+            <p className="text-xs text-gray-400 mt-0.5">
+              처음 로그인하신다면 이메일로 발송된 임시 비밀번호를 입력하세요
+            </p>
           </div>
 
           {error && (
