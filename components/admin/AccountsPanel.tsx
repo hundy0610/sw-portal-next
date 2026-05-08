@@ -261,6 +261,16 @@ export default function AccountsPanel({ isSuperAdmin = true }: { isSuperAdmin?: 
     load();
   }
 
+  async function handleActivate(account: Account) {
+    if (!confirm(`"${account.name}" 계정을 활성화하겠습니까?`)) return;
+    await fetch("/api/admin/accounts", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: account.id, active: true }),
+    });
+    load();
+  }
+
   // 임시 비밀번호 재발송
   async function handleSendTemp(acc: Account) {
     if (!confirm(`"${acc.name}" 계정에 임시 비밀번호를 재발급하고 ${acc.email}로 발송하겠습니까?`)) return;
@@ -430,11 +440,16 @@ export default function AccountsPanel({ isSuperAdmin = true }: { isSuperAdmin?: 
                               {sendingTemp === acc.id ? "발송 중..." : "임시PW"}
                             </button>
                           )}
-                          {acc.active && (
+                          {acc.active ? (
                             <button
                               onClick={() => handleDeactivate(acc)}
                               className="text-xs text-red-500 hover:text-red-700 hover:underline"
                             >비활성화</button>
+                          ) : (
+                            <button
+                              onClick={() => handleActivate(acc)}
+                              className="text-xs text-emerald-600 hover:text-emerald-800 hover:underline"
+                            >활성화</button>
                           )}
                         </div>
                       </td>
