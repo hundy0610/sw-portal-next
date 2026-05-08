@@ -201,8 +201,6 @@ export default function AccountsPanel({ isSuperAdmin = true }: { isSuperAdmin?: 
   const [showModal,   setShowModal]   = useState(false);
   const [editTarget,  setEditTarget]  = useState<Account | undefined>(undefined);
   const [savingGm,    setSavingGm]    = useState<string | null>(null);  // userId of currently toggling
-  const [migrating,   setMigrating]   = useState(false);
-  const [migrateMsg,  setMigrateMsg]  = useState("");
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -261,24 +259,6 @@ export default function AccountsPanel({ isSuperAdmin = true }: { isSuperAdmin?: 
     load();
   }
 
-  // Notion → Redis 계정 마이그레이션
-  async function handleMigrate() {
-    if (!confirm("Notion DB의 기존 계정 데이터를 불러와 등록합니다. 계속하시겠습니까?")) return;
-    setMigrating(true);
-    setMigrateMsg("");
-    try {
-      const res = await fetch("/api/admin/migrate-accounts", { method: "POST" });
-      const json = await res.json();
-      if (!json.ok) throw new Error(json.error || "마이그레이션 실패");
-      setMigrateMsg(`✅ ${json.migrated}개 계정 가져오기 완료 (중복 ${json.skipped}개 스킵, 총 ${json.total}개)`);
-      load();
-    } catch (e) {
-      setMigrateMsg(`❌ ${String(e)}`);
-    } finally {
-      setMigrating(false);
-    }
-  }
-
   // 총무관리자 역할 인라인 토글
   async function toggleGmRole(account: Account) {
     const newRole: RoleType = account.role === "general" ? "company" : "general";
@@ -314,14 +294,6 @@ export default function AccountsPanel({ isSuperAdmin = true }: { isSuperAdmin?: 
         {isSuperAdmin && (
           <div className="flex items-center gap-2">
             <button
-              onClick={handleMigrate}
-              disabled={migrating}
-              className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-semibold hover:bg-amber-600 disabled:opacity-50 transition-colors"
-              title="Notion DB의 기존 계정을 Redis로 가져옵니다"
-            >
-              {migrating ? "가져오는 중..." : "📥 Notion에서 가져오기"}
-            </button>
-            <button
               onClick={() => { setEditTarget(undefined); setShowModal(true); }}
               className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700 transition-colors"
             >
@@ -336,12 +308,6 @@ export default function AccountsPanel({ isSuperAdmin = true }: { isSuperAdmin?: 
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">⚠️ {error}</div>
-      )}
-
-      {migrateMsg && (
-        <div className={`border rounded-xl p-3 text-sm ${migrateMsg.startsWith("✅") ? "bg-green-50 border-green-200 text-green-700" : "bg-red-50 border-red-200 text-red-700"}`}>
-          {migrateMsg}
-        </div>
       )}
 
       {/* 통합 계정 테이블 */}
