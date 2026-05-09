@@ -15,7 +15,7 @@ export interface HwRecord {
 }
 
 export const HW_STATUSES = [
-  "사용중", "재고", "반납예정", "출고준비중", "출고준비완료",
+  "사용중", "재고", "교체요청", "반납예정", "출고준비중", "출고준비완료",
   "수리", "렌탈", "임시지급", "폐기", "폐기확정(리스트화)", "폐기완료",
   "3층문서고/매각", "3층문서고/폐기", "지하창고/폐기", "지하창고/매각",
 ];
@@ -67,6 +67,17 @@ export function AssetModalInner({ assetId, onClose }: { assetId: string; onClose
       if (json.ok) {
         setRecord(prev => prev ? { ...prev, status: selectedStatus } : prev);
         setSaveResult("done");
+        if (selectedStatus === "교체요청" && record) {
+          fetch("/api/exchange-return/create", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: "교체", assetId: record.assetNo,
+              company: record.company, department: record.dept, user: record.user,
+              stage: "교체요청", requestedAt: new Date().toISOString().slice(0, 10),
+            }),
+          }).catch(console.error);
+        }
       } else setSaveResult("error");
     } catch { setSaveResult("error"); }
     finally { setSaving(false); }

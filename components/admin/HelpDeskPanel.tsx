@@ -437,8 +437,20 @@ function HelpDeskTicketFloating({
         body: JSON.stringify({ id: assetData.id, fields: { status: assetStatus } }),
       });
       const json = await res.json();
-      if (json.ok) { setAssetData(prev => prev ? { ...prev, status: assetStatus } : prev); setAssetSaveResult("done"); }
-      else setAssetSaveResult("error");
+      if (json.ok) {
+        setAssetData(prev => prev ? { ...prev, status: assetStatus } : prev); setAssetSaveResult("done");
+        if (assetStatus === "교체요청" && assetData) {
+          fetch("/api/exchange-return/create", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: "교체", assetId: assetData.assetNo,
+              company: assetData.company, department: assetData.dept, user: assetData.user,
+              stage: "교체요청", requestedAt: new Date().toISOString().slice(0, 10),
+            }),
+          }).catch(console.error);
+        }
+      } else setAssetSaveResult("error");
     } catch { setAssetSaveResult("error"); }
     finally { setAssetSaving(false); }
   };

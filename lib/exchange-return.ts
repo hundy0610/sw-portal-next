@@ -200,6 +200,7 @@ export interface SyncResult {
   ambiguousMatches: number;     // 매칭 후보 여러 건 (수동 확인 필요)
   returnedCompleted: number;    // 반납요청 → 반납완료 자동 전환
   newRetirementRecords: number; // HW DB → 퇴사반납 신규 등록
+  newExchangeRecords: number;   // HW DB 교체요청 상태 → 교체 신규 등록
   errors: string[];
 }
 
@@ -222,6 +223,7 @@ export async function syncWithHwDb(): Promise<SyncResult> {
     ambiguousMatches: 0,
     returnedCompleted: 0,
     newRetirementRecords: 0,
+    newExchangeRecords: 0,
     errors: [],
   };
 
@@ -324,6 +326,37 @@ export async function syncWithHwDb(): Promise<SyncResult> {
       result.newRetirementRecords++;
     } catch (e) {
       result.errors.push(`퇴사반납 등록 실패 (${hw.assetNo}): ${String(e)}`);
+    }
+  }
+
+  // 4) HW DB 교체요청 상태 → 교체 트래커 자동 등록
+  const trackedExchangeAssetIds = new Set(
+    trackers
+      .filter(t => t.type === "교체" && t.stage !== "반납완료" && t.assetId)
+      .map(t => t.assetId)
+  );
+
+  const exchangeCandidates = hwRecords.filter(hw =>
+    hw.status === "교체요청" &&
+    hw.assetNo &&
+    !trackedExchangeAssetIds.has(hw.assetNo)
+  );
+
+  for (const hw of exchangeCandidates) {
+    try {
+      await createExchangeReturn({
+        type: "교체",
+        assetId: hw.assetNo,
+        company: hw.company,
+        department: hw.dept,
+        user: hw.user,
+        stage: "교체요청",
+        requestedAt: todayStr(),
+        autoSynced: true,
+      });
+      result.newExchangeRecords++;
+    } catch (e) {
+      result.errors.push(`교체 등록 실패 (${hw.assetNo}): ${String(e)}`);
     }
   }
 
