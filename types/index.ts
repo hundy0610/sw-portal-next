@@ -173,21 +173,25 @@ export interface HwRepairRecord {
 // ────────────────────────────────────────────────────────────
 // 교체/반납 트래커
 // ────────────────────────────────────────────────────────────
+// 유형: "교체" | "퇴사반납"
+// 단계: "교체요청" | "요청기안" | "기기준비" | "사용자수령" | "반납요청" | "반납완료"
 export interface ExchangeReturnRecord {
   id: string;
-  type: string;           // 유형: 교체 or 반납
-  assetId: string;        // 자산번호 (title)
-  newAssetId: string;     // 교체 자산번호 (교체 시)
-  company: string;        // 법인
-  department: string;     // 부서
-  user: string;           // 사용자
-  stage: string;          // 현재단계
-  requestedAt: string;    // 신청일 YYYY-MM-DD
-  completedAt: string;    // 완료일 YYYY-MM-DD
-  reason: string;         // 신청사유
-  assignee: string;       // 담당자 이름
-  assigneeId: string;     // 담당자 Notion user ID
-  note: string;           // 비고
+  type: string;
+  assetId: string;
+  newAssetId: string;
+  company: string;
+  department: string;
+  user: string;
+  stage: string;
+  requestedAt: string;
+  returnDue: string;       // 반납예정일 (사용자수령일 + 7일 자동 또는 HW DB 값)
+  completedAt: string;
+  reason: string;
+  assignee: string;
+  assigneeId: string;
+  note: string;
+  autoSynced: boolean;     // HW DB sync로 자동 진행됐는지 표시
   lastEditedAt: string;
   notionUrl: string;
 }

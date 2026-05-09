@@ -4,33 +4,51 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import type { ExchangeReturnRecord } from "@/types";
 
 // ── 상수 ────────────────────────────────────────────────────
-const STAGES = ["신청접수", "검토중", "기기준비", "교체/반납진행", "기기확인", "완료"] as const;
+const STAGES = ["교체요청", "요청기안", "기기준비", "사용자수령", "반납요청", "반납완료"] as const;
 type Stage = typeof STAGES[number];
 
-const RECORD_TYPES = ["교체", "반납"] as const;
+// 퇴사반납은 반납요청부터 시작 (앞 4단계 skip)
+const STAGES_BY_TYPE: Record<string, readonly Stage[]> = {
+  "교체":     STAGES,
+  "퇴사반납": ["반납요청", "반납완료"],
+};
+const FINAL_STAGE: Stage = "반납완료";
 
-const COMPANIES = ["대웅", "대웅제약", "대웅바이오", "대웅개발", "대웅펫", "시지바이오", "클리슈어리서치", "IDS", "유와이즈원", "페이지원", "엠서클"];
+const RECORD_TYPES = ["교체", "퇴사반납"] as const;
+
+const COMPANIES = [
+  "대웅제약","대웅바이오","대웅","대웅개발","대웅이엔지","대웅펫",
+  "한올바이오파마","시지바이오","시지메드텍","IdsTrust","디엔컴퍼니",
+  "디엔코스메틱스","더편한샵","페이지원","엠서클","애디테라","노바메디텍",
+  "에이하나","다나아데이터","클리슈어리서치","유와이즈원","DNC",
+  "석천나눔재단","HR코리아","힐코","블루넷",
+];
 
 const STAGE_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
-  "신청접수":       { bg: "#F8FAFC", text: "#64748B", dot: "#94A3B8" },
-  "검토중":         { bg: "#EFF6FF", text: "#1D4ED8", dot: "#3B82F6" },
-  "기기준비":       { bg: "#FFF7ED", text: "#C2410C", dot: "#F97316" },
-  "교체/반납진행":  { bg: "#FEFCE8", text: "#A16207", dot: "#EAB308" },
-  "기기확인":       { bg: "#F0FDF4", text: "#15803D", dot: "#22C55E" },
-  "완료":           { bg: "#F5F3FF", text: "#6D28D9", dot: "#8B5CF6" },
+  "교체요청":   { bg: "#F8FAFC", text: "#64748B", dot: "#94A3B8" },
+  "요청기안":   { bg: "#EFF6FF", text: "#1D4ED8", dot: "#3B82F6" },
+  "기기준비":   { bg: "#F5F3FF", text: "#6D28D9", dot: "#8B5CF6" },
+  "사용자수령": { bg: "#FFF7ED", text: "#C2410C", dot: "#F97316" },
+  "반납요청":   { bg: "#FEFCE8", text: "#A16207", dot: "#EAB308" },
+  "반납완료":   { bg: "#F0FDF4", text: "#15803D", dot: "#22C55E" },
 };
 
 const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
-  "교체": { bg: "#EFF6FF", text: "#1D4ED8" },
-  "반납": { bg: "#FFF7ED", text: "#C2410C" },
+  "교체":     { bg: "#EFF6FF", text: "#1D4ED8" },
+  "퇴사반납": { bg: "#FEF2F2", text: "#B91C1C" },
 };
 
 // ── Helpers ──────────────────────────────────────────────────
 function agingDays(requestedAt: string, completedAt: string, stage: string): number {
   if (!requestedAt) return 0;
   const start = new Date(requestedAt);
-  const end = stage === "완료" && completedAt ? new Date(completedAt) : new Date();
+  const end = stage === FINAL_STAGE && completedAt ? new Date(completedAt) : new Date();
   return Math.floor((end.getTime() - start.getTime()) / 86_400_000);
+}
+
+function daysLeft(iso?: string): number | null {
+  if (!iso) return null;
+  return Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000);
 }
 
 function fmtDate(iso: string): string {
@@ -42,6 +60,21 @@ function fmtDateKo(iso: string): string {
   if (!iso) return "—";
   const [y, m, d] = iso.slice(0, 10).split("-");
   return `${y}.${m}.${d}`;
+}
+
+function isOverdue(r: { stage: string; returnDue: string }): boolean {
+  if (r.stage !== "반납요청" || !r.returnDue) return false;
+  const d = daysLeft(r.returnDue);
+  return d !== null && d < 0;
+}
+
+function DDay({ date }: { date: string }) {
+  const d = daysLeft(date);
+  if (d === null) return <span className="text-gray-400 text-xs">—</span>;
+  if (d < 0)   return <span className="text-red-600 font-bold text-[10px] bg-red-50 px-1.5 py-0.5 rounded-full">D+{Math.abs(d)} 미반납</span>;
+  if (d === 0) return <span className="text-red-600 font-bold text-[10px] bg-red-50 px-1.5 py-0.5 rounded-full">D-Day</span>;
+  if (d <= 7)  return <span className="text-orange-600 font-semibold text-[10px] bg-orange-50 px-1.5 py-0.5 rounded-full">D-{d}</span>;
+  return <span className="text-gray-500 text-[10px]">{fmtDate(date)}</span>;
 }
 
 // ── Sub-components ───────────────────────────────────────────
@@ -67,16 +100,21 @@ function TypeBadge({ type }: { type: string }) {
 }
 
 function AgingChip({ days, stage }: { days: number; stage: string }) {
-  if (stage === "완료") return <span className="text-xs text-gray-400">{days}일 소요</span>;
+  if (stage === FINAL_STAGE) return <span className="text-xs text-gray-400">{days}일 소요</span>;
   const color = days >= 7 ? "#DC2626" : days >= 3 ? "#D97706" : "#6B7280";
   return <span className="text-xs font-semibold" style={{ color }}>D+{days}</span>;
 }
 
-function MiniStageBar({ stage }: { stage: string }) {
-  const idx = STAGES.indexOf(stage as Stage);
+function stagesFor(type: string): readonly Stage[] {
+  return STAGES_BY_TYPE[type] ?? STAGES;
+}
+
+function MiniStageBar({ stage, type }: { stage: string; type: string }) {
+  const visible = stagesFor(type);
+  const idx = visible.indexOf(stage as Stage);
   return (
     <div className="flex items-center gap-0.5">
-      {STAGES.map((s, i) => {
+      {visible.map((s, i) => {
         const c = STAGE_COLORS[s];
         const active = i === idx;
         const done = i < idx;
@@ -94,15 +132,16 @@ function MiniStageBar({ stage }: { stage: string }) {
   );
 }
 
-function BigStageBar({ stage }: { stage: string }) {
-  const idx = STAGES.indexOf(stage as Stage);
+function BigStageBar({ stage, type }: { stage: string; type: string }) {
+  const visible = stagesFor(type);
+  const idx = visible.indexOf(stage as Stage);
   return (
     <div className="flex items-start gap-0">
-      {STAGES.map((s, i) => {
+      {visible.map((s, i) => {
         const c = STAGE_COLORS[s];
         const active = i === idx;
         const done = i < idx;
-        const isLast = i === STAGES.length - 1;
+        const isLast = i === visible.length - 1;
         return (
           <div key={s} className="flex flex-col items-center" style={{ flex: 1 }}>
             <div className="flex items-center w-full">
@@ -123,7 +162,7 @@ function BigStageBar({ stage }: { stage: string }) {
             </div>
             <div className="mt-1.5 text-center whitespace-pre-line leading-tight"
               style={{ fontSize: 8, color: active ? c.text : done ? "#22C55E" : "#94A3B8", fontWeight: active ? 700 : done ? 600 : 400 }}>
-              {s.replace("교체/", "교체/\n")}
+              {s}
             </div>
           </div>
         );
@@ -134,22 +173,51 @@ function BigStageBar({ stage }: { stage: string }) {
 
 // ── 상세 모달 ─────────────────────────────────────────────────
 function DetailModal({
-  record, onClose, onUpdated,
+  record, onClose, onUpdated, onDeleted,
 }: {
   record: ExchangeReturnRecord;
   onClose: () => void;
   onUpdated: (id: string, fields: Partial<ExchangeReturnRecord>) => void;
+  onDeleted: (id: string) => void;
 }) {
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!confirm(`자산번호 [${record.assetId || "—"}] 이력을 삭제하시겠습니까?\n\n삭제된 항목은 Notion 휴지통으로 이동됩니다.`)) return;
+    setDeleting(true);
+    try {
+      const res = await fetch("/api/exchange-return/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: record.id }),
+      });
+      const json = await res.json();
+      if (!json.ok) {
+        alert(`삭제 실패: ${json.error || "알 수 없는 오류"}`);
+        return;
+      }
+      onDeleted(record.id);
+      onClose();
+    } catch (e) {
+      alert(`삭제 실패: ${String(e)}`);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const [stage, setStage] = useState(record.stage);
   const [type, setType] = useState(record.type);
   const [company, setCompany] = useState(record.company ?? "");
   const [department, setDepartment] = useState(record.department ?? "");
   const [user, setUser] = useState(record.user ?? "");
   const [newAssetId, setNewAssetId] = useState(record.newAssetId ?? "");
+  const [returnDue, setReturnDue] = useState(record.returnDue ?? "");
   const [reason, setReason] = useState(record.reason ?? "");
   const [note, setNote] = useState(record.note ?? "");
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<Record<string, boolean>>({});
+
+  const visibleStages = stagesFor(type);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -211,7 +279,13 @@ function DetailModal({
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <span className="font-mono text-sm font-bold text-gray-900">{record.assetId || "자산번호 없음"}</span>
               <TypeBadge type={record.type} />
-              {record.stage !== "완료" && <AgingChip days={days} stage={record.stage} />}
+              {record.stage !== FINAL_STAGE && <AgingChip days={days} stage={record.stage} />}
+              {record.autoSynced && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-50 text-cyan-700" title="HW DB 자동 동기화로 진행됨">⚡ 자동</span>
+              )}
+              {isOverdue(record) && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">미반납</span>
+              )}
             </div>
             <p className="text-xs text-gray-400">{record.company || ""} {record.department || ""} · {record.user || ""} · 신청 {fmtDateKo(record.requestedAt)}</p>
           </div>
@@ -222,7 +296,7 @@ function DetailModal({
 
         {/* 단계 진행 바 */}
         <div className="px-7 py-5 border-b border-gray-100 bg-gray-50">
-          <BigStageBar stage={stage} />
+          <BigStageBar stage={stage} type={type} />
         </div>
 
         <div className="px-7 py-1">
@@ -237,7 +311,7 @@ function DetailModal({
 
           <SaveRow label="현재 단계" field="stage">
             <select value={stage} onChange={e => setStage(e.target.value)} className={selectCls}>
-              {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+              {visibleStages.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
             <button onClick={() => save("stage", { stage })} disabled={saving === "stage" || stage === record.stage} className={saveBtnCls("stage", stage, record.stage)}>
               {saving === "stage" ? "저장 중…" : "저장"}
@@ -279,6 +353,14 @@ function DetailModal({
             </SaveRow>
           )}
 
+          <SaveRow label="반납예정일" field="returnDue">
+            <input type="date" value={returnDue} onChange={e => setReturnDue(e.target.value)} className={selectCls} />
+            <button onClick={() => save("returnDue", { returnDue: returnDue || null })} disabled={saving === "returnDue" || returnDue === record.returnDue} className={saveBtnCls("returnDue", returnDue, record.returnDue)}>
+              {saving === "returnDue" ? "저장 중…" : "저장"}
+            </button>
+            {returnDue && <DDay date={returnDue} />}
+          </SaveRow>
+
           <SaveRow label="신청사유" field="reason">
             <input value={reason} onChange={e => setReason(e.target.value)} className={selectCls + " w-56"} placeholder="신청사유" />
             <button onClick={() => save("reason", { reason })} disabled={saving === "reason" || reason === record.reason} className={saveBtnCls("reason", reason, record.reason)}>
@@ -302,7 +384,7 @@ function DetailModal({
           </Row>
 
           {record.completedAt && <Row label="완료일">{fmtDateKo(record.completedAt)}</Row>}
-          {record.stage === "완료" && record.completedAt && (
+          {record.stage === FINAL_STAGE && record.completedAt && (
             <Row label="총 소요일"><span className="font-semibold text-gray-700">{days}일</span></Row>
           )}
 
@@ -313,8 +395,8 @@ function DetailModal({
           </Row>
         </div>
 
-        {record.notionUrl && (
-          <div className="px-7 py-4 border-t border-gray-100">
+        <div className="px-7 py-4 border-t border-gray-100 flex items-center justify-between gap-3">
+          {record.notionUrl ? (
             <a href={record.notionUrl} target="_blank" rel="noopener noreferrer"
               className="text-sm text-blue-600 hover:underline flex items-center gap-1.5">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -323,8 +405,19 @@ function DetailModal({
               </svg>
               노션에서 보기
             </a>
-          </div>
-        )}
+          ) : <span />}
+
+          <button onClick={handleDelete} disabled={deleting}
+            className="text-xs font-semibold px-3 py-1.5 rounded border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 flex items-center gap-1 transition-colors">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+              <path d="M10 11v6M14 11v6"/>
+              <path d="M9 6V4a2 2 0 012-2h2a2 2 0 012 2v2"/>
+            </svg>
+            {deleting ? "삭제 중…" : "이력 삭제"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -333,18 +426,51 @@ function DetailModal({
 // ── 신규 등록 모달 ────────────────────────────────────────────
 type CreateForm = {
   type: string; assetId: string; newAssetId: string; company: string;
-  department: string; user: string; stage: string; requestedAt: string; reason: string; note: string;
+  department: string; user: string; stage: string; requestedAt: string; returnDue: string; reason: string; note: string;
 };
+
+const defaultStageFor = (type: string): Stage => stagesFor(type)[0];
 
 const EMPTY_FORM: CreateForm = {
   type: "교체", assetId: "", newAssetId: "", company: "", department: "",
-  user: "", stage: "신청접수", requestedAt: "", reason: "", note: "",
+  user: "", stage: defaultStageFor("교체"), requestedAt: "", returnDue: "", reason: "", note: "",
 };
 
 function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [form, setForm] = useState<CreateForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [autoFilling, setAutoFilling] = useState(false);
+  const [autoFilled, setAutoFilled] = useState(false);
+
+  // 자산번호 입력 시 HW DB에서 법인/부서/사용자 자동 채움
+  useEffect(() => {
+    const id = form.assetId.trim();
+    if (id.length < 4) { setAutoFilled(false); return; }
+    const timer = setTimeout(async () => {
+      setAutoFilling(true);
+      try {
+        const res = await fetch(`/api/hw?search=${encodeURIComponent(id)}`);
+        const data = await res.json();
+        const records: { assetNo: string; user: string; dept: string; company: string }[] = data.records ?? [];
+        const found = records.find(r => r.assetNo === id) ?? (records.length === 1 ? records[0] : null);
+        if (found) {
+          setForm(p => ({
+            ...p,
+            user:       found.user    || p.user,
+            department: found.dept    || p.department,
+            company:    found.company || p.company,
+          }));
+          setAutoFilled(true);
+        } else {
+          setAutoFilled(false);
+        }
+      } catch { /* 무시 */ } finally {
+        setAutoFilling(false);
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [form.assetId]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -352,8 +478,17 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const set = (k: keyof CreateForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
-    setForm(p => ({ ...p, [k]: e.target.value }));
+  const set = (k: keyof CreateForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const v = e.target.value;
+    if (k === "type") {
+      // 유형 변경 시 시작 단계 자동 보정
+      setForm(p => ({ ...p, type: v, stage: defaultStageFor(v) }));
+      return;
+    }
+    setForm(p => ({ ...p, [k]: v }));
+  };
+
+  const visibleStages = stagesFor(form.type);
 
   const handleSubmit = async () => {
     if (!form.assetId.trim()) { setErr("자산번호를 입력해주세요."); return; }
@@ -401,13 +536,24 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
             <div>
               <label className={labelCls}>현재단계</label>
               <select className={inputCls} value={form.stage} onChange={set("stage")}>
-                {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+                {visibleStages.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
           </div>
 
           <div>
-            <label className={labelCls}>자산번호 <span className="text-red-500">*</span></label>
+            <div className="flex items-center justify-between mb-1">
+              <label className={labelCls} style={{ margin: 0 }}>자산번호 <span className="text-red-500">*</span></label>
+              {autoFilling && (
+                <span className="text-[10px] text-gray-400 flex items-center gap-1">
+                  <svg className="animate-spin w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity="0.25"/><path d="M21 12a9 9 0 00-9-9"/>
+                  </svg>
+                  조회 중…
+                </span>
+              )}
+              {!autoFilling && autoFilled && <span className="text-[10px] text-green-500">✓ 자동입력 완료</span>}
+            </div>
             <input className={inputCls} placeholder="예) DW-NB-0123" value={form.assetId} onChange={set("assetId")} autoFocus />
           </div>
 
@@ -431,6 +577,13 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
               <input type="date" className={inputCls} value={form.requestedAt} onChange={set("requestedAt")} />
             </div>
           </div>
+
+          {(form.type === "퇴사반납" || form.stage === "반납요청") && (
+            <div>
+              <label className={labelCls}>반납예정일</label>
+              <input type="date" className={inputCls} value={form.returnDue} onChange={set("returnDue")} />
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -481,16 +634,24 @@ export default function ExchangeReturnPanel() {
   const [selected, setSelected] = useState<ExchangeReturnRecord | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [advancingId, setAdvancingId] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
 
   const handleUpdated = useCallback((id: string, fields: Partial<ExchangeReturnRecord>) => {
     setRecords(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r));
     setSelected(prev => prev?.id === id ? { ...prev, ...fields } : prev);
   }, []);
 
+  const handleDeleted = useCallback((id: string) => {
+    setRecords(prev => prev.filter(r => r.id !== id));
+    setSelected(prev => prev?.id === id ? null : prev);
+  }, []);
+
   const handleAdvanceStage = useCallback(async (r: ExchangeReturnRecord) => {
-    const idx = STAGES.indexOf(r.stage as typeof STAGES[number]);
-    if (idx === -1 || idx === STAGES.length - 1) return;
-    const nextStage = STAGES[idx + 1];
+    const visible = stagesFor(r.type);
+    const idx = visible.indexOf(r.stage as Stage);
+    if (idx === -1 || idx === visible.length - 1) return;
+    const nextStage = visible[idx + 1];
     setAdvancingId(r.id);
     try {
       const res = await fetch("/api/exchange-return/update", {
@@ -524,11 +685,38 @@ export default function ExchangeReturnPanel() {
     return () => clearInterval(id);
   }, [load]);
 
+  const handleSync = useCallback(async () => {
+    setSyncing(true);
+    setSyncMsg(null);
+    try {
+      const res = await fetch("/api/exchange-return/sync", { method: "POST" });
+      const json = await res.json();
+      if (!json.ok) {
+        setSyncMsg(`⚠️ 동기화 실패: ${json.error || "알 수 없는 오류"}`);
+        return;
+      }
+      const r = json.result || {};
+      const parts: string[] = [];
+      if (r.matchedNewAssets)     parts.push(`교체 매칭 ${r.matchedNewAssets}건`);
+      if (r.returnedCompleted)    parts.push(`반납완료 ${r.returnedCompleted}건`);
+      if (r.newRetirementRecords) parts.push(`퇴사반납 신규 ${r.newRetirementRecords}건`);
+      if (r.ambiguousMatches)     parts.push(`수동확인 ${r.ambiguousMatches}건`);
+      setSyncMsg(parts.length > 0 ? `✅ ${parts.join(" · ")}` : "✅ 변경 사항 없음");
+      load(true);
+    } catch (e) {
+      setSyncMsg(`⚠️ ${String(e)}`);
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncMsg(null), 6000);
+    }
+  }, [load]);
+
   const total = records.length;
-  const inProgress = records.filter(r => r.stage !== "완료").length;
-  const completed = records.filter(r => r.stage === "완료").length;
+  const inProgress = records.filter(r => r.stage !== FINAL_STAGE).length;
+  const completed = records.filter(r => r.stage === FINAL_STAGE).length;
   const exchanges = records.filter(r => r.type === "교체").length;
-  const returns = records.filter(r => r.type === "반납").length;
+  const returns = records.filter(r => r.type === "퇴사반납").length;
+  const overdue = records.filter(isOverdue).length;
 
   const stageCounts = useMemo(() =>
     Object.fromEntries(STAGES.map(s => [s, records.filter(r => r.stage === s).length])),
@@ -581,6 +769,20 @@ export default function ExchangeReturnPanel() {
             </svg>
             신규 등록
           </button>
+          <button onClick={handleSync} disabled={syncing}
+            title="HW DB와 동기화 — 신규 자산/반납 자동 진행, 퇴사반납 자동 등록"
+            className="text-xs font-semibold px-3 py-1.5 rounded bg-cyan-600 text-white hover:bg-cyan-700 disabled:opacity-50 flex items-center gap-1.5 transition-colors">
+            {syncing ? (
+              <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity="0.25"/><path d="M21 12a9 9 0 00-9-9"/>
+              </svg>
+            ) : (
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M21 12a9 9 0 11-6.219-8.56"/><polyline points="21 4 21 12 13 12"/>
+              </svg>
+            )}
+            HW 동기화
+          </button>
           <button onClick={() => load(true)}
             className="text-xs font-medium px-3 py-1.5 rounded border bg-white text-gray-600 border-gray-300 hover:border-gray-400 flex items-center gap-1 transition-colors">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -591,18 +793,23 @@ export default function ExchangeReturnPanel() {
         </div>
       </div>
 
+      {syncMsg && (
+        <div className="mb-3 px-4 py-2 bg-cyan-50 border border-cyan-200 rounded-lg text-sm text-cyan-800">{syncMsg}</div>
+      )}
+
       {error && (
         <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">⚠️ {error}</div>
       )}
 
       {/* 요약 카드 */}
-      <div className="grid grid-cols-5 gap-3 mb-6">
+      <div className="grid grid-cols-6 gap-3 mb-6">
         {[
           { label: "전체",    value: total,      color: "#1E40AF" },
           { label: "진행 중", value: inProgress,  color: "#C2410C" },
           { label: "완료",    value: completed,   color: "#059669" },
           { label: "교체",    value: exchanges,   color: "#1D4ED8" },
-          { label: "반납",    value: returns,     color: "#C2410C" },
+          { label: "퇴사반납", value: returns,    color: "#B91C1C" },
+          { label: "미반납",   value: overdue,    color: "#DC2626" },
         ].map(({ label, value, color }) => (
           <div key={label} className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-1">
             <div className="text-2xl font-extrabold" style={{ color }}>{value}</div>
@@ -664,30 +871,32 @@ export default function ExchangeReturnPanel() {
         <table className="data-table">
           <thead>
             <tr>
-              {["진행단계", "유형", "자산번호", "교체 자산번호", "법인", "부서", "사용자", "신청일", "신청사유", "담당자", "비고"].map(h => (
+              {["진행단계", "유형", "자산번호", "교체 자산번호", "법인", "부서", "사용자", "신청일", "반납예정", "신청사유", "담당자", "비고"].map(h => (
                 <th key={h}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={11} className="text-center text-gray-400 py-10">데이터 없음</td></tr>
+              <tr><td colSpan={12} className="text-center text-gray-400 py-10">데이터 없음</td></tr>
             ) : filtered.map(r => {
               const days = agingDays(r.requestedAt, r.completedAt, r.stage);
+              const overdueRow = isOverdue(r);
               return (
-                <tr key={r.id}>
+                <tr key={r.id} className={overdueRow ? "bg-red-50/40" : ""}>
                   {/* 진행단계 */}
                   <td>
                     <div className="flex flex-col gap-1">
                       <div className="cursor-pointer" onClick={() => setSelected(r)}>
-                        <MiniStageBar stage={r.stage} />
+                        <MiniStageBar stage={r.stage} type={r.type} />
                       </div>
                       <div className="flex items-center gap-1 flex-wrap">
                         <span className="cursor-pointer" onClick={() => setSelected(r)}>
                           <StageBadge stage={r.stage} />
                         </span>
                         <AgingChip days={days} stage={r.stage} />
-                        {r.stage !== "완료" && (
+                        {r.autoSynced && <span className="text-[10px] font-bold text-cyan-700" title="자동 동기화">⚡</span>}
+                        {r.stage !== FINAL_STAGE && (
                           <button
                             onClick={() => handleAdvanceStage(r)}
                             disabled={advancingId === r.id}
@@ -720,6 +929,10 @@ export default function ExchangeReturnPanel() {
                   <td className="text-xs text-gray-700">{r.user || "—"}</td>
                   {/* 신청일 */}
                   <td className="text-xs text-gray-500">{fmtDate(r.requestedAt)}</td>
+                  {/* 반납예정 */}
+                  <td className="text-xs">
+                    {r.returnDue ? <DDay date={r.returnDue} /> : <span className="text-gray-300">—</span>}
+                  </td>
                   {/* 신청사유 */}
                   <td className="max-w-[120px]">
                     <p className="text-xs text-gray-700 truncate" title={r.reason}>{r.reason || "—"}</p>
@@ -743,6 +956,7 @@ export default function ExchangeReturnPanel() {
           record={selected}
           onClose={() => setSelected(null)}
           onUpdated={handleUpdated}
+          onDeleted={handleDeleted}
         />
       )}
 
