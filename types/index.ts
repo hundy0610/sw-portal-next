@@ -171,6 +171,28 @@ export interface HwRepairRecord {
 }
 
 // ────────────────────────────────────────────────────────────
+// 교체/반납 트래커
+// ────────────────────────────────────────────────────────────
+export interface ExchangeReturnRecord {
+  id: string;
+  type: string;           // 유형: 교체 or 반납
+  assetId: string;        // 자산번호 (title)
+  newAssetId: string;     // 교체 자산번호 (교체 시)
+  company: string;        // 법인
+  department: string;     // 부서
+  user: string;           // 사용자
+  stage: string;          // 현재단계
+  requestedAt: string;    // 신청일 YYYY-MM-DD
+  completedAt: string;    // 완료일 YYYY-MM-DD
+  reason: string;         // 신청사유
+  assignee: string;       // 담당자 이름
+  assigneeId: string;     // 담당자 Notion user ID
+  note: string;           // 비고
+  lastEditedAt: string;
+  notionUrl: string;
+}
+
+// ────────────────────────────────────────────────────────────
 // API 응답 래퍼
 // ────────────────────────────────────────────────────────────
 export interface ApiResponse<T> {
