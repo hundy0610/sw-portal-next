@@ -5,8 +5,10 @@ import { memDel } from "@/lib/mem-cache";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  if (!process.env.NOTION_DB_EXCHANGE_RETURN) {
-    return NextResponse.json({ ok: false, error: "NOTION_DB_EXCHANGE_RETURN 없음" }, { status: 503 });
+  for (const v of ["NOTION_TOKEN", "NOTION_DB_EXCHANGE_RETURN"]) {
+    if (!process.env[v]) {
+      return NextResponse.json({ ok: false, missingEnv: v, error: `환경변수 ${v} 가 설정되지 않았습니다.` }, { status: 503 });
+    }
   }
 
   try {

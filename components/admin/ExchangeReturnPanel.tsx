@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import type { ExchangeReturnRecord } from "@/types";
+import EnvVarMissing from "@/components/ui/EnvVarMissing";
 
 // ── 상수 ────────────────────────────────────────────────────
 const STAGES = ["교체요청", "요청기안", "기기준비", "사용자수령", "반납요청", "반납완료"] as const;
@@ -627,6 +628,7 @@ export default function ExchangeReturnPanel() {
   const [records, setRecords] = useState<ExchangeReturnRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [missingEnv, setMissingEnv] = useState<string | null>(null);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
   const [stageFilter, setStageFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -671,6 +673,7 @@ export default function ExchangeReturnPanel() {
     fetch(`/api/exchange-return${force ? "?refresh=1" : ""}`)
       .then(r => r.json())
       .then(res => {
+        if (res.missingEnv) { setMissingEnv(res.missingEnv); return; }
         if (res.error) { setError(res.error); return; }
         setRecords(res.data ?? []);
         setLastSynced(res.lastSynced ?? null);
@@ -733,6 +736,8 @@ export default function ExchangeReturnPanel() {
     }
     return true;
   }), [records, stageFilter, typeFilter, search]);
+
+  if (missingEnv) return <EnvVarMissing varName={missingEnv} />;
 
   if (loading) {
     return (
