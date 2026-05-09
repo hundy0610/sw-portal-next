@@ -14,6 +14,7 @@ function generateTempPassword(): string {
 const ACCOUNTS_KEY    = "sw:accounts";
 const GM_KEY          = "sw:general-managers";
 const GM_DETAILS_KEY  = "sw:gm-details";
+const SUPER_EMAILS_KEY = "sw:super-emails";
 
 export interface Account {
   id: string;
@@ -58,15 +59,14 @@ async function saveAccounts(accounts: Account[]): Promise<void> {
 
 async function syncGmLists(accounts: Account[]) {
   const generals = accounts.filter(a => a.role === "general" && a.active);
-  const gmUserIds = generals.map(a => a.userId);
-  const gmDetails: GmDetail[] = generals.map(a => ({
-    userId: a.userId,
-    email:  a.email,
-    name:   a.name,
-  }));
+  const supers   = accounts.filter(a => a.role === "super"   && a.active);
+  const gmUserIds   = generals.map(a => a.userId);
+  const gmDetails: GmDetail[] = generals.map(a => ({ userId: a.userId, email: a.email, name: a.name }));
+  const superEmails = supers.map(a => a.email).filter(Boolean);
   await Promise.all([
-    kvSetPermanent(GM_KEY, gmUserIds),
-    kvSetPermanent(GM_DETAILS_KEY, gmDetails),
+    kvSetPermanent(GM_KEY,          gmUserIds),
+    kvSetPermanent(GM_DETAILS_KEY,  gmDetails),
+    kvSetPermanent(SUPER_EMAILS_KEY, superEmails),
   ]);
 }
 
@@ -81,7 +81,11 @@ export async function GET(request: NextRequest) {
   }
 
   const accounts = await getAccounts();
-  // 비밀번호 해시는 응답에서 제외
+
+  // sw:super-emails가 없으면 최초 1회 동기화 (기존 계정 대응)
+  const superEmails = await kvGet<string[]>(SUPER_EMAILS_KEY);
+  if (superEmails === null) await syncGmLists(accounts);
+
   const safe = accounts.map(({ password: _pw, ...rest }) => rest);
   return NextResponse.json({ ok: true, accounts: safe });
 }
@@ -130,10 +134,7 @@ export async function POST(request: NextRequest) {
 
     accounts.push(newAccount);
     await saveAccounts(accounts);
-
-    if (validRole === "general") {
-      await syncGmLists(accounts);
-    }
+    await syncGmLists(accounts);
 
     // 임시 비밀번호 이메일 발송
     const transporter = createMailTransporter();

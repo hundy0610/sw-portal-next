@@ -1,0 +1,33 @@
+name: Sync Exchange/Return Tracker
+
+on:
+  schedule:
+    # 매시간 실행 — HW DB와 교체/반납 트래커 동기화
+    - cron: "0 * * * *"
+  workflow_dispatch: # 수동 실행 버튼
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Sync exchange-return tracker with HW DB
+        run: |
+          echo "🔄 교체/반납 트래커 동기화 시작: $(date)"
+
+          BASE_URL="https://swportal.vercel.app"
+
+          RESPONSE=$(curl -s -o response.txt -w "%{http_code}" \
+            -X GET "${BASE_URL}/api/cron/sync-exchange-return" \
+            --max-time 90)
+
+          echo "응답 상태: $RESPONSE"
+          cat response.txt 2>/dev/null | head -c 500 || true
+
+          if [ "$RESPONSE" = "200" ]; then
+            echo "✅ 동기화 완료"
+          else
+            echo "⚠️ 응답 코드: $RESPONSE"
+            exit 0
+          fi

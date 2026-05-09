@@ -171,6 +171,32 @@ export interface HwRepairRecord {
 }
 
 // ────────────────────────────────────────────────────────────
+// 교체/반납 트래커
+// ────────────────────────────────────────────────────────────
+// 유형: "교체" | "퇴사반납"
+// 단계: "교체요청" | "요청기안" | "기기준비" | "사용자수령" | "반납요청" | "반납완료"
+export interface ExchangeReturnRecord {
+  id: string;
+  type: string;
+  assetId: string;
+  newAssetId: string;
+  company: string;
+  department: string;
+  user: string;
+  stage: string;
+  requestedAt: string;
+  returnDue: string;       // 반납예정일 (사용자수령일 + 7일 자동 또는 HW DB 값)
+  completedAt: string;
+  reason: string;
+  assignee: string;
+  assigneeId: string;
+  note: string;
+  autoSynced: boolean;     // HW DB sync로 자동 진행됐는지 표시
+  lastEditedAt: string;
+  notionUrl: string;
+}
+
+// ────────────────────────────────────────────────────────────
 // API 응답 래퍼
 // ────────────────────────────────────────────────────────────
 export interface ApiResponse<T> {

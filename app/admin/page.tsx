@@ -18,7 +18,8 @@ const HelpDeskPanel     = dynamic(() => import("@/components/admin/HelpDeskPanel
 const ContractPanel     = dynamic(() => import("@/components/admin/ContractPanel"),     { ssr: false });
 const RepairPanel       = dynamic(() => import("@/components/admin/RepairPanel"),       { ssr: false });
 const RentalHwPanel     = dynamic(() => import("@/components/admin/RentalHwPanel"),     { ssr: false });
-const HwRepairPanel     = dynamic(() => import("@/components/admin/HwRepairPanel"),     { ssr: false });
+const HwRepairPanel          = dynamic(() => import("@/components/admin/HwRepairPanel"),          { ssr: false });
+const ExchangeReturnPanel    = dynamic(() => import("@/components/admin/ExchangeReturnPanel"),    { ssr: false });
 
 // ── 세션 타입 ──────────────────────────────────────────────────
 interface SessionInfo {
@@ -29,10 +30,10 @@ interface SessionInfo {
   mustChangePassword?: boolean;
 }
 
-type PageId = "home" | "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "rental-hw" | "accounts" | "assetmap" | "helpdesk" | "contracts" | "repair" | "hw-repair";
+type PageId = "home" | "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "rental-hw" | "accounts" | "assetmap" | "helpdesk" | "contracts" | "repair" | "hw-repair" | "exchange-return";
 
 // 슈퍼어드민 전용 페이지 (company 계정은 접근 불가)
-const SUPER_ONLY_PAGES = new Set<PageId>(["credentials", "swdb", "accounts", "contracts", "rental-hw", "hw-repair"]);
+const SUPER_ONLY_PAGES = new Set<PageId>(["credentials", "swdb", "accounts", "contracts", "rental-hw", "hw-repair", "exchange-return"]);
 
 // ── 메뉴 정의 ──────────────────────────────────────────────────
 type MenuItem = { id: PageId; icon: string; label: string; desc: string };
@@ -75,7 +76,8 @@ const SUPER_GROUPS: MenuGroup[] = [
     items: [
       { id: "accounts",  icon: "👤", label: "계정 권한 설정",      desc: "담당자 계정 관리"          },
       { id: "contracts", icon: "📋", label: "계약 관리",           desc: "PC/OA 유지보수 계약"       },
-      { id: "hw-repair", icon: "🔩", label: "수리/과실청구 트래커", desc: "외부 수리 · 과실 청구 관리" },
+      { id: "hw-repair",        icon: "🔩", label: "수리/과실청구 트래커", desc: "외부 수리 · 과실 청구 관리" },
+      { id: "exchange-return", icon: "🔄", label: "교체/반납 트래커",    desc: "기기 교체 · 반납 처리 관리" },
     ],
   },
 ];
@@ -213,7 +215,8 @@ export default function AdminPage() {
       case "assetmap":    return <AssetMapPanel session={session} />;
       case "helpdesk":    return <HelpDeskPanel company={isSuper ? "" : company} />;
       case "repair":      return <RepairPanel company={company} />;
-      case "hw-repair":   return canAccess("hw-repair") ? <HwRepairPanel /> : <AccessDenied />;
+      case "hw-repair":        return canAccess("hw-repair")        ? <HwRepairPanel />        : <AccessDenied />;
+      case "exchange-return":  return canAccess("exchange-return")  ? <ExchangeReturnPanel /> : <AccessDenied />;
       case "accounts":    return canAccess("accounts")    ? <AccountsPanel isSuperAdmin={session?.role === "super"} />   : <AccessDenied />;
       case "contracts":   return canAccess("contracts")   ? <ContractPanel />   : <AccessDenied />;
       default:            return null;
