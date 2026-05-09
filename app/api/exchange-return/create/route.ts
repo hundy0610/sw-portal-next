@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createExchangeReturn, type CreateFields } from "@/lib/exchange-return";
-import { memDel } from "@/lib/mem-cache";
+import { memGet, memDel } from "@/lib/mem-cache";
+import type { ExchangeReturnRecord } from "@/types";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,17 @@ export async function POST(req: NextRequest) {
     }
     if (!body.type) {
       return NextResponse.json({ ok: false, error: "유형 필수" }, { status: 400 });
+    }
+
+    // 같은 자산번호의 미완료 교체/퇴사반납 이력이 이미 있으면 중복 등록 방지
+    const cached = memGet<ExchangeReturnRecord[]>("exchange-return:all");
+    if (cached) {
+      const dup = cached.find(r =>
+        r.type === body.type &&
+        r.assetId === body.assetId.trim() &&
+        r.stage !== "반납완료"
+      );
+      if (dup) return NextResponse.json({ ok: true, skipped: true, existingId: dup.id });
     }
 
     const record = await createExchangeReturn(body);
