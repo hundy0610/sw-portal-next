@@ -172,6 +172,151 @@ function BigStageBar({ stage, type }: { stage: string; type: string }) {
   );
 }
 
+// ── 재고 자산 선택 모달 ──────────────────────────────────────
+interface StockAsset { id: string; assetNo: string; model: string; cpu: string; ram: string; }
+
+function AssetPickerModal({
+  company, user, department, recordId, onClose, onPicked,
+}: {
+  company: string;
+  user: string;
+  department: string;
+  recordId: string;
+  onClose: () => void;
+  onPicked: (assetNo: string) => void;
+}) {
+  const [assets, setAssets]     = useState<StockAsset[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [selected, setSelected] = useState<StockAsset | null>(null);
+  const [useDate, setUseDate]   = useState(new Date().toISOString().slice(0, 10));
+  const [saving, setSaving]     = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/hw?company=${encodeURIComponent(company)}&status=재고`)
+      .then(r => r.json())
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then(json => setAssets((json.records as any[]).map((r: any) => ({
+        id: r.id, assetNo: r.assetNo, model: r.model, cpu: r.cpu, ram: r.ram,
+      }))))
+      .finally(() => setLoading(false));
+  }, [company]);
+
+  const confirm = async () => {
+    if (!selected || !useDate) return;
+    setSaving(true);
+    try {
+      await Promise.all([
+        fetch("/api/exchange-return/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: recordId, fields: { newAssetId: selected.assetNo } }),
+        }),
+        fetch("/api/hw/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: selected.id,
+            fields: { status: "출고준비중", user, dept: department, useDate },
+          }),
+        }),
+      ]);
+      onPicked(selected.assetNo);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50"
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden"
+        style={{ maxHeight: "85vh", display: "flex", flexDirection: "column" }}
+        onClick={e => e.stopPropagation()}>
+
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+          <div>
+            <h3 className="font-bold text-gray-900 text-base">
+              {selected ? "사용일자 지정" : "재고 자산 선택"}
+            </h3>
+            <p className="text-xs text-gray-400 mt-0.5">{company} · 재고 상태 자산</p>
+          </div>
+          <button onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 text-2xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">×</button>
+        </div>
+
+        {!selected ? (
+          <div className="overflow-y-auto flex-1">
+            {loading ? (
+              <div className="flex items-center justify-center py-12 gap-2 text-gray-400">
+                <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                </svg>
+                <span className="text-sm">불러오는 중...</span>
+              </div>
+            ) : assets.length === 0 ? (
+              <p className="text-center text-gray-400 py-12 text-sm">{company} 법인에 재고 자산이 없습니다.</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50">
+                    <th className="text-left text-xs text-gray-400 font-medium px-4 py-2.5">자산번호</th>
+                    <th className="text-left text-xs text-gray-400 font-medium px-4 py-2.5">모델명</th>
+                    <th className="text-left text-xs text-gray-400 font-medium px-4 py-2.5">CPU</th>
+                    <th className="text-left text-xs text-gray-400 font-medium px-4 py-2.5">RAM</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {assets.map(a => (
+                    <tr key={a.id} onClick={() => setSelected(a)}
+                      className="border-b border-gray-50 hover:bg-blue-50 cursor-pointer transition-colors">
+                      <td className="px-4 py-2.5 font-mono text-xs text-gray-700">{a.assetNo || "—"}</td>
+                      <td className="px-4 py-2.5 text-xs text-gray-800">{a.model || "—"}</td>
+                      <td className="px-4 py-2.5 text-xs text-gray-500">{a.cpu || "—"}</td>
+                      <td className="px-4 py-2.5 text-xs text-gray-500">{a.ram || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        ) : (
+          <div className="px-6 py-6 flex flex-col gap-5">
+            <div className="bg-gray-50 rounded-xl p-4 space-y-1">
+              <p className="text-xs text-gray-400">선택된 자산</p>
+              <p className="font-mono font-bold text-gray-900 text-sm">{selected.assetNo}</p>
+              <p className="text-xs text-gray-500">{selected.model} · {selected.cpu} · {selected.ram}</p>
+            </div>
+            <div className="bg-blue-50 rounded-xl p-4 text-xs text-blue-700 space-y-1">
+              <p className="font-medium">확정 시 자동 적용</p>
+              <ul className="space-y-0.5 list-disc list-inside">
+                <li>HW DB 상태 → <strong>출고준비중</strong></li>
+                <li>사용자 → <strong>{user || "—"}</strong></li>
+                <li>부서 → <strong>{department || "—"}</strong></li>
+              </ul>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-gray-500 font-medium">사용일자</label>
+              <input type="date" value={useDate} onChange={e => setUseDate(e.target.value)}
+                className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full" />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setSelected(null)}
+                className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">
+                뒤로
+              </button>
+              <button onClick={confirm} disabled={saving || !useDate}
+                className="text-sm px-5 py-2 rounded-lg bg-gray-900 text-white font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                {saving ? "저장 중…" : "확정"}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── 상세 모달 ─────────────────────────────────────────────────
 function DetailModal({
   record, onClose, onUpdated, onDeleted,
@@ -217,6 +362,7 @@ function DetailModal({
   const [note, setNote] = useState(record.note ?? "");
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<Record<string, boolean>>({});
+  const [showAssetPicker, setShowAssetPicker] = useState(false);
 
   const visibleStages = stagesFor(type);
 
@@ -346,12 +492,34 @@ function DetailModal({
           <Row label="신청일">{fmtDateKo(record.requestedAt)}</Row>
 
           {record.type === "교체" && (
-            <SaveRow label="교체 자산번호" field="newAssetId">
-              <input value={newAssetId} onChange={e => setNewAssetId(e.target.value)} className={selectCls + " w-40"} placeholder="교체 자산번호" />
-              <button onClick={() => save("newAssetId", { newAssetId })} disabled={saving === "newAssetId" || newAssetId === record.newAssetId} className={saveBtnCls("newAssetId", newAssetId, record.newAssetId)}>
-                {saving === "newAssetId" ? "저장 중…" : "저장"}
-              </button>
-            </SaveRow>
+            <Row label="교체 자산번호">
+              <div className="flex items-center gap-2">
+                <button onClick={() => setShowAssetPicker(true)}
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white hover:border-blue-300 hover:bg-blue-50 text-left min-w-[10rem] transition-colors">
+                  {newAssetId
+                    ? <span className="font-mono text-gray-800">{newAssetId}</span>
+                    : <span className="text-gray-400">재고에서 선택...</span>
+                  }
+                </button>
+                {saved.newAssetId && <span className="text-xs text-green-600">✓ 변경됨</span>}
+              </div>
+            </Row>
+          )}
+          {showAssetPicker && (
+            <AssetPickerModal
+              company={company || record.company || ""}
+              user={user || record.user || ""}
+              department={department || record.department || ""}
+              recordId={record.id}
+              onClose={() => setShowAssetPicker(false)}
+              onPicked={(assetNo) => {
+                setNewAssetId(assetNo);
+                onUpdated(record.id, { newAssetId: assetNo });
+                setSaved(p => ({ ...p, newAssetId: true }));
+                setTimeout(() => setSaved(p => ({ ...p, newAssetId: false })), 2000);
+                setShowAssetPicker(false);
+              }}
+            />
           )}
 
           <SaveRow label="반납예정일" field="returnDue">
@@ -636,8 +804,7 @@ export default function ExchangeReturnPanel() {
   const [selected, setSelected] = useState<ExchangeReturnRecord | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [advancingId, setAdvancingId] = useState<string | null>(null);
-  const [syncing, setSyncing] = useState(false);
-  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const [pickerTarget, setPickerTarget] = useState<ExchangeReturnRecord | null>(null);
 
   const handleUpdated = useCallback((id: string, fields: Partial<ExchangeReturnRecord>) => {
     setRecords(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r));
@@ -686,32 +853,6 @@ export default function ExchangeReturnPanel() {
   useEffect(() => {
     const id = setInterval(() => load(true), 30_000);
     return () => clearInterval(id);
-  }, [load]);
-
-  const handleSync = useCallback(async () => {
-    setSyncing(true);
-    setSyncMsg(null);
-    try {
-      const res = await fetch("/api/exchange-return/sync", { method: "POST" });
-      const json = await res.json();
-      if (!json.ok) {
-        setSyncMsg(`⚠️ 동기화 실패: ${json.error || "알 수 없는 오류"}`);
-        return;
-      }
-      const r = json.result || {};
-      const parts: string[] = [];
-      if (r.matchedNewAssets)     parts.push(`교체 매칭 ${r.matchedNewAssets}건`);
-      if (r.returnedCompleted)    parts.push(`반납완료 ${r.returnedCompleted}건`);
-      if (r.newRetirementRecords) parts.push(`퇴사반납 신규 ${r.newRetirementRecords}건`);
-      if (r.ambiguousMatches)     parts.push(`수동확인 ${r.ambiguousMatches}건`);
-      setSyncMsg(parts.length > 0 ? `✅ ${parts.join(" · ")}` : "✅ 변경 사항 없음");
-      load(true);
-    } catch (e) {
-      setSyncMsg(`⚠️ ${String(e)}`);
-    } finally {
-      setSyncing(false);
-      setTimeout(() => setSyncMsg(null), 6000);
-    }
   }, [load]);
 
   const total = records.length;
@@ -774,20 +915,6 @@ export default function ExchangeReturnPanel() {
             </svg>
             신규 등록
           </button>
-          <button onClick={handleSync} disabled={syncing}
-            title="HW DB와 동기화 — 신규 자산/반납 자동 진행, 퇴사반납 자동 등록"
-            className="text-xs font-semibold px-3 py-1.5 rounded bg-cyan-600 text-white hover:bg-cyan-700 disabled:opacity-50 flex items-center gap-1.5 transition-colors">
-            {syncing ? (
-              <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity="0.25"/><path d="M21 12a9 9 0 00-9-9"/>
-              </svg>
-            ) : (
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M21 12a9 9 0 11-6.219-8.56"/><polyline points="21 4 21 12 13 12"/>
-              </svg>
-            )}
-            HW 동기화
-          </button>
           <button onClick={() => load(true)}
             className="text-xs font-medium px-3 py-1.5 rounded border bg-white text-gray-600 border-gray-300 hover:border-gray-400 flex items-center gap-1 transition-colors">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -797,10 +924,6 @@ export default function ExchangeReturnPanel() {
           </button>
         </div>
       </div>
-
-      {syncMsg && (
-        <div className="mb-3 px-4 py-2 bg-cyan-50 border border-cyan-200 rounded-lg text-sm text-cyan-800">{syncMsg}</div>
-      )}
 
       {error && (
         <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">⚠️ {error}</div>
@@ -925,7 +1048,16 @@ export default function ExchangeReturnPanel() {
                   {/* 자산번호 */}
                   <td><span className="font-mono text-sm font-semibold text-gray-800">{r.assetId || "—"}</span></td>
                   {/* 교체 자산번호 */}
-                  <td className="font-mono text-xs text-gray-500">{r.newAssetId || "—"}</td>
+                  <td>
+                    {r.type === "교체" ? (
+                      <button onClick={() => setPickerTarget(r)}
+                        className="font-mono text-xs text-gray-500 hover:text-blue-600 hover:underline cursor-pointer text-left">
+                        {r.newAssetId || <span className="text-gray-300 not-italic">선택...</span>}
+                      </button>
+                    ) : (
+                      <span className="font-mono text-xs text-gray-500">{r.newAssetId || "—"}</span>
+                    )}
+                  </td>
                   {/* 법인 */}
                   <td className="text-xs text-gray-600">{r.company || "—"}</td>
                   {/* 부서 */}
@@ -969,6 +1101,20 @@ export default function ExchangeReturnPanel() {
         <CreateModal
           onClose={() => setCreateOpen(false)}
           onCreated={() => { setCreateOpen(false); load(true); }}
+        />
+      )}
+
+      {pickerTarget && (
+        <AssetPickerModal
+          company={pickerTarget.company || ""}
+          user={pickerTarget.user || ""}
+          department={pickerTarget.department || ""}
+          recordId={pickerTarget.id}
+          onClose={() => setPickerTarget(null)}
+          onPicked={(assetNo) => {
+            handleUpdated(pickerTarget.id, { newAssetId: assetNo });
+            setPickerTarget(null);
+          }}
         />
       )}
     </div>
