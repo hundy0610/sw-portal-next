@@ -73,6 +73,7 @@ function mapPage(page: PageObjectResponse): ExchangeReturnRecord {
     assigneeId:   pplFirstId(p, "담당자"),
     note:         txt(p, "비고"),
     autoSynced:   chk(p, "자동동기화"),
+    isClosed:     chk(p, "케이스종료"),
     lastEditedAt: page.last_edited_time,
     notionUrl:    page.url,
   };
@@ -111,20 +112,23 @@ export interface CreateFields {
   stage?: string;
   requestedAt?: string;
   returnDue?: string;
+  completedAt?: string;
   reason?: string;
   assigneeId?: string;
   note?: string;
   autoSynced?: boolean;
+  isClosed?: boolean;
 }
 
 export async function createExchangeReturn(fields: CreateFields): Promise<ExchangeReturnRecord> {
   const dbId = getDbId();
-  if (!fields.assetId?.trim()) throw new Error("자산번호 필수");
+  if (fields.type !== "신규지급" && !fields.assetId?.trim()) throw new Error("자산번호 필수");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const props: Record<string, any> = {
-    "자산번호": { title: [{ text: { content: fields.assetId.trim() } }] },
-    "유형":     { select: { name: fields.type } },
+    "자산번호":   { title: [{ text: { content: fields.assetId?.trim() || "" } }] },
+    "유형":       { select: { name: fields.type } },
+    "케이스종료": { checkbox: false },
   };
 
   if (fields.newAssetId)  props["교체 자산번호"] = { rich_text: [{ text: { content: fields.newAssetId } }] };
@@ -134,6 +138,7 @@ export async function createExchangeReturn(fields: CreateFields): Promise<Exchan
   if (fields.stage)       props["현재단계"]      = { select: { name: fields.stage } };
   if (fields.requestedAt) props["신청일"]        = { date: { start: fields.requestedAt } };
   if (fields.returnDue)   props["반납예정일"]    = { date: { start: fields.returnDue } };
+  if (fields.completedAt) props["완료일"]        = { date: { start: fields.completedAt } };
   if (fields.reason)      props["신청사유"]      = { rich_text: [{ text: { content: fields.reason } }] };
   if (fields.assigneeId)  props["담당자"]        = { people: [{ object: "user", id: fields.assigneeId }] };
   if (fields.note)        props["비고"]          = { rich_text: [{ text: { content: fields.note } }] };
@@ -157,6 +162,7 @@ export interface UpdateFields {
   assigneeId?: string;
   note?: string;
   autoSynced?: boolean;
+  isClosed?: boolean;
 }
 
 export async function updateExchangeReturn(id: string, fields: UpdateFields): Promise<void> {
@@ -177,6 +183,7 @@ export async function updateExchangeReturn(id: string, fields: UpdateFields): Pr
     : { people: [] };
   if (fields.note        !== undefined) props["비고"]         = { rich_text: [{ text: { content: fields.note } }] };
   if (fields.autoSynced  !== undefined) props["자동동기화"]   = { checkbox: fields.autoSynced };
+  if (fields.isClosed    !== undefined) props["케이스종료"]   = { checkbox: fields.isClosed };
 
   if (Object.keys(props).length === 0) return;
 
@@ -189,6 +196,34 @@ export async function updateExchangeReturn(id: string, fields: UpdateFields): Pr
 export async function deleteExchangeReturn(id: string): Promise<void> {
   // Notion은 archived=true로 소프트 삭제. 휴지통에서 30일 후 영구 삭제됨.
   await notion.pages.update({ page_id: id, archived: true });
+}
+
+// HW 상태가 "재고"로 변경될 때 호출 — 반납요청 단계인 레코드를 반납완료로 자동 처리
+export async function autoCompleteReturnsByAssetId(assetId: string): Promise<number> {
+  if (!assetId) return 0;
+  const dbId = getDbId();
+
+  const res = await notion.databases.query({
+    database_id: dbId,
+    filter: { property: "자산번호", title: { equals: assetId } },
+  });
+
+  const today = new Date().toISOString().slice(0, 10);
+  const pending = (res.results as PageObjectResponse[]).filter(
+    p => sel(p.properties, "현재단계") === "반납요청"
+  );
+  if (pending.length === 0) return 0;
+
+  await Promise.all(pending.map(p =>
+    notion.pages.update({
+      page_id: p.id,
+      properties: {
+        "현재단계": { select: { name: "반납완료" } },
+        "완료일":   { date: { start: today } },
+      } as Parameters<typeof notion.pages.update>[0]["properties"],
+    })
+  ));
+  return pending.length;
 }
 
 

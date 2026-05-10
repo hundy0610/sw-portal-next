@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json() as CreateFields;
-    if (!body.assetId?.trim()) {
+    if (body.type !== "신규지급" && !body.assetId?.trim()) {
       return NextResponse.json({ ok: false, error: "자산번호 필수" }, { status: 400 });
     }
     if (!body.type) {

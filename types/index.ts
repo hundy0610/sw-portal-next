@@ -192,6 +192,7 @@ export interface ExchangeReturnRecord {
   assigneeId: string;
   note: string;
   autoSynced: boolean;     // HW DB sync로 자동 진행됐는지 표시
+  isClosed: boolean;       // 케이스 종료 여부 (마지막 단계 통과 시 true)
   lastEditedAt: string;
   notionUrl: string;
 }
