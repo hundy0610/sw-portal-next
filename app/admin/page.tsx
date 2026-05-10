@@ -77,7 +77,7 @@ const SUPER_GROUPS: MenuGroup[] = [
       { id: "accounts",  icon: "👤", label: "계정 권한 설정",      desc: "담당자 계정 관리"          },
       { id: "contracts", icon: "📋", label: "계약 관리",           desc: "PC/OA 유지보수 계약"       },
       { id: "hw-repair",        icon: "🔩", label: "수리/과실청구 트래커", desc: "외부 수리 · 과실 청구 관리" },
-      { id: "exchange-return", icon: "🔄", label: "교체/반납 트래커",    desc: "기기 교체 · 반납 처리 관리" },
+      { id: "exchange-return", icon: "🔄", label: "자산 흐름 관리",      desc: "기기 교체 · 반납 처리 관리" },
     ],
   },
 ];
