@@ -59,9 +59,9 @@ const SUPER_GROUPS: MenuGroup[] = [
   {
     label: "하드웨어 자산",
     items: [
-      { id: "exchange-return", icon: "🔄", label: "자산 흐름 관리",           desc: "기기 교체 · 반납 처리 관리" },
+      { id: "exchange-return", icon: "📲", label: "자산 흐름 관리",           desc: "기기 교체 · 반납 처리 관리" },
       { id: "hw",              icon: "💻", label: "노트북/데스크탑 자산관리", desc: "NT/DT 재고 · 반납 관리"     },
-      { id: "hw-repair",       icon: "🔩", label: "수리/과실청구 트래커",     desc: "외부 수리 · 과실 청구 관리" },
+      { id: "hw-repair",       icon: "🛠️", label: "수리/과실청구 트래커",     desc: "외부 수리 · 과실 청구 관리" },
       { id: "rental-hw",       icon: "📦", label: "임대노트북 현황 관리",     desc: "임시 PC 대여 · 반납 관리"   },
       { id: "assetmap",        icon: "🖥️", label: "스마트오피스 모니터 관리", desc: "인터랙티브 자산 맵"         },
     ],
