@@ -172,6 +172,9 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
   const [updatingId,   setUpdatingId]   = useState<string | null>(null);
   const [detailRecord, setDetailRecord] = useState<HwRecord | null>(null);
 
+  const [clearing, setClearing] = useState(false);
+  const [clearMsg, setClearMsg] = useState<string | null>(null);
+
   // 로딩 시간 (ms)
   const [loadTimes, setLoadTimes] = useState<Record<string, number>>({});
   const setTime = (key: string, ms: number) =>
@@ -271,6 +274,24 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
       setShipRecords(all.sort((a, b) => (a.useDate || "").localeCompare(b.useDate || "")));
     }).finally(() => setShipLoading(false));
   }, [company, isFiltered]);
+
+  async function clearCache(target: "hw" | "sw" | "all") {
+    setClearing(true);
+    setClearMsg(null);
+    try {
+      const calls = [];
+      if (target === "hw" || target === "all") calls.push(fetch("/api/hw/cache-clear", { method: "POST" }));
+      if (target === "sw" || target === "all") calls.push(fetch("/api/sw-records/cache-clear", { method: "POST" }));
+      await Promise.all(calls);
+      const label = target === "hw" ? "HW DB" : target === "sw" ? "SW DB" : "전체";
+      setClearMsg(`✅ ${label} 캐시 초기화 완료. 다음 조회 시 Notion에서 새로 불러옵니다.`);
+    } catch {
+      setClearMsg("⚠️ 초기화 중 오류가 발생했습니다.");
+    } finally {
+      setClearing(false);
+      setTimeout(() => setClearMsg(null), 5000);
+    }
+  }
 
   async function updateShipStatus(id: string, status: string) {
     setUpdatingId(id);
@@ -571,6 +592,27 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
           })}
         </div>
       )}
+
+      {/* 캐시 관리 */}
+      <div className="mt-2 pt-5 border-t border-gray-100">
+        <p className="text-xs text-gray-400 font-medium mb-2.5">캐시 관리</p>
+        <div className="flex flex-wrap items-center gap-2">
+          {([
+            { label: "HW DB 초기화", target: "hw" as const },
+            { label: "SW DB 초기화", target: "sw" as const },
+            { label: "전체 초기화",  target: "all" as const },
+          ]).map(({ label, target }) => (
+            <button key={target} onClick={() => clearCache(target)} disabled={clearing}
+              className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-500 hover:border-red-300 hover:text-red-600 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>
+              </svg>
+              {clearing ? "초기화 중…" : label}
+            </button>
+          ))}
+        </div>
+        {clearMsg && <p className="mt-2 text-[11px] text-gray-500">{clearMsg}</p>}
+      </div>
     </div>
   );
 }

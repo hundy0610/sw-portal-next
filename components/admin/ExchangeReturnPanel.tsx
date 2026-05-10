@@ -209,7 +209,7 @@ function AssetPickerModal({
         fetch("/api/exchange-return/update", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: recordId, fields: { newAssetId: selected.assetNo } }),
+          body: JSON.stringify({ id: recordId, fields: { newAssetId: selected.assetNo, stage: "기기준비" } }),
         }),
         fetch("/api/hw/update", {
           method: "POST",
@@ -293,6 +293,7 @@ function AssetPickerModal({
                 <li>HW DB 상태 → <strong>출고준비중</strong></li>
                 <li>사용자 → <strong>{user || "—"}</strong></li>
                 <li>부서 → <strong>{department || "—"}</strong></li>
+                <li>트래커 단계 → <strong>기기준비</strong></li>
               </ul>
             </div>
             <div className="flex flex-col gap-1.5">
@@ -312,6 +313,119 @@ function AssetPickerModal({
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── 사용자 수령 확정 모달 ────────────────────────────────────
+function ReceiptConfirmModal({
+  recordId, oldAssetId, newAssetId, onClose, onConfirmed,
+}: {
+  recordId: string;
+  oldAssetId: string;
+  newAssetId: string;
+  onClose: () => void;
+  onConfirmed: (returnDue: string) => void;
+}) {
+  const defaultDue = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return d.toISOString().slice(0, 10);
+  })();
+  const [returnDue, setReturnDue] = useState(defaultDue);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const confirm = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const [oldRes, newRes] = await Promise.all([
+        oldAssetId ? fetch(`/api/hw?search=${encodeURIComponent(oldAssetId)}`).then(r => r.json()) : Promise.resolve({ records: [] }),
+        newAssetId ? fetch(`/api/hw?search=${encodeURIComponent(newAssetId)}`).then(r => r.json()) : Promise.resolve({ records: [] }),
+      ]);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const find = (res: any, assetNo: string) =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (res.records as any[]).find((r: any) => r.assetNo === assetNo) ?? (res.records.length === 1 ? res.records[0] : null);
+
+      const oldRecord = oldAssetId ? find(oldRes, oldAssetId) : null;
+      const newRecord = newAssetId ? find(newRes, newAssetId) : null;
+
+      const updates: Promise<unknown>[] = [
+        fetch("/api/exchange-return/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: recordId, fields: { stage: "사용자수령", returnDue } }),
+        }),
+      ];
+      if (oldRecord) updates.push(
+        fetch("/api/hw/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: oldRecord.id, fields: { status: "반납예정", returnDue } }),
+        })
+      );
+      if (newRecord) updates.push(
+        fetch("/api/hw/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: newRecord.id, fields: { status: "사용중" } }),
+        })
+      );
+
+      await Promise.all(updates);
+      fetch("/api/hw/cache-clear", { method: "POST" });
+      onConfirmed(returnDue);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50"
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4"
+        onClick={e => e.stopPropagation()}>
+
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="font-bold text-gray-900 text-base">사용자 수령 처리</h3>
+          <button onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 text-2xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">×</button>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+          <div className="bg-orange-50 rounded-xl p-4 space-y-2">
+            <p className="font-semibold text-orange-800 text-sm">수령 확정 시 자동 적용 사항</p>
+            <ul className="space-y-1 list-disc list-inside text-xs text-orange-700">
+              {newAssetId && <li>교체 자산 <strong className="font-mono">{newAssetId}</strong> → HW DB 상태: <strong>사용중</strong></li>}
+              {oldAssetId && <li>기존 자산 <strong className="font-mono">{oldAssetId}</strong> → HW DB 상태: <strong>반납예정</strong></li>}
+              <li>트래커 단계 → <strong>사용자수령</strong></li>
+              <li>반납예정일 자동 설정</li>
+            </ul>
+          </div>
+
+          <div>
+            <label className="text-xs text-gray-500 font-medium block mb-1.5">반납예정일 (수령 후 7일 기본값)</label>
+            <input type="date" value={returnDue} onChange={e => setReturnDue(e.target.value)}
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-200" />
+          </div>
+
+          {error && <p className="text-xs text-red-600">⚠️ {error}</p>}
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
+          <button onClick={onClose}
+            className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">취소</button>
+          <button onClick={confirm} disabled={saving || !returnDue}
+            className="text-sm px-5 py-2 rounded-lg bg-orange-600 text-white font-medium hover:bg-orange-700 disabled:opacity-40">
+            {saving ? "처리 중…" : "수령 확정"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -363,6 +477,7 @@ function DetailModal({
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<Record<string, boolean>>({});
   const [showAssetPicker, setShowAssetPicker] = useState(false);
+  const [receiptConfirmOpen, setReceiptConfirmOpen] = useState(false);
 
   const visibleStages = stagesFor(type);
 
@@ -460,7 +575,13 @@ function DetailModal({
             <select value={stage} onChange={e => setStage(e.target.value)} className={selectCls}>
               {visibleStages.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
-            <button onClick={() => save("stage", { stage })} disabled={saving === "stage" || stage === record.stage} className={saveBtnCls("stage", stage, record.stage)}>
+            <button
+              onClick={() => {
+                if (stage === "사용자수령") { setReceiptConfirmOpen(true); }
+                else { save("stage", { stage }); }
+              }}
+              disabled={saving === "stage" || stage === record.stage}
+              className={saveBtnCls("stage", stage, record.stage)}>
               {saving === "stage" ? "저장 중…" : "저장"}
             </button>
           </SaveRow>
@@ -494,13 +615,17 @@ function DetailModal({
           {record.type === "교체" && (
             <Row label="교체 자산번호">
               <div className="flex items-center gap-2">
-                <button onClick={() => setShowAssetPicker(true)}
-                  className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white hover:border-blue-300 hover:bg-blue-50 text-left min-w-[10rem] transition-colors">
-                  {newAssetId
-                    ? <span className="font-mono text-gray-800">{newAssetId}</span>
-                    : <span className="text-gray-400">재고에서 선택...</span>
-                  }
-                </button>
+                {stage === "요청기안" ? (
+                  <button onClick={() => setShowAssetPicker(true)}
+                    className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white hover:border-blue-300 hover:bg-blue-50 text-left min-w-[10rem] transition-colors">
+                    {newAssetId
+                      ? <span className="font-mono text-gray-800">{newAssetId}</span>
+                      : <span className="text-gray-400">재고에서 선택...</span>
+                    }
+                  </button>
+                ) : (
+                  <span className="font-mono text-sm text-gray-800">{newAssetId || "—"}</span>
+                )}
                 {saved.newAssetId && <span className="text-xs text-green-600">✓ 변경됨</span>}
               </div>
             </Row>
@@ -514,10 +639,27 @@ function DetailModal({
               onClose={() => setShowAssetPicker(false)}
               onPicked={(assetNo) => {
                 setNewAssetId(assetNo);
-                onUpdated(record.id, { newAssetId: assetNo });
+                setStage("기기준비");
+                onUpdated(record.id, { newAssetId: assetNo, stage: "기기준비" });
                 setSaved(p => ({ ...p, newAssetId: true }));
                 setTimeout(() => setSaved(p => ({ ...p, newAssetId: false })), 2000);
                 setShowAssetPicker(false);
+              }}
+            />
+          )}
+          {receiptConfirmOpen && (
+            <ReceiptConfirmModal
+              recordId={record.id}
+              oldAssetId={record.assetId || ""}
+              newAssetId={newAssetId || record.newAssetId || ""}
+              onClose={() => setReceiptConfirmOpen(false)}
+              onConfirmed={(due) => {
+                setStage("사용자수령");
+                setReturnDue(due);
+                onUpdated(record.id, { stage: "사용자수령", returnDue: due });
+                setSaved(p => ({ ...p, stage: true }));
+                setTimeout(() => setSaved(p => ({ ...p, stage: false })), 2000);
+                setReceiptConfirmOpen(false);
               }}
             />
           )}
@@ -805,6 +947,7 @@ export default function ExchangeReturnPanel() {
   const [createOpen, setCreateOpen] = useState(false);
   const [advancingId, setAdvancingId] = useState<string | null>(null);
   const [pickerTarget, setPickerTarget] = useState<ExchangeReturnRecord | null>(null);
+  const [receiptTarget, setReceiptTarget] = useState<ExchangeReturnRecord | null>(null);
 
   const handleUpdated = useCallback((id: string, fields: Partial<ExchangeReturnRecord>) => {
     setRecords(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r));
@@ -821,6 +964,10 @@ export default function ExchangeReturnPanel() {
     const idx = visible.indexOf(r.stage as Stage);
     if (idx === -1 || idx === visible.length - 1) return;
     const nextStage = visible[idx + 1];
+    if (nextStage === "사용자수령") {
+      setReceiptTarget(r);
+      return;
+    }
     setAdvancingId(r.id);
     try {
       const res = await fetch("/api/exchange-return/update", {
@@ -1049,7 +1196,7 @@ export default function ExchangeReturnPanel() {
                   <td><span className="font-mono text-sm font-semibold text-gray-800">{r.assetId || "—"}</span></td>
                   {/* 교체 자산번호 */}
                   <td>
-                    {r.type === "교체" ? (
+                    {r.type === "교체" && r.stage === "요청기안" ? (
                       <button onClick={() => setPickerTarget(r)}
                         className="font-mono text-xs text-gray-500 hover:text-blue-600 hover:underline cursor-pointer text-left">
                         {r.newAssetId || <span className="text-gray-300 not-italic">선택...</span>}
@@ -1112,8 +1259,21 @@ export default function ExchangeReturnPanel() {
           recordId={pickerTarget.id}
           onClose={() => setPickerTarget(null)}
           onPicked={(assetNo) => {
-            handleUpdated(pickerTarget.id, { newAssetId: assetNo });
+            handleUpdated(pickerTarget.id, { newAssetId: assetNo, stage: "기기준비" });
             setPickerTarget(null);
+          }}
+        />
+      )}
+
+      {receiptTarget && (
+        <ReceiptConfirmModal
+          recordId={receiptTarget.id}
+          oldAssetId={receiptTarget.assetId || ""}
+          newAssetId={receiptTarget.newAssetId || ""}
+          onClose={() => setReceiptTarget(null)}
+          onConfirmed={(due) => {
+            handleUpdated(receiptTarget.id, { stage: "사용자수령", returnDue: due });
+            setReceiptTarget(null);
           }}
         />
       )}
