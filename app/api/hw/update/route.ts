@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
 import { kvDel } from "@/lib/kv-store";
+import { memDel } from "@/lib/mem-cache";
+import { autoCompleteReturnsByAssetId } from "@/lib/exchange-return";
 
 export const dynamic = "force-dynamic";
 
@@ -66,6 +68,21 @@ export async function POST(req: NextRequest) {
 
     // KV 캐시 무효화 (다음 조회 시 Notion에서 새로 fetch)
     await kvDel("hw:all", "hw:stats");
+
+    // 상태가 "재고"로 변경된 경우 — 반납요청 단계의 자산 흐름 레코드 자동 완료 처리
+    if (fields.status === "재고" && process.env.NOTION_DB_EXCHANGE_RETURN) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const page: any = await notion.pages.retrieve({ page_id: id });
+        const assetNo: string = page.properties?.["자산번호"]?.title?.[0]?.plain_text || "";
+        if (assetNo) {
+          const count = await autoCompleteReturnsByAssetId(assetNo);
+          if (count > 0) memDel("exchange-return:all");
+        }
+      } catch (e) {
+        console.error("[hw/update → autoCompleteReturn]", e);
+      }
+    }
 
     return NextResponse.json({ ok: true });
   } catch (e) {

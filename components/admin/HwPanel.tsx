@@ -286,6 +286,9 @@ function ShipmentTab({ records, loading, onRefresh, onUpdate, companyLock = "" }
   const pendingShip   = useMemo(() => filtered.filter(r => r.status === "출고준비중"),    [filtered]);
   const readyShip     = useMemo(() => filtered.filter(r => r.status === "출고준비완료"),  [filtered]);
 
+  const sortedPending = useMemo(() => [...pendingShip].sort((a, b) => String(a.useDate ?? "").localeCompare(String(b.useDate ?? ""))), [pendingShip]);
+  const sortedReady   = useMemo(() => [...readyShip].sort((a, b) => String(a.useDate ?? "").localeCompare(String(b.useDate ?? ""))),   [readyShip]);
+
   const SectionTable = ({ title, items, headerCls }: { title:string; items:HwRecord[]; headerCls:string }) => {
     if (items.length === 0) return null;
     return (
@@ -357,8 +360,8 @@ function ShipmentTab({ records, loading, onRefresh, onUpdate, companyLock = "" }
         <div className="py-16 text-center text-gray-300 text-sm"><p className="text-4xl mb-3">📤</p><p>출고 대상 자산이 없습니다</p></div>
       ) : (
         <>
-          <SectionTable title="📤 출고준비중" items={pendingShip} headerCls="bg-orange-50 text-orange-700" />
-          <SectionTable title="✅ 출고준비완료" items={readyShip} headerCls="bg-amber-50 text-amber-700" />
+          <SectionTable title="📤 출고준비중" items={sortedPending} headerCls="bg-orange-50 text-orange-700" />
+          <SectionTable title="✅ 출고준비완료" items={sortedReady} headerCls="bg-amber-50 text-amber-700" />
         </>
       )}
       {editRecord && (
@@ -537,7 +540,8 @@ function ReturnTab({ records, loading, onRefresh, onUpdate, companyLock = "" }: 
 
   const returnRecords = useMemo(() => {
     const base = records.filter(r => r.returnDue);
-    return company ? base.filter(r => r.company === company) : base;
+    const filtered = company ? base.filter(r => r.company === company) : base;
+    return filtered.sort((a, b) => String(a.returnDue).localeCompare(String(b.returnDue)));
   }, [records, company]);
 
   const urgent = useMemo(() => returnRecords.filter(r => new Date(r.returnDue).getTime() - today <= 7*86400000), [returnRecords]);
