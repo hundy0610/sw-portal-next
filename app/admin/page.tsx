@@ -47,16 +47,6 @@ const SUPER_GROUPS: MenuGroup[] = [
     ],
   },
   {
-    label: "소프트웨어 자산",
-    items: [
-      { id: "overview",    icon: "⚡", label: "전사 라이선스 현황",      desc: "현황 요약"             },
-      { id: "license",     icon: "🔑", label: "상용 라이선스 자산관리",  desc: "영구 · 구독 통합"      },
-      { id: "credentials", icon: "🔐", label: "계정 관리",               desc: "ID / PW 목록"          },
-      { id: "swdb",        icon: "🗄", label: "라이선스 설치 정책 관리", desc: "승인 / 금지 목록"      },
-      { id: "report",      icon: "📊", label: "구독형 라이선스 현황",    desc: "현황 분석 · 만료 알림" },
-    ],
-  },
-  {
     label: "하드웨어 자산",
     items: [
       { id: "exchange-return", icon: "📲", label: "자산 흐름 관리",           desc: "기기 교체 · 반납 처리 관리" },
@@ -64,6 +54,16 @@ const SUPER_GROUPS: MenuGroup[] = [
       { id: "hw-repair",       icon: "🛠️", label: "수리/과실청구 트래커",     desc: "외부 수리 · 과실 청구 관리" },
       { id: "rental-hw",       icon: "📦", label: "임대노트북 현황 관리",     desc: "임시 PC 대여 · 반납 관리"   },
       { id: "assetmap",        icon: "🖥️", label: "스마트오피스 모니터 관리", desc: "인터랙티브 자산 맵"         },
+    ],
+  },
+  {
+    label: "소프트웨어 자산",
+    items: [
+      { id: "overview",    icon: "⚡", label: "전사 라이선스 현황",      desc: "현황 요약"             },
+      { id: "license",     icon: "🔑", label: "상용 라이선스 자산관리",  desc: "영구 · 구독 통합"      },
+      { id: "credentials", icon: "🔐", label: "계정 관리",               desc: "ID / PW 목록"          },
+      { id: "swdb",        icon: "🗄", label: "라이선스 설치 정책 관리", desc: "승인 / 금지 목록"      },
+      { id: "report",      icon: "📊", label: "구독형 라이선스 현황",    desc: "현황 분석 · 만료 알림" },
     ],
   },
   {
