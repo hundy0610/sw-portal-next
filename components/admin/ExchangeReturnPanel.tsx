@@ -522,7 +522,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
         onClick={e => e.stopPropagation()}>
 
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="font-bold text-gray-900 text-base">교체/반납 건 등록</h3>
+          <h3 className="font-bold text-gray-900 text-base">자산 흐름 관리 — 신규 등록</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">×</button>
         </div>
 
@@ -746,7 +746,7 @@ export default function ExchangeReturnPanel() {
           <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity="0.25"/>
           <path d="M21 12a9 9 0 00-9-9"/>
         </svg>
-        교체/반납 내역 불러오는 중...
+        자산 흐름 내역 불러오는 중...
       </div>
     );
   }
@@ -756,7 +756,7 @@ export default function ExchangeReturnPanel() {
       {/* 헤더 */}
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <div>
-          <h2 className="text-xl font-bold text-gray-900 mb-0.5">교체/반납 트래커</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-0.5">자산 흐름 관리</h2>
           <p className="text-sm text-gray-500">
             기기 교체 · 반납 처리 관리 · 전체 {total}건
             {lastSynced && (

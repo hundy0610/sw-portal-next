@@ -193,14 +193,13 @@ export async function deleteExchangeReturn(id: string): Promise<void> {
 }
 
 // ────────────────────────────────────────────────────────────
-// HW DB 동기화 — 자동 단계 진행 / 퇴사반납 자동 등록
+// HW DB 동기화 — 자동 단계 진행
 // ────────────────────────────────────────────────────────────
 export interface SyncResult {
-  matchedNewAssets: number;     // 교체 신규 자산 매칭 → 반납요청 진입
-  ambiguousMatches: number;     // 매칭 후보 여러 건 (수동 확인 필요)
-  returnedCompleted: number;    // 반납요청 → 반납완료 자동 전환
-  newRetirementRecords: number; // HW DB → 퇴사반납 신규 등록
-  newExchangeRecords: number;   // HW DB 교체요청 상태 → 교체 신규 등록
+  matchedNewAssets: number;  // 교체 신규 자산 매칭 → 반납요청 진입
+  ambiguousMatches: number;  // 매칭 후보 여러 건 (수동 확인 필요)
+  returnedCompleted: number; // 반납요청 → 반납완료 자동 전환
+  newExchangeRecords: number; // HW DB 교체요청 상태 → 교체 신규 등록
   errors: string[];
 }
 
@@ -222,7 +221,6 @@ export async function syncWithHwDb(): Promise<SyncResult> {
     matchedNewAssets: 0,
     ambiguousMatches: 0,
     returnedCompleted: 0,
-    newRetirementRecords: 0,
     newExchangeRecords: 0,
     errors: [],
   };
@@ -295,41 +293,7 @@ export async function syncWithHwDb(): Promise<SyncResult> {
     }
   }
 
-  // 3) HW DB → 퇴사반납 자동 등록
-  // 대상: HW DB에서 반납예정일 입력 + status=사용중, 트래커에 미등록
-  const trackedAssetIds = new Set(
-    trackers
-      .filter(t => t.type === "퇴사반납" && t.stage !== "반납완료" && t.assetId)
-      .map(t => t.assetId)
-  );
-
-  const retirementCandidates = hwRecords.filter(hw =>
-    hw.returnDue &&
-    hw.status === ACTIVE_STATUS &&
-    hw.assetNo &&
-    !trackedAssetIds.has(hw.assetNo)
-  );
-
-  for (const hw of retirementCandidates) {
-    try {
-      await createExchangeReturn({
-        type: "퇴사반납",
-        assetId: hw.assetNo,
-        company: hw.company,
-        department: hw.dept,
-        user: hw.user,
-        stage: "반납요청",
-        requestedAt: todayStr(),
-        returnDue: hw.returnDue,
-        autoSynced: true,
-      });
-      result.newRetirementRecords++;
-    } catch (e) {
-      result.errors.push(`퇴사반납 등록 실패 (${hw.assetNo}): ${String(e)}`);
-    }
-  }
-
-  // 4) HW DB 교체요청 상태 → 교체 트래커 자동 등록
+  // 3) HW DB 교체요청 상태 → 교체 트래커 자동 등록
   const trackedExchangeAssetIds = new Set(
     trackers
       .filter(t => t.type === "교체" && t.stage !== "반납완료" && t.assetId)
