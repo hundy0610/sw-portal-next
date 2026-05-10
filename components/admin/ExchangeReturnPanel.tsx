@@ -5,7 +5,7 @@ import type { ExchangeReturnRecord } from "@/types";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
 
 // ── 상수 ────────────────────────────────────────────────────
-const STAGES = ["교체요청", "요청기안", "기기준비", "사용자수령", "반납요청", "반납완료"] as const;
+const STAGES = ["교체요청", "요청기안", "기기준비", "기기준비완료", "사용자수령", "반납요청", "반납완료"] as const;
 type Stage = typeof STAGES[number];
 
 // 퇴사반납은 반납요청부터 시작 (앞 4단계 skip)
@@ -29,6 +29,7 @@ const STAGE_COLORS: Record<string, { bg: string; text: string; dot: string }> = 
   "교체요청":   { bg: "#F8FAFC", text: "#64748B", dot: "#94A3B8" },
   "요청기안":   { bg: "#EFF6FF", text: "#1D4ED8", dot: "#3B82F6" },
   "기기준비":   { bg: "#F5F3FF", text: "#6D28D9", dot: "#8B5CF6" },
+  "기기준비완료": { bg: "#ECFDF5", text: "#065F46", dot: "#10B981" },
   "사용자수령": { bg: "#FFF7ED", text: "#C2410C", dot: "#F97316" },
   "반납요청":   { bg: "#FEFCE8", text: "#A16207", dot: "#EAB308" },
   "반납완료":   { bg: "#F0FDF4", text: "#15803D", dot: "#22C55E" },
@@ -211,7 +212,7 @@ function AssetPickerModal({
         fetch("/api/exchange-return/update", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: recordId, fields: { newAssetId: selected.assetNo, stage: "기기준비" } }),
+          body: JSON.stringify({ id: recordId, fields: { newAssetId: selected.assetNo, stage: "기기준비", completedAt: useDate } }),
         }),
         fetch("/api/hw/update", {
           method: "POST",
@@ -1080,6 +1081,24 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       });
       const json = await res.json();
       if (!json.ok) { setErr(json.error ?? "등록 실패"); return; }
+      // 유형에 따라 HW DB 상태 자동 변경 (퇴사반납 → 반납예정, 교체 → 교체요청)
+      const hwStatus = form.type === "퇴사반납" ? "반납예정" : form.type === "교체" ? "교체요청" : null;
+      if (hwStatus) {
+        const assetId = form.assetId.trim();
+        fetch(`/api/hw?search=${encodeURIComponent(assetId)}`)
+          .then(r => r.json())
+          .then(data => {
+            const records: { id: string; assetNo: string }[] = data.records ?? [];
+            const found = records.find(r => r.assetNo === assetId) ?? (records.length === 1 ? records[0] : null);
+            if (found) {
+              fetch("/api/hw/update", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: found.id, fields: { status: hwStatus } }),
+              }).then(() => fetch("/api/hw/cache-clear", { method: "POST" })).catch(console.error);
+            }
+          }).catch(console.error);
+      }
       onCreated();
       onClose();
     } catch (e) {
@@ -1218,16 +1237,6 @@ export default function ExchangeReturnPanel() {
   const [receiptTarget, setReceiptTarget] = useState<ExchangeReturnRecord | null>(null);
   const [returnCompleteTarget, setReturnCompleteTarget] = useState<ExchangeReturnRecord | null>(null);
   const [hwDetailAsset, setHwDetailAsset] = useState<string | null>(null);
-  const [sortKey, setSortKey] = useState<"requestedAt" | "lastEditedAt">("lastEditedAt");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-
-  const toggleSort = useCallback((key: "requestedAt" | "lastEditedAt") => {
-    setSortKey(prev => {
-      if (prev === key) { setSortDir(d => d === "asc" ? "desc" : "asc"); return key; }
-      setSortDir("desc");
-      return key;
-    });
-  }, []);
 
   const handleUpdated = useCallback((id: string, fields: Partial<ExchangeReturnRecord>) => {
     setRecords(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r));
@@ -1250,6 +1259,33 @@ export default function ExchangeReturnPanel() {
     }
     if (nextStage === "반납완료") {
       setReturnCompleteTarget(r);
+      return;
+    }
+    if (nextStage === "기기준비완료" && r.newAssetId && r.newAssetId !== "신규구매로안내됨") {
+      setAdvancingId(r.id);
+      try {
+        const res = await fetch("/api/exchange-return/update", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: r.id, fields: { stage: "기기준비완료" } }),
+        });
+        const json = await res.json();
+        if (json.ok) {
+          handleUpdated(r.id, { stage: "기기준비완료" });
+          const assetId = r.newAssetId;
+          fetch(`/api/hw?search=${encodeURIComponent(assetId)}`)
+            .then(d => d.json())
+            .then(data => {
+              const recs: { id: string; assetNo: string }[] = data.records ?? [];
+              const found = recs.find(rec => rec.assetNo === assetId) ?? (recs.length === 1 ? recs[0] : null);
+              if (found) {
+                fetch("/api/hw/update", {
+                  method: "POST", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ id: found.id, fields: { status: "출고준비완료" } }),
+                }).then(() => fetch("/api/hw/cache-clear", { method: "POST" })).catch(console.error);
+              }
+            }).catch(console.error);
+        }
+      } finally { setAdvancingId(null); }
       return;
     }
     setAdvancingId(r.id);
@@ -1309,12 +1345,8 @@ export default function ExchangeReturnPanel() {
       }
       return true;
     });
-    return [...arr].sort((a, b) => {
-      const va = a[sortKey] ?? "";
-      const vb = b[sortKey] ?? "";
-      return sortDir === "asc" ? va.localeCompare(vb) : vb.localeCompare(va);
-    });
-  }, [records, stageFilter, typeFilter, search, sortKey, sortDir]);
+    return [...arr].sort((a, b) => (b.lastEditedAt ?? "").localeCompare(a.lastEditedAt ?? ""));
+  }, [records, stageFilter, typeFilter, search]);
 
   if (missingEnv) return <EnvVarMissing varName={missingEnv} />;
 
@@ -1437,30 +1469,9 @@ export default function ExchangeReturnPanel() {
         <table className="data-table">
           <thead>
             <tr>
-              {["진행단계", "유형", "자산번호", "교체 자산번호", "법인", "부서", "사용자"].map(h => (
+              {["진행단계", "유형", "자산번호", "교체 자산번호", "법인", "부서", "사용자", "반납예정", "메모", "출고예정일"].map(h => (
                 <th key={h}>{h}</th>
               ))}
-              {(["requestedAt", "반납예정", "lastEditedAt"] as const).map(k => {
-                if (k === "반납예정") return <th key={k}>반납예정</th>;
-                const label = k === "requestedAt" ? "신청일" : "최근 수정일";
-                const active = sortKey === k;
-                return (
-                  <th key={k}>
-                    <button
-                      onClick={() => toggleSort(k)}
-                      className="flex items-center gap-1 text-xs font-medium text-gray-400 hover:text-gray-700 transition-colors select-none"
-                      style={{ color: active ? "#1E293B" : undefined }}>
-                      {label}
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
-                        style={{ opacity: active ? 1 : 0.3 }}>
-                        {active && sortDir === "asc"
-                          ? <path d="M12 5l7 7H5l7-7z" fill="currentColor" stroke="none"/>
-                          : <path d="M12 19l7-7H5l7 7z" fill="currentColor" stroke="none"/>}
-                      </svg>
-                    </button>
-                  </th>
-                );
-              })}
             </tr>
           </thead>
           <tbody>
@@ -1530,18 +1541,14 @@ export default function ExchangeReturnPanel() {
                   <td className="text-xs text-gray-600">{r.department || "—"}</td>
                   {/* 사용자 */}
                   <td className="text-xs text-gray-700">{r.user || "—"}</td>
-                  {/* 신청일 */}
-                  <td className="text-xs text-gray-500">{fmtDate(r.requestedAt)}</td>
                   {/* 반납예정 */}
                   <td className="text-xs">
                     {r.returnDue ? <DDay date={r.returnDue} /> : <span className="text-gray-300">—</span>}
                   </td>
-                  {/* 최근 수정일 */}
-                  <td className="text-xs text-gray-400 whitespace-nowrap">
-                    {r.lastEditedAt
-                      ? new Date(r.lastEditedAt).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
-                      : "—"}
-                  </td>
+                  {/* 메모 */}
+                  <td className="text-xs text-gray-500 max-w-[160px] truncate" title={r.note || ""}>{r.note || "—"}</td>
+                  {/* 출고예정일 */}
+                  <td className="text-xs text-gray-500 whitespace-nowrap">{r.completedAt ? fmtDate(r.completedAt) : "—"}</td>
                 </tr>
               );
             })}
