@@ -41,17 +41,15 @@ export async function POST(req: NextRequest) {
       props?.[key]?.rich_text?.[0]?.plain_text || props?.[key]?.title?.[0]?.plain_text || "";
     const getSelect = (key: string): string =>
       props?.[key]?.select?.name || "";
-    const getDate = (key: string): string =>
-      props?.[key]?.date?.start || "";
-
-    const assetId    = getText("자산번호");
-    const company    = getSelect("법인");
-    const department = getText("부서");
-    const user       = getText("사용자");
-    const vendor     = getSelect("수리업체");
-    const receivedAt = getDate("접수일");
-    const faultType  = getSelect("과실여부");
-    const note       = getText("수리내용");
+    const getMultiSelect = (key: string): string =>
+      (props?.[key]?.multi_select ?? []).map((s: { name: string }) => s.name).join(", ");
+    const assetId      = getText("자산번호");
+    const company      = getSelect("법인");
+    const department   = getText("부서");
+    const requester    = getText("문의자");
+    const workLocation = getText("실제 근무 위치");
+    const faultDesc    = getText("고장증상");
+    const faultTypes   = getMultiSelect("고장 내역");
 
     const transporter = createMailTransporter();
     if (!transporter) {
@@ -61,7 +59,7 @@ export async function POST(req: NextRequest) {
     const adminUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://swportal.vercel.app"}/admin`;
     const html = buildRepairNewInquiryEmail({
       assetId: assetId || "미상",
-      company, department, user, vendor, receivedAt, faultType, note, adminUrl,
+      company, department, requester, workLocation, faultDesc, faultTypes, adminUrl,
     });
 
     await transporter.sendMail({

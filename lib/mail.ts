@@ -73,16 +73,13 @@ export function buildRepairNewInquiryEmail(opts: {
   assetId: string;
   company: string;
   department: string;
-  user: string;
-  vendor: string;
-  receivedAt: string;
-  faultType: string;
-  note: string;
+  requester: string;
+  workLocation: string;
+  faultDesc: string;
+  faultTypes: string;
   adminUrl: string;
 }): string {
-  const { assetId, company, department, user, vendor, receivedAt, faultType, note, adminUrl } = opts;
-  const companyDept = [company, department].filter(Boolean).join(" / ");
-
+  const { assetId, company, department, requester, workLocation, faultDesc, faultTypes, adminUrl } = opts;
   const row = (label: string, value: string) =>
     value ? `<tr>
       <td style="padding:8px 12px;background:#F8FAFC;border:1px solid #E2E8F0;font-weight:600;color:#64748B;width:90px;">${label}</td>
@@ -100,19 +97,16 @@ export function buildRepairNewInquiryEmail(opts: {
   </div>
   <div style="padding:28px 32px;">
     <table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:13px;">
-      <tr>
-        <td style="padding:8px 12px;background:#F8FAFC;border:1px solid #E2E8F0;font-weight:600;color:#64748B;width:90px;">자산번호</td>
-        <td style="padding:8px 12px;border:1px solid #E2E8F0;color:#1E293B;font-family:monospace;">${assetId}</td>
-      </tr>
-      ${row("법인/부서", companyDept)}
-      ${row("사용자", user)}
-      ${row("수리업체", vendor)}
-      ${row("접수일", receivedAt)}
-      ${row("과실여부", faultType)}
+      ${row("자산번호", assetId)}
+      ${row("법인", company)}
+      ${row("부서", department)}
+      ${row("문의자", requester)}
+      ${row("근무 위치", workLocation)}
+      ${row("고장 내역", faultTypes)}
     </table>
-    ${note ? `<div style="background:#FFF7F7;border:1px solid #FECACA;border-radius:10px;padding:14px 16px;margin-bottom:24px;">
-      <div style="font-size:11px;color:#94A3B8;margin-bottom:6px;font-weight:600;letter-spacing:0.5px;">수리 내용</div>
-      <p style="font-size:13px;color:#334155;margin:0;line-height:1.6;white-space:pre-wrap;">${note}</p>
+    ${faultDesc ? `<div style="background:#FFF7F7;border:1px solid #FECACA;border-radius:10px;padding:14px 16px;margin-bottom:24px;">
+      <div style="font-size:11px;color:#94A3B8;margin-bottom:6px;font-weight:600;letter-spacing:0.5px;">고장 증상</div>
+      <p style="font-size:13px;color:#334155;margin:0;line-height:1.6;white-space:pre-wrap;">${faultDesc}</p>
     </div>` : ""}
     <div style="text-align:center;margin-bottom:20px;">
       <a href="${adminUrl}" target="_blank"
