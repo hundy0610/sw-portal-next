@@ -1,5 +1,135 @@
 import nodemailer from "nodemailer";
 
+export function buildHelpdeskNewInquiryEmail(opts: {
+  requester: string;
+  company: string;
+  department: string;
+  inquiryType: string;
+  urgency: string;
+  content: string;
+  assetNo: string;
+  adminUrl: string;
+}): string {
+  const { requester, company, department, inquiryType, urgency, content, assetNo, adminUrl } = opts;
+  const urgencyEmoji = urgency === "매우 급합니다" ? "🔴" : urgency === "조금 급합니다" ? "🟡" : "🟢";
+
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F8FAFC;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;">
+<div style="max-width:560px;margin:40px auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+  <div style="background:#0EA5E9;padding:28px 32px;">
+    <div style="color:white;font-size:18px;font-weight:800;">IDS 자산관리파트 Help Desk</div>
+    <div style="color:rgba(255,255,255,0.75);font-size:13px;margin-top:4px;">신규 문의가 접수되었습니다</div>
+  </div>
+  <div style="padding:28px 32px;">
+    <table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:13px;">
+      <tr>
+        <td style="padding:8px 12px;background:#F8FAFC;border:1px solid #E2E8F0;font-weight:600;color:#64748B;width:90px;">접수자</td>
+        <td style="padding:8px 12px;border:1px solid #E2E8F0;color:#1E293B;">${requester}</td>
+      </tr>
+      ${company ? `<tr>
+        <td style="padding:8px 12px;background:#F8FAFC;border:1px solid #E2E8F0;font-weight:600;color:#64748B;">법인</td>
+        <td style="padding:8px 12px;border:1px solid #E2E8F0;color:#1E293B;">${company}</td>
+      </tr>` : ""}
+      ${department ? `<tr>
+        <td style="padding:8px 12px;background:#F8FAFC;border:1px solid #E2E8F0;font-weight:600;color:#64748B;">부서</td>
+        <td style="padding:8px 12px;border:1px solid #E2E8F0;color:#1E293B;">${department}</td>
+      </tr>` : ""}
+      <tr>
+        <td style="padding:8px 12px;background:#F8FAFC;border:1px solid #E2E8F0;font-weight:600;color:#64748B;">유형</td>
+        <td style="padding:8px 12px;border:1px solid #E2E8F0;color:#1E293B;">${inquiryType}</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;background:#F8FAFC;border:1px solid #E2E8F0;font-weight:600;color:#64748B;">긴급도</td>
+        <td style="padding:8px 12px;border:1px solid #E2E8F0;color:#1E293B;">${urgencyEmoji} ${urgency}</td>
+      </tr>
+      ${assetNo ? `<tr>
+        <td style="padding:8px 12px;background:#F8FAFC;border:1px solid #E2E8F0;font-weight:600;color:#64748B;">자산번호</td>
+        <td style="padding:8px 12px;border:1px solid #E2E8F0;color:#1E293B;">${assetNo}</td>
+      </tr>` : ""}
+    </table>
+    <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:14px 16px;margin-bottom:24px;">
+      <div style="font-size:11px;color:#94A3B8;margin-bottom:6px;font-weight:600;letter-spacing:0.5px;">문의 내용</div>
+      <p style="font-size:13px;color:#334155;margin:0;line-height:1.6;white-space:pre-wrap;">${content}</p>
+    </div>
+    <div style="text-align:center;margin-bottom:20px;">
+      <a href="${adminUrl}" target="_blank"
+        style="display:inline-block;background:#0EA5E9;color:white;font-size:14px;font-weight:700;padding:12px 28px;border-radius:10px;text-decoration:none;">
+        어드민 패널에서 확인하기
+      </a>
+    </div>
+    <p style="font-size:12px;color:#94A3B8;text-align:center;margin:0;">본 메일은 발신 전용입니다.</p>
+  </div>
+  <div style="background:#F8FAFC;border-top:1px solid #E2E8F0;padding:16px 32px;text-align:center;">
+    <p style="font-size:11px;color:#CBD5E1;margin:0;">IDS 자산관리파트 · PC/OA 관리팀</p>
+  </div>
+</div>
+</body>
+</html>`;
+}
+
+export function buildRepairNewInquiryEmail(opts: {
+  assetId: string;
+  company: string;
+  department: string;
+  user: string;
+  vendor: string;
+  receivedAt: string;
+  faultType: string;
+  note: string;
+  adminUrl: string;
+}): string {
+  const { assetId, company, department, user, vendor, receivedAt, faultType, note, adminUrl } = opts;
+  const companyDept = [company, department].filter(Boolean).join(" / ");
+
+  const row = (label: string, value: string) =>
+    value ? `<tr>
+      <td style="padding:8px 12px;background:#F8FAFC;border:1px solid #E2E8F0;font-weight:600;color:#64748B;width:90px;">${label}</td>
+      <td style="padding:8px 12px;border:1px solid #E2E8F0;color:#1E293B;">${value}</td>
+    </tr>` : "";
+
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F8FAFC;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;">
+<div style="max-width:560px;margin:40px auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+  <div style="background:#DC2626;padding:28px 32px;">
+    <div style="color:white;font-size:18px;font-weight:800;">IDS 자산관리파트 수리 접수</div>
+    <div style="color:rgba(255,255,255,0.75);font-size:13px;margin-top:4px;">신규 수리 접수가 등록되었습니다</div>
+  </div>
+  <div style="padding:28px 32px;">
+    <table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:13px;">
+      <tr>
+        <td style="padding:8px 12px;background:#F8FAFC;border:1px solid #E2E8F0;font-weight:600;color:#64748B;width:90px;">자산번호</td>
+        <td style="padding:8px 12px;border:1px solid #E2E8F0;color:#1E293B;font-family:monospace;">${assetId}</td>
+      </tr>
+      ${row("법인/부서", companyDept)}
+      ${row("사용자", user)}
+      ${row("수리업체", vendor)}
+      ${row("접수일", receivedAt)}
+      ${row("과실여부", faultType)}
+    </table>
+    ${note ? `<div style="background:#FFF7F7;border:1px solid #FECACA;border-radius:10px;padding:14px 16px;margin-bottom:24px;">
+      <div style="font-size:11px;color:#94A3B8;margin-bottom:6px;font-weight:600;letter-spacing:0.5px;">수리 내용</div>
+      <p style="font-size:13px;color:#334155;margin:0;line-height:1.6;white-space:pre-wrap;">${note}</p>
+    </div>` : ""}
+    <div style="text-align:center;margin-bottom:20px;">
+      <a href="${adminUrl}" target="_blank"
+        style="display:inline-block;background:#DC2626;color:white;font-size:14px;font-weight:700;padding:12px 28px;border-radius:10px;text-decoration:none;">
+        어드민 패널에서 확인하기
+      </a>
+    </div>
+    <p style="font-size:12px;color:#94A3B8;text-align:center;margin:0;">본 메일은 발신 전용입니다.</p>
+  </div>
+  <div style="background:#F8FAFC;border-top:1px solid #E2E8F0;padding:16px 32px;text-align:center;">
+    <p style="font-size:11px;color:#CBD5E1;margin:0;">IDS 자산관리파트 · PC/OA 관리팀</p>
+  </div>
+</div>
+</body>
+</html>`;
+}
+
 export function createMailTransporter() {
   const user = process.env.GMAIL_USER;
   const pass = process.env.GMAIL_APP_PASSWORD;
