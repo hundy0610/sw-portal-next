@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: true, stats });
     }
 
-    // 전체 통계 (4단계 캐시)
+    // 전체 통계 — 3단계 캐시: 인메모리 → KV → warming
     let stats = memGet<HwStats>("hw:stats");
     if (stats) return NextResponse.json({ ok: true, stats, cached: "mem" });
 
@@ -33,15 +33,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: true, stats, cached: "kv" });
     }
 
-    // hw:stats TTL 만료 시 → 영구 캐시(stale) 즉시 반환 + 백그라운드 갱신
-    const staleStats = await kvGet<HwStats>("hw:stats:permanent");
-    if (staleStats) {
-      memSet("hw:stats", staleStats, 60); // 짧은 TTL로 메모리 캐시
-      triggerWarmHw().catch(console.warn); // await 없이 백그라운드 실행
-      return NextResponse.json({ ok: true, stats: staleStats, stale: true });
-    }
-
-    // 완전 cold miss (최초 배포 후 warm 미실행)
+    // KV 미스 (최초 배포 후 warm 미실행) — GitHub Actions 트리거
     triggerWarmHw().catch(console.warn);
     return NextResponse.json({ ok: true, stats: null, warming: true });
   } catch (e) {

@@ -189,9 +189,7 @@ export async function fetchSwDb(): Promise<SwItem[]> {
   const dbId = process.env.NOTION_DB_SWDB;
   if (!dbId) throw new Error("NOTION_DB_SWDB 환경변수가 설정되지 않았습니다.");
 
-  const pages = await queryAllPages(dbId, undefined, [
-    { property: "Name", direction: "ascending" },
-  ]);
+  const pages = await queryAllPages(dbId);
 
   return pages.map((page) => {
     const p = page.properties;
