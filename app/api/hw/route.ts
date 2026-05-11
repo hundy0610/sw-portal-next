@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchAllHwRecords, computeHwStats, type HwRecord } from "@/lib/hw";
-import { kvGet, kvSet } from "@/lib/kv-store";
+import { type HwRecord } from "@/lib/hw";
+import { kvGet } from "@/lib/kv-store";
 import { memGet, memSet, memDel } from "@/lib/mem-cache";
+import { triggerWarmHw } from "@/lib/trigger-warm-hw";
 
 export const dynamic = "force-dynamic";
 
@@ -27,13 +28,15 @@ export async function GET(req: NextRequest) {
       records = await kvGet<HwRecord[]>("hw:all");
 
       if (!records) {
-        // 3. Notion 직접 조회 — hw:stats도 동시 저장하여 stats 엔드포인트 중복 fetch 방지
-        records = await fetchAllHwRecords();
-        const stats = computeHwStats(records);
-        await Promise.all([
-          kvSet("hw:all",   records),
-          kvSet("hw:stats", stats),
-        ]);
+        // 3. KV 미스 — Vercel 10s 타임아웃으로 Notion 직접 조회 불가
+        // GitHub Actions warm-hw.yml 자동 트리거 (비동기, ~200ms 후 리턴)
+        await triggerWarmHw();
+        return NextResponse.json({
+          ok: true,
+          records: [],
+          warming: true,
+          message: "HW 데이터 캐시를 갱신하고 있습니다. 잠시 후 자동으로 재시도합니다.",
+        });
       }
 
       // 인메모리에 저장
