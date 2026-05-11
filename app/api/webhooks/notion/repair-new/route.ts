@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
     await transporter.sendMail({
       from: `"IDS 자산관리파트" <${process.env.GMAIL_USER}>`,
       to: superEmails.join(", "),
-      subject: `[수리 접수] 신규 수리 접수 - ${assetId || "미상"}`,
+      subject: `[Repair] 신규 수리문의가 접수되었습니다.`,
       html,
     });
 
