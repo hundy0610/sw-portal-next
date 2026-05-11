@@ -1,10 +1,11 @@
-name: Cache Warming
+name: Cache Warming (SW/License/Tickets)
 
 on:
   schedule:
-    # 매 5분마다 실행 — Vercel 함수 warm 유지 + Notion 캐시 사전 적재
-    - cron: "*/5 * * * *"
-  workflow_dispatch: # 수동 실행 버튼
+    # 30분마다 실행 — HW 제외 데이터 warm (HW는 warm-hw.yml에서 직접 처리)
+    # 월 사용량: 1,440회 × ~30s ≈ 720분/월
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
 
 jobs:
   warm:
@@ -12,9 +13,9 @@ jobs:
     timeout-minutes: 2
 
     steps:
-      - name: Warm Notion cache
+      - name: Warm SW/License/Ticket cache
         run: |
-          echo "🔥 캐시 워밍 시작: $(date)"
+          echo "🔥 캐시 워밍 시작 (SW/라이선스/티켓): $(date)"
 
           BASE_URL="https://swportal.vercel.app"
 
@@ -29,6 +30,5 @@ jobs:
             echo "✅ 캐시 워밍 완료"
           else
             echo "⚠️ 응답 코드: $RESPONSE"
-            # 200이 아니어도 워크플로우는 성공으로 처리 (일시적 오류 허용)
             exit 0
           fi
