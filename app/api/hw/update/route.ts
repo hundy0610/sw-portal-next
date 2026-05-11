@@ -49,14 +49,19 @@ function buildProperties(fields: FieldMap) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, fields } = body as { id: string; fields: FieldMap };
+    const { id, fields: rawFields } = body as { id: string; fields: FieldMap };
 
     if (!id || typeof id !== "string") {
       return NextResponse.json({ ok: false, error: "id 필수" }, { status: 400 });
     }
-    if (!fields || typeof fields !== "object") {
+    if (!rawFields || typeof rawFields !== "object") {
       return NextResponse.json({ ok: false, error: "fields 필수" }, { status: 400 });
     }
+
+    // 재고 상태로 변경 시 반납예정일 자동 초기화
+    const fields: FieldMap = rawFields.status === "재고" && rawFields.returnDue === undefined
+      ? { ...rawFields, returnDue: "" }
+      : rawFields;
 
     const properties = buildProperties(fields);
     if (Object.keys(properties).length === 0) {

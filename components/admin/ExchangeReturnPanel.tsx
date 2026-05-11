@@ -424,8 +424,11 @@ function AssetPickerModal({
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-xs text-gray-500 font-medium">사용일자</label>
-              <input type="date" value={useDate} onChange={e => setUseDate(e.target.value)}
-                className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full" />
+              <div className="flex items-center gap-1">
+                <input type="date" value={useDate} onChange={e => setUseDate(e.target.value)}
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 flex-1" />
+                {useDate && <button type="button" onClick={() => setUseDate("")} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
+              </div>
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-xs text-gray-500 font-medium">메모</label>
@@ -578,8 +581,11 @@ function ReceiptConfirmModal({
           {!isNewIssue && (
             <div>
               <label className="text-xs text-gray-500 font-medium block mb-1.5">반납예정일 (수령 후 7일 기본값)</label>
-              <input type="date" value={returnDue} onChange={e => setReturnDue(e.target.value)}
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-200" />
+              <div className="flex items-center gap-1">
+                <input type="date" value={returnDue} onChange={e => setReturnDue(e.target.value)}
+                  className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-200" />
+                {returnDue && <button type="button" onClick={() => setReturnDue("")} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
+              </div>
             </div>
           )}
 
@@ -1087,7 +1093,10 @@ function DetailModal({
           )}
 
           <SaveRow label="반납예정일" field="returnDue">
-            <input type="date" value={returnDue} onChange={e => setReturnDue(e.target.value)} className={selectCls} />
+            <div className="flex items-center gap-1">
+              <input type="date" value={returnDue} onChange={e => setReturnDue(e.target.value)} className={`${selectCls} flex-1`} />
+              {returnDue && <button type="button" onClick={() => setReturnDue("")} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
+            </div>
             <button onClick={() => save("returnDue", { returnDue: returnDue || null })} disabled={saving === "returnDue" || returnDue === record.returnDue} className={saveBtnCls("returnDue", returnDue, record.returnDue)}>
               {saving === "returnDue" ? "저장 중…" : "저장"}
             </button>
@@ -1622,7 +1631,10 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
                 </div>
                 <div>
                   <label className={labelCls}>신청일</label>
-                  <input type="date" className={inputCls} value={form.requestedAt} onChange={set("requestedAt")} />
+                  <div className="flex items-center gap-1">
+                    <input type="date" className={`${inputCls} flex-1`} value={form.requestedAt} onChange={set("requestedAt")} />
+                    {form.requestedAt && <button type="button" onClick={() => setForm(p => ({ ...p, requestedAt: "" }))} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
+                  </div>
                 </div>
               </div>
 
@@ -1671,7 +1683,10 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
               {form.type === "퇴사반납" && (
                 <div>
                   <label className={labelCls}>반납예정일</label>
-                  <input type="date" className={inputCls} value={form.returnDue} onChange={set("returnDue")} />
+                  <div className="flex items-center gap-1">
+                    <input type="date" className={`${inputCls} flex-1`} value={form.returnDue} onChange={set("returnDue")} />
+                    {form.returnDue && <button type="button" onClick={() => setForm(p => ({ ...p, returnDue: "" }))} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
+                  </div>
                 </div>
               )}
 
@@ -1726,8 +1741,11 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-gray-500 font-medium">사용일자</label>
-                <input type="date" value={niUseDate} onChange={e => setNiUseDate(e.target.value)}
-                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-200 w-full" />
+                <div className="flex items-center gap-1">
+                  <input type="date" value={niUseDate} onChange={e => setNiUseDate(e.target.value)}
+                    className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-200 flex-1" />
+                  {niUseDate && <button type="button" onClick={() => setNiUseDate("")} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
+                </div>
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-gray-500 font-medium">신청사유</label>
@@ -2204,8 +2222,11 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-gray-500 font-medium">반납예정일</label>
-                <input type="date" value={rtReturnDue} onChange={e => setRtReturnDue(e.target.value)}
-                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-200 w-full" />
+                <div className="flex items-center gap-1">
+                  <input type="date" value={rtReturnDue} onChange={e => setRtReturnDue(e.target.value)}
+                    className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-200 flex-1" />
+                  {rtReturnDue && <button type="button" onClick={() => setRtReturnDue("")} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
+                </div>
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-gray-500 font-medium">신청사유</label>

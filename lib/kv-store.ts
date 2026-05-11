@@ -7,8 +7,8 @@ export const KV_TTL = 86400;
 let _client: Redis | null = null;
 
 function getClient(): Redis | null {
-  const url   = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  const url   = process.env.UPSTASH_REDIS_REST_URL   || process.env.KV_REST_API_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN  || process.env.KV_REST_API_TOKEN;
   if (!url || !token) return null;
   if (_client) return _client;
   try {

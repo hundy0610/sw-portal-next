@@ -279,10 +279,11 @@ function DashboardTab({ stats, loading, onRefresh }: { stats: HwStats | null; lo
 // 출고 현황 탭
 // ─────────────────────────────────────────────────────────────────────────────
 function ShipmentTab({ onUpdate, companyLock = "" }: { onUpdate: (id: string, fields: Partial<HwRecord>) => Promise<void>; companyLock?: string }) {
-  const [company,    setCompany]    = useState(companyLock);
-  const [records,    setRecords]    = useState<HwRecord[]>([]);
-  const [loading,    setLoading]    = useState(true);
-  const [editRecord, setEditRecord] = useState<HwRecord | null>(null);
+  const [company,      setCompany]      = useState(companyLock);
+  const [records,      setRecords]      = useState<HwRecord[]>([]);
+  const [loading,      setLoading]      = useState(true);
+  const [editRecord,   setEditRecord]   = useState<HwRecord | null>(null);
+  const [detailRecord, setDetailRecord] = useState<HwRecord | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -326,7 +327,7 @@ function ShipmentTab({ onUpdate, companyLock = "" }: { onUpdate: (id: string, fi
             <tbody className="divide-y divide-gray-100">
               {items.map(r => (
                 <tr key={r.id} className="hover:bg-gray-50">
-                  <td className="px-3 py-2.5 font-mono text-gray-700 whitespace-nowrap">{r.assetNo||"-"}</td>
+                  <td className="px-3 py-2.5 font-mono whitespace-nowrap cursor-pointer text-amber-600 hover:underline" onClick={() => setDetailRecord(r)}>{r.assetNo||"-"}</td>
                   <td className="px-3 py-2.5 font-medium text-gray-900 whitespace-nowrap">{r.user||"-"}</td>
                   <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{r.company||"-"}</td>
                   <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.dept||"-"}</td>
@@ -385,6 +386,7 @@ function ShipmentTab({ onUpdate, companyLock = "" }: { onUpdate: (id: string, fi
           <SectionTable title="✅ 출고준비완료" items={sortedReady} headerCls="bg-amber-50 text-amber-700" />
         </>
       )}
+      {detailRecord && <AssetDetailModal record={detailRecord} onSave={onUpdate} onClose={() => setDetailRecord(null)} />}
       {editRecord && (
         <EditModal
           record={editRecord}
@@ -469,22 +471,31 @@ function EditModal({ record, fields, onSave, onClose }: EditModalProps) {
           {fields.includes("returnDue") && (
             <div>
               <label className="block text-xs font-semibold text-gray-500 mb-1">{labelMap.returnDue}</label>
-              <input type="date" value={String(form.returnDue ?? "")} onChange={e => set("returnDue", e.target.value)}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-300" />
+              <div className="flex items-center gap-1">
+                <input type="date" value={String(form.returnDue ?? "")} onChange={e => set("returnDue", e.target.value)}
+                  className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-300" />
+                {form.returnDue && <button type="button" onClick={() => set("returnDue", "")} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
+              </div>
             </div>
           )}
           {fields.includes("returnDate") && (
             <div>
               <label className="block text-xs font-semibold text-gray-500 mb-1">{labelMap.returnDate}</label>
-              <input type="date" value={String(form.returnDate ?? "")} onChange={e => set("returnDate", e.target.value)}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-300" />
+              <div className="flex items-center gap-1">
+                <input type="date" value={String(form.returnDate ?? "")} onChange={e => set("returnDate", e.target.value)}
+                  className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-300" />
+                {form.returnDate && <button type="button" onClick={() => set("returnDate", "")} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
+              </div>
             </div>
           )}
           {fields.includes("useDate") && (
             <div>
               <label className="block text-xs font-semibold text-gray-500 mb-1">{labelMap.useDate}</label>
-              <input type="date" value={String(form.useDate ?? "")} onChange={e => set("useDate", e.target.value)}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+              <div className="flex items-center gap-1">
+                <input type="date" value={String(form.useDate ?? "")} onChange={e => set("useDate", e.target.value)}
+                  className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                {form.useDate && <button type="button" onClick={() => set("useDate", "")} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
+              </div>
             </div>
           )}
           {fields.includes("verified") && (
@@ -552,13 +563,109 @@ function EditModal({ record, fields, onSave, onClose }: EditModalProps) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 자산 상세 모달
+// ─────────────────────────────────────────────────────────────────────────────
+function AssetDetailModal({ record, onSave, onClose }: {
+  record: HwRecord;
+  onSave: (id: string, fields: Partial<HwRecord>) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [status,  setStatus]  = useState(record.status);
+  const [saving,  setSaving]  = useState(false);
+  const [saved,   setSaved]   = useState(false);
+  const [error,   setError]   = useState("");
+
+  async function handleStatusSave() {
+    if (status === record.status) return;
+    setSaving(true); setError("");
+    try {
+      await onSave(record.id, { status });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e) { setError(String(e)); }
+    finally { setSaving(false); }
+  }
+
+  const Row = ({ label, value }: { label: string; value?: string | number }) => {
+    if (!value && value !== 0) return null;
+    return (
+      <div className="flex gap-2 py-2 border-b border-gray-50 last:border-0">
+        <span className="text-xs text-gray-400 w-24 shrink-0">{label}</span>
+        <span className="text-xs text-gray-800 font-medium break-all">{String(value)}</span>
+      </div>
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+        {/* 헤더 */}
+        <div className="px-5 py-4 bg-amber-600 text-white flex items-start justify-between shrink-0">
+          <div>
+            <div className="font-bold text-base font-mono">{record.assetNo || "—"}</div>
+            <div className="text-xs opacity-80 mt-0.5">{record.model || "—"}</div>
+          </div>
+          <div className="flex items-center gap-3 ml-4">
+            {record.notionUrl && (
+              <a href={record.notionUrl} target="_blank" rel="noreferrer"
+                className="text-xs text-amber-200 hover:text-white underline underline-offset-2">
+                Notion ↗
+              </a>
+            )}
+            <button onClick={onClose} className="text-white/70 hover:text-white text-2xl leading-none">✕</button>
+          </div>
+        </div>
+
+        {/* 상태 변경 */}
+        <div className="px-5 py-3 bg-amber-50 border-b border-amber-100 flex items-center gap-2 shrink-0">
+          <span className="text-xs font-semibold text-gray-500 shrink-0">상태 변경</span>
+          <select value={status} onChange={e => setStatus(e.target.value)}
+            className="flex-1 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white">
+            {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <button onClick={handleStatusSave} disabled={saving || status === record.status}
+            className="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 disabled:opacity-40 transition-colors shrink-0">
+            {saving ? "저장 중…" : saved ? "✓ 저장됨" : "저장"}
+          </button>
+        </div>
+
+        {/* 상세 정보 */}
+        <div className="overflow-y-auto flex-1 px-5 py-3">
+          <Row label="현재 상태"  value={record.status} />
+          <Row label="사용자"     value={record.user} />
+          <Row label="법인"       value={record.company} />
+          <Row label="부서"       value={record.dept} />
+          <Row label="위치"       value={record.location} />
+          <Row label="제조사"     value={record.maker} />
+          <Row label="모델"       value={record.model} />
+          <Row label="시리얼"     value={record.serial} />
+          <Row label="CPU"        value={record.cpu} />
+          <Row label="RAM"        value={record.ram} />
+          <Row label="구매일자"   value={record.purchaseDate ? fmtDate(record.purchaseDate) : undefined} />
+          <Row label="사용일자"   value={record.useDate     ? fmtDate(record.useDate)     : undefined} />
+          <Row label="반납예정일" value={record.returnDue   ? fmtDate(record.returnDue)   : undefined} />
+          <Row label="반납일자"   value={record.returnDate  ? fmtDate(record.returnDate)  : undefined} />
+          <Row label="단가"       value={record.price > 0   ? fmtKrw(record.price)        : undefined} />
+          <Row label="문서번호"   value={record.docNo} />
+          {record.verified && <Row label="실사확인" value="완료" />}
+          <Row label="비고"       value={record.note} />
+        </div>
+
+        {error && <div className="px-5 pb-3 text-xs text-red-600">⚠️ {error}</div>}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 반납 대상자 탭
 // ─────────────────────────────────────────────────────────────────────────────
 function ReturnTab({ onUpdate, companyLock = "" }: { onUpdate: (id: string, fields: Partial<HwRecord>) => Promise<void>; companyLock?: string }) {
-  const [company,    setCompany]    = useState(companyLock);
-  const [allRecords, setAllRecords] = useState<HwRecord[]>([]);
-  const [loading,    setLoading]    = useState(true);
-  const [editRecord, setEditRecord] = useState<HwRecord | null>(null);
+  const [company,      setCompany]      = useState(companyLock);
+  const [allRecords,   setAllRecords]   = useState<HwRecord[]>([]);
+  const [loading,      setLoading]      = useState(true);
+  const [editRecord,   setEditRecord]   = useState<HwRecord | null>(null);
+  const [detailRecord, setDetailRecord] = useState<HwRecord | null>(null);
   const today = Date.now();
 
   const load = useCallback(async () => {
@@ -598,7 +705,7 @@ function ReturnTab({ onUpdate, companyLock = "" }: { onUpdate: (id: string, fiel
         <td className="px-3 py-2.5 font-medium text-gray-900 whitespace-nowrap text-xs">{r.user||"-"}</td>
         <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap text-xs">{r.company||"-"}</td>
         <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap text-xs">{r.dept||"-"}</td>
-        <td className="px-3 py-2.5 font-mono text-gray-600 whitespace-nowrap text-xs">{r.assetNo||"-"}</td>
+        <td className="px-3 py-2.5 font-mono whitespace-nowrap text-xs cursor-pointer text-amber-600 hover:underline" onClick={() => setDetailRecord(r)}>{r.assetNo||"-"}</td>
         <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap max-w-[130px] truncate text-xs">{r.model||"-"}</td>
         <td className="px-3 py-2.5 text-xs flex items-center gap-2">
           {r.notionUrl && <a href={r.notionUrl} target="_blank" rel="noreferrer" className="text-amber-400 hover:text-amber-600 underline underline-offset-2">Notion ↗</a>}
@@ -666,6 +773,7 @@ function ReturnTab({ onUpdate, companyLock = "" }: { onUpdate: (id: string, fiel
           <TableSection title="◽ D-30 초과"                   items={later}  cls="bg-gray-50 text-gray-700" />
         </>
       )}
+      {detailRecord && <AssetDetailModal record={detailRecord} onSave={onUpdate} onClose={() => setDetailRecord(null)} />}
       {editRecord && (
         <EditModal
           record={editRecord}
@@ -687,7 +795,8 @@ function SearchTab({ companyLock = "", onUpdate }: { companyLock?: string; onUpd
   const [error,       setError]       = useState("");
   const [search,      setSearch]      = useState("");
   const [company,     setCompany]     = useState(companyLock);
-  const [editRecord,  setEditRecord]  = useState<HwRecord | null>(null);
+  const [editRecord,   setEditRecord]   = useState<HwRecord | null>(null);
+  const [detailRecord, setDetailRecord] = useState<HwRecord | null>(null);
   const [status,   setStatus]   = useState("");
   const [location, setLocation] = useState("");
   const [searched, setSearched] = useState(false);
@@ -774,7 +883,7 @@ function SearchTab({ companyLock = "", onUpdate }: { companyLock?: string; onUpd
                 <tbody className="divide-y divide-gray-100">
                   {records.map(r => (
                     <tr key={r.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-3 py-2.5 font-mono text-gray-700 whitespace-nowrap">{r.assetNo||"-"}</td>
+                      <td className="px-3 py-2.5 font-mono whitespace-nowrap cursor-pointer text-amber-600 hover:underline" onClick={() => setDetailRecord(r)}>{r.assetNo||"-"}</td>
                       <td className="px-3 py-2.5 font-medium text-gray-900 whitespace-nowrap">{r.user||"-"}</td>
                       <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{r.company||"-"}</td>
                       <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.dept||"-"}</td>
@@ -807,6 +916,16 @@ function SearchTab({ companyLock = "", onUpdate }: { companyLock?: string; onUpd
         <div className="py-16 text-center text-gray-300 text-sm">
           <p className="text-4xl mb-3">💻</p><p>조건을 선택하고 검색 버튼을 눌러주세요</p>
         </div>
+      )}
+      {detailRecord && onUpdate && (
+        <AssetDetailModal
+          record={detailRecord}
+          onSave={async (id, fields) => {
+            await onUpdate(id, fields);
+            setRecords(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r));
+          }}
+          onClose={() => setDetailRecord(null)}
+        />
       )}
       {editRecord && onUpdate && (
         <EditModal
@@ -2103,10 +2222,12 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
 
   // Notion 실시간 업데이트 — 저장 후 로컬 상태도 즉시 반영
   const handleUpdate = useCallback(async (id: string, fields: Partial<HwRecord>) => {
+    // 재고 상태로 변경 시 반납예정일 자동 초기화
+    const effectiveFields = fields.status === "재고" ? { ...fields, returnDue: "" } : fields;
     const res = await fetch("/api/hw/update", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, fields }),
+      body: JSON.stringify({ id, fields: effectiveFields }),
     });
     const json = await res.json();
     if (!json.ok) throw new Error(json.error ?? "Notion 업데이트 실패");
@@ -2150,7 +2271,7 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
       }
     }
     // 로컬 상태 즉시 반영
-    setRecords(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r));
+    setRecords(prev => prev.map(r => r.id === id ? { ...r, ...effectiveFields } : r));
   }, []);
 
   const TABS: { id: Tab; label: string; icon: string }[] = [
