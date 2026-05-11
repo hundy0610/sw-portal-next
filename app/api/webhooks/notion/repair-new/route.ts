@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Client } from "@notionhq/client";
 import { kvGet, kvSet } from "@/lib/kv-store";
 import { createMailTransporter, buildRepairNewInquiryEmail } from "@/lib/mail";
 
@@ -9,26 +8,18 @@ import { createMailTransporter, buildRepairNewInquiryEmail } from "@/lib/mail";
 
 export const dynamic = "force-dynamic";
 
-const notion = new Client({ auth: process.env.NOTION_TOKEN });
 const NOTIFIED_KEY = (id: string) => `repair_new_notified:${id}`;
 const SUPER_EMAILS_KEY = "sw:super-emails";
 
 export async function POST(req: NextRequest) {
   try {
-    const secret = process.env.NOTION_WEBHOOK_SECRET;
-    if (secret) {
-      const sig = req.headers.get("x-notion-signature") || req.headers.get("x-hub-signature-256");
-      if (!sig?.includes(secret)) {
-        return NextResponse.json({ error: "인증 실패" }, { status: 401 });
-      }
-    }
-
     const body = await req.json();
-    const pageId: string | undefined =
-      body?.entity?.id || body?.data?.entity?.id || body?.page_id || body?.id;
+
+    // Notion Automation 페이로드: { source: {...}, data: { id, properties, ... } }
+    const pageId: string | undefined = body?.data?.id;
 
     if (!pageId) {
-      console.warn("[webhook/repair-new] pageId 없음:", JSON.stringify(body).slice(0, 200));
+      console.warn("[webhook/repair-new] pageId 없음:", JSON.stringify(body).slice(0, 300));
       return NextResponse.json({ ok: true, skipped: "no pageId" });
     }
 
@@ -42,9 +33,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, skipped: "no super admin emails" });
     }
 
+    // 프로퍼티는 페이로드에 이미 포함 — Notion API 재호출 불필요
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const page = await notion.pages.retrieve({ page_id: pageId }) as any;
-    const props = page.properties;
+    const props = body?.data?.properties ?? {} as Record<string, any>;
 
     const getText = (key: string): string =>
       props?.[key]?.rich_text?.[0]?.plain_text || props?.[key]?.title?.[0]?.plain_text || "";

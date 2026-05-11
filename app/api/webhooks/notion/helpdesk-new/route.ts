@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Client } from "@notionhq/client";
 import { kvGet, kvSet } from "@/lib/kv-store";
 import { createMailTransporter, buildHelpdeskNewInquiryEmail } from "@/lib/mail";
 
@@ -9,26 +8,18 @@ import { createMailTransporter, buildHelpdeskNewInquiryEmail } from "@/lib/mail"
 
 export const dynamic = "force-dynamic";
 
-const notion = new Client({ auth: process.env.NOTION_TOKEN });
 const NOTIFIED_KEY = (id: string) => `helpdesk_new_notified:${id}`;
 const SUPER_EMAILS_KEY = "sw:super-emails";
 
 export async function POST(req: NextRequest) {
   try {
-    const secret = process.env.NOTION_WEBHOOK_SECRET;
-    if (secret) {
-      const sig = req.headers.get("x-notion-signature") || req.headers.get("x-hub-signature-256");
-      if (!sig?.includes(secret)) {
-        return NextResponse.json({ error: "인증 실패" }, { status: 401 });
-      }
-    }
-
     const body = await req.json();
-    const pageId: string | undefined =
-      body?.entity?.id || body?.data?.entity?.id || body?.page_id || body?.id;
+
+    // Notion Automation 페이로드: { source: {...}, data: { id, properties, ... } }
+    const pageId: string | undefined = body?.data?.id;
 
     if (!pageId) {
-      console.warn("[webhook/helpdesk-new] pageId 없음:", JSON.stringify(body).slice(0, 200));
+      console.warn("[webhook/helpdesk-new] pageId 없음:", JSON.stringify(body).slice(0, 300));
       return NextResponse.json({ ok: true, skipped: "no pageId" });
     }
 
@@ -42,20 +33,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, skipped: "no super admin emails" });
     }
 
+    // 프로퍼티는 페이로드에 이미 포함 — Notion API 재호출 불필요
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const page = await notion.pages.retrieve({ page_id: pageId }) as any;
-    const props = page.properties;
+    const props = body?.data?.properties ?? {} as Record<string, any>;
 
     const getText = (key: string): string =>
       props?.[key]?.rich_text?.[0]?.plain_text || props?.[key]?.title?.[0]?.plain_text || "";
     const getSelect = (key: string): string =>
-      props?.[key]?.select?.name || "";
+      props?.[key]?.select?.name || props?.[key]?.status?.name || "";
 
     const requester   = getText("문의자");
     const company     = getSelect("법인");
     const department  = getText("부서");
     const inquiryType = getSelect("문의유형");
-    const urgency     = getSelect("긴급도");
+    const urgency     = getSelect("긴급도").replace(/\.$/, ""); // 마침표 제거
     const content     = getText("문의내용");
     const assetNo     = getText("자산번호");
 
@@ -70,7 +61,7 @@ export async function POST(req: NextRequest) {
       company, department, inquiryType, urgency, content, assetNo, adminUrl,
     });
 
-    const urgencySuffix = urgency === "매우 급합니다" ? " [긴급]" : "";
+    const urgencySuffix = urgency.includes("매우 급합니다") ? " [긴급]" : "";
     await transporter.sendMail({
       from: `"IDS Help Desk" <${process.env.GMAIL_USER}>`,
       to: superEmails.join(", "),
