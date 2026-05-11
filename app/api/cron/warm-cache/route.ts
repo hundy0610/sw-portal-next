@@ -1,23 +1,23 @@
 import { NextResponse } from "next/server";
 import { fetchSwDb, fetchSwDatabase, fetchLicenseRecords, fetchSubscriptions, fetchTickets } from "@/lib/notion";
-import { fetchAllHwRecords, computeHwStats } from "@/lib/hw";
 import { kvSet } from "@/lib/kv-store";
 
 /**
  * GET /api/cron/warm-cache
  *
- * GitHub Actions에서 1분마다 호출.
- * Notion에서 전체 데이터를 직접 fetch하여 Vercel KV에 저장.
- * → 이후 사용자 요청은 KV에서 즉시 응답 (1~5ms)
+ * GitHub Actions에서 30분마다 호출.
+ * SW/라이선스/티켓 데이터를 Upstash KV에 캐시.
+ *
+ * HW 데이터는 이 엔드포인트에서 제외 — Notion API 39회 호출로 Vercel 10초 타임아웃 초과.
+ * HW는 .github/workflows/warm-hw.yml + .github/scripts/warm-hw.mjs 에서
+ * GitHub Actions가 직접 Notion → Upstash로 push (타임아웃 없음).
  */
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   const start = Date.now();
 
-  // 개별 fetch 실패가 전체를 막지 않도록 allSettled 사용
-  const [hwR, swR, swdbR, licensesR, subsR, ticketsR] = await Promise.allSettled([
-    fetchAllHwRecords(),
+  const [swR, swdbR, licensesR, subsR, ticketsR] = await Promise.allSettled([
     fetchSwDatabase(),
     fetchSwDb(),
     fetchLicenseRecords(),
@@ -28,19 +28,13 @@ export async function GET() {
   const get = <T>(r: PromiseSettledResult<T>, fallback: T): T =>
     r.status === "fulfilled" ? r.value : fallback;
 
-  const hw            = get(hwR,        [] as Awaited<ReturnType<typeof fetchAllHwRecords>>);
   const sw            = get(swR,        [] as Awaited<ReturnType<typeof fetchSwDatabase>>);
   const swdb          = get(swdbR,      [] as Awaited<ReturnType<typeof fetchSwDb>>);
   const licenses      = get(licensesR,  [] as Awaited<ReturnType<typeof fetchLicenseRecords>>);
   const subscriptions = get(subsR,      [] as Awaited<ReturnType<typeof fetchSubscriptions>>);
   const tickets       = get(ticketsR,   [] as Awaited<ReturnType<typeof fetchTickets>>);
 
-  const hwStats = computeHwStats(hw);
-
-  // 각각 독립적으로 KV 저장 (하나 실패해도 나머지 저장)
   await Promise.allSettled([
-    hw.length            ? kvSet("hw:all",            hw)            : Promise.resolve(),
-    hw.length            ? kvSet("hw:stats",          hwStats)       : Promise.resolve(),
     sw.length            ? kvSet("sw:all",            sw)            : Promise.resolve(),
     swdb.length          ? kvSet("swdb:all",          swdb)          : Promise.resolve(),
     licenses.length      ? kvSet("licenses:all",      licenses)      : Promise.resolve(),
@@ -49,7 +43,6 @@ export async function GET() {
   ]);
 
   const errors: string[] = [];
-  if (hwR.status        === "rejected") errors.push(`hw: ${hwR.reason}`);
   if (swR.status        === "rejected") errors.push(`sw: ${swR.reason}`);
   if (swdbR.status      === "rejected") errors.push(`swdb: ${swdbR.reason}`);
   if (licensesR.status  === "rejected") errors.push(`licenses: ${licensesR.reason}`);
@@ -62,13 +55,13 @@ export async function GET() {
     ok: true,
     elapsed: `${Date.now() - start}ms`,
     counts: {
-      hw:            hw.length,
       sw:            sw.length,
       swdb:          swdb.length,
       licenses:      licenses.length,
       subscriptions: subscriptions.length,
       tickets:       tickets.length,
     },
+    note: "hw는 warm-hw.yml에서 직접 처리",
     errors: errors.length ? errors : undefined,
     warmedAt: new Date().toISOString(),
   });

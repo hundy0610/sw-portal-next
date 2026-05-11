@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchAllHwRecords, computeHwStats, type HwRecord } from "@/lib/hw";
-import { kvGet, kvSet } from "@/lib/kv-store";
+import { computeHwStats, type HwRecord } from "@/lib/hw";
+import { kvGet } from "@/lib/kv-store";
 import { memGet, memSet } from "@/lib/mem-cache";
 import type { HwStats } from "@/lib/hw";
+import { triggerWarmHw } from "@/lib/trigger-warm-hw";
 
 export const dynamic = "force-dynamic";
 
@@ -15,17 +16,14 @@ export async function GET(req: NextRequest) {
       let all = memGet<HwRecord[]>("hw:all");
       if (!all) all = await kvGet<HwRecord[]>("hw:all");
       if (!all) {
-        all = await fetchAllHwRecords();
-        const allStats = computeHwStats(all);
-        await Promise.all([kvSet("hw:all", all), kvSet("hw:stats", allStats)]);
-        memSet("hw:all", all, 300);
-        memSet("hw:stats", allStats, 300);
+        triggerWarmHw().catch(console.warn);
+        return NextResponse.json({ ok: true, stats: null, warming: true });
       }
       const stats = computeHwStats(all.filter((r: HwRecord) => r.company === company));
       return NextResponse.json({ ok: true, stats });
     }
 
-    // 전체 통계 (3단계 캐시)
+    // 전체 통계 — 3단계 캐시: 인메모리 → KV → warming
     let stats = memGet<HwStats>("hw:stats");
     if (stats) return NextResponse.json({ ok: true, stats, cached: "mem" });
 
@@ -35,14 +33,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: true, stats, cached: "kv" });
     }
 
-    const records = await fetchAllHwRecords();
-    stats = computeHwStats(records);
-    await Promise.all([kvSet("hw:stats", stats), kvSet("hw:all", records)]);
-    memSet("hw:stats", stats, 300);
-
-    return NextResponse.json({ ok: true, stats }, {
-      headers: { "Cache-Control": "s-maxage=60, stale-while-revalidate=30" },
-    });
+    // KV 미스 (최초 배포 후 warm 미실행) — GitHub Actions 트리거
+    triggerWarmHw().catch(console.warn);
+    return NextResponse.json({ ok: true, stats: null, warming: true });
   } catch (e) {
     console.error("[API /hw/stats]", e);
     return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });

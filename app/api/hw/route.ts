@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchAllHwRecords, computeHwStats, type HwRecord } from "@/lib/hw";
-import { kvGet, kvSet } from "@/lib/kv-store";
+import { type HwRecord, fetchHwFiltered } from "@/lib/hw";
+import { kvGet } from "@/lib/kv-store";
 import { memGet, memSet, memDel } from "@/lib/mem-cache";
+import { triggerWarmHw } from "@/lib/trigger-warm-hw";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,8 @@ export async function GET(req: NextRequest) {
   const location  = searchParams.get("location")?.trim()  || "";
   const returnDue = searchParams.get("returnDue") === "1";
   const refresh   = searchParams.get("refresh") === "1";
+  // 탭별 필터 직접 조회용 (KV cold miss 시 Notion 직접 쿼리)
+  const statuses  = searchParams.get("statuses")?.split(",").map(s => s.trim()).filter(Boolean) ?? [];
 
   try {
     // refresh=1 이면 인메모리 캐시 무효화
@@ -27,13 +30,20 @@ export async function GET(req: NextRequest) {
       records = await kvGet<HwRecord[]>("hw:all");
 
       if (!records) {
-        // 3. Notion 직접 조회 — hw:stats도 동시 저장하여 stats 엔드포인트 중복 fetch 방지
-        records = await fetchAllHwRecords();
-        const stats = computeHwStats(records);
-        await Promise.all([
-          kvSet("hw:all",   records),
-          kvSet("hw:stats", stats),
-        ]);
+        // 3. KV 미스
+        if (statuses.length > 0 || returnDue) {
+          // 필터가 있으면 Notion 직접 조회 (결과 수십~백 건 → 1~3 호출, 타임아웃 안전)
+          const filtered = await fetchHwFiltered({ statuses, returnDue, company });
+          return NextResponse.json({ ok: true, records: filtered });
+        }
+        // 전체 데이터 요청 — Vercel 10s 초과. GitHub Actions 트리거 (백그라운드)
+        triggerWarmHw().catch(console.warn);
+        return NextResponse.json({
+          ok: true,
+          records: [],
+          warming: true,
+          message: "HW 데이터 캐시를 갱신하고 있습니다. 잠시 후 자동으로 재시도합니다.",
+        });
       }
 
       // 인메모리에 저장
