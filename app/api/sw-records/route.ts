@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchSwDatabase } from "@/lib/notion";
-import { kvGet, kvSet } from "@/lib/kv-store";
+import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { memGet, memSet } from "@/lib/mem-cache";
 import type { SwDbRecord } from "@/types";
 
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
       if (!data) {
         // 3. Notion 직접 조회
         data = await fetchSwDatabase();
-        await kvSet("sw:all", data);
+        await kvSetPermanent("sw:all", data);
       }
 
       memSet("sw:all", data, 300);

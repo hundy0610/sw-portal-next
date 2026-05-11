@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchLicenseRecords } from "@/lib/notion";
-import { kvGet, kvSet } from "@/lib/kv-store";
+import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { memGet, memSet } from "@/lib/mem-cache";
 import type { LicenseRecord } from "@/types";
 
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
       if (!data) {
         // 3. Notion 직접 조회 (13개 DB 병렬)
         data = await fetchLicenseRecords();
-        await kvSet("licenses:all", data);
+        await kvSetPermanent("licenses:all", data);
       }
 
       memSet("licenses:all", data, 300);
