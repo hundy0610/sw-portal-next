@@ -1992,9 +1992,10 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
   const [statsError,   setStatsError]  = useState("");
   const [missingEnv,   setMissingEnv]  = useState<string | null>(null);
 
-  // ── KV 캐시 warming 상태 (cold miss 시 GitHub Actions 자동 트리거) ──────────
+  // ── KV 캐시 warming/stale 상태 ────────────────────────────────────────────
   const [warming,       setWarming]       = useState(false);
-  const [warmRetryIn,   setWarmRetryIn]   = useState(0); // 카운트다운(초)
+  const [staleStats,    setStaleStats]    = useState(false); // 영구 캐시 fallback 사용 중
+  const [warmRetryIn,   setWarmRetryIn]   = useState(0);
   const warmTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── 목록 탭용 전체 레코드 (필요 시 lazy load) ─────────────────────────────
@@ -2034,6 +2035,7 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
       if (json.warming) { startWarmingCountdown(() => loadStats()); return; }
       if (!json.ok) throw new Error(json.error);
       setStats(json.stats);
+      if (json.stale) setStaleStats(true); // 영구 캐시 fallback 사용 중
     } catch (e) { setStatsError(String(e)); }
     finally { setStatsLoading(false); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2169,6 +2171,16 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
 
   return (
     <div className="space-y-4">
+
+      {/* ── 데이터 갱신 중 (stale fallback 사용) — 조용한 배너 ──────────── */}
+      {staleStats && !warming && (
+        <div className="flex items-center gap-3 px-4 py-2.5 bg-blue-50 border border-blue-100 rounded-xl text-xs text-blue-600">
+          <svg className="animate-spin shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+          </svg>
+          <span>캐시 갱신 중 — 표시된 데이터는 마지막 저장본입니다. 자동으로 최신 데이터로 교체됩니다.</span>
+        </div>
+      )}
 
       {/* ── HW 캐시 갱신 중 배너 ─────────────────────────────────────────── */}
       {warming && (

@@ -36,8 +36,8 @@ export async function GET(req: NextRequest) {
           const filtered = await fetchHwFiltered({ statuses, returnDue, company });
           return NextResponse.json({ ok: true, records: filtered });
         }
-        // 전체 데이터 요청 — Vercel 10s 초과. GitHub Actions 트리거 후 warming 반환
-        await triggerWarmHw();
+        // 전체 데이터 요청 — Vercel 10s 초과. GitHub Actions 트리거 (백그라운드)
+        triggerWarmHw().catch(console.warn);
         return NextResponse.json({
           ok: true,
           records: [],

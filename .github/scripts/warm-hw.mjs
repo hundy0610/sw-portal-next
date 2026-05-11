@@ -165,8 +165,10 @@ async function pushToUpstash(records, stats) {
       "Content-Type":  "application/json",
     },
     body: JSON.stringify([
-      ["SET", "hw:all",   JSON.stringify(records), "EX", String(KV_TTL)],
-      ["SET", "hw:stats", JSON.stringify(stats),   "EX", String(KV_TTL)],
+      ["SET", "hw:all",            JSON.stringify(records), "EX", String(KV_TTL)],
+      ["SET", "hw:stats",          JSON.stringify(stats),   "EX", String(KV_TTL)],
+      // 영구 캐시: TTL 없음 — hw:stats TTL 만료 시 즉시 fallback으로 사용
+      ["SET", "hw:stats:permanent", JSON.stringify(stats)],
     ]),
   });
 
