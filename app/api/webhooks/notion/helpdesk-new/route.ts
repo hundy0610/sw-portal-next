@@ -61,11 +61,10 @@ export async function POST(req: NextRequest) {
       company, department, inquiryType, urgency, content, assetNo, adminUrl,
     });
 
-    const urgencySuffix = urgency.includes("매우 급합니다") ? " [긴급]" : "";
     await transporter.sendMail({
       from: `"IDS Help Desk" <${process.env.GMAIL_USER}>`,
       to: superEmails.join(", "),
-      subject: `[Help Desk] 신규 문의 접수 - ${requester || "미상"}${urgencySuffix}`,
+      subject: `[Help Desk] 신규 ${inquiryType}문의가 접수되었습니다.`,
       html,
     });
 
