@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import * as XLSX from "xlsx";
 import type { SwDbRecord } from "@/types";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
 
@@ -483,12 +484,365 @@ function CategoryView({ records, onEdit }: { records: SwDbRecord[]; onEdit: (r: 
 }
 
 // ── 메인 컴포넌트 ───────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// SW 엑셀 업로드 컴포넌트
+// ─────────────────────────────────────────────────────────────────────────────
+
+// 엑셀 헤더 ↔ SwUploadRow 키 매핑 (다양한 표기 허용)
+const SW_COL_MAP: { key: string; aliases: string[] }[] = [
+  { key: "user",         aliases: ["사용자","user"] },
+  { key: "swCategory",   aliases: ["sw대분류","sw분류","swcategory","대분류"] },
+  { key: "swDetail",     aliases: ["sw소분류","소분류","swdetail","에디션","버전명"] },
+  { key: "version",      aliases: ["버전","version","ver"] },
+  { key: "status",       aliases: ["상태","status"] },
+  { key: "company",      aliases: ["법인명","법인","company"] },
+  { key: "licenseType",  aliases: ["라이선스유형","영구/구독","licensetype","유형","라이선스"] },
+  { key: "department",   aliases: ["부서","department","dept"] },
+  { key: "usageDate",    aliases: ["사용일자","사용날짜","usagedate","use_date"] },
+  { key: "renewalDate",  aliases: ["갱신필요일","갱신일","renewaldate","renewal_date"] },
+  { key: "purchaseDate", aliases: ["구매일자","구매날짜","purchasedate","purchase_date"] },
+  { key: "accountType",  aliases: ["계정유형","accounttype","계정"] },
+  { key: "renewalCycle", aliases: ["갱신주기","renewalcycle","주기"] },
+  { key: "licenseKey",   aliases: ["인증키/인증계정","인증키","인증계정","licensekey","key","license_key"] },
+  { key: "vendor",       aliases: ["구매처","vendor","공급사"] },
+  { key: "workType",     aliases: ["sw사용직군","직군","worktype","work_type"] },
+  { key: "billingType",  aliases: ["결제방식","결재방식","billingtype","billing"] },
+  { key: "monthlyKrw",   aliases: ["월비용krw","월비용(krw)","월비용_krw","krw","월금액(krw)"] },
+  { key: "monthlyUsd",   aliases: ["월비용usd","월비용(usd)","월비용_usd","usd","월금액(usd)"] },
+];
+
+// 엑셀 날짜 시리얼 → YYYY-MM-DD 문자열
+function excelDateToStr(val: string | number): string {
+  if (typeof val === "number") {
+    return new Date((val - 25569) * 86400 * 1000).toISOString().slice(0, 10);
+  }
+  return String(val ?? "").trim();
+}
+
+// 헤더 행으로부터 컬럼 인덱스 맵 생성
+function buildSwColIndex(headers: string[]): Record<string, number> {
+  const idx: Record<string, number> = {};
+  headers.forEach((h, i) => {
+    const norm = h.toLowerCase().replace(/\s+/g, "");
+    for (const { key, aliases } of SW_COL_MAP) {
+      if (aliases.some(a => a.replace(/\s+/g, "") === norm)) {
+        idx[key] = i;
+        break;
+      }
+    }
+  });
+  return idx;
+}
+
+interface SwUploadRowClient {
+  user: string; swCategory: string; swDetail: string; version: string;
+  status: string; company: string; licenseType: string; department: string;
+  usageDate: string; renewalDate: string; purchaseDate: string;
+  accountType: string; renewalCycle: string; licenseKey: string;
+  vendor: string; workType: string; billingType: string;
+  monthlyKrw: number; monthlyUsd: number;
+}
+
+type UploadResult = { index: number; user: string; sw: string; ok: boolean; error?: string };
+
+function SwExcelUpload({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+  const fileRef  = useRef<HTMLInputElement>(null);
+  const [rows,      setRows]      = useState<SwUploadRowClient[]>([]);
+  const [fileName,  setFileName]  = useState("");
+  const [parseErr,  setParseErr]  = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [progress,  setProgress]  = useState(0);
+  const [results,   setResults]   = useState<UploadResult[] | null>(null);
+  const [summary,   setSummary]   = useState<{ success: number; failed: number } | null>(null);
+
+  // ── 양식 다운로드 ─────────────────────────────────────────────────────────
+  function downloadTemplate() {
+    const headers = [
+      "사용자","SW대분류","SW소분류","버전(쉼표구분)","상태",
+      "법인명","라이선스유형","부서","사용일자","갱신필요일","구매일자",
+      "계정유형","갱신주기","인증키/인증계정","구매처","SW사용직군","결제방식",
+      "월비용KRW","월비용USD",
+    ];
+    const sample = [
+      "홍길동","MS Office","Office 365","2021,2024","사용중",
+      "대웅제약","영구","IT팀","2024-01-01","2025-12-31","2024-01-01",
+      "법인","연","XXXXX-XXXXX-XXXXX","MS Korea","사무직","법인카드",
+      0, 0,
+    ];
+    const note = [
+      "※ 사용자·SW대분류는 필수 입력",
+      "상태: 사용중/재고/갱신필요/만료/신규등록",
+      "라이선스유형: 영구/구독(업체)/구독(웹)",
+      "버전: 쉼표로 구분 (예: 2021,2024)",
+      "날짜: YYYY-MM-DD 형식",
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, sample]);
+
+    // 컬럼 너비 설정
+    ws["!cols"] = headers.map(() => ({ wch: 18 }));
+
+    // 안내 시트 추가
+    const noteWs = XLSX.utils.aoa_to_sheet(note.map(n => [n]));
+    noteWs["!cols"] = [{ wch: 60 }];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "SW등록양식");
+    XLSX.utils.book_append_sheet(wb, noteWs, "입력안내");
+    XLSX.writeFile(wb, "SW자산_등록양식.xlsx");
+  }
+
+  // ── 파일 파싱 ─────────────────────────────────────────────────────────────
+  async function handleFile(file: File) {
+    setParseErr(""); setRows([]); setResults(null); setSummary(null);
+    try {
+      const buf  = await file.arrayBuffer();
+      const wb   = XLSX.read(buf, { type: "array" });
+      const ws   = wb.Sheets[wb.SheetNames[0]];
+      const raw  = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: "" }) as unknown[][];
+      if (raw.length < 2) throw new Error("데이터 행이 없습니다 (헤더 + 최소 1행 필요)");
+
+      const headers  = (raw[0] as unknown[]).map(h => String(h ?? ""));
+      const colIdx   = buildSwColIndex(headers);
+      const parsed: SwUploadRowClient[] = [];
+
+      for (let i = 1; i < raw.length; i++) {
+        const r = raw[i] as unknown[];
+        const user = String(r[colIdx["user"] ?? -1] ?? "").trim();
+        if (!user) continue; // 빈 행 스킵
+
+        const get = (key: string) => String(r[colIdx[key] ?? -1] ?? "").trim();
+        const getNum = (key: string) => {
+          const v = r[colIdx[key] ?? -1];
+          return typeof v === "number" ? v : parseFloat(String(v ?? "0")) || 0;
+        };
+
+        parsed.push({
+          user,
+          swCategory:   get("swCategory"),
+          swDetail:     get("swDetail"),
+          version:      get("version"),
+          status:       get("status") || "신규등록",
+          company:      get("company"),
+          licenseType:  get("licenseType"),
+          department:   get("department"),
+          usageDate:    excelDateToStr(r[colIdx["usageDate"] ?? -1] as string | number),
+          renewalDate:  excelDateToStr(r[colIdx["renewalDate"] ?? -1] as string | number),
+          purchaseDate: excelDateToStr(r[colIdx["purchaseDate"] ?? -1] as string | number),
+          accountType:  get("accountType"),
+          renewalCycle: get("renewalCycle"),
+          licenseKey:   get("licenseKey"),
+          vendor:       get("vendor"),
+          workType:     get("workType"),
+          billingType:  get("billingType"),
+          monthlyKrw:   getNum("monthlyKrw"),
+          monthlyUsd:   getNum("monthlyUsd"),
+        });
+      }
+
+      if (parsed.length === 0) throw new Error("유효한 데이터 행이 없습니다. '사용자' 컬럼을 확인해 주세요.");
+      if (parsed.length > 200) throw new Error("한 번에 최대 200건까지 업로드 가능합니다.");
+
+      setRows(parsed);
+      setFileName(file.name);
+    } catch (e) {
+      setParseErr(String(e));
+    }
+  }
+
+  // ── Notion 업로드 ─────────────────────────────────────────────────────────
+  async function doUpload() {
+    setUploading(true); setProgress(0); setResults(null); setSummary(null);
+    try {
+      const timer = setInterval(() => setProgress(p => Math.min(p + Math.random() * 10, 88)), 500);
+      const res   = await fetch("/api/sw/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows }),
+      });
+      const json = await res.json();
+      clearInterval(timer);
+      setProgress(100);
+      if (!json.ok) throw new Error(json.error);
+      setResults(json.results);
+      setSummary({ success: json.success, failed: json.failed });
+      // 캐시 무효화 → 목록 갱신
+      await fetch("/api/sw-records/cache-clear", { method: "POST" });
+      if (json.failed === 0) {
+        setTimeout(() => { onSuccess(); onClose(); }, 2000);
+      }
+    } catch (e) {
+      setParseErr(String(e));
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+      onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
+        onClick={e => e.stopPropagation()}>
+
+        {/* 헤더 */}
+        <div className="px-6 py-4 bg-indigo-600 text-white flex items-center justify-between shrink-0">
+          <div>
+            <div className="font-bold text-base">📂 SW 자산 엑셀 등록</div>
+            <div className="text-xs opacity-80 mt-0.5">양식을 다운로드 후 작성하여 업로드하세요</div>
+          </div>
+          <button onClick={onClose} className="text-white/70 hover:text-white text-2xl leading-none">✕</button>
+        </div>
+
+        {/* 본문 */}
+        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
+
+          {/* 안내 + 양식 다운로드 */}
+          <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex items-start gap-4">
+            <div className="flex-1 text-xs text-indigo-700 space-y-1">
+              <p className="font-semibold text-sm text-indigo-800">📋 업로드 순서</p>
+              <p>① 아래 <strong>양식 다운로드</strong> → ② 엑셀에 데이터 입력 → ③ 파일 업로드 → ④ Notion 자동 등록</p>
+              <p className="text-indigo-500">필수 컬럼: <strong>사용자</strong> · <strong>SW대분류</strong> / 최대 200건</p>
+            </div>
+            <button onClick={downloadTemplate}
+              className="shrink-0 flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm">
+              ⬇️ 양식 다운로드
+            </button>
+          </div>
+
+          {/* 파일 업로드 영역 */}
+          {rows.length === 0 && !parseErr && (
+            <div
+              className="bg-white border-2 border-dashed border-gray-300 rounded-xl p-12 text-center hover:border-indigo-400 hover:bg-indigo-50/30 transition-colors cursor-pointer"
+              onClick={() => fileRef.current?.click()}
+              onDragOver={e => e.preventDefault()}
+              onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}>
+              <div className="text-4xl mb-3">📂</div>
+              <p className="text-sm font-semibold text-gray-700">엑셀 파일을 드래그하거나 클릭하여 선택</p>
+              <p className="text-xs text-gray-400 mt-1">.xlsx · .xls 지원</p>
+              <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
+            </div>
+          )}
+
+          {/* 파싱 오류 */}
+          {parseErr && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">
+              <p className="font-semibold mb-1">⚠️ 오류</p>
+              <p>{parseErr}</p>
+              <button onClick={() => { setParseErr(""); setRows([]); }}
+                className="mt-2 text-xs underline text-red-600">다시 시도</button>
+            </div>
+          )}
+
+          {/* 파싱 완료 — 프리뷰 */}
+          {rows.length > 0 && !results && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-gray-700">
+                  📄 <span className="text-gray-500 font-normal">{fileName}</span> —
+                  <span className="text-indigo-600 font-bold ml-1">{rows.length}건</span> 파싱됨
+                </p>
+                <button onClick={() => { setRows([]); setFileName(""); }}
+                  className="text-xs text-gray-400 hover:text-red-500 border border-gray-200 px-2.5 py-1 rounded-lg transition-colors">
+                  × 다시 선택
+                </button>
+              </div>
+
+              {/* 프리뷰 테이블 */}
+              <div className="border border-gray-200 rounded-xl overflow-auto max-h-64">
+                <table className="w-full text-xs">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      {["#","사용자","SW대분류","SW소분류","상태","법인명","유형","사용일자","갱신필요일"].map(h => (
+                        <th key={h} className="px-3 py-2 text-left text-gray-500 font-semibold whitespace-nowrap border-b border-gray-100">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.slice(0, 50).map((r, i) => (
+                      <tr key={i} className="border-b border-gray-50 hover:bg-indigo-50/30">
+                        <td className="px-3 py-2 text-gray-400">{i + 1}</td>
+                        <td className="px-3 py-2 font-medium text-gray-900 whitespace-nowrap">{r.user}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{r.swCategory || <span className="text-gray-300">—</span>}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{r.swDetail || <span className="text-gray-300">—</span>}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          <span className="px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium">{r.status}</span>
+                        </td>
+                        <td className="px-3 py-2 whitespace-nowrap">{r.company || <span className="text-gray-300">—</span>}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{r.licenseType || <span className="text-gray-300">—</span>}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{r.usageDate || <span className="text-gray-300">—</span>}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{r.renewalDate || <span className="text-gray-300">—</span>}</td>
+                      </tr>
+                    ))}
+                    {rows.length > 50 && (
+                      <tr><td colSpan={9} className="px-3 py-2 text-center text-gray-400 text-xs">… 외 {rows.length - 50}건 (미리보기 50건만 표시)</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* 업로드 버튼 */}
+              {!uploading && (
+                <button onClick={doUpload}
+                  className="w-full py-3 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition-colors shadow-sm">
+                  🚀 Notion에 {rows.length}건 등록
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* 업로드 진행 중 */}
+          {uploading && (
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <p className="text-sm font-semibold text-gray-700 mb-3">Notion 등록 중… {Math.round(progress)}%</p>
+              <div className="w-full bg-gray-100 rounded-full h-2.5">
+                <div className="bg-indigo-500 h-2.5 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
+              </div>
+              <p className="text-xs text-gray-400 mt-2">Notion API 속도 제한으로 건당 약 0.35초 소요됩니다.</p>
+            </div>
+          )}
+
+          {/* 결과 */}
+          {results && summary && (
+            <div className={`rounded-xl border p-4 ${summary.failed === 0 ? "bg-green-50 border-green-200" : "bg-orange-50 border-orange-200"}`}>
+              <p className={`font-bold text-base mb-2 ${summary.failed === 0 ? "text-green-700" : "text-orange-700"}`}>
+                {summary.failed === 0 ? "✅ 등록 완료!" : `⚠️ 일부 오류 발생`}
+              </p>
+              <p className="text-sm text-gray-600">
+                성공 <strong className="text-green-600">{summary.success}건</strong>
+                {summary.failed > 0 && <> · 실패 <strong className="text-red-600">{summary.failed}건</strong></>}
+              </p>
+              {summary.failed > 0 && (
+                <div className="mt-3 space-y-1 max-h-32 overflow-y-auto">
+                  {results.filter(r => !r.ok).map((r, i) => (
+                    <p key={i} className="text-xs text-red-600">#{r.index + 1} {r.user} — {r.error}</p>
+                  ))}
+                </div>
+              )}
+              {summary.failed === 0 && <p className="text-xs text-green-500 mt-1">잠시 후 목록이 자동 갱신됩니다…</p>}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 export default function LicensePanel({ company = "" }: { company?: string }) {
   const [records,    setRecords]    = useState<SwDbRecord[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [missingEnv, setMissingEnv] = useState<string | null>(null);
   const [detailView, setDetailView] = useState<"category" | "list">("list");
   const [editRecord, setEditRecord] = useState<SwDbRecord | null>(null);
+  const [showUpload, setShowUpload] = useState(false);
+
+  const handleUploadSuccess = useCallback(() => {
+    const url = company ? `/api/sw-records?company=${encodeURIComponent(company)}` : "/api/sw-records";
+    fetch(url)
+      .then(r => r.json())
+      .then(res => { if (!res.missingEnv) setRecords(res.data ?? []); });
+  }, [company]);
 
   const handleUpdate = useCallback(async (id: string, fields: Partial<SwDbRecord>) => {
     const res  = await fetch("/api/sw/update", {
@@ -610,9 +964,17 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
   return (
     <div className="fade-in">
       {/* ── 헤더 ── */}
-      <div className="mb-5">
-        <h2 className="text-xl font-bold text-gray-900 mb-0.5">라이선스 현황</h2>
-        <p className="text-sm text-gray-500">영구 · 구독 통합 SW 라이선스 검색 (Notion 실시간 연동)</p>
+      <div className="mb-5 flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900 mb-0.5">라이선스 현황</h2>
+          <p className="text-sm text-gray-500">영구 · 구독 통합 SW 라이선스 검색 (Notion 실시간 연동)</p>
+        </div>
+        <button
+          onClick={() => setShowUpload(true)}
+          className="shrink-0 flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
+        >
+          📂 엑셀 등록
+        </button>
       </div>
 
       {/* ── 라이선스 유형 탭 ── */}
@@ -742,6 +1104,14 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
         </div>
         <span className="text-xs text-gray-400">{filtered.length}건 조회됨</span>
       </div>
+
+      {/* ── 엑셀 업로드 모달 ── */}
+      {showUpload && (
+        <SwExcelUpload
+          onClose={() => setShowUpload(false)}
+          onSuccess={handleUploadSuccess}
+        />
+      )}
 
       {/* ── 수정 모달 ── */}
       {editRecord && (
