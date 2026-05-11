@@ -20,7 +20,7 @@ const UPSTASH_TOKEN   = process.env.UPSTASH_REDIS_REST_TOKEN;
 
 // lib/hw.ts의 DB_ID와 동일
 const HW_DB_ID = "29967f4b-fdac-8086-b468-ef3545b3e471";
-const KV_TTL   = 86400; // 24시간 (lib/kv-store.ts KV_TTL과 동일)
+// TTL 없음 — warm-hw.yml이 2시간마다 덮어씌우므로 만료 불필요
 
 // ─── 환경변수 검증 ───────────────────────────────────────────────────────────
 if (!NOTION_TOKEN)  { console.error("❌ NOTION_TOKEN 미설정"); process.exit(1); }
@@ -165,10 +165,10 @@ async function pushToUpstash(records, stats) {
       "Content-Type":  "application/json",
     },
     body: JSON.stringify([
-      ["SET", "hw:all",            JSON.stringify(records), "EX", String(KV_TTL)],
-      ["SET", "hw:stats",          JSON.stringify(stats),   "EX", String(KV_TTL)],
-      // 영구 캐시: TTL 없음 — hw:stats TTL 만료 시 즉시 fallback으로 사용
-      ["SET", "hw:stats:permanent", JSON.stringify(stats)],
+      // TTL 없이 영구 저장 — warm-hw.yml 2시간마다 덮어씌움
+      // 포털에서 개별 수정 시 KV를 직접 패치하므로 TTL 불필요
+      ["SET", "hw:all",   JSON.stringify(records)],
+      ["SET", "hw:stats", JSON.stringify(stats)],
     ]),
   });
 

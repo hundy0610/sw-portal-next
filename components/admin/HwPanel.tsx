@@ -1992,12 +1992,6 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
   const [statsError,   setStatsError]  = useState("");
   const [missingEnv,   setMissingEnv]  = useState<string | null>(null);
 
-  // ── KV 캐시 warming/stale 상태 ────────────────────────────────────────────
-  const [warming,       setWarming]       = useState(false);
-  const [staleStats,    setStaleStats]    = useState(false); // 영구 캐시 fallback 사용 중
-  const [warmRetryIn,   setWarmRetryIn]   = useState(0);
-  const warmTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
   // ── 목록 탭용 전체 레코드 (필요 시 lazy load) ─────────────────────────────
   const [records,      setRecords]      = useState<HwRecord[]>([]);
   const recordsRef = useRef<HwRecord[]>([]);
@@ -2005,24 +1999,6 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
   const [recordsLoading, setRecordsLoading] = useState(false);
   const [recordsReady,   setRecordsReady]   = useState(false);
   const [recordsError,   setRecordsError]   = useState("");
-
-  // warming 상태: 카운트다운 타이머 + 자동 재시도
-  const startWarmingCountdown = useCallback((retryFn: () => void) => {
-    setWarming(true);
-    setWarmRetryIn(20);
-    if (warmTimerRef.current) clearInterval(warmTimerRef.current);
-    let remaining = 20;
-    warmTimerRef.current = setInterval(() => {
-      remaining -= 1;
-      setWarmRetryIn(remaining);
-      if (remaining <= 0) {
-        clearInterval(warmTimerRef.current!);
-        warmTimerRef.current = null;
-        setWarming(false);
-        retryFn();
-      }
-    }, 1000);
-  }, []);
 
   // stats 로드 (대시보드 진입 시)
   const loadStats = useCallback(async () => {
@@ -2032,14 +2008,12 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
       const res  = await fetch(statsUrl);
       const json = await res.json();
       if (json.missingEnv) { setMissingEnv(json.missingEnv); return; }
-      if (json.warming) { startWarmingCountdown(() => loadStats()); return; }
       if (!json.ok) throw new Error(json.error);
-      setStats(json.stats);
-      if (json.stale) setStaleStats(true); // 영구 캐시 fallback 사용 중
+      if (json.stats) setStats(json.stats);
     } catch (e) { setStatsError(String(e)); }
     finally { setStatsLoading(false); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [company, startWarmingCountdown]);
+  }, [company]);
 
   // 전체 레코드 로드 (목록 탭 진입 시)
   const loadAll = useCallback(async () => {
@@ -2049,14 +2023,13 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
       const url  = company ? `/api/hw?company=${encodeURIComponent(company)}` : "/api/hw";
       const res  = await fetch(url);
       const json = await res.json();
-      if (json.warming) { startWarmingCountdown(() => loadAll()); return; }
       if (!json.ok) throw new Error(json.error);
       setRecords(json.records);
       setRecordsReady(true);
     } catch (e) { setRecordsError(String(e)); }
     finally { setRecordsLoading(false); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [company, recordsReady, startWarmingCountdown]);
+  }, [company, recordsReady]);
 
   // 새로고침: stats + records 모두 갱신
   const handleRefreshStats = useCallback(async () => {
@@ -2088,13 +2061,6 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
   useEffect(() => {
     if (!initialStats) loadStats();
   }, [initialStats, loadStats]);
-
-  // 언마운트 시 카운트다운 타이머 정리
-  useEffect(() => {
-    return () => {
-      if (warmTimerRef.current) clearInterval(warmTimerRef.current);
-    };
-  }, []);
 
   // 라벨 탭만 전체 레코드 lazy load (shipment/return은 자체 fetch)
   useEffect(() => {
@@ -2171,37 +2137,6 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
 
   return (
     <div className="space-y-4">
-
-      {/* ── 데이터 갱신 중 (stale fallback 사용) — 조용한 배너 ──────────── */}
-      {staleStats && !warming && (
-        <div className="flex items-center gap-3 px-4 py-2.5 bg-blue-50 border border-blue-100 rounded-xl text-xs text-blue-600">
-          <svg className="animate-spin shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-          </svg>
-          <span>캐시 갱신 중 — 표시된 데이터는 마지막 저장본입니다. 자동으로 최신 데이터로 교체됩니다.</span>
-        </div>
-      )}
-
-      {/* ── HW 캐시 갱신 중 배너 ─────────────────────────────────────────── */}
-      {warming && (
-        <div className="flex items-center gap-4 px-5 py-4 bg-amber-50 border border-amber-200 rounded-xl shadow-sm">
-          <div className="shrink-0 w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center">
-            <svg className="animate-spin text-amber-600" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-            </svg>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-amber-800">HW 데이터 캐시 갱신 중…</p>
-            <p className="text-xs text-amber-600 mt-0.5">
-              GitHub Actions가 3,800여 건을 Notion에서 가져오는 중입니다. {warmRetryIn}초 후 자동 재시도합니다.
-            </p>
-          </div>
-          <div className="shrink-0 text-right">
-            <div className="text-2xl font-bold text-amber-600 leading-none">{warmRetryIn}</div>
-            <div className="text-xs text-amber-400 mt-0.5">초 후 재시도</div>
-          </div>
-        </div>
-      )}
 
       {/* 패널 헤더 */}
       <div className="flex items-center justify-between">

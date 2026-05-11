@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
-import { kvDel } from "@/lib/kv-store";
+import { computeHwStats, type HwRecord } from "@/lib/hw";
+import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { memDel } from "@/lib/mem-cache";
 import { autoCompleteReturnsByAssetId } from "@/lib/exchange-return";
 
@@ -63,11 +64,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "업데이트할 필드 없음" }, { status: 400 });
     }
 
-    // Notion 페이지 업데이트
-    await notion.pages.update({ page_id: id, properties: properties as Parameters<typeof notion.pages.update>[0]["properties"] });
+    // Notion 페이지 업데이트 + KV 패치를 병렬 시작
+    const notionPromise = notion.pages.update({
+      page_id: id,
+      properties: properties as Parameters<typeof notion.pages.update>[0]["properties"],
+    });
 
-    // KV 캐시 무효화 (다음 조회 시 Notion에서 새로 fetch)
-    await kvDel("hw:all", "hw:stats");
+    // KV 캐시 in-place 패치 (삭제하지 않고 해당 레코드만 수정)
+    const kvPatchPromise = (async () => {
+      const all = await kvGet<HwRecord[]>("hw:all");
+      if (!all) return; // KV 미스 — warm 시 자연히 반영됨
+      const updated = all.map(r => r.id === id ? { ...r, ...fields } : r);
+      const stats   = computeHwStats(updated);
+      await Promise.all([
+        kvSetPermanent("hw:all",   updated),
+        kvSetPermanent("hw:stats", stats),
+      ]);
+      // 인메모리 캐시 무효화 (KV는 이미 최신)
+      memDel("hw:all", "hw:stats");
+    })();
+
+    await Promise.all([notionPromise, kvPatchPromise]);
 
     // 상태가 "재고"로 변경된 경우 — 반납요청 단계의 자산 흐름 레코드 자동 완료 처리
     if (fields.status === "재고" && process.env.NOTION_DB_EXCHANGE_RETURN) {
