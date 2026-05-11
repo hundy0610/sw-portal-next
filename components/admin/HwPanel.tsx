@@ -278,14 +278,35 @@ function DashboardTab({ stats, loading, onRefresh }: { stats: HwStats | null; lo
 // ─────────────────────────────────────────────────────────────────────────────
 // 출고 현황 탭
 // ─────────────────────────────────────────────────────────────────────────────
-function ShipmentTab({ records, loading, onRefresh, onUpdate, companyLock = "" }: TabProps & { companyLock?: string }) {
-  const [company, setCompany] = useState(companyLock);
+function ShipmentTab({ onUpdate, companyLock = "" }: { onUpdate: (id: string, fields: Partial<HwRecord>) => Promise<void>; companyLock?: string }) {
+  const [company,    setCompany]    = useState(companyLock);
+  const [records,    setRecords]    = useState<HwRecord[]>([]);
+  const [loading,    setLoading]    = useState(true);
   const [editRecord, setEditRecord] = useState<HwRecord | null>(null);
 
-  const filtered      = useMemo(() => company ? records.filter(r => r.company === company) : records, [records, company]);
-  const pendingShip   = useMemo(() => filtered.filter(r => r.status === "출고준비중"),    [filtered]);
-  const readyShip     = useMemo(() => filtered.filter(r => r.status === "출고준비완료"),  [filtered]);
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const p = new URLSearchParams({ statuses: "출고준비중,출고준비완료" });
+      if (company) p.set("company", company);
+      const res  = await fetch(`/api/hw?${p}`);
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error);
+      setRecords(json.records ?? []);
+    } catch { /* silent */ }
+    finally { setLoading(false); }
+  }, [company]);
 
+  useEffect(() => { load(); }, [load]);
+
+  // 로컬 상태 즉시 반영 후 Notion 업데이트
+  const handleSave = useCallback(async (id: string, fields: Partial<HwRecord>) => {
+    await onUpdate(id, fields);
+    setRecords(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r));
+  }, [onUpdate]);
+
+  const pendingShip   = useMemo(() => records.filter(r => r.status === "출고준비중"),   [records]);
+  const readyShip     = useMemo(() => records.filter(r => r.status === "출고준비완료"), [records]);
   const sortedPending = useMemo(() => [...pendingShip].sort((a, b) => String(a.useDate ?? "").localeCompare(String(b.useDate ?? ""))), [pendingShip]);
   const sortedReady   = useMemo(() => [...readyShip].sort((a, b) => String(a.useDate ?? "").localeCompare(String(b.useDate ?? ""))),   [readyShip]);
 
@@ -342,7 +363,7 @@ function ShipmentTab({ records, loading, onRefresh, onUpdate, companyLock = "" }
           </div>
         )}
         <div className={companyLock ? "" : "mt-5"}>
-          <button onClick={onRefresh} disabled={loading}
+          <button onClick={load} disabled={loading}
             className="px-4 py-2 rounded-lg bg-orange-500 text-white text-sm font-semibold hover:bg-orange-600 disabled:opacity-50 transition-colors">
             {loading ? "불러오는 중…" : "새로고침"}
           </button>
@@ -368,7 +389,7 @@ function ShipmentTab({ records, loading, onRefresh, onUpdate, companyLock = "" }
         <EditModal
           record={editRecord}
           fields={["status","user","company","dept","location","note"]}
-          onSave={onUpdate}
+          onSave={handleSave}
           onClose={() => setEditRecord(null)}
         />
       )}
@@ -533,16 +554,36 @@ function EditModal({ record, fields, onSave, onClose }: EditModalProps) {
 // ─────────────────────────────────────────────────────────────────────────────
 // 반납 대상자 탭
 // ─────────────────────────────────────────────────────────────────────────────
-function ReturnTab({ records, loading, onRefresh, onUpdate, companyLock = "" }: TabProps & { companyLock?: string }) {
-  const [company, setCompany] = useState(companyLock);
+function ReturnTab({ onUpdate, companyLock = "" }: { onUpdate: (id: string, fields: Partial<HwRecord>) => Promise<void>; companyLock?: string }) {
+  const [company,    setCompany]    = useState(companyLock);
+  const [allRecords, setAllRecords] = useState<HwRecord[]>([]);
+  const [loading,    setLoading]    = useState(true);
   const [editRecord, setEditRecord] = useState<HwRecord | null>(null);
   const today = Date.now();
 
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const p = new URLSearchParams({ returnDue: "1" });
+      if (company) p.set("company", company);
+      const res  = await fetch(`/api/hw?${p}`);
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error);
+      setAllRecords(json.records ?? []);
+    } catch { /* silent */ }
+    finally { setLoading(false); }
+  }, [company]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleSave = useCallback(async (id: string, fields: Partial<HwRecord>) => {
+    await onUpdate(id, fields);
+    setAllRecords(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r));
+  }, [onUpdate]);
+
   const returnRecords = useMemo(() => {
-    const base = records.filter(r => r.returnDue);
-    const filtered = company ? base.filter(r => r.company === company) : base;
-    return filtered.sort((a, b) => String(a.returnDue).localeCompare(String(b.returnDue)));
-  }, [records, company]);
+    return [...allRecords].sort((a, b) => String(a.returnDue).localeCompare(String(b.returnDue)));
+  }, [allRecords]);
 
   const urgent = useMemo(() => returnRecords.filter(r => new Date(r.returnDue).getTime() - today <= 7*86400000), [returnRecords]);
   const soon   = useMemo(() => returnRecords.filter(r => { const t = new Date(r.returnDue).getTime()-today; return t>7*86400000&&t<=30*86400000; }), [returnRecords]);
@@ -601,7 +642,7 @@ function ReturnTab({ records, loading, onRefresh, onUpdate, companyLock = "" }: 
           </div>
         )}
         <div className={companyLock ? "" : "mt-5"}>
-          <button onClick={onRefresh} disabled={loading}
+          <button onClick={load} disabled={loading}
             className="px-4 py-2 rounded-lg bg-yellow-500 text-white text-sm font-semibold hover:bg-yellow-600 disabled:opacity-50 transition-colors">
             {loading ? "불러오는 중…" : "새로고침"}
           </button>
@@ -629,7 +670,7 @@ function ReturnTab({ records, loading, onRefresh, onUpdate, companyLock = "" }: 
         <EditModal
           record={editRecord}
           fields={["returnDue","status","note"]}
-          onSave={onUpdate}
+          onSave={handleSave}
           onClose={() => setEditRecord(null)}
         />
       )}
@@ -2053,11 +2094,9 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
     };
   }, []);
 
-  // 목록 탭 전환 시 레코드 lazy load
+  // 라벨 탭만 전체 레코드 lazy load (shipment/return은 자체 fetch)
   useEffect(() => {
-    if (tab !== "dashboard" && tab !== "search" && tab !== "upload" && tab !== "dispatch") {
-      loadAll();
-    }
+    if (tab === "label") loadAll();
   }, [tab, loadAll]);
 
   // Notion 실시간 업데이트 — 저장 후 로컬 상태도 즉시 반영
@@ -2123,7 +2162,8 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
   ];
 
   const recordsTabProps: TabProps = { records, loading: recordsLoading, onRefresh: handleRefreshAll, onUpdate: handleUpdate };
-  const isRecordsTab = tab !== "dashboard" && tab !== "search" && tab !== "upload" && tab !== "label" && tab !== "dispatch";
+  // shipment/return은 자체 fetch → 공유 records 불필요
+  const isRecordsTab = tab === "label";
 
   if (missingEnv) return <EnvVarMissing varName={missingEnv} />;
 
@@ -2195,8 +2235,8 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
       </div>
 
       {tab === "dashboard" && <DashboardTab  stats={stats} loading={statsLoading} onRefresh={handleRefreshStats} />}
-      {tab === "shipment"  && <ShipmentTab   {...recordsTabProps} companyLock={company} />}
-      {tab === "return"    && <ReturnTab     {...recordsTabProps} companyLock={company} />}
+      {tab === "shipment"  && <ShipmentTab onUpdate={handleUpdate} companyLock={company} />}
+      {tab === "return"    && <ReturnTab   onUpdate={handleUpdate} companyLock={company} />}
       {tab === "search"    && <SearchTab companyLock={company} onUpdate={handleUpdate} />}
       {tab === "upload"    && <ExcelUploadTab />}
       {tab === "dispatch"  && <DispatchHistoryTab />}
