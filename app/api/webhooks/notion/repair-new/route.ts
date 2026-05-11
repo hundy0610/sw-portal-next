@@ -9,7 +9,7 @@ import { createMailTransporter, buildRepairNewInquiryEmail } from "@/lib/mail";
 export const dynamic = "force-dynamic";
 
 const NOTIFIED_KEY = (id: string) => `repair_new_notified:${id}`;
-const SUPER_EMAILS_KEY = "sw:super-emails";
+const NOTIFY_EMAILS_KEY = "helpdesk:notify-emails";
 
 export async function POST(req: NextRequest) {
   try {
@@ -28,9 +28,9 @@ export async function POST(req: NextRequest) {
     if (already) return NextResponse.json({ ok: true, skipped: "already notified" });
     await kvSet(NOTIFIED_KEY(pageId), true, 600);
 
-    const superEmails = (await kvGet<string[]>(SUPER_EMAILS_KEY)) ?? [];
+    const superEmails = (await kvGet<string[]>(NOTIFY_EMAILS_KEY)) ?? [];
     if (superEmails.length === 0) {
-      return NextResponse.json({ ok: true, skipped: "no super admin emails" });
+      return NextResponse.json({ ok: true, skipped: "no notify emails" });
     }
 
     // 프로퍼티는 페이로드에 이미 포함 — Notion API 재호출 불필요

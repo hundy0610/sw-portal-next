@@ -927,7 +927,10 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
 
           <div>
             <label className={labelCls}>접수일</label>
-            <input type="date" className={inputCls} value={form.receivedAt} onChange={set("receivedAt")} />
+            <div className="flex items-center gap-1">
+              <input type="date" className={`${inputCls} flex-1`} value={form.receivedAt} onChange={set("receivedAt")} />
+              {form.receivedAt && <button type="button" onClick={() => setForm(p => ({ ...p, receivedAt: "" }))} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
+            </div>
           </div>
 
           <div>

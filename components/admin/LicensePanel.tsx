@@ -290,8 +290,11 @@ function SwEditModal({
           {/* 갱신필요일 */}
           <div>
             <label className="block text-xs font-semibold text-gray-500 mb-1">갱신필요일</label>
-            <input type="date" value={String(form.renewalDate ?? "")} onChange={e => set("renewalDate", e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+            <div className="flex items-center gap-1">
+              <input type="date" value={String(form.renewalDate ?? "")} onChange={e => set("renewalDate", e.target.value)}
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+              {form.renewalDate && <button type="button" onClick={() => set("renewalDate", "")} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
+            </div>
           </div>
           {/* 구매처 */}
           <div>

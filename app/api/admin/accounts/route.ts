@@ -43,9 +43,17 @@ function requireSuper(request: NextRequest) {
   return session?.role === "super";
 }
 
+function hasKv(): boolean {
+  return !!(
+    process.env.REDIS_URL ||
+    process.env.UPSTASH_REDIS_REST_URL ||
+    process.env.KV_REST_API_URL
+  );
+}
+
 async function getAccounts(): Promise<Account[]> {
   try {
-    if (!process.env.REDIS_URL) return [];
+    if (!hasKv()) return [];
     return (await kvGet<Account[]>(ACCOUNTS_KEY)) ?? [];
   } catch {
     return [];
@@ -53,7 +61,7 @@ async function getAccounts(): Promise<Account[]> {
 }
 
 async function saveAccounts(accounts: Account[]): Promise<void> {
-  if (!process.env.REDIS_URL) return;
+  if (!hasKv()) return;
   await kvSetPermanent(ACCOUNTS_KEY, accounts);
 }
 
@@ -76,7 +84,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 });
   }
 
-  if (!process.env.REDIS_URL) {
+  if (!hasKv()) {
     return NextResponse.json({ ok: true, accounts: [], missingEnv: true });
   }
 
@@ -96,8 +104,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 });
   }
 
-  if (!process.env.REDIS_URL) {
-    return NextResponse.json({ error: "REDIS_URL 환경변수가 설정되지 않았습니다" }, { status: 500 });
+  if (!hasKv()) {
+    return NextResponse.json({ error: "KV 환경변수가 설정되지 않았습니다" }, { status: 500 });
   }
 
   try {

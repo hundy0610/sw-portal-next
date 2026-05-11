@@ -103,6 +103,7 @@ export async function createRentalRecord(fields: {
 
 export async function updateRentalRecord(id: string, fields: {
   returnDue?:    string | null;
+  startDate?:    string | null;
   inStock?:      boolean;
   userAndReason?: string;
   requester?:    string;
@@ -112,6 +113,7 @@ export async function updateRentalRecord(id: string, fields: {
 }): Promise<void> {
   const props: Record<string, unknown> = {};
   if (fields.returnDue !== undefined)    props["반납예정일"]       = fields.returnDue ? { date: { start: fields.returnDue } } : { date: null };
+  if (fields.startDate !== undefined)    props["사용시작일"]        = fields.startDate ? { date: { start: fields.startDate } } : { date: null };
   if (fields.inStock   !== undefined)    props["재고"]              = { checkbox: fields.inStock };
   if (fields.userAndReason !== undefined) props["실사용자 / 지급사유"] = { title: [{ text: { content: fields.userAndReason } }] };
   if (fields.requester !== undefined)    props["요청인"]            = { rich_text: [{ text: { content: fields.requester } }] };
