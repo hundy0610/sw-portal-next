@@ -4,6 +4,12 @@ import { useEffect, useState, useMemo } from "react";
 import type { SwItem, SwDbRecord } from "@/types";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
+import { scGet, scSet } from "@/lib/session-cache";
+
+const SC_SWDB = "sc:overview:swdb";
+const SC_SWREC = (co: string) => `sc:overview:swrec${co ? `:${co}` : ""}`;
+const TTL_SWDB = 10 * 60 * 1000; // 10분 (SW DB는 자주 안 바뀜)
+const TTL_SWREC = 5 * 60 * 1000; // 5분
 
 // ── SW 매크로 카테고리 규칙 ──────────────────────────────────────
 const SW_CAT_RULES: { label: string; icon: string; keywords: string[]; chartColor: string }[] = [
@@ -186,6 +192,31 @@ export default function OverviewPanel({ company = "" }: { company?: string }) {
     const swRecUrl = isCompanyFiltered
       ? `/api/sw-records?company=${encodeURIComponent(company)}`
       : "/api/sw-records";
+    const dbKey  = SC_SWDB;
+    const recKey = SC_SWREC(company);
+
+    const cachedDb  = scGet<SwItem[]>(dbKey);
+    const cachedRec = scGet<SwDbRecord[]>(recKey);
+
+    if (cachedDb && cachedRec) {
+      // 즉시 렌더 후 백그라운드 재검증
+      setSwDb(cachedDb);
+      setSwRecs(cachedRec);
+      setLoading(false);
+      Promise.all([
+        fetch("/api/sw-db").then(r => r.json()),
+        fetch(swRecUrl).then(r => r.json()),
+      ]).then(([sw, recs]) => {
+        if (recs.missingEnv) return;
+        setSwDb(sw.data ?? []);
+        setSwRecs(recs.data ?? []);
+        scSet(dbKey, sw.data ?? [], TTL_SWDB);
+        scSet(recKey, recs.data ?? [], TTL_SWREC);
+      }).catch(() => {});
+      return;
+    }
+
+    // 캐시 없음 — 정상 fetch
     Promise.all([
       fetch("/api/sw-db").then(r => r.json()),
       fetch(swRecUrl).then(r => r.json()),
@@ -193,6 +224,8 @@ export default function OverviewPanel({ company = "" }: { company?: string }) {
       if (recs.missingEnv) { setMissingEnv(recs.missingEnv); return; }
       setSwDb(sw.data ?? []);
       setSwRecs(recs.data ?? []);
+      scSet(dbKey, sw.data ?? [], TTL_SWDB);
+      scSet(recKey, recs.data ?? [], TTL_SWREC);
     }).finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [company]);

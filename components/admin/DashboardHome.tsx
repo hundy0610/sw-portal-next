@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { HwStats, HwRecord } from "@/lib/hw";
 import type { HelpDeskTicket } from "@/lib/notion";
 import type { RepairTicket } from "@/types";
+import { scGet, scSet } from "@/lib/session-cache";
 
 interface Props {
   company: string;
@@ -148,6 +149,30 @@ function LoadingBox() {
   return <div className="h-32 flex items-center justify-center text-xs text-gray-400">불러오는 중...</div>;
 }
 
+// ── sessionStorage 키 ────────────────────────────────────────
+const SC_SW    = (co: string) => `sc:dash:sw${co ? `:${co}` : ""}`;
+const SC_HD    = (co: string) => `sc:dash:hd${co ? `:${co}` : ""}`;
+const SC_RP    = (co: string) => `sc:dash:rp${co ? `:${co}` : ""}`;
+const SC_SHIP  = (co: string) => `sc:dash:ship${co ? `:${co}` : ""}`;
+
+// TTL 상수 (ms)
+const TTL_DATA    = 5 * 60 * 1000;  // 5분 — SW/HW 데이터
+const TTL_TICKETS = 3 * 60 * 1000;  // 3분 — 티켓 목록
+
+function buildSwSegs(recs: { status?: string }[]): DonutSeg[] {
+  const counts: Record<string, number> = {};
+  for (const r of recs) {
+    const s = r.status || "미확인";
+    counts[s] = (counts[s] || 0) + 1;
+  }
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, value], i) => ({
+      label, value,
+      color: SW_STATUS_COLORS[label] ?? PALETTE[i % PALETTE.length],
+    }));
+}
+
 // ── 메인 컴포넌트 ─────────────────────────────────────────────
 export default function DashboardHome({ company, initialHwStats, onNavigate }: Props) {
   const isFiltered = !!company;
@@ -178,35 +203,40 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
   const setTime = (key: string, ms: number) =>
     setLoadTimes(prev => ({ ...prev, [key]: ms }));
 
-  // SW 라이선스 현황 (상태별)
+  // ── SW 라이선스 현황 ─────────────────────────────────────────
   useEffect(() => {
     const url = isFiltered
       ? `/api/sw-records?company=${encodeURIComponent(company)}`
       : "/api/sw-records";
+    const cacheKey = SC_SW(company);
+
+    // sessionStorage hit → 즉시 렌더, 백그라운드 재검증
+    const cached = scGet<{ status?: string }[]>(cacheKey);
+    if (cached) {
+      setSwSegs(buildSwSegs(cached));
+      setSwLoading(false);
+      setTime("SW 라이선스", 0);
+      fetch(url).then(r => r.json()).then(d => {
+        const recs = d.data ?? [];
+        setSwSegs(buildSwSegs(recs));
+        scSet(cacheKey, recs, TTL_DATA);
+      }).catch(() => {/* 백그라운드 실패 무시 */});
+      return;
+    }
+
     const t0 = performance.now();
     fetch(url)
       .then(r => r.json())
       .then(d => {
         setTime("SW 라이선스", Math.round(performance.now() - t0));
         const recs: { status?: string }[] = d.data ?? [];
-        const counts: Record<string, number> = {};
-        for (const r of recs) {
-          const s = r.status || "미확인";
-          counts[s] = (counts[s] || 0) + 1;
-        }
-        setSwSegs(
-          Object.entries(counts)
-            .sort((a, b) => b[1] - a[1])
-            .map(([label, value], i) => ({
-              label, value,
-              color: SW_STATUS_COLORS[label] ?? PALETTE[i % PALETTE.length],
-            }))
-        );
+        setSwSegs(buildSwSegs(recs));
+        scSet(cacheKey, recs, TTL_DATA);
       })
       .finally(() => setSwLoading(false));
-  }, [company, isFiltered]);
+  }, [company, isFiltered]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // HW 현황 (상태별)
+  // ── HW 현황 (상태별) ─────────────────────────────────────────
   useEffect(() => {
     if (hwStats) { setHwLoading(false); setTime("HW 현황", 0); return; }
     const t0 = performance.now();
@@ -219,59 +249,112 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
       .finally(() => setHwLoading(false));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 최근 문의 접수
+  // ── 최근 문의 접수 ────────────────────────────────────────────
   useEffect(() => {
     const url = isFiltered
       ? `/api/helpdesk?company=${encodeURIComponent(company)}`
       : "/api/helpdesk";
+    const cacheKey = SC_HD(company);
+
+    const cached = scGet<HelpDeskTicket[]>(cacheKey);
+    if (cached) {
+      setHdTickets(cached);
+      setHdLoading(false);
+      setTime("문의 접수", 0);
+      fetch(url).then(r => r.json()).then(d => {
+        const tickets: HelpDeskTicket[] = (d.data ?? [])
+          .sort((a: HelpDeskTicket, b: HelpDeskTicket) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
+          .slice(0, 7);
+        setHdTickets(tickets);
+        scSet(cacheKey, tickets, TTL_TICKETS);
+      }).catch(() => {});
+      return;
+    }
+
     const t0 = performance.now();
     fetch(url)
       .then(r => r.json())
       .then(d => {
         setTime("문의 접수", Math.round(performance.now() - t0));
-        const tickets: HelpDeskTicket[] = d.data ?? [];
-        setHdTickets(
-          [...tickets]
-            .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
-            .slice(0, 7)
-        );
+        const tickets: HelpDeskTicket[] = (d.data ?? [])
+          .sort((a: HelpDeskTicket, b: HelpDeskTicket) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
+          .slice(0, 7);
+        setHdTickets(tickets);
+        scSet(cacheKey, tickets, TTL_TICKETS);
       })
       .finally(() => setHdLoading(false));
-  }, [company, isFiltered]);
+  }, [company, isFiltered]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 최근 수리 접수
+  // ── 최근 수리 접수 ────────────────────────────────────────────
   useEffect(() => {
     const url = isFiltered
       ? `/api/repair-tickets?company=${encodeURIComponent(company)}`
       : "/api/repair-tickets";
+    const cacheKey = SC_RP(company);
+
+    const cached = scGet<RepairTicket[]>(cacheKey);
+    if (cached) {
+      setRpTickets(cached);
+      setRpLoading(false);
+      setTime("수리 접수", 0);
+      fetch(url).then(r => r.json()).then(d => {
+        const tickets: RepairTicket[] = (d.data ?? [])
+          .sort((a: RepairTicket, b: RepairTicket) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .slice(0, 7);
+        setRpTickets(tickets);
+        scSet(cacheKey, tickets, TTL_TICKETS);
+      }).catch(() => {});
+      return;
+    }
+
     const t0 = performance.now();
     fetch(url)
       .then(r => r.json())
       .then(d => {
         setTime("수리 접수", Math.round(performance.now() - t0));
-        const tickets: RepairTicket[] = d.data ?? [];
-        setRpTickets(
-          [...tickets]
-            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-            .slice(0, 7)
-        );
+        const tickets: RepairTicket[] = (d.data ?? [])
+          .sort((a: RepairTicket, b: RepairTicket) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .slice(0, 7);
+        setRpTickets(tickets);
+        scSet(cacheKey, tickets, TTL_TICKETS);
       })
       .finally(() => setRpLoading(false));
-  }, [company, isFiltered]);
+  }, [company, isFiltered]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 출고준비 현황
+  // ── 출고준비 현황 ─────────────────────────────────────────────
   useEffect(() => {
     const co = isFiltered ? `&company=${encodeURIComponent(company)}` : "";
+    const cacheKey = SC_SHIP(company);
+
+    const cached = scGet<HwRecord[]>(cacheKey);
+    if (cached) {
+      setShipRecords(cached);
+      setShipLoading(false);
+      setTime("출고준비", 0);
+      Promise.all([
+        fetch(`/api/hw?status=${encodeURIComponent("출고준비중")}${co}`).then(r => r.json()),
+        fetch(`/api/hw?status=${encodeURIComponent("출고준비완료")}${co}`).then(r => r.json()),
+      ]).then(([r1, r2]) => {
+        const all: HwRecord[] = [...(r1.records ?? []), ...(r2.records ?? [])]
+          .sort((a, b) => (a.useDate || "").localeCompare(b.useDate || ""));
+        setShipRecords(all);
+        scSet(cacheKey, all, TTL_TICKETS);
+      }).catch(() => {});
+      return;
+    }
+
     const t0 = performance.now();
     Promise.all([
       fetch(`/api/hw?status=${encodeURIComponent("출고준비중")}${co}`).then(r => r.json()),
       fetch(`/api/hw?status=${encodeURIComponent("출고준비완료")}${co}`).then(r => r.json()),
     ]).then(([r1, r2]) => {
       setTime("출고준비", Math.round(performance.now() - t0));
-      const all: HwRecord[] = [...(r1.records ?? []), ...(r2.records ?? [])];
-      setShipRecords(all.sort((a, b) => (a.useDate || "").localeCompare(b.useDate || "")));
+      const all: HwRecord[] = [...(r1.records ?? []), ...(r2.records ?? [])]
+        .sort((a, b) => (a.useDate || "").localeCompare(b.useDate || ""));
+      setShipRecords(all);
+      scSet(cacheKey, all, TTL_TICKETS);
     }).finally(() => setShipLoading(false));
-  }, [company, isFiltered]);
+  }, [company, isFiltered]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function clearCache(target: "hw" | "sw" | "all") {
     setClearing(true);
@@ -281,6 +364,13 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
       if (target === "hw" || target === "all") calls.push(fetch("/api/hw/cache-clear", { method: "POST" }));
       if (target === "sw" || target === "all") calls.push(fetch("/api/sw-records/cache-clear", { method: "POST" }));
       await Promise.all(calls);
+      // sessionStorage도 함께 초기화
+      if (target === "sw" || target === "all") scDel_prefix("sc:dash:sw");
+      if (target === "hw" || target === "all") {
+        scDel_prefix("sc:dash:ship");
+        scDel_prefix("sc:dash:hd");
+        scDel_prefix("sc:dash:rp");
+      }
       const label = target === "hw" ? "HW DB" : target === "sw" ? "SW DB" : "전체";
       setClearMsg(`✅ ${label} 캐시 초기화 완료. 다음 조회 시 Notion에서 새로 불러옵니다.`);
     } catch {
@@ -289,6 +379,18 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
       setClearing(false);
       setTimeout(() => setClearMsg(null), 5000);
     }
+  }
+
+  function scDel_prefix(prefix: string) {
+    if (typeof window === "undefined") return;
+    try {
+      const keys: string[] = [];
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const k = sessionStorage.key(i);
+        if (k && k.startsWith(prefix)) keys.push(k);
+      }
+      keys.forEach(k => sessionStorage.removeItem(k));
+    } catch {}
   }
 
   async function updateShipStatus(id: string, status: string) {
@@ -304,6 +406,8 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
       } else {
         setShipRecords(prev => prev.filter(r => r.id !== id));
       }
+      // sessionStorage의 출고준비 캐시 무효화 (상태 변경됨)
+      scDel_prefix("sc:dash:ship");
     } finally {
       setUpdatingId(null);
       setOpenStatusId(null);
