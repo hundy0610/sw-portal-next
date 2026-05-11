@@ -2,9 +2,9 @@ name: HW Cache Warming (Direct Notion → Upstash)
 
 on:
   schedule:
-    # 2시간마다 실행 — KV TTL 24시간 대비 충분한 갱신 주기
-    # 월 사용량: 360회 × ~1분 ≈ 360분/월
-    - cron: "0 */2 * * *"
+    # 30분마다 실행 — Notion 직접 수정도 30분 내 반영
+    # 월 사용량: 1,440회 × ~1분 ≈ 1,440분/월 (무료 2,000분 내)
+    - cron: "*/30 * * * *"
   workflow_dispatch:
 
 jobs:

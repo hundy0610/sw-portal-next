@@ -2133,6 +2133,22 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
   // shipment/return은 자체 fetch → 공유 records 불필요
   const isRecordsTab = tab === "label";
 
+  // ── Notion 동기화 (GitHub Actions 즉시 트리거) ─────────────────────────────
+  const [syncing,     setSyncing]     = useState(false);
+  const [syncDone,    setSyncDone]    = useState(false);
+  const [syncError,   setSyncError]   = useState("");
+  const handleSync = useCallback(async () => {
+    setSyncing(true); setSyncDone(false); setSyncError("");
+    try {
+      const res  = await fetch("/api/hw/sync", { method: "POST" });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error);
+      setSyncDone(true);
+      setTimeout(() => setSyncDone(false), 5000);
+    } catch (e) { setSyncError(String(e)); setTimeout(() => setSyncError(""), 5000); }
+    finally { setSyncing(false); }
+  }, []);
+
   if (missingEnv) return <EnvVarMissing varName={missingEnv} />;
 
   return (
@@ -2154,15 +2170,52 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
             </p>
           </div>
         </div>
-        {(statsLoading || (isRecordsTab && recordsLoading)) && (
-          <div className="flex items-center gap-1.5 text-xs text-gray-400">
-            <svg className="animate-spin w-3.5 h-3.5 text-amber-400" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-            </svg>
-            {statsLoading ? "통계 불러오는 중…" : "데이터 불러오는 중…"}
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Notion 동기화 버튼 */}
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            title="Notion에서 직접 수정한 내용을 즉시 반영합니다 (약 1~2분 소요)"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+              syncDone
+                ? "bg-green-50 border-green-200 text-green-700"
+                : syncError
+                ? "bg-red-50 border-red-200 text-red-600"
+                : "bg-white border-gray-200 text-gray-600 hover:border-amber-300 hover:text-amber-700"
+            } disabled:opacity-50`}
+          >
+            {syncing ? (
+              <>
+                <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/>
+                </svg>
+                동기화 중…
+              </>
+            ) : syncDone ? (
+              <>✓ 동기화 시작됨</>
+            ) : syncError ? (
+              <>⚠ 실패</>
+            ) : (
+              <>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M1 4v6h6M23 20v-6h-6"/>
+                  <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/>
+                </svg>
+                Notion 동기화
+              </>
+            )}
+          </button>
+
+          {(statsLoading || (isRecordsTab && recordsLoading)) && (
+            <div className="flex items-center gap-1.5 text-xs text-gray-400">
+              <svg className="animate-spin w-3.5 h-3.5 text-amber-400" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+              </svg>
+              {statsLoading ? "통계 불러오는 중…" : "데이터 불러오는 중…"}
+            </div>
+          )}
+        </div>
       </div>
 
       {statsError  && <div className="px-4 py-3 bg-red-50 rounded-xl text-sm text-red-600">⚠️ {statsError}</div>}
