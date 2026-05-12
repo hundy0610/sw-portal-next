@@ -2154,6 +2154,11 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
       const res  = await fetch(url);
       const json = await res.json();
       if (!json.ok) throw new Error(json.error);
+      if (json.warming) {
+        // 캐시 워밍 중 — recordsReady를 true로 설정하지 않아 재시도 가능
+        setRecordsError("HW 데이터 캐시를 갱신하는 중입니다. 잠시 후 새로고침 버튼을 눌러주세요.");
+        return;
+      }
       setRecords(json.records);
       setRecordsReady(true);
     } catch (e) { setRecordsError(String(e)); }
@@ -2181,6 +2186,10 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
       const res  = await fetch(url);
       const json = await res.json();
       if (!json.ok) throw new Error(json.error);
+      if (json.warming) {
+        setRecordsError("HW 데이터 캐시를 갱신하는 중입니다. 잠시 후 다시 시도해주세요.");
+        return;
+      }
       setRecords(json.records);
       setRecordsReady(true);
     } catch (e) { setRecordsError(String(e)); }
