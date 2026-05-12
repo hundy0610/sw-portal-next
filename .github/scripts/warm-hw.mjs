@@ -165,10 +165,11 @@ async function pushToUpstash(records, stats) {
       "Content-Type":  "application/json",
     },
     body: JSON.stringify([
-      // TTL 없이 영구 저장 — warm-hw.yml 2시간마다 덮어씌움
-      // 포털에서 개별 수정 시 KV를 직접 패치하므로 TTL 불필요
+      // TTL 없이 영구 저장 — warm-hw.yml 30분마다 덮어씌움
       ["SET", "hw:all",   JSON.stringify(records)],
       ["SET", "hw:stats", JSON.stringify(stats)],
+      // 최신 Notion 데이터로 hw:all이 교체됐으므로 deltas 초기화
+      ["DEL", "hw:deltas"],
     ]),
   });
 

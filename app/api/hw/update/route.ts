@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
 import { computeHwStats, type HwRecord } from "@/lib/hw";
-import { kvGet, kvSetPermanent } from "@/lib/kv-store";
+import { kvGet, kvSet, kvSetPermanent } from "@/lib/kv-store";
 import { memDel } from "@/lib/mem-cache";
 import { autoCompleteReturnsByAssetId } from "@/lib/exchange-return";
 
@@ -88,7 +88,13 @@ export async function POST(req: NextRequest) {
       // 인메모리 캐시 무효화 (KV는 이미 최신)
     })();
 
-    await Promise.all([notionPromise, kvPatchPromise]);
+    // hw:deltas 맵 업데이트 — hw:all 패치 성패와 무관하게 최신값 보장 (TTL 1시간)
+    const deltaPromise = (async () => {
+      const existing = await kvGet<Record<string, FieldMap>>("hw:deltas") ?? {};
+      await kvSet("hw:deltas", { ...existing, [id]: fields }, 3600);
+    })();
+
+    await Promise.all([notionPromise, kvPatchPromise, deltaPromise]);
 
     // 상태가 "재고"로 변경된 경우 — 반납요청 단계의 자산 흐름 레코드 자동 완료 처리
     if (fields.status === "재고" && process.env.NOTION_DB_EXCHANGE_RETURN) {

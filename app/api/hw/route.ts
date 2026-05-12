@@ -18,8 +18,11 @@ export async function GET(req: NextRequest) {
   const statuses  = searchParams.get("statuses")?.split(",").map(s => s.trim()).filter(Boolean) ?? [];
 
   try {
-    // KV 캐시 (1~5ms, KV 미설정 시 null 반환)
-    const records = await kvGet<HwRecord[]>("hw:all");
+    // hw:all + hw:deltas 병렬 조회
+    const [records, deltas] = await Promise.all([
+      kvGet<HwRecord[]>("hw:all"),
+      kvGet<Record<string, Partial<HwRecord>>>("hw:deltas"),
+    ]);
 
     if (!records) {
       // KV 미스
@@ -38,8 +41,13 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // deltas 적용 — hw:all 패치가 누락된 레코드를 최신값으로 덮어씌움
+    const base = deltas
+      ? records.map(r => (deltas[r.id] ? { ...r, ...deltas[r.id] } : r))
+      : records;
+
     // 메모리 필터링 (추가 DB 호출 없음)
-    let filtered = records;
+    let filtered = base;
     if (company)   filtered = filtered.filter(r => r.company === company);
     if (status)    filtered = filtered.filter(r => r.status === status);
     if (location)  filtered = filtered.filter(r => r.location.includes(location));
