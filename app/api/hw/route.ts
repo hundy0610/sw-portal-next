@@ -48,6 +48,7 @@ export async function GET(req: NextRequest) {
 
     // 메모리 필터링 (추가 DB 호출 없음)
     let filtered = base;
+    if (statuses.length > 0) filtered = filtered.filter(r => statuses.includes(r.status));
     if (company)   filtered = filtered.filter(r => r.company === company);
     if (status)    filtered = filtered.filter(r => r.status === status);
     if (location)  filtered = filtered.filter(r => r.location.includes(location));
@@ -67,9 +68,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    return NextResponse.json({ ok: true, records: filtered }, {
-      headers: { "Cache-Control": "s-maxage=300, stale-while-revalidate=60" },
-    });
+    return NextResponse.json({ ok: true, records: filtered });
   } catch (e) {
     console.error("[API /hw]", e);
     return NextResponse.json(
