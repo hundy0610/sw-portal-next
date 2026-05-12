@@ -546,7 +546,6 @@ function ReceiptConfirmModal({
       );
 
       await Promise.all(updates);
-      fetch("/api/hw/cache-clear", { method: "POST" });
       onConfirmed(isNewIssue ? "" : returnDue);
     } catch (e) {
       setError(String(e));
@@ -649,7 +648,6 @@ function ReturnCompleteModal({
       );
 
       await Promise.all(updates);
-      fetch("/api/hw/cache-clear", { method: "POST" });
       onConfirmed();
     } catch (e) {
       setError(String(e));
@@ -1338,7 +1336,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
         fetch(`/api/hw?search=${encodeURIComponent(assetId)}`).then(r => r.json()).then(data => {
           const records: { id: string; assetNo: string }[] = data.records ?? [];
           const found = records.find(r => r.assetNo === assetId) ?? (records.length === 1 ? records[0] : null);
-          if (found) fetch("/api/hw/update", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: found.id, fields: { status: hwStatus } }) }).then(() => fetch("/api/hw/cache-clear", { method: "POST" })).catch(console.error);
+          if (found) fetch("/api/hw/update", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: found.id, fields: { status: hwStatus } }) }).catch(console.error);
         }).catch(console.error);
       }
       onCreated(); onClose();
@@ -1384,7 +1382,6 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: niSelected.id, fields: { status: "출고준비중", user: niUser, dept: niDept, useDate: niUseDate } }),
       });
-      fetch("/api/hw/cache-clear", { method: "POST" });
       onCreated(); onClose();
     } catch (e) { setErr(String(e)); } finally { setSaving(false); }
   };
@@ -1447,7 +1444,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       fetch("/api/hw/update", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: exSelected.id, fields: { status: "교체요청" } }),
-      }).then(() => fetch("/api/hw/cache-clear", { method: "POST" }));
+      }).catch(console.error);
       onCreated(); onClose();
     } catch (e) { setErr(String(e)); } finally { setExNewPurchasing(false); }
   };
@@ -1472,7 +1469,6 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: exSelected.id, fields: { status: "교체요청" } }),
       });
-      fetch("/api/hw/cache-clear", { method: "POST" });
       onCreated(); onClose();
     } catch (e) { setErr(String(e)); } finally { setSaving(false); }
   };
@@ -1540,7 +1536,6 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: rtSelected.id, fields: { status: "반납예정", ...(rtReturnDue ? { returnDue: rtReturnDue } : {}) } }),
       });
-      fetch("/api/hw/cache-clear", { method: "POST" });
       onCreated(); onClose();
     } catch (e) { setErr(String(e)); } finally { setSaving(false); }
   };
@@ -2337,7 +2332,7 @@ export default function ExchangeReturnPanel() {
                 fetch("/api/hw/update", {
                   method: "POST", headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ id: found.id, fields: { status: "출고준비완료" } }),
-                }).then(() => fetch("/api/hw/cache-clear", { method: "POST" })).catch(console.error);
+                }).catch(console.error);
               }
             }).catch(console.error);
         }

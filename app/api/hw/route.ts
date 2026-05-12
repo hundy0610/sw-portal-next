@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
       }
 
       // 인메모리에 저장
-      memSet("hw:all", records, 300);
+      memSet("hw:all", records, 15);
     }
 
     // 메모리 필터링 (추가 DB 호출 없음)
