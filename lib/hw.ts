@@ -1,5 +1,6 @@
 import { Client } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
+import { isMock, mockHwRecords } from "./mock";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
@@ -169,6 +170,13 @@ export async function fetchHwFiltered({
   returnDue?: boolean;   // 반납예정일이 있는 레코드만
   company?: string;
 }): Promise<HwRecord[]> {
+  if (isMock()) {
+    return mockHwRecords.filter(r =>
+      (statuses.length === 0 || statuses.includes(r.status)) &&
+      (!returnDue || !!r.returnDue) &&
+      (!company || r.company === company)
+    ) as HwRecord[];
+  }
   const andFilters: object[] = [];
 
   if (statuses.length === 1) {
@@ -214,6 +222,7 @@ export async function fetchHwFiltered({
 }
 
 export async function fetchAllHwRecords(): Promise<HwRecord[]> {
+  if (isMock()) return mockHwRecords as HwRecord[];
   const records: HwRecord[] = [];
   let cursor: string | undefined;
 
