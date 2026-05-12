@@ -7,6 +7,12 @@ import type {
 } from "@notionhq/client/build/src/api-endpoints";
 import type { SwItem, SwDbRecord, Subscription, LicenseItem, LicenseRecord, Ticket, RepairTicket, HwRepairRecord } from "@/types";
 import type { SwCredential } from "@/components/admin/CredentialsPanel";
+import {
+  isMock,
+  mockSwItems, mockSwDatabase, mockSubscriptions, mockLicenses,
+  mockLicenseRecords, mockHelpDeskTickets, mockTickets, mockRepairTickets,
+  mockHwRepairs, mockMonitorHistory, mockCredentials,
+} from "./mock";
 
 // ────────────────────────────────────────────────────────────
 // Notion 클라이언트 싱글톤
@@ -186,6 +192,7 @@ async function queryAllPages(
 // Notion 컬럼명 매핑 (실제 DB 컬럼명과 다를 경우 여기서 수정)
 // ────────────────────────────────────────────────────────────
 export async function fetchSwDb(): Promise<SwItem[]> {
+  if (isMock()) return mockSwItems as unknown as SwItem[];
   const dbId = process.env.NOTION_DB_SWDB;
   if (!dbId) throw new Error("NOTION_DB_SWDB 환경변수가 설정되지 않았습니다.");
 
@@ -218,6 +225,7 @@ export async function fetchSwDb(): Promise<SwItem[]> {
 // NOTION_DB_SW_UNIFIED 환경변수 사용
 // ────────────────────────────────────────────────────────────
 export async function fetchSwDatabase(): Promise<SwDbRecord[]> {
+  if (isMock()) return mockSwDatabase as SwDbRecord[];
   const dbId = process.env.NOTION_DB_SW_UNIFIED;
   if (!dbId) throw new Error("NOTION_DB_SW_UNIFIED 환경변수가 설정되지 않았습니다.");
 
@@ -263,6 +271,7 @@ export async function fetchSwDatabase(): Promise<SwDbRecord[]> {
 // 구독 관리 DB 조회 (레거시 - SW 데이터베이스로 통합 예정)
 // ────────────────────────────────────────────────────────────
 export async function fetchSubscriptions(): Promise<Subscription[]> {
+  if (isMock()) return mockSubscriptions as Subscription[];
   const dbId = process.env.NOTION_DB_SUBSCRIPTIONS;
   if (!dbId) throw new Error("NOTION_DB_SUBSCRIPTIONS 환경변수가 설정되지 않았습니다.");
 
@@ -297,6 +306,7 @@ export async function fetchSubscriptions(): Promise<Subscription[]> {
 // 라이선스 트래커 DB 조회
 // ────────────────────────────────────────────────────────────
 export async function fetchLicenses(): Promise<LicenseItem[]> {
+  if (isMock()) return mockLicenses as LicenseItem[];
   const dbId = process.env.NOTION_DB_LICENSES;
   if (!dbId) throw new Error("NOTION_DB_LICENSES 환경변수가 설정되지 않았습니다.");
 
@@ -340,6 +350,7 @@ const LICENSE_TRACKER_DBS = [
 ];
 
 export async function fetchLicenseRecords(): Promise<LicenseRecord[]> {
+  if (isMock()) return mockLicenseRecords as LicenseRecord[];
   const results = await Promise.allSettled(
     LICENSE_TRACKER_DBS.map(async (db) => {
       const pages = await queryAllPages(db.id);
@@ -400,6 +411,7 @@ export interface HelpDeskTicket {
 }
 
 export async function fetchHelpDeskTickets(): Promise<HelpDeskTicket[]> {
+  if (isMock()) return mockHelpDeskTickets as HelpDeskTicket[];
   const dbId = process.env.NOTION_DB_HELPDESK || process.env.NOTION_DB_TICKETS;
   if (!dbId) throw new Error("NOTION_DB_HELPDESK 환경변수가 설정되지 않았습니다.");
 
@@ -439,6 +451,7 @@ export async function fetchHelpDeskTickets(): Promise<HelpDeskTicket[]> {
 }
 
 export async function fetchTickets(): Promise<Ticket[]> {
+  if (isMock()) return mockTickets as Ticket[];
   const dbId = process.env.NOTION_DB_TICKETS;
   if (!dbId) throw new Error("NOTION_DB_TICKETS 환경변수가 설정되지 않았습니다.");
 
@@ -474,6 +487,7 @@ function getPropUniqueId(props: NotionProps, key: string): string {
 }
 
 export async function fetchRepairTickets(): Promise<RepairTicket[]> {
+  if (isMock()) return mockRepairTickets as RepairTicket[];
   const dbId = process.env.NOTION_DB_REPAIR_TICKETS;
   if (!dbId) throw new Error("NOTION_DB_REPAIR_TICKETS 환경변수가 설정되지 않았습니다.");
 
@@ -510,6 +524,7 @@ export async function fetchRepairTickets(): Promise<RepairTicket[]> {
 // HW 외부 수리 추적
 // ────────────────────────────────────────────────────────────
 export async function fetchHwRepairs(): Promise<HwRepairRecord[]> {
+  if (isMock()) return mockHwRepairs as HwRepairRecord[];
   const dbId = process.env.NOTION_DB_HW_REPAIR;
   if (!dbId) throw new Error("NOTION_DB_HW_REPAIR 환경변수가 설정되지 않았습니다.");
 
@@ -576,6 +591,7 @@ function matchCol(header: string, keywords: string[]): boolean {
 }
 
 export async function fetchCredentialsPage(): Promise<SwCredential[]> {
+  if (isMock()) return mockCredentials;
   const pageId = process.env.NOTION_PAGE_CREDENTIALS;
   if (!pageId) throw new Error("NOTION_PAGE_CREDENTIALS 환경변수가 설정되지 않았습니다.");
 
@@ -643,6 +659,7 @@ export async function createHelpDeskTicket(data: {
   content: string;
   assetNo?: string;
 }): Promise<string> {
+  if (isMock()) { console.log("[MOCK] createHelpDeskTicket", data); return "mock-hd-new"; }
   const dbId = process.env.NOTION_DB_HELPDESK;
   if (!dbId) throw new Error("NOTION_DB_HELPDESK 환경변수가 설정되지 않았습니다.");
 
@@ -678,6 +695,7 @@ export async function createTicket(data: {
   description: string;
   requester: string;
 }): Promise<string> {
+  if (isMock()) { console.log("[MOCK] createTicket", data); return "mock-tk-new"; }
   const dbId = process.env.NOTION_DB_TICKETS;
   if (!dbId) throw new Error("NOTION_DB_TICKETS 환경변수가 설정되지 않았습니다.");
 
@@ -705,6 +723,7 @@ export async function createSwRequest(data: {
   reason: string;
   urgency: string;
 }): Promise<string> {
+  if (isMock()) { console.log("[MOCK] createSwRequest", data); return "mock-sw-req-new"; }
   const dbId = process.env.NOTION_DB_TICKETS;
   if (!dbId) throw new Error("NOTION_DB_TICKETS 환경변수가 설정되지 않았습니다.");
 
@@ -777,6 +796,7 @@ async function uploadImageToNotion(base64DataUrl: string): Promise<string> {
 }
 
 export async function fetchFloorMap(building: string, floor: string): Promise<object | null> {
+  if (isMock()) return null;
   const dbId = process.env.NOTION_DB_FLOOR_MAPS;
   if (!dbId) return null;
 
@@ -821,6 +841,7 @@ export async function saveFloorMap(
   floor: string,
   data: any,
 ): Promise<{ ok: boolean }> {
+  if (isMock()) { console.log("[MOCK] saveFloorMap", building, floor); return { ok: true }; }
   const dbId = process.env.NOTION_DB_FLOOR_MAPS;
   if (!dbId) throw new Error("NOTION_DB_FLOOR_MAPS 환경변수가 설정되지 않았습니다.");
 
@@ -889,6 +910,7 @@ export async function fetchMonitorHistory(opts: {
   floor?: string;
   limit?: number;
 }): Promise<MonitorHistoryEntry[]> {
+  if (isMock()) return mockMonitorHistory as MonitorHistoryEntry[];
   const dbId = process.env.NOTION_DB_MONITOR_HISTORY;
   if (!dbId) return [];
   let normalizedDbId: string;
@@ -940,6 +962,7 @@ export async function createMonitorHistory(data: {
   description?: string;
   createdBy?: string;
 }): Promise<string> {
+  if (isMock()) { console.log("[MOCK] createMonitorHistory", data); return "mock-mh-new"; }
   const rawDbId = process.env.NOTION_DB_MONITOR_HISTORY;
   if (!rawDbId) throw new Error("NOTION_DB_MONITOR_HISTORY 환경변수가 설정되지 않았습니다.");
 
@@ -980,6 +1003,7 @@ export async function updateMonitorHistoryStatus(
   pageId: string,
   status: "pending" | "수리중" | "in_progress" | "done",
 ): Promise<void> {
+  if (isMock()) { console.log("[MOCK] updateMonitorHistoryStatus", pageId, status); return; }
   await notion.pages.update({
     page_id: pageId,
     properties: { Status: { select: { name: status } } },
