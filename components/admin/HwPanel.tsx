@@ -2009,7 +2009,18 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
       const json = await res.json();
       if (json.missingEnv) { setMissingEnv(json.missingEnv); return; }
       if (!json.ok) throw new Error(json.error);
-      if (json.stats) setStats(json.stats);
+      if (json.stats) {
+        setStats(json.stats);
+      } else if (json.warming) {
+        // warm 진행 중 → 45초 후 재시도
+        setTimeout(async () => {
+          try {
+            const r2 = await fetch(statsUrl);
+            const j2 = await r2.json();
+            if (j2.ok && j2.stats) setStats(j2.stats);
+          } catch { /* 재시도 실패 무시 */ }
+        }, 45_000);
+      }
     } catch (e) { setStatsError(String(e)); }
     finally { setStatsLoading(false); }
   // eslint-disable-next-line react-hooks/exhaustive-deps

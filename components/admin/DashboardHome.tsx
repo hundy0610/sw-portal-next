@@ -239,14 +239,30 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
   // ── HW 현황 (상태별) ─────────────────────────────────────────
   useEffect(() => {
     if (hwStats) { setHwLoading(false); setTime("HW 현황", 0); return; }
-    const t0 = performance.now();
-    fetch("/api/hw/stats")
-      .then(r => r.json())
-      .then(d => {
-        setTime("HW 현황", Math.round(performance.now() - t0));
-        if (d.ok && d.stats) setHwStats(d.stats);
-      })
-      .finally(() => setHwLoading(false));
+
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    async function fetchStats(isRetry = false) {
+      const t0 = performance.now();
+      try {
+        const d = await fetch("/api/hw/stats").then(r => r.json());
+        if (!isRetry) setTime("HW 현황", Math.round(performance.now() - t0));
+        if (d.ok && d.stats) {
+          setHwStats(d.stats);
+          setHwLoading(false);
+        } else if (d.warming && !isRetry) {
+          // warm 진행 중 → 45초 후 재시도 (warm-hw 잡은 약 1분 소요)
+          retryTimer = setTimeout(() => fetchStats(true), 45_000);
+        } else {
+          setHwLoading(false);
+        }
+      } catch {
+        setHwLoading(false);
+      }
+    }
+
+    fetchStats();
+    return () => { if (retryTimer) clearTimeout(retryTimer); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 최근 문의 접수 ────────────────────────────────────────────
@@ -322,8 +338,10 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
   }, [company, isFiltered]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 출고준비 현황 ─────────────────────────────────────────────
+  // statuses 복수 파라미터 사용 → KV miss 시 Notion 직접 fallback 작동
   useEffect(() => {
     const co = isFiltered ? `&company=${encodeURIComponent(company)}` : "";
+    const shipUrl = `/api/hw?statuses=${encodeURIComponent("출고준비중,출고준비완료")}${co}`;
     const cacheKey = SC_SHIP(company);
 
     const cached = scGet<HwRecord[]>(cacheKey);
@@ -331,12 +349,9 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
       setShipRecords(cached);
       setShipLoading(false);
       setTime("출고준비", 0);
-      Promise.all([
-        fetch(`/api/hw?status=${encodeURIComponent("출고준비중")}${co}`).then(r => r.json()),
-        fetch(`/api/hw?status=${encodeURIComponent("출고준비완료")}${co}`).then(r => r.json()),
-      ]).then(([r1, r2]) => {
-        const all: HwRecord[] = [...(r1.records ?? []), ...(r2.records ?? [])]
-          .sort((a, b) => (a.useDate || "").localeCompare(b.useDate || ""));
+      fetch(shipUrl).then(r => r.json()).then(d => {
+        const all: HwRecord[] = (d.records ?? []).sort((a: HwRecord, b: HwRecord) =>
+          (a.useDate || "").localeCompare(b.useDate || ""));
         setShipRecords(all);
         scSet(cacheKey, all, TTL_TICKETS);
       }).catch(() => {});
@@ -344,16 +359,16 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
     }
 
     const t0 = performance.now();
-    Promise.all([
-      fetch(`/api/hw?status=${encodeURIComponent("출고준비중")}${co}`).then(r => r.json()),
-      fetch(`/api/hw?status=${encodeURIComponent("출고준비완료")}${co}`).then(r => r.json()),
-    ]).then(([r1, r2]) => {
-      setTime("출고준비", Math.round(performance.now() - t0));
-      const all: HwRecord[] = [...(r1.records ?? []), ...(r2.records ?? [])]
-        .sort((a, b) => (a.useDate || "").localeCompare(b.useDate || ""));
-      setShipRecords(all);
-      scSet(cacheKey, all, TTL_TICKETS);
-    }).finally(() => setShipLoading(false));
+    fetch(shipUrl)
+      .then(r => r.json())
+      .then(d => {
+        setTime("출고준비", Math.round(performance.now() - t0));
+        const all: HwRecord[] = (d.records ?? []).sort((a: HwRecord, b: HwRecord) =>
+          (a.useDate || "").localeCompare(b.useDate || ""));
+        setShipRecords(all);
+        scSet(cacheKey, all, TTL_TICKETS);
+      })
+      .finally(() => setShipLoading(false));
   }, [company, isFiltered]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function clearCache(target: "hw" | "sw" | "all") {
