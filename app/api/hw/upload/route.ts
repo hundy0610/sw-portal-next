@@ -3,7 +3,6 @@ import { Client } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
 import { computeHwStats, type HwRecord } from "@/lib/hw";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
-import { memDel } from "@/lib/mem-cache";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
@@ -220,7 +219,6 @@ export async function POST(req: NextRequest) {
             kvSetPermanent("hw:all",   merged),
             kvSetPermanent("hw:stats", stats),
           ]);
-          memDel("hw:all", "hw:stats");
         }
         // KV 미스 시 — 다음 warm-hw.yml 실행 때 자연히 반영
       } catch (e) {

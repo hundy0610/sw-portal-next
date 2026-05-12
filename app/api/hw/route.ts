@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { type HwRecord, fetchHwFiltered } from "@/lib/hw";
 import { kvGet } from "@/lib/kv-store";
-import { memGet, memSet, memDel } from "@/lib/mem-cache";
 import { triggerWarmHw } from "@/lib/trigger-warm-hw";
 
 export const dynamic = "force-dynamic";
@@ -19,35 +18,24 @@ export async function GET(req: NextRequest) {
   const statuses  = searchParams.get("statuses")?.split(",").map(s => s.trim()).filter(Boolean) ?? [];
 
   try {
-    // refresh=1 이면 인메모리 캐시 무효화
-    if (refresh) memDel("hw:all", "hw:stats");
-
-    // 1. 인메모리 캐시 (0ms)
-    let records = memGet<HwRecord[]>("hw:all");
+    // KV 캐시 (1~5ms, KV 미설정 시 null 반환)
+    const records = await kvGet<HwRecord[]>("hw:all");
 
     if (!records) {
-      // 2. KV 캐시 (1~5ms, KV 미설정 시 null 반환)
-      records = await kvGet<HwRecord[]>("hw:all");
-
-      if (!records) {
-        // 3. KV 미스
-        if (statuses.length > 0 || returnDue) {
-          // 필터가 있으면 Notion 직접 조회 (결과 수십~백 건 → 1~3 호출, 타임아웃 안전)
-          const filtered = await fetchHwFiltered({ statuses, returnDue, company });
-          return NextResponse.json({ ok: true, records: filtered });
-        }
-        // 전체 데이터 요청 — Vercel 10s 초과. GitHub Actions 트리거 (백그라운드)
-        triggerWarmHw().catch(console.warn);
-        return NextResponse.json({
-          ok: true,
-          records: [],
-          warming: true,
-          message: "HW 데이터 캐시를 갱신하고 있습니다. 잠시 후 자동으로 재시도합니다.",
-        });
+      // KV 미스
+      if (statuses.length > 0 || returnDue) {
+        // 필터가 있으면 Notion 직접 조회 (결과 수십~백 건 → 1~3 호출, 타임아웃 안전)
+        const filtered = await fetchHwFiltered({ statuses, returnDue, company });
+        return NextResponse.json({ ok: true, records: filtered });
       }
-
-      // 인메모리에 저장
-      memSet("hw:all", records, 15);
+      // 전체 데이터 요청 — Vercel 10s 초과. GitHub Actions 트리거 (백그라운드)
+      triggerWarmHw().catch(console.warn);
+      return NextResponse.json({
+        ok: true,
+        records: [],
+        warming: true,
+        message: "HW 데이터 캐시를 갱신하고 있습니다. 잠시 후 자동으로 재시도합니다.",
+      });
     }
 
     // 메모리 필터링 (추가 DB 호출 없음)

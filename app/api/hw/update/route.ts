@@ -86,7 +86,6 @@ export async function POST(req: NextRequest) {
         kvSetPermanent("hw:stats", stats),
       ]);
       // 인메모리 캐시 무효화 (KV는 이미 최신)
-      memDel("hw:all", "hw:stats");
     })();
 
     await Promise.all([notionPromise, kvPatchPromise]);
