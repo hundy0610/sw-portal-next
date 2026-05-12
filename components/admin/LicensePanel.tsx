@@ -4,6 +4,10 @@ import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import * as XLSX from "xlsx";
 import type { SwDbRecord } from "@/types";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
+import { scGet, scSet, scDel } from "@/lib/session-cache";
+
+const SC_SWREC_LP = (co: string) => `sc:lp:swrec${co ? `:${co}` : ""}`;
+const TTL_SWREC_LP = 5 * 60 * 1000;
 
 const PAGE_SIZE = 30;
 
@@ -842,9 +846,16 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
 
   const handleUploadSuccess = useCallback(() => {
     const url = company ? `/api/sw-records?company=${encodeURIComponent(company)}` : "/api/sw-records";
+    // 업로드 후 sessionStorage 무효화
+    scDel(SC_SWREC_LP(company));
     fetch(url)
       .then(r => r.json())
-      .then(res => { if (!res.missingEnv) setRecords(res.data ?? []); });
+      .then(res => {
+        if (!res.missingEnv) {
+          setRecords(res.data ?? []);
+          scSet(SC_SWREC_LP(company), res.data ?? [], TTL_SWREC_LP);
+        }
+      });
   }, [company]);
 
   const handleUpdate = useCallback(async (id: string, fields: Partial<SwDbRecord>) => {
@@ -873,14 +884,30 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
 
   useEffect(() => {
     const url = company ? `/api/sw-records?company=${encodeURIComponent(company)}` : "/api/sw-records";
+    const cacheKey = SC_SWREC_LP(company);
+
+    const cached = scGet<SwDbRecord[]>(cacheKey);
+    if (cached) {
+      setRecords(cached);
+      setLoading(false);
+      // 백그라운드 재검증
+      fetch(url).then(r => r.json()).then(res => {
+        if (res.missingEnv) return;
+        setRecords(res.data ?? []);
+        scSet(cacheKey, res.data ?? [], TTL_SWREC_LP);
+      }).catch(() => {});
+      return;
+    }
+
     fetch(url)
       .then(r => r.json())
       .then(res => {
         if (res.missingEnv) { setMissingEnv(res.missingEnv); return; }
         setRecords(res.data ?? []);
+        scSet(cacheKey, res.data ?? [], TTL_SWREC_LP);
       })
       .finally(() => setLoading(false));
-  }, [company]);
+  }, [company]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // filterMacrocat 변경 시 SW명 필터 초기화
   useEffect(() => { setFilterSwName("전체"); }, [filterMacrocat]);

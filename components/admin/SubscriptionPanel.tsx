@@ -3,6 +3,10 @@
 import { useEffect, useState, useMemo } from "react";
 import type { SwDbRecord } from "@/types";
 import { SyncBanner } from "@/components/ui/SyncBanner";
+import { scGet, scSet } from "@/lib/session-cache";
+
+const SC_SWREC_SP = "sc:sp:swrec";
+const TTL_SP = 5 * 60 * 1000;
 
 const PREVIEW_COUNT = 5; // 목록에서 기본 표시 건수
 
@@ -130,12 +134,25 @@ export default function SubscriptionPanel() {
   const [showAllTable,       setShowAllTable]       = useState(false);
 
   useEffect(() => {
+    const cached = scGet<SwDbRecord[]>(SC_SWREC_SP);
+    if (cached) {
+      setRecords(cached);
+      setLoading(false);
+      // 백그라운드 재검증
+      fetch("/api/sw-records").then(r => r.json()).then(res => {
+        setRecords(res.data ?? []);
+        setLastSynced(res.lastSynced ?? "");
+        scSet(SC_SWREC_SP, res.data ?? [], TTL_SP);
+      }).catch(() => {});
+      return;
+    }
     fetch("/api/sw-records")
       .then(r => r.json())
       .then(res => {
         setRecords(res.data ?? []);
         setLastSynced(res.lastSynced ?? "");
         if (res.error) setError(res.error);
+        scSet(SC_SWREC_SP, res.data ?? [], TTL_SP);
       })
       .catch(() => setError("데이터를 불러오지 못했습니다."))
       .finally(() => setLoading(false));
