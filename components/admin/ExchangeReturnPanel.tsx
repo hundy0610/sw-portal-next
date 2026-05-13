@@ -1382,6 +1382,21 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: niSelected.id, fields: { status: "출고준비중", user: niUser, dept: niDept, useDate: niUseDate } }),
       });
+      fetch("/api/hw/dispatch-history", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify([{
+          id: crypto.randomUUID(),
+          dispatchedAt: new Date().toISOString(),
+          type: "재고",
+          assetNo: niSelected.assetNo || "",
+          model: niSelected.model || "",
+          serial: niDetail?.serial || "",
+          user: niUser || "",
+          company: niCompany || "",
+          dept: niDept || "",
+          useDate: niUseDate || "",
+        }]),
+      }).catch(console.error);
       onCreated(); onClose();
     } catch (e) { setErr(String(e)); } finally { setSaving(false); }
   };
