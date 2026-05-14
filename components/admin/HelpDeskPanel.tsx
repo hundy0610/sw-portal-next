@@ -1468,12 +1468,6 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
     return [...m.entries()].sort((a, b) => b[1] - a[1]);
   }, [displayTickets]);
 
-  const byUrgency = useMemo(() => {
-    const order = ["매우 급합니다", "조금 급합니다", "기다릴 수 있어요"];
-    const m = new Map<string, number>();
-    displayTickets.forEach(t => { if (t.urgency) m.set(t.urgency, (m.get(t.urgency) ?? 0) + 1); });
-    return order.filter(u => m.has(u)).map(u => [u, m.get(u)!] as [string, number]);
-  }, [displayTickets]);
 
   const monthlyTotal = useMemo(() =>
     months.map(m => ({ month: m, count: displayTickets.filter(t => (t.submittedAt || "").startsWith(m)).length })),
@@ -1726,13 +1720,31 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
 
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-white border border-gray-200 rounded-xl p-5">
-              <h3 className="text-sm font-bold text-gray-800 mb-4">긴급도 분포</h3>
-              <div className="space-y-3">
-                {byUrgency.map(([urgency, count]) => (
-                  <HBar key={urgency} label={urgency} count={count} total={total}
-                    color={URGENCY[urgency]?.bar ?? "#94A3B8"} />
-                ))}
-                {byUrgency.length === 0 && <p className="text-xs text-gray-300 text-center py-4">데이터 없음</p>}
+              <h3 className="text-sm font-bold text-gray-800 mb-4">
+                미완료된 건
+                <span className="text-xs font-normal text-gray-400 ml-1">최신 5건</span>
+              </h3>
+              <div className="space-y-1">
+                {displayTickets
+                  .filter(t => t.status !== "완료")
+                  .sort((a, b) => (b.submittedAt || "").localeCompare(a.submittedAt || ""))
+                  .slice(0, 5)
+                  .map(t => (
+                    <div key={t.id} className="flex items-start gap-2 py-2 border-b border-gray-50 last:border-0">
+                      <StatusBadge status={t.status} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-gray-800 truncate">
+                          {t.content || t.title || "(내용 없음)"}
+                        </p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">
+                          {[t.company, t.requester, t.submittedAt?.slice(0, 10)].filter(Boolean).join(" · ")}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                {displayTickets.filter(t => t.status !== "완료").length === 0 && (
+                  <p className="text-xs text-gray-300 text-center py-4">미완료 건 없음</p>
+                )}
               </div>
             </div>
 
