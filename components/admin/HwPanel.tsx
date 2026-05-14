@@ -14,7 +14,7 @@ interface HwRecord {
   status: string;
   returnDue: string; returnDate: string;
   purchaseDate: string; useDate: string;
-  price: number; note: string; docNo: string;
+  price: number; residualValue: number; note: string; docNo: string;
   verified: boolean; duplicated: boolean;
 }
 
@@ -420,8 +420,8 @@ function EditModal({ record, fields, onSave, onClose }: EditModalProps) {
   useEffect(() => {
     const init: Partial<HwRecord> = {};
     fields.forEach(f => {
-      const val = (record as Record<string, unknown>)[f];
-      (init as Record<string, unknown>)[f] = val ?? (f === "verified" ? false : "");
+      const val = (record as unknown as Record<string, unknown>)[f];
+      (init as unknown as Record<string, unknown>)[f] = val ?? (f === "verified" ? false : "");
     });
     setForm(init);
   }, [record, fields]);
@@ -570,35 +570,57 @@ function AssetDetailModal({ record, onSave, onClose }: {
   onSave: (id: string, fields: Partial<HwRecord>) => Promise<void>;
   onClose: () => void;
 }) {
-  const [status,  setStatus]  = useState(record.status);
-  const [saving,  setSaving]  = useState(false);
-  const [saved,   setSaved]   = useState(false);
-  const [error,   setError]   = useState("");
+  const [form, setForm] = useState({
+    status: record.status,
+    user: record.user,
+    company: record.company,
+    dept: record.dept,
+    location: record.location,
+    useDate: record.useDate,
+    returnDate: record.returnDate,
+    returnDue: record.returnDue,
+    note: record.note,
+  });
+  const [saving, setSaving] = useState(false);
+  const [saved,  setSaved]  = useState(false);
+  const [error,  setError]  = useState("");
 
-  async function handleStatusSave() {
-    if (status === record.status) return;
+  const setField = (k: keyof typeof form, v: string) => setForm(prev => ({ ...prev, [k]: v }));
+
+  const recAsMap = record as unknown as Record<string, unknown>;
+  const isDirty = (Object.keys(form) as (keyof typeof form)[]).some(
+    k => form[k] !== recAsMap[k]
+  );
+
+  async function handleSave() {
+    if (!isDirty) return;
     setSaving(true); setError("");
     try {
-      await onSave(record.id, { status });
+      const changed: Partial<HwRecord> = {};
+      (Object.keys(form) as (keyof typeof form)[]).forEach(k => {
+        if (form[k] !== recAsMap[k])
+          (changed as unknown as Record<string, unknown>)[k] = form[k];
+      });
+      await onSave(record.id, changed);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (e) { setError(String(e)); }
     finally { setSaving(false); }
   }
 
-  const Row = ({ label, value }: { label: string; value?: string | number }) => {
+  const InfoRow = ({ label, value }: { label: string; value?: string | number }) => {
     if (!value && value !== 0) return null;
     return (
-      <div className="flex gap-2 py-2 border-b border-gray-50 last:border-0">
-        <span className="text-xs text-gray-400 w-24 shrink-0">{label}</span>
-        <span className="text-xs text-gray-800 font-medium break-all">{String(value)}</span>
+      <div className="flex gap-2 py-1.5 border-b border-gray-50 last:border-0">
+        <span className="text-xs text-gray-400 w-20 shrink-0">{label}</span>
+        <span className="text-xs text-gray-700 font-medium break-all">{String(value)}</span>
       </div>
     );
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
         {/* 헤더 */}
         <div className="px-5 py-4 bg-amber-600 text-white flex items-start justify-between shrink-0">
           <div>
@@ -608,50 +630,94 @@ function AssetDetailModal({ record, onSave, onClose }: {
           <div className="flex items-center gap-3 ml-4">
             {record.notionUrl && (
               <a href={record.notionUrl} target="_blank" rel="noreferrer"
-                className="text-xs text-amber-200 hover:text-white underline underline-offset-2">
-                Notion ↗
-              </a>
+                className="text-xs text-amber-200 hover:text-white underline underline-offset-2">Notion ↗</a>
             )}
             <button onClick={onClose} className="text-white/70 hover:text-white text-2xl leading-none">✕</button>
           </div>
         </div>
 
-        {/* 상태 변경 */}
-        <div className="px-5 py-3 bg-amber-50 border-b border-amber-100 flex items-center gap-2 shrink-0">
-          <span className="text-xs font-semibold text-gray-500 shrink-0">상태 변경</span>
-          <select value={status} onChange={e => setStatus(e.target.value)}
-            className="flex-1 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white">
-            {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <button onClick={handleStatusSave} disabled={saving || status === record.status}
-            className="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 disabled:opacity-40 transition-colors shrink-0">
+        {/* 스크롤 영역 */}
+        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
+          {/* 수정 폼 */}
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">상태</label>
+              <select value={form.status} onChange={e => setField("status", e.target.value)}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300">
+                {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">사용자</label>
+                <input value={form.user} onChange={e => setField("user", e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">부서</label>
+                <input value={form.dept} onChange={e => setField("dept", e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">법인명</label>
+                <select value={form.company} onChange={e => setField("company", e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300">
+                  <option value="">— 선택 —</option>
+                  {COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">위치</label>
+                <input value={form.location} onChange={e => setField("location", e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">사용일자</label>
+                <input type="date" value={form.useDate} onChange={e => setField("useDate", e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">반납일자</label>
+                <input type="date" value={form.returnDate} onChange={e => setField("returnDate", e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">반납예정일</label>
+                <input type="date" value={form.returnDue} onChange={e => setField("returnDue", e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">비고</label>
+              <textarea value={form.note} onChange={e => setField("note", e.target.value)} rows={2}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 resize-none" />
+            </div>
+          </div>
+
+          {/* 읽기 전용 자산 정보 */}
+          <div className="border-t border-gray-100 pt-3">
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">자산 정보</p>
+            <InfoRow label="제조사"   value={record.maker} />
+            <InfoRow label="모델"     value={record.model} />
+            <InfoRow label="시리얼"   value={record.serial} />
+            <InfoRow label="CPU"      value={record.cpu} />
+            <InfoRow label="RAM"      value={record.ram} />
+            <InfoRow label="구매일자" value={record.purchaseDate ? fmtDate(record.purchaseDate) : undefined} />
+            <InfoRow label="단가"     value={record.price > 0 ? fmtKrw(record.price) : undefined} />
+            <InfoRow label="잔존가치" value={record.residualValue > 0 ? fmtKrw(record.residualValue) : undefined} />
+            <InfoRow label="문서번호" value={record.docNo} />
+            {record.verified && <InfoRow label="실사확인" value="완료" />}
+          </div>
+        </div>
+
+        {/* 저장 버튼 */}
+        <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex items-center justify-between shrink-0">
+          <span className="text-xs text-red-600">{error ? `⚠️ ${error}` : ""}</span>
+          <button onClick={handleSave} disabled={saving || !isDirty}
+            className="px-4 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 disabled:opacity-40 transition-colors">
             {saving ? "저장 중…" : saved ? "✓ 저장됨" : "저장"}
           </button>
         </div>
-
-        {/* 상세 정보 */}
-        <div className="overflow-y-auto flex-1 px-5 py-3">
-          <Row label="현재 상태"  value={record.status} />
-          <Row label="사용자"     value={record.user} />
-          <Row label="법인"       value={record.company} />
-          <Row label="부서"       value={record.dept} />
-          <Row label="위치"       value={record.location} />
-          <Row label="제조사"     value={record.maker} />
-          <Row label="모델"       value={record.model} />
-          <Row label="시리얼"     value={record.serial} />
-          <Row label="CPU"        value={record.cpu} />
-          <Row label="RAM"        value={record.ram} />
-          <Row label="구매일자"   value={record.purchaseDate ? fmtDate(record.purchaseDate) : undefined} />
-          <Row label="사용일자"   value={record.useDate     ? fmtDate(record.useDate)     : undefined} />
-          <Row label="반납예정일" value={record.returnDue   ? fmtDate(record.returnDue)   : undefined} />
-          <Row label="반납일자"   value={record.returnDate  ? fmtDate(record.returnDate)  : undefined} />
-          <Row label="단가"       value={record.price > 0   ? fmtKrw(record.price)        : undefined} />
-          <Row label="문서번호"   value={record.docNo} />
-          {record.verified && <Row label="실사확인" value="완료" />}
-          <Row label="비고"       value={record.note} />
-        </div>
-
-        {error && <div className="px-5 pb-3 text-xs text-red-600">⚠️ {error}</div>}
       </div>
     </div>
   );
@@ -795,8 +861,10 @@ function SearchTab({ companyLock = "", onUpdate }: { companyLock?: string; onUpd
   const [error,       setError]       = useState("");
   const [search,      setSearch]      = useState("");
   const [company,     setCompany]     = useState(companyLock);
-  const [editRecord,   setEditRecord]   = useState<HwRecord | null>(null);
-  const [detailRecord, setDetailRecord] = useState<HwRecord | null>(null);
+  const [editRecord,    setEditRecord]    = useState<HwRecord | null>(null);
+  const [detailRecord,  setDetailRecord]  = useState<HwRecord | null>(null);
+  const [statusPickerId, setStatusPickerId] = useState<string | null>(null);
+  const [statusPickerVal, setStatusPickerVal] = useState("");
   const [status,   setStatus]   = useState("");
   const [location, setLocation] = useState("");
   const [searched, setSearched] = useState(false);
@@ -878,32 +946,48 @@ function SearchTab({ companyLock = "", onUpdate }: { companyLock?: string; onUpd
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead className="bg-gray-50 text-gray-500 font-semibold">
-                  <tr>{["자산번호","사용자","법인명","부서","모델명","제조사","상태","사용일자","반납예정일","단가","실사",""].map(h=><th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}</tr>
+                  <tr>{["상태","자산번호","사용자","법인명","부서","모델명","제조사","사용일자","반납일자","반납예정일","잔존가치","단가"].map(h=><th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}</tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {records.map(r => (
                     <tr key={r.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        {statusPickerId === r.id ? (
+                          <div className="flex items-center gap-1">
+                            <select value={statusPickerVal} onChange={e => setStatusPickerVal(e.target.value)} autoFocus
+                              className="rounded border border-amber-300 px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400">
+                              {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                            <button onClick={async () => {
+                              if (onUpdate && statusPickerVal !== r.status) {
+                                await onUpdate(r.id, { status: statusPickerVal });
+                                setRecords(prev => prev.map(x => x.id === r.id ? { ...x, status: statusPickerVal } : x));
+                              }
+                              setStatusPickerId(null);
+                            }} className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-600 text-white hover:bg-amber-700">확인</button>
+                            <button onClick={() => setStatusPickerId(null)} className="text-[11px] text-gray-400 hover:text-gray-600 leading-none">✕</button>
+                          </div>
+                        ) : (
+                          <span
+                            onClick={() => { setStatusPickerId(r.id); setStatusPickerVal(r.status); }}
+                            className={`px-2 py-0.5 rounded-full text-[11px] font-medium cursor-pointer hover:ring-2 hover:ring-amber-300 hover:ring-offset-1 ${STATUS_COLOR[r.status]??"bg-gray-100 text-gray-600"}`}>
+                            {r.status||"-"}
+                          </span>
+                        )}
+                      </td>
                       <td className="px-3 py-2.5 font-mono whitespace-nowrap cursor-pointer text-amber-600 hover:underline" onClick={() => setDetailRecord(r)}>{r.assetNo||"-"}</td>
                       <td className="px-3 py-2.5 font-medium text-gray-900 whitespace-nowrap">{r.user||"-"}</td>
                       <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{r.company||"-"}</td>
                       <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.dept||"-"}</td>
                       <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap max-w-[140px] truncate">{r.model||"-"}</td>
                       <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.maker||"-"}</td>
-                      <td className="px-3 py-2.5 whitespace-nowrap">
-                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${STATUS_COLOR[r.status]??"bg-gray-100 text-gray-600"}`}>{r.status||"-"}</span>
-                      </td>
                       <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{fmtDate(r.useDate)}</td>
+                      <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{fmtDate(r.returnDate)}</td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         {r.returnDue ? <span className="flex items-center gap-1.5"><span className="text-gray-600">{fmtDate(r.returnDue)}</span><span className={`text-[11px] ${dDay(r.returnDue).cls}`}>{dDay(r.returnDue).label}</span></span> : "-"}
                       </td>
+                      <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.residualValue > 0 ? fmtKrw(r.residualValue) : "-"}</td>
                       <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{fmtKrw(r.price)}</td>
-                      <td className="px-3 py-2.5 whitespace-nowrap text-center">
-                        {r.verified ? <span className="text-green-600 font-bold">✓</span> : <span className="text-gray-300">−</span>}
-                      </td>
-                      <td className="px-3 py-2.5 flex items-center gap-2">
-                        {r.notionUrl && <a href={r.notionUrl} target="_blank" rel="noreferrer" className="text-amber-400 hover:text-amber-600 underline underline-offset-2">Notion ↗</a>}
-                        {onUpdate && <button onClick={() => setEditRecord(r)} className="px-2 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-600 hover:bg-amber-100 transition-colors">수정</button>}
-                      </td>
                     </tr>
                   ))}
                 </tbody>
