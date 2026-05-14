@@ -688,6 +688,7 @@ function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
 export default function RepairPanel({ company = "" }: { company?: string }) {
   const [tickets,    setTickets]    = useState<RepairTicket[]>([]);
   const [loading,    setLoading]    = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error,      setError]      = useState<string | null>(null);
   const [missingEnv, setMissingEnv] = useState<string | null>(null);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
@@ -722,6 +723,7 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
 
   const load = useCallback((force = false) => {
     if (!force) { setLoading(true); setError(null); }
+    if (force) setRefreshing(true);
     const params = new URLSearchParams();
     if (force) params.set("refresh", "1");
     if (company) params.set("company", company);
@@ -730,12 +732,12 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
       .then(r => r.json())
       .then(res => {
         if (res.missingEnv) { setMissingEnv(res.missingEnv); return; }
-        if (res.error) { setError(res.error); return; }
+        if (res.error) { if (!force) setError(res.error); return; }
         setTickets(res.data ?? []);
         setLastSynced(res.lastSynced ?? null);
       })
       .catch(e => { if (!force) setError(e.message); })
-      .finally(() => { if (!force) setLoading(false); });
+      .finally(() => { if (!force) setLoading(false); else setRefreshing(false); });
   }, [company]);
 
   useEffect(() => { load(); }, [load]);
@@ -835,9 +837,10 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
             )}
           </p>
         </div>
-        <button onClick={() => load(true)}
-          className="text-xs font-medium px-3 py-1.5 rounded border bg-white text-gray-600 border-gray-300 hover:border-gray-400 flex items-center gap-1 transition-colors">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <button onClick={() => load(true)} disabled={refreshing}
+          className="text-xs font-medium px-3 py-1.5 rounded border bg-white text-gray-600 border-gray-300 hover:border-gray-400 flex items-center gap-1 transition-colors disabled:opacity-50">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            className={refreshing ? "animate-spin" : ""}>
             <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
           </svg>
           새로고침
