@@ -1261,6 +1261,7 @@ type Tab = "overview" | "type" | "company" | "list" | "status_list" | "report" |
 export default function HelpDeskPanel({ company: companyFilter = "" }: { company?: string }) {
   const [tickets,    setTickets]    = useState<HelpDeskTicket[]>([]);
   const [loading,    setLoading]    = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error,      setError]      = useState<string | null>(null);
   const [missingEnv, setMissingEnv] = useState<string | null>(null);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
@@ -1338,11 +1339,12 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
 
   const load = useCallback((force = false) => {
     if (!force) { setLoading(true); setError(null); }
+    if (force) setRefreshing(true);
     fetch(`/api/helpdesk${force ? "?refresh=1" : ""}`)
       .then(r => r.json())
       .then(res => {
         if (res.missingEnv) { setMissingEnv(res.missingEnv); return; }
-        if (res.error) { setError(res.error); return; }
+        if (res.error) { if (!force) setError(res.error); return; }
         const newTickets: HelpDeskTicket[] = res.data ?? [];
 
         // 첫 로드가 아닐 때만 상태 변화 감지 → 자동 이메일
@@ -1366,7 +1368,7 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
         setLastSynced(res.lastSynced ?? null);
       })
       .catch(e => { if (!force) setError(e.message); })
-      .finally(() => { if (!force) setLoading(false); });
+      .finally(() => { if (!force) setLoading(false); else setRefreshing(false); });
   }, [autoSendEmail]);
 
   // 초기 로드
@@ -1589,9 +1591,10 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
             )}
           </p>
         </div>
-        <button onClick={() => load(true)}
-          className="text-xs font-medium px-3 py-1.5 rounded border bg-white text-gray-600 border-gray-300 hover:border-gray-400 flex items-center gap-1 transition-colors">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <button onClick={() => load(true)} disabled={refreshing}
+          className="text-xs font-medium px-3 py-1.5 rounded border bg-white text-gray-600 border-gray-300 hover:border-gray-400 flex items-center gap-1 transition-colors disabled:opacity-50">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            className={refreshing ? "animate-spin" : ""}>
             <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
           </svg>
           새로고침
@@ -2091,9 +2094,10 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
               </button>
             )}
             <span className="text-xs text-gray-400 ml-auto">{filteredList.length}건</span>
-            <button onClick={() => load(true)}
-              className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:text-gray-800 transition-colors">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <button onClick={() => load(true)} disabled={refreshing}
+              className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:text-gray-800 transition-colors disabled:opacity-50">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                className={refreshing ? "animate-spin" : ""}>
                 <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
               </svg>
               새로고침
