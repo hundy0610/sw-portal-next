@@ -509,3 +509,55 @@ export const mockMonitorHistory = [
 
 // ─── Credentials (어드민 전용, 민감 정보 — 빈 배열로 반환) ────
 export const mockCredentials: never[] = [];
+
+// ─── SW 설치파일 ─────────────────────────────────────────────
+export const mockSwFiles = [
+  {
+    id: "mock-swf-1",
+    name: "7-Zip",
+    category: "압축 / 유틸",
+    version: "24.08",
+    description: "고압축률의 무료 압축 프로그램",
+    downloadUrl: "https://www.7-zip.org/a/7z2408-x64.exe",
+    fileSize: "1.6 MB",
+    os: ["Windows"],
+    visible: true,
+    updatedAt: "2026-05-01",
+  },
+  {
+    id: "mock-swf-2",
+    name: "VLC Media Player",
+    category: "미디어",
+    version: "3.0.21",
+    description: "거의 모든 포맷을 지원하는 미디어 플레이어",
+    downloadUrl: "https://www.videolan.org/vlc/",
+    fileSize: "40.9 MB",
+    os: ["Windows", "macOS", "Linux"],
+    visible: true,
+    updatedAt: "2026-04-15",
+  },
+  {
+    id: "mock-swf-3",
+    name: "Visual Studio Code",
+    category: "개발",
+    version: "1.89.0",
+    description: "Microsoft 무료 코드 편집기",
+    downloadUrl: "https://code.visualstudio.com/",
+    fileSize: "85 MB",
+    os: ["Windows", "macOS", "Linux"],
+    visible: true,
+    updatedAt: "2026-05-05",
+  },
+  {
+    id: "mock-swf-4",
+    name: "ESET Endpoint Security",
+    category: "보안",
+    version: "12.0",
+    description: "사내 표준 보안 솔루션 — IT팀 배포본 사용 필수",
+    downloadUrl: "#",
+    fileSize: "180 MB",
+    os: ["Windows", "macOS"],
+    visible: true,
+    updatedAt: "2026-03-20",
+  },
+];

@@ -7,11 +7,12 @@ import type {
 } from "@notionhq/client/build/src/api-endpoints";
 import type { SwItem, SwDbRecord, Subscription, LicenseItem, LicenseRecord, Ticket, RepairTicket, HwRepairRecord } from "@/types";
 import type { SwCredential } from "@/components/admin/CredentialsPanel";
+import type { SwFile } from "@/types/portal";
 import {
   isMock,
   mockSwItems, mockSwDatabase, mockSubscriptions, mockLicenses,
   mockLicenseRecords, mockHelpDeskTickets, mockTickets, mockRepairTickets,
-  mockHwRepairs, mockMonitorHistory, mockCredentials,
+  mockHwRepairs, mockMonitorHistory, mockCredentials, mockSwFiles,
 } from "./mock";
 
 // ────────────────────────────────────────────────────────────
@@ -1005,5 +1006,37 @@ export async function updateMonitorHistoryStatus(
   await notion.pages.update({
     page_id: pageId,
     properties: { Status: { select: { name: status } } },
+  });
+}
+
+// ─── SW 설치파일 DB 조회 ──────────────────────────────────────
+// Notion DB 컬럼: SW명(title), 카테고리(select), 버전(rich_text),
+//                설명(rich_text), 다운로드 URL(url), 파일 크기(rich_text),
+//                OS(multi_select), 공개 여부(checkbox)
+export async function fetchSwFiles(): Promise<SwFile[]> {
+  if (isMock()) return mockSwFiles as SwFile[];
+  const dbId = process.env.NOTION_DB_SW_FILES;
+  if (!dbId) throw new Error("NOTION_DB_SW_FILES 환경변수가 설정되지 않았습니다.");
+
+  const pages = await queryAllPages(
+    dbId,
+    { property: "공개 여부", checkbox: { equals: true } },
+    [{ property: "SW명", direction: "ascending" }]
+  );
+
+  return pages.map((page) => {
+    const p = page.properties;
+    return {
+      id: page.id,
+      name: getPropText(p, "SW명"),
+      category: getPropSelect(p, "카테고리"),
+      version: getPropText(p, "버전"),
+      description: getPropText(p, "설명"),
+      downloadUrl: getPropText(p, "다운로드 URL"),
+      fileSize: getPropText(p, "파일 크기"),
+      os: getPropMultiSelect(p, "OS"),
+      visible: getPropCheckbox(p, "공개 여부"),
+      updatedAt: getPropDate(p, "수정일") || page.last_edited_time.slice(0, 10),
+    };
   });
 }

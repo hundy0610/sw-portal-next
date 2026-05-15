@@ -38,3 +38,16 @@ export interface Resource {
   visible: boolean;
   createdAt: string;
 }
+
+export interface SwFile {
+  id: string;
+  name: string;
+  category: string;
+  version: string;
+  description: string;
+  downloadUrl: string;
+  fileSize: string;
+  os: string[];          // ["Windows", "macOS", "Linux"]
+  visible: boolean;
+  updatedAt: string;
+}
