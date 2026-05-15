@@ -2285,16 +2285,21 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
             const mRatings = myRated
               .filter(t => (t.lastEditedAt || "").startsWith(m))
               .map(t => feedbacks[t.id].rating);
+            const mDoneCount = myDone
+              .filter(t => (t.lastEditedAt || "").startsWith(m))
+              .length;
             return {
               month: m,
               avg: mRatings.length > 0
                 ? (mRatings.reduce((s, r) => s + r, 0) / mRatings.length)
                 : null,
               count: mRatings.length,
+              doneCount: mDoneCount,
             };
           });
 
-          return { name, totalAvg, yearAvg, monthlyAvg, totalCount: ratings.length, allCount, doneCount, completionRate, avgDays };
+          const yearDoneCount = myDone.filter(t => new Date(t.lastEditedAt).getFullYear() === thisYear).length;
+          return { name, totalAvg, yearAvg, monthlyAvg, totalCount: ratings.length, yearCount: yearRatings.length, yearDoneCount, allCount, doneCount, completionRate, avgDays };
         }).sort((a, b) => b.allCount - a.allCount);
 
         const fmtAvg = (v: number | null) =>
@@ -2438,7 +2443,7 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
                     </tr>
                   </thead>
                   <tbody>
-                    {assigneeStats.map(({ name, monthlyAvg, yearAvg, totalAvg }) => (
+                    {assigneeStats.map(({ name, monthlyAvg, yearAvg, totalAvg, yearCount, yearDoneCount, totalCount, doneCount }) => (
                       <tr key={name} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                         <td className="py-3 pr-6 font-semibold text-gray-700 whitespace-nowrap flex items-center gap-2">
                           <span className="w-6 h-6 rounded-full bg-violet-100 inline-flex items-center justify-center text-[10px] font-bold text-violet-600 flex-shrink-0">
@@ -2446,27 +2451,36 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
                           </span>
                           {name}
                         </td>
-                        {monthlyAvg.map(({ month, avg, count }) => (
+                        {monthlyAvg.map(({ month, avg, count, doneCount: mDone }) => (
                           <td key={month} className="text-center py-3 px-4">
-                            {avg !== null ? (
+                            {avg !== null || mDone > 0 ? (
                               <div className="flex flex-col items-center gap-0.5">
                                 <span className="font-bold text-[13px]" style={{ color: ratingColor(avg) }}>
-                                  {avg.toFixed(1)}
+                                  {avg !== null ? avg.toFixed(1) : "—"}
                                 </span>
-                                <span className="text-[9px] text-gray-300">{count}건</span>
+                                <span className="text-[9px] text-gray-400">{mDone}건 / 응답 {count}건</span>
+                                <span className="text-[9px] text-gray-400">응답률 {mDone > 0 ? Math.round((count / mDone) * 100) : 0}%</span>
                               </div>
                             ) : <span className="text-gray-200">—</span>}
                           </td>
                         ))}
                         <td className="text-center py-3 px-4">
-                          <span className="font-bold text-[13px]" style={{ color: ratingColor(yearAvg) }}>
-                            {fmtAvg(yearAvg)}
-                          </span>
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className="font-bold text-[13px]" style={{ color: ratingColor(yearAvg) }}>
+                              {fmtAvg(yearAvg)}
+                            </span>
+                            <span className="text-[9px] text-gray-400">{yearDoneCount}건 / 응답 {yearCount}건</span>
+                            <span className="text-[9px] text-gray-400">응답률 {yearDoneCount > 0 ? Math.round((yearCount / yearDoneCount) * 100) : 0}%</span>
+                          </div>
                         </td>
                         <td className="text-center py-3 px-4">
-                          <span className="font-extrabold text-[14px]" style={{ color: ratingColor(totalAvg) }}>
-                            {fmtAvg(totalAvg)}
-                          </span>
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className="font-extrabold text-[14px]" style={{ color: ratingColor(totalAvg) }}>
+                              {fmtAvg(totalAvg)}
+                            </span>
+                            <span className="text-[9px] text-gray-400">{doneCount}건 / 응답 {totalCount}건</span>
+                            <span className="text-[9px] text-gray-400">응답률 {doneCount > 0 ? Math.round((totalCount / doneCount) * 100) : 0}%</span>
+                          </div>
                         </td>
                       </tr>
                     ))}
