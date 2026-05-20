@@ -483,6 +483,7 @@ export const mockHwRepairs = [
     assignee: "담당자A",
     assigneeId: "mock-user-1",
     note: "배터리 팽창으로 교체 의뢰",
+    isClosed: false,
     lastEditedAt: "2026-05-08T10:00:00Z",
     notionUrl: "#",
   },
