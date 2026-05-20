@@ -551,6 +551,7 @@ export async function fetchHwRepairs(): Promise<HwRepairRecord[]> {
       assignee: getPropPeople(p, "담당자"),
       assigneeId: getPropPeopleList(p, "담당자")[0]?.id ?? "",
       note: getPropText(p, "수리내용"),
+      isClosed: getPropCheckbox(p, "케이스종료"),
       lastEditedAt: page.last_edited_time,
       notionUrl: getPageUrl(page.id),
     };

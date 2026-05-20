@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
         faultType?: string;
         assigneeId?: string;
         note?: string;
+        isClosed?: boolean;
       };
     };
 
@@ -58,6 +59,9 @@ export async function POST(req: NextRequest) {
     }
     if (fields.note !== undefined) {
       properties["수리내용"] = { rich_text: [{ text: { content: fields.note } }] };
+    }
+    if (fields.isClosed !== undefined) {
+      properties["케이스종료"] = { checkbox: fields.isClosed };
     }
 
     if (Object.keys(properties).length === 0) {
