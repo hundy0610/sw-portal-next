@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, Suspense } from "react";
-import type { Notice, Course, Resource, ResourceCategory } from "@/types/portal";
+import type { Notice, Course, Resource, ResourceCategory, SwVersion, SwDoc } from "@/types/portal";
 import type { AuditLog } from "@/lib/portal-store";
 import type { SwItem } from "@/types";
 
@@ -20,7 +20,7 @@ const C = {
   dangerSoft:  "#FEE2E2",
 } as const;
 
-type ManageTab = "notices" | "courses" | "resources" | "swdb" | "audit";
+type ManageTab = "notices" | "courses" | "resources" | "swdb" | "audit" | "swresources";
 
 interface SessionInfo {
   name: string;
@@ -80,11 +80,12 @@ function ManageDashboard({ session }: { session: SessionInfo }) {
   const [tab, setTab] = useState<ManageTab>("notices");
 
   const TABS: { id: ManageTab; label: string; icon: string }[] = [
-    { id: "notices",   label: "공지사항", icon: "🔔" },
-    { id: "courses",   label: "교육과정", icon: "🎓" },
-    { id: "resources", label: "자료실",   icon: "📁" },
-    { id: "swdb",      label: "SW 검색",  icon: "🔍" },
-    { id: "audit",     label: "감사 로그", icon: "🕵️" },
+    { id: "notices",     label: "공지사항",   icon: "🔔" },
+    { id: "courses",     label: "교육과정",   icon: "🎓" },
+    { id: "resources",   label: "자료실",     icon: "📁" },
+    { id: "swresources", label: "SW 자료실",  icon: "💿" },
+    { id: "swdb",        label: "SW 검색",    icon: "🔍" },
+    { id: "audit",       label: "감사 로그",  icon: "🕵️" },
   ];
 
   async function handleLogout() {
@@ -128,11 +129,12 @@ function ManageDashboard({ session }: { session: SessionInfo }) {
       </header>
 
       <main style={{ maxWidth: 1040, margin: "0 auto", padding: "32px 24px" }}>
-        {tab === "notices"   && <NoticesPanel   />}
-        {tab === "courses"   && <CoursesPanel   />}
-        {tab === "resources" && <ResourcesPanel />}
-        {tab === "swdb"      && <SwPanel        />}
-        {tab === "audit"     && <AuditPanel     />}
+        {tab === "notices"     && <NoticesPanel      />}
+        {tab === "courses"     && <CoursesPanel      />}
+        {tab === "resources"   && <ResourcesPanel    />}
+        {tab === "swresources" && <SwResourcesPanel  />}
+        {tab === "swdb"        && <SwPanel           />}
+        {tab === "audit"       && <AuditPanel        />}
       </main>
     </div>
   );
@@ -753,6 +755,250 @@ function ItemRow({ visible, badge, title, sub, onToggle, onDelete }: {
           style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: C.dangerSoft, color: C.danger }}>
           삭제
         </button>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════
+   SW 자료실 패널 (Notion 기반)
+══════════════════════════════════════════════════════ */
+function SwResourcesPanel() {
+  const [versions,   setVersions]   = useState<SwVersion[]>([]);
+  const [docs,       setDocs]       = useState<SwDoc[]>([]);
+  const [selVersion, setSelVersion] = useState<SwVersion | null>(null);
+  const [loading,    setLoading]    = useState(true);
+  const [saving,     setSaving]     = useState(false);
+
+  const [addingVer,  setAddingVer]  = useState(false);
+  const [addingDoc,  setAddingDoc]  = useState(false);
+  const [editVer,    setEditVer]    = useState<SwVersion | null>(null);
+  const [editDoc,    setEditDoc]    = useState<SwDoc | null>(null);
+
+  const BLANK_VER = { name: "", version: "", category: "", os: "", description: "", visible: true, order: 0 };
+  const BLANK_DOC = { name: "", type: "설치파일", description: "", visible: true, order: 0 };
+  const [verForm, setVerForm] = useState(BLANK_VER);
+  const [docForm, setDocForm] = useState(BLANK_DOC);
+
+  const loadVersions = useCallback(() => {
+    setLoading(true);
+    fetch("/api/sw-versions?all=1").then(r => r.json())
+      .then(res => setVersions(res.data ?? []))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { loadVersions(); }, [loadVersions]);
+
+  const loadDocs = useCallback((verId: string) => {
+    fetch(`/api/sw-docs?versionId=${verId}&all=1`).then(r => r.json())
+      .then(res => setDocs(res.data ?? []));
+  }, []);
+
+  useEffect(() => {
+    if (selVersion) loadDocs(selVersion.id);
+    else setDocs([]);
+  }, [selVersion, loadDocs]);
+
+  async function saveVer() {
+    setSaving(true);
+    const osArr = verForm.os.split(",").map(s => s.trim()).filter(Boolean);
+    if (editVer) {
+      await fetch("/api/sw-versions", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ _action: "update", id: editVer.id, data: { ...verForm, os: osArr } }) });
+    } else {
+      await fetch("/api/sw-versions", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...verForm, os: osArr }) });
+    }
+    setSaving(false); setAddingVer(false); setEditVer(null); setVerForm(BLANK_VER);
+    loadVersions();
+  }
+
+  async function delVer(ver: SwVersion) {
+    if (!confirm(`"${ver.name} ${ver.version}" 을(를) 삭제하시겠습니까?`)) return;
+    await fetch("/api/sw-versions", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ _action: "delete", id: ver.id }) });
+    if (selVersion?.id === ver.id) setSelVersion(null);
+    loadVersions();
+  }
+
+  async function saveDoc() {
+    if (!selVersion) return;
+    setSaving(true);
+    if (editDoc) {
+      await fetch("/api/sw-docs", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ _action: "update", id: editDoc.id, data: docForm }) });
+    } else {
+      await fetch("/api/sw-docs", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...docForm, versionId: selVersion.id }) });
+    }
+    setSaving(false); setAddingDoc(false); setEditDoc(null); setDocForm(BLANK_DOC);
+    loadDocs(selVersion.id);
+  }
+
+  async function delDoc(doc: SwDoc) {
+    if (!confirm(`"${doc.name}" 을(를) 삭제하시겠습니까?`)) return;
+    await fetch("/api/sw-docs", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ _action: "delete", id: doc.id }) });
+    if (selVersion) loadDocs(selVersion.id);
+  }
+
+  async function toggleDocVisible(doc: SwDoc) {
+    await fetch("/api/sw-docs", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ _action: "update", id: doc.id, data: { visible: !doc.visible } }) });
+    if (selVersion) loadDocs(selVersion.id);
+  }
+
+  const grid2: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 };
+  const notionUrl = (id: string) => `https://notion.so/${id.replace(/-/g, "")}`;
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 24, alignItems: "start" }}>
+
+      {/* ── 왼쪽: SW 버전 목록 ── */}
+      <div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <div>
+            <h2 style={{ fontSize: 16, fontWeight: 800, color: C.text1, margin: "0 0 2px" }}>SW 버전</h2>
+            <p style={{ fontSize: 12, color: C.text3, margin: 0 }}>총 {versions.length}개</p>
+          </div>
+          <button onClick={() => { setAddingVer(true); setEditVer(null); setVerForm(BLANK_VER); }}
+            style={{ padding: "7px 12px", borderRadius: 10, background: C.primary, color: "#fff", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+            + 추가
+          </button>
+        </div>
+
+        {(addingVer || editVer) && (
+          <FormCard title={editVer ? "버전 수정" : "새 SW 버전"} onCancel={() => { setAddingVer(false); setEditVer(null); }} onSave={saveVer} saving={saving} disabled={!verForm.name.trim() || !verForm.version.trim()}>
+            <div style={grid2}>
+              <Field label="SW명 *"><input style={iStyle} value={verForm.name} onChange={e => setVerForm(f => ({ ...f, name: e.target.value }))} placeholder="예: 한컴오피스" /></Field>
+              <Field label="버전 *"><input style={iStyle} value={verForm.version} onChange={e => setVerForm(f => ({ ...f, version: e.target.value }))} placeholder="예: 2024" /></Field>
+            </div>
+            <div style={grid2}>
+              <Field label="카테고리"><input style={iStyle} value={verForm.category} onChange={e => setVerForm(f => ({ ...f, category: e.target.value }))} placeholder="예: 오피스" /></Field>
+              <Field label="OS (쉼표 구분)"><input style={iStyle} value={verForm.os} onChange={e => setVerForm(f => ({ ...f, os: e.target.value }))} placeholder="예: Windows, macOS" /></Field>
+            </div>
+            <Field label="설명"><input style={iStyle} value={verForm.description} onChange={e => setVerForm(f => ({ ...f, description: e.target.value }))} placeholder="간단한 설명" /></Field>
+            <div style={{ display: "flex", gap: 20 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: C.text2, cursor: "pointer" }}>
+                <input type="checkbox" checked={verForm.visible} onChange={e => setVerForm(f => ({ ...f, visible: e.target.checked }))} /> 즉시 공개
+              </label>
+              <Field label="순서"><input type="number" style={{ ...iStyle, width: 72 }} value={verForm.order} onChange={e => setVerForm(f => ({ ...f, order: +e.target.value }))} /></Field>
+            </div>
+          </FormCard>
+        )}
+
+        {loading ? (
+          <div style={{ textAlign: "center", padding: 32, color: C.text4 }}>불러오는 중...</div>
+        ) : versions.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 32, color: C.text4, fontSize: 13 }}>등록된 SW가 없습니다.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {versions.map(ver => (
+              <div key={ver.id} onClick={() => setSelVersion(selVersion?.id === ver.id ? null : ver)}
+                style={{ padding: "10px 14px", borderRadius: 12, border: `2px solid ${selVersion?.id === ver.id ? C.primary : C.border}`, background: selVersion?.id === ver.id ? C.primarySoft : "#fff", cursor: "pointer", transition: "all .15s" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: C.text1 }}>{ver.name}</div>
+                    <div style={{ fontSize: 11, color: C.text3 }}>v{ver.version} · {ver.category}</div>
+                    <div style={{ fontSize: 11, color: ver.visible ? "#16a34a" : C.text4, marginTop: 2 }}>{ver.visible ? "공개" : "숨김"}</div>
+                  </div>
+                  <div style={{ display: "flex", gap: 4 }} onClick={e => e.stopPropagation()}>
+                    <button onClick={() => { setEditVer(ver); setAddingVer(false); setVerForm({ name: ver.name, version: ver.version, category: ver.category, os: ver.os.join(", "), description: ver.description, visible: ver.visible, order: ver.order }); }}
+                      style={{ padding: "3px 8px", borderRadius: 6, border: "none", fontSize: 10, fontWeight: 700, cursor: "pointer", background: "#e0f2fe", color: "#0369a1" }}>수정</button>
+                    <button onClick={() => delVer(ver)}
+                      style={{ padding: "3px 8px", borderRadius: 6, border: "none", fontSize: 10, fontWeight: 700, cursor: "pointer", background: C.dangerSoft, color: C.danger }}>삭제</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── 오른쪽: 파일/문서 목록 ── */}
+      <div>
+        {!selVersion ? (
+          <div style={{ textAlign: "center", padding: 64, color: C.text4, fontSize: 13, background: "#f8fafc", borderRadius: 16, border: `1px dashed ${C.border}` }}>
+            왼쪽에서 SW 버전을 선택하면<br />파일/문서 목록이 표시됩니다.
+          </div>
+        ) : (
+          <>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <div>
+                <h2 style={{ fontSize: 16, fontWeight: 800, color: C.text1, margin: "0 0 2px" }}>
+                  {selVersion.name} v{selVersion.version} — 파일/문서
+                </h2>
+                <p style={{ fontSize: 12, color: C.text3, margin: 0 }}>
+                  총 {docs.length}개 · 실제 파일은&nbsp;
+                  <a href={notionUrl(selVersion.id)} target="_blank" rel="noopener noreferrer"
+                    style={{ color: C.primary }}>Notion에서 첨부</a>
+                </p>
+              </div>
+              <button onClick={() => { setAddingDoc(true); setEditDoc(null); setDocForm(BLANK_DOC); }}
+                style={{ padding: "7px 12px", borderRadius: 10, background: C.primary, color: "#fff", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                + 파일 추가
+              </button>
+            </div>
+
+            {(addingDoc || editDoc) && (
+              <FormCard title={editDoc ? "파일 수정" : "새 파일/문서"} onCancel={() => { setAddingDoc(false); setEditDoc(null); }} onSave={saveDoc} saving={saving} disabled={!docForm.name.trim()}>
+                <div style={grid2}>
+                  <Field label="파일명 *"><input style={iStyle} value={docForm.name} onChange={e => setDocForm(f => ({ ...f, name: e.target.value }))} placeholder="예: 한컴오피스2024_Setup.exe" /></Field>
+                  <Field label="종류">
+                    <select style={iStyle} value={docForm.type} onChange={e => setDocForm(f => ({ ...f, type: e.target.value }))}>
+                      <option>설치파일</option>
+                      <option>설치안내</option>
+                      <option>규정</option>
+                      <option>기타</option>
+                    </select>
+                  </Field>
+                </div>
+                <Field label="설명 (크기, 비고 등)"><input style={iStyle} value={docForm.description} onChange={e => setDocForm(f => ({ ...f, description: e.target.value }))} placeholder="예: 약 850MB" /></Field>
+                <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: C.text2, cursor: "pointer" }}>
+                    <input type="checkbox" checked={docForm.visible} onChange={e => setDocForm(f => ({ ...f, visible: e.target.checked }))} /> 즉시 공개
+                  </label>
+                  <Field label="순서"><input type="number" style={{ ...iStyle, width: 72 }} value={docForm.order} onChange={e => setDocForm(f => ({ ...f, order: +e.target.value }))} /></Field>
+                </div>
+                <p style={{ fontSize: 11, color: C.text4, margin: 0 }}>
+                  💡 실제 파일(PDF, EXE 등)은 저장 후 Notion 페이지에서 &apos;파일과 미디어&apos; 속성에 직접 첨부하세요.
+                </p>
+              </FormCard>
+            )}
+
+            {docs.length === 0 ? (
+              <div style={{ textAlign: "center", padding: 48, color: C.text4, fontSize: 13, background: "#f8fafc", borderRadius: 16 }}>
+                등록된 파일이 없습니다.
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {docs.map(doc => (
+                  <div key={doc.id} style={{ padding: "12px 16px", borderRadius: 12, border: `1px solid ${C.border}`, background: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 6, background: doc.type === "설치파일" ? "#FEF3C7" : "#EFF6FF", color: doc.type === "설치파일" ? "#92400E" : C.brand }}>
+                          {doc.type}
+                        </span>
+                        <span style={{ fontWeight: 600, fontSize: 13, color: C.text1 }}>{doc.name}</span>
+                      </div>
+                      {doc.description && <div style={{ fontSize: 11, color: C.text3, marginTop: 2 }}>{doc.description}</div>}
+                    </div>
+                    <div style={{ display: "flex", gap: 4, shrink: 0 } as React.CSSProperties}>
+                      <button onClick={() => { setEditDoc(doc); setAddingDoc(false); setDocForm({ name: doc.name, type: doc.type, description: doc.description, visible: doc.visible, order: doc.order }); }}
+                        style={{ padding: "4px 10px", borderRadius: 6, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: "#e0f2fe", color: "#0369a1" }}>수정</button>
+                      <button onClick={() => toggleDocVisible(doc)}
+                        style={{ padding: "4px 10px", borderRadius: 6, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: doc.visible ? "#d1fae5" : "#f1f5f9", color: doc.visible ? "#065f46" : C.text3 }}>
+                        {doc.visible ? "공개" : "숨김"}
+                      </button>
+                      <button onClick={() => delDoc(doc)}
+                        style={{ padding: "4px 10px", borderRadius: 6, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: C.dangerSoft, color: C.danger }}>삭제</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

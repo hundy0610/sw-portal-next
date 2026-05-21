@@ -7,7 +7,7 @@ import type {
 } from "@notionhq/client/build/src/api-endpoints";
 import type { SwItem, SwDbRecord, Subscription, LicenseItem, LicenseRecord, Ticket, RepairTicket, HwRepairRecord } from "@/types";
 import type { SwCredential } from "@/components/admin/CredentialsPanel";
-import type { SwFile } from "@/types/portal";
+import type { SwFile, SwVersion, SwDoc } from "@/types/portal";
 import {
   isMock,
   mockSwItems, mockSwDatabase, mockSubscriptions, mockLicenses,
@@ -1014,6 +1014,137 @@ export async function updateMonitorHistoryStatus(
 // Notion DB 컬럼: SW명(title), 카테고리(select), 버전(rich_text),
 //                설명(rich_text), 다운로드 URL(url), 파일 크기(rich_text),
 //                OS(multi_select), 공개 여부(checkbox)
+function getFirstFileUrl(prop: NotionProps[string] | undefined): string {
+  if (!prop || prop.type !== "files" || prop.files.length === 0) return "";
+  const f = prop.files[0];
+  if ("file" in f) return f.file.url;
+  if ("external" in f) return f.external.url;
+  return "";
+}
+
+export async function fetchSwVersions(onlyVisible = true): Promise<SwVersion[]> {
+  const dbId = process.env.NOTION_DB_SW_VERSIONS;
+  if (!dbId) return [];
+
+  const filter = onlyVisible
+    ? { property: "공개여부", checkbox: { equals: true } }
+    : undefined;
+
+  const pages = await queryAllPages(
+    dbId,
+    filter,
+    [{ property: "순서", direction: "ascending" }]
+  );
+
+  return pages.map(page => {
+    const p = page.properties;
+    return {
+      id: page.id,
+      name: getPropText(p, "SW명"),
+      version: getPropText(p, "버전"),
+      category: getPropSelect(p, "카테고리"),
+      os: getPropMultiSelect(p, "OS"),
+      description: getPropText(p, "설명"),
+      visible: getPropCheckbox(p, "공개여부"),
+      order: getPropNumber(p, "순서"),
+    };
+  });
+}
+
+export async function fetchSwDocs(versionId?: string, onlyVisible = true): Promise<SwDoc[]> {
+  const dbId = process.env.NOTION_DB_SW_DOCS;
+  if (!dbId) return [];
+
+  const visFilter = onlyVisible ? { property: "공개 여부", checkbox: { equals: true } } : null;
+  const relFilter = versionId   ? { property: "SW 버전",   relation: { contains: versionId } } : null;
+  const filter: QueryDatabaseParameters["filter"] | undefined =
+    visFilter && relFilter ? { and: [visFilter, relFilter] } :
+    visFilter ? visFilter :
+    relFilter ? relFilter : undefined;
+
+  const pages = await queryAllPages(
+    dbId, filter,
+    [{ property: "순서", direction: "ascending" }]
+  );
+
+  return pages.map(page => {
+    const p = page.properties;
+    const rel = p["SW 버전"];
+    const vId = rel?.type === "relation" && rel.relation.length > 0
+      ? rel.relation[0].id : "";
+    return {
+      id: page.id,
+      name: getPropText(p, "파일명"),
+      type: getPropSelect(p, "선택"),
+      description: getPropText(p, "텍스트"),
+      versionId: vId,
+      visible: getPropCheckbox(p, "공개 여부"),
+      order: getPropNumber(p, "순서"),
+    };
+  });
+}
+
+export async function createSwVersion(data: Omit<SwVersion, "id">): Promise<string> {
+  const dbId = process.env.NOTION_DB_SW_VERSIONS;
+  if (!dbId) throw new Error("NOTION_DB_SW_VERSIONS not set");
+  const props: Record<string, unknown> = {
+    "SW명":    { title:       [{ text: { content: data.name } }] },
+    "버전":    { rich_text:   [{ text: { content: data.version } }] },
+    "설명":    { rich_text:   [{ text: { content: data.description } }] },
+    "공개여부": { checkbox:    data.visible },
+    "순서":    { number:      data.order },
+  };
+  if (data.category) props["카테고리"] = { select: { name: data.category } };
+  if (data.os.length) props["OS"] = { multi_select: data.os.map(o => ({ name: o })) };
+  const res = await notion.pages.create({ parent: { database_id: dbId }, properties: props as Parameters<typeof notion.pages.create>[0]["properties"] });
+  return res.id;
+}
+
+export async function updateSwVersion(id: string, data: Partial<Omit<SwVersion, "id">>): Promise<void> {
+  const props: Record<string, unknown> = {};
+  if (data.name        !== undefined) props["SW명"]    = { title:       [{ text: { content: data.name } }] };
+  if (data.version     !== undefined) props["버전"]    = { rich_text:   [{ text: { content: data.version } }] };
+  if (data.description !== undefined) props["설명"]    = { rich_text:   [{ text: { content: data.description } }] };
+  if (data.category    !== undefined) props["카테고리"] = { select:      { name: data.category } };
+  if (data.os          !== undefined) props["OS"]      = { multi_select: data.os.map(o => ({ name: o })) };
+  if (data.visible     !== undefined) props["공개여부"] = { checkbox:    data.visible };
+  if (data.order       !== undefined) props["순서"]    = { number:      data.order };
+  await notion.pages.update({ page_id: id, properties: props as Parameters<typeof notion.pages.update>[0]["properties"] });
+}
+
+export async function archiveSwVersion(id: string): Promise<void> {
+  await notion.pages.update({ page_id: id, archived: true });
+}
+
+export async function createSwDoc(data: Omit<SwDoc, "id">): Promise<string> {
+  const dbId = process.env.NOTION_DB_SW_DOCS;
+  if (!dbId) throw new Error("NOTION_DB_SW_DOCS not set");
+  const props: Record<string, unknown> = {
+    "파일명":    { title:     [{ text: { content: data.name } }] },
+    "텍스트":    { rich_text: [{ text: { content: data.description } }] },
+    "공개 여부": { checkbox:  data.visible },
+    "순서":     { number:    data.order },
+  };
+  if (data.type)      props["선택"]    = { select:   { name: data.type } };
+  if (data.versionId) props["SW 버전"] = { relation: [{ id: data.versionId }] };
+  const res = await notion.pages.create({ parent: { database_id: dbId }, properties: props as Parameters<typeof notion.pages.create>[0]["properties"] });
+  return res.id;
+}
+
+export async function updateSwDoc(id: string, data: Partial<Omit<SwDoc, "id">>): Promise<void> {
+  const props: Record<string, unknown> = {};
+  if (data.name        !== undefined) props["파일명"]    = { title:     [{ text: { content: data.name } }] };
+  if (data.type        !== undefined) props["선택"]     = { select:    { name: data.type } };
+  if (data.description !== undefined) props["텍스트"]   = { rich_text: [{ text: { content: data.description } }] };
+  if (data.visible     !== undefined) props["공개 여부"] = { checkbox:  data.visible };
+  if (data.order       !== undefined) props["순서"]     = { number:    data.order };
+  await notion.pages.update({ page_id: id, properties: props as Parameters<typeof notion.pages.update>[0]["properties"] });
+}
+
+export async function archiveSwDoc(id: string): Promise<void> {
+  await notion.pages.update({ page_id: id, archived: true });
+}
+
 export async function fetchSwFiles(): Promise<SwFile[]> {
   if (isMock()) return mockSwFiles as SwFile[];
   const dbId = process.env.NOTION_DB_SW_FILES;
