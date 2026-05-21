@@ -51,3 +51,24 @@ export interface SwFile {
   visible: boolean;
   updatedAt: string;
 }
+
+export interface SwVersion {
+  id: string;
+  name: string;        // SW명
+  version: string;     // 버전
+  category: string;    // 카테고리
+  os: string[];        // ["Windows", "macOS", "Linux"]
+  description: string;
+  visible: boolean;
+  order: number;
+}
+
+export interface SwDoc {
+  id: string;
+  name: string;        // 파일명
+  type: string;        // 설치파일 | 설치안내 | 규정 | 기타
+  description: string; // 텍스트
+  versionId: string;   // 관련 버전 ID
+  visible: boolean;
+  order: number;
+}
