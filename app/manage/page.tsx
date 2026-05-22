@@ -834,7 +834,7 @@ function SwResourcesPanel() {
         setUploading(true);
         setUploadProgress(0);
 
-        const CHUNK = 3.5 * 1024 * 1024; // 3.5 MB — Vercel 4.5 MB 한계 이하
+        const CHUNK = 6 * 1024 * 1024; // 6 MB — Notion 최소 파트 크기 5 MiB 초과
         const size  = uploadFile.size;
 
         // Step 1: 업로드 세션 초기화
@@ -1042,8 +1042,11 @@ function SwResourcesPanel() {
                         const BLOCKED = ["exe", "pkg", "dmg", "msi", "bat", "sh", "app", "cmd", "com", "scr"];
                         if (BLOCKED.includes(ext)) {
                           alert(`⚠️ .${ext} 파일은 Notion에 직접 업로드할 수 없습니다.\n\nZIP으로 압축한 후 업로드하거나, 아래 "외부 URL"을 사용하세요.`);
-                          e.target.value = "";
-                          return;
+                          e.target.value = ""; return;
+                        }
+                        if (f.size > 100 * 1024 * 1024) {
+                          alert(`⚠️ 100MB를 초과하는 파일은 직접 업로드할 수 없습니다. (${(f.size / 1024 / 1024).toFixed(0)}MB)\n\n아래 Notion 링크에서 직접 첨부하거나, 외부 URL을 사용하세요.`);
+                          e.target.value = ""; return;
                         }
                         setUploadFile(f);
                         setUploadProgress(0);
@@ -1069,7 +1072,10 @@ function SwResourcesPanel() {
                       </div>
                     )}
                     <p style={{ fontSize: 10, color: "#92400E", margin: "6px 0 0", background: "#FEF3C7", borderRadius: 6, padding: "4px 8px", display: "inline-block" }}>
-                      ⚠️ .exe .pkg .dmg .msi .bat .app 등 실행파일은 업로드 불가 → ZIP 압축 후 업로드 또는 외부 URL 사용
+                      ⚠️ 100MB 초과 또는 .exe .pkg .dmg .msi .bat .app 등 실행파일은 업로드 불가 →{" "}
+                      <a href={selVersion ? notionUrl(selVersion.id) : "#"} target="_blank" rel="noopener noreferrer"
+                        style={{ color: "#92400E", fontWeight: 700 }}>Notion에서 직접 첨부</a>
+                      {" "}또는 외부 URL 사용
                     </p>
                   </div>
 
