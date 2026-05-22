@@ -42,13 +42,17 @@ export async function POST(req: NextRequest) {
   if (!file) return NextResponse.json({ error: "파일이 없습니다." }, { status: 400 });
 
   const fileUploadId = fd.get("fileUploadId") as string;
-  const start  = parseInt(fd.get("start")  as string, 10);
-  const end    = parseInt(fd.get("end")    as string, 10);
-  const total  = parseInt(fd.get("total")  as string, 10);
+  const start      = parseInt(fd.get("start")      as string, 10);
+  const end        = parseInt(fd.get("end")        as string, 10);
+  const total      = parseInt(fd.get("total")      as string, 10);
+  const partNumber = parseInt(fd.get("partNumber") as string, 10); // 1-indexed
   const isMultiPart = fd.get("multiPart") === "1";
 
   const uploadFd = new FormData();
   uploadFd.append("file", file, file.name);
+  if (isMultiPart) {
+    uploadFd.append("part_number", String(partNumber));
+  }
 
   const headers: Record<string, string> = { ...notionHeaders(token) };
   if (isMultiPart) {
