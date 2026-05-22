@@ -21,13 +21,15 @@ export async function POST(req: NextRequest) {
 
   // ── JSON 요청: 멀티파트 업로드 세션 초기화 ─────────────────
   if (ct.includes("application/json")) {
-    const { filename, contentType, size } = await req.json();
+    const { filename, contentType, size, numberOfParts } = await req.json();
     // 20MB 초과는 multi_part, 이하는 single_part (Content-Range 불필요)
     const mode = size > 20 * 1024 * 1024 ? "multi_part" : "single_part";
+    const body: Record<string, unknown> = { mode, filename, content_type: contentType || "application/octet-stream" };
+    if (mode === "multi_part") body["number_of_parts"] = numberOfParts;
     const res = await fetch(`${NOTION_API}/file_uploads`, {
       method: "POST",
       headers: { ...notionHeaders(token), "Content-Type": "application/json" },
-      body: JSON.stringify({ mode, filename, content_type: contentType || "application/octet-stream" }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) return NextResponse.json({ error: await res.text() }, { status: 500 });
     const { id: fileUploadId } = await res.json();
