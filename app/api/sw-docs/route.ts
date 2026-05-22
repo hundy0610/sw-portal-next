@@ -33,7 +33,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
     if (body._action === "update") {
-      await updateSwDoc(body.id, body.data);
+      await updateSwDoc(body.id, body.data, {
+        fileUploadId:    body.data.fileUploadId    ?? undefined,
+        externalFileUrl: body.data.externalFileUrl ?? undefined,
+        externalFileName: body.data.externalFileName ?? undefined,
+        clearFile:       body.data.clearFile       ?? undefined,
+      });
       return NextResponse.json({ ok: true });
     }
     // create
@@ -44,6 +49,10 @@ export async function POST(req: NextRequest) {
       versionId:   body.versionId   ?? "",
       visible:     body.visible     ?? true,
       order:       body.order       ?? 0,
+    }, {
+      fileUploadId:     body.fileUploadId     ?? undefined,
+      externalFileUrl:  body.externalFileUrl  ?? undefined,
+      externalFileName: body.externalFileName ?? undefined,
     });
     return NextResponse.json({ ok: true, id });
   } catch (e) {

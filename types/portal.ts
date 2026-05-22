@@ -71,4 +71,6 @@ export interface SwDoc {
   versionId: string;   // 관련 버전 ID
   visible: boolean;
   order: number;
+  fileUrl?: string;    // 첨부 파일 URL (Notion 서명 URL 또는 외부 URL)
+  fileName?: string;   // 첨부 파일 원본명
 }

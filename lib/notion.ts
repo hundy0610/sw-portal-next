@@ -755,21 +755,15 @@ function chunkString(str: string, size = 1900): string[] {
 
 // Notion 파일 업로드 API (SDK v2.x 미지원 → raw fetch)
 // 반환값: file_upload ID (Notion 페이지 저장 시 참조)
-async function uploadImageToNotion(base64DataUrl: string): Promise<string> {
+export async function uploadFileToNotion(buffer: Buffer, filename: string, contentType: string): Promise<string> {
   const token = process.env.NOTION_TOKEN;
   if (!token) throw new Error("NOTION_TOKEN이 설정되지 않았습니다.");
 
-  const matches = base64DataUrl.match(/^data:([^;]+);base64,(.+)$/);
-  if (!matches) throw new Error("유효하지 않은 base64 이미지 형식입니다.");
-  const contentType = matches[1];
-  const buffer = Buffer.from(matches[2], "base64");
-  const filename = `floor-map-${Date.now()}.jpg`;
   const headers = {
     Authorization: `Bearer ${token}`,
     "Notion-Version": "2026-03-11",
   };
 
-  // Step 1: 파일 업로드 객체 생성
   const createRes = await fetch("https://api.notion.com/v1/file_uploads", {
     method: "POST",
     headers: { ...headers, "Content-Type": "application/json" },
@@ -780,9 +774,8 @@ async function uploadImageToNotion(base64DataUrl: string): Promise<string> {
   }
   const { id: fileUploadId } = await createRes.json();
 
-  // Step 2: 파일 바이너리 전송
   const formData = new FormData();
-  formData.append("file", new Blob([buffer], { type: contentType }), filename);
+  formData.append("file", new Blob([new Uint8Array(buffer)], { type: contentType }), filename);
   const sendRes = await fetch(`https://api.notion.com/v1/file_uploads/${fileUploadId}/send`, {
     method: "POST",
     headers,
@@ -793,6 +786,14 @@ async function uploadImageToNotion(base64DataUrl: string): Promise<string> {
   }
 
   return fileUploadId;
+}
+
+async function uploadImageToNotion(base64DataUrl: string): Promise<string> {
+  const matches = base64DataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  if (!matches) throw new Error("유효하지 않은 base64 이미지 형식입니다.");
+  const contentType = matches[1];
+  const buffer = Buffer.from(matches[2], "base64");
+  return uploadFileToNotion(buffer, `floor-map-${Date.now()}.jpg`, contentType);
 }
 
 export async function fetchFloorMap(building: string, floor: string): Promise<object | null> {
@@ -1072,6 +1073,17 @@ export async function fetchSwDocs(versionId?: string, onlyVisible = true): Promi
     const rel = p["SW 버전"];
     const vId = rel?.type === "relation" && rel.relation.length > 0
       ? rel.relation[0].id : "";
+
+    // "파일과 미디어" 속성에서 파일 URL/이름 추출
+    let fileUrl: string | undefined;
+    let fileName: string | undefined;
+    const filesProp = p["파일과 미디어"] as any;
+    if (filesProp?.type === "files" && filesProp.files?.length > 0) {
+      const f = filesProp.files[0];
+      fileUrl  = f.type === "file" ? f.file?.url : f.external?.url;
+      fileName = f.name || undefined;
+    }
+
     return {
       id: page.id,
       name: getPropText(p, "파일명"),
@@ -1080,6 +1092,8 @@ export async function fetchSwDocs(versionId?: string, onlyVisible = true): Promi
       versionId: vId,
       visible: getPropCheckbox(p, "공개 여부"),
       order: getPropNumber(p, "순서"),
+      fileUrl,
+      fileName,
     };
   });
 }
@@ -1116,7 +1130,10 @@ export async function archiveSwVersion(id: string): Promise<void> {
   await notion.pages.update({ page_id: id, archived: true });
 }
 
-export async function createSwDoc(data: Omit<SwDoc, "id">): Promise<string> {
+export async function createSwDoc(
+  data: Omit<SwDoc, "id">,
+  opts?: { fileUploadId?: string; externalFileUrl?: string; externalFileName?: string }
+): Promise<string> {
   const dbId = process.env.NOTION_DB_SW_DOCS;
   if (!dbId) throw new Error("NOTION_DB_SW_DOCS not set");
   const props: Record<string, unknown> = {
@@ -1127,17 +1144,33 @@ export async function createSwDoc(data: Omit<SwDoc, "id">): Promise<string> {
   };
   if (data.type)      props["선택"]    = { select:   { name: data.type } };
   if (data.versionId) props["SW 버전"] = { relation: [{ id: data.versionId }] };
+  if (opts?.fileUploadId) {
+    props["파일과 미디어"] = { files: [{ type: "file_upload", file_upload: { id: opts.fileUploadId } }] };
+  } else if (opts?.externalFileUrl) {
+    props["파일과 미디어"] = { files: [{ type: "external", name: opts.externalFileName || data.name, external: { url: opts.externalFileUrl } }] };
+  }
   const res = await notion.pages.create({ parent: { database_id: dbId }, properties: props as Parameters<typeof notion.pages.create>[0]["properties"] });
   return res.id;
 }
 
-export async function updateSwDoc(id: string, data: Partial<Omit<SwDoc, "id">>): Promise<void> {
+export async function updateSwDoc(
+  id: string,
+  data: Partial<Omit<SwDoc, "id">>,
+  opts?: { fileUploadId?: string; externalFileUrl?: string; externalFileName?: string; clearFile?: boolean }
+): Promise<void> {
   const props: Record<string, unknown> = {};
   if (data.name        !== undefined) props["파일명"]    = { title:     [{ text: { content: data.name } }] };
   if (data.type        !== undefined) props["선택"]     = { select:    { name: data.type } };
   if (data.description !== undefined) props["텍스트"]   = { rich_text: [{ text: { content: data.description } }] };
   if (data.visible     !== undefined) props["공개 여부"] = { checkbox:  data.visible };
   if (data.order       !== undefined) props["순서"]     = { number:    data.order };
+  if (opts?.fileUploadId) {
+    props["파일과 미디어"] = { files: [{ type: "file_upload", file_upload: { id: opts.fileUploadId } }] };
+  } else if (opts?.externalFileUrl) {
+    props["파일과 미디어"] = { files: [{ type: "external", name: opts.externalFileName || data.name || "file", external: { url: opts.externalFileUrl } }] };
+  } else if (opts?.clearFile) {
+    props["파일과 미디어"] = { files: [] };
+  }
   await notion.pages.update({ page_id: id, properties: props as Parameters<typeof notion.pages.update>[0]["properties"] });
 }
 

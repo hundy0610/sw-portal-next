@@ -774,9 +774,11 @@ function SwResourcesPanel() {
   const [addingDoc,  setAddingDoc]  = useState(false);
   const [editVer,    setEditVer]    = useState<SwVersion | null>(null);
   const [editDoc,    setEditDoc]    = useState<SwDoc | null>(null);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploading,  setUploading]  = useState(false);
 
   const BLANK_VER = { name: "", version: "", category: "", os: "", description: "", visible: true, order: 0 };
-  const BLANK_DOC = { name: "", type: "설치파일", description: "", visible: true, order: 0 };
+  const BLANK_DOC = { name: "", type: "설치파일", description: "", visible: true, order: 0, externalFileUrl: "" };
   const [verForm, setVerForm] = useState(BLANK_VER);
   const [docForm, setDocForm] = useState(BLANK_DOC);
 
@@ -824,14 +826,35 @@ function SwResourcesPanel() {
   async function saveDoc() {
     if (!selVersion) return;
     setSaving(true);
-    if (editDoc) {
-      await fetch("/api/sw-docs", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ _action: "update", id: editDoc.id, data: docForm }) });
-    } else {
-      await fetch("/api/sw-docs", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...docForm, versionId: selVersion.id }) });
+    try {
+      // 파일이 선택된 경우 먼저 Notion에 업로드
+      let fileUploadId: string | undefined;
+      if (uploadFile) {
+        setUploading(true);
+        const fd = new FormData();
+        fd.append("file", uploadFile);
+        const upRes = await fetch("/api/sw-docs/upload", { method: "POST", body: fd });
+        if (!upRes.ok) throw new Error(await upRes.text());
+        const upData = await upRes.json();
+        fileUploadId = upData.fileUploadId;
+        setUploading(false);
+      }
+
+      const externalFileUrl = docForm.externalFileUrl?.trim() || undefined;
+
+      if (editDoc) {
+        await fetch("/api/sw-docs", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ _action: "update", id: editDoc.id, data: { ...docForm, fileUploadId, externalFileUrl } }) });
+      } else {
+        await fetch("/api/sw-docs", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...docForm, versionId: selVersion.id, fileUploadId, externalFileUrl }) });
+      }
+    } catch (e) {
+      alert(`저장 실패: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setSaving(false); setUploading(false);
     }
-    setSaving(false); setAddingDoc(false); setEditDoc(null); setDocForm(BLANK_DOC);
+    setAddingDoc(false); setEditDoc(null); setDocForm(BLANK_DOC); setUploadFile(null);
     loadDocs(selVersion.id);
   }
 
@@ -941,7 +964,7 @@ function SwResourcesPanel() {
             </div>
 
             {(addingDoc || editDoc) && (
-              <FormCard title={editDoc ? "파일 수정" : "새 파일/문서"} onCancel={() => { setAddingDoc(false); setEditDoc(null); }} onSave={saveDoc} saving={saving} disabled={!docForm.name.trim()}>
+              <FormCard title={editDoc ? "파일 수정" : "새 파일/문서"} onCancel={() => { setAddingDoc(false); setEditDoc(null); setUploadFile(null); }} onSave={saveDoc} saving={saving || uploading} disabled={!docForm.name.trim()}>
                 <div style={grid2}>
                   <Field label="파일명 *"><input style={iStyle} value={docForm.name} onChange={e => setDocForm(f => ({ ...f, name: e.target.value }))} placeholder="예: 한컴오피스2024_Setup.exe" /></Field>
                   <Field label="종류">
@@ -954,15 +977,64 @@ function SwResourcesPanel() {
                   </Field>
                 </div>
                 <Field label="설명 (크기, 비고 등)"><input style={iStyle} value={docForm.description} onChange={e => setDocForm(f => ({ ...f, description: e.target.value }))} placeholder="예: 약 850MB" /></Field>
+
+                {/* 파일 첨부 영역 */}
+                <div style={{ borderRadius: 12, border: `1px solid ${C.border}`, padding: 16, background: "#f8fafc", display: "flex", flexDirection: "column", gap: 12 }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: C.text2, margin: 0 }}>파일 첨부</p>
+
+                  {/* 현재 첨부 파일 표시 (수정 시) */}
+                  {editDoc?.fileUrl && !uploadFile && !docForm.externalFileUrl && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: C.text3 }}>
+                      <span style={{ padding: "2px 8px", borderRadius: 6, background: "#D1FAE5", color: "#065F46", fontWeight: 700, fontSize: 11 }}>현재 파일</span>
+                      <span>{editDoc.fileName || editDoc.name}</span>
+                      <a href={`/api/sw-docs/${editDoc.id}/file`} target="_blank" rel="noopener noreferrer"
+                        style={{ color: C.primary, fontSize: 11 }}>미리보기</a>
+                    </div>
+                  )}
+
+                  {/* 방법 1: 직접 업로드 (소용량, ~4MB) */}
+                  <div>
+                    <p style={{ fontSize: 11, color: C.text4, margin: "0 0 6px" }}>방법 1 — 직접 업로드 (PDF, 문서 등 ~4MB 이하)</p>
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 10, border: `1px solid ${C.border}`, background: "#fff", cursor: "pointer", fontSize: 12, color: C.text2, fontWeight: 600 }}>
+                      📎 파일 선택
+                      <input type="file" style={{ display: "none" }} onChange={e => {
+                        const f = e.target.files?.[0] ?? null;
+                        setUploadFile(f);
+                        if (f) setDocForm(form => ({ ...form, externalFileUrl: "" }));
+                      }} />
+                    </label>
+                    {uploadFile && (
+                      <span style={{ marginLeft: 10, fontSize: 12, color: "#065F46", fontWeight: 600 }}>
+                        {uploadFile.name} ({(uploadFile.size / 1024 / 1024).toFixed(1)} MB)
+                        <button type="button" onClick={() => setUploadFile(null)}
+                          style={{ marginLeft: 6, color: C.danger, background: "none", border: "none", cursor: "pointer", fontSize: 14, lineHeight: 1 }}>×</button>
+                      </span>
+                    )}
+                    {uploading && <span style={{ marginLeft: 10, fontSize: 11, color: C.primary, fontWeight: 600 }}>Notion에 업로드 중...</span>}
+                  </div>
+
+                  {/* 방법 2: 외부 URL */}
+                  <div>
+                    <p style={{ fontSize: 11, color: C.text4, margin: "0 0 6px" }}>방법 2 — 외부 URL 붙여넣기 (대용량 설치파일, 사내 파일 서버 등)</p>
+                    <input
+                      style={{ ...iStyle, background: uploadFile ? "#f1f5f9" : "#fff" }}
+                      value={docForm.externalFileUrl}
+                      onChange={e => {
+                        setDocForm(f => ({ ...f, externalFileUrl: e.target.value }));
+                        if (e.target.value) setUploadFile(null);
+                      }}
+                      placeholder="https://... 또는 \\\\서버\공유폴더\파일.exe"
+                      disabled={!!uploadFile}
+                    />
+                  </div>
+                </div>
+
                 <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
                   <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: C.text2, cursor: "pointer" }}>
                     <input type="checkbox" checked={docForm.visible} onChange={e => setDocForm(f => ({ ...f, visible: e.target.checked }))} /> 즉시 공개
                   </label>
                   <Field label="순서"><input type="number" style={{ ...iStyle, width: 72 }} value={docForm.order} onChange={e => setDocForm(f => ({ ...f, order: +e.target.value }))} /></Field>
                 </div>
-                <p style={{ fontSize: 11, color: C.text4, margin: 0 }}>
-                  💡 실제 파일(PDF, EXE 등)은 저장 후 Notion 페이지에서 &apos;파일과 미디어&apos; 속성에 직접 첨부하세요.
-                </p>
               </FormCard>
             )}
 
@@ -980,11 +1052,19 @@ function SwResourcesPanel() {
                           {doc.type}
                         </span>
                         <span style={{ fontWeight: 600, fontSize: 13, color: C.text1 }}>{doc.name}</span>
+                        {doc.fileUrl ? (
+                          <a href={`/api/sw-docs/${doc.id}/file`} target="_blank" rel="noopener noreferrer"
+                            style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "#D1FAE5", color: "#065F46", fontWeight: 700, textDecoration: "none" }}>
+                            파일 ↗
+                          </a>
+                        ) : (
+                          <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "#FEF3C7", color: "#92400E", fontWeight: 700 }}>미첨부</span>
+                        )}
                       </div>
                       {doc.description && <div style={{ fontSize: 11, color: C.text3, marginTop: 2 }}>{doc.description}</div>}
                     </div>
                     <div style={{ display: "flex", gap: 4, shrink: 0 } as React.CSSProperties}>
-                      <button onClick={() => { setEditDoc(doc); setAddingDoc(false); setDocForm({ name: doc.name, type: doc.type, description: doc.description, visible: doc.visible, order: doc.order }); }}
+                      <button onClick={() => { setEditDoc(doc); setAddingDoc(false); setUploadFile(null); setDocForm({ name: doc.name, type: doc.type, description: doc.description, visible: doc.visible, order: doc.order, externalFileUrl: "" }); }}
                         style={{ padding: "4px 10px", borderRadius: 6, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: "#e0f2fe", color: "#0369a1" }}>수정</button>
                       <button onClick={() => toggleDocVisible(doc)}
                         style={{ padding: "4px 10px", borderRadius: 6, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: doc.visible ? "#d1fae5" : "#f1f5f9", color: doc.visible ? "#065f46" : C.text3 }}>
