@@ -466,7 +466,13 @@ export default function ResourcesPage() {
                           <input
                             type="checkbox"
                             checked={regulationConfirmed}
-                            onChange={e => setRegulationConfirmed(e.target.checked)}
+                            onChange={e => {
+                              setRegulationConfirmed(e.target.checked);
+                              if (e.target.checked) {
+                                const firstGuide = docSections.find(s => s.type === "설치안내")?.docs[0];
+                                if (firstGuide) setOpenPreview(firstGuide.id);
+                              }
+                            }}
                             className="w-4 h-4 cursor-pointer"
                           />
                           <span className="text-sm font-semibold"
