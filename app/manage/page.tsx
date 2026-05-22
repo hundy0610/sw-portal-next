@@ -999,8 +999,16 @@ function SwResourcesPanel() {
                       📎 파일 선택
                       <input type="file" style={{ display: "none" }} onChange={e => {
                         const f = e.target.files?.[0] ?? null;
+                        if (!f) return;
+                        const ext = f.name.split(".").pop()?.toLowerCase() ?? "";
+                        const BLOCKED = ["exe", "pkg", "dmg", "msi", "bat", "sh", "app", "cmd", "com", "scr"];
+                        if (BLOCKED.includes(ext)) {
+                          alert(`⚠️ .${ext} 파일은 Notion에 직접 업로드할 수 없습니다.\n\nZIP으로 압축한 후 업로드하거나, 아래 "외부 URL"을 사용하세요.`);
+                          e.target.value = "";
+                          return;
+                        }
                         setUploadFile(f);
-                        if (f) setDocForm(form => ({ ...form, externalFileUrl: "" }));
+                        setDocForm(form => ({ ...form, externalFileUrl: "" }));
                       }} />
                     </label>
                     {uploadFile && (
@@ -1011,6 +1019,9 @@ function SwResourcesPanel() {
                       </span>
                     )}
                     {uploading && <span style={{ marginLeft: 10, fontSize: 11, color: C.primary, fontWeight: 600 }}>Notion에 업로드 중...</span>}
+                    <p style={{ fontSize: 10, color: "#92400E", margin: "6px 0 0", background: "#FEF3C7", borderRadius: 6, padding: "4px 8px", display: "inline-block" }}>
+                      ⚠️ .exe .pkg .dmg .msi .bat .app 등 실행파일은 업로드 불가 → ZIP 압축 후 업로드 또는 외부 URL 사용
+                    </p>
                   </div>
 
                   {/* 방법 2: 외부 URL */}
