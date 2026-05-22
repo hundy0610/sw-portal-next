@@ -178,11 +178,11 @@ function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
   }, []);
 
   /* M5: 4개 균형 그리드 (자산 실사 추가) */
-  const SHORTCUTS = [
-    { tab: "education"   as Tab, icon: "edu",    title: "교육 센터", desc: "필수 이수 교육 및 SW 활용 자료",   bg: "#F3E8FF", color: "#7C3AED" },
-    { tab: "resources"   as Tab, icon: "folder", title: "자료실",    desc: "설치 가이드, 정책 지침, 양식 서식", bg: "#FEF3C7", color: "#D97706" },
-    { tab: "search"      as Tab, icon: "search", title: "SW 검색",   desc: "승인·금지 SW 여부 즉시 확인",      bg: "#FFFBEB", color: "#F59E0B" },
-    { tab: "declaration" as Tab, icon: "clip",   title: "자산 실사", desc: "소프트웨어 자산 현황 신고하기",     bg: "#D1FAE5", color: "#059669" },
+  const SHORTCUTS: { tab: Tab | null; href?: string; icon: string; title: string; desc: string; bg: string; color: string }[] = [
+    { tab: "education",  icon: "edu",    title: "교육 센터", desc: "필수 이수 교육 및 SW 활용 자료",   bg: "#F3E8FF", color: "#7C3AED" },
+    { tab: null,         href: "/resources", icon: "folder", title: "자료실", desc: "설치 가이드, 정책 지침, 양식 서식", bg: "#FEF3C7", color: "#D97706" },
+    { tab: "search",     icon: "search", title: "SW 검색",   desc: "승인·금지 SW 여부 즉시 확인",      bg: "#FFFBEB", color: "#F59E0B" },
+    { tab: "declaration",icon: "clip",   title: "자산 실사", desc: "소프트웨어 자산 현황 신고하기",     bg: "#D1FAE5", color: "#059669" },
   ];
 
   return (
@@ -272,19 +272,24 @@ function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
 
       {/* M5: 4개 균형 바로가기 */}
       <div className="grid grid-cols-2 gap-4 mb-5">
-        {SHORTCUTS.map(s => (
-          <button key={s.tab} onClick={() => onNavigate(s.tab)}
-            className="bg-white text-left rounded-[20px] p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all"
-            style={{ border: `1px solid ${C.border}` }}>
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-3.5"
-              style={{ background: s.bg, color: s.color }}>
-              <Icon n={s.icon} s={22} />
-            </div>
-            <div className="font-extrabold text-sm mb-1.5"
-              style={{ color: C.text1, fontFamily: "Manrope, sans-serif" }}>{s.title}</div>
-            <div className="text-xs leading-relaxed" style={{ color: C.text3 }}>{s.desc}</div>
-          </button>
-        ))}
+        {SHORTCUTS.map(s => {
+          const cls = "bg-white text-left rounded-[20px] p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all";
+          const style = { border: `1px solid ${C.border}` };
+          const inner = (
+            <>
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-3.5"
+                style={{ background: s.bg, color: s.color }}>
+                <Icon n={s.icon} s={22} />
+              </div>
+              <div className="font-extrabold text-sm mb-1.5"
+                style={{ color: C.text1, fontFamily: "Manrope, sans-serif" }}>{s.title}</div>
+              <div className="text-xs leading-relaxed" style={{ color: C.text3 }}>{s.desc}</div>
+            </>
+          );
+          return s.href
+            ? <a key={s.title} href={s.href} className={cls} style={{ ...style, textDecoration: "none" }}>{inner}</a>
+            : <button key={s.title} onClick={() => s.tab && onNavigate(s.tab)} className={cls} style={style}>{inner}</button>;
+        })}
       </div>
 
       {/* M5: IT 지원 문의 — 별도 CTA 행 */}
