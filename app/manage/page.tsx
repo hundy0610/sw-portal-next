@@ -774,8 +774,9 @@ function SwResourcesPanel() {
   const [addingDoc,  setAddingDoc]  = useState(false);
   const [editVer,    setEditVer]    = useState<SwVersion | null>(null);
   const [editDoc,    setEditDoc]    = useState<SwDoc | null>(null);
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [uploading,  setUploading]  = useState(false);
+  const [uploadFile,     setUploadFile]     = useState<File | null>(null);
+  const [uploading,      setUploading]      = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const BLANK_VER = { name: "", version: "", category: "", os: "", description: "", visible: true, order: 0 };
   const BLANK_DOC = { name: "", type: "설치파일", description: "", visible: true, order: 0, externalFileUrl: "" };
@@ -827,17 +828,50 @@ function SwResourcesPanel() {
     if (!selVersion) return;
     setSaving(true);
     try {
-      // 파일이 선택된 경우 먼저 Notion에 업로드
       let fileUploadId: string | undefined;
+
       if (uploadFile) {
         setUploading(true);
-        const fd = new FormData();
-        fd.append("file", uploadFile);
-        const upRes = await fetch("/api/sw-docs/upload", { method: "POST", body: fd });
-        if (!upRes.ok) throw new Error(await upRes.text());
-        const upData = await upRes.json();
-        fileUploadId = upData.fileUploadId;
+        setUploadProgress(0);
+
+        const CHUNK = 3.5 * 1024 * 1024; // 3.5 MB — Vercel 4.5 MB 한계 이하
+        const size  = uploadFile.size;
+
+        // Step 1: 업로드 세션 초기화
+        const initRes = await fetch("/api/sw-docs/upload", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ filename: uploadFile.name, contentType: uploadFile.type, size }),
+        });
+        if (!initRes.ok) throw new Error(await initRes.text());
+        const { fileUploadId: uploadId, mode } = await initRes.json();
+        fileUploadId = uploadId;
+
+        const isMultiPart = mode === "multi_part";
+        let start = 0;
+
+        // Step 2: 청크 단위로 전송 (single_part는 1회, multi_part는 여러 번)
+        while (start < size) {
+          const end   = Math.min(start + CHUNK - 1, size - 1);
+          const chunk = uploadFile.slice(start, end + 1);
+
+          const fd = new FormData();
+          fd.append("file", chunk, uploadFile.name);
+          fd.append("fileUploadId", fileUploadId!);
+          fd.append("start",     String(start));
+          fd.append("end",       String(end));
+          fd.append("total",     String(size));
+          fd.append("multiPart", isMultiPart ? "1" : "0");
+
+          const partRes = await fetch("/api/sw-docs/upload", { method: "POST", body: fd });
+          if (!partRes.ok) throw new Error(await partRes.text());
+
+          start = end + 1;
+          setUploadProgress(Math.round((start / size) * 100));
+        }
+
         setUploading(false);
+        setUploadProgress(100);
       }
 
       const externalFileUrl = docForm.externalFileUrl?.trim() || undefined;
@@ -854,7 +888,7 @@ function SwResourcesPanel() {
     } finally {
       setSaving(false); setUploading(false);
     }
-    setAddingDoc(false); setEditDoc(null); setDocForm(BLANK_DOC); setUploadFile(null);
+    setAddingDoc(false); setEditDoc(null); setDocForm(BLANK_DOC); setUploadFile(null); setUploadProgress(0);
     loadDocs(selVersion.id);
   }
 
@@ -1008,17 +1042,28 @@ function SwResourcesPanel() {
                           return;
                         }
                         setUploadFile(f);
+                        setUploadProgress(0);
                         setDocForm(form => ({ ...form, externalFileUrl: "" }));
                       }} />
                     </label>
-                    {uploadFile && (
+                    {uploadFile && !uploading && (
                       <span style={{ marginLeft: 10, fontSize: 12, color: "#065F46", fontWeight: 600 }}>
                         {uploadFile.name} ({(uploadFile.size / 1024 / 1024).toFixed(1)} MB)
-                        <button type="button" onClick={() => setUploadFile(null)}
+                        <button type="button" onClick={() => { setUploadFile(null); setUploadProgress(0); }}
                           style={{ marginLeft: 6, color: C.danger, background: "none", border: "none", cursor: "pointer", fontSize: 14, lineHeight: 1 }}>×</button>
                       </span>
                     )}
-                    {uploading && <span style={{ marginLeft: 10, fontSize: 11, color: C.primary, fontWeight: 600 }}>Notion에 업로드 중...</span>}
+                    {uploading && (
+                      <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: C.text3 }}>
+                          <span>Notion에 업로드 중... {uploadFile?.name}</span>
+                          <span style={{ fontWeight: 700, color: C.primary }}>{uploadProgress}%</span>
+                        </div>
+                        <div style={{ height: 6, borderRadius: 4, background: C.border, overflow: "hidden" }}>
+                          <div style={{ height: "100%", borderRadius: 4, background: C.primary, width: `${uploadProgress}%`, transition: "width 0.2s" }} />
+                        </div>
+                      </div>
+                    )}
                     <p style={{ fontSize: 10, color: "#92400E", margin: "6px 0 0", background: "#FEF3C7", borderRadius: 6, padding: "4px 8px", display: "inline-block" }}>
                       ⚠️ .exe .pkg .dmg .msi .bat .app 등 실행파일은 업로드 불가 → ZIP 압축 후 업로드 또는 외부 URL 사용
                     </p>
