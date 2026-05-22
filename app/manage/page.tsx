@@ -838,10 +838,11 @@ function SwResourcesPanel() {
         const size  = uploadFile.size;
 
         // Step 1: 업로드 세션 초기화
+        const numberOfParts = Math.ceil(size / CHUNK);
         const initRes = await fetch("/api/sw-docs/upload", {
           method:  "POST",
           headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({ filename: uploadFile.name, contentType: uploadFile.type, size }),
+          body:    JSON.stringify({ filename: uploadFile.name, contentType: uploadFile.type, size, numberOfParts }),
         });
         if (!initRes.ok) throw new Error(await initRes.text());
         const { fileUploadId: uploadId, mode } = await initRes.json();
