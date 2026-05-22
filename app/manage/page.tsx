@@ -850,6 +850,7 @@ function SwResourcesPanel() {
 
         const isMultiPart = mode === "multi_part";
         let start = 0;
+        let partNumber = 1;
 
         // Step 2: 청크 단위로 전송 (single_part는 1회, multi_part는 여러 번)
         while (start < size) {
@@ -859,15 +860,17 @@ function SwResourcesPanel() {
           const fd = new FormData();
           fd.append("file", chunk, uploadFile.name);
           fd.append("fileUploadId", fileUploadId!);
-          fd.append("start",     String(start));
-          fd.append("end",       String(end));
-          fd.append("total",     String(size));
-          fd.append("multiPart", isMultiPart ? "1" : "0");
+          fd.append("start",       String(start));
+          fd.append("end",         String(end));
+          fd.append("total",       String(size));
+          fd.append("multiPart",   isMultiPart ? "1" : "0");
+          fd.append("partNumber",  String(partNumber));
 
           const partRes = await fetch("/api/sw-docs/upload", { method: "POST", body: fd });
           if (!partRes.ok) throw new Error(await partRes.text());
 
           start = end + 1;
+          partNumber += 1;
           setUploadProgress(Math.round((start / size) * 100));
         }
 
