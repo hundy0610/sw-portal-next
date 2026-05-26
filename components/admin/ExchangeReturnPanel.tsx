@@ -2415,6 +2415,10 @@ export default function ExchangeReturnPanel() {
       }
       return true;
     });
+    const SHIP_DATE_STAGES = ["기기준비", "기기준비완료"];
+    if (stageFilter !== "all" && SHIP_DATE_STAGES.includes(stageFilter)) {
+      return [...arr].sort((a, b) => (a.completedAt ?? "").localeCompare(b.completedAt ?? ""));
+    }
     return [...arr].sort((a, b) => (b.lastEditedAt ?? "").localeCompare(a.lastEditedAt ?? ""));
   }, [records, caseTab, stageFilter, typeFilter, search]);
 
