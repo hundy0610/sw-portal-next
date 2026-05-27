@@ -1134,6 +1134,7 @@ function DetailModal({
   const [showAssetPicker, setShowAssetPicker] = useState(false);
   const [receiptConfirmOpen, setReceiptConfirmOpen] = useState(false);
   const [returnCompleteOpen, setReturnCompleteOpen] = useState(false);
+  const [newAssetDetail, setNewAssetDetail] = useState<string | null>(null);
 
   const visibleStages = stagesFor(type);
 
@@ -1326,7 +1327,12 @@ function DetailModal({
                     }
                   </button>
                 ) : (
-                  <span className="font-mono text-sm text-gray-800">{newAssetId || "—"}</span>
+                  newAssetId && newAssetId !== "신규구매로안내됨"
+                    ? <button onClick={() => setNewAssetDetail(newAssetId)}
+                        className="font-mono text-sm text-blue-600 hover:underline hover:text-blue-800 text-left">
+                        {newAssetId}
+                      </button>
+                    : <span className="font-mono text-sm text-gray-800">{newAssetId || "—"}</span>
                 )}
                 {saved.newAssetId && <span className="text-xs text-green-600">✓ 변경됨</span>}
               </div>
@@ -1356,6 +1362,9 @@ function DetailModal({
                 setShowAssetPicker(false);
               }}
             />
+          )}
+          {newAssetDetail && (
+            <HwAssetDetailModal assetNo={newAssetDetail} onClose={() => setNewAssetDetail(null)} />
           )}
           {receiptConfirmOpen && (
             <ReceiptConfirmModal
