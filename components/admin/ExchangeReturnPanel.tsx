@@ -1129,6 +1129,7 @@ function DetailModal({
   const composingNote = useRef(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<Record<string, boolean>>({});
+  const [saveErr, setSaveErr] = useState<{ field: string; msg: string } | null>(null);
   const [showAssetPicker, setShowAssetPicker] = useState(false);
   const [receiptConfirmOpen, setReceiptConfirmOpen] = useState(false);
   const [returnCompleteOpen, setReturnCompleteOpen] = useState(false);
@@ -1143,6 +1144,7 @@ function DetailModal({
 
   const save = async (field: string, value: Record<string, unknown>) => {
     setSaving(field);
+    setSaveErr(null);
     try {
       const res = await fetch("/api/exchange-return/update", {
         method: "POST",
@@ -1154,7 +1156,11 @@ function DetailModal({
         onUpdated(record.id, value as Partial<ExchangeReturnRecord>);
         setSaved(p => ({ ...p, [field]: true }));
         setTimeout(() => setSaved(p => ({ ...p, [field]: false })), 2000);
+      } else {
+        setSaveErr({ field, msg: json.error || "저장 실패" });
       }
+    } catch (e) {
+      setSaveErr({ field, msg: String(e) });
     } finally {
       setSaving(null);
     }
@@ -1174,6 +1180,7 @@ function DetailModal({
       <div className="flex items-center gap-2 flex-wrap">
         {children}
         {saved[field] && <span className="text-xs text-green-600">✓ 변경됨</span>}
+        {saveErr?.field === field && <span className="text-xs text-red-500">{saveErr.msg}</span>}
       </div>
     </Row>
   );
