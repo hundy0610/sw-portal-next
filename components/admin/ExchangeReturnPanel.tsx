@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import type { ExchangeReturnRecord } from "@/types";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
 
@@ -1126,7 +1126,6 @@ function DetailModal({
   const [returnDue, setReturnDue] = useState(record.returnDue ?? "");
   const [reason, setReason] = useState(record.reason ?? "");
   const [note, setNote] = useState(record.note ?? "");
-  const composingNote = useRef(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<Record<string, boolean>>({});
   const [saveErr, setSaveErr] = useState<{ field: string; msg: string } | null>(null);
@@ -1379,9 +1378,8 @@ function DetailModal({
           <Row label="비고">
             <div className="flex flex-col gap-2">
               <textarea value={note}
-                onChange={e => { if (!composingNote.current) setNote(e.target.value); }}
-                onCompositionStart={() => { composingNote.current = true; }}
-                onCompositionEnd={e => { composingNote.current = false; setNote((e.target as HTMLTextAreaElement).value); }}
+                onChange={e => { if (!(e.nativeEvent as InputEvent).isComposing) setNote(e.target.value); }}
+                onCompositionEnd={e => { setNote((e.target as HTMLTextAreaElement).value); }}
                 rows={3}
                 className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 resize-none"
                 placeholder="비고 입력" />
