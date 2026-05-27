@@ -693,6 +693,192 @@ function ReturnCompleteModal({
   );
 }
 
+// ── 반납 등록 모달 ───────────────────────────────────────────
+const RETURN_STATUSES = ["재고", "수리", "3층문서고/매각", "지하창고/매각"] as const;
+type ReturnStatus = typeof RETURN_STATUSES[number];
+
+function ReturnRegModal({
+  records,
+  onClose,
+  onUpdated,
+}: {
+  records: ExchangeReturnRecord[];
+  onClose: () => void;
+  onUpdated: (id: string, fields: Partial<ExchangeReturnRecord>) => void;
+}) {
+  const [assetInput, setAssetInput] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchResult, setSearchResult] = useState<{
+    matchedRecord: ExchangeReturnRecord | null;
+    hwPageId: string | null;
+    hwAssetNo: string | null;
+  } | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<ReturnStatus>("재고");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSearch = async () => {
+    const q = assetInput.trim();
+    if (!q) return;
+    setSearching(true);
+    setError(null);
+    setSearchResult(null);
+    try {
+      const matchedRecord = records.find(r =>
+        r.stage === "반납요청" && (r.assetId === q || r.newAssetId === q)
+      ) ?? null;
+
+      const res = await fetch(`/api/hw?search=${encodeURIComponent(q)}`).then(r => r.json());
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const hwRecs: any[] = res.records ?? [];
+      const found = hwRecs.find(r => r.assetNo === q) ?? (hwRecs.length === 1 ? hwRecs[0] : null);
+
+      setSearchResult({
+        matchedRecord,
+        hwPageId: found?.id ?? null,
+        hwAssetNo: found?.assetNo ?? null,
+      });
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleConfirm = async () => {
+    if (!searchResult) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const updates: Promise<unknown>[] = [];
+
+      if (searchResult.matchedRecord) {
+        updates.push(
+          fetch("/api/exchange-return/update", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id: searchResult.matchedRecord.id,
+              fields: { stage: "반납완료", completedAt: today },
+            }),
+          })
+        );
+      }
+
+      if (searchResult.hwPageId) {
+        updates.push(
+          fetch("/api/hw/update", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: searchResult.hwPageId, fields: { status: selectedStatus } }),
+          })
+        );
+      }
+
+      await Promise.all(updates);
+
+      if (searchResult.matchedRecord) {
+        onUpdated(searchResult.matchedRecord.id, { stage: "반납완료", completedAt: today });
+      }
+      onClose();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const canConfirm = searchResult !== null && (searchResult.matchedRecord !== null || searchResult.hwPageId !== null);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="font-bold text-gray-900 text-base">반납 등록</h3>
+          <button onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 text-2xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">×</button>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+          {/* 자산번호 입력 */}
+          <div>
+            <label className="text-xs text-gray-500 font-medium block mb-1.5">자산번호</label>
+            <div className="flex gap-2">
+              <input
+                className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
+                placeholder="자산번호 입력"
+                value={assetInput}
+                onChange={e => { setAssetInput(e.target.value); setSearchResult(null); }}
+                onKeyDown={e => { if (e.key === "Enter") handleSearch(); }}
+              />
+              <button onClick={handleSearch} disabled={searching || !assetInput.trim()}
+                className="text-sm px-4 py-2 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40">
+                {searching ? "검색 중…" : "검색"}
+              </button>
+            </div>
+          </div>
+
+          {/* 검색 결과 */}
+          {searchResult !== null && (
+            <>
+              {searchResult.matchedRecord ? (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 space-y-1.5">
+                  <p className="text-xs font-semibold text-yellow-800">반납요청 케이스 발견</p>
+                  <p className="text-xs text-yellow-700">
+                    {searchResult.matchedRecord.company} · {searchResult.matchedRecord.department} · {searchResult.matchedRecord.user}
+                  </p>
+                  <p className="text-xs text-yellow-600">확인 시 → 반납완료로 자동 진행됩니다.</p>
+                </div>
+              ) : (
+                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+                  <p className="text-xs text-blue-700">
+                    {searchResult.hwPageId
+                      ? `HW DB에서 발견됨 (${searchResult.hwAssetNo ?? assetInput}) — 상태만 변경합니다.`
+                      : "반납요청 및 HW DB 모두에서 찾을 수 없습니다."}
+                  </p>
+                </div>
+              )}
+
+              {/* 상태 선택 (HW DB에 있을 때만) */}
+              {searchResult.hwPageId && (
+                <div>
+                  <label className="text-xs text-gray-500 font-medium block mb-2">변경할 자산 상태</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {RETURN_STATUSES.map(s => (
+                      <button key={s} onClick={() => setSelectedStatus(s)}
+                        className={`text-sm py-2 px-3 rounded-lg border font-medium transition-colors ${
+                          selectedStatus === s
+                            ? "bg-gray-900 text-white border-gray-900"
+                            : "bg-white text-gray-700 border-gray-200 hover:border-gray-400"
+                        }`}>
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {error && <p className="text-xs text-red-600">⚠️ {error}</p>}
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
+          <button onClick={onClose}
+            className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">취소</button>
+          <button onClick={handleConfirm} disabled={saving || !canConfirm}
+            className="text-sm px-5 py-2 rounded-lg bg-gray-900 text-white font-medium hover:bg-gray-700 disabled:opacity-40">
+            {saving ? "처리 중…" : "확인"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── HW 자산 상세 모달 ────────────────────────────────────────
 function HwAssetDetailModal({ assetNo, onClose }: { assetNo: string; onClose: () => void }) {
   const [data, setData]     = useState<Record<string, unknown> | null>(null);
@@ -2295,6 +2481,7 @@ export default function ExchangeReturnPanel() {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<ExchangeReturnRecord | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [returnRegOpen, setReturnRegOpen] = useState(false);
   const [advancingId, setAdvancingId] = useState<string | null>(null);
   const [pickerTarget, setPickerTarget] = useState<ExchangeReturnRecord | null>(null);
   const [receiptTarget, setReceiptTarget] = useState<ExchangeReturnRecord | null>(null);
@@ -2466,6 +2653,13 @@ export default function ExchangeReturnPanel() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={() => setReturnRegOpen(true)}
+            className="text-xs font-semibold px-3 py-1.5 rounded bg-blue-700 text-white hover:bg-blue-800 flex items-center gap-1.5 transition-colors">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M9 14l-4-4 4-4"/><path d="M5 10h11a4 4 0 0 1 0 8h-1"/>
+            </svg>
+            반납 등록
+          </button>
           <button onClick={() => setCreateOpen(true)}
             className="text-xs font-semibold px-3 py-1.5 rounded bg-gray-900 text-white hover:bg-gray-700 flex items-center gap-1.5 transition-colors">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -2677,6 +2871,14 @@ export default function ExchangeReturnPanel() {
           onClose={() => setSelected(null)}
           onUpdated={handleUpdated}
           onDeleted={handleDeleted}
+        />
+      )}
+
+      {returnRegOpen && (
+        <ReturnRegModal
+          records={records}
+          onClose={() => setReturnRegOpen(false)}
+          onUpdated={handleUpdated}
         />
       )}
 
