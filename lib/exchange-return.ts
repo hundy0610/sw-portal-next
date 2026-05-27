@@ -66,6 +66,7 @@ function mapPage(page: PageObjectResponse): ExchangeReturnRecord {
     user:         txt(p, "사용자"),
     stage:        sel(p, "현재단계"),
     requestedAt:  dt(p,  "신청일"),
+    useDate:      dt(p,  "사용일자"),
     returnDue:    dt(p,  "반납예정일"),
     completedAt:  dt(p,  "완료일"),
     reason:       txt(p, "신청사유"),
@@ -156,6 +157,7 @@ export interface UpdateFields {
   user?: string;
   stage?: string;
   requestedAt?: string;
+  useDate?: string | null;
   returnDue?: string | null;
   completedAt?: string | null;
   reason?: string;
@@ -175,6 +177,7 @@ export async function updateExchangeReturn(id: string, fields: UpdateFields): Pr
   if (fields.user        !== undefined) props["사용자"]       = { rich_text: [{ text: { content: fields.user } }] };
   if (fields.stage       !== undefined) props["현재단계"]     = { select: fields.stage ? { name: fields.stage } : null };
   if (fields.requestedAt !== undefined) props["신청일"]       = { date: fields.requestedAt ? { start: fields.requestedAt } : null };
+  if (fields.useDate     !== undefined) props["사용일자"]     = { date: fields.useDate ? { start: fields.useDate } : null };
   if (fields.returnDue   !== undefined) props["반납예정일"]   = { date: fields.returnDue ? { start: fields.returnDue } : null };
   if (fields.completedAt !== undefined) props["완료일"]       = { date: fields.completedAt ? { start: fields.completedAt } : null };
   if (fields.reason      !== undefined) props["신청사유"]     = { rich_text: [{ text: { content: fields.reason } }] };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import type { ExchangeReturnRecord } from "@/types";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
 
@@ -713,6 +713,9 @@ function ReturnRegModal({
     matchedRecord: ExchangeReturnRecord | null;
     hwPageId: string | null;
     hwAssetNo: string | null;
+    hwCompany: string | null;
+    hwDept: string | null;
+    hwUser: string | null;
   } | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<ReturnStatus>("재고");
   const [saving, setSaving] = useState(false);
@@ -738,6 +741,9 @@ function ReturnRegModal({
         matchedRecord,
         hwPageId: found?.id ?? null,
         hwAssetNo: found?.assetNo ?? null,
+        hwCompany: found?.company ?? null,
+        hwDept: found?.dept ?? null,
+        hwUser: found?.user ?? null,
       });
     } catch (e) {
       setError(String(e));
@@ -779,6 +785,9 @@ function ReturnRegModal({
 
       if (selectedStatus === "수리") {
         const rec = searchResult.matchedRecord;
+        const company    = rec?.company    || searchResult.hwCompany    || "";
+        const department = rec?.department || searchResult.hwDept       || "";
+        const user       = rec?.user       || searchResult.hwUser       || "";
         updates.push(
           fetch("/api/hw-repair/create", {
             method: "POST",
@@ -788,9 +797,9 @@ function ReturnRegModal({
               stage: "수리접수",
               faultType: "과실없음",
               receivedAt: today,
-              ...(rec?.company    && { company:    rec.company }),
-              ...(rec?.department && { department: rec.department }),
-              ...(rec?.user       && { user:        rec.user }),
+              ...(company    && { company }),
+              ...(department && { department }),
+              ...(user       && { user }),
             }),
           })
         );
@@ -1117,7 +1126,7 @@ function DetailModal({
   const [returnDue, setReturnDue] = useState(record.returnDue ?? "");
   const [reason, setReason] = useState(record.reason ?? "");
   const [note, setNote] = useState(record.note ?? "");
-  const [composingNote, setComposingNote] = useState(false);
+  const composingNote = useRef(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<Record<string, boolean>>({});
   const [showAssetPicker, setShowAssetPicker] = useState(false);
@@ -1363,9 +1372,9 @@ function DetailModal({
           <Row label="비고">
             <div className="flex flex-col gap-2">
               <textarea value={note}
-                onChange={e => { if (!composingNote) setNote(e.target.value); }}
-                onCompositionStart={() => setComposingNote(true)}
-                onCompositionEnd={e => { setComposingNote(false); setNote((e.target as HTMLTextAreaElement).value); }}
+                onChange={e => { if (!composingNote.current) setNote(e.target.value); }}
+                onCompositionStart={() => { composingNote.current = true; }}
+                onCompositionEnd={e => { composingNote.current = false; setNote((e.target as HTMLTextAreaElement).value); }}
                 rows={3}
                 className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 resize-none"
                 placeholder="비고 입력" />
