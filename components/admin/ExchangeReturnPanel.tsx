@@ -2958,8 +2958,13 @@ export default function ExchangeReturnPanel() {
                         className="font-mono text-xs text-gray-500 hover:text-blue-600 hover:underline cursor-pointer text-left">
                         {r.newAssetId || <span className="text-gray-300 not-italic">선택...</span>}
                       </button>
+                    ) : r.newAssetId ? (
+                      <button onClick={() => setHwDetailAsset(r.newAssetId)}
+                        className="font-mono text-xs text-blue-600 hover:underline hover:text-blue-800 cursor-pointer text-left">
+                        {r.newAssetId}
+                      </button>
                     ) : (
-                      <span className="font-mono text-xs text-gray-500">{r.newAssetId || "—"}</span>
+                      <span className="text-gray-300">—</span>
                     )}
                   </td>
                   {/* 법인 */}
