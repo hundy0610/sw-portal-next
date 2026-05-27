@@ -706,6 +706,7 @@ function ReturnRegModal({
   onClose: () => void;
   onUpdated: (id: string, fields: Partial<ExchangeReturnRecord>) => void;
 }) {
+  const [step, setStep] = useState<"search" | "confirm">("search");
   const [assetInput, setAssetInput] = useState("");
   const [searching, setSearching] = useState(false);
   const [searchResult, setSearchResult] = useState<{
@@ -745,7 +746,7 @@ function ReturnRegModal({
     }
   };
 
-  const handleConfirm = async () => {
+  const handleExecute = async () => {
     if (!searchResult) return;
     setSaving(true);
     setError(null);
@@ -803,12 +804,12 @@ function ReturnRegModal({
       onClose();
     } catch (e) {
       setError(String(e));
-    } finally {
       setSaving(false);
     }
   };
 
-  const canConfirm = searchResult !== null && (searchResult.matchedRecord !== null || searchResult.hwPageId !== null);
+  const canProceed = searchResult !== null && (searchResult.matchedRecord !== null || searchResult.hwPageId !== null);
+  const assetNo = searchResult?.hwAssetNo ?? assetInput.trim();
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
@@ -821,83 +822,114 @@ function ReturnRegModal({
             className="text-gray-400 hover:text-gray-600 text-2xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">×</button>
         </div>
 
-        <div className="px-6 py-5 space-y-4">
-          {/* 자산번호 입력 */}
-          <div>
-            <label className="text-xs text-gray-500 font-medium block mb-1.5">자산번호</label>
-            <div className="flex gap-2">
-              <input
-                className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
-                placeholder="자산번호 입력"
-                value={assetInput}
-                onChange={e => { setAssetInput(e.target.value); setSearchResult(null); }}
-                onKeyDown={e => { if (e.key === "Enter") handleSearch(); }}
-              />
-              <button onClick={handleSearch} disabled={searching || !assetInput.trim()}
-                className="text-sm px-4 py-2 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40">
-                {searching ? "검색 중…" : "검색"}
+        {/* ── Step 1: 자산번호 검색 + 상태 선택 ── */}
+        {step === "search" && (
+          <>
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <label className="text-xs text-gray-500 font-medium block mb-1.5">자산번호</label>
+                <div className="flex gap-2">
+                  <input
+                    className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    placeholder="자산번호 입력"
+                    value={assetInput}
+                    onChange={e => { setAssetInput(e.target.value); setSearchResult(null); }}
+                    onKeyDown={e => { if (e.key === "Enter") handleSearch(); }}
+                  />
+                  <button onClick={handleSearch} disabled={searching || !assetInput.trim()}
+                    className="text-sm px-4 py-2 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40">
+                    {searching ? "검색 중…" : "검색"}
+                  </button>
+                </div>
+              </div>
+
+              {searchResult !== null && (
+                <>
+                  {searchResult.matchedRecord ? (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 space-y-1">
+                      <p className="text-xs font-semibold text-yellow-800">반납요청 케이스 발견</p>
+                      <p className="text-xs text-yellow-700">
+                        {searchResult.matchedRecord.company} · {searchResult.matchedRecord.department} · {searchResult.matchedRecord.user}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+                      <p className="text-xs text-blue-700">
+                        {searchResult.hwPageId
+                          ? `HW DB에서 발견됨 (${assetNo}) — 상태만 변경합니다.`
+                          : "반납요청 및 HW DB 모두에서 찾을 수 없습니다."}
+                      </p>
+                    </div>
+                  )}
+
+                  {searchResult.hwPageId && (
+                    <div>
+                      <label className="text-xs text-gray-500 font-medium block mb-2">변경할 자산 상태</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {RETURN_STATUSES.map(s => (
+                          <button key={s} onClick={() => setSelectedStatus(s)}
+                            className={`text-sm py-2 px-3 rounded-lg border font-medium transition-colors ${
+                              selectedStatus === s
+                                ? "bg-gray-900 text-white border-gray-900"
+                                : "bg-white text-gray-700 border-gray-200 hover:border-gray-400"
+                            }`}>
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {error && <p className="text-xs text-red-600">⚠️ {error}</p>}
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={onClose}
+                className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">취소</button>
+              <button onClick={() => setStep("confirm")} disabled={!canProceed}
+                className="text-sm px-5 py-2 rounded-lg bg-gray-900 text-white font-medium hover:bg-gray-700 disabled:opacity-40">
+                다음
               </button>
             </div>
-          </div>
+          </>
+        )}
 
-          {/* 검색 결과 */}
-          {searchResult !== null && (
-            <>
-              {searchResult.matchedRecord ? (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 space-y-1.5">
-                  <p className="text-xs font-semibold text-yellow-800">반납요청 케이스 발견</p>
-                  <p className="text-xs text-yellow-700">
-                    {searchResult.matchedRecord.company} · {searchResult.matchedRecord.department} · {searchResult.matchedRecord.user}
-                  </p>
-                  <p className="text-xs text-yellow-600">확인 시 → 반납완료로 자동 진행됩니다.</p>
-                </div>
-              ) : (
-                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
-                  <p className="text-xs text-blue-700">
-                    {searchResult.hwPageId
-                      ? `HW DB에서 발견됨 (${searchResult.hwAssetNo ?? assetInput}) — 상태만 변경합니다.`
-                      : "반납요청 및 HW DB 모두에서 찾을 수 없습니다."}
-                  </p>
-                </div>
-              )}
-
-              {/* 상태 선택 (HW DB에 있을 때만) */}
-              {searchResult.hwPageId && (
-                <div>
-                  <label className="text-xs text-gray-500 font-medium block mb-2">변경할 자산 상태</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {RETURN_STATUSES.map(s => (
-                      <button key={s} onClick={() => setSelectedStatus(s)}
-                        className={`text-sm py-2 px-3 rounded-lg border font-medium transition-colors ${
-                          selectedStatus === s
-                            ? "bg-gray-900 text-white border-gray-900"
-                            : "bg-white text-gray-700 border-gray-200 hover:border-gray-400"
-                        }`}>
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                  {selectedStatus === "수리" && (
-                    <p className="text-xs text-orange-600 mt-2">
-                      수리/과실청구 트래커에 자동 등록됩니다 (수리접수 · 과실없음)
-                    </p>
+        {/* ── Step 2: 변경사항 확인 ── */}
+        {step === "confirm" && searchResult && (
+          <>
+            <div className="px-6 py-5 space-y-4">
+              <div className="bg-green-50 rounded-xl p-4 space-y-2">
+                <p className="font-semibold text-green-800 text-sm">반납 처리 시 자동 적용 사항</p>
+                <ul className="space-y-1 list-disc list-inside text-xs text-green-700">
+                  {searchResult.hwPageId && (
+                    <li>자산 <strong className="font-mono">{assetNo}</strong> → HW DB 상태: <strong>{selectedStatus}</strong></li>
                   )}
-                </div>
-              )}
-            </>
-          )}
+                  {searchResult.matchedRecord && (
+                    <li>트래커 단계 → <strong>반납완료</strong></li>
+                  )}
+                  {searchResult.matchedRecord && (
+                    <li>완료일 → <strong>오늘 날짜</strong> 자동 입력</li>
+                  )}
+                  {selectedStatus === "수리" && (
+                    <li>수리/과실청구 트래커 → <strong>수리접수</strong> · <strong>과실없음</strong>으로 자동 등록</li>
+                  )}
+                </ul>
+              </div>
+              {error && <p className="text-xs text-red-600">⚠️ {error}</p>}
+            </div>
 
-          {error && <p className="text-xs text-red-600">⚠️ {error}</p>}
-        </div>
-
-        <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
-          <button onClick={onClose}
-            className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">취소</button>
-          <button onClick={handleConfirm} disabled={saving || !canConfirm}
-            className="text-sm px-5 py-2 rounded-lg bg-gray-900 text-white font-medium hover:bg-gray-700 disabled:opacity-40">
-            {saving ? "처리 중…" : "확인"}
-          </button>
-        </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => { setStep("search"); setError(null); }} disabled={saving}
+                className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">이전</button>
+              <button onClick={handleExecute} disabled={saving}
+                className="text-sm px-5 py-2 rounded-lg bg-green-700 text-white font-medium hover:bg-green-800 disabled:opacity-40">
+                {saving ? "처리 중…" : "반납 확정"}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
