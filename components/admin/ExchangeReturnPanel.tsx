@@ -1312,6 +1312,7 @@ function DetailModal({
                 const json = await res.json();
                 if (json.ok) {
                   setHwOrigUseDate(useDate);
+                  onUpdated(record.id, { completedAt: useDate });
                   setSaved((p: Record<string, boolean>) => ({ ...p, useDate: true }));
                   setTimeout(() => setSaved((p: Record<string, boolean>) => ({ ...p, useDate: false })), 2000);
                 } else { setSaveErr({ field: "useDate", msg: json.error || "저장 실패" }); }
