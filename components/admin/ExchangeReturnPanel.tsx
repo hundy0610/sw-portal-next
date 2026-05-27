@@ -1127,8 +1127,13 @@ function DetailModal({
   const [hwOrigUseDate, setHwOrigUseDate] = useState("");
   const [returnDue, setReturnDue] = useState(record.returnDue ?? "");
   const [reason, setReason] = useState(record.reason ?? "");
-  const [note] = useState(record.note ?? "");
+  const [note, setNote] = useState(record.note ?? "");
   const noteRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    setNote(record.note ?? "");
+    if (noteRef.current) noteRef.current.value = record.note ?? "";
+  }, [record.note]);
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<Record<string, boolean>>({});
   const [saveErr, setSaveErr] = useState<{ field: string; msg: string } | null>(null);
@@ -2980,6 +2985,7 @@ export default function ExchangeReturnPanel() {
       {/* 상세 모달 */}
       {selected && (
         <DetailModal
+          key={selected.id}
           record={selected}
           onClose={() => setSelected(null)}
           onUpdated={handleUpdated}
