@@ -7,6 +7,13 @@ import type {
 } from "@notionhq/client/build/src/api-endpoints";
 import type { SwItem, SwDbRecord, Subscription, LicenseItem, LicenseRecord, Ticket, RepairTicket, HwRepairRecord } from "@/types";
 import type { SwCredential } from "@/components/admin/CredentialsPanel";
+import type { SwFile, SwVersion, SwDoc } from "@/types/portal";
+import {
+  isMock,
+  mockSwItems, mockSwDatabase, mockSubscriptions, mockLicenses,
+  mockLicenseRecords, mockHelpDeskTickets, mockTickets, mockRepairTickets,
+  mockHwRepairs, mockMonitorHistory, mockCredentials, mockSwFiles,
+} from "./mock";
 
 // ────────────────────────────────────────────────────────────
 // Notion 클라이언트 싱글톤
@@ -186,12 +193,11 @@ async function queryAllPages(
 // Notion 컬럼명 매핑 (실제 DB 컬럼명과 다를 경우 여기서 수정)
 // ────────────────────────────────────────────────────────────
 export async function fetchSwDb(): Promise<SwItem[]> {
+  if (isMock()) return mockSwItems as unknown as SwItem[];
   const dbId = process.env.NOTION_DB_SWDB;
   if (!dbId) throw new Error("NOTION_DB_SWDB 환경변수가 설정되지 않았습니다.");
 
-  const pages = await queryAllPages(dbId, undefined, [
-    { property: "Name", direction: "ascending" },
-  ]);
+  const pages = await queryAllPages(dbId);
 
   return pages.map((page) => {
     const p = page.properties;
@@ -218,6 +224,7 @@ export async function fetchSwDb(): Promise<SwItem[]> {
 // NOTION_DB_SW_UNIFIED 환경변수 사용
 // ────────────────────────────────────────────────────────────
 export async function fetchSwDatabase(): Promise<SwDbRecord[]> {
+  if (isMock()) return mockSwDatabase as SwDbRecord[];
   const dbId = process.env.NOTION_DB_SW_UNIFIED;
   if (!dbId) throw new Error("NOTION_DB_SW_UNIFIED 환경변수가 설정되지 않았습니다.");
 
@@ -263,6 +270,7 @@ export async function fetchSwDatabase(): Promise<SwDbRecord[]> {
 // 구독 관리 DB 조회 (레거시 - SW 데이터베이스로 통합 예정)
 // ────────────────────────────────────────────────────────────
 export async function fetchSubscriptions(): Promise<Subscription[]> {
+  if (isMock()) return mockSubscriptions as Subscription[];
   const dbId = process.env.NOTION_DB_SUBSCRIPTIONS;
   if (!dbId) throw new Error("NOTION_DB_SUBSCRIPTIONS 환경변수가 설정되지 않았습니다.");
 
@@ -297,6 +305,7 @@ export async function fetchSubscriptions(): Promise<Subscription[]> {
 // 라이선스 트래커 DB 조회
 // ────────────────────────────────────────────────────────────
 export async function fetchLicenses(): Promise<LicenseItem[]> {
+  if (isMock()) return mockLicenses as LicenseItem[];
   const dbId = process.env.NOTION_DB_LICENSES;
   if (!dbId) throw new Error("NOTION_DB_LICENSES 환경변수가 설정되지 않았습니다.");
 
@@ -340,6 +349,7 @@ const LICENSE_TRACKER_DBS = [
 ];
 
 export async function fetchLicenseRecords(): Promise<LicenseRecord[]> {
+  if (isMock()) return mockLicenseRecords as LicenseRecord[];
   const results = await Promise.allSettled(
     LICENSE_TRACKER_DBS.map(async (db) => {
       const pages = await queryAllPages(db.id);
@@ -400,6 +410,7 @@ export interface HelpDeskTicket {
 }
 
 export async function fetchHelpDeskTickets(): Promise<HelpDeskTicket[]> {
+  if (isMock()) return mockHelpDeskTickets as HelpDeskTicket[];
   const dbId = process.env.NOTION_DB_HELPDESK || process.env.NOTION_DB_TICKETS;
   if (!dbId) throw new Error("NOTION_DB_HELPDESK 환경변수가 설정되지 않았습니다.");
 
@@ -439,6 +450,7 @@ export async function fetchHelpDeskTickets(): Promise<HelpDeskTicket[]> {
 }
 
 export async function fetchTickets(): Promise<Ticket[]> {
+  if (isMock()) return mockTickets as Ticket[];
   const dbId = process.env.NOTION_DB_TICKETS;
   if (!dbId) throw new Error("NOTION_DB_TICKETS 환경변수가 설정되지 않았습니다.");
 
@@ -474,6 +486,7 @@ function getPropUniqueId(props: NotionProps, key: string): string {
 }
 
 export async function fetchRepairTickets(): Promise<RepairTicket[]> {
+  if (isMock()) return mockRepairTickets as RepairTicket[];
   const dbId = process.env.NOTION_DB_REPAIR_TICKETS;
   if (!dbId) throw new Error("NOTION_DB_REPAIR_TICKETS 환경변수가 설정되지 않았습니다.");
 
@@ -510,6 +523,7 @@ export async function fetchRepairTickets(): Promise<RepairTicket[]> {
 // HW 외부 수리 추적
 // ────────────────────────────────────────────────────────────
 export async function fetchHwRepairs(): Promise<HwRepairRecord[]> {
+  if (isMock()) return mockHwRepairs as HwRepairRecord[];
   const dbId = process.env.NOTION_DB_HW_REPAIR;
   if (!dbId) throw new Error("NOTION_DB_HW_REPAIR 환경변수가 설정되지 않았습니다.");
 
@@ -537,6 +551,7 @@ export async function fetchHwRepairs(): Promise<HwRepairRecord[]> {
       assignee: getPropPeople(p, "담당자"),
       assigneeId: getPropPeopleList(p, "담당자")[0]?.id ?? "",
       note: getPropText(p, "수리내용"),
+      isClosed: getPropCheckbox(p, "케이스종료"),
       lastEditedAt: page.last_edited_time,
       notionUrl: getPageUrl(page.id),
     };
@@ -576,6 +591,7 @@ function matchCol(header: string, keywords: string[]): boolean {
 }
 
 export async function fetchCredentialsPage(): Promise<SwCredential[]> {
+  if (isMock()) return mockCredentials;
   const pageId = process.env.NOTION_PAGE_CREDENTIALS;
   if (!pageId) throw new Error("NOTION_PAGE_CREDENTIALS 환경변수가 설정되지 않았습니다.");
 
@@ -643,6 +659,7 @@ export async function createHelpDeskTicket(data: {
   content: string;
   assetNo?: string;
 }): Promise<string> {
+  if (isMock()) { console.log("[MOCK] createHelpDeskTicket", data); return "mock-hd-new"; }
   const dbId = process.env.NOTION_DB_HELPDESK;
   if (!dbId) throw new Error("NOTION_DB_HELPDESK 환경변수가 설정되지 않았습니다.");
 
@@ -678,6 +695,7 @@ export async function createTicket(data: {
   description: string;
   requester: string;
 }): Promise<string> {
+  if (isMock()) { console.log("[MOCK] createTicket", data); return "mock-tk-new"; }
   const dbId = process.env.NOTION_DB_TICKETS;
   if (!dbId) throw new Error("NOTION_DB_TICKETS 환경변수가 설정되지 않았습니다.");
 
@@ -705,6 +723,7 @@ export async function createSwRequest(data: {
   reason: string;
   urgency: string;
 }): Promise<string> {
+  if (isMock()) { console.log("[MOCK] createSwRequest", data); return "mock-sw-req-new"; }
   const dbId = process.env.NOTION_DB_TICKETS;
   if (!dbId) throw new Error("NOTION_DB_TICKETS 환경변수가 설정되지 않았습니다.");
 
@@ -736,21 +755,15 @@ function chunkString(str: string, size = 1900): string[] {
 
 // Notion 파일 업로드 API (SDK v2.x 미지원 → raw fetch)
 // 반환값: file_upload ID (Notion 페이지 저장 시 참조)
-async function uploadImageToNotion(base64DataUrl: string): Promise<string> {
+export async function uploadFileToNotion(buffer: Buffer, filename: string, contentType: string): Promise<string> {
   const token = process.env.NOTION_TOKEN;
   if (!token) throw new Error("NOTION_TOKEN이 설정되지 않았습니다.");
 
-  const matches = base64DataUrl.match(/^data:([^;]+);base64,(.+)$/);
-  if (!matches) throw new Error("유효하지 않은 base64 이미지 형식입니다.");
-  const contentType = matches[1];
-  const buffer = Buffer.from(matches[2], "base64");
-  const filename = `floor-map-${Date.now()}.jpg`;
   const headers = {
     Authorization: `Bearer ${token}`,
     "Notion-Version": "2026-03-11",
   };
 
-  // Step 1: 파일 업로드 객체 생성
   const createRes = await fetch("https://api.notion.com/v1/file_uploads", {
     method: "POST",
     headers: { ...headers, "Content-Type": "application/json" },
@@ -761,9 +774,8 @@ async function uploadImageToNotion(base64DataUrl: string): Promise<string> {
   }
   const { id: fileUploadId } = await createRes.json();
 
-  // Step 2: 파일 바이너리 전송
   const formData = new FormData();
-  formData.append("file", new Blob([buffer], { type: contentType }), filename);
+  formData.append("file", new Blob([new Uint8Array(buffer)], { type: contentType }), filename);
   const sendRes = await fetch(`https://api.notion.com/v1/file_uploads/${fileUploadId}/send`, {
     method: "POST",
     headers,
@@ -776,7 +788,16 @@ async function uploadImageToNotion(base64DataUrl: string): Promise<string> {
   return fileUploadId;
 }
 
+async function uploadImageToNotion(base64DataUrl: string): Promise<string> {
+  const matches = base64DataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  if (!matches) throw new Error("유효하지 않은 base64 이미지 형식입니다.");
+  const contentType = matches[1];
+  const buffer = Buffer.from(matches[2], "base64");
+  return uploadFileToNotion(buffer, `floor-map-${Date.now()}.jpg`, contentType);
+}
+
 export async function fetchFloorMap(building: string, floor: string): Promise<object | null> {
+  if (isMock()) return null;
   const dbId = process.env.NOTION_DB_FLOOR_MAPS;
   if (!dbId) return null;
 
@@ -821,6 +842,7 @@ export async function saveFloorMap(
   floor: string,
   data: any,
 ): Promise<{ ok: boolean }> {
+  if (isMock()) { console.log("[MOCK] saveFloorMap", building, floor); return { ok: true }; }
   const dbId = process.env.NOTION_DB_FLOOR_MAPS;
   if (!dbId) throw new Error("NOTION_DB_FLOOR_MAPS 환경변수가 설정되지 않았습니다.");
 
@@ -889,6 +911,7 @@ export async function fetchMonitorHistory(opts: {
   floor?: string;
   limit?: number;
 }): Promise<MonitorHistoryEntry[]> {
+  if (isMock()) return mockMonitorHistory as MonitorHistoryEntry[];
   const dbId = process.env.NOTION_DB_MONITOR_HISTORY;
   if (!dbId) return [];
   let normalizedDbId: string;
@@ -940,6 +963,7 @@ export async function createMonitorHistory(data: {
   description?: string;
   createdBy?: string;
 }): Promise<string> {
+  if (isMock()) { console.log("[MOCK] createMonitorHistory", data); return "mock-mh-new"; }
   const rawDbId = process.env.NOTION_DB_MONITOR_HISTORY;
   if (!rawDbId) throw new Error("NOTION_DB_MONITOR_HISTORY 환경변수가 설정되지 않았습니다.");
 
@@ -980,8 +1004,204 @@ export async function updateMonitorHistoryStatus(
   pageId: string,
   status: "pending" | "수리중" | "in_progress" | "done",
 ): Promise<void> {
+  if (isMock()) { console.log("[MOCK] updateMonitorHistoryStatus", pageId, status); return; }
   await notion.pages.update({
     page_id: pageId,
     properties: { Status: { select: { name: status } } },
+  });
+}
+
+// ─── SW 설치파일 DB 조회 ──────────────────────────────────────
+// Notion DB 컬럼: SW명(title), 카테고리(select), 버전(rich_text),
+//                설명(rich_text), 다운로드 URL(url), 파일 크기(rich_text),
+//                OS(multi_select), 공개 여부(checkbox)
+function getFirstFileUrl(prop: NotionProps[string] | undefined): string {
+  if (!prop || prop.type !== "files" || prop.files.length === 0) return "";
+  const f = prop.files[0];
+  if ("file" in f) return f.file.url;
+  if ("external" in f) return f.external.url;
+  return "";
+}
+
+export async function fetchSwVersions(onlyVisible = true): Promise<SwVersion[]> {
+  const dbId = process.env.NOTION_DB_SW_VERSIONS;
+  if (!dbId) return [];
+
+  const filter = onlyVisible
+    ? { property: "공개여부", checkbox: { equals: true } }
+    : undefined;
+
+  const pages = await queryAllPages(
+    dbId,
+    filter,
+    [{ property: "순서", direction: "ascending" }]
+  );
+
+  return pages.map(page => {
+    const p = page.properties;
+    return {
+      id: page.id,
+      name: getPropText(p, "SW명"),
+      version: getPropText(p, "버전"),
+      category: getPropSelect(p, "카테고리"),
+      os: getPropMultiSelect(p, "OS"),
+      description: getPropText(p, "설명"),
+      visible: getPropCheckbox(p, "공개여부"),
+      order: getPropNumber(p, "순서"),
+    };
+  });
+}
+
+export async function fetchSwDocs(versionId?: string, onlyVisible = true): Promise<SwDoc[]> {
+  const dbId = process.env.NOTION_DB_SW_DOCS;
+  if (!dbId) return [];
+
+  const visFilter = onlyVisible ? { property: "공개 여부", checkbox: { equals: true } } : null;
+  const relFilter = versionId   ? { property: "SW 버전",   relation: { contains: versionId } } : null;
+  const filter: QueryDatabaseParameters["filter"] | undefined =
+    visFilter && relFilter ? { and: [visFilter, relFilter] } :
+    visFilter ? visFilter :
+    relFilter ? relFilter : undefined;
+
+  const pages = await queryAllPages(
+    dbId, filter,
+    [{ property: "순서", direction: "ascending" }]
+  );
+
+  return pages.map(page => {
+    const p = page.properties;
+    const rel = p["SW 버전"];
+    const vId = rel?.type === "relation" && rel.relation.length > 0
+      ? rel.relation[0].id : "";
+
+    // "파일과 미디어" 속성에서 파일 URL/이름 추출
+    let fileUrl: string | undefined;
+    let fileName: string | undefined;
+    const filesProp = p["파일과 미디어"] as any;
+    if (filesProp?.type === "files" && filesProp.files?.length > 0) {
+      const f = filesProp.files[0];
+      fileUrl  = f.type === "file" ? f.file?.url : f.external?.url;
+      fileName = f.name || undefined;
+    }
+
+    return {
+      id: page.id,
+      name: getPropText(p, "파일명"),
+      type: getPropSelect(p, "선택"),
+      description: getPropText(p, "텍스트"),
+      versionId: vId,
+      visible: getPropCheckbox(p, "공개 여부"),
+      order: getPropNumber(p, "순서"),
+      fileUrl,
+      fileName,
+    };
+  });
+}
+
+export async function createSwVersion(data: Omit<SwVersion, "id">): Promise<string> {
+  const dbId = process.env.NOTION_DB_SW_VERSIONS;
+  if (!dbId) throw new Error("NOTION_DB_SW_VERSIONS not set");
+  const props: Record<string, unknown> = {
+    "SW명":    { title:       [{ text: { content: data.name } }] },
+    "버전":    { rich_text:   [{ text: { content: data.version } }] },
+    "설명":    { rich_text:   [{ text: { content: data.description } }] },
+    "공개여부": { checkbox:    data.visible },
+    "순서":    { number:      data.order },
+  };
+  if (data.category) props["카테고리"] = { select: { name: data.category } };
+  if (data.os.length) props["OS"] = { multi_select: data.os.map(o => ({ name: o })) };
+  const res = await notion.pages.create({ parent: { database_id: dbId }, properties: props as Parameters<typeof notion.pages.create>[0]["properties"] });
+  return res.id;
+}
+
+export async function updateSwVersion(id: string, data: Partial<Omit<SwVersion, "id">>): Promise<void> {
+  const props: Record<string, unknown> = {};
+  if (data.name        !== undefined) props["SW명"]    = { title:       [{ text: { content: data.name } }] };
+  if (data.version     !== undefined) props["버전"]    = { rich_text:   [{ text: { content: data.version } }] };
+  if (data.description !== undefined) props["설명"]    = { rich_text:   [{ text: { content: data.description } }] };
+  if (data.category    !== undefined) props["카테고리"] = { select:      { name: data.category } };
+  if (data.os          !== undefined) props["OS"]      = { multi_select: data.os.map(o => ({ name: o })) };
+  if (data.visible     !== undefined) props["공개여부"] = { checkbox:    data.visible };
+  if (data.order       !== undefined) props["순서"]    = { number:      data.order };
+  await notion.pages.update({ page_id: id, properties: props as Parameters<typeof notion.pages.update>[0]["properties"] });
+}
+
+export async function archiveSwVersion(id: string): Promise<void> {
+  await notion.pages.update({ page_id: id, archived: true });
+}
+
+export async function createSwDoc(
+  data: Omit<SwDoc, "id">,
+  opts?: { fileUploadId?: string; externalFileUrl?: string; externalFileName?: string }
+): Promise<string> {
+  const dbId = process.env.NOTION_DB_SW_DOCS;
+  if (!dbId) throw new Error("NOTION_DB_SW_DOCS not set");
+  const props: Record<string, unknown> = {
+    "파일명":    { title:     [{ text: { content: data.name } }] },
+    "텍스트":    { rich_text: [{ text: { content: data.description } }] },
+    "공개 여부": { checkbox:  data.visible },
+    "순서":     { number:    data.order },
+  };
+  if (data.type)      props["선택"]    = { select:   { name: data.type } };
+  if (data.versionId) props["SW 버전"] = { relation: [{ id: data.versionId }] };
+  if (opts?.fileUploadId) {
+    props["파일과 미디어"] = { files: [{ type: "file_upload", file_upload: { id: opts.fileUploadId } }] };
+  } else if (opts?.externalFileUrl) {
+    props["파일과 미디어"] = { files: [{ type: "external", name: opts.externalFileName || data.name, external: { url: opts.externalFileUrl } }] };
+  }
+  const res = await notion.pages.create({ parent: { database_id: dbId }, properties: props as Parameters<typeof notion.pages.create>[0]["properties"] });
+  return res.id;
+}
+
+export async function updateSwDoc(
+  id: string,
+  data: Partial<Omit<SwDoc, "id">>,
+  opts?: { fileUploadId?: string; externalFileUrl?: string; externalFileName?: string; clearFile?: boolean }
+): Promise<void> {
+  const props: Record<string, unknown> = {};
+  if (data.name        !== undefined) props["파일명"]    = { title:     [{ text: { content: data.name } }] };
+  if (data.type        !== undefined) props["선택"]     = { select:    { name: data.type } };
+  if (data.description !== undefined) props["텍스트"]   = { rich_text: [{ text: { content: data.description } }] };
+  if (data.visible     !== undefined) props["공개 여부"] = { checkbox:  data.visible };
+  if (data.order       !== undefined) props["순서"]     = { number:    data.order };
+  if (opts?.fileUploadId) {
+    props["파일과 미디어"] = { files: [{ type: "file_upload", file_upload: { id: opts.fileUploadId } }] };
+  } else if (opts?.externalFileUrl) {
+    props["파일과 미디어"] = { files: [{ type: "external", name: opts.externalFileName || data.name || "file", external: { url: opts.externalFileUrl } }] };
+  } else if (opts?.clearFile) {
+    props["파일과 미디어"] = { files: [] };
+  }
+  await notion.pages.update({ page_id: id, properties: props as Parameters<typeof notion.pages.update>[0]["properties"] });
+}
+
+export async function archiveSwDoc(id: string): Promise<void> {
+  await notion.pages.update({ page_id: id, archived: true });
+}
+
+export async function fetchSwFiles(): Promise<SwFile[]> {
+  if (isMock()) return mockSwFiles as SwFile[];
+  const dbId = process.env.NOTION_DB_SW_FILES;
+  if (!dbId) throw new Error("NOTION_DB_SW_FILES 환경변수가 설정되지 않았습니다.");
+
+  const pages = await queryAllPages(
+    dbId,
+    { property: "공개 여부", checkbox: { equals: true } },
+    [{ property: "SW명", direction: "ascending" }]
+  );
+
+  return pages.map((page) => {
+    const p = page.properties;
+    return {
+      id: page.id,
+      name: getPropText(p, "SW명"),
+      category: getPropSelect(p, "카테고리"),
+      version: getPropText(p, "버전"),
+      description: getPropText(p, "설명"),
+      downloadUrl: getPropText(p, "다운로드 URL"),
+      fileSize: getPropText(p, "파일 크기"),
+      os: getPropMultiSelect(p, "OS"),
+      visible: getPropCheckbox(p, "공개 여부"),
+      updatedAt: getPropDate(p, "수정일") || page.last_edited_time.slice(0, 10),
+    };
   });
 }

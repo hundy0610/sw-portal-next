@@ -1,0 +1,29 @@
+name: Seed Portal Data (SW검색/자료실/교육센터)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "기존 데이터를 덮어씁니다. 계속하려면 'yes' 입력"
+        required: true
+        default: "yes"
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Seed portal data (SW검색/자료실/교육센터)
+        env:
+          UPSTASH_REDIS_REST_URL:   ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+        run: node .github/scripts/seed-portal.mjs

@@ -1261,6 +1261,7 @@ type Tab = "overview" | "type" | "company" | "list" | "status_list" | "report" |
 export default function HelpDeskPanel({ company: companyFilter = "" }: { company?: string }) {
   const [tickets,    setTickets]    = useState<HelpDeskTicket[]>([]);
   const [loading,    setLoading]    = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error,      setError]      = useState<string | null>(null);
   const [missingEnv, setMissingEnv] = useState<string | null>(null);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
@@ -1338,11 +1339,12 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
 
   const load = useCallback((force = false) => {
     if (!force) { setLoading(true); setError(null); }
+    if (force) setRefreshing(true);
     fetch(`/api/helpdesk${force ? "?refresh=1" : ""}`)
       .then(r => r.json())
       .then(res => {
         if (res.missingEnv) { setMissingEnv(res.missingEnv); return; }
-        if (res.error) { setError(res.error); return; }
+        if (res.error) { if (!force) setError(res.error); return; }
         const newTickets: HelpDeskTicket[] = res.data ?? [];
 
         // 첫 로드가 아닐 때만 상태 변화 감지 → 자동 이메일
@@ -1366,7 +1368,7 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
         setLastSynced(res.lastSynced ?? null);
       })
       .catch(e => { if (!force) setError(e.message); })
-      .finally(() => { if (!force) setLoading(false); });
+      .finally(() => { if (!force) setLoading(false); else setRefreshing(false); });
   }, [autoSendEmail]);
 
   // 초기 로드
@@ -1466,12 +1468,6 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
     return [...m.entries()].sort((a, b) => b[1] - a[1]);
   }, [displayTickets]);
 
-  const byUrgency = useMemo(() => {
-    const order = ["매우 급합니다", "조금 급합니다", "기다릴 수 있어요"];
-    const m = new Map<string, number>();
-    displayTickets.forEach(t => { if (t.urgency) m.set(t.urgency, (m.get(t.urgency) ?? 0) + 1); });
-    return order.filter(u => m.has(u)).map(u => [u, m.get(u)!] as [string, number]);
-  }, [displayTickets]);
 
   const monthlyTotal = useMemo(() =>
     months.map(m => ({ month: m, count: displayTickets.filter(t => (t.submittedAt || "").startsWith(m)).length })),
@@ -1589,9 +1585,10 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
             )}
           </p>
         </div>
-        <button onClick={() => load(true)}
-          className="text-xs font-medium px-3 py-1.5 rounded border bg-white text-gray-600 border-gray-300 hover:border-gray-400 flex items-center gap-1 transition-colors">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <button onClick={() => load(true)} disabled={refreshing}
+          className="text-xs font-medium px-3 py-1.5 rounded border bg-white text-gray-600 border-gray-300 hover:border-gray-400 flex items-center gap-1 transition-colors disabled:opacity-50">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            className={refreshing ? "animate-spin" : ""}>
             <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
           </svg>
           새로고침
@@ -1723,13 +1720,31 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
 
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-white border border-gray-200 rounded-xl p-5">
-              <h3 className="text-sm font-bold text-gray-800 mb-4">긴급도 분포</h3>
-              <div className="space-y-3">
-                {byUrgency.map(([urgency, count]) => (
-                  <HBar key={urgency} label={urgency} count={count} total={total}
-                    color={URGENCY[urgency]?.bar ?? "#94A3B8"} />
-                ))}
-                {byUrgency.length === 0 && <p className="text-xs text-gray-300 text-center py-4">데이터 없음</p>}
+              <h3 className="text-sm font-bold text-gray-800 mb-4">
+                미완료된 건
+                <span className="text-xs font-normal text-gray-400 ml-1">최신 5건</span>
+              </h3>
+              <div className="space-y-1">
+                {displayTickets
+                  .filter(t => t.status !== "완료")
+                  .sort((a, b) => (b.submittedAt || "").localeCompare(a.submittedAt || ""))
+                  .slice(0, 5)
+                  .map(t => (
+                    <div key={t.id} className="flex items-start gap-2 py-2 border-b border-gray-50 last:border-0">
+                      <StatusBadge status={t.status} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-gray-800 truncate">
+                          {t.content || t.title || "(내용 없음)"}
+                        </p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">
+                          {[t.company, t.requester, t.submittedAt?.slice(0, 10)].filter(Boolean).join(" · ")}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                {displayTickets.filter(t => t.status !== "완료").length === 0 && (
+                  <p className="text-xs text-gray-300 text-center py-4">미완료 건 없음</p>
+                )}
               </div>
             </div>
 
@@ -2091,9 +2106,10 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
               </button>
             )}
             <span className="text-xs text-gray-400 ml-auto">{filteredList.length}건</span>
-            <button onClick={() => load(true)}
-              className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:text-gray-800 transition-colors">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <button onClick={() => load(true)} disabled={refreshing}
+              className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:text-gray-800 transition-colors disabled:opacity-50">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                className={refreshing ? "animate-spin" : ""}>
                 <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
               </svg>
               새로고침
@@ -2269,16 +2285,21 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
             const mRatings = myRated
               .filter(t => (t.lastEditedAt || "").startsWith(m))
               .map(t => feedbacks[t.id].rating);
+            const mDoneCount = myDone
+              .filter(t => (t.lastEditedAt || "").startsWith(m))
+              .length;
             return {
               month: m,
               avg: mRatings.length > 0
                 ? (mRatings.reduce((s, r) => s + r, 0) / mRatings.length)
                 : null,
               count: mRatings.length,
+              doneCount: mDoneCount,
             };
           });
 
-          return { name, totalAvg, yearAvg, monthlyAvg, totalCount: ratings.length, allCount, doneCount, completionRate, avgDays };
+          const yearDoneCount = myDone.filter(t => new Date(t.lastEditedAt).getFullYear() === thisYear).length;
+          return { name, totalAvg, yearAvg, monthlyAvg, totalCount: ratings.length, yearCount: yearRatings.length, yearDoneCount, allCount, doneCount, completionRate, avgDays };
         }).sort((a, b) => b.allCount - a.allCount);
 
         const fmtAvg = (v: number | null) =>
@@ -2422,7 +2443,7 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
                     </tr>
                   </thead>
                   <tbody>
-                    {assigneeStats.map(({ name, monthlyAvg, yearAvg, totalAvg }) => (
+                    {assigneeStats.map(({ name, monthlyAvg, yearAvg, totalAvg, yearCount, yearDoneCount, totalCount, doneCount }) => (
                       <tr key={name} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                         <td className="py-3 pr-6 font-semibold text-gray-700 whitespace-nowrap flex items-center gap-2">
                           <span className="w-6 h-6 rounded-full bg-violet-100 inline-flex items-center justify-center text-[10px] font-bold text-violet-600 flex-shrink-0">
@@ -2430,27 +2451,36 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
                           </span>
                           {name}
                         </td>
-                        {monthlyAvg.map(({ month, avg, count }) => (
+                        {monthlyAvg.map(({ month, avg, count, doneCount: mDone }) => (
                           <td key={month} className="text-center py-3 px-4">
-                            {avg !== null ? (
+                            {avg !== null || mDone > 0 ? (
                               <div className="flex flex-col items-center gap-0.5">
                                 <span className="font-bold text-[13px]" style={{ color: ratingColor(avg) }}>
-                                  {avg.toFixed(1)}
+                                  {avg !== null ? avg.toFixed(1) : "—"}
                                 </span>
-                                <span className="text-[9px] text-gray-300">{count}건</span>
+                                <span className="text-[9px] text-gray-400">{mDone}건 / 응답 {count}건</span>
+                                <span className="text-[9px] text-gray-400">응답률 {mDone > 0 ? Math.round((count / mDone) * 100) : 0}%</span>
                               </div>
                             ) : <span className="text-gray-200">—</span>}
                           </td>
                         ))}
                         <td className="text-center py-3 px-4">
-                          <span className="font-bold text-[13px]" style={{ color: ratingColor(yearAvg) }}>
-                            {fmtAvg(yearAvg)}
-                          </span>
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className="font-bold text-[13px]" style={{ color: ratingColor(yearAvg) }}>
+                              {fmtAvg(yearAvg)}
+                            </span>
+                            <span className="text-[9px] text-gray-400">{yearDoneCount}건 / 응답 {yearCount}건</span>
+                            <span className="text-[9px] text-gray-400">응답률 {yearDoneCount > 0 ? Math.round((yearCount / yearDoneCount) * 100) : 0}%</span>
+                          </div>
                         </td>
                         <td className="text-center py-3 px-4">
-                          <span className="font-extrabold text-[14px]" style={{ color: ratingColor(totalAvg) }}>
-                            {fmtAvg(totalAvg)}
-                          </span>
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className="font-extrabold text-[14px]" style={{ color: ratingColor(totalAvg) }}>
+                              {fmtAvg(totalAvg)}
+                            </span>
+                            <span className="text-[9px] text-gray-400">{doneCount}건 / 응답 {totalCount}건</span>
+                            <span className="text-[9px] text-gray-400">응답률 {doneCount > 0 ? Math.round((totalCount / doneCount) * 100) : 0}%</span>
+                          </div>
                         </td>
                       </tr>
                     ))}

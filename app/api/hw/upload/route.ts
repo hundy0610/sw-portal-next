@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
+import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
+import { computeHwStats, type HwRecord } from "@/lib/hw";
+import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
@@ -41,6 +44,64 @@ function toIsoDate(val: string | number | undefined): string | null {
   const m2 = s.match(/^(\d{4})\.(\d{1,2})\.(\d{1,2})/);
   if (m2) return `${m2[1]}-${m2[2].padStart(2,"0")}-${m2[3].padStart(2,"0")}`;
   return null;
+}
+
+// Notion PageObjectResponse → HwRecord 변환 (lib/hw.ts mapPage와 동일 로직)
+function pageToHwRecord(page: PageObjectResponse): HwRecord {
+  type Props = PageObjectResponse["properties"];
+  const p: Props = page.properties;
+
+  const txt = (k: string) => {
+    const v = p[k];
+    if (!v) return "";
+    if (v.type === "title")     return v.title.map((t: { plain_text: string }) => t.plain_text).join("");
+    if (v.type === "rich_text") return v.rich_text.map((t: { plain_text: string }) => t.plain_text).join("");
+    return "";
+  };
+  const sel = (k: string) => {
+    const v = p[k];
+    if (!v) return "";
+    if (v.type === "select") return v.select?.name || "";
+    if (v.type === "status") return v.status?.name || "";
+    return "";
+  };
+  const dt = (k: string) => {
+    const v = p[k];
+    if (!v || v.type !== "date") return "";
+    return v.date?.start || "";
+  };
+  const num = (k: string) => {
+    const v = p[k];
+    if (!v) return 0;
+    if (v.type === "number") return v.number ?? 0;
+    return 0;
+  };
+
+  return {
+    id:            page.id,
+    notionUrl:     page.url,
+    user:          txt("사용자"),
+    assetNo:       txt("자산번호"),
+    model:         txt("모델명"),
+    serial:        txt("시리얼 넘버"),
+    maker:         sel("제조사"),
+    cpu:           txt("CPU"),
+    ram:           txt("RAM"),
+    company:       sel("법인명"),
+    dept:          txt("부서"),
+    location:      txt("위치"),
+    status:        sel("사용/재고/폐기/기타"),
+    returnDue:     dt("반납예정일"),
+    returnDate:    dt("반납일자"),
+    purchaseDate:  dt("구매일자"),
+    useDate:       dt("사용일자"),
+    price:         num("단가"),
+    residualValue: num("잔존가치"),
+    note:          txt("기타"),
+    docNo:         txt("결재문서번호"),
+    verified:   p["실사확인"]?.type === "checkbox" ? p["실사확인"].checkbox : false,
+    duplicated: p["중복"]?.type     === "checkbox" ? p["중복"].checkbox    : false,
+  };
 }
 
 async function createHwPage(row: ExcelRow) {
@@ -125,13 +186,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "한 번에 최대 100개까지 등록할 수 있습니다." }, { status: 400 });
     }
 
-    const results: { index: number; user: string; assetNo: string; ok: boolean; error?: string }[] = [];
+    const results: { index: number; user: string; assetNo: string; ok: boolean; error?: string; page?: PageObjectResponse }[] = [];
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       try {
-        await createHwPage(row);
-        results.push({ index: i, user: row.user, assetNo: row.assetNo, ok: true });
+        const page = await createHwPage(row) as PageObjectResponse;
+        results.push({ index: i, user: row.user, assetNo: row.assetNo, ok: true, page });
       } catch (e) {
         results.push({ index: i, user: row.user, assetNo: row.assetNo, ok: false, error: String(e) });
       }
@@ -142,7 +203,31 @@ export async function POST(req: NextRequest) {
     const success = results.filter(r => r.ok).length;
     const failed  = results.filter(r => !r.ok).length;
 
-    return NextResponse.json({ ok: true, success, failed, results });
+    // KV 캐시에 새 레코드 추가 (삭제하지 않고 append)
+    if (success > 0) {
+      try {
+        const newRecords = results
+          .filter(r => r.ok && r.page)
+          .map(r => pageToHwRecord(r.page!));
+
+        const existing = await kvGet<HwRecord[]>("hw:all");
+        if (existing) {
+          // 새 레코드를 앞에 추가 (구매일자 내림차순 — 최신이 앞)
+          const merged = [...newRecords, ...existing];
+          const stats  = computeHwStats(merged);
+          await Promise.all([
+            kvSetPermanent("hw:all",   merged),
+            kvSetPermanent("hw:stats", stats),
+          ]);
+        }
+        // KV 미스 시 — 다음 warm-hw.yml 실행 때 자연히 반영
+      } catch (e) {
+        // KV 패치 실패는 치명적이지 않음 (warm-hw.yml 2시간마다 갱신)
+        console.warn("[hw/upload] KV patch failed:", e);
+      }
+    }
+
+    return NextResponse.json({ ok: true, success, failed, results: results.map(({ page: _p, ...r }) => r) });
   } catch (e) {
     console.error("[API /hw/upload]", e);
     return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });

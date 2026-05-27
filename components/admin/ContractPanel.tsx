@@ -783,15 +783,21 @@ export default function ContractPanel() {
                   <label className="block text-xs font-semibold text-gray-600 mb-1">
                     계약 시작일 <span className="text-red-500">*</span>
                   </label>
-                  <input type="date" className="form-input"
-                    value={form.startDate} onChange={field("startDate")} />
+                  <div className="flex items-center gap-1">
+                    <input type="date" className="form-input flex-1"
+                      value={form.startDate} onChange={field("startDate")} />
+                    {form.startDate && <button type="button" onClick={() => setForm(prev => ({ ...prev, startDate: "" }))} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">
                     계약 종료일 <span className="text-red-500">*</span>
                   </label>
-                  <input type="date" className="form-input"
-                    value={form.endDate} onChange={field("endDate")} />
+                  <div className="flex items-center gap-1">
+                    <input type="date" className="form-input flex-1"
+                      value={form.endDate} onChange={field("endDate")} />
+                    {form.endDate && <button type="button" onClick={() => setForm(prev => ({ ...prev, endDate: "" }))} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
+                  </div>
                 </div>
               </div>
 

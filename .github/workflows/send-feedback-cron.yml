@@ -2,8 +2,9 @@ name: Send Feedback Emails (Cron)
 
 on:
   schedule:
-    # 5분마다 실행 (UTC 기준)
-    - cron: '*/5 * * * *'
+    # 30분마다 실행 — Notion 웹훅이 주 트리거, 크론은 안전망
+    # 월 사용량: 1,440회 × ~30s ≈ 720분/월
+    - cron: '*/30 * * * *'
   workflow_dispatch:  # 수동 실행 가능
 
 jobs:

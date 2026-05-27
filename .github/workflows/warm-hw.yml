@@ -1,0 +1,29 @@
+name: HW Cache Warming (Direct Notion → Upstash)
+
+on:
+  schedule:
+    # 30분마다 실행 — Notion 직접 수정도 30분 내 반영
+    # 월 사용량: 1,440회 × ~1분 ≈ 1,440분/월 (무료 2,000분 내)
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+jobs:
+  warm-hw:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Warm HW cache (Notion → Upstash 직접)
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+        run: node .github/scripts/warm-hw.mjs

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
-import { kvDel } from "@/lib/kv-store";
+import { computeHwStats, type HwRecord } from "@/lib/hw";
+import { kvGet, kvSet, kvSetPermanent } from "@/lib/kv-store";
 import { memDel } from "@/lib/mem-cache";
 import { autoCompleteReturnsByAssetId } from "@/lib/exchange-return";
 
@@ -49,25 +50,51 @@ function buildProperties(fields: FieldMap) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, fields } = body as { id: string; fields: FieldMap };
+    const { id, fields: rawFields } = body as { id: string; fields: FieldMap };
 
     if (!id || typeof id !== "string") {
       return NextResponse.json({ ok: false, error: "id 필수" }, { status: 400 });
     }
-    if (!fields || typeof fields !== "object") {
+    if (!rawFields || typeof rawFields !== "object") {
       return NextResponse.json({ ok: false, error: "fields 필수" }, { status: 400 });
     }
+
+    // 재고 상태로 변경 시 반납예정일 자동 초기화
+    const fields: FieldMap = rawFields.status === "재고" && rawFields.returnDue === undefined
+      ? { ...rawFields, returnDue: "" }
+      : rawFields;
 
     const properties = buildProperties(fields);
     if (Object.keys(properties).length === 0) {
       return NextResponse.json({ ok: false, error: "업데이트할 필드 없음" }, { status: 400 });
     }
 
-    // Notion 페이지 업데이트
-    await notion.pages.update({ page_id: id, properties: properties as Parameters<typeof notion.pages.update>[0]["properties"] });
+    // Notion 페이지 업데이트 + KV 패치를 병렬 시작
+    const notionPromise = notion.pages.update({
+      page_id: id,
+      properties: properties as Parameters<typeof notion.pages.update>[0]["properties"],
+    });
 
-    // KV 캐시 무효화 (다음 조회 시 Notion에서 새로 fetch)
-    await kvDel("hw:all", "hw:stats");
+    // KV 캐시 in-place 패치 (삭제하지 않고 해당 레코드만 수정)
+    const kvPatchPromise = (async () => {
+      const all = await kvGet<HwRecord[]>("hw:all");
+      if (!all) return; // KV 미스 — warm 시 자연히 반영됨
+      const updated = all.map(r => r.id === id ? { ...r, ...fields } : r);
+      const stats   = computeHwStats(updated);
+      await Promise.all([
+        kvSetPermanent("hw:all",   updated),
+        kvSetPermanent("hw:stats", stats),
+      ]);
+      // 인메모리 캐시 무효화 (KV는 이미 최신)
+    })();
+
+    // hw:deltas 맵 업데이트 — hw:all 패치 성패와 무관하게 최신값 보장 (TTL 1시간)
+    const deltaPromise = (async () => {
+      const existing = await kvGet<Record<string, FieldMap>>("hw:deltas") ?? {};
+      await kvSet("hw:deltas", { ...existing, [id]: fields }, 3600);
+    })();
+
+    await Promise.all([notionPromise, kvPatchPromise, deltaPromise]);
 
     // 상태가 "재고"로 변경된 경우 — 반납요청 단계의 자산 흐름 레코드 자동 완료 처리
     if (fields.status === "재고" && process.env.NOTION_DB_EXCHANGE_RETURN) {

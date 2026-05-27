@@ -1,5 +1,6 @@
 import { Client } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
+import { isMock, mockHwRecords } from "./mock";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
@@ -155,7 +156,73 @@ async function queryWithRetry(params: Parameters<typeof notion.databases.query>[
   throw new Error("Notion query failed after retries");
 }
 
+/**
+ * 특정 상태/조건으로 필터링된 레코드만 Notion에서 직접 조회.
+ * 출고 현황 / 반납 대상자 탭처럼 결과가 적을 때 전체 데이터 대신 사용.
+ * (1~3회 Notion 호출, 300-900ms — Vercel 10초 타임아웃 내 안전)
+ */
+export async function fetchHwFiltered({
+  statuses = [],
+  returnDue = false,
+  company = "",
+}: {
+  statuses?: string[];   // OR 조건 (예: ["출고준비중","출고준비완료"])
+  returnDue?: boolean;   // 반납예정일이 있는 레코드만
+  company?: string;
+}): Promise<HwRecord[]> {
+  if (isMock()) {
+    return mockHwRecords.filter(r =>
+      (statuses.length === 0 || statuses.includes(r.status)) &&
+      (!returnDue || !!r.returnDue) &&
+      (!company || r.company === company)
+    ) as HwRecord[];
+  }
+  const andFilters: object[] = [];
+
+  if (statuses.length === 1) {
+    andFilters.push({ property: "사용/재고/폐기/기타", status: { equals: statuses[0] } });
+  } else if (statuses.length > 1) {
+    andFilters.push({ or: statuses.map(s => ({ property: "사용/재고/폐기/기타", status: { equals: s } })) });
+  }
+
+  if (returnDue) {
+    andFilters.push({ property: "반납예정일", date: { is_not_empty: true } });
+  }
+
+  if (company) {
+    andFilters.push({ property: "법인명", select: { equals: company } });
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const filter: any = andFilters.length === 0 ? undefined
+    : andFilters.length === 1 ? andFilters[0]
+    : { and: andFilters };
+
+  const records: HwRecord[] = [];
+  let cursor: string | undefined;
+
+  do {
+    const res = await queryWithRetry({
+      database_id: DB_ID,
+      page_size: 100,
+      start_cursor: cursor,
+      ...(filter ? { filter } : {}),
+    });
+
+    for (const page of res.results) {
+      if (page.object === "page" && "properties" in page) {
+        records.push(mapPage(page as PageObjectResponse));
+      }
+    }
+
+    cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined;
+  } while (cursor);
+
+  return records;
+}
+
 export async function fetchAllHwRecords(): Promise<HwRecord[]> {
+  if (isMock()) return mockHwRecords as HwRecord[];
   const records: HwRecord[] = [];
   let cursor: string | undefined;
 

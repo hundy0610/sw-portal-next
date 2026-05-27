@@ -166,6 +166,7 @@ export interface HwRepairRecord {
   assignee: string;        // 담당자 이름 (people)
   assigneeId: string;      // 담당자 Notion user ID
   note: string;            // 수리내용 (rich_text)
+  isClosed: boolean;       // 케이스 종료 여부 (checkbox)
   lastEditedAt: string;    // 최종 편집 일시 (last_edited_time)
   notionUrl: string;
 }
@@ -185,6 +186,7 @@ export interface ExchangeReturnRecord {
   user: string;
   stage: string;
   requestedAt: string;
+  useDate: string;
   returnDue: string;       // 반납예정일 (사용자수령일 + 7일 자동 또는 HW DB 값)
   completedAt: string;
   reason: string;

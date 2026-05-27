@@ -22,8 +22,9 @@ export async function POST(req: NextRequest) {
     }
 
     // 같은 자산번호의 미완료 교체/퇴사반납 이력이 이미 있으면 중복 등록 방지
+    // 신규지급은 assetId가 항상 "" 이므로 newAssetId로 비교
     const cached = memGet<ExchangeReturnRecord[]>("exchange-return:all");
-    if (cached) {
+    if (cached && body.type !== "신규지급") {
       const dup = cached.find(r =>
         r.type === body.type &&
         r.assetId === body.assetId.trim() &&

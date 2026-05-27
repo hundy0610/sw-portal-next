@@ -424,8 +424,11 @@ function AssetPickerModal({
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-xs text-gray-500 font-medium">사용일자</label>
-              <input type="date" value={useDate} onChange={e => setUseDate(e.target.value)}
-                className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full" />
+              <div className="flex items-center gap-1">
+                <input type="date" value={useDate} onChange={e => setUseDate(e.target.value)}
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 flex-1" />
+                {useDate && <button type="button" onClick={() => setUseDate("")} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
+              </div>
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-xs text-gray-500 font-medium">메모</label>
@@ -543,7 +546,6 @@ function ReceiptConfirmModal({
       );
 
       await Promise.all(updates);
-      fetch("/api/hw/cache-clear", { method: "POST" });
       onConfirmed(isNewIssue ? "" : returnDue);
     } catch (e) {
       setError(String(e));
@@ -578,8 +580,11 @@ function ReceiptConfirmModal({
           {!isNewIssue && (
             <div>
               <label className="text-xs text-gray-500 font-medium block mb-1.5">반납예정일 (수령 후 7일 기본값)</label>
-              <input type="date" value={returnDue} onChange={e => setReturnDue(e.target.value)}
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-200" />
+              <div className="flex items-center gap-1">
+                <input type="date" value={returnDue} onChange={e => setReturnDue(e.target.value)}
+                  className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-200" />
+                {returnDue && <button type="button" onClick={() => setReturnDue("")} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
+              </div>
             </div>
           )}
 
@@ -643,7 +648,6 @@ function ReturnCompleteModal({
       );
 
       await Promise.all(updates);
-      fetch("/api/hw/cache-clear", { method: "POST" });
       onConfirmed();
     } catch (e) {
       setError(String(e));
@@ -684,6 +688,248 @@ function ReturnCompleteModal({
             {saving ? "처리 중…" : "반납 완료 확정"}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 반납 등록 모달 ───────────────────────────────────────────
+const RETURN_STATUSES = ["재고", "수리", "3층문서고/매각", "지하창고/매각"] as const;
+type ReturnStatus = typeof RETURN_STATUSES[number];
+
+function ReturnRegModal({
+  records,
+  onClose,
+  onUpdated,
+}: {
+  records: ExchangeReturnRecord[];
+  onClose: () => void;
+  onUpdated: (id: string, fields: Partial<ExchangeReturnRecord>) => void;
+}) {
+  const [step, setStep] = useState<"search" | "confirm">("search");
+  const [assetInput, setAssetInput] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchResult, setSearchResult] = useState<{
+    matchedRecord: ExchangeReturnRecord | null;
+    hwPageId: string | null;
+    hwAssetNo: string | null;
+  } | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<ReturnStatus>("재고");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSearch = async () => {
+    const q = assetInput.trim();
+    if (!q) return;
+    setSearching(true);
+    setError(null);
+    setSearchResult(null);
+    try {
+      const matchedRecord = records.find(r =>
+        r.stage === "반납요청" && (r.assetId === q || r.newAssetId === q)
+      ) ?? null;
+
+      const res = await fetch(`/api/hw?search=${encodeURIComponent(q)}`).then(r => r.json());
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const hwRecs: any[] = res.records ?? [];
+      const found = hwRecs.find(r => r.assetNo === q) ?? (hwRecs.length === 1 ? hwRecs[0] : null);
+
+      setSearchResult({
+        matchedRecord,
+        hwPageId: found?.id ?? null,
+        hwAssetNo: found?.assetNo ?? null,
+      });
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleExecute = async () => {
+    if (!searchResult) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const updates: Promise<unknown>[] = [];
+
+      if (searchResult.matchedRecord) {
+        updates.push(
+          fetch("/api/exchange-return/update", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id: searchResult.matchedRecord.id,
+              fields: { stage: "반납완료", completedAt: today },
+            }),
+          })
+        );
+      }
+
+      if (searchResult.hwPageId) {
+        updates.push(
+          fetch("/api/hw/update", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: searchResult.hwPageId, fields: { status: selectedStatus } }),
+          })
+        );
+      }
+
+      if (selectedStatus === "수리") {
+        const rec = searchResult.matchedRecord;
+        updates.push(
+          fetch("/api/hw-repair/create", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              assetId: assetInput.trim(),
+              stage: "수리접수",
+              faultType: "과실없음",
+              receivedAt: today,
+              ...(rec?.company    && { company:    rec.company }),
+              ...(rec?.department && { department: rec.department }),
+              ...(rec?.user       && { user:        rec.user }),
+            }),
+          })
+        );
+      }
+
+      await Promise.all(updates);
+
+      if (searchResult.matchedRecord) {
+        onUpdated(searchResult.matchedRecord.id, { stage: "반납완료", completedAt: today });
+      }
+      onClose();
+    } catch (e) {
+      setError(String(e));
+      setSaving(false);
+    }
+  };
+
+  const canProceed = searchResult !== null && (searchResult.matchedRecord !== null || searchResult.hwPageId !== null);
+  const assetNo = searchResult?.hwAssetNo ?? assetInput.trim();
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="font-bold text-gray-900 text-base">반납 등록</h3>
+          <button onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 text-2xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">×</button>
+        </div>
+
+        {/* ── Step 1: 자산번호 검색 + 상태 선택 ── */}
+        {step === "search" && (
+          <>
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <label className="text-xs text-gray-500 font-medium block mb-1.5">자산번호</label>
+                <div className="flex gap-2">
+                  <input
+                    className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    placeholder="자산번호 입력"
+                    value={assetInput}
+                    onChange={e => { setAssetInput(e.target.value); setSearchResult(null); }}
+                    onKeyDown={e => { if (e.key === "Enter") handleSearch(); }}
+                  />
+                  <button onClick={handleSearch} disabled={searching || !assetInput.trim()}
+                    className="text-sm px-4 py-2 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40">
+                    {searching ? "검색 중…" : "검색"}
+                  </button>
+                </div>
+              </div>
+
+              {searchResult !== null && (
+                <>
+                  {searchResult.matchedRecord ? (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 space-y-1">
+                      <p className="text-xs font-semibold text-yellow-800">반납요청 케이스 발견</p>
+                      <p className="text-xs text-yellow-700">
+                        {searchResult.matchedRecord.company} · {searchResult.matchedRecord.department} · {searchResult.matchedRecord.user}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+                      <p className="text-xs text-blue-700">
+                        {searchResult.hwPageId
+                          ? `HW DB에서 발견됨 (${assetNo}) — 상태만 변경합니다.`
+                          : "반납요청 및 HW DB 모두에서 찾을 수 없습니다."}
+                      </p>
+                    </div>
+                  )}
+
+                  {searchResult.hwPageId && (
+                    <div>
+                      <label className="text-xs text-gray-500 font-medium block mb-2">변경할 자산 상태</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {RETURN_STATUSES.map(s => (
+                          <button key={s} onClick={() => setSelectedStatus(s)}
+                            className={`text-sm py-2 px-3 rounded-lg border font-medium transition-colors ${
+                              selectedStatus === s
+                                ? "bg-gray-900 text-white border-gray-900"
+                                : "bg-white text-gray-700 border-gray-200 hover:border-gray-400"
+                            }`}>
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {error && <p className="text-xs text-red-600">⚠️ {error}</p>}
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={onClose}
+                className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">취소</button>
+              <button onClick={() => setStep("confirm")} disabled={!canProceed}
+                className="text-sm px-5 py-2 rounded-lg bg-gray-900 text-white font-medium hover:bg-gray-700 disabled:opacity-40">
+                다음
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ── Step 2: 변경사항 확인 ── */}
+        {step === "confirm" && searchResult && (
+          <>
+            <div className="px-6 py-5 space-y-4">
+              <div className="bg-green-50 rounded-xl p-4 space-y-2">
+                <p className="font-semibold text-green-800 text-sm">반납 처리 시 자동 적용 사항</p>
+                <ul className="space-y-1 list-disc list-inside text-xs text-green-700">
+                  {searchResult.hwPageId && (
+                    <li>자산 <strong className="font-mono">{assetNo}</strong> → HW DB 상태: <strong>{selectedStatus}</strong></li>
+                  )}
+                  {searchResult.matchedRecord && (
+                    <li>트래커 단계 → <strong>반납완료</strong></li>
+                  )}
+                  {searchResult.matchedRecord && (
+                    <li>완료일 → <strong>오늘 날짜</strong> 자동 입력</li>
+                  )}
+                  {selectedStatus === "수리" && (
+                    <li>수리/과실청구 트래커 → <strong>수리접수</strong> · <strong>과실없음</strong>으로 자동 등록</li>
+                  )}
+                </ul>
+              </div>
+              {error && <p className="text-xs text-red-600">⚠️ {error}</p>}
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => { setStep("search"); setError(null); }} disabled={saving}
+                className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">이전</button>
+              <button onClick={handleExecute} disabled={saving}
+                className="text-sm px-5 py-2 rounded-lg bg-green-700 text-white font-medium hover:bg-green-800 disabled:opacity-40">
+                {saving ? "처리 중…" : "반납 확정"}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -867,9 +1113,11 @@ function DetailModal({
   const [department, setDepartment] = useState(record.department ?? "");
   const [user, setUser] = useState(record.user ?? "");
   const [newAssetId, setNewAssetId] = useState(record.newAssetId ?? "");
+  const [useDate, setUseDate] = useState(record.useDate ?? "");
   const [returnDue, setReturnDue] = useState(record.returnDue ?? "");
   const [reason, setReason] = useState(record.reason ?? "");
   const [note, setNote] = useState(record.note ?? "");
+  const [composingNote, setComposingNote] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<Record<string, boolean>>({});
   const [showAssetPicker, setShowAssetPicker] = useState(false);
@@ -1008,7 +1256,15 @@ function DetailModal({
             </button>
           </SaveRow>
 
-          <Row label="신청일">{fmtDateKo(record.requestedAt)}</Row>
+          <SaveRow label="사용일자" field="useDate">
+            <div className="flex items-center gap-1">
+              <input type="date" value={useDate} onChange={e => setUseDate(e.target.value)} className={`${selectCls} flex-1`} />
+              {useDate && <button type="button" onClick={() => setUseDate("")} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
+            </div>
+            <button onClick={() => save("useDate", { useDate: useDate || null })} disabled={saving === "useDate" || useDate === record.useDate} className={saveBtnCls("useDate", useDate, record.useDate ?? "")}>
+              {saving === "useDate" ? "저장 중…" : "저장"}
+            </button>
+          </SaveRow>
 
           {(record.type === "교체" || record.type === "신규지급") && (
             <Row label={record.type === "신규지급" ? "지급 자산번호" : "교체 자산번호"}>
@@ -1087,7 +1343,10 @@ function DetailModal({
           )}
 
           <SaveRow label="반납예정일" field="returnDue">
-            <input type="date" value={returnDue} onChange={e => setReturnDue(e.target.value)} className={selectCls} />
+            <div className="flex items-center gap-1">
+              <input type="date" value={returnDue} onChange={e => setReturnDue(e.target.value)} className={`${selectCls} flex-1`} />
+              {returnDue && <button type="button" onClick={() => setReturnDue("")} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
+            </div>
             <button onClick={() => save("returnDue", { returnDue: returnDue || null })} disabled={saving === "returnDue" || returnDue === record.returnDue} className={saveBtnCls("returnDue", returnDue, record.returnDue)}>
               {saving === "returnDue" ? "저장 중…" : "저장"}
             </button>
@@ -1103,7 +1362,11 @@ function DetailModal({
 
           <Row label="비고">
             <div className="flex flex-col gap-2">
-              <textarea value={note} onChange={e => setNote(e.target.value)} rows={3}
+              <textarea value={note}
+                onChange={e => { if (!composingNote) setNote(e.target.value); }}
+                onCompositionStart={() => setComposingNote(true)}
+                onCompositionEnd={e => { setComposingNote(false); setNote((e.target as HTMLTextAreaElement).value); }}
+                rows={3}
                 className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 resize-none"
                 placeholder="비고 입력" />
               <div className="flex items-center gap-2">
@@ -1181,7 +1444,7 @@ const EMPTY_FORM: CreateForm = {
   user: "", stage: defaultStageFor("교체"), requestedAt: "", returnDue: "", reason: "", note: "",
 };
 
-type CreatePhase = "type" | "form" | "stock" | "detail" | "info" | "confirm" | "rt_search" | "rt_list" | "rt_fields" | "ex_search" | "ex_list" | "ex_stock" | "ex_confirm";
+type CreatePhase = "type" | "form" | "stock" | "detail" | "info" | "confirm" | "rt_search" | "rt_list" | "rt_fields" | "ex_search" | "ex_list" | "ex_confirm";
 
 const TYPE_META = [
   { type: "교체",     desc: "기존 기기를 새 기기로 교체",          color: "#1D4ED8", bg: "#EFF6FF" },
@@ -1305,19 +1568,6 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       .finally(() => setNiDetailLoading(false));
   }, [niSelected]);
 
-  // 교체: 기존 자산 선택 시 해당 법인 재고 로드
-  useEffect(() => {
-    if (phase !== "ex_stock" || !exSelected) return;
-    setExStockLoading(true);
-    setExStockAssets([]);
-    fetch(`/api/hw?company=${encodeURIComponent(exCompany)}&status=재고`)
-      .then(r => r.json())
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .then((data: any) => setExStockAssets((data.records ?? []).map((r: any) => ({
-        id: r.id, assetNo: r.assetNo, model: r.model, cpu: r.cpu, ram: r.ram,
-      }))))
-      .finally(() => setExStockLoading(false));
-  }, [exSelected, phase, exCompany]);
 
   const set = (k: keyof CreateForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const v = e.target.value;
@@ -1342,7 +1592,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
         fetch(`/api/hw?search=${encodeURIComponent(assetId)}`).then(r => r.json()).then(data => {
           const records: { id: string; assetNo: string }[] = data.records ?? [];
           const found = records.find(r => r.assetNo === assetId) ?? (records.length === 1 ? records[0] : null);
-          if (found) fetch("/api/hw/update", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: found.id, fields: { status: hwStatus } }) }).then(() => fetch("/api/hw/cache-clear", { method: "POST" })).catch(console.error);
+          if (found) fetch("/api/hw/update", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: found.id, fields: { status: hwStatus } }) }).catch(console.error);
         }).catch(console.error);
       }
       onCreated(); onClose();
@@ -1388,7 +1638,21 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: niSelected.id, fields: { status: "출고준비중", user: niUser, dept: niDept, useDate: niUseDate } }),
       });
-      fetch("/api/hw/cache-clear", { method: "POST" });
+      fetch("/api/hw/dispatch-history", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify([{
+          id: crypto.randomUUID(),
+          dispatchedAt: new Date().toISOString(),
+          type: "재고",
+          assetNo: niSelected.assetNo || "",
+          model: niSelected.model || "",
+          serial: niDetail?.serial || "",
+          user: niUser || "",
+          company: niCompany || "",
+          dept: niDept || "",
+          useDate: niUseDate || "",
+        }]),
+      }).catch(console.error);
       onCreated(); onClose();
     } catch (e) { setErr(String(e)); } finally { setSaving(false); }
   };
@@ -1427,10 +1691,10 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
     } finally { setExManualLoading(false); }
   };
 
-  // 교체: 기존 자산 선택 (재고 로드는 useEffect에서)
+  // 교체: 기존 자산 선택
   const selectExAsset = (a: RtAsset) => {
     setExSelected(a);
-    setPhase("ex_stock");
+    setPhase("ex_confirm");
   };
 
   // 교체: 신규 구매로 안내
@@ -1451,38 +1715,31 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       fetch("/api/hw/update", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: exSelected.id, fields: { status: "교체요청" } }),
-      }).then(() => fetch("/api/hw/cache-clear", { method: "POST" }));
+      }).catch(console.error);
       onCreated(); onClose();
     } catch (e) { setErr(String(e)); } finally { setExNewPurchasing(false); }
   };
 
   // 교체 등록 확정
   const handleExSubmit = async () => {
-    if (!exSelected || !exNewAsset) return;
+    if (!exSelected) return;
     setSaving(true); setErr(null);
     try {
       const res = await fetch("/api/exchange-return/create", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          type: "교체", assetId: exSelected.assetNo, newAssetId: exNewAsset.assetNo,
+          type: "교체", assetId: exSelected.assetNo,
           company: exCompany, department: exSelected.dept, user: exUserName || exSelected.user,
-          stage: "기기준비", requestedAt: new Date().toISOString().slice(0, 10),
-          completedAt: exUseDate, reason: exReason || undefined, note: exNote || undefined,
+          stage: "교체요청", requestedAt: new Date().toISOString().slice(0, 10),
+          reason: exReason || undefined, note: exNote || undefined,
         }),
       });
       const json = await res.json();
       if (!json.ok) { setErr(json.error ?? "등록 실패"); return; }
-      await Promise.all([
-        fetch("/api/hw/update", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: exSelected.id, fields: { status: "교체요청" } }),
-        }),
-        fetch("/api/hw/update", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: exNewAsset.id, fields: { status: "출고준비중", user: exUserName || exSelected.user, dept: exSelected.dept, useDate: exUseDate } }),
-        }),
-      ]);
-      fetch("/api/hw/cache-clear", { method: "POST" });
+      await fetch("/api/hw/update", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: exSelected.id, fields: { status: "교체요청" } }),
+      });
       onCreated(); onClose();
     } catch (e) { setErr(String(e)); } finally { setSaving(false); }
   };
@@ -1550,7 +1807,6 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: rtSelected.id, fields: { status: "반납예정", ...(rtReturnDue ? { returnDue: rtReturnDue } : {}) } }),
       });
-      fetch("/api/hw/cache-clear", { method: "POST" });
       onCreated(); onClose();
     } catch (e) { setErr(String(e)); } finally { setSaving(false); }
   };
@@ -1570,7 +1826,6 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
     rt_fields: "퇴사 반납 — 반납 정보 입력",
     ex_search: "교체 — 사원 조회",
     ex_list: "교체 — 기존 자산 선택",
-    ex_stock: "교체 — 교체 자산 선택",
     ex_confirm: "교체 — 등록 정보 입력",
   };
 
@@ -1642,7 +1897,10 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
                 </div>
                 <div>
                   <label className={labelCls}>신청일</label>
-                  <input type="date" className={inputCls} value={form.requestedAt} onChange={set("requestedAt")} />
+                  <div className="flex items-center gap-1">
+                    <input type="date" className={`${inputCls} flex-1`} value={form.requestedAt} onChange={set("requestedAt")} />
+                    {form.requestedAt && <button type="button" onClick={() => setForm(p => ({ ...p, requestedAt: "" }))} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
+                  </div>
                 </div>
               </div>
 
@@ -1691,7 +1949,10 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
               {form.type === "퇴사반납" && (
                 <div>
                   <label className={labelCls}>반납예정일</label>
-                  <input type="date" className={inputCls} value={form.returnDue} onChange={set("returnDue")} />
+                  <div className="flex items-center gap-1">
+                    <input type="date" className={`${inputCls} flex-1`} value={form.returnDue} onChange={set("returnDue")} />
+                    {form.returnDue && <button type="button" onClick={() => setForm(p => ({ ...p, returnDue: "" }))} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
+                  </div>
                 </div>
               )}
 
@@ -1746,8 +2007,11 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-gray-500 font-medium">사용일자</label>
-                <input type="date" value={niUseDate} onChange={e => setNiUseDate(e.target.value)}
-                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-200 w-full" />
+                <div className="flex items-center gap-1">
+                  <input type="date" value={niUseDate} onChange={e => setNiUseDate(e.target.value)}
+                    className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-200 flex-1" />
+                  {niUseDate && <button type="button" onClick={() => setNiUseDate("")} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
+                </div>
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-gray-500 font-medium">신청사유</label>
@@ -2172,88 +2436,17 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
           </>
         )}
 
-        {/* ── Phase: ex_stock (교체 — 교체 자산 선택) ── */}
-        {phase === "ex_stock" && exSelected && (
-          <>
-            <div className="px-4 py-2 border-b border-gray-100 shrink-0 flex items-center gap-2 flex-wrap">
-              <span className="text-xs text-gray-400">기존 자산</span>
-              <span className="text-xs font-mono font-semibold text-gray-700">{exSelected.assetNo}</span>
-              <span className="text-xs text-gray-300 mx-1">·</span>
-              <span className="text-xs text-gray-500">{exSelected.model || "—"}</span>
-              <span className="text-xs text-gray-300 mx-1">·</span>
-              <span className="text-xs text-gray-500">{exSelected.user || "—"}</span>
-            </div>
-
-            <div className="overflow-y-auto flex-1">
-              {exStockLoading ? (
-                <div className="flex items-center justify-center py-12 gap-2 text-gray-400">
-                  <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                  </svg>
-                  <span className="text-sm">재고 목록 불러오는 중...</span>
-                </div>
-              ) : exStockAssets.length === 0 ? (
-                <p className="text-center text-gray-400 py-12 text-sm">{exCompany} 법인에 재고 자산이 없습니다.</p>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-100 bg-gray-50">
-                      <th className="text-left text-xs text-gray-400 font-medium px-4 py-2.5">자산번호</th>
-                      <th className="text-left text-xs text-gray-400 font-medium px-4 py-2.5">모델명</th>
-                      <th className="text-left text-xs text-gray-400 font-medium px-4 py-2.5">CPU</th>
-                      <th className="text-left text-xs text-gray-400 font-medium px-4 py-2.5">RAM</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {exStockAssets.map(a => (
-                      <tr key={a.id} onClick={() => { setExNewAsset(a); setPhase("ex_confirm"); }}
-                        className="border-b border-gray-50 hover:bg-blue-50 cursor-pointer transition-colors">
-                        <td className="px-4 py-2.5 font-mono text-xs text-gray-700">{a.assetNo || "—"}</td>
-                        <td className="px-4 py-2.5 text-xs text-gray-800">{a.model || "—"}</td>
-                        <td className="px-4 py-2.5 text-xs text-gray-500">{a.cpu || "—"}</td>
-                        <td className="px-4 py-2.5 text-xs text-gray-500">{a.ram || "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-
-            <div className="shrink-0 px-4 py-3 border-t border-dashed border-gray-200 bg-gray-50">
-              <button onClick={handleExNewPurchase} disabled={exNewPurchasing}
-                className="w-full text-xs text-gray-400 hover:text-amber-600 hover:bg-amber-50 border border-dashed border-gray-200 hover:border-amber-300 rounded-lg px-4 py-2.5 flex items-center justify-center gap-2 transition-colors disabled:opacity-40">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
-                  <path d="M1 1h4l2.68 13.39a2 2 0 001.99 1.61h9.72a2 2 0 001.99-1.61L23 6H6"/>
-                </svg>
-                {exNewPurchasing ? "처리 중…" : "재고 없음 · 신규 구매로 안내"}
-              </button>
-            </div>
-            <div className="shrink-0 px-6 py-3 border-t border-gray-100 flex justify-start">
-              <button onClick={() => { setExSelected(null); setPhase("ex_list"); }}
-                className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">뒤로</button>
-            </div>
-          </>
-        )}
-
         {/* ── Phase: ex_confirm (교체 — 등록 정보 입력) ── */}
-        {phase === "ex_confirm" && exSelected && exNewAsset && (
+        {phase === "ex_confirm" && exSelected && (
           <>
             <div className="px-6 py-5 flex flex-col gap-4 overflow-y-auto flex-1">
               <div className="bg-blue-50 rounded-xl p-4 space-y-2">
                 <p className="text-xs font-semibold text-blue-800">교체 정보</p>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                   <span className="text-blue-400">기존 자산</span><span className="text-blue-900 font-mono font-medium">{exSelected.assetNo}</span>
-                  <span className="text-blue-400">교체 자산</span><span className="text-blue-900 font-mono font-medium">{exNewAsset.assetNo}</span>
-                  <span className="text-blue-400">모델명</span><span className="text-blue-900 font-medium">{exNewAsset.model || "—"}</span>
+                  <span className="text-blue-400">모델명</span><span className="text-blue-900 font-medium">{exSelected.model || "—"}</span>
                   <span className="text-blue-400">사용자</span><span className="text-blue-900 font-medium">{exUserName || exSelected.user || "—"}</span>
                 </div>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs text-gray-500 font-medium">사용일자</label>
-                <input type="date" value={exUseDate} onChange={e => setExUseDate(e.target.value)}
-                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full" />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-gray-500 font-medium">신청사유</label>
@@ -2270,9 +2463,9 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
               {err && <p className="text-xs text-red-600">⚠️ {err}</p>}
             </div>
             <div className="shrink-0 px-6 py-4 border-t border-gray-100 flex gap-2 justify-between">
-              <button onClick={() => { setExNewAsset(null); setPhase("ex_stock"); }}
+              <button onClick={() => { setExSelected(null); setPhase("ex_list"); }}
                 className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">뒤로</button>
-              <button onClick={handleExSubmit} disabled={saving || !exUseDate}
+              <button onClick={handleExSubmit} disabled={saving}
                 className="text-sm px-5 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-40">
                 {saving ? "등록 중…" : "등록 확정"}
               </button>
@@ -2295,8 +2488,11 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-gray-500 font-medium">반납예정일</label>
-                <input type="date" value={rtReturnDue} onChange={e => setRtReturnDue(e.target.value)}
-                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-200 w-full" />
+                <div className="flex items-center gap-1">
+                  <input type="date" value={rtReturnDue} onChange={e => setRtReturnDue(e.target.value)}
+                    className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-200 flex-1" />
+                  {rtReturnDue && <button type="button" onClick={() => setRtReturnDue("")} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
+                </div>
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-gray-500 font-medium">신청사유</label>
@@ -2341,6 +2537,7 @@ export default function ExchangeReturnPanel() {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<ExchangeReturnRecord | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [returnRegOpen, setReturnRegOpen] = useState(false);
   const [advancingId, setAdvancingId] = useState<string | null>(null);
   const [pickerTarget, setPickerTarget] = useState<ExchangeReturnRecord | null>(null);
   const [receiptTarget, setReceiptTarget] = useState<ExchangeReturnRecord | null>(null);
@@ -2407,7 +2604,7 @@ export default function ExchangeReturnPanel() {
                 fetch("/api/hw/update", {
                   method: "POST", headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ id: found.id, fields: { status: "출고준비완료" } }),
-                }).then(() => fetch("/api/hw/cache-clear", { method: "POST" })).catch(console.error);
+                }).catch(console.error);
               }
             }).catch(console.error);
         }
@@ -2475,6 +2672,10 @@ export default function ExchangeReturnPanel() {
       }
       return true;
     });
+    const SHIP_DATE_STAGES = ["기기준비", "기기준비완료"];
+    if (stageFilter !== "all" && SHIP_DATE_STAGES.includes(stageFilter)) {
+      return [...arr].sort((a, b) => (a.completedAt ?? "").localeCompare(b.completedAt ?? ""));
+    }
     return [...arr].sort((a, b) => (b.lastEditedAt ?? "").localeCompare(a.lastEditedAt ?? ""));
   }, [records, caseTab, stageFilter, typeFilter, search]);
 
@@ -2508,6 +2709,13 @@ export default function ExchangeReturnPanel() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={() => setReturnRegOpen(true)}
+            className="text-xs font-semibold px-3 py-1.5 rounded bg-blue-700 text-white hover:bg-blue-800 flex items-center gap-1.5 transition-colors">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M9 14l-4-4 4-4"/><path d="M5 10h11a4 4 0 0 1 0 8h-1"/>
+            </svg>
+            반납 등록
+          </button>
           <button onClick={() => setCreateOpen(true)}
             className="text-xs font-semibold px-3 py-1.5 rounded bg-gray-900 text-white hover:bg-gray-700 flex items-center gap-1.5 transition-colors">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -2615,7 +2823,7 @@ export default function ExchangeReturnPanel() {
         <table className="data-table">
           <thead>
             <tr>
-              {["진행단계", "유형", "자산번호", "교체 자산번호", "법인", "부서", "사용자", "반납예정", "메모", "출고예정일"].map(h => (
+              {["진행단계", "유형", "자산번호", "교체 자산번호", "법인", "부서", "사용자", "반납예정", "메모", "사용일자"].map(h => (
                 <th key={h}>{h}</th>
               ))}
             </tr>
@@ -2719,6 +2927,14 @@ export default function ExchangeReturnPanel() {
           onClose={() => setSelected(null)}
           onUpdated={handleUpdated}
           onDeleted={handleDeleted}
+        />
+      )}
+
+      {returnRegOpen && (
+        <ReturnRegModal
+          records={records}
+          onClose={() => setReturnRegOpen(false)}
+          onUpdated={handleUpdated}
         />
       )}
 

@@ -2,11 +2,10 @@
 
 import { useEffect, useState, useMemo } from "react";
 import type { SwItem } from "@/types";
-import type { Notice, Course, Resource, ResourceCategory } from "@/types/portal";
+import type { Notice, Course } from "@/types/portal";
 import DeclarationPanel from "@/components/DeclarationPanel";
 
-type Tab    = "home" | "education" | "resources" | "search" | "declaration";
-type ResTab = ResourceCategory;
+type Tab = "home" | "education" | "search" | "declaration";
 
 const INQUIRY_URL = "https://assetify-desk-main.vercel.app";
 
@@ -63,12 +62,12 @@ function Icon({ n, s = 18 }: { n: string; s?: number }) {
 }
 
 const NAV_ITEMS = [
-  { id: "home"        as Tab, icon: "home",   label: "홈",       short: "홈"    },
-  { id: "education"   as Tab, icon: "edu",    label: "교육 센터", short: "교육"  },
-  { id: "resources"   as Tab, icon: "folder", label: "자료실",    short: "자료실" },
-  { id: "search"      as Tab, icon: "search", label: "SW 검색",   short: "SW"   },
-  { id: "declaration" as Tab, icon: "clip",   label: "자산 실사",  short: "실사"  },
-];
+  { id: "home"        as Tab, icon: "home",   label: "홈",       short: "홈",    href: undefined },
+  { id: "education"   as Tab, icon: "edu",    label: "교육 센터", short: "교육",  href: undefined },
+  { id: "resources",          icon: "folder", label: "자료실",    short: "자료실", href: "/resources" },
+  { id: "search"      as Tab, icon: "search", label: "SW 검색",   short: "SW",   href: undefined },
+  { id: "declaration" as Tab, icon: "clip",   label: "자산 실사",  short: "실사",  href: undefined },
+] as const;
 
 /* ══════════════════════════════════════════════════════
    포털 메인
@@ -87,8 +86,15 @@ export default function PortalPage() {
           <img src="/logo.png" alt="로고" className="shrink-0" style={{ height: 32, width: "auto", maxWidth: 160, objectFit: "contain" }} />
         </div>
         <nav className="flex-1 p-3 flex flex-col gap-0.5">
-          {NAV_ITEMS.map(({ id, icon, label }) => (
-            <button key={id} onClick={() => setTab(id)}
+          {NAV_ITEMS.map(({ id, icon, label, href }) => href ? (
+            <a key={id} href={href}
+              className="flex items-center gap-3 px-3.5 py-2.5 w-full text-left text-sm transition-all"
+              style={{ borderRadius: 10, background: "transparent", color: C.text3, fontWeight: 500, textDecoration: "none" }}>
+              <Icon n={icon} s={16} />
+              {label}
+            </a>
+          ) : (
+            <button key={id} onClick={() => setTab(id as Tab)}
               className="flex items-center gap-3 px-3.5 py-2.5 w-full text-left text-sm transition-all"
               style={{
                 borderRadius: 10,
@@ -126,7 +132,6 @@ export default function PortalPage() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
           {tab === "home"        && <HomeTab onNavigate={setTab} />}
           {tab === "education"   && <EducationTab />}
-          {tab === "resources"   && <ResourcesTab />}
           {tab === "search"      && <SearchTab />}
           {tab === "declaration" && <DeclarationPanel />}
         </div>
@@ -135,11 +140,19 @@ export default function PortalPage() {
       {/* ── 모바일 바텀 네비 ── */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 flex items-stretch z-50 bg-white"
         style={{ height: 64, borderTop: `1px solid ${C.border}` }}>
-        {NAV_ITEMS.map(({ id, icon, short }) => (
-          <button key={id} onClick={() => setTab(id)}
+        {NAV_ITEMS.map(({ id, icon, short, href }) => href ? (
+          <a key={id} href={href}
+            className="flex-1 flex flex-col items-center justify-center gap-1 transition-colors"
+            style={{ color: C.text4, textDecoration: "none" }}>
+            <div className="flex items-center justify-center w-8 h-8 rounded-lg">
+              <Icon n={icon} s={17} />
+            </div>
+            <span style={{ fontSize: 9.5, fontWeight: 600 }}>{short}</span>
+          </a>
+        ) : (
+          <button key={id} onClick={() => setTab(id as Tab)}
             className="flex-1 flex flex-col items-center justify-center gap-1 transition-colors"
             style={{ color: tab === id ? C.primary : C.text4 }}>
-            {/* N1: uppercase 제거 */}
             <div className="flex items-center justify-center w-8 h-8 rounded-lg transition-all"
               style={{ background: tab === id ? C.primarySoft : "transparent" }}>
               <Icon n={icon} s={17} />
@@ -165,11 +178,11 @@ function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
   }, []);
 
   /* M5: 4개 균형 그리드 (자산 실사 추가) */
-  const SHORTCUTS = [
-    { tab: "education"   as Tab, icon: "edu",    title: "교육 센터", desc: "필수 이수 교육 및 SW 활용 자료",   bg: "#F3E8FF", color: "#7C3AED" },
-    { tab: "resources"   as Tab, icon: "folder", title: "자료실",    desc: "설치 가이드, 정책 지침, 양식 서식", bg: "#FEF3C7", color: "#D97706" },
-    { tab: "search"      as Tab, icon: "search", title: "SW 검색",   desc: "승인·금지 SW 여부 즉시 확인",      bg: "#FFFBEB", color: "#F59E0B" },
-    { tab: "declaration" as Tab, icon: "clip",   title: "자산 실사", desc: "소프트웨어 자산 현황 신고하기",     bg: "#D1FAE5", color: "#059669" },
+  const SHORTCUTS: { tab: Tab | null; href?: string; icon: string; title: string; desc: string; bg: string; color: string }[] = [
+    { tab: "education",  icon: "edu",    title: "교육 센터", desc: "필수 이수 교육 및 SW 활용 자료",   bg: "#F3E8FF", color: "#7C3AED" },
+    { tab: null,         href: "/resources", icon: "folder", title: "자료실", desc: "설치 가이드, 정책 지침, 양식 서식", bg: "#FEF3C7", color: "#D97706" },
+    { tab: "search",     icon: "search", title: "SW 검색",   desc: "승인·금지 SW 여부 즉시 확인",      bg: "#FFFBEB", color: "#F59E0B" },
+    { tab: "declaration",icon: "clip",   title: "자산 실사", desc: "소프트웨어 자산 현황 신고하기",     bg: "#D1FAE5", color: "#059669" },
   ];
 
   return (
@@ -259,19 +272,24 @@ function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
 
       {/* M5: 4개 균형 바로가기 */}
       <div className="grid grid-cols-2 gap-4 mb-5">
-        {SHORTCUTS.map(s => (
-          <button key={s.tab} onClick={() => onNavigate(s.tab)}
-            className="bg-white text-left rounded-[20px] p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all"
-            style={{ border: `1px solid ${C.border}` }}>
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-3.5"
-              style={{ background: s.bg, color: s.color }}>
-              <Icon n={s.icon} s={22} />
-            </div>
-            <div className="font-extrabold text-sm mb-1.5"
-              style={{ color: C.text1, fontFamily: "Manrope, sans-serif" }}>{s.title}</div>
-            <div className="text-xs leading-relaxed" style={{ color: C.text3 }}>{s.desc}</div>
-          </button>
-        ))}
+        {SHORTCUTS.map(s => {
+          const cls = "bg-white text-left rounded-[20px] p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all";
+          const style = { border: `1px solid ${C.border}` };
+          const inner = (
+            <>
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-3.5"
+                style={{ background: s.bg, color: s.color }}>
+                <Icon n={s.icon} s={22} />
+              </div>
+              <div className="font-extrabold text-sm mb-1.5"
+                style={{ color: C.text1, fontFamily: "Manrope, sans-serif" }}>{s.title}</div>
+              <div className="text-xs leading-relaxed" style={{ color: C.text3 }}>{s.desc}</div>
+            </>
+          );
+          return s.href
+            ? <a key={s.title} href={s.href} className={cls} style={{ ...style, textDecoration: "none" }}>{inner}</a>
+            : <button key={s.title} onClick={() => s.tab && onNavigate(s.tab)} className={cls} style={style}>{inner}</button>;
+        })}
       </div>
 
       {/* M5: IT 지원 문의 — 별도 CTA 행 */}
@@ -509,189 +527,6 @@ function EducationTab() {
   );
 }
 
-/* ══════════════════════════════════════════════════════
-   자료실 탭
-══════════════════════════════════════════════════════ */
-function ResourcesTab() {
-  const [resTab,    setResTab]    = useState<ResTab>("install");
-  const [resources, setResources] = useState<Resource[]>([]);
-
-  useEffect(() => {
-    fetch("/api/resources")
-      .then(r => r.json())
-      .then(res => setResources(res.data ?? []));
-  }, []);
-
-  const FILES = resources.filter(r => r.category === resTab);
-
-  const FILE_STYLE: Record<string, { bg: string; color: string }> = {
-    PDF:  { bg: "#FEE2E2", color: "#B91C1C" },
-    XLSX: { bg: "#D1FAE5", color: "#065F46" },
-    DOCX: { bg: "#FFFBEB", color: "#D97706" },
-  };
-
-  const RES_TABS = [
-    { key: "install" as ResTab, label: "설치 가이드" },
-    { key: "policy"  as ResTab, label: "정책 문서"   },
-    { key: "forms"   as ResTab, label: "양식 서식"   },
-    { key: "other"   as ResTab, label: "기타"         },
-  ];
-
-  return (
-    <div className="fade-in">
-      <div className="mb-8">
-        <p className="text-sm font-semibold tracking-wider uppercase mb-1" style={{ color: C.primary }}>
-          자료 아카이브
-        </p>
-        <h2 className="text-3xl font-extrabold tracking-tight mb-6"
-          style={{ fontFamily: "Manrope, sans-serif", color: C.text1 }}>자료실</h2>
-        {/* 탭 — 전체 너비 */}
-        <div className="flex p-1.5 rounded-xl w-full" style={{ background: C.bg }}>
-          {RES_TABS.map(({ key, label }) => (
-            <button key={key} onClick={() => setResTab(key)}
-              className="flex-1 px-3 py-2.5 rounded-lg text-sm transition-all"
-              style={{
-                background: resTab === key ? "#fff" : "transparent",
-                color:      resTab === key ? C.brand : C.text3,
-                fontWeight: resTab === key ? 700     : 500,
-                boxShadow:  resTab === key ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
-              }}>
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
-        <div className="md:col-span-4 space-y-5">
-          {/* C1: "Resource Update" → "최근 업데이트" */}
-          <div className="p-8 rounded-[20px] text-white relative overflow-hidden"
-            style={{ background: `linear-gradient(135deg, ${C.brand}, ${C.primary})` }}>
-            <div className="relative z-10">
-              <span className="block mb-4 opacity-75"><Icon n="box" s={32} /></span>
-              <h3 className="text-xl font-bold mb-2" style={{ fontFamily: "Manrope, sans-serif" }}>최근 업데이트</h3>
-              <p className="text-sm leading-relaxed mb-6" style={{ color: "#90c0ff" }}>
-                Q3 컴플라이언스 정책과 macOS 설치 스크립트가 업데이트되었습니다.
-              </p>
-              {/* C1: "Check History" → "변경 이력 보기" */}
-              <button className="px-5 py-2 rounded-full text-xs font-bold uppercase tracking-widest"
-                style={{ background: "rgba(255,255,255,0.12)" }}>
-                변경 이력 보기
-              </button>
-            </div>
-            <div className="absolute -right-12 -bottom-12 w-48 h-48 rounded-full"
-              style={{ background: "rgba(255,255,255,0.05)" }} />
-          </div>
-
-          {/* M3: Storage 위젯 → 사용자 관련 현황 */}
-          <div className="p-8 rounded-[20px]" style={{ background: C.bg }}>
-            <h4 className="text-xs font-bold uppercase tracking-widest mb-5" style={{ color: C.text3 }}>
-              이번 달 현황
-            </h4>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-sm" style={{ color: C.text3 }}>현재 탭 자료</span>
-                <span className="text-xl font-extrabold"
-                  style={{ fontFamily: "Manrope, sans-serif", color: C.text1 }}>
-                  {FILES.length}<span className="text-sm font-normal ml-0.5" style={{ color: C.text3 }}>건</span>
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm" style={{ color: C.text3 }}>총 자료 수</span>
-                <span className="text-sm font-bold" style={{ color: C.text2 }}>{resources.length}건</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="md:col-span-8">
-          {/* C1: "Recent Files" → "파일 목록" */}
-          <div className="flex items-center justify-between px-1 mb-4">
-            <h3 className="text-lg font-bold" style={{ fontFamily: "Manrope, sans-serif" }}>파일 목록</h3>
-          </div>
-          <div className="space-y-3">
-            {FILES.length === 0 ? (
-              <div className="text-center py-12 rounded-[16px]" style={{ background: C.bg, color: C.text4 }}>
-                등록된 자료가 없습니다.
-              </div>
-            ) : FILES.map(file => {
-              const isLink = file.fileType === "LINK";
-              const fs = FILE_STYLE[file.fileType] ?? { bg: C.primarySoft, color: C.primary };
-              return (
-                <div key={file.id}
-                  className="bg-white p-5 rounded-[16px] hover:shadow-md transition-all"
-                  style={{ border: `1px solid ${C.border}` }}>
-                  <div className="flex items-start gap-4">
-                    <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
-                      style={{ background: fs.bg, color: fs.color }}>
-                      <Icon n={isLink ? "search" : "file"} s={18} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-3">
-                        <h4 className="font-bold text-sm sm:text-base leading-snug" style={{ color: C.text1 }}>
-                          {file.title}
-                        </h4>
-                        {file.fileUrl && file.fileUrl !== "#" ? (
-                          <a href={file.fileUrl} target="_blank" rel="noopener noreferrer"
-                            className="px-3 py-1.5 rounded-lg text-xs font-bold shrink-0 hover:brightness-110 transition-all"
-                            style={{ background: C.brand, color: "#fff" }}>
-                            {isLink ? "바로가기" : "다운로드"}
-                          </a>
-                        ) : (
-                          <span className="px-3 py-1.5 rounded-lg text-xs font-medium shrink-0"
-                            style={{ background: C.bg, color: C.text4 }}>준비중</span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded"
-                          style={{ background: "#eaeef2", color: C.text3 }}>{file.fileType}</span>
-                        {file.fileSize && <span className="text-xs" style={{ color: C.text4 }}>{file.fileSize}</span>}
-                        {file.updatedAt && <span className="text-xs hidden sm:inline" style={{ color: C.text4 }}>· {file.updatedAt}</span>}
-                      </div>
-                      {file.description && (
-                        <p className="text-xs mt-2 leading-relaxed" style={{ color: C.text3 }}>{file.description}</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
-            {[
-              /* C1: "Support/Missing a resource?" → "문의하기/자료가 없나요?" */
-              { icon: "search", label: "문의하기",  title: "자료가 없나요?",
-                desc: "IT팀에 자료 추가 요청을 보내세요.", linkLabel: "관리자에게 문의", linkColor: C.brand },
-              /* C1: "Action/Submit Resource" → "제출하기/자료 제출하기" */
-              { icon: "upload", label: "제출하기",  title: "자료 제출하기",
-                desc: "내부 문서를 업로드하여 검토받으세요.", linkLabel: "업로드 시작", linkColor: C.primary },
-            ].map(card => (
-              <div key={card.title} className="p-6 rounded-[20px]"
-                style={{ background: C.bg, border: "1px solid rgba(255,255,255,0.5)" }}>
-                <div className="flex justify-between items-start mb-4">
-                  <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm"
-                    style={{ color: C.text3 }}>
-                    <Icon n={card.icon} s={17} />
-                  </div>
-                  <span className="text-[10px] font-bold uppercase px-2 py-1 rounded"
-                    style={{ color: "#757682", background: "#e4e9ed" }}>{card.label}</span>
-                </div>
-                <h5 className="font-bold text-lg mb-1"
-                  style={{ fontFamily: "Manrope, sans-serif", color: C.text1 }}>{card.title}</h5>
-                <p className="text-sm mb-4" style={{ color: C.text3 }}>{card.desc}</p>
-                <a href={INQUIRY_URL} target="_blank" rel="noopener noreferrer"
-                  className="text-sm font-bold flex items-center gap-1" style={{ color: card.linkColor }}>
-                  {card.linkLabel} →
-                </a>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /* ══════════════════════════════════════════════════════
    SW 검색 탭

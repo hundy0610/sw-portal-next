@@ -205,9 +205,17 @@ function CreateModal({ onSave, onClose }: {
             <input value={form.dlpAccount} onChange={e => set("dlpAccount", e.target.value)} className={inputCls} placeholder="예: 10번고정" /></div>
           <div className="grid grid-cols-2 gap-3">
             <div><label className={labelCls}>사용시작일</label>
-              <input type="date" value={form.startDate} onChange={e => set("startDate", e.target.value)} className={inputCls} /></div>
+              <div className="flex items-center gap-1">
+                <input type="date" value={form.startDate} onChange={e => set("startDate", e.target.value)} className={`${inputCls} flex-1`} />
+                {form.startDate && <button type="button" onClick={() => set("startDate", "")} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
+              </div>
+            </div>
             <div><label className={labelCls}>반납예정일</label>
-              <input type="date" value={form.returnDue} onChange={e => set("returnDue", e.target.value)} className={inputCls} /></div>
+              <div className="flex items-center gap-1">
+                <input type="date" value={form.returnDue} onChange={e => set("returnDue", e.target.value)} className={`${inputCls} flex-1`} />
+                {form.returnDue && <button type="button" onClick={() => set("returnDue", "")} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
+              </div>
+            </div>
           </div>
           {error && <div className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</div>}
         </div>
@@ -303,9 +311,17 @@ function EditModal({ record, onSave, onClose }: {
 
           <div className="grid grid-cols-2 gap-3">
             <div><label className={lbl}>사용시작일</label>
-              <input type="date" value={form.startDate} onChange={e => set("startDate", e.target.value)} className={inp} /></div>
+              <div className="flex items-center gap-1">
+                <input type="date" value={form.startDate} onChange={e => set("startDate", e.target.value)} className={`${inp} flex-1`} />
+                {form.startDate && <button type="button" onClick={() => set("startDate", "")} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
+              </div>
+            </div>
             <div><label className={lbl}>반납예정일</label>
-              <input type="date" value={form.returnDue} onChange={e => set("returnDue", e.target.value)} className={inp} /></div>
+              <div className="flex items-center gap-1">
+                <input type="date" value={form.returnDue} onChange={e => set("returnDue", e.target.value)} className={`${inp} flex-1`} />
+                {form.returnDue && <button type="button" onClick={() => set("returnDue", "")} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
+              </div>
+            </div>
           </div>
 
           <label className="flex items-center gap-3 cursor-pointer select-none pt-1">

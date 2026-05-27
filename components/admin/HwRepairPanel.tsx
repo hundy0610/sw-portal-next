@@ -927,7 +927,10 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
 
           <div>
             <label className={labelCls}>접수일</label>
-            <input type="date" className={inputCls} value={form.receivedAt} onChange={set("receivedAt")} />
+            <div className="flex items-center gap-1">
+              <input type="date" className={`${inputCls} flex-1`} value={form.receivedAt} onChange={set("receivedAt")} />
+              {form.receivedAt && <button type="button" onClick={() => setForm(p => ({ ...p, receivedAt: "" }))} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
+            </div>
           </div>
 
           <div>
@@ -958,6 +961,7 @@ export default function HwRepairPanel() {
   const [error, setError] = useState<string | null>(null);
   const [missingEnv, setMissingEnv] = useState<string | null>(null);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
+  const [caseTab, setCaseTab] = useState<"open" | "closed">("open");
   const [stageFilter, setStageFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<HwRepairRecord | null>(null);
@@ -992,6 +996,21 @@ export default function HwRepairPanel() {
     setRecords(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r));
     setSelected(prev => prev?.id === id ? { ...prev, ...fields } : prev);
   }, []);
+
+  const handleToggleClose = useCallback(async (r: HwRepairRecord) => {
+    setAdvancingId(r.id);
+    try {
+      const res = await fetch("/api/hw-repair/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: r.id, fields: { isClosed: !r.isClosed } }),
+      });
+      const json = await res.json();
+      if (json.ok) handleUpdated(r.id, { isClosed: !r.isClosed });
+    } finally {
+      setAdvancingId(null);
+    }
+  }, [handleUpdated]);
 
   const handleAdvanceStage = useCallback(async (r: HwRepairRecord) => {
     const idx = STAGES.indexOf(r.stage as typeof STAGES[number]);
@@ -1044,17 +1063,21 @@ export default function HwRepairPanel() {
     return () => clearInterval(id);
   }, [load]);
 
-  const total = records.length;
-  const inProgress = records.filter(r => r.stage !== "완료").length;
-  const completed = records.filter(r => r.stage === "완료").length;
-  const userFault = records.filter(r => r.faultType === "사용자과실").length;
+  const openRecords   = useMemo(() => records.filter(r => !r.isClosed), [records]);
+  const closedRecords = useMemo(() => records.filter(r =>  r.isClosed), [records]);
+  const tabRecords    = caseTab === "open" ? openRecords : closedRecords;
+
+  const total      = tabRecords.length;
+  const inProgress = tabRecords.filter(r => r.stage !== "완료").length;
+  const completed  = tabRecords.filter(r => r.stage === "완료").length;
+  const userFault  = tabRecords.filter(r => r.faultType === "사용자과실").length;
 
   const stageCounts = useMemo(() =>
-    Object.fromEntries(STAGES.map(s => [s, records.filter(r => r.stage === s).length])),
-    [records]
+    Object.fromEntries(STAGES.map(s => [s, tabRecords.filter(r => r.stage === s).length])),
+    [tabRecords]
   );
 
-  const filtered = useMemo(() => records.filter(r => {
+  const filtered = useMemo(() => tabRecords.filter(r => {
     if (stageFilter !== "all" && r.stage !== stageFilter) return false;
     if (search) {
       const q = search.toLowerCase();
@@ -1062,7 +1085,7 @@ export default function HwRepairPanel() {
         .some(v => (v || "").toLowerCase().includes(q));
     }
     return true;
-  }), [records, stageFilter, search]);
+  }), [tabRecords, stageFilter, search]);
 
   if (missingEnv) return <EnvVarMissing varName={missingEnv} />;
   if (loading) {
@@ -1114,6 +1137,22 @@ export default function HwRepairPanel() {
         <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">⚠️ {error}</div>
       )}
 
+      {/* 열린/닫힌 케이스 탭 */}
+      <div className="flex items-center gap-1 mb-5 p-1 bg-gray-100 rounded-xl w-fit">
+        <button onClick={() => { setCaseTab("open"); setStageFilter("all"); }}
+          className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${caseTab === "open" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
+          <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+          Open Cases
+          <span className="text-xs font-normal text-gray-400 ml-0.5">{openRecords.length}</span>
+        </button>
+        <button onClick={() => { setCaseTab("closed"); setStageFilter("all"); }}
+          className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${caseTab === "closed" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
+          <span className="w-2 h-2 rounded-full bg-gray-400 inline-block" />
+          Closed Cases
+          <span className="text-xs font-normal text-gray-400 ml-0.5">{closedRecords.length}</span>
+        </button>
+      </div>
+
       {/* 요약 카드 */}
       <div className="grid grid-cols-4 gap-3 mb-6">
         {[
@@ -1129,8 +1168,8 @@ export default function HwRepairPanel() {
         ))}
       </div>
 
-      {/* 단계 필터 탭 */}
-      <div className="flex flex-wrap gap-1.5 mb-4">
+      {/* 단계 필터 탭 — 닫힌 케이스는 모두 "완료"이므로 숨김 */}
+      {caseTab === "open" && <div className="flex flex-wrap gap-1.5 mb-4">
         <button onClick={() => setStageFilter("all")}
           className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${stageFilter === "all" ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
           전체 {total}
@@ -1147,7 +1186,7 @@ export default function HwRepairPanel() {
             </button>
           );
         })}
-      </div>
+      </div>}
 
       {/* 검색 */}
       <div className="mb-4 flex items-center gap-2">
@@ -1203,6 +1242,14 @@ export default function HwRepairPanel() {
                             )}
                           </button>
                         )}
+                        <button
+                          onClick={() => handleToggleClose(r)}
+                          disabled={advancingId === r.id}
+                          title={r.isClosed ? "케이스 다시 열기" : "케이스 닫기"}
+                          className={`text-[10px] font-semibold px-1.5 py-0.5 rounded transition-colors disabled:opacity-40 ${r.isClosed ? "bg-emerald-50 text-emerald-600 hover:bg-emerald-100" : "bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-red-500"}`}
+                        >
+                          {r.isClosed ? "열기" : "닫기"}
+                        </button>
                       </div>
                       {blockMsg?.id === r.id && (
                         <p className="text-[10px] text-red-500 leading-tight max-w-[160px]">{blockMsg.msg}</p>
