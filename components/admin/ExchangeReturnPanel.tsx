@@ -1146,11 +1146,12 @@ function DetailModal({
   }, [onClose]);
 
   useEffect(() => {
-    if (!record.assetId) return;
-    fetch(`/api/hw?assetNo=${encodeURIComponent(record.assetId)}`)
+    const hwAssetNo = record.newAssetId || record.assetId;
+    if (!hwAssetNo) return;
+    fetch(`/api/hw?assetNo=${encodeURIComponent(hwAssetNo)}`)
       .then(r => r.json())
       .then(json => {
-        const hw = (json.records ?? []).find((r: { assetNo: string }) => r.assetNo === record.assetId);
+        const hw = (json.records ?? []).find((r: { assetNo: string }) => r.assetNo === hwAssetNo);
         if (hw) {
           setHwId(hw.id);
           setHwOrigUseDate(hw.useDate ?? "");
@@ -1158,7 +1159,7 @@ function DetailModal({
         }
       })
       .catch(() => {});
-  }, [record.assetId]);
+  }, [record.assetId, record.newAssetId]);
 
   const save = async (field: string, value: Record<string, unknown>) => {
     setSaving(field);
