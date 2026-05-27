@@ -278,7 +278,7 @@ function DashboardTab({ stats, loading, onRefresh }: { stats: HwStats | null; lo
 // ─────────────────────────────────────────────────────────────────────────────
 // 출고 현황 탭
 // ─────────────────────────────────────────────────────────────────────────────
-function ShipmentTab({ onUpdate, companyLock = "" }: { onUpdate: (id: string, fields: Partial<HwRecord>) => Promise<void>; companyLock?: string }) {
+function ShipmentTab({ onUpdate, companyLock = "", isSuperAdmin = false }: { onUpdate: (id: string, fields: Partial<HwRecord>) => Promise<void>; companyLock?: string; isSuperAdmin?: boolean }) {
   const [company,      setCompany]      = useState(companyLock);
   const [records,      setRecords]      = useState<HwRecord[]>([]);
   const [loading,      setLoading]      = useState(true);
@@ -386,7 +386,7 @@ function ShipmentTab({ onUpdate, companyLock = "" }: { onUpdate: (id: string, fi
           <SectionTable title="✅ 출고준비완료" items={sortedReady} headerCls="bg-amber-50 text-amber-700" />
         </>
       )}
-      {detailRecord && <AssetDetailModal record={detailRecord} onSave={onUpdate} onClose={() => setDetailRecord(null)} />}
+      {detailRecord && <AssetDetailModal record={detailRecord} onSave={onUpdate} onClose={() => setDetailRecord(null)} isSuperAdmin={isSuperAdmin} />}
       {editRecord && (
         <EditModal
           record={editRecord}
@@ -565,10 +565,11 @@ function EditModal({ record, fields, onSave, onClose }: EditModalProps) {
 // ─────────────────────────────────────────────────────────────────────────────
 // 자산 상세 모달
 // ─────────────────────────────────────────────────────────────────────────────
-function AssetDetailModal({ record, onSave, onClose }: {
+function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false }: {
   record: HwRecord;
   onSave: (id: string, fields: Partial<HwRecord>) => Promise<void>;
   onClose: () => void;
+  isSuperAdmin?: boolean;
 }) {
   const [form, setForm] = useState({
     status: record.status,
@@ -585,12 +586,46 @@ function AssetDetailModal({ record, onSave, onClose }: {
   const [saved,  setSaved]  = useState(false);
   const [error,  setError]  = useState("");
 
+  // 민감 정보 (자산번호·시리얼) — 슈퍼어드민 전용
+  const [sensitiveForm, setSensitiveForm] = useState({ assetNo: record.assetNo, serial: record.serial });
+  const [sensitiveUnlocked, setSensitiveUnlocked] = useState(false);
+  const [showPwInput, setShowPwInput]   = useState(false);
+  const [pwValue,     setPwValue]       = useState("");
+  const [pwError,     setPwError]       = useState("");
+  const [pwVerifying, setPwVerifying]   = useState(false);
+
   const setField = (k: keyof typeof form, v: string) => setForm(prev => ({ ...prev, [k]: v }));
 
   const recAsMap = record as unknown as Record<string, unknown>;
   const isDirty = (Object.keys(form) as (keyof typeof form)[]).some(
     k => form[k] !== recAsMap[k]
-  );
+  ) || (sensitiveUnlocked && (
+    sensitiveForm.assetNo !== record.assetNo || sensitiveForm.serial !== record.serial
+  ));
+
+  async function handleVerifyPassword() {
+    if (!pwValue) return;
+    setPwVerifying(true); setPwError("");
+    try {
+      const res  = await fetch("/api/admin/auth/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: pwValue }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setSensitiveUnlocked(true);
+        setShowPwInput(false);
+        setPwValue("");
+      } else {
+        setPwError(json.error ?? "비밀번호가 올바르지 않습니다");
+      }
+    } catch {
+      setPwError("서버 오류가 발생했습니다");
+    } finally {
+      setPwVerifying(false);
+    }
+  }
 
   async function handleSave() {
     if (!isDirty) return;
@@ -601,6 +636,10 @@ function AssetDetailModal({ record, onSave, onClose }: {
         if (form[k] !== recAsMap[k])
           (changed as unknown as Record<string, unknown>)[k] = form[k];
       });
+      if (sensitiveUnlocked) {
+        if (sensitiveForm.assetNo !== record.assetNo) changed.assetNo = sensitiveForm.assetNo;
+        if (sensitiveForm.serial  !== record.serial)  changed.serial  = sensitiveForm.serial;
+      }
       await onSave(record.id, changed);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -694,12 +733,94 @@ function AssetDetailModal({ record, onSave, onClose }: {
             </div>
           </div>
 
+          {/* 슈퍼어드민 전용: 자산번호·시리얼 변경 */}
+          {isSuperAdmin && (
+            <div className="border border-red-100 rounded-xl p-3 bg-red-50/50">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] font-semibold text-red-500 uppercase tracking-wider">
+                  🔒 민감 정보 {sensitiveUnlocked ? "(잠금 해제됨)" : ""}
+                </p>
+                {!sensitiveUnlocked && !showPwInput && (
+                  <button
+                    onClick={() => setShowPwInput(true)}
+                    className="text-[11px] px-2.5 py-1 rounded-lg bg-red-100 text-red-600 hover:bg-red-200 font-semibold transition-colors">
+                    잠금 해제
+                  </button>
+                )}
+                {sensitiveUnlocked && (
+                  <button
+                    onClick={() => { setSensitiveUnlocked(false); setSensitiveForm({ assetNo: record.assetNo, serial: record.serial }); }}
+                    className="text-[11px] px-2.5 py-1 rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 font-semibold transition-colors">
+                    다시 잠금
+                  </button>
+                )}
+              </div>
+
+              {/* 비밀번호 확인 입력 */}
+              {showPwInput && !sensitiveUnlocked && (
+                <div className="mb-3 space-y-2">
+                  <p className="text-xs text-red-600">자산번호·시리얼 변경은 본인 비밀번호 확인이 필요합니다.</p>
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      value={pwValue}
+                      onChange={e => setPwValue(e.target.value)}
+                      onKeyDown={e => e.key === "Enter" && handleVerifyPassword()}
+                      placeholder="비밀번호 입력"
+                      className="flex-1 rounded-lg border border-red-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-300"
+                    />
+                    <button
+                      onClick={handleVerifyPassword}
+                      disabled={pwVerifying || !pwValue}
+                      className="px-3 py-1.5 rounded-lg bg-red-500 text-white text-xs font-semibold hover:bg-red-600 disabled:opacity-40 transition-colors">
+                      {pwVerifying ? "확인 중…" : "확인"}
+                    </button>
+                    <button
+                      onClick={() => { setShowPwInput(false); setPwValue(""); setPwError(""); }}
+                      className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 text-xs font-semibold hover:bg-gray-200 transition-colors">
+                      취소
+                    </button>
+                  </div>
+                  {pwError && <p className="text-xs text-red-600">⚠ {pwError}</p>}
+                </div>
+              )}
+
+              {/* 편집 가능 필드 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">자산번호</label>
+                  {sensitiveUnlocked ? (
+                    <input
+                      value={sensitiveForm.assetNo}
+                      onChange={e => setSensitiveForm(p => ({ ...p, assetNo: e.target.value }))}
+                      className="w-full rounded-lg border border-red-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-300"
+                    />
+                  ) : (
+                    <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm font-mono text-gray-400">{record.assetNo || "—"}</div>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">시리얼 넘버</label>
+                  {sensitiveUnlocked ? (
+                    <input
+                      value={sensitiveForm.serial}
+                      onChange={e => setSensitiveForm(p => ({ ...p, serial: e.target.value }))}
+                      className="w-full rounded-lg border border-red-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-300"
+                    />
+                  ) : (
+                    <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm font-mono text-gray-400">{record.serial || "—"}</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* 읽기 전용 자산 정보 */}
           <div className="border-t border-gray-100 pt-3">
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">자산 정보</p>
             <InfoRow label="제조사"   value={record.maker} />
             <InfoRow label="모델"     value={record.model} />
-            <InfoRow label="시리얼"   value={record.serial} />
+            {!isSuperAdmin && <InfoRow label="시리얼" value={record.serial} />}
             <InfoRow label="CPU"      value={record.cpu} />
             <InfoRow label="RAM"      value={record.ram} />
             <InfoRow label="구매일자" value={record.purchaseDate ? fmtDate(record.purchaseDate) : undefined} />
@@ -726,7 +847,7 @@ function AssetDetailModal({ record, onSave, onClose }: {
 // ─────────────────────────────────────────────────────────────────────────────
 // 반납 대상자 탭
 // ─────────────────────────────────────────────────────────────────────────────
-function ReturnTab({ onUpdate, companyLock = "" }: { onUpdate: (id: string, fields: Partial<HwRecord>) => Promise<void>; companyLock?: string }) {
+function ReturnTab({ onUpdate, companyLock = "", isSuperAdmin = false }: { onUpdate: (id: string, fields: Partial<HwRecord>) => Promise<void>; companyLock?: string; isSuperAdmin?: boolean }) {
   const [company,      setCompany]      = useState(companyLock);
   const [allRecords,   setAllRecords]   = useState<HwRecord[]>([]);
   const [loading,      setLoading]      = useState(true);
@@ -839,7 +960,7 @@ function ReturnTab({ onUpdate, companyLock = "" }: { onUpdate: (id: string, fiel
           <TableSection title="◽ D-30 초과"                   items={later}  cls="bg-gray-50 text-gray-700" />
         </>
       )}
-      {detailRecord && <AssetDetailModal record={detailRecord} onSave={onUpdate} onClose={() => setDetailRecord(null)} />}
+      {detailRecord && <AssetDetailModal record={detailRecord} onSave={onUpdate} onClose={() => setDetailRecord(null)} isSuperAdmin={isSuperAdmin} />}
       {editRecord && (
         <EditModal
           record={editRecord}
@@ -855,7 +976,7 @@ function ReturnTab({ onUpdate, companyLock = "" }: { onUpdate: (id: string, fiel
 // ─────────────────────────────────────────────────────────────────────────────
 // 자산 검색 탭 (자체 on-demand fetch)
 // ─────────────────────────────────────────────────────────────────────────────
-function SearchTab({ companyLock = "", onUpdate }: { companyLock?: string; onUpdate?: (id: string, fields: Partial<HwRecord>) => Promise<void> }) {
+function SearchTab({ companyLock = "", onUpdate, isSuperAdmin = false }: { companyLock?: string; onUpdate?: (id: string, fields: Partial<HwRecord>) => Promise<void>; isSuperAdmin?: boolean }) {
   const [records,     setRecords]     = useState<HwRecord[]>([]);
   const [loading,     setLoading]     = useState(false);
   const [error,       setError]       = useState("");
@@ -1053,6 +1174,7 @@ function SearchTab({ companyLock = "", onUpdate }: { companyLock?: string; onUpd
             setRecords(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r));
           }}
           onClose={() => setDetailRecord(null)}
+          isSuperAdmin={isSuperAdmin}
         />
       )}
       {editRecord && onUpdate && (
@@ -2230,7 +2352,7 @@ interface DispatchRecord {
   useDate: string;
 }
 
-export default function HwPanel({ company = "", initialStats }: { company?: string; initialStats?: HwStats | null }) {
+export default function HwPanel({ company = "", initialStats, isSuperAdmin = false }: { company?: string; initialStats?: HwStats | null; isSuperAdmin?: boolean }) {
   const [tab, setTab] = useState<Tab>("dashboard");
 
   // ── 대시보드 전용 경량 통계 (즉시 로드) ──────────────────────────────────
@@ -2504,9 +2626,9 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
       </div>
 
       {tab === "dashboard" && <DashboardTab  stats={stats} loading={statsLoading} onRefresh={handleRefreshStats} />}
-      {tab === "shipment"  && <ShipmentTab onUpdate={handleUpdate} companyLock={company} />}
-      {tab === "return"    && <ReturnTab   onUpdate={handleUpdate} companyLock={company} />}
-      {tab === "search"    && <SearchTab companyLock={company} onUpdate={handleUpdate} />}
+      {tab === "shipment"  && <ShipmentTab onUpdate={handleUpdate} companyLock={company} isSuperAdmin={isSuperAdmin} />}
+      {tab === "return"    && <ReturnTab   onUpdate={handleUpdate} companyLock={company} isSuperAdmin={isSuperAdmin} />}
+      {tab === "search"    && <SearchTab companyLock={company} onUpdate={handleUpdate} isSuperAdmin={isSuperAdmin} />}
       {tab === "upload"    && <ExcelUploadTab />}
       {tab === "dispatch"  && <DispatchHistoryTab />}
       {tab === "label"     && <LabelPrintTab records={records} recordsReady={recordsReady} onLoadRecords={loadAll} />}

@@ -210,7 +210,7 @@ export default function AdminPage() {
       case "credentials": return canAccess("credentials") ? <CredentialsPanel /> : <AccessDenied />;
       case "swdb":        return canAccess("swdb")        ? <SwDbPanel />       : <AccessDenied />;
       case "report":      return <ReportPanel company={company} />;
-      case "hw":          return <HwPanel company={company} initialStats={hwStatsPrefetch} />;
+      case "hw":          return <HwPanel company={company} initialStats={hwStatsPrefetch} isSuperAdmin={isSuper} />;
       case "rental-hw":   return canAccess("rental-hw") ? <RentalHwPanel /> : <AccessDenied />;
       case "assetmap":    return <AssetMapPanel session={session} />;
       case "helpdesk":    return <HelpDeskPanel company={isSuper ? "" : company} />;
