@@ -776,6 +776,25 @@ function ReturnRegModal({
         );
       }
 
+      if (selectedStatus === "수리") {
+        const rec = searchResult.matchedRecord;
+        updates.push(
+          fetch("/api/hw-repair/create", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              assetId: assetInput.trim(),
+              stage: "수리접수",
+              faultType: "과실없음",
+              receivedAt: today,
+              ...(rec?.company    && { company:    rec.company }),
+              ...(rec?.department && { department: rec.department }),
+              ...(rec?.user       && { user:        rec.user }),
+            }),
+          })
+        );
+      }
+
       await Promise.all(updates);
 
       if (searchResult.matchedRecord) {
@@ -858,6 +877,11 @@ function ReturnRegModal({
                       </button>
                     ))}
                   </div>
+                  {selectedStatus === "수리" && (
+                    <p className="text-xs text-orange-600 mt-2">
+                      수리/과실청구 트래커에 자동 등록됩니다 (수리접수 · 과실없음)
+                    </p>
+                  )}
                 </div>
               )}
             </>
