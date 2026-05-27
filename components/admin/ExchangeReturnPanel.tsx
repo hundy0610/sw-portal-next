@@ -1311,6 +1311,11 @@ function DetailModal({
                 });
                 const json = await res.json();
                 if (json.ok) {
+                  // Exchange Return DB의 완료일도 동시에 업데이트 (30초 리프레시 시 유지)
+                  fetch("/api/exchange-return/update", {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ id: record.id, fields: { completedAt: useDate || null } }),
+                  }).catch(() => {});
                   setHwOrigUseDate(useDate);
                   onUpdated(record.id, { completedAt: useDate });
                   setSaved((p: Record<string, boolean>) => ({ ...p, useDate: true }));
