@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
   const company   = searchParams.get("company")?.trim()   || "";
   const status    = searchParams.get("status")?.trim()    || "";
   const location  = searchParams.get("location")?.trim()  || "";
+  const assetNo   = searchParams.get("assetNo")?.trim()   || "";
   const returnDue = searchParams.get("returnDue") === "1";
   const refresh   = searchParams.get("refresh") === "1";
   // 탭별 필터 직접 조회용 (KV cold miss 시 Notion 직접 쿼리)
@@ -26,9 +27,9 @@ export async function GET(req: NextRequest) {
 
     if (!records) {
       // KV 미스
-      if (statuses.length > 0 || returnDue) {
+      if (statuses.length > 0 || returnDue || assetNo) {
         // 필터가 있으면 Notion 직접 조회 (결과 수십~백 건 → 1~3 호출, 타임아웃 안전)
-        const filtered = await fetchHwFiltered({ statuses, returnDue, company });
+        const filtered = await fetchHwFiltered({ statuses, returnDue, company, assetNo });
         return NextResponse.json({ ok: true, records: filtered });
       }
       // 전체 데이터 요청 — Vercel 10s 초과. GitHub Actions 트리거 (백그라운드)
@@ -49,6 +50,7 @@ export async function GET(req: NextRequest) {
     // 메모리 필터링 (추가 DB 호출 없음)
     let filtered = base;
     if (statuses.length > 0) filtered = filtered.filter(r => statuses.includes(r.status));
+    if (assetNo)   filtered = filtered.filter(r => r.assetNo === assetNo);
     if (company)   filtered = filtered.filter(r => r.company === company);
     if (status)    filtered = filtered.filter(r => r.status === status);
     if (location)  filtered = filtered.filter(r => r.location.includes(location));

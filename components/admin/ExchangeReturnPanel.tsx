@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import type { ExchangeReturnRecord } from "@/types";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
 
@@ -1127,7 +1127,8 @@ function DetailModal({
   const [hwOrigUseDate, setHwOrigUseDate] = useState("");
   const [returnDue, setReturnDue] = useState(record.returnDue ?? "");
   const [reason, setReason] = useState(record.reason ?? "");
-  const [note, setNote] = useState(record.note ?? "");
+  const [note] = useState(record.note ?? "");
+  const noteRef = useRef<HTMLTextAreaElement>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<Record<string, boolean>>({});
   const [saveErr, setSaveErr] = useState<{ field: string; msg: string } | null>(null);
@@ -1146,7 +1147,7 @@ function DetailModal({
 
   useEffect(() => {
     if (!record.assetId) return;
-    fetch(`/api/hw?search=${encodeURIComponent(record.assetId)}`)
+    fetch(`/api/hw?assetNo=${encodeURIComponent(record.assetId)}`)
       .then(r => r.json())
       .then(json => {
         const hw = (json.records ?? []).find((r: { assetNo: string }) => r.assetNo === record.assetId);
@@ -1348,7 +1349,7 @@ function DetailModal({
               onPicked={(assetNo, extras) => {
                 setNewAssetId(assetNo);
                 setStage("기기준비");
-                setNote(extras.note || note);
+                if (noteRef.current) noteRef.current.value = extras.note || note;
                 onUpdated(record.id, { newAssetId: assetNo, stage: "기기준비", note: extras.note || undefined, completedAt: extras.completedAt });
                 setSaved(p => ({ ...p, newAssetId: true }));
                 setTimeout(() => setSaved(p => ({ ...p, newAssetId: false })), 2000);
@@ -1419,14 +1420,13 @@ function DetailModal({
 
           <Row label="비고">
             <div className="flex flex-col gap-2">
-              <textarea value={note}
-                onChange={e => { if (!(e.nativeEvent as InputEvent).isComposing) setNote(e.target.value); }}
-                onCompositionEnd={e => { setNote((e.target as HTMLTextAreaElement).value); }}
+              <textarea ref={noteRef}
+                defaultValue={note}
                 rows={3}
                 className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 resize-none"
                 placeholder="비고 입력" />
               <div className="flex items-center gap-2">
-                <button onClick={() => save("note", { note })} disabled={saving === "note" || note === record.note}
+                <button onClick={() => save("note", { note: noteRef.current?.value ?? "" })} disabled={saving === "note"}
                   className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed">
                   {saving === "note" ? "저장 중…" : "저장"}
                 </button>

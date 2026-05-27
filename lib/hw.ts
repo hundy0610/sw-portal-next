@@ -165,16 +165,19 @@ export async function fetchHwFiltered({
   statuses = [],
   returnDue = false,
   company = "",
+  assetNo = "",
 }: {
   statuses?: string[];   // OR 조건 (예: ["출고준비중","출고준비완료"])
   returnDue?: boolean;   // 반납예정일이 있는 레코드만
   company?: string;
+  assetNo?: string;      // 자산번호 정확히 일치 조회
 }): Promise<HwRecord[]> {
   if (isMock()) {
     return mockHwRecords.filter(r =>
       (statuses.length === 0 || statuses.includes(r.status)) &&
       (!returnDue || !!r.returnDue) &&
-      (!company || r.company === company)
+      (!company || r.company === company) &&
+      (!assetNo || r.assetNo === assetNo)
     ) as HwRecord[];
   }
   const andFilters: object[] = [];
@@ -191,6 +194,10 @@ export async function fetchHwFiltered({
 
   if (company) {
     andFilters.push({ property: "법인명", select: { equals: company } });
+  }
+
+  if (assetNo) {
+    andFilters.push({ property: "자산번호", title: { equals: assetNo } });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
