@@ -871,9 +871,11 @@ function DetailModal({
   const [department, setDepartment] = useState(record.department ?? "");
   const [user, setUser] = useState(record.user ?? "");
   const [newAssetId, setNewAssetId] = useState(record.newAssetId ?? "");
+  const [useDate, setUseDate] = useState(record.useDate ?? "");
   const [returnDue, setReturnDue] = useState(record.returnDue ?? "");
   const [reason, setReason] = useState(record.reason ?? "");
   const [note, setNote] = useState(record.note ?? "");
+  const [composingNote, setComposingNote] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<Record<string, boolean>>({});
   const [showAssetPicker, setShowAssetPicker] = useState(false);
@@ -1012,7 +1014,15 @@ function DetailModal({
             </button>
           </SaveRow>
 
-          <Row label="신청일">{fmtDateKo(record.requestedAt)}</Row>
+          <SaveRow label="사용일자" field="useDate">
+            <div className="flex items-center gap-1">
+              <input type="date" value={useDate} onChange={e => setUseDate(e.target.value)} className={`${selectCls} flex-1`} />
+              {useDate && <button type="button" onClick={() => setUseDate("")} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
+            </div>
+            <button onClick={() => save("useDate", { useDate: useDate || null })} disabled={saving === "useDate" || useDate === record.useDate} className={saveBtnCls("useDate", useDate, record.useDate ?? "")}>
+              {saving === "useDate" ? "저장 중…" : "저장"}
+            </button>
+          </SaveRow>
 
           {(record.type === "교체" || record.type === "신규지급") && (
             <Row label={record.type === "신규지급" ? "지급 자산번호" : "교체 자산번호"}>
@@ -1110,7 +1120,11 @@ function DetailModal({
 
           <Row label="비고">
             <div className="flex flex-col gap-2">
-              <textarea value={note} onChange={e => setNote(e.target.value)} rows={3}
+              <textarea value={note}
+                onChange={e => { if (!composingNote) setNote(e.target.value); }}
+                onCompositionStart={() => setComposingNote(true)}
+                onCompositionEnd={e => { setComposingNote(false); setNote((e.target as HTMLTextAreaElement).value); }}
+                rows={3}
                 className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 resize-none"
                 placeholder="비고 입력" />
               <div className="flex items-center gap-2">
@@ -2559,7 +2573,7 @@ export default function ExchangeReturnPanel() {
         <table className="data-table">
           <thead>
             <tr>
-              {["진행단계", "유형", "자산번호", "교체 자산번호", "법인", "부서", "사용자", "반납예정", "메모", "출고예정일"].map(h => (
+              {["진행단계", "유형", "자산번호", "교체 자산번호", "법인", "부서", "사용자", "반납예정", "메모", "사용일자"].map(h => (
                 <th key={h}>{h}</th>
               ))}
             </tr>

@@ -186,6 +186,7 @@ export interface ExchangeReturnRecord {
   user: string;
   stage: string;
   requestedAt: string;
+  useDate: string;
   returnDue: string;       // 반납예정일 (사용자수령일 + 7일 자동 또는 HW DB 값)
   completedAt: string;
   reason: string;
