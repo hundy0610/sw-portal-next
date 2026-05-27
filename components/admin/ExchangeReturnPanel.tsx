@@ -1122,7 +1122,9 @@ function DetailModal({
   const [department, setDepartment] = useState(record.department ?? "");
   const [user, setUser] = useState(record.user ?? "");
   const [newAssetId, setNewAssetId] = useState(record.newAssetId ?? "");
-  const [useDate, setUseDate] = useState(record.useDate ?? "");
+  const [useDate, setUseDate] = useState("");
+  const [hwId, setHwId] = useState<string | null>(null);
+  const [hwOrigUseDate, setHwOrigUseDate] = useState("");
   const [returnDue, setReturnDue] = useState(record.returnDue ?? "");
   const [reason, setReason] = useState(record.reason ?? "");
   const [note, setNote] = useState(record.note ?? "");
@@ -1140,6 +1142,21 @@ function DetailModal({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  useEffect(() => {
+    if (!record.assetId) return;
+    fetch(`/api/hw?search=${encodeURIComponent(record.assetId)}`)
+      .then(r => r.json())
+      .then(json => {
+        const hw = (json.records ?? []).find((r: { assetNo: string }) => r.assetNo === record.assetId);
+        if (hw) {
+          setHwId(hw.id);
+          setHwOrigUseDate(hw.useDate ?? "");
+          setUseDate(hw.useDate ?? "");
+        }
+      })
+      .catch(() => {});
+  }, [record.assetId]);
 
   const save = async (field: string, value: Record<string, unknown>) => {
     setSaving(field);
@@ -1276,7 +1293,23 @@ function DetailModal({
               <input type="date" value={useDate} onChange={e => setUseDate(e.target.value)} className={`${selectCls} flex-1`} />
               {useDate && <button type="button" onClick={() => setUseDate("")} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
             </div>
-            <button onClick={() => save("useDate", { useDate: useDate || null })} disabled={saving === "useDate" || useDate === record.useDate} className={saveBtnCls("useDate", useDate, record.useDate ?? "")}>
+            <button onClick={async () => {
+              if (!hwId) { setSaveErr({ field: "useDate", msg: "HW 자산 정보 없음" }); return; }
+              setSaving("useDate"); setSaveErr(null);
+              try {
+                const res = await fetch("/api/hw/update", {
+                  method: "POST", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ id: hwId, fields: { useDate: useDate || "" } }),
+                });
+                const json = await res.json();
+                if (json.ok) {
+                  setHwOrigUseDate(useDate);
+                  setSaved((p: Record<string, boolean>) => ({ ...p, useDate: true }));
+                  setTimeout(() => setSaved((p: Record<string, boolean>) => ({ ...p, useDate: false })), 2000);
+                } else { setSaveErr({ field: "useDate", msg: json.error || "저장 실패" }); }
+              } catch (e) { setSaveErr({ field: "useDate", msg: String(e) }); }
+              finally { setSaving(null); }
+            }} disabled={saving === "useDate" || useDate === hwOrigUseDate || !hwId} className={saveBtnCls("useDate", useDate, hwOrigUseDate)}>
               {saving === "useDate" ? "저장 중…" : "저장"}
             </button>
           </SaveRow>
