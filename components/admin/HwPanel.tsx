@@ -868,6 +868,39 @@ function SearchTab({ companyLock = "", onUpdate }: { companyLock?: string; onUpd
   const [status,   setStatus]   = useState("");
   const [location, setLocation] = useState("");
   const [searched, setSearched] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = useCallback(async () => {
+    if (records.length === 0) return;
+    setExporting(true);
+    try {
+      const XLSX = await import("xlsx");
+      const rows = records.map(r => ({
+        "자산번호":  r.assetNo        || "",
+        "사용자":    r.user           || "",
+        "법인명":    r.company        || "",
+        "부서":      r.dept           || "",
+        "모델명":    r.model          || "",
+        "제조사":    r.maker          || "",
+        "CPU":       r.cpu            || "",
+        "RAM":       r.ram            || "",
+        "시리얼":    r.serial         || "",
+        "구매일자":  r.purchaseDate   || "",
+        "사용일자":  r.useDate        || "",
+        "단가(원)":  r.price > 0 ? r.price : "",
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws["!cols"] = Object.keys(rows[0]).map(key => ({
+        wch: Math.max(key.length, ...rows.map(r => String(r[key as keyof typeof r] ?? "").length)) + 2,
+      }));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "HW자산");
+      const now = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(wb, `HW자산_${companyLock || "전체"}_${now}.xlsx`);
+    } finally {
+      setExporting(false);
+    }
+  }, [records, companyLock]);
 
   const load = useCallback(async () => {
     setLoading(true); setError(""); setSearched(true);
@@ -938,7 +971,18 @@ function SearchTab({ companyLock = "", onUpdate }: { companyLock?: string; onUpd
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
             <span className="text-sm font-semibold text-gray-700">검색 결과</span>
-            <span className="text-xs text-gray-400">{records.length}건</span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-gray-400">{records.length}건</span>
+              <button
+                onClick={handleExport}
+                disabled={exporting || records.length === 0}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+              >
+                {exporting ? (
+                  <><svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>생성 중…</>
+                ) : <>📥 엑셀 다운로드</>}
+              </button>
+            </div>
           </div>
           {records.length === 0 ? (
             <div className="py-12 text-center text-gray-400 text-sm">조회된 자산이 없습니다</div>
