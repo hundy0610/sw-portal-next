@@ -1521,7 +1521,7 @@ function LabelPrintTab({
   recordsReady: boolean;
   onLoadRecords: () => void;
 }) {
-  const [senderInfo, setSenderInfo] = useState("idsTrust 자산관리파트 백승윤");
+  const [senderInfo, setSenderInfo] = useState("idsTrust 자산관리파트");
   const [labels, setLabels] = useState<LabelEntry[]>([
     { id: "1", recipientOrg: "", recipientName: "", user: "", assetNo: "", shipType: "신규지급" },
   ]);
