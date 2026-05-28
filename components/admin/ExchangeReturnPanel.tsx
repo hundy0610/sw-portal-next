@@ -643,7 +643,7 @@ function ReturnCompleteModal({
         fetch("/api/hw/update", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: hwPageId, fields: { status: "재고" } }),
+          body: JSON.stringify({ id: hwPageId, fields: { status: "재고", returnDate: today } }),
         })
       );
 
@@ -778,7 +778,7 @@ function ReturnRegModal({
           fetch("/api/hw/update", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: searchResult.hwPageId, fields: { status: selectedStatus } }),
+            body: JSON.stringify({ id: searchResult.hwPageId, fields: { status: selectedStatus, returnDate: today } }),
           })
         );
       }
