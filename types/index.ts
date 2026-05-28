@@ -193,6 +193,7 @@ export interface ExchangeReturnRecord {
   assignee: string;
   assigneeId: string;
   note: string;
+  address: string;         // 배송지 (select)
   autoSynced: boolean;     // HW DB sync로 자동 진행됐는지 표시
   isClosed: boolean;       // 케이스 종료 여부 (마지막 단계 통과 시 true)
   lastEditedAt: string;

@@ -18,6 +18,14 @@ const FINAL_STAGE: Stage = "반납완료";
 
 const RECORD_TYPES = ["교체", "퇴사반납", "신규지급"] as const;
 
+const DELIVERY_LOCATIONS = [
+  "본사", "용인(연구소)", "향남", "마곡", "바이오센터", "바이오3공장",
+  "안성공장", "성수", "유로프라자", "오송", "세파센터", "S캠퍼스",
+  "선택시티", "한올(대전공장)", "기타",
+] as const;
+
+const RETURN_STAGES = ["사용자수령", "반납요청", "반납완료"];
+
 const COMPANIES = [
   "대웅제약","대웅바이오","대웅","대웅개발","대웅이엔지","대웅펫",
   "한올바이오파마","시지바이오","시지메드텍","IdsTrust","디엔컴퍼니",
@@ -1126,6 +1134,7 @@ function DetailModal({
   const [hwId, setHwId] = useState<string | null>(null);
   const [hwOrigUseDate, setHwOrigUseDate] = useState("");
   const [returnDue, setReturnDue] = useState(record.returnDue ?? "");
+  const [address, setAddress] = useState(record.address ?? "");
   const [reason, setReason] = useState(record.reason ?? "");
   const [note, setNote] = useState(record.note ?? "");
   const noteRef = useRef<HTMLTextAreaElement>(null);
@@ -1421,6 +1430,16 @@ function DetailModal({
               {saving === "returnDue" ? "저장 중…" : "저장"}
             </button>
             {returnDue && <DDay date={returnDue} />}
+          </SaveRow>
+
+          <SaveRow label="배송지" field="address">
+            <select value={address} onChange={e => setAddress(e.target.value)} className={selectCls}>
+              <option value="">—</option>
+              {DELIVERY_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
+            </select>
+            <button onClick={() => save("address", { address })} disabled={saving === "address" || address === (record.address ?? "")} className={saveBtnCls("address", address, record.address ?? "")}>
+              {saving === "address" ? "저장 중…" : "저장"}
+            </button>
           </SaveRow>
 
           <SaveRow label="신청사유" field="reason">
@@ -2891,7 +2910,9 @@ export default function ExchangeReturnPanel() {
         <table className="data-table">
           <thead>
             <tr>
-              {["진행단계", "유형", "자산번호", "교체 자산번호", "법인", "부서", "사용자", "반납예정", "메모", "사용일자"].map(h => (
+              {["진행단계", "유형", "자산번호", "교체 자산번호", "법인", "부서", "사용자",
+              RETURN_STAGES.includes(stageFilter) || stageFilter === "all" ? "반납예정" : "배송지",
+              "메모", "사용일자"].map(h => (
                 <th key={h}>{h}</th>
               ))}
             </tr>
@@ -2978,9 +2999,12 @@ export default function ExchangeReturnPanel() {
                   <td className="text-xs text-gray-600">{r.department || "—"}</td>
                   {/* 사용자 */}
                   <td className="text-xs text-gray-700">{r.user || "—"}</td>
-                  {/* 반납예정 */}
+                  {/* 반납예정 / 배송지 */}
                   <td className="text-xs">
-                    {r.returnDue ? <DDay date={r.returnDue} /> : <span className="text-gray-300">—</span>}
+                    {RETURN_STAGES.includes(stageFilter) || stageFilter === "all"
+                      ? (r.returnDue ? <DDay date={r.returnDue} /> : <span className="text-gray-300">—</span>)
+                      : <span className={r.address ? "text-gray-700" : "text-gray-300"}>{r.address || "—"}</span>
+                    }
                   </td>
                   {/* 메모 */}
                   <td className="text-xs text-gray-500 max-w-[160px] truncate" title={r.note || ""}>{r.note || "—"}</td>

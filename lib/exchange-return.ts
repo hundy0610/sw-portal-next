@@ -73,6 +73,7 @@ function mapPage(page: PageObjectResponse): ExchangeReturnRecord {
     assignee:     ppl(p, "담당자"),
     assigneeId:   pplFirstId(p, "담당자"),
     note:         txt(p, "비고"),
+    address:      sel(p, "배송지"),
     autoSynced:   chk(p, "자동동기화"),
     isClosed:     chk(p, "케이스종료"),
     lastEditedAt: page.last_edited_time,
@@ -163,6 +164,7 @@ export interface UpdateFields {
   reason?: string;
   assigneeId?: string;
   note?: string;
+  address?: string;
   autoSynced?: boolean;
   isClosed?: boolean;
 }
@@ -185,6 +187,7 @@ export async function updateExchangeReturn(id: string, fields: UpdateFields): Pr
     ? { people: [{ object: "user", id: fields.assigneeId }] }
     : { people: [] };
   if (fields.note        !== undefined) props["비고"]         = { rich_text: [{ text: { content: fields.note } }] };
+  if (fields.address     !== undefined) props["배송지"]       = { select: fields.address ? { name: fields.address } : null };
   if (fields.autoSynced  !== undefined) props["자동동기화"]   = { checkbox: fields.autoSynced };
   if (fields.isClosed    !== undefined) props["케이스종료"]   = { checkbox: fields.isClosed };
 
