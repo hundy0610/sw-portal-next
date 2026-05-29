@@ -2668,7 +2668,32 @@ export default function ExchangeReturnPanel() {
       return;
     }
     if (nextStage === "반납완료") {
-      setReturnCompleteTarget(r);
+      const today = new Date().toISOString().slice(0, 10);
+      setAdvancingId(r.id);
+      try {
+        let hwPageId: string | null = null;
+        if (r.assetId) {
+          const res = await fetch(`/api/hw?search=${encodeURIComponent(r.assetId)}`).then(d => d.json());
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const found = (res.records as any[]).find((x: any) => x.assetNo === r.assetId) ??
+            (res.records.length === 1 ? res.records[0] : null);
+          hwPageId = found?.id ?? null;
+        }
+        const updates: Promise<unknown>[] = [
+          fetch("/api/exchange-return/update", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: r.id, fields: { stage: "반납완료", completedAt: today } }),
+          }),
+        ];
+        if (hwPageId) updates.push(
+          fetch("/api/hw/update", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: hwPageId, fields: { status: "재고", returnDate: today } }),
+          })
+        );
+        await Promise.all(updates);
+        handleUpdated(r.id, { stage: "반납완료", completedAt: today });
+      } finally { setAdvancingId(null); }
       return;
     }
     if (nextStage === "기기준비완료" && r.newAssetId && r.newAssetId !== "신규구매로안내됨") {
