@@ -2628,7 +2628,6 @@ export default function ExchangeReturnPanel() {
   const [advancingId, setAdvancingId] = useState<string | null>(null);
   const [pickerTarget, setPickerTarget] = useState<ExchangeReturnRecord | null>(null);
   const [receiptTarget, setReceiptTarget] = useState<ExchangeReturnRecord | null>(null);
-  const [returnCompleteTarget, setReturnCompleteTarget] = useState<ExchangeReturnRecord | null>(null);
   const [hwDetailAsset, setHwDetailAsset] = useState<string | null>(null);
 
   const handleUpdated = useCallback((id: string, fields: Partial<ExchangeReturnRecord>) => {
@@ -2671,28 +2670,12 @@ export default function ExchangeReturnPanel() {
       const today = new Date().toISOString().slice(0, 10);
       setAdvancingId(r.id);
       try {
-        let hwPageId: string | null = null;
-        if (r.assetId) {
-          const res = await fetch(`/api/hw?search=${encodeURIComponent(r.assetId)}`).then(d => d.json());
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const found = (res.records as any[]).find((x: any) => x.assetNo === r.assetId) ??
-            (res.records.length === 1 ? res.records[0] : null);
-          hwPageId = found?.id ?? null;
-        }
-        const updates: Promise<unknown>[] = [
-          fetch("/api/exchange-return/update", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: r.id, fields: { stage: "반납완료", completedAt: today } }),
-          }),
-        ];
-        if (hwPageId) updates.push(
-          fetch("/api/hw/update", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: hwPageId, fields: { status: "재고", returnDate: today } }),
-          })
-        );
-        await Promise.all(updates);
-        handleUpdated(r.id, { stage: "반납완료", completedAt: today });
+        const res = await fetch("/api/exchange-return/update", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: r.id, fields: { stage: "반납완료", completedAt: today } }),
+        });
+        const json = await res.json();
+        if (json.ok) handleUpdated(r.id, { stage: "반납완료", completedAt: today });
       } finally { setAdvancingId(null); }
       return;
     }
@@ -3096,19 +3079,6 @@ export default function ExchangeReturnPanel() {
           onConfirmed={(due) => {
             handleUpdated(receiptTarget.id, { stage: "사용자수령", ...(due ? { returnDue: due } : {}) });
             setReceiptTarget(null);
-          }}
-        />
-      )}
-
-      {returnCompleteTarget && (
-        <ReturnCompleteModal
-          recordId={returnCompleteTarget.id}
-          assetId={returnCompleteTarget.assetId || ""}
-          onClose={() => setReturnCompleteTarget(null)}
-          onConfirmed={() => {
-            const today = new Date().toISOString().slice(0, 10);
-            handleUpdated(returnCompleteTarget.id, { stage: "반납완료", completedAt: today });
-            setReturnCompleteTarget(null);
           }}
         />
       )}
