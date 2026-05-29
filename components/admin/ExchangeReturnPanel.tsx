@@ -2628,7 +2628,6 @@ export default function ExchangeReturnPanel() {
   const [advancingId, setAdvancingId] = useState<string | null>(null);
   const [pickerTarget, setPickerTarget] = useState<ExchangeReturnRecord | null>(null);
   const [receiptTarget, setReceiptTarget] = useState<ExchangeReturnRecord | null>(null);
-  const [returnCompleteTarget, setReturnCompleteTarget] = useState<ExchangeReturnRecord | null>(null);
   const [hwDetailAsset, setHwDetailAsset] = useState<string | null>(null);
 
   const handleUpdated = useCallback((id: string, fields: Partial<ExchangeReturnRecord>) => {
@@ -2668,7 +2667,16 @@ export default function ExchangeReturnPanel() {
       return;
     }
     if (nextStage === "반납완료") {
-      setReturnCompleteTarget(r);
+      const today = new Date().toISOString().slice(0, 10);
+      setAdvancingId(r.id);
+      try {
+        const res = await fetch("/api/exchange-return/update", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: r.id, fields: { stage: "반납완료", completedAt: today } }),
+        });
+        const json = await res.json();
+        if (json.ok) handleUpdated(r.id, { stage: "반납완료", completedAt: today });
+      } finally { setAdvancingId(null); }
       return;
     }
     if (nextStage === "기기준비완료" && r.newAssetId && r.newAssetId !== "신규구매로안내됨") {
@@ -3071,19 +3079,6 @@ export default function ExchangeReturnPanel() {
           onConfirmed={(due) => {
             handleUpdated(receiptTarget.id, { stage: "사용자수령", ...(due ? { returnDue: due } : {}) });
             setReceiptTarget(null);
-          }}
-        />
-      )}
-
-      {returnCompleteTarget && (
-        <ReturnCompleteModal
-          recordId={returnCompleteTarget.id}
-          assetId={returnCompleteTarget.assetId || ""}
-          onClose={() => setReturnCompleteTarget(null)}
-          onConfirmed={() => {
-            const today = new Date().toISOString().slice(0, 10);
-            handleUpdated(returnCompleteTarget.id, { stage: "반납완료", completedAt: today });
-            setReturnCompleteTarget(null);
           }}
         />
       )}
