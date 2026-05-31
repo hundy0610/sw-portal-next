@@ -2,6 +2,67 @@
 import { useState, useEffect, useMemo } from "react";
 import type { HwRecord } from "@/lib/hw";
 
+export interface PrintQueueItem {
+  id: string;
+  company: string;
+  address: string;
+  department: string;
+  user: string;
+  newAssetId: string;
+  type: string;
+  addedAt: string;
+}
+
+const SHIP_TYPES = ["신규지급", "반납", "교환", "수리", "대여"] as const;
+
+function buildRecipientOrg(company: string, address: string, department: string): string {
+  return [company, address, department].filter(Boolean).join(" ") || "-";
+}
+
+function generateLabelHtml(labels: LabelEntry[], senderInfo: string): string {
+  const warnBar = `<div class="warning">♦파손주의♦&nbsp;&nbsp;&nbsp;♦상하주의♦&nbsp;&nbsp;&nbsp;♦취급주의♦</div>`;
+  const labelHtml = labels.map((label, idx) => `
+<div class="label">
+  ${warnBar}
+  <div class="body">
+    <div class="from-to">
+      <div>발신 : ${senderInfo}</div>
+      <div>수신 : ${label.recipientOrg || "&nbsp;"}</div>
+    </div>
+    <div class="to-name">${label.recipientName || "&nbsp;"} 님 앞</div>
+    <div class="ship-box">[ ${label.shipType} - 0 실사용자 : ${label.user || "&nbsp;"} 님 ]</div>
+    <div class="contents">내용 : ${label.assetNo || "&nbsp;"}</div>
+  </div>
+  ${warnBar}
+  <div class="page-num">${idx + 1} 페이지</div>
+  ${warnBar}
+</div>`).join("\n");
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: A4 portrait; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Malgun Gothic', '맑은 고딕', AppleGothic, sans-serif; width: 210mm; }
+  .label { width: 210mm; height: 148.5mm; display: flex; flex-direction: column; overflow: hidden; border-bottom: 2px dashed #aaa; page-break-inside: avoid; }
+  .label:last-child { border-bottom: none; }
+  .warning { background: #cc0000; color: white; font-size: 19pt; font-weight: 900; text-align: center; padding: 5.5mm 0; letter-spacing: 5px; flex-shrink: 0; }
+  .body { flex: 1; padding: 5mm 18mm; display: flex; flex-direction: column; justify-content: space-around; }
+  .from-to { font-size: 13pt; line-height: 2; }
+  .to-name { font-size: 26pt; font-weight: 900; text-align: center; }
+  .ship-box { border: 2.5px solid #222; text-align: center; padding: 2.5mm 0; font-size: 12pt; font-weight: bold; }
+  .contents { font-size: 16pt; font-weight: bold; }
+  .page-num { text-align: center; font-size: 15pt; color: #999; font-weight: bold; padding: 1.5mm 0; flex-shrink: 0; }
+</style>
+</head>
+<body>
+${labelHtml}
+<script>window.onload=function(){window.print();}<\/script>
+</body>
+</html>`;
+}
+
 export interface LabelEntry {
   id: string;
   recipientOrg: string;
@@ -140,89 +201,7 @@ export function LabelPrintTab({
   }
 
   async function printLabels() {
-    const warnBar = `<div class="warning">♦파손주의♦&nbsp;&nbsp;&nbsp;♦상하주의♦&nbsp;&nbsp;&nbsp;♦취급주의♦</div>`;
-    const labelHtml = labels.map((label, idx) => `
-<div class="label">
-  ${warnBar}
-  <div class="body">
-    <div class="from-to">
-      <div>발신 : ${senderInfo}</div>
-      <div>수신 : ${label.recipientOrg || "&nbsp;"}</div>
-    </div>
-    <div class="to-name">${label.recipientName || "&nbsp;"} 님 앞</div>
-    <div class="ship-box">[ ${label.shipType} - 0 실사용자 : ${label.user || "&nbsp;"} 님 ]</div>
-    <div class="contents">내용 : ${label.assetNo || "&nbsp;"}</div>
-  </div>
-  ${warnBar}
-  <div class="page-num">${idx + 1} 페이지</div>
-  ${warnBar}
-</div>`).join("\n");
-
-    const html = `<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8">
-<style>
-  @page { size: A4 portrait; margin: 0; }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Malgun Gothic', '맑은 고딕', AppleGothic, sans-serif; width: 210mm; }
-  .label {
-    width: 210mm;
-    height: 148.5mm;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    border-bottom: 2px dashed #aaa;
-    page-break-inside: avoid;
-  }
-  .label:last-child { border-bottom: none; }
-  .warning {
-    background: #cc0000;
-    color: white;
-    font-size: 19pt;
-    font-weight: 900;
-    text-align: center;
-    padding: 5.5mm 0;
-    letter-spacing: 5px;
-    flex-shrink: 0;
-  }
-  .body {
-    flex: 1;
-    padding: 5mm 18mm;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-around;
-  }
-  .from-to { font-size: 13pt; line-height: 2; }
-  .to-name {
-    font-size: 26pt;
-    font-weight: 900;
-    text-align: center;
-  }
-  .ship-box {
-    border: 2.5px solid #222;
-    text-align: center;
-    padding: 2.5mm 0;
-    font-size: 12pt;
-    font-weight: bold;
-  }
-  .contents { font-size: 16pt; font-weight: bold; }
-  .page-num {
-    text-align: center;
-    font-size: 15pt;
-    color: #999;
-    font-weight: bold;
-    padding: 1.5mm 0;
-    flex-shrink: 0;
-  }
-</style>
-</head>
-<body>
-${labelHtml}
-<script>window.onload=function(){window.print();}<\/script>
-</body>
-</html>`;
-
+    const html = generateLabelHtml(labels, senderInfo);
     const w = window.open("", "_blank", "width=900,height=750");
     if (w) { w.document.write(html); w.document.close(); }
 
@@ -535,6 +514,181 @@ ${labelHtml}
               )}
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 출력 대기 섹션 (자산흐름관리 연동)
+// ─────────────────────────────────────────────────────────────────────────────
+export function PrintQueueSection({
+  senderInfo,
+  onAdvanceStages,
+  onQueueChange,
+}: {
+  senderInfo: string;
+  onAdvanceStages: (ids: string[]) => Promise<void>;
+  onQueueChange?: (ids: string[]) => void;
+}) {
+  const [items, setItems] = useState<PrintQueueItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [recipientNames, setRecipientNames] = useState<Record<string, string>>({});
+  const [shipTypes, setShipTypes] = useState<Record<string, string>>({});
+  const [printing, setPrinting] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch("/api/print-queue")
+      .then(r => r.json())
+      .then(j => { if (j.ok) setItems(j.items ?? []); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    onQueueChange?.(items.map(i => i.id));
+  }, [items, onQueueChange]);
+
+  function toggleSelect(id: string) {
+    setSelected(prev =>
+      prev.includes(id)
+        ? prev.filter(x => x !== id)
+        : prev.length < 2 ? [...prev, id] : prev
+    );
+  }
+
+  async function removeFromQueue(id: string) {
+    await fetch(`/api/print-queue?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+    setItems(prev => prev.filter(i => i.id !== id));
+    setSelected(prev => prev.filter(x => x !== id));
+  }
+
+  async function handlePrint() {
+    if (selected.length === 0) return;
+    setPrinting(true);
+    try {
+      const selectedItems = items.filter(i => selected.includes(i.id));
+      const labels: LabelEntry[] = selectedItems.map(item => ({
+        id: item.id,
+        recipientOrg: buildRecipientOrg(item.company, item.address, item.department),
+        recipientName: recipientNames[item.id] ?? "",
+        user: item.user || "-",
+        assetNo: item.newAssetId || "-",
+        shipType: shipTypes[item.id] ?? "신규지급",
+      }));
+
+      const html = generateLabelHtml(labels, senderInfo);
+      const w = window.open("", "_blank", "width=900,height=750");
+      if (w) { w.document.write(html); w.document.close(); }
+
+      // 이력 저장
+      const record: PrintHistoryRecord = {
+        id: Date.now().toString(),
+        printedAt: new Date().toISOString(),
+        senderInfo,
+        labels,
+      };
+      await fetch("/api/label-history", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(record),
+      }).catch(() => {});
+
+      // 단계 진행 + 큐 제거
+      await onAdvanceStages(selected);
+      await Promise.all(selected.map(id =>
+        fetch(`/api/print-queue?id=${encodeURIComponent(id)}`, { method: "DELETE" }).catch(() => {})
+      ));
+      setItems(prev => prev.filter(i => !selected.includes(i.id)));
+      setSelected([]);
+    } finally {
+      setPrinting(false);
+    }
+  }
+
+  if (loading) return (
+    <div className="bg-white rounded-xl border border-amber-100 p-4 text-sm text-gray-400 text-center animate-pulse">
+      출력 대기 목록 불러오는 중…
+    </div>
+  );
+
+  return (
+    <div className="bg-white rounded-xl border border-amber-200 overflow-hidden mb-4">
+      <div className="px-4 py-3 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
+        <span className="text-sm font-bold text-amber-800 flex items-center gap-2">
+          🚚 출력 대기
+          {items.length > 0 && (
+            <span className="text-xs font-semibold bg-amber-200 text-amber-700 px-2 py-0.5 rounded-full">{items.length}건</span>
+          )}
+        </span>
+        {selected.length > 0 && (
+          <button
+            onClick={handlePrint}
+            disabled={printing}
+            className="text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
+          >
+            {printing ? "출력 중…" : `🖨️ 선택 출력 (${selected.length}장)`}
+          </button>
+        )}
+      </div>
+
+      {items.length === 0 ? (
+        <div className="py-8 text-center text-sm text-gray-300">출력 대기 중인 항목이 없습니다</div>
+      ) : (
+        <div className="divide-y divide-gray-50">
+          {items.map(item => {
+            const isSelected = selected.includes(item.id);
+            const isDisabled = !isSelected && selected.length >= 2;
+            return (
+              <div key={item.id} className={`px-4 py-3 flex items-start gap-3 transition-colors ${isSelected ? "bg-amber-50/60" : ""}`}>
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  disabled={isDisabled}
+                  onChange={() => toggleSelect(item.id)}
+                  className="mt-1 accent-amber-600 w-4 h-4 cursor-pointer disabled:opacity-30"
+                />
+                <div className="flex-1 min-w-0 space-y-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-semibold text-gray-700">{item.user || "—"}</span>
+                    <span className="text-xs text-gray-400">{[item.company, item.address, item.department].filter(Boolean).join(" · ")}</span>
+                    {item.newAssetId && (
+                      <span className="font-mono text-xs text-blue-600">{item.newAssetId}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={recipientNames[item.id] ?? ""}
+                      onChange={e => setRecipientNames(prev => ({ ...prev, [item.id]: e.target.value }))}
+                      placeholder="수신자 이름 입력"
+                      className="flex-1 px-2 py-1 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 min-w-0"
+                    />
+                    <select
+                      value={shipTypes[item.id] ?? "신규지급"}
+                      onChange={e => setShipTypes(prev => ({ ...prev, [item.id]: e.target.value }))}
+                      className="px-2 py-1 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-amber-400"
+                    >
+                      {SHIP_TYPES.map(t => <option key={t}>{t}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <button
+                  onClick={() => removeFromQueue(item.id)}
+                  className="text-gray-300 hover:text-red-400 transition-colors text-sm mt-0.5 shrink-0"
+                  title="대기 취소"
+                >✕</button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {items.length > 0 && selected.length === 0 && (
+        <div className="px-4 py-2 text-xs text-gray-400 border-t border-gray-50">
+          최대 2개 선택 후 출력하세요
         </div>
       )}
     </div>

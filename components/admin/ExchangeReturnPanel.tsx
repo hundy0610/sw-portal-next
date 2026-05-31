@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import type { ExchangeReturnRecord } from "@/types";
 import type { HwRecord } from "@/lib/hw";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
-import { LabelPrintTab } from "@/components/admin/LabelPrintTab";
+import { LabelPrintTab, PrintQueueSection } from "@/components/admin/LabelPrintTab";
 
 // ── 상수 ────────────────────────────────────────────────────
 const STAGES = ["교체요청", "요청기안", "기기준비", "기기준비완료", "사용자수령", "반납요청", "반납완료"] as const;
@@ -2659,6 +2659,48 @@ export default function ExchangeReturnPanel() {
     setSelected(prev => prev?.id === id ? { ...prev, ...fields } : prev);
   }, []);
 
+  const [queuedIds, setQueuedIds] = useState<Set<string>>(new Set());
+  const [labelSenderInfo] = useState("idsTrust 자산관리파트");
+  const [queuingId, setQueuingId] = useState<string | null>(null);
+
+  const handleAddToQueue = useCallback(async (r: ExchangeReturnRecord) => {
+    setQueuingId(r.id);
+    try {
+      const item = {
+        id: r.id,
+        company: r.company || "",
+        address: r.address || "",
+        department: r.department || "",
+        user: r.user || "",
+        newAssetId: r.newAssetId || "",
+        type: r.type || "",
+        addedAt: new Date().toISOString(),
+      };
+      await fetch("/api/print-queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(item),
+      });
+      setQueuedIds(prev => new Set([...prev, r.id]));
+    } finally {
+      setQueuingId(null);
+    }
+  }, []);
+
+  const handleAdvanceToReceipt = useCallback(async (ids: string[]) => {
+    const today = new Date();
+    const returnDue = new Date(today.setDate(today.getDate() + 7)).toISOString().slice(0, 10);
+    await Promise.all(ids.map(async id => {
+      const res = await fetch("/api/exchange-return/update", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, fields: { stage: "사용자수령", returnDue } }),
+      });
+      const json = await res.json();
+      if (json.ok) handleUpdated(id, { stage: "사용자수령", returnDue });
+    }));
+    setQueuedIds(prev => { const next = new Set(prev); ids.forEach(id => next.delete(id)); return next; });
+  }, [handleUpdated]);
+
   const handleDeleted = useCallback((id: string) => {
     setRecords(prev => prev.filter(r => r.id !== id));
     setSelected(prev => prev?.id === id ? null : prev);
@@ -2865,7 +2907,14 @@ export default function ExchangeReturnPanel() {
       </div>
 
       {mainTab === "label" && (
-        <LabelPrintTab records={hwRecords} recordsReady={hwRecordsReady} onLoadRecords={loadHwRecords} />
+        <div className="space-y-0">
+          <PrintQueueSection
+            senderInfo={labelSenderInfo}
+            onAdvanceStages={handleAdvanceToReceipt}
+            onQueueChange={ids => setQueuedIds(new Set(ids))}
+          />
+          <LabelPrintTab records={hwRecords} recordsReady={hwRecordsReady} onLoadRecords={loadHwRecords} />
+        </div>
       )}
 
       {mainTab === "list" && (<>
@@ -3012,6 +3061,20 @@ export default function ExchangeReturnPanel() {
                             </button>
                           );
                         })()}
+                        {r.stage === "기기준비완료" && !r.isClosed && (
+                          <button
+                            onClick={() => handleAddToQueue(r)}
+                            disabled={queuingId === r.id || queuedIds.has(r.id)}
+                            className={`flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded transition-colors disabled:opacity-50 ${
+                              queuedIds.has(r.id)
+                                ? "bg-amber-100 text-amber-600 cursor-default"
+                                : "bg-amber-50 text-amber-600 hover:bg-amber-200"
+                            }`}
+                            title="행낭 출력 대기에 추가"
+                          >
+                            {queuingId === r.id ? "…" : queuedIds.has(r.id) ? "🏷️ 대기중" : "🏷️ 출력대기"}
+                          </button>
+                        )}
                       </div>
                     </div>
                   </td>
