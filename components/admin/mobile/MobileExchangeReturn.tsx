@@ -257,6 +257,7 @@ export default function MobileExchangeReturn({ session }: Props) {
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("전체");
   const [filterStage, setFilterStage] = useState("진행 중");
+  const [filterSpecificStage, setFilterSpecificStage] = useState("");
   const [selected, setSelected] = useState<ExchangeReturnRecord | null>(null);
   const [error, setError] = useState("");
 
@@ -287,15 +288,19 @@ export default function MobileExchangeReturn({ session }: Props) {
   const filtered = useMemo(() => {
     return records.filter(r => {
       if (filterType !== "전체" && r.type !== filterType) return false;
-      if (filterStage === "진행 중" && (r.isClosed || r.stage === "반납완료")) return false;
-      if (filterStage === "완료" && !r.isClosed && r.stage !== "반납완료") return false;
+      if (filterSpecificStage) {
+        if (r.stage !== filterSpecificStage) return false;
+      } else {
+        if (filterStage === "진행 중" && (r.isClosed || r.stage === "반납완료")) return false;
+        if (filterStage === "완료" && !r.isClosed && r.stage !== "반납완료") return false;
+      }
       if (search) {
         const q = search.toLowerCase();
         return [r.user, r.assetId, r.newAssetId, r.company, r.department, r.assignee].some(v => v?.toLowerCase().includes(q));
       }
       return true;
     });
-  }, [records, filterType, filterStage, search]);
+  }, [records, filterType, filterStage, filterSpecificStage, search]);
 
   // 단계별 카운트 (진행 중 레코드)
   const stageCounts = useMemo(() => {
@@ -310,15 +315,27 @@ export default function MobileExchangeReturn({ session }: Props) {
       {/* 단계별 칩 요약 */}
       <div className="bg-white border-b border-gray-100 px-4 py-3">
         <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
+          {filterSpecificStage && (
+            <button
+              onClick={() => setFilterSpecificStage("")}
+              className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold bg-gray-800 text-white">
+              {filterSpecificStage} ✕
+            </button>
+          )}
           {Object.entries(STAGE_COLORS).map(([stage, colors]) => {
             const cnt = stageCounts[stage] ?? 0;
             if (stage === "반납완료" || cnt === 0) return null;
+            const active = filterSpecificStage === stage;
             return (
               <button key={stage}
-                onClick={() => { setFilterStage("진행 중"); setSearch(stage); }}
+                onClick={() => setFilterSpecificStage(active ? "" : stage)}
                 className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border"
-                style={{ background: colors.bg, color: colors.text, borderColor: colors.dot + "44" }}>
-                <span className="w-1.5 h-1.5 rounded-full" style={{ background: colors.dot }} />
+                style={{
+                  background: active ? colors.dot : colors.bg,
+                  color: active ? "#fff" : colors.text,
+                  borderColor: colors.dot + "44",
+                }}>
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: active ? "#fff" : colors.dot }} />
                 {stage} {cnt}
               </button>
             );
@@ -344,9 +361,9 @@ export default function MobileExchangeReturn({ session }: Props) {
         </div>
         <div className="flex gap-2">
           {["진행 중", "완료", "전체"].map(s => (
-            <button key={s} onClick={() => setFilterStage(s)}
+            <button key={s} onClick={() => { setFilterStage(s); setFilterSpecificStage(""); }}
               className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors
-                ${filterStage === s ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"}`}>
+                ${filterStage === s && !filterSpecificStage ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"}`}>
               {s}
             </button>
           ))}
