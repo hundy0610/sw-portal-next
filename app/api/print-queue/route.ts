@@ -11,6 +11,7 @@ export interface PrintQueueItem {
   user: string;
   newAssetId: string;
   type: string;
+  note: string;
   addedAt: string;
 }
 

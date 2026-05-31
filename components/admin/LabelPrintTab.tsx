@@ -10,6 +10,7 @@ export interface PrintQueueItem {
   user: string;
   newAssetId: string;
   type: string;
+  note: string;
   addedAt: string;
 }
 
@@ -659,6 +660,9 @@ export function PrintQueueSection({
                       <span className="font-mono text-xs text-blue-600">{item.newAssetId}</span>
                     )}
                   </div>
+                  {item.note && (
+                    <p className="text-xs text-gray-400 truncate" title={item.note}>📝 {item.note}</p>
+                  )}
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
