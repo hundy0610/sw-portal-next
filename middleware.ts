@@ -1,33 +1,31 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// 구버전 호환: 환경변수 기반 관리자 키
 const ADMIN_KEY = process.env.ADMIN_SECRET_KEY ?? "3589";
 
 function isAuthenticated(request: NextRequest): boolean {
-  // 신버전: admin_session 쿠키 (base64 JSON)
   const sessionToken = request.cookies.get("admin_session")?.value;
   if (sessionToken) {
     try {
       const json = Buffer.from(sessionToken, "base64").toString("utf-8");
       const s = JSON.parse(json);
       if (s?.userId && s?.role) return true;
-    } catch {
-      // 파싱 실패 시 fallback
-    }
+    } catch {}
   }
-
-  // 구버전 fallback: admin_key 쿠키
   const adminKey = request.cookies.get("admin_key")?.value;
   if (adminKey === ADMIN_KEY) return true;
-
   return false;
+}
+
+function isMobile(request: NextRequest): boolean {
+  const ua = request.headers.get("user-agent") ?? "";
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
 }
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 인증 없이 허용하는 경로
+  // 인증 없이 허용
   if (
     pathname === "/admin/login" ||
     pathname.startsWith("/api/admin/auth") ||
@@ -36,11 +34,16 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // /admin/* 경로 보호
+  // /admin/* 인증 보호
   if (pathname.startsWith("/admin")) {
     if (!isAuthenticated(request)) {
-      const loginUrl = new URL("/admin/login", request.url);
-      return NextResponse.redirect(loginUrl);
+      return NextResponse.redirect(new URL("/admin/login", request.url));
+    }
+
+    // 모바일 기기로 /admin 접속 시 → /admin/mobile 자동 이동
+    // (이미 /admin/mobile 이하면 제외)
+    if (!pathname.startsWith("/admin/mobile") && isMobile(request)) {
+      return NextResponse.redirect(new URL("/admin/mobile", request.url));
     }
   }
 

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
+import ServiceWorkerRegistrar from "@/components/admin/mobile/ServiceWorkerRegistrar";
 
 const MobileDashboard     = dynamic(() => import("@/components/admin/mobile/MobileDashboard"),     { ssr: false });
 const MobileExchangeReturn = dynamic(() => import("@/components/admin/mobile/MobileExchangeReturn"), { ssr: false });
@@ -96,6 +97,7 @@ export default function MobileAdminPage() {
 
   return (
     <div className="flex flex-col bg-gray-50" style={{ minHeight: "100dvh" }}>
+      <ServiceWorkerRegistrar />
       {/* Header */}
       <header className="bg-[#1C2B4A] text-white sticky top-0 z-40 flex items-center px-4 gap-3"
         style={{ height: 56, paddingTop: "env(safe-area-inset-top)" }}>
