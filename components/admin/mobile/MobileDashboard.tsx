@@ -1,21 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import type { MobileSession } from "@/app/admin/mobile/page";
 import type { HwStats } from "@/lib/hw";
+import type { ExchangeReturnRecord } from "@/types";
 
 interface Props {
   session: MobileSession;
   onNavigate: (tab: string) => void;
 }
 
-// ── 도넛 차트 (모바일용 소형) ────────────────────────────────
+// ── 도넛 차트 ─────────────────────────────────────────────────
 interface DonutSeg { label: string; value: number; color: string }
 
-function DonutChart({ data, title, size = 100 }: { data: DonutSeg[]; title: string; size?: number }) {
+function DonutChart({ data, title }: { data: DonutSeg[]; title: string }) {
   const [hovered, setHovered] = useState<string | null>(null);
   const total = data.reduce((s, d) => s + d.value, 0);
-  const r = size * 0.38, cx = size / 2, cy = size / 2;
+  const size = 108, r = 40, cx = 54, cy = 54;
   const C = 2 * Math.PI * r;
   let cumOffset = 0;
   const segs = data.filter(d => d.value > 0).map(d => {
@@ -25,18 +26,17 @@ function DonutChart({ data, title, size = 100 }: { data: DonutSeg[]; title: stri
     return { ...d, len, startOff };
   });
   const hoverSeg = hovered ? segs.find(s => s.label === hovered) : null;
-  const sw = size * 0.135;
 
   return (
     <div className="flex items-center gap-4">
       <div className="shrink-0">
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
           {total === 0
-            ? <circle cx={cx} cy={cy} r={r} fill="none" stroke="#E5E7EB" strokeWidth={sw} />
+            ? <circle cx={cx} cy={cy} r={r} fill="none" stroke="#E5E7EB" strokeWidth="15" />
             : segs.map(s => (
                 <circle key={s.label} cx={cx} cy={cy} r={r} fill="none"
                   stroke={s.color}
-                  strokeWidth={hovered === s.label ? sw + 3 : sw}
+                  strokeWidth={hovered === s.label ? 18 : 15}
                   strokeDasharray={`${Math.max(0, s.len - 1.5)} ${C}`}
                   strokeDashoffset={-s.startOff}
                   transform={`rotate(-90 ${cx} ${cy})`}
@@ -46,18 +46,18 @@ function DonutChart({ data, title, size = 100 }: { data: DonutSeg[]; title: stri
                 />
               ))
           }
-          <text x={cx} y={cy - 5} textAnchor="middle" fontSize={size * 0.13} fontWeight="800" fill="#111827">
+          <text x={cx} y={cy - 4} textAnchor="middle" fontSize="13" fontWeight="800" fill="#111827">
             {hoverSeg ? hoverSeg.value : total.toLocaleString()}
           </text>
-          <text x={cx} y={cy + 9} textAnchor="middle" fontSize={size * 0.08} fill="#9CA3AF">
+          <text x={cx} y={cy + 10} textAnchor="middle" fontSize="8" fill="#9CA3AF">
             {hoverSeg ? (hoverSeg.label.length > 5 ? hoverSeg.label.slice(0, 4) + "…" : hoverSeg.label) : title}
           </text>
         </svg>
       </div>
       <div className="flex flex-col gap-1 flex-1 min-w-0">
-        {segs.slice(0, 7).map(s => (
+        {segs.slice(0, 8).map(s => (
           <div key={s.label}
-            className={`flex items-center gap-1.5 text-xs px-1.5 py-0.5 rounded cursor-pointer transition-colors ${hovered === s.label ? "bg-gray-100" : ""}`}
+            className={`flex items-center gap-1.5 px-1 py-0.5 rounded cursor-pointer ${hovered === s.label ? "bg-gray-100" : ""}`}
             onMouseEnter={() => setHovered(s.label)}
             onMouseLeave={() => setHovered(null)}
           >
@@ -85,24 +85,42 @@ const SW_STATUS_COLORS: Record<string, string> = {
   "출고준비중": "#06B6D4", "갱신필요": "#F97316", "반납예정": "#EAB308",
   "만료": "#9CA3AF",
 };
+const STAGE_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
+  "교체요청":     { bg: "#F8FAFC", text: "#64748B", dot: "#94A3B8" },
+  "요청기안":     { bg: "#EFF6FF", text: "#1D4ED8", dot: "#3B82F6" },
+  "기기준비":     { bg: "#F5F3FF", text: "#6D28D9", dot: "#8B5CF6" },
+  "기기준비완료": { bg: "#ECFDF5", text: "#065F46", dot: "#10B981" },
+  "사용자수령":   { bg: "#FFF7ED", text: "#C2410C", dot: "#F97316" },
+  "반납요청":     { bg: "#FEFCE8", text: "#A16207", dot: "#EAB308" },
+};
+const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
+  "교체":     { bg: "#EFF6FF", text: "#1D4ED8" },
+  "퇴사반납": { bg: "#FEF2F2", text: "#B91C1C" },
+  "신규지급": { bg: "#F0FDF4", text: "#15803D" },
+};
 const PALETTE = ["#6366f1","#f59e0b","#10b981","#ef4444","#3b82f6","#8b5cf6","#ec4899","#14b8a6","#f97316"];
 const HW_HIDDEN = new Set(["미확인", "미분류"]);
+const ALL_STAGES = ["교체요청","요청기안","기기준비","기기준비완료","사용자수령","반납요청"] as const;
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{children}</div>;
+function agingDays(requestedAt: string, completedAt: string, stage: string) {
+  if (!requestedAt) return 0;
+  const end = stage === "반납완료" && completedAt ? new Date(completedAt) : new Date();
+  return Math.floor((end.getTime() - new Date(requestedAt).getTime()) / 86_400_000);
 }
 
+// ── 메인 컴포넌트 ─────────────────────────────────────────────
 export default function MobileDashboard({ session, onNavigate }: Props) {
   const isSuper = session.role === "super";
-  const companyParam = !isSuper && session.company ? `?company=${encodeURIComponent(session.company)}` : "";
+  const isFiltered = !isSuper && !!session.company;
+  const companyParam = isFiltered ? `?company=${encodeURIComponent(session.company)}` : "";
 
-  const [hwStats,        setHwStats]        = useState<HwStats | null>(null);
-  const [hwLoading,      setHwLoading]      = useState(true);
-  const [swSegs,         setSwSegs]         = useState<DonutSeg[]>([]);
-  const [swLoading,      setSwLoading]      = useState(true);
-  const [exchangeActive, setExchangeActive] = useState(0);
-  const [helpdeskOpen,   setHelpdeskOpen]   = useState(0);
-  const [repairOpen,     setRepairOpen]     = useState(0);
+  const [hwStats,   setHwStats]   = useState<HwStats | null>(null);
+  const [hwLoading, setHwLoading] = useState(true);
+  const [swSegs,    setSwSegs]    = useState<DonutSeg[]>([]);
+  const [swLoading, setSwLoading] = useState(true);
+  const [erRecords, setErRecords] = useState<ExchangeReturnRecord[]>([]);
+  const [erLoading, setErLoading] = useState(true);
+  const [erStage,   setErStage]   = useState("기기준비");
 
   // HW 통계
   useEffect(() => {
@@ -113,19 +131,13 @@ export default function MobileDashboard({ session, onNavigate }: Props) {
       .finally(() => setHwLoading(false));
   }, [companyParam]);
 
-  // SW + 진행업무 병렬 fetch
+  // SW 데이터
   useEffect(() => {
-    const swUrl = isFiltered ? `/api/sw-records?company=${encodeURIComponent(session.company)}` : "/api/sw-records";
-    Promise.all([
-      fetch(swUrl).then(r => r.json()).catch(() => null),
-      isSuper ? fetch("/api/exchange-return").then(r => r.json()).catch(() => null) : Promise.resolve(null),
-      fetch(`/api/helpdesk${companyParam}`).then(r => r.json()).catch(() => null),
-      fetch(`/api/repair-tickets${companyParam}`).then(r => r.json()).catch(() => null),
-    ]).then(([swRes, erRes, hdRes, repRes]) => {
-      // SW 도넛
-      if (Array.isArray(swRes?.data)) {
+    const url = isFiltered ? `/api/sw-records?company=${encodeURIComponent(session.company)}` : "/api/sw-records";
+    fetch(url).then(r => r.json()).then(d => {
+      if (Array.isArray(d.data)) {
         const counts: Record<string, number> = {};
-        for (const r of swRes.data as { status?: string }[]) {
+        for (const r of d.data as { status?: string }[]) {
           const s = r.status || "미확인";
           counts[s] = (counts[s] || 0) + 1;
         }
@@ -134,19 +146,18 @@ export default function MobileDashboard({ session, onNavigate }: Props) {
             .map(([label, value], i) => ({ label, value, color: SW_STATUS_COLORS[label] ?? PALETTE[i % PALETTE.length] }))
         );
       }
-      setSwLoading(false);
+    }).catch(() => {}).finally(() => setSwLoading(false));
+  }, [isFiltered, session.company]); // eslint-disable-line react-hooks/exhaustive-deps
 
-      // 진행 업무 카운트
-      if (Array.isArray(erRes?.data))
-        setExchangeActive((erRes.data as { stage: string; isClosed: boolean }[]).filter(r => !r.isClosed && r.stage !== "반납완료").length);
-      if (Array.isArray(hdRes?.data))
-        setHelpdeskOpen((hdRes.data as { status: string }[]).filter(t => t.status !== "완료").length);
-      if (Array.isArray(repRes?.data))
-        setRepairOpen((repRes.data as { status: string }[]).filter(t => t.status !== "완료").length);
-    });
-  }, [companyParam, isSuper, session.company]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const isFiltered = !isSuper && !!session.company;
+  // 자산흐름 데이터 (슈퍼어드민만)
+  useEffect(() => {
+    if (!isSuper) { setErLoading(false); return; }
+    fetch("/api/exchange-return")
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d.data)) setErRecords(d.data); })
+      .catch(() => {})
+      .finally(() => setErLoading(false));
+  }, [isSuper]);
 
   // HW 도넛 세그
   const hwSegs: DonutSeg[] = hwStats
@@ -156,10 +167,23 @@ export default function MobileDashboard({ session, onNavigate }: Props) {
         .map(([label, value], i) => ({ label, value, color: HW_STATUS_COLORS[label] ?? PALETTE[i % PALETTE.length] }))
     : [];
 
+  // 단계별 카운트
+  const stageCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    erRecords.filter(r => !r.isClosed && r.stage !== "반납완료")
+      .forEach(r => { counts[r.stage] = (counts[r.stage] ?? 0) + 1; });
+    return counts;
+  }, [erRecords]);
+
+  // 필터링된 자산흐름
+  const erFiltered = useMemo(() => {
+    return erRecords.filter(r => erStage === "전체" || r.stage === erStage);
+  }, [erRecords, erStage]);
+
   return (
     <div className="p-4 space-y-4">
 
-      {/* ── HW 자산현황 도넛 차트 ─────────────────────────────── */}
+      {/* ── HW 자산현황 ───────────────────────────────────────── */}
       <div className="bg-white rounded-2xl shadow-sm p-4">
         <div className="flex items-center justify-between mb-3">
           <span className="text-sm font-bold text-gray-800">HW 자산현황</span>
@@ -167,11 +191,11 @@ export default function MobileDashboard({ session, onNavigate }: Props) {
         </div>
         {hwLoading
           ? <div className="h-24 flex items-center justify-center text-xs text-gray-400">로딩 중...</div>
-          : <DonutChart data={hwSegs} title="상태" size={104} />
+          : <DonutChart data={hwSegs} title="상태" />
         }
       </div>
 
-      {/* ── SW 라이선스 현황 도넛 차트 ───────────────────────────── */}
+      {/* ── SW 라이선스 현황 ──────────────────────────────────── */}
       <div className="bg-white rounded-2xl shadow-sm p-4">
         <div className="flex items-center justify-between mb-3">
           <span className="text-sm font-bold text-gray-800">SW 라이선스 현황</span>
@@ -179,73 +203,89 @@ export default function MobileDashboard({ session, onNavigate }: Props) {
         </div>
         {swLoading
           ? <div className="h-24 flex items-center justify-center text-xs text-gray-400">로딩 중...</div>
-          : <DonutChart data={swSegs} title="전체" size={104} />
+          : <DonutChart data={swSegs} title="전체" />
         }
       </div>
 
-      {/* ── 법인별 현황 ───────────────────────────────────────────── */}
-      {hwStats && hwStats.companyTable.length > 0 && (
-        <div>
-          <SectionTitle>법인별 현황</SectionTitle>
-          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-            {hwStats.companyTable.slice(0, 5).map((row, i) => (
-              <div key={row.company} className={`flex items-center px-4 py-3 ${i > 0 ? "border-t border-gray-100" : ""}`}>
-                <div className="flex-1 text-sm font-medium text-gray-900 truncate">{row.company}</div>
-                <div className="flex gap-3 text-xs">
-                  <span className="text-gray-400">전체 <strong className="text-gray-700">{row.total}</strong></span>
-                  <span className="text-blue-500">사용 <strong>{row.active}</strong></span>
-                  <span className="text-green-500">재고 <strong>{row.stock}</strong></span>
-                </div>
-              </div>
-            ))}
+      {/* ── 자산흐름 관리 (슈퍼어드민) ───────────────────────── */}
+      {isSuper && (
+        <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+          {/* 헤더 */}
+          <div className="flex items-center justify-between px-4 pt-4 pb-2">
+            <span className="text-sm font-bold text-gray-800">자산 흐름 관리</span>
+            <button onClick={() => onNavigate("exchange-return")} className="text-xs text-blue-500">
+              전체 보기 →
+            </button>
+          </div>
+
+          {/* 단계 탭 */}
+          <div className="flex gap-1.5 px-4 pb-3 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+            <button
+              onClick={() => setErStage("전체")}
+              className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors
+                ${erStage === "전체" ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-600"}`}>
+              전체
+            </button>
+            {ALL_STAGES.map(stage => {
+              const cnt = stageCounts[stage] ?? 0;
+              if (cnt === 0) return null;
+              const c = STAGE_COLORS[stage];
+              const active = erStage === stage;
+              return (
+                <button key={stage} onClick={() => setErStage(stage)}
+                  className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold border transition-all"
+                  style={{
+                    background: active ? c.dot : c.bg,
+                    color: active ? "#fff" : c.text,
+                    borderColor: c.dot + "55",
+                  }}>
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: active ? "#ffffffaa" : c.dot }} />
+                  {stage} {cnt}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* 카드 목록 */}
+          <div className="divide-y divide-gray-50 max-h-80 overflow-y-auto">
+            {erLoading ? (
+              <div className="py-8 text-center text-xs text-gray-400">로딩 중...</div>
+            ) : erFiltered.length === 0 ? (
+              <div className="py-8 text-center text-xs text-gray-400">항목이 없습니다</div>
+            ) : (
+              erFiltered.map(r => {
+                const aging = agingDays(r.requestedAt, r.completedAt, r.stage);
+                const sc = STAGE_COLORS[r.stage] ?? { bg: "#F1F5F9", text: "#64748B", dot: "#94A3B8" };
+                const tc = TYPE_COLORS[r.type]  ?? { bg: "#F1F5F9", text: "#64748B" };
+                return (
+                  <div key={r.id} className="flex items-center gap-3 px-4 py-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold"
+                          style={{ background: tc.bg, color: tc.text }}>{r.type}</span>
+                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold"
+                          style={{ background: sc.bg, color: sc.text }}>{r.stage}</span>
+                      </div>
+                      <div className="font-semibold text-gray-900 text-sm mt-1">{r.user || "—"}</div>
+                      <div className="text-xs text-gray-400">{r.company} · {r.assetId || r.newAssetId || "—"}</div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-xs font-bold"
+                        style={{ color: aging >= 7 ? "#DC2626" : aging >= 3 ? "#D97706" : "#9CA3AF" }}>
+                        D+{aging}
+                      </div>
+                      {r.assignee && <div className="text-[10px] text-gray-400 mt-0.5">{r.assignee}</div>}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+          <div className="px-4 py-2 border-t border-gray-50 text-right text-xs text-gray-400">
+            {erFiltered.length}건
           </div>
         </div>
       )}
-
-      {/* ── 진행 중인 업무 ────────────────────────────────────────── */}
-      <div>
-        <SectionTitle>진행 중인 업무</SectionTitle>
-        <div className="space-y-2">
-          {isSuper && (
-            <button onClick={() => onNavigate("exchange-return")}
-              className="w-full bg-white rounded-2xl shadow-sm p-4 flex items-center gap-4 active:opacity-70 transition-opacity">
-              <span className="text-2xl">📲</span>
-              <div className="flex-1 text-left">
-                <div className="font-semibold text-gray-900 text-sm">자산흐름 관리</div>
-                <div className="text-xs text-gray-400 mt-0.5">교체·반납 진행 중</div>
-              </div>
-              <div className="flex flex-col items-end">
-                <span className="text-lg font-extrabold text-orange-500">{exchangeActive}</span>
-                <span className="text-xs text-gray-400">진행 중</span>
-              </div>
-            </button>
-          )}
-          <button onClick={() => onNavigate("helpdesk")}
-            className="w-full bg-white rounded-2xl shadow-sm p-4 flex items-center gap-4 active:opacity-70 transition-opacity">
-            <span className="text-2xl">🎫</span>
-            <div className="flex-1 text-left">
-              <div className="font-semibold text-gray-900 text-sm">헬프데스크</div>
-              <div className="text-xs text-gray-400 mt-0.5">미완료 문의</div>
-            </div>
-            <div className="flex flex-col items-end">
-              <span className="text-lg font-extrabold text-blue-500">{helpdeskOpen}</span>
-              <span className="text-xs text-gray-400">미완료</span>
-            </div>
-          </button>
-          <button onClick={() => onNavigate("helpdesk")}
-            className="w-full bg-white rounded-2xl shadow-sm p-4 flex items-center gap-4 active:opacity-70 transition-opacity">
-            <span className="text-2xl">🔧</span>
-            <div className="flex-1 text-left">
-              <div className="font-semibold text-gray-900 text-sm">수리 접수</div>
-              <div className="text-xs text-gray-400 mt-0.5">처리 대기</div>
-            </div>
-            <div className="flex flex-col items-end">
-              <span className="text-lg font-extrabold text-purple-500">{repairOpen}</span>
-              <span className="text-xs text-gray-400">진행 중</span>
-            </div>
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
