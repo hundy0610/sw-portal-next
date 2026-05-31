@@ -53,7 +53,6 @@ function DetailSheet({ record, onClose }: { record: HwRecord; onClose: () => voi
     <div className="fixed inset-0 z-50 flex flex-col justify-end" style={{ background: "rgba(0,0,0,0.45)" }} onClick={onClose}>
       <div className="bg-white rounded-t-3xl p-5 max-h-[85dvh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-4" />
-
         <div className="flex items-start justify-between mb-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
@@ -69,22 +68,20 @@ function DetailSheet({ record, onClose }: { record: HwRecord; onClose: () => voi
             </svg>
           </button>
         </div>
-
         <div className="space-y-2.5">
           <InfoRow label="자산번호" value={record.assetNo} />
-          <InfoRow label="시리얼" value={record.serial} />
-          <InfoRow label="제조사" value={record.maker} />
-          <InfoRow label="CPU" value={record.cpu} />
-          <InfoRow label="RAM" value={record.ram} />
-          <InfoRow label="부서" value={record.dept} />
-          <InfoRow label="위치" value={record.location} />
+          <InfoRow label="시리얼"   value={record.serial} />
+          <InfoRow label="제조사"   value={record.maker} />
+          <InfoRow label="CPU"      value={record.cpu} />
+          <InfoRow label="RAM"      value={record.ram} />
+          <InfoRow label="부서"     value={record.dept} />
+          <InfoRow label="위치"     value={record.location} />
           <InfoRow label="사용일자" value={fmtDate(record.useDate)} />
           <InfoRow label="구매일자" value={fmtDate(record.purchaseDate)} />
           <InfoRow label="반납예정" value={fmtDate(record.returnDue)} />
           <InfoRow label="결재문서" value={record.docNo} />
           {record.note && <InfoRow label="기타" value={record.note} />}
         </div>
-
         {record.notionUrl && (
           <a href={record.notionUrl} target="_blank" rel="noopener noreferrer"
             className="mt-4 flex items-center justify-center gap-1.5 text-xs text-gray-400 py-2">
@@ -96,14 +93,40 @@ function DetailSheet({ record, onClose }: { record: HwRecord; onClose: () => voi
   );
 }
 
+// ── 드롭다운 컴포넌트 ─────────────────────────────────────────
+function Select({ value, onChange, options, placeholder }: {
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+  placeholder: string;
+}) {
+  return (
+    <div className="relative flex-1">
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="w-full appearance-none bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 font-medium focus:outline-none focus:border-blue-400 pr-8"
+      >
+        {options.map(o => (
+          <option key={o} value={o}>{o === "전체" ? placeholder : o}</option>
+        ))}
+      </select>
+      <svg className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400"
+        width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+        <polyline points="6 9 12 15 18 9"/>
+      </svg>
+    </div>
+  );
+}
+
 export default function MobileHw({ session }: Props) {
-  const [records, setRecords] = useState<HwRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [filterStatus, setFilterStatus] = useState("전체");
+  const [records,       setRecords]       = useState<HwRecord[]>([]);
+  const [loading,       setLoading]       = useState(true);
+  const [search,        setSearch]        = useState("");
+  const [filterStatus,  setFilterStatus]  = useState("재고");   // 재고현황 기본
   const [filterCompany, setFilterCompany] = useState("전체");
-  const [selected, setSelected] = useState<HwRecord | null>(null);
-  const [error, setError] = useState("");
+  const [selected,      setSelected]      = useState<HwRecord | null>(null);
+  const [error,         setError]         = useState("");
 
   const isSuper = session.role === "super";
   const companyParam = !isSuper && session.company ? `?company=${encodeURIComponent(session.company)}` : "";
@@ -119,24 +142,25 @@ export default function MobileHw({ session }: Props) {
       .finally(() => setLoading(false));
   }, [companyParam]);
 
-  const companies = useMemo(() => {
-    if (!isSuper) return [];
-    const set = new Set(records.map(r => r.company).filter(Boolean));
-    return Array.from(set).sort();
-  }, [records, isSuper]);
-
   const statusOptions = useMemo(() => {
     const set = new Set(records.map(r => r.status).filter(Boolean));
-    return Array.from(set).sort();
+    return ["전체", ...Array.from(set).sort()];
   }, [records]);
+
+  const companyOptions = useMemo(() => {
+    if (!isSuper) return [];
+    const set = new Set(records.map(r => r.company).filter(Boolean));
+    return ["전체", ...Array.from(set).sort()];
+  }, [records, isSuper]);
 
   const filtered = useMemo(() => {
     return records.filter(r => {
-      if (filterStatus !== "전체" && r.status !== filterStatus) return false;
+      if (filterStatus  !== "전체" && r.status  !== filterStatus)  return false;
       if (filterCompany !== "전체" && r.company !== filterCompany) return false;
       if (search) {
         const q = search.toLowerCase();
-        return [r.user, r.assetNo, r.serial, r.model, r.company, r.dept, r.location].some(v => v?.toLowerCase().includes(q));
+        return [r.user, r.assetNo, r.serial, r.model, r.company, r.dept, r.location]
+          .some(v => v?.toLowerCase().includes(q));
       }
       return true;
     });
@@ -144,39 +168,37 @@ export default function MobileHw({ session }: Props) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* 필터 */}
+      {/* 필터 영역 */}
       <div className="bg-white border-b border-gray-100 px-4 py-3 space-y-2">
+        {/* 검색 */}
         <input
           type="text" value={search} onChange={e => setSearch(e.target.value)}
           placeholder="이름 · 자산번호 · 시리얼 · 모델 검색..."
           className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400"
         />
-        <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
-          {["전체", ...statusOptions].map(s => (
-            <button key={s} onClick={() => setFilterStatus(s)}
-              className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors
-                ${filterStatus === s ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600"}`}>
-              {s}
-            </button>
-          ))}
+        {/* 드롭다운 행 */}
+        <div className="flex gap-2">
+          <Select
+            value={filterStatus}
+            onChange={setFilterStatus}
+            options={statusOptions}
+            placeholder="전체 상태"
+          />
+          {isSuper && companyOptions.length > 1 && (
+            <Select
+              value={filterCompany}
+              onChange={setFilterCompany}
+              options={companyOptions}
+              placeholder="전체 법인"
+            />
+          )}
         </div>
-        {isSuper && companies.length > 0 && (
-          <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
-            {["전체", ...companies].map(c => (
-              <button key={c} onClick={() => setFilterCompany(c)}
-                className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors
-                  ${filterCompany === c ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"}`}>
-                {c}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* 목록 */}
       <div className="flex-1 overflow-y-auto p-4 space-y-2">
         {loading && <div className="text-center text-gray-400 text-sm py-8">로딩 중...</div>}
-        {error && <div className="text-center text-red-500 text-sm py-8">{error}</div>}
+        {error   && <div className="text-center text-red-500 text-sm py-8">{error}</div>}
         {!loading && !error && filtered.length === 0 && (
           <div className="text-center text-gray-400 text-sm py-8">검색 결과가 없습니다</div>
         )}
@@ -191,7 +213,9 @@ export default function MobileHw({ session }: Props) {
                 </div>
                 <div className="font-bold text-gray-900 mt-1.5 text-sm">{r.user || "미지정"}</div>
                 <div className="text-xs text-gray-500 mt-0.5">{r.model || "—"}</div>
-                <div className="text-xs text-gray-400 mt-0.5">{r.assetNo} {r.dept ? `· ${r.dept}` : ""}</div>
+                <div className="text-xs text-gray-400 mt-0.5">
+                  {r.assetNo}{r.dept ? ` · ${r.dept}` : ""}{r.location ? ` · ${r.location}` : ""}
+                </div>
               </div>
               <div className="flex flex-col items-end gap-1 flex-shrink-0 text-right">
                 {r.returnDue && (
