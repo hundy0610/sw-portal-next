@@ -2334,10 +2334,48 @@ function DispatchHistoryTab() {
   );
 }
 
+// 법인별 재고 탭 (INT-#### 자산번호 제외)
+function StockByCompanyTab({ records, loading }: { records: HwRecord[]; loading: boolean }) {
+  const rows = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const r of records) {
+      if (r.status !== "재고") continue;
+      if (/^INT-\d+$/i.test(r.assetNo ?? "")) continue;
+      const co = r.company || "미분류";
+      map[co] = (map[co] || 0) + 1;
+    }
+    return Object.entries(map).sort((a, b) => b[1] - a[1]);
+  }, [records]);
+
+  const total = rows.reduce((s: number, [, n]: [string, number]) => s + n, 0);
+
+  if (loading) return <div className="py-20 text-center text-gray-400 text-sm">불러오는 중…</div>;
+  if (!records.length) return <div className="py-20 text-center text-gray-300 text-sm"><p className="text-4xl mb-3">📦</p><p>데이터를 불러오는 중입니다</p></div>;
+
+  return (
+    <div className="p-6">
+      <div className="flex items-center gap-2 mb-5">
+        <p className="text-sm font-semibold text-gray-700">법인별 재고 현황</p>
+        <span className="text-xs text-gray-400">(INT-#### 제외)</span>
+        <span className="ml-auto text-xs font-semibold text-purple-700 bg-purple-50 border border-purple-100 rounded-full px-3 py-0.5">합계 {total}개</span>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+        {rows.map(([company, count]: [string, number]) => (
+          <div key={company} className="rounded-xl border border-purple-100 bg-purple-50 p-4 flex flex-col gap-1">
+            <p className="text-2xl font-bold text-purple-700 leading-tight">{count}</p>
+            <p className="text-xs font-semibold text-purple-900 leading-snug">{company}</p>
+            <p className="text-[11px] text-purple-400">{total ? Math.round(count / total * 100) : 0}%</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 메인 HwPanel — 데이터 1회 fetch, 모든 탭에 props 전달
 // ─────────────────────────────────────────────────────────────────────────────
-type Tab = "dashboard"|"shipment"|"return"|"search"|"upload"|"dispatch"|"label";
+type Tab = "dashboard"|"shipment"|"return"|"search"|"upload"|"dispatch"|"label"|"stock";
 
 interface DispatchRecord {
   id: string;
@@ -2451,9 +2489,9 @@ export default function HwPanel({ company = "", initialStats, isSuperAdmin = fal
     if (!initialStats) loadStats();
   }, [initialStats, loadStats]);
 
-  // 라벨 탭만 전체 레코드 lazy load (shipment/return은 자체 fetch)
+  // 라벨/재고 탭 전체 레코드 lazy load (shipment/return은 자체 fetch)
   useEffect(() => {
-    if (tab === "label") loadAll();
+    if (tab === "label" || tab === "stock") loadAll();
   }, [tab, loadAll]);
 
   // Notion 실시간 업데이트 — 저장 후 로컬 상태도 즉시 반영
@@ -2518,11 +2556,12 @@ export default function HwPanel({ company = "", initialStats, isSuperAdmin = fal
     { id: "upload",    label: "엑셀 등록",   icon: "📂" },
     { id: "dispatch",  label: "자산지급 현황",icon: "📋" },
     { id: "label",     label: "행낭 발송지", icon: "🏷️" },
+    { id: "stock",     label: "법인별 재고", icon: "📦" },
   ];
 
   const recordsTabProps: TabProps = { records, loading: recordsLoading, onRefresh: handleRefreshAll, onUpdate: handleUpdate };
   // shipment/return은 자체 fetch → 공유 records 불필요
-  const isRecordsTab = tab === "label";
+  const isRecordsTab = tab === "label" || tab === "stock";
 
   // ── Notion 동기화 (GitHub Actions 즉시 트리거) ─────────────────────────────
   const [syncing,     setSyncing]     = useState(false);
@@ -2632,6 +2671,7 @@ export default function HwPanel({ company = "", initialStats, isSuperAdmin = fal
       {tab === "upload"    && <ExcelUploadTab />}
       {tab === "dispatch"  && <DispatchHistoryTab />}
       {tab === "label"     && <LabelPrintTab records={records} recordsReady={recordsReady} onLoadRecords={loadAll} />}
+      {tab === "stock"     && <StockByCompanyTab records={records} loading={recordsLoading} />}
     </div>
   );
 }
