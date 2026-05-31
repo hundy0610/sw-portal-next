@@ -2,7 +2,9 @@
 
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import type { ExchangeReturnRecord } from "@/types";
+import type { HwRecord } from "@/lib/hw";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
+import { LabelPrintTab } from "@/components/admin/LabelPrintTab";
 
 // ── 상수 ────────────────────────────────────────────────────
 const STAGES = ["교체요청", "요청기안", "기기준비", "기기준비완료", "사용자수령", "반납요청", "반납완료"] as const;
@@ -2629,6 +2631,28 @@ export default function ExchangeReturnPanel() {
   const [pickerTarget, setPickerTarget] = useState<ExchangeReturnRecord | null>(null);
   const [receiptTarget, setReceiptTarget] = useState<ExchangeReturnRecord | null>(null);
   const [hwDetailAsset, setHwDetailAsset] = useState<string | null>(null);
+  const [mainTab, setMainTab] = useState<"list" | "label">("list");
+  const [hwRecords, setHwRecords] = useState<HwRecord[]>([]);
+  const [hwRecordsReady, setHwRecordsReady] = useState(false);
+  const [hwRecordsLoading, setHwRecordsLoading] = useState(false);
+
+  const loadHwRecords = useCallback(async () => {
+    if (hwRecordsReady) return;
+    setHwRecordsLoading(true);
+    try {
+      const res = await fetch("/api/hw");
+      const json = await res.json();
+      if (json.ok && !json.warming) {
+        setHwRecords(json.records ?? []);
+        setHwRecordsReady(true);
+      }
+    } catch { /* silent */ }
+    finally { setHwRecordsLoading(false); }
+  }, [hwRecordsReady]);
+
+  useEffect(() => {
+    if (mainTab === "label") loadHwRecords();
+  }, [mainTab, loadHwRecords]);
 
   const handleUpdated = useCallback((id: string, fields: Partial<ExchangeReturnRecord>) => {
     setRecords(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r));
@@ -2804,30 +2828,47 @@ export default function ExchangeReturnPanel() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setReturnRegOpen(true)}
-            className="text-xs font-semibold px-3 py-1.5 rounded bg-blue-700 text-white hover:bg-blue-800 flex items-center gap-1.5 transition-colors">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M9 14l-4-4 4-4"/><path d="M5 10h11a4 4 0 0 1 0 8h-1"/>
-            </svg>
-            반납 등록
-          </button>
-          <button onClick={() => setCreateOpen(true)}
-            className="text-xs font-semibold px-3 py-1.5 rounded bg-gray-900 text-white hover:bg-gray-700 flex items-center gap-1.5 transition-colors">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-            신규 등록
-          </button>
-          <button onClick={() => load(true)}
-            className="text-xs font-medium px-3 py-1.5 rounded border bg-white text-gray-600 border-gray-300 hover:border-gray-400 flex items-center gap-1 transition-colors">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
-            </svg>
-            새로고침
-          </button>
+          <div className="flex items-center gap-1 p-1 bg-gray-100 rounded-lg">
+            <button onClick={() => setMainTab("list")}
+              className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${mainTab === "list" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
+              자산 흐름
+            </button>
+            <button onClick={() => setMainTab("label")}
+              className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${mainTab === "label" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
+              🏷️ 행낭 발송지
+            </button>
+          </div>
+          {mainTab === "list" && (<>
+            <button onClick={() => setReturnRegOpen(true)}
+              className="text-xs font-semibold px-3 py-1.5 rounded bg-blue-700 text-white hover:bg-blue-800 flex items-center gap-1.5 transition-colors">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M9 14l-4-4 4-4"/><path d="M5 10h11a4 4 0 0 1 0 8h-1"/>
+              </svg>
+              반납 등록
+            </button>
+            <button onClick={() => setCreateOpen(true)}
+              className="text-xs font-semibold px-3 py-1.5 rounded bg-gray-900 text-white hover:bg-gray-700 flex items-center gap-1.5 transition-colors">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              신규 등록
+            </button>
+            <button onClick={() => load(true)}
+              className="text-xs font-medium px-3 py-1.5 rounded border bg-white text-gray-600 border-gray-300 hover:border-gray-400 flex items-center gap-1 transition-colors">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+              </svg>
+              새로고침
+            </button>
+          </>)}
         </div>
       </div>
 
+      {mainTab === "label" && (
+        <LabelPrintTab records={hwRecords} recordsReady={hwRecordsReady} onLoadRecords={loadHwRecords} />
+      )}
+
+      {mainTab === "list" && (<>
       {error && (
         <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">⚠️ {error}</div>
       )}
@@ -3089,6 +3130,7 @@ export default function ExchangeReturnPanel() {
           onClose={() => setHwDetailAsset(null)}
         />
       )}
+      </>)}
     </div>
   );
 }
