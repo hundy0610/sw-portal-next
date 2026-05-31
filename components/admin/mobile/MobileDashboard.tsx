@@ -183,28 +183,29 @@ export default function MobileDashboard({ session, onNavigate }: Props) {
   return (
     <div className="p-4 space-y-4">
 
-      {/* ── HW 자산현황 ───────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl shadow-sm p-4">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-sm font-bold text-gray-800">HW 자산현황</span>
-          <button onClick={() => onNavigate("hw")} className="text-xs text-blue-500">전체 보기 →</button>
+      {/* ── HW / SW 차트: 폰=1열, 태블릿·데스크탑=2열 ──────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-white rounded-2xl shadow-sm p-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-bold text-gray-800">HW 자산현황</span>
+            <button onClick={() => onNavigate("hw")} className="text-xs text-blue-500">전체 보기 →</button>
+          </div>
+          {hwLoading
+            ? <div className="h-24 flex items-center justify-center text-xs text-gray-400">로딩 중...</div>
+            : <DonutChart data={hwSegs} title="상태" />
+          }
         </div>
-        {hwLoading
-          ? <div className="h-24 flex items-center justify-center text-xs text-gray-400">로딩 중...</div>
-          : <DonutChart data={hwSegs} title="상태" />
-        }
-      </div>
 
-      {/* ── SW 라이선스 현황 ──────────────────────────────────── */}
-      <div className="bg-white rounded-2xl shadow-sm p-4">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-sm font-bold text-gray-800">SW 라이선스 현황</span>
-          <button onClick={() => onNavigate("helpdesk")} className="text-xs text-blue-500">전체 보기 →</button>
+        <div className="bg-white rounded-2xl shadow-sm p-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-bold text-gray-800">SW 라이선스 현황</span>
+            <button onClick={() => onNavigate("helpdesk")} className="text-xs text-blue-500">전체 보기 →</button>
+          </div>
+          {swLoading
+            ? <div className="h-24 flex items-center justify-center text-xs text-gray-400">로딩 중...</div>
+            : <DonutChart data={swSegs} title="전체" />
+          }
         </div>
-        {swLoading
-          ? <div className="h-24 flex items-center justify-center text-xs text-gray-400">로딩 중...</div>
-          : <DonutChart data={swSegs} title="전체" />
-        }
       </div>
 
       {/* ── 자산흐름 관리 (슈퍼어드민) ───────────────────────── */}
