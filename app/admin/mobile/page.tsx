@@ -9,6 +9,7 @@ const MobileDashboard     = dynamic(() => import("@/components/admin/mobile/Mobi
 const MobileExchangeReturn = dynamic(() => import("@/components/admin/mobile/MobileExchangeReturn"), { ssr: false });
 const MobileHw            = dynamic(() => import("@/components/admin/mobile/MobileHw"),            { ssr: false });
 const MobileHelpDesk      = dynamic(() => import("@/components/admin/mobile/MobileHelpDesk"),      { ssr: false });
+const MobileSw            = dynamic(() => import("@/components/admin/mobile/MobileSw"),            { ssr: false });
 
 export interface MobileSession {
   role: "super" | "company" | "general";
@@ -17,7 +18,7 @@ export interface MobileSession {
   userId: string;
 }
 
-type TabId = "home" | "exchange-return" | "hw" | "helpdesk" | "more";
+type TabId = "home" | "exchange-return" | "hw" | "sw" | "helpdesk" | "more";
 
 const TABS: { id: TabId; label: string; icon: React.ReactElement }[] = [
   {
@@ -33,8 +34,8 @@ const TABS: { id: TabId; label: string; icon: React.ReactElement }[] = [
     icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/></svg>,
   },
   {
-    id: "helpdesk", label: "헬프데스크",
-    icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>,
+    id: "sw", label: "SW자산",
+    icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>,
   },
   {
     id: "more", label: "더보기",
@@ -81,6 +82,7 @@ export default function MobileAdminPage() {
       case "home":            return <MobileDashboard session={session!} onNavigate={t => setTab(t as TabId)} />;
       case "exchange-return": return isSuper ? <MobileExchangeReturn session={session!} /> : <AccessDenied />;
       case "hw":              return <MobileHw session={session!} />;
+      case "sw":              return <MobileSw session={session!} />;
       case "helpdesk":        return <MobileHelpDesk session={session!} />;
       case "more":            return <MorePanel isSuper={isSuper} session={session!} onNavigate={t => setTab(t as TabId)} onLogout={handleLogout} />;
       default:                return null;
@@ -91,6 +93,7 @@ export default function MobileAdminPage() {
     "home": "대시보드",
     "exchange-return": "자산흐름 관리",
     "hw": "HW 자산관리",
+    "sw": "SW 자산관리",
     "helpdesk": "헬프데스크",
     "more": "더보기",
   };
@@ -157,6 +160,7 @@ function MorePanel({ isSuper, session, onNavigate, onLogout }: {
     { id: "home",            icon: "🏠", label: "대시보드",      desc: "전사 현황 요약" },
     { id: "exchange-return", icon: "📲", label: "자산흐름 관리", desc: "교체·반납 처리 관리", superOnly: true },
     { id: "hw",              icon: "💻", label: "HW 자산관리",   desc: "NT/DT 재고·현황 조회" },
+    { id: "sw",              icon: "🔑", label: "SW 자산관리",   desc: "라이선스 현황 조회" },
     { id: "helpdesk",        icon: "🎫", label: "헬프데스크",    desc: "문의 접수 현황" },
   ];
 
