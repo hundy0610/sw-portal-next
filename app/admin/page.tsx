@@ -34,7 +34,7 @@ interface SessionInfo {
 type PageId = "home" | "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "rental-hw" | "accounts" | "assetmap" | "helpdesk" | "contracts" | "repair" | "hw-repair" | "exchange-return" | "work-feedback";
 
 // 슈퍼어드민 전용 페이지 (company 계정은 접근 불가)
-const SUPER_ONLY_PAGES = new Set<PageId>(["credentials", "swdb", "accounts", "contracts", "rental-hw", "hw-repair", "exchange-return"]);
+const SUPER_ONLY_PAGES = new Set<PageId>(["credentials", "swdb", "accounts", "contracts", "rental-hw", "hw-repair", "exchange-return", "work-feedback"]);
 
 // ── 메뉴 정의 ──────────────────────────────────────────────────
 type MenuItem = { id: PageId; icon: string; label: string; desc: string };
@@ -221,7 +221,7 @@ export default function AdminPage() {
       case "exchange-return":  return canAccess("exchange-return")  ? <ExchangeReturnPanel /> : <AccessDenied />;
       case "accounts":    return canAccess("accounts")    ? <AccountsPanel isSuperAdmin={session?.role === "super"} />   : <AccessDenied />;
       case "contracts":     return canAccess("contracts")   ? <ContractPanel />   : <AccessDenied />;
-      case "work-feedback": return <WorkFeedbackPanel session={{ role: session.role, userId: session.userId, name: session.name }} />;
+      case "work-feedback": return canAccess("work-feedback") ? <WorkFeedbackPanel session={{ role: session.role, userId: session.userId, name: session.name }} /> : <AccessDenied />;
       default:            return null;
     }
   }
