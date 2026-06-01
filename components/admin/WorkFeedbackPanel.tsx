@@ -23,9 +23,13 @@ const WEEKS  = ["1주차","2주차","3주차","4주차","5주차"];
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: CURRENT_YEAR - 2025 + 3 }, (_, i) => 2026 + i);
 
-// 제외할 계정
-const EXCLUDED_USER_IDS = ["test"];
-const EXCLUDED_COMPANIES = ["엠서클"];
+// 제외할 계정 (대소문자 무관, 이름/company 모두 체크)
+function isExcludedAccount(a: { userId: string; name?: string; company?: string }): boolean {
+  const id      = (a.userId  ?? "").toLowerCase();
+  const name    = (a.name    ?? "").toLowerCase();
+  const company = (a.company ?? "").toLowerCase();
+  return id === "test" || name.includes("엠서클") || company.includes("엠서클");
+}
 
 // 평가 권한자
 const EVALUATOR_NAME = "권정훈";
@@ -293,9 +297,7 @@ export default function WorkFeedbackPanel({ session }: Props) {
         if (d.ok && Array.isArray(d.accounts)) {
           const filtered = d.accounts
             .filter((a: { userId: string; name: string; company?: string; active?: boolean }) =>
-              a.active !== false &&
-              !EXCLUDED_USER_IDS.includes(a.userId) &&
-              !EXCLUDED_COMPANIES.includes(a.company ?? "")
+              a.active !== false && !isExcludedAccount(a)
             )
             .map((a: { userId: string; name: string }) => ({ userId: a.userId, name: a.name }));
           setMembers(filtered);
@@ -402,7 +404,7 @@ export default function WorkFeedbackPanel({ session }: Props) {
 
         <div className="bg-white rounded-xl border border-gray-200 p-3">
           <div className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide">메뉴</div>
-          {(["annual", "monthly", "summary"] as const).map(t => {
+          {(["annual", "monthly", ...(isEvaluator ? ["summary"] : [])] as ("annual" | "monthly" | "summary")[]).map(t => {
             const labels = { annual: "📌 연목표 설정", monthly: "📅 월간 관리", summary: "📊 종합 평가" };
             return (
               <button key={t} onClick={() => setTab(t)}
@@ -701,8 +703,8 @@ export default function WorkFeedbackPanel({ session }: Props) {
           </div>
         )}
 
-        {/* ── Tab: 종합 평가 ───────────────────────────────────── */}
-        {tab === "summary" && (
+        {/* ── Tab: 종합 평가 (평가자 전용) ─────────────────────── */}
+        {tab === "summary" && isEvaluator && (
           <div className="space-y-4">
 
             {/* 평가자: 멤버 선택 */}
