@@ -716,13 +716,17 @@ function ReturnRegModal({
   onClose: () => void;
   onUpdated: (id: string, fields: Partial<ExchangeReturnRecord>) => void;
 }) {
-  const [step, setStep] = useState<"search" | "confirm">("search");
+  const [step, setStep] = useState<"search" | "asset-info" | "confirm">("search");
   const [assetInput, setAssetInput] = useState("");
   const [searching, setSearching] = useState(false);
   const [searchResult, setSearchResult] = useState<{
     matchedRecord: ExchangeReturnRecord | null;
     hwPageId: string | null;
     hwAssetNo: string | null;
+    hwModel: string | null;
+    hwSerial: string | null;
+    hwStatus: string | null;
+    hwReturnDue: string | null;
     hwCompany: string | null;
     hwDept: string | null;
     hwUser: string | null;
@@ -751,10 +755,15 @@ function ReturnRegModal({
         matchedRecord,
         hwPageId: found?.id ?? null,
         hwAssetNo: found?.assetNo ?? null,
+        hwModel: found?.model ?? null,
+        hwSerial: found?.serial ?? null,
+        hwStatus: found?.status ?? null,
+        hwReturnDue: found?.returnDue ?? null,
         hwCompany: found?.company ?? null,
         hwDept: found?.dept ?? null,
         hwUser: found?.user ?? null,
       });
+      setStep("asset-info");
     } catch (e) {
       setError(String(e));
     } finally {
@@ -841,7 +850,7 @@ function ReturnRegModal({
             className="text-gray-400 hover:text-gray-600 text-2xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">×</button>
         </div>
 
-        {/* ── Step 1: 자산번호 검색 + 상태 선택 ── */}
+        {/* ── Step 1: 자산번호 검색 ── */}
         {step === "search" && (
           <>
             <div className="px-6 py-5 space-y-4">
@@ -861,55 +870,89 @@ function ReturnRegModal({
                   </button>
                 </div>
               </div>
-
-              {searchResult !== null && (
-                <>
-                  {searchResult.matchedRecord ? (
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 space-y-1">
-                      <p className="text-xs font-semibold text-yellow-800">반납요청 케이스 발견</p>
-                      <p className="text-xs text-yellow-700">
-                        {searchResult.matchedRecord.company} · {searchResult.matchedRecord.department} · {searchResult.matchedRecord.user}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
-                      <p className="text-xs text-blue-700">
-                        {searchResult.hwPageId
-                          ? `HW DB에서 발견됨 (${assetNo}) — 상태만 변경합니다.`
-                          : "반납요청 및 HW DB 모두에서 찾을 수 없습니다."}
-                      </p>
-                    </div>
-                  )}
-
-                  {searchResult.hwPageId && (
-                    <div>
-                      <label className="text-xs text-gray-500 font-medium block mb-2">변경할 자산 상태</label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {RETURN_STATUSES.map(s => (
-                          <button key={s} onClick={() => setSelectedStatus(s)}
-                            className={`text-sm py-2 px-3 rounded-lg border font-medium transition-colors ${
-                              selectedStatus === s
-                                ? "bg-gray-900 text-white border-gray-900"
-                                : "bg-white text-gray-700 border-gray-200 hover:border-gray-400"
-                            }`}>
-                            {s}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-
               {error && <p className="text-xs text-red-600">⚠️ {error}</p>}
             </div>
 
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
               <button onClick={onClose}
                 className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">취소</button>
+            </div>
+          </>
+        )}
+
+        {/* ── Step 2: 자산 정보 확인 ── */}
+        {step === "asset-info" && searchResult && (
+          <>
+            <div className="px-6 py-5 space-y-4">
+              {searchResult.hwPageId ? (
+                <div className="border border-gray-200 rounded-xl overflow-hidden">
+                  <div className="bg-gray-50 px-4 py-2.5 border-b border-gray-200">
+                    <p className="text-xs font-semibold text-gray-700">HW 자산 정보</p>
+                  </div>
+                  <div className="px-4 py-3 grid grid-cols-2 gap-x-4 gap-y-2.5">
+                    <div>
+                      <p className="text-[10px] text-gray-400 mb-0.5">자산번호</p>
+                      <p className="text-sm font-mono font-medium text-gray-900">{searchResult.hwAssetNo || "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-gray-400 mb-0.5">현재 상태</p>
+                      <p className="text-sm font-medium text-gray-900">{searchResult.hwStatus || "-"}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-[10px] text-gray-400 mb-0.5">모델명</p>
+                      <p className="text-sm text-gray-900">{searchResult.hwModel || "-"}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-[10px] text-gray-400 mb-0.5">시리얼 넘버</p>
+                      <p className="text-sm font-mono text-gray-900">{searchResult.hwSerial || "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-gray-400 mb-0.5">법인</p>
+                      <p className="text-sm text-gray-900">{searchResult.hwCompany || "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-gray-400 mb-0.5">부서</p>
+                      <p className="text-sm text-gray-900">{searchResult.hwDept || "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-gray-400 mb-0.5">사용자</p>
+                      <p className="text-sm text-gray-900">{searchResult.hwUser || "-"}</p>
+                    </div>
+                    {searchResult.hwReturnDue && (
+                      <div>
+                        <p className="text-[10px] text-gray-400 mb-0.5">반납예정일</p>
+                        <p className="text-sm text-gray-900">{searchResult.hwReturnDue}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                  <p className="text-sm font-semibold text-red-800 mb-1">자산을 찾을 수 없음</p>
+                  <p className="text-xs text-red-700">자산번호 <span className="font-mono font-medium">{assetInput.trim()}</span>에 해당하는 HW DB 레코드가 없습니다.</p>
+                </div>
+              )}
+
+              {searchResult.matchedRecord && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 space-y-1">
+                  <p className="text-xs font-semibold text-yellow-800">반납요청 트래커 연결됨</p>
+                  <p className="text-xs text-yellow-700">
+                    {searchResult.matchedRecord.flowType} · {searchResult.matchedRecord.company} · {searchResult.matchedRecord.department} · {searchResult.matchedRecord.user}
+                  </p>
+                </div>
+              )}
+
+              {!searchResult.hwPageId && !searchResult.matchedRecord && (
+                <p className="text-xs text-gray-500 text-center">HW DB와 반납요청 트래커 모두에서 찾을 수 없습니다.</p>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => { setStep("search"); setError(null); }}
+                className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">이전</button>
               <button onClick={() => setStep("confirm")} disabled={!canProceed}
                 className="text-sm px-5 py-2 rounded-lg bg-gray-900 text-white font-medium hover:bg-gray-700 disabled:opacity-40">
-                다음
+                확인 후 계속
               </button>
             </div>
           </>
@@ -940,7 +983,7 @@ function ReturnRegModal({
             </div>
 
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
-              <button onClick={() => { setStep("search"); setError(null); }} disabled={saving}
+              <button onClick={() => { setStep("asset-info"); setError(null); }} disabled={saving}
                 className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">이전</button>
               <button onClick={handleExecute} disabled={saving}
                 className="text-sm px-5 py-2 rounded-lg bg-green-700 text-white font-medium hover:bg-green-800 disabled:opacity-40">
