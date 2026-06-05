@@ -1180,6 +1180,10 @@ function DetailModal({
   const [hwOrigUseDate, setHwOrigUseDate] = useState("");
   const [returnDue, setReturnDue] = useState(record.returnDue ?? "");
   const [address, setAddress] = useState(record.address ?? "");
+  const [requesterEmail, setRequesterEmail] = useState(record.requesterEmail ?? "");
+  const [mailSending, setMailSending] = useState(false);
+  const [mailSent, setMailSent] = useState(false);
+  const [mailErr, setMailErr] = useState<string | null>(null);
   const [reason, setReason] = useState(record.reason ?? "");
   const [note, setNote] = useState(record.note ?? "");
   const noteRef = useRef<HTMLTextAreaElement>(null);
@@ -1486,6 +1490,68 @@ function DetailModal({
               {saving === "address" ? "저장 중…" : "저장"}
             </button>
           </SaveRow>
+
+          <SaveRow label="기안자이메일" field="requesterEmail">
+            <input
+              type="email"
+              value={requesterEmail}
+              onChange={e => setRequesterEmail(e.target.value)}
+              className={selectCls + " w-52"}
+              placeholder="example@company.com"
+            />
+            <button
+              onClick={() => save("requesterEmail", { requesterEmail })}
+              disabled={saving === "requesterEmail" || requesterEmail === (record.requesterEmail ?? "")}
+              className={saveBtnCls("requesterEmail", requesterEmail, record.requesterEmail ?? "")}>
+              {saving === "requesterEmail" ? "저장 중…" : "저장"}
+            </button>
+          </SaveRow>
+
+          {stage === "기기준비완료" && (
+            <Row label="메일 발송">
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={async () => {
+                      if (!requesterEmail) { setMailErr("기안자 이메일을 먼저 입력하고 저장해주세요."); return; }
+                      setMailSending(true); setMailErr(null); setMailSent(false);
+                      try {
+                        const res = await fetch("/api/exchange-return/notify-ready", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            requesterEmail,
+                            requester: record.user || "",
+                            company: record.company || "",
+                            department: record.department || "",
+                            assetNo: record.newAssetId || record.assetId || "",
+                            model: "",
+                            address: record.address || "",
+                          }),
+                        });
+                        const json = await res.json();
+                        if (json.ok) { setMailSent(true); setTimeout(() => setMailSent(false), 4000); }
+                        else { setMailErr(json.error || "발송 실패"); }
+                      } catch (e) { setMailErr(String(e)); }
+                      finally { setMailSending(false); }
+                    }}
+                    disabled={mailSending || !requesterEmail}
+                    className="text-xs px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    style={{ background: record.address === "본사" ? "#10B981" : "#3B82F6", color: "white" }}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                      <polyline points="22,6 12,13 2,6"/>
+                    </svg>
+                    {mailSending ? "발송 중…" : record.address === "본사" ? "수령 안내 메일 발송" : "행낭 발송 안내 메일 발송"}
+                  </button>
+                  {mailSent && <span className="text-xs text-green-600 font-medium">✓ 발송 완료</span>}
+                </div>
+                {!requesterEmail && <p className="text-xs text-amber-600">기안자 이메일을 입력해야 발송할 수 있습니다.</p>}
+                {mailErr && <p className="text-xs text-red-500">⚠️ {mailErr}</p>}
+              </div>
+            </Row>
+          )}
 
           <SaveRow label="신청사유" field="reason">
             <input value={reason} onChange={e => setReason(e.target.value)} className={selectCls + " w-56"} placeholder="신청사유" />
