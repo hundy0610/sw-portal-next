@@ -131,6 +131,7 @@ export interface CreateFields {
   reason?: string;
   assigneeId?: string;
   note?: string;
+  requesterEmail?: string;
   autoSynced?: boolean;
   isClosed?: boolean;
 }
@@ -154,10 +155,11 @@ export async function createExchangeReturn(fields: CreateFields): Promise<Exchan
   if (fields.requestedAt) props["신청일"]        = { date: { start: fields.requestedAt } };
   if (fields.returnDue)   props["반납예정일"]    = { date: { start: fields.returnDue } };
   if (fields.completedAt) props["완료일"]        = { date: { start: fields.completedAt } };
-  if (fields.reason)      props["신청사유"]      = { rich_text: [{ text: { content: fields.reason } }] };
-  if (fields.assigneeId)  props["담당자"]        = { people: [{ object: "user", id: fields.assigneeId }] };
-  if (fields.note)        props["비고"]          = { rich_text: [{ text: { content: fields.note } }] };
-  if (fields.autoSynced)  props["자동동기화"]    = { checkbox: true };
+  if (fields.reason)         props["신청사유"]      = { rich_text: [{ text: { content: fields.reason } }] };
+  if (fields.assigneeId)     props["담당자"]        = { people: [{ object: "user", id: fields.assigneeId }] };
+  if (fields.note)           props["비고"]          = { rich_text: [{ text: { content: fields.note } }] };
+  if (fields.requesterEmail) props["기안자이메일"]  = { email: fields.requesterEmail };
+  if (fields.autoSynced)     props["자동동기화"]    = { checkbox: true };
 
   const page = await notion.pages.create({ parent: { database_id: dbId }, properties: props });
   return mapPage(page as PageObjectResponse);
