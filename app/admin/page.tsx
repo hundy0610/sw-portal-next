@@ -219,7 +219,7 @@ export default function AdminPage() {
       case "assetmap":    return <AssetMapPanel session={session} />;
       case "helpdesk":    return <HelpDeskPanel company={isSuper ? "" : company} />;
       case "repair":      return <RepairPanel company={company} />;
-      case "automation":  return <AutomationPanel />;
+      case "automation":  return <HelpDeskPanel typeFilter="자동화 과제" />;
       case "hw-repair":        return canAccess("hw-repair")        ? <HwRepairPanel />        : <AccessDenied />;
       case "exchange-return":  return canAccess("exchange-return")  ? <ExchangeReturnPanel /> : <AccessDenied />;
       case "accounts":    return canAccess("accounts")    ? <AccountsPanel isSuperAdmin={session?.role === "super"} />   : <AccessDenied />;

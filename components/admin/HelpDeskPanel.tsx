@@ -1258,7 +1258,7 @@ function generateReportHTML(opts: {
 // ── Main Panel ───────────────────────────────────────────────
 type Tab = "overview" | "type" | "company" | "list" | "status_list" | "report" | "assignee" | "analysis";
 
-export default function HelpDeskPanel({ company: companyFilter = "" }: { company?: string }) {
+export default function HelpDeskPanel({ company: companyFilter = "", typeFilter = "" }: { company?: string; typeFilter?: string }) {
   const [tickets,    setTickets]    = useState<HelpDeskTicket[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -1435,10 +1435,11 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
 
   const months = useMemo(() => last6Months(), []);
 
-  const displayTickets = useMemo(() =>
-    companyFilter ? tickets.filter(t => t.company === companyFilter) : tickets,
-    [tickets, companyFilter]
-  );
+  const displayTickets = useMemo(() => {
+    let result = companyFilter ? tickets.filter(t => t.company === companyFilter) : tickets;
+    if (typeFilter) result = result.filter(t => t.inquiryType === typeFilter);
+    return result;
+  }, [tickets, companyFilter, typeFilter]);
 
   // ── Analytics ────────────────────────────────────────────
   const total      = displayTickets.length;

@@ -426,8 +426,8 @@ export async function fetchHelpDeskTickets(): Promise<HelpDeskTicket[]> {
       page.created_time;
     return {
       id: page.id,
-      title: getPropText(p, "제목") || getPropText(p, "Title") || getPropText(p, "No") || "",
-      status: getPropSelect(p, "상태") || getPropSelect(p, "Status") || "진행 중",
+      title: getPropText(p, "문의내용") || getPropText(p, "제목") || getPropText(p, "Title") || getPropText(p, "No") || "",
+      status: getPropSelect(p, "status") || getPropSelect(p, "상태") || getPropSelect(p, "Status") || "진행 중",
       inquiryType: getPropSelect(p, "문의유형") || getPropSelect(p, "Category") || "기타",
       company: getPropSelect(p, "법인") || getPropText(p, "법인") || "",
       department: getPropText(p, "부서") || getPropText(p, "Department") || "",
@@ -663,23 +663,32 @@ export async function createHelpDeskTicket(data: {
   const dbId = process.env.NOTION_DB_HELPDESK;
   if (!dbId) throw new Error("NOTION_DB_HELPDESK 환경변수가 설정되지 않았습니다.");
 
+  // 실제 Notion DB 속성명에 맞게 작성
+  // - 제목 type 속성명: "문의내용"
+  // - status 속성명: "status" (영문)
   const props: Record<string, unknown> = {
-    "제목":     { title: [{ text: { content: data.title } }] },
-    "상태":     { select: { name: "진행 중" } },
-    "문의유형": { select: { name: data.inquiryType } },
-    "부서":     { rich_text: [{ text: { content: data.department } }] },
-    "문의자":   { rich_text: [{ text: { content: data.requester } }] },
+    "문의내용":  { title: [{ text: { content: data.title } }] },
+    "status":    { status: { name: "접수" } },
+    "문의유형":  { select: { name: data.inquiryType } },
+    "부서":      { rich_text: [{ text: { content: data.department } }] },
+    "문의자":    { rich_text: [{ text: { content: data.requester } }] },
     "문의자 이메일": { email: data.requesterEmail },
-    "문의내용": { rich_text: [{ text: { content: data.content } }] },
-    "긴급도":   { select: { name: data.urgency } },
+    "긴급도":    { select: { name: data.urgency } },
   };
-  // 법인은 select 또는 rich_text 모두 허용 (DB 설정에 따라)
   if (data.company) props["법인"] = { select: { name: data.company } };
   if (data.assetNo) props["자산번호"] = { rich_text: [{ text: { content: data.assetNo } }] };
 
   const response = await notion.pages.create({
     parent: { database_id: dbId },
     properties: props as Parameters<typeof notion.pages.create>[0]["properties"],
+    // 문의 상세 내용은 페이지 본문에 기록
+    children: data.content ? [{
+      object: "block" as const,
+      type:   "paragraph" as const,
+      paragraph: {
+        rich_text: [{ type: "text" as const, text: { content: data.content.slice(0, 2000) } }],
+      },
+    }] : undefined,
   });
 
   return response.id;
