@@ -235,6 +235,116 @@ export function buildAssetReadyCourierEmail(opts: {
 </html>`;
 }
 
+export function buildReturnRequestHeadquartersEmail(opts: {
+  requester: string;
+  company: string;
+  department: string;
+  assetNo: string;
+  model: string;
+  returnDue: string;
+}): string {
+  const { requester, company, department, assetNo, model, returnDue } = opts;
+  const row = (label: string, value: string) =>
+    value ? `<tr>
+      <td style="padding:8px 12px;background:#F8FAFC;border:1px solid #E2E8F0;font-weight:600;color:#64748B;width:90px;">${label}</td>
+      <td style="padding:8px 12px;border:1px solid #E2E8F0;color:#1E293B;">${value}</td>
+    </tr>` : "";
+
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F8FAFC;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;">
+<div style="max-width:560px;margin:40px auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+  <div style="background:#D97706;padding:28px 32px;">
+    <div style="color:white;font-size:18px;font-weight:800;">IDS 자산관리파트</div>
+    <div style="color:rgba(255,255,255,0.8);font-size:13px;margin-top:4px;">기기 반납 안내</div>
+  </div>
+  <div style="padding:28px 32px;">
+    <p style="font-size:14px;color:#1E293B;margin:0 0 6px;">안녕하세요, <strong>${requester}</strong>님.</p>
+    <p style="font-size:14px;color:#475569;margin:0 0 24px;line-height:1.7;">
+      사용 중인 기기의 반납 기한이 도래하였습니다.<br>
+      아래 안내에 따라 기기를 반납해주시기 바랍니다.
+    </p>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:13px;">
+      ${row("자산번호", assetNo)}
+      ${row("모델명", model)}
+      ${row("법인", company)}
+      ${row("부서", department)}
+      ${row("반납기한", returnDue)}
+    </table>
+    <div style="background:#FFFBEB;border:1.5px solid #FCD34D;border-radius:12px;padding:18px 20px;margin-bottom:24px;">
+      <div style="font-size:12px;color:#D97706;font-weight:700;letter-spacing:0.5px;margin-bottom:10px;">📍 반납 안내</div>
+      <p style="font-size:14px;color:#78350F;margin:0;line-height:1.8;">
+        기기를 <strong>신관 4층 자산관리파트</strong>로 방문하여 반납해주세요.<br>
+        방문 시 본인 확인을 위해 <strong>사원증</strong>을 지참해주세요.
+      </p>
+    </div>
+    <p style="font-size:12px;color:#94A3B8;text-align:center;margin:0;">본 메일은 발신 전용입니다. 문의사항은 자산관리파트로 연락해주세요.</p>
+  </div>
+  <div style="background:#F8FAFC;border-top:1px solid #E2E8F0;padding:16px 32px;text-align:center;">
+    <p style="font-size:11px;color:#CBD5E1;margin:0;">IDS 자산관리파트 · PC/OA 관리팀</p>
+  </div>
+</div>
+</body>
+</html>`;
+}
+
+export function buildReturnRequestCourierEmail(opts: {
+  requester: string;
+  company: string;
+  department: string;
+  assetNo: string;
+  model: string;
+  returnDue: string;
+  deliveryLocation: string;
+}): string {
+  const { requester, company, department, assetNo, model, returnDue, deliveryLocation } = opts;
+  const row = (label: string, value: string) =>
+    value ? `<tr>
+      <td style="padding:8px 12px;background:#F8FAFC;border:1px solid #E2E8F0;font-weight:600;color:#64748B;width:90px;">${label}</td>
+      <td style="padding:8px 12px;border:1px solid #E2E8F0;color:#1E293B;">${value}</td>
+    </tr>` : "";
+
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F8FAFC;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;">
+<div style="max-width:560px;margin:40px auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+  <div style="background:#EA580C;padding:28px 32px;">
+    <div style="color:white;font-size:18px;font-weight:800;">IDS 자산관리파트</div>
+    <div style="color:rgba(255,255,255,0.8);font-size:13px;margin-top:4px;">기기 반납 안내 (행낭 발송)</div>
+  </div>
+  <div style="padding:28px 32px;">
+    <p style="font-size:14px;color:#1E293B;margin:0 0 6px;">안녕하세요, <strong>${requester}</strong>님.</p>
+    <p style="font-size:14px;color:#475569;margin:0 0 24px;line-height:1.7;">
+      사용 중인 기기의 반납 기한이 도래하였습니다.<br>
+      아래 안내에 따라 행낭으로 기기를 반납해주시기 바랍니다.
+    </p>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:13px;">
+      ${row("자산번호", assetNo)}
+      ${row("모델명", model)}
+      ${row("법인", company)}
+      ${row("부서", department)}
+      ${row("위치", deliveryLocation)}
+      ${row("반납기한", returnDue)}
+    </table>
+    <div style="background:#FFF7ED;border:1.5px solid #FDBA74;border-radius:12px;padding:18px 20px;margin-bottom:24px;">
+      <div style="font-size:12px;color:#EA580C;font-weight:700;letter-spacing:0.5px;margin-bottom:10px;">📦 반납 방법</div>
+      <p style="font-size:14px;color:#7C2D12;margin:0;line-height:1.8;">
+        첨부된 포장 안내에 따라 기기를 포장 후 <strong>행낭</strong>으로 발송해주세요.<br>
+        수신처: <strong>신관 4층 idsTrust 자산관리파트</strong>
+      </p>
+    </div>
+    <p style="font-size:12px;color:#94A3B8;text-align:center;margin:0;">본 메일은 발신 전용입니다. 문의사항은 자산관리파트로 연락해주세요.</p>
+  </div>
+  <div style="background:#F8FAFC;border-top:1px solid #E2E8F0;padding:16px 32px;text-align:center;">
+    <p style="font-size:11px;color:#CBD5E1;margin:0;">IDS 자산관리파트 · PC/OA 관리팀</p>
+  </div>
+</div>
+</body>
+</html>`;
+}
+
 export function createMailTransporter() {
   const user = process.env.GMAIL_USER;
   const pass = process.env.GMAIL_APP_PASSWORD;
