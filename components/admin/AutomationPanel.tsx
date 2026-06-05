@@ -35,8 +35,8 @@ export default function AutomationPanel() {
     try {
       const res  = await fetch("/api/helpdesk");
       const json = await res.json();
-      if (!json.ok) throw new Error(json.error);
-      const automation = (json.tickets as HelpDeskTicket[])
+      if (!res.ok) throw new Error(json.error || "데이터 로딩 실패");
+      const automation = (json.data as HelpDeskTicket[])
         .filter(t => t.inquiryType === "자동화 과제");
       setTickets(automation);
     } catch (e) { setError(String(e)); }
