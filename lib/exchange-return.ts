@@ -64,6 +64,10 @@ const email = (p: Props, k: string): string => {
 
 function mapPage(page: PageObjectResponse): ExchangeReturnRecord {
   const p = page.properties;
+  const stage      = sel(p, "현재단계");
+  const completedAt = dt(p, "완료일");
+  // 기존 버그로 인해 사용일자가 완료일로 잘못 저장된 레코드의 fallback 처리
+  const useDate    = dt(p, "사용일자") || (stage !== "반납완료" ? completedAt : "");
   return {
     id:           page.id,
     type:         sel(p, "유형"),
@@ -72,11 +76,11 @@ function mapPage(page: PageObjectResponse): ExchangeReturnRecord {
     company:      sel(p, "법인"),
     department:   txt(p, "부서"),
     user:         txt(p, "사용자"),
-    stage:        sel(p, "현재단계"),
+    stage,
     requestedAt:  dt(p,  "신청일"),
-    useDate:      dt(p,  "사용일자"),
+    useDate,
     returnDue:    dt(p,  "반납예정일"),
-    completedAt:  dt(p,  "완료일"),
+    completedAt,
     reason:       txt(p, "신청사유"),
     assignee:     ppl(p, "담당자"),
     assigneeId:   pplFirstId(p, "담당자"),
