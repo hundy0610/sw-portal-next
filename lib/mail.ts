@@ -163,7 +163,8 @@ export function buildAssetReadyHeadquartersEmail(opts: {
       <div style="font-size:12px;color:#059669;font-weight:700;letter-spacing:0.5px;margin-bottom:10px;">📍 수령 안내</div>
       <p style="font-size:14px;color:#065F46;margin:0 0 14px;line-height:1.8;">
         준비된 기기는 <strong>신관 4층 자산관리파트</strong>에서 수령하실 수 있습니다.<br>
-        방문 시 본인 확인을 위해 <strong>사원증</strong>을 지참해주세요.
+        아래 위치 지도보기를 클릭하시면 상세한 안내가 표시되어있습니다.<br>
+        방문하셔서 수령을 부탁드립니다.
       </p>
       <a href="https://opalescent-dahlia-e9f.notion.site/idsTrust-33067f4bfdac80d6b4e5c2fbdd85720d"
         target="_blank"
@@ -222,6 +223,7 @@ export function buildAssetReadyCourierEmail(opts: {
       <div style="font-size:12px;color:#2563EB;font-weight:700;letter-spacing:0.5px;margin-bottom:10px;">📦 발송 안내</div>
       <p style="font-size:14px;color:#1E3A8A;margin:0;line-height:1.8;">
         준비된 기기는 <strong>금일 행낭</strong>을 통해 발송되었습니다.<br>
+        수령까지는 약 2~3일이 소요됩니다.<br>
         수령 후 이상이 있을 경우 자산관리파트로 문의해주세요.
       </p>
     </div>
@@ -276,7 +278,8 @@ export function buildReturnRequestHeadquartersEmail(opts: {
       <div style="font-size:12px;color:#D97706;font-weight:700;letter-spacing:0.5px;margin-bottom:10px;">📍 반납 안내</div>
       <p style="font-size:14px;color:#78350F;margin:0 0 14px;line-height:1.8;">
         기기를 <strong>신관 4층 자산관리파트</strong>로 방문하여 반납해주세요.<br>
-        방문 시 본인 확인을 위해 <strong>사원증</strong>을 지참해주세요.
+        기기 지급 시 같이 지급되었던 <strong>마우스, 충전기</strong>를 함께 반납해주셔야합니다.<br>
+        방문 시 서명이 필요한 서류가 있다면 함께 지참 부탁드립니다.
       </p>
       <a href="https://opalescent-dahlia-e9f.notion.site/idsTrust-33067f4bfdac80d6b4e5c2fbdd85720d"
         target="_blank"
@@ -337,6 +340,8 @@ export function buildReturnRequestCourierEmail(opts: {
       <div style="font-size:12px;color:#EA580C;font-weight:700;letter-spacing:0.5px;margin-bottom:10px;">📦 반납 방법</div>
       <p style="font-size:14px;color:#7C2D12;margin:0;line-height:1.8;">
         첨부된 포장 안내에 따라 기기를 포장 후 <strong>행낭</strong>으로 발송해주세요.<br>
+        기기 지급 시 같이 지급되었던 <strong>마우스, 충전기</strong>를 함께 반납해주셔야합니다.<br>
+        서명이 필요한 서류가 있다면 스캔하여 메일로 공유 부탁드립니다.<br>
         수신처: <strong>신관 4층 idsTrust 자산관리파트</strong>
       </p>
     </div>
