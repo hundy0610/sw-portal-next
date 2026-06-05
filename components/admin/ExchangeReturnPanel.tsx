@@ -205,7 +205,7 @@ function AssetPickerModal({
   department: string;
   recordId: string;
   onClose: () => void;
-  onPicked: (assetNo: string, extras: { note: string; completedAt: string }) => void;
+  onPicked: (assetNo: string, extras: { note: string; useDate: string }) => void;
   onNewPurchase: () => void;
 }) {
   const [assets, setAssets]               = useState<StockAsset[]>([]);
@@ -258,7 +258,7 @@ function AssetPickerModal({
         fetch("/api/exchange-return/update", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: recordId, fields: { newAssetId: selected.assetNo, stage: "기기준비", completedAt: useDate, ...(memo ? { note: memo } : {}) } }),
+          body: JSON.stringify({ id: recordId, fields: { newAssetId: selected.assetNo, stage: "기기준비", useDate, ...(memo ? { note: memo } : {}) } }),
         }),
         fetch("/api/hw/update", {
           method: "POST",
@@ -266,7 +266,7 @@ function AssetPickerModal({
           body: JSON.stringify({ id: selected.id, fields: { status: "출고준비중", user, dept: department, useDate } }),
         }),
       ]);
-      onPicked(selected.assetNo, { note: memo, completedAt: useDate });
+      onPicked(selected.assetNo, { note: memo, useDate });
     } finally {
       setSaving(false);
     }
@@ -1181,6 +1181,8 @@ function DetailModal({
   const [returnDue, setReturnDue] = useState(record.returnDue ?? "");
   const [address, setAddress] = useState(record.address ?? "");
   const [requesterEmail, setRequesterEmail] = useState(record.requesterEmail ?? "");
+  const [mailPreview, setMailPreview] = useState<{ html: string; subject: string } | null>(null);
+  const [mailPreviewLoading, setMailPreviewLoading] = useState(false);
   const [mailSending, setMailSending] = useState(false);
   const [mailSent, setMailSent] = useState(false);
   const [mailErr, setMailErr] = useState<string | null>(null);
@@ -1372,10 +1374,10 @@ function DetailModal({
                   // Exchange Return DB의 완료일도 동시에 업데이트 (30초 리프레시 시 유지)
                   fetch("/api/exchange-return/update", {
                     method: "POST", headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ id: record.id, fields: { completedAt: useDate || null } }),
+                    body: JSON.stringify({ id: record.id, fields: { useDate: useDate || null, completedAt: useDate || null } }),
                   }).catch(() => {});
                   setHwOrigUseDate(useDate);
-                  onUpdated(record.id, { completedAt: useDate });
+                  onUpdated(record.id, { useDate, completedAt: useDate });
                   setSaved((p: Record<string, boolean>) => ({ ...p, useDate: true }));
                   setTimeout(() => setSaved((p: Record<string, boolean>) => ({ ...p, useDate: false })), 2000);
                 } else { setSaveErr({ field: "useDate", msg: json.error || "저장 실패" }); }
@@ -1420,7 +1422,7 @@ function DetailModal({
                 setNewAssetId(assetNo);
                 setStage("기기준비");
                 if (noteRef.current) noteRef.current.value = extras.note || note;
-                onUpdated(record.id, { newAssetId: assetNo, stage: "기기준비", note: extras.note || undefined, completedAt: extras.completedAt });
+                onUpdated(record.id, { newAssetId: assetNo, stage: "기기준비", note: extras.note || undefined, useDate: extras.useDate });
                 setSaved(p => ({ ...p, newAssetId: true }));
                 setTimeout(() => setSaved(p => ({ ...p, newAssetId: false })), 2000);
                 setShowAssetPicker(false);
@@ -1514,9 +1516,9 @@ function DetailModal({
                   <button
                     onClick={async () => {
                       if (!requesterEmail) { setMailErr("기안자 이메일을 먼저 입력하고 저장해주세요."); return; }
-                      setMailSending(true); setMailErr(null); setMailSent(false);
+                      setMailPreviewLoading(true); setMailErr(null);
                       try {
-                        const res = await fetch("/api/exchange-return/notify-ready", {
+                        const res = await fetch("/api/exchange-return/notify-ready?preview=1", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({
@@ -1530,12 +1532,12 @@ function DetailModal({
                           }),
                         });
                         const json = await res.json();
-                        if (json.ok) { setMailSent(true); setTimeout(() => setMailSent(false), 4000); }
-                        else { setMailErr(json.error || "발송 실패"); }
+                        if (json.ok) setMailPreview({ html: json.html, subject: json.subject });
+                        else setMailErr(json.error || "미리보기 로드 실패");
                       } catch (e) { setMailErr(String(e)); }
-                      finally { setMailSending(false); }
+                      finally { setMailPreviewLoading(false); }
                     }}
-                    disabled={mailSending || !requesterEmail}
+                    disabled={mailPreviewLoading || !requesterEmail}
                     className="text-xs px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     style={{ background: record.address === "본사" ? "#10B981" : "#3B82F6", color: "white" }}
                   >
@@ -1543,7 +1545,7 @@ function DetailModal({
                       <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
                       <polyline points="22,6 12,13 2,6"/>
                     </svg>
-                    {mailSending ? "발송 중…" : record.address === "본사" ? "수령 안내 메일 발송" : "행낭 발송 안내 메일 발송"}
+                    {mailPreviewLoading ? "불러오는 중…" : record.address === "본사" ? "수령 안내 메일 미리보기" : "행낭 발송 안내 메일 미리보기"}
                   </button>
                   {mailSent && <span className="text-xs text-green-600 font-medium">✓ 발송 완료</span>}
                 </div>
@@ -1551,6 +1553,84 @@ function DetailModal({
                 {mailErr && <p className="text-xs text-red-500">⚠️ {mailErr}</p>}
               </div>
             </Row>
+          )}
+
+          {mailPreview && (
+            <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50"
+              onMouseDown={e => { if (e.target === e.currentTarget) { setMailPreview(null); setMailErr(null); } }}>
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden flex flex-col"
+                style={{ maxHeight: "90vh" }}
+                onClick={e => e.stopPropagation()}>
+
+                <div className="px-6 py-4 border-b border-gray-100 flex items-start justify-between gap-4 shrink-0">
+                  <div>
+                    <h3 className="font-bold text-gray-900 text-base">메일 미리보기</h3>
+                    <p className="text-xs text-gray-400 mt-0.5 truncate max-w-sm">수신: {requesterEmail}</p>
+                    <p className="text-xs text-gray-500 mt-0.5 font-medium truncate max-w-sm">{mailPreview.subject}</p>
+                  </div>
+                  <button onClick={() => setMailPreview(null)}
+                    className="text-gray-400 hover:text-gray-600 text-2xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 shrink-0">×</button>
+                </div>
+
+                <div className="flex-1 overflow-hidden">
+                  <iframe
+                    srcDoc={mailPreview.html}
+                    className="w-full h-full border-0"
+                    style={{ minHeight: "480px" }}
+                    sandbox="allow-same-origin"
+                  />
+                </div>
+
+                <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between shrink-0">
+                  {record.address !== "본사" && (
+                    <p className="text-xs text-gray-400">첨부: 행낭포장안내.pdf, 행낭배송부착양식.pptx</p>
+                  )}
+                  {record.address === "본사" && <span />}
+                  <div className="flex gap-2">
+                    <button onClick={() => { setMailPreview(null); setMailErr(null); }}
+                      className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">
+                      취소
+                    </button>
+                    <button
+                      onClick={async () => {
+                        setMailSending(true); setMailErr(null);
+                        try {
+                          const res = await fetch("/api/exchange-return/notify-ready", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              requesterEmail,
+                              requester: record.user || "",
+                              company: record.company || "",
+                              department: record.department || "",
+                              assetNo: record.newAssetId || record.assetId || "",
+                              model: "",
+                              address: record.address || "",
+                            }),
+                          });
+                          const json = await res.json();
+                          if (json.ok) {
+                            setMailPreview(null);
+                            setMailSent(true);
+                            setTimeout(() => setMailSent(false), 4000);
+                          } else { setMailErr(json.error || "발송 실패"); }
+                        } catch (e) { setMailErr(String(e)); }
+                        finally { setMailSending(false); }
+                      }}
+                      disabled={mailSending}
+                      className="text-sm px-5 py-2 rounded-lg font-semibold text-white disabled:opacity-40 flex items-center gap-1.5"
+                      style={{ background: record.address === "본사" ? "#10B981" : "#3B82F6" }}
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                        <polyline points="22,6 12,13 2,6"/>
+                      </svg>
+                      {mailSending ? "발송 중…" : "발송"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
 
           <SaveRow label="신청사유" field="reason">
