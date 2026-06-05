@@ -2874,8 +2874,21 @@ export default function ExchangeReturnPanel() {
   const [mailPreviewData, setMailPreviewData] = useState<{ html: string; subject: string } | null>(null);
   const [mailPreviewLoading, setMailPreviewLoading] = useState(false);
   const [mailSendingId, setMailSendingId] = useState<string | null>(null);
-  const [mailSentIds, setMailSentIds] = useState<Set<string>>(new Set());
+  const [mailSentIds, setMailSentIds] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem("exchange-return:mail-sent");
+      return stored ? new Set<string>(JSON.parse(stored)) : new Set<string>();
+    } catch { return new Set<string>(); }
+  });
   const [mailPanelErr, setMailPanelErr] = useState<string | null>(null);
+
+  const addMailSentId = useCallback((id: string) => {
+    setMailSentIds(prev => {
+      const next = new Set(prev).add(id);
+      try { localStorage.setItem("exchange-return:mail-sent", JSON.stringify([...next])); } catch { /* */ }
+      return next;
+    });
+  }, []);
 
   const handleMailPreview = useCallback(async (r: ExchangeReturnRecord) => {
     setMailTarget(r);
@@ -3359,7 +3372,13 @@ export default function ExchangeReturnPanel() {
                         )}
                         {(r.stage === "기기준비완료" || r.stage === "반납요청") && !r.isClosed && (
                           <button
-                            onClick={() => handleMailPreview(r)}
+                            onClick={() => {
+                              if (mailSentIds.has(r.id)) {
+                                if (confirm("이미 발송된 메일입니다. 다시 발송하시겠습니까?")) handleMailPreview(r);
+                              } else {
+                                handleMailPreview(r);
+                              }
+                            }}
                             disabled={mailPreviewLoading && mailTarget?.id === r.id}
                             className="flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
                             style={{
@@ -3374,7 +3393,7 @@ export default function ExchangeReturnPanel() {
                                   ? (r.address === "본사" ? "#D97706" : "#EA580C")
                                   : (r.address === "본사" ? "#065F46" : "#1D4ED8"),
                             }}
-                            title="메일 발송"
+                            title={mailSentIds.has(r.id) ? "클릭하면 재발송" : "메일 발송"}
                           >
                             {mailPreviewLoading && mailTarget?.id === r.id
                               ? "…"
@@ -3571,7 +3590,7 @@ export default function ExchangeReturnPanel() {
                       });
                       const json = await res.json();
                       if (json.ok) {
-                        setMailSentIds(prev => new Set(prev).add(mailTarget.id));
+                        addMailSentId(mailTarget.id);
                         setMailTarget(null);
                         setMailPreviewData(null);
                       } else { setMailPanelErr(json.error || "발송 실패"); }
