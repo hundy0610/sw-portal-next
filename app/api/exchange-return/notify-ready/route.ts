@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import path from "path";
 import fs from "fs";
+import { kvGet } from "@/lib/kv-store";
 import {
   createMailTransporter,
   buildAssetReadyHeadquartersEmail,
@@ -30,31 +31,42 @@ type MailPayload = {
   model: string;
   address: string;
   returnDue?: string;
+  returnMethod?: "행낭" | "직접방문";
 };
 
 function buildMailContent(payload: MailPayload) {
-  const { stage, requester, company, department, assetNo, model, address, returnDue = "" } = payload;
-  const isHeadquarters = address === "본사";
+  const { stage, requester, company, department, assetNo, model, address, returnDue = "", returnMethod } = payload;
   const isReturn = stage === "반납요청";
+  const isDirectVisit = isReturn && returnMethod === "직접방문";
+  const isHeadquarters = address === "본사" || isDirectVisit;
 
   let html: string;
   let subject: string;
+  let needsAttachment: boolean;
 
   if (isReturn) {
-    html = isHeadquarters
-      ? buildReturnRequestHeadquartersEmail({ requester, company, department, assetNo, model, returnDue })
-      : buildReturnRequestCourierEmail({ requester, company, department, assetNo, model, returnDue, deliveryLocation: address });
+    if (isDirectVisit || address === "본사") {
+      html = buildReturnRequestHeadquartersEmail({ requester, company, department, assetNo, model, returnDue });
+      needsAttachment = false;
+    } else {
+      html = buildReturnRequestCourierEmail({ requester, company, department, assetNo, model, returnDue, deliveryLocation: address });
+      needsAttachment = true;
+    }
     subject = `[IDS 자산관리] 기기 반납 안내 - ${assetNo || model}`;
   } else {
-    html = isHeadquarters
-      ? buildAssetReadyHeadquartersEmail({ requester, company, department, assetNo, model })
-      : buildAssetReadyCourierEmail({ requester, company, department, assetNo, model, deliveryLocation: address });
-    subject = isHeadquarters
+    if (address === "본사") {
+      html = buildAssetReadyHeadquartersEmail({ requester, company, department, assetNo, model });
+      needsAttachment = false;
+    } else {
+      html = buildAssetReadyCourierEmail({ requester, company, department, assetNo, model, deliveryLocation: address });
+      needsAttachment = true;
+    }
+    subject = address === "본사"
       ? `[IDS 자산관리] 기기 수령 안내 - ${assetNo || model}`
       : `[IDS 자산관리] 기기 발송 안내 - ${assetNo || model}`;
   }
 
-  return { html, subject, isHeadquarters, isReturn };
+  return { html, subject, isHeadquarters, needsAttachment };
 }
 
 export async function POST(req: NextRequest) {
@@ -68,7 +80,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "기안자 이메일이 없습니다." }, { status: 400 });
     }
 
-    const { html, subject, isHeadquarters } = buildMailContent(body);
+    const { html, subject, needsAttachment } = buildMailContent(body);
 
     if (preview) {
       return NextResponse.json({ ok: true, html, subject });
@@ -82,12 +94,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const ccEmails = (await kvGet<string[]>("helpdesk:notify-emails")) ?? [];
+
     await transporter.sendMail({
       from: `"IDS 자산관리파트" <${process.env.GMAIL_USER}>`,
       to: body.requesterEmail,
+      ...(ccEmails.length > 0 && { cc: ccEmails.join(", ") }),
       subject,
       html,
-      attachments: isHeadquarters ? [] : getCourierAttachments(),
+      attachments: needsAttachment ? getCourierAttachments() : [],
     });
 
     return NextResponse.json({ ok: true });
