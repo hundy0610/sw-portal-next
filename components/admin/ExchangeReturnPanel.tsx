@@ -1605,7 +1605,7 @@ function DetailModal({
                 </div>
 
                 <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between shrink-0">
-                  {record.address !== "본사"
+                  {stage === "반납요청" && record.address !== "본사"
                     ? <p className="text-xs text-gray-400">첨부: 행낭포장안내.pdf, 행낭배송부착양식.pptx</p>
                     : <span />}
                   <div className="flex gap-2">
@@ -3646,7 +3646,7 @@ export default function ExchangeReturnPanel() {
             </div>
 
             <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between shrink-0">
-              {(mailTarget.address !== "본사" && mailReturnMethod === "행낭")
+              {mailTarget.stage === "반납요청" && mailReturnMethod === "행낭"
                 ? <p className="text-xs text-gray-400">첨부: 행낭포장안내.pdf, 행낭배송부착양식.pptx</p>
                 : <span />}
               <div className="flex gap-2">

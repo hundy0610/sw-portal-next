@@ -56,11 +56,10 @@ function buildMailContent(payload: MailPayload) {
   } else {
     if (address === "본사") {
       html = buildAssetReadyHeadquartersEmail({ requester, company, department, assetNo, model });
-      needsAttachment = false;
     } else {
       html = buildAssetReadyCourierEmail({ requester, company, department, assetNo, model, deliveryLocation: address });
-      needsAttachment = true;
     }
+    needsAttachment = false;
     subject = address === "본사"
       ? `[IDS 자산관리] 기기 수령 안내 - ${assetNo || model}`
       : `[IDS 자산관리] 기기 발송 안내 - ${assetNo || model}`;
