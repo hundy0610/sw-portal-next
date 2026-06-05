@@ -665,10 +665,9 @@ export async function createHelpDeskTicket(data: {
 
   // 실제 Notion DB 속성명에 맞게 작성
   // - 제목 type 속성명: "문의내용"
-  // - status 속성명: "status" (영문)
+  // - 상태는 DB 기본값 사용 (생성 시 미설정)
   const props: Record<string, unknown> = {
     "문의내용":  { title: [{ text: { content: data.title } }] },
-    "status":    { status: { name: "접수" } },
     "문의유형":  { select: { name: data.inquiryType } },
     "부서":      { rich_text: [{ text: { content: data.department } }] },
     "문의자":    { rich_text: [{ text: { content: data.requester } }] },
