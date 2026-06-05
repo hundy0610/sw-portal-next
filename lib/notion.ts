@@ -1311,3 +1311,10 @@ export async function updateAutomationTask(pageId: string, data: {
     properties: props as Parameters<typeof notion.pages.update>[0]["properties"],
   });
 }
+
+export async function deleteAutomationTask(pageId: string): Promise<void> {
+  await notion.pages.update({
+    page_id: pageId,
+    archived: true,
+  });
+}

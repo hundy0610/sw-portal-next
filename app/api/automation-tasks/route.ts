@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchAutomationTasks, updateAutomationTask } from "@/lib/notion";
+import { fetchAutomationTasks, updateAutomationTask, deleteAutomationTask } from "@/lib/notion";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +24,18 @@ export async function PATCH(req: NextRequest) {
     const { id, status, assignee } = await req.json();
     if (!id) return NextResponse.json({ error: "id 필요" }, { status: 400 });
     await updateAutomationTask(id, { status, assignee });
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+  }
+}
+
+// DELETE /api/automation-tasks  body: { id }
+export async function DELETE(req: NextRequest) {
+  try {
+    const { id } = await req.json();
+    if (!id) return NextResponse.json({ error: "id 필요" }, { status: 400 });
+    await deleteAutomationTask(id);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });

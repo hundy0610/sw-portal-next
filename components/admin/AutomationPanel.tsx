@@ -24,7 +24,9 @@ export default function AutomationPanel() {
   const [loading,    setLoading]    = useState(true);
   const [missingEnv, setMissingEnv] = useState(false);
   const [expanded,   setExpanded]   = useState<string | null>(null);
-  const [saving,     setSaving]     = useState<string | null>(null);
+  const [saving,       setSaving]       = useState<string | null>(null);
+  const [deleting,     setDeleting]     = useState<string | null>(null);
+  const [confirmDel,   setConfirmDel]   = useState<string | null>(null);
   const [editAssignee, setEditAssignee] = useState<Record<string, string>>({});
 
   const [filterDept,   setFilterDept]   = useState("");
@@ -50,6 +52,20 @@ export default function AutomationPanel() {
       });
       setTasks(prev => prev.map(t => t.id === id ? { ...t, ...patch } : t));
     } finally { setSaving(null); }
+  }, []);
+
+  const handleDelete = useCallback(async (id: string) => {
+    setDeleting(id);
+    try {
+      await fetch("/api/automation-tasks", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      setTasks(prev => prev.filter(t => t.id !== id));
+      setExpanded(null);
+      setConfirmDel(null);
+    } finally { setDeleting(null); }
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -251,12 +267,41 @@ export default function AutomationPanel() {
                   <div className="text-xs"><p className="font-semibold text-gray-400 mb-1">자동화 목표</p>
                     <p className="bg-indigo-50 rounded-lg p-3 text-indigo-800 leading-relaxed whitespace-pre-wrap">{task.desiredFlow || "-"}</p>
                   </div>
-                  {task.notionUrl && (
-                    <a href={task.notionUrl} target="_blank" rel="noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-indigo-500 hover:text-indigo-700 underline underline-offset-2">
-                      Notion에서 보기 ↗
-                    </a>
-                  )}
+                  <div className="flex items-center justify-between pt-1">
+                    {task.notionUrl ? (
+                      <a href={task.notionUrl} target="_blank" rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-indigo-500 hover:text-indigo-700 underline underline-offset-2">
+                        Notion에서 보기 ↗
+                      </a>
+                    ) : <span />}
+
+                    {/* 삭제 버튼 */}
+                    {confirmDel === task.id ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-red-500 font-medium">정말 삭제할까요?</span>
+                        <button
+                          onClick={() => handleDelete(task.id)}
+                          disabled={deleting === task.id}
+                          className="px-3 py-1 rounded-lg bg-red-500 text-white text-xs font-semibold hover:bg-red-600 disabled:opacity-50 transition-colors"
+                        >
+                          {deleting === task.id ? "삭제 중…" : "삭제"}
+                        </button>
+                        <button
+                          onClick={() => setConfirmDel(null)}
+                          className="px-3 py-1 rounded-lg border border-gray-300 text-gray-600 text-xs hover:bg-gray-50 transition-colors"
+                        >
+                          취소
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmDel(task.id)}
+                        className="flex items-center gap-1 text-xs text-red-400 hover:text-red-600 transition-colors"
+                      >
+                        🗑 삭제
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
