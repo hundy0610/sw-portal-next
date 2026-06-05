@@ -2,15 +2,10 @@
 
 import { useState } from "react";
 
-const DEPARTMENTS = ["재무팀", "인사팀", "계약관리팀"];
+const DEPARTMENTS = ["인사", "재무", "계약관리"];
 const TOOLS = ["Excel", "SAP", "GroupWare", "이메일", "ERP", "기타"];
 const CYCLES = ["매일", "매주", "매월", "비정기"];
 const HOURS = ["1시간 미만", "1~3시간", "3~5시간", "5시간 이상"];
-const URGENCY_OPTIONS = [
-  { value: "매우 급합니다",     emoji: "🔴", desc: "빠른 처리가 필요합니다"  },
-  { value: "조금 급합니다",    emoji: "🟡", desc: "가능하면 빨리 해결됐으면 합니다" },
-  { value: "여유 있습니다",    emoji: "🟢", desc: "시간적 여유가 있습니다"   },
-];
 
 type Status = "idle" | "loading" | "done" | "error";
 
@@ -25,8 +20,6 @@ export default function AutomationPage() {
     weeklyHours:  "",
     currentFlow:  "",
     desiredFlow:  "",
-    extra:        "",
-    urgency:      "여유 있습니다",
   });
   const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState("");
@@ -80,7 +73,7 @@ export default function AutomationPage() {
         <p className="text-sm text-gray-400 mb-6">담당자 확인 후 개별 연락드리겠습니다.</p>
         <button
           onClick={() => {
-            setForm({ requester:"", email:"", department:"", taskName:"", tools:[], cycle:"", weeklyHours:"", currentFlow:"", desiredFlow:"", extra:"", urgency:"여유 있습니다" });
+            setForm({ requester:"", email:"", department:"", taskName:"", tools:[], cycle:"", weeklyHours:"", currentFlow:"", desiredFlow:"" });
             setStatus("idle");
           }}
           className="text-sm text-indigo-600 hover:text-indigo-800 underline underline-offset-2"
@@ -106,7 +99,7 @@ export default function AutomationPage() {
             개발팀에서 검토 후 자동화 방안을 제안해 드립니다.
           </p>
           <div className="mt-3 inline-flex items-center gap-2 px-4 py-1.5 bg-indigo-50 rounded-full">
-            <span className="text-xs text-indigo-600 font-medium">재무팀 · 인사팀 · 계약관리팀 대상</span>
+            <span className="text-xs text-indigo-600 font-medium">인사 · 재무 · 계약관리 대상</span>
           </div>
         </div>
 
@@ -132,7 +125,7 @@ export default function AutomationPage() {
                   className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 transition-shadow"/>
               </div>
               <div className="sm:col-span-2">
-                <label className="block text-xs font-semibold text-gray-500 mb-1.5">소속 부서 <span className="text-red-400">*</span></label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1.5">주 업무 <span className="text-red-400">*</span></label>
                 <div className="flex gap-3 flex-wrap">
                   {DEPARTMENTS.map(d => (
                     <button type="button" key={d}
@@ -237,39 +230,6 @@ export default function AutomationPage() {
                 </label>
                 <textarea value={form.desiredFlow} onChange={set("desiredFlow")} required rows={4}
                   placeholder="예: 각 팀 데이터가 자동으로 취합되어 SAP에 직접 입력되고, 담당자에게 완료 알림이 오면 좋겠습니다."
-                  className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-300 transition-shadow"/>
-              </div>
-            </div>
-          </div>
-
-          {/* 긴급도 및 추가 요청 */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-            <h2 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 text-xs flex items-center justify-center font-bold">4</span>
-              긴급도 및 추가 사항
-            </h2>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-2">처리 긴급도</label>
-                <div className="flex gap-3 flex-wrap">
-                  {URGENCY_OPTIONS.map(u => (
-                    <button type="button" key={u.value}
-                      onClick={() => setForm(f => ({ ...f, urgency: u.value }))}
-                      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all ${
-                        form.urgency === u.value
-                          ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                          : "border-gray-200 text-gray-500 hover:border-gray-300"
-                      }`}>
-                      <span>{u.emoji}</span>
-                      <span>{u.value}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1.5">추가 요청사항 (선택)</label>
-                <textarea value={form.extra} onChange={set("extra")} rows={3}
-                  placeholder="기타 참고사항이 있으면 자유롭게 작성해 주세요."
                   className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-300 transition-shadow"/>
               </div>
             </div>

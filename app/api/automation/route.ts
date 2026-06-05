@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     const {
       requester, email, department,
       taskName, tools, cycle, weeklyHours,
-      currentFlow, desiredFlow, extra, urgency,
+      currentFlow, desiredFlow,
     } = body;
 
     if (!requester || !email || !department || !taskName || !currentFlow || !desiredFlow) {
@@ -26,10 +26,9 @@ export async function POST(req: NextRequest) {
     }
 
     // 내용을 하나의 텍스트로 포맷팅
-    const toolsStr   = Array.isArray(tools) && tools.length > 0 ? tools.join(", ") : "-";
-    const cycleStr   = cycle       || "-";
-    const hoursStr   = weeklyHours || "-";
-    const extraStr   = extra?.trim() || "-";
+    const toolsStr = Array.isArray(tools) && tools.length > 0 ? tools.join(", ") : "-";
+    const cycleStr = cycle       || "-";
+    const hoursStr = weeklyHours || "-";
 
     const content = [
       `[업무명] ${taskName}`,
@@ -42,9 +41,6 @@ export async function POST(req: NextRequest) {
       ``,
       `[자동화 목표]`,
       desiredFlow,
-      ``,
-      `[추가 요청사항]`,
-      extraStr,
     ].join("\n");
 
     const title = `[자동화] ${taskName.length > 30 ? taskName.slice(0, 30) + "…" : taskName}`;
@@ -56,7 +52,7 @@ export async function POST(req: NextRequest) {
       requester,
       requesterEmail: email,
       inquiryType:    "자동화 과제",
-      urgency:        urgency || "여유 있습니다",
+      urgency:        "여유 있습니다",
       content,
     });
 

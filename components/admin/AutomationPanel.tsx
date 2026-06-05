@@ -17,9 +17,9 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 const DEPT_COLOR: Record<string, string> = {
-  "재무팀":    "bg-sky-100 text-sky-700",
-  "인사팀":    "bg-violet-100 text-violet-700",
-  "계약관리팀": "bg-orange-100 text-orange-700",
+  "재무":    "bg-sky-100 text-sky-700",
+  "인사":    "bg-violet-100 text-violet-700",
+  "계약관리": "bg-orange-100 text-orange-700",
 };
 
 export default function AutomationPanel() {
@@ -87,7 +87,7 @@ export default function AutomationPanel() {
       {/* 요약 카드 */}
       {!loading && tickets.length > 0 && (
         <div className="grid grid-cols-3 gap-3">
-          {["재무팀", "인사팀", "계약관리팀"].map(dept => {
+          {["인사", "재무", "계약관리"].map(dept => {
             const cnt = tickets.filter(t => t.department === dept).length;
             return (
               <div key={dept} className="bg-white rounded-xl border border-gray-200 p-4 text-center">
