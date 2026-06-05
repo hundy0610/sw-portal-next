@@ -205,7 +205,7 @@ function AssetPickerModal({
   department: string;
   recordId: string;
   onClose: () => void;
-  onPicked: (assetNo: string, extras: { note: string; completedAt: string }) => void;
+  onPicked: (assetNo: string, extras: { note: string; useDate: string }) => void;
   onNewPurchase: () => void;
 }) {
   const [assets, setAssets]               = useState<StockAsset[]>([]);
@@ -258,7 +258,7 @@ function AssetPickerModal({
         fetch("/api/exchange-return/update", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: recordId, fields: { newAssetId: selected.assetNo, stage: "기기준비", completedAt: useDate, ...(memo ? { note: memo } : {}) } }),
+          body: JSON.stringify({ id: recordId, fields: { newAssetId: selected.assetNo, stage: "기기준비", useDate, ...(memo ? { note: memo } : {}) } }),
         }),
         fetch("/api/hw/update", {
           method: "POST",
@@ -266,7 +266,7 @@ function AssetPickerModal({
           body: JSON.stringify({ id: selected.id, fields: { status: "출고준비중", user, dept: department, useDate } }),
         }),
       ]);
-      onPicked(selected.assetNo, { note: memo, completedAt: useDate });
+      onPicked(selected.assetNo, { note: memo, useDate });
     } finally {
       setSaving(false);
     }
@@ -1374,10 +1374,10 @@ function DetailModal({
                   // Exchange Return DB의 완료일도 동시에 업데이트 (30초 리프레시 시 유지)
                   fetch("/api/exchange-return/update", {
                     method: "POST", headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ id: record.id, fields: { completedAt: useDate || null } }),
+                    body: JSON.stringify({ id: record.id, fields: { useDate: useDate || null, completedAt: useDate || null } }),
                   }).catch(() => {});
                   setHwOrigUseDate(useDate);
-                  onUpdated(record.id, { completedAt: useDate });
+                  onUpdated(record.id, { useDate, completedAt: useDate });
                   setSaved((p: Record<string, boolean>) => ({ ...p, useDate: true }));
                   setTimeout(() => setSaved((p: Record<string, boolean>) => ({ ...p, useDate: false })), 2000);
                 } else { setSaveErr({ field: "useDate", msg: json.error || "저장 실패" }); }
@@ -1422,7 +1422,7 @@ function DetailModal({
                 setNewAssetId(assetNo);
                 setStage("기기준비");
                 if (noteRef.current) noteRef.current.value = extras.note || note;
-                onUpdated(record.id, { newAssetId: assetNo, stage: "기기준비", note: extras.note || undefined, completedAt: extras.completedAt });
+                onUpdated(record.id, { newAssetId: assetNo, stage: "기기준비", note: extras.note || undefined, useDate: extras.useDate });
                 setSaved(p => ({ ...p, newAssetId: true }));
                 setTimeout(() => setSaved(p => ({ ...p, newAssetId: false })), 2000);
                 setShowAssetPicker(false);
