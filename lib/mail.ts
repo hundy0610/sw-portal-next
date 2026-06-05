@@ -274,10 +274,15 @@ export function buildReturnRequestHeadquartersEmail(opts: {
     </table>
     <div style="background:#FFFBEB;border:1.5px solid #FCD34D;border-radius:12px;padding:18px 20px;margin-bottom:24px;">
       <div style="font-size:12px;color:#D97706;font-weight:700;letter-spacing:0.5px;margin-bottom:10px;">📍 반납 안내</div>
-      <p style="font-size:14px;color:#78350F;margin:0;line-height:1.8;">
+      <p style="font-size:14px;color:#78350F;margin:0 0 14px;line-height:1.8;">
         기기를 <strong>신관 4층 자산관리파트</strong>로 방문하여 반납해주세요.<br>
         방문 시 본인 확인을 위해 <strong>사원증</strong>을 지참해주세요.
       </p>
+      <a href="https://opalescent-dahlia-e9f.notion.site/idsTrust-33067f4bfdac80d6b4e5c2fbdd85720d"
+        target="_blank"
+        style="display:inline-block;background:#D97706;color:white;font-size:13px;font-weight:700;padding:10px 20px;border-radius:8px;text-decoration:none;">
+        🗺️ 위치 지도 보기
+      </a>
     </div>
     <p style="font-size:12px;color:#94A3B8;text-align:center;margin:0;">본 메일은 발신 전용입니다. 문의사항은 자산관리파트로 연락해주세요.</p>
   </div>

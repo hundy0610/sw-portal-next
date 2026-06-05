@@ -52,17 +52,16 @@ function buildMailContent(payload: MailPayload) {
       html = buildReturnRequestCourierEmail({ requester, company, department, assetNo, model, returnDue, deliveryLocation: address });
       needsAttachment = true;
     }
-    subject = `[IDS 자산관리] 기기 반납 안내 - ${assetNo || model}`;
+    subject = `[IdsTrust] ${company} ${department} ${requester} 님의 기기(${assetNo})의 반납을 요청드립니다.`;
   } else {
     if (address === "본사") {
       html = buildAssetReadyHeadquartersEmail({ requester, company, department, assetNo, model });
+      subject = `[IdsTrust] ${company} ${department} ${requester} 님의 기기가 준비 되었습니다.`;
     } else {
       html = buildAssetReadyCourierEmail({ requester, company, department, assetNo, model, deliveryLocation: address });
+      subject = `[IdsTrust] ${company} ${department} ${requester} 님의 기기가 금일 발송 되었습니다.`;
     }
     needsAttachment = false;
-    subject = address === "본사"
-      ? `[IDS 자산관리] 기기 수령 안내 - ${assetNo || model}`
-      : `[IDS 자산관리] 기기 발송 안내 - ${assetNo || model}`;
   }
 
   return { html, subject, isHeadquarters, needsAttachment };
