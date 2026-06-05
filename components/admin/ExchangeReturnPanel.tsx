@@ -2908,6 +2908,7 @@ export default function ExchangeReturnPanel() {
   const [labelSenderInfo] = useState("idsTrust 자산관리파트");
   const [queuingId, setQueuingId] = useState<string | null>(null);
   const [mailTarget, setMailTarget] = useState<ExchangeReturnRecord | null>(null);
+  const [mailReturnMethod, setMailReturnMethod] = useState<"행낭" | "직접방문">("행낭");
   const [mailPreviewData, setMailPreviewData] = useState<{ html: string; subject: string } | null>(null);
   const [mailPreviewLoading, setMailPreviewLoading] = useState(false);
   const [mailSendingId, setMailSendingId] = useState<string | null>(null);
@@ -2927,11 +2928,13 @@ export default function ExchangeReturnPanel() {
     });
   }, []);
 
-  const handleMailPreview = useCallback(async (r: ExchangeReturnRecord) => {
+  const handleMailPreview = useCallback(async (r: ExchangeReturnRecord, returnMethod?: "행낭" | "직접방문") => {
     setMailTarget(r);
     setMailPreviewData(null);
     setMailPanelErr(null);
     setMailPreviewLoading(true);
+    const method = returnMethod ?? (r.address === "본사" ? "직접방문" : "행낭");
+    setMailReturnMethod(method);
     try {
       const isReturn = r.stage === "반납요청";
       const res = await fetch("/api/exchange-return/notify-ready?preview=1", {
@@ -2947,6 +2950,7 @@ export default function ExchangeReturnPanel() {
           model: "",
           address: r.address || "",
           returnDue: r.returnDue || "",
+          returnMethod: method,
         }),
       });
       const json = await res.json();
@@ -3566,12 +3570,28 @@ export default function ExchangeReturnPanel() {
             onClick={e => e.stopPropagation()}>
 
             <div className="px-6 py-4 border-b border-gray-100 flex items-start justify-between gap-4 shrink-0">
-              <div>
+              <div className="flex-1 min-w-0">
                 <h3 className="font-bold text-gray-900 text-base">메일 미리보기</h3>
                 {mailTarget.requesterEmail
                   ? <p className="text-xs text-gray-400 mt-0.5">수신: {mailTarget.requesterEmail}</p>
                   : <p className="text-xs text-red-500 mt-0.5">⚠️ 기안자 이메일이 없습니다. 상세 모달에서 먼저 입력해주세요.</p>}
                 {mailPreviewData && <p className="text-xs text-gray-500 mt-0.5 font-medium truncate max-w-sm">{mailPreviewData.subject}</p>}
+                {mailTarget.stage === "반납요청" && (
+                  <div className="flex items-center gap-1 mt-2">
+                    <span className="text-xs text-gray-400 mr-1">반납 방법:</span>
+                    {(["행낭", "직접방문"] as const).map(m => (
+                      <button key={m} onClick={() => handleMailPreview(mailTarget, m)}
+                        disabled={mailPreviewLoading}
+                        className="text-xs px-2.5 py-1 rounded-full font-semibold transition-colors disabled:opacity-40"
+                        style={{
+                          background: mailReturnMethod === m ? (m === "행낭" ? "#EA580C" : "#D97706") : "#F1F5F9",
+                          color: mailReturnMethod === m ? "white" : "#64748B",
+                        }}>
+                        {m === "행낭" ? "📦 행낭" : "🚶 직접방문"}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <button onClick={() => { setMailTarget(null); setMailPreviewData(null); setMailPanelErr(null); }}
                 className="text-gray-400 hover:text-gray-600 text-2xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 shrink-0">×</button>
@@ -3596,7 +3616,7 @@ export default function ExchangeReturnPanel() {
             </div>
 
             <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between shrink-0">
-              {mailTarget.address !== "본사"
+              {(mailTarget.address !== "본사" && mailReturnMethod === "행낭")
                 ? <p className="text-xs text-gray-400">첨부: 행낭포장안내.pdf, 행낭배송부착양식.pptx</p>
                 : <span />}
               <div className="flex gap-2">
@@ -3623,6 +3643,7 @@ export default function ExchangeReturnPanel() {
                           model: "",
                           address: mailTarget.address || "",
                           returnDue: mailTarget.returnDue || "",
+                          returnMethod: mailTarget.stage === "반납요청" ? mailReturnMethod : undefined,
                         }),
                       });
                       const json = await res.json();
