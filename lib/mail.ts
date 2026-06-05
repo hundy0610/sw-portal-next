@@ -19,7 +19,7 @@ export function buildHelpdeskNewInquiryEmail(opts: {
 <body style="margin:0;padding:0;background:#F8FAFC;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;">
 <div style="max-width:560px;margin:40px auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
   <div style="background:#0EA5E9;padding:28px 32px;">
-    <div style="color:white;font-size:18px;font-weight:800;">IDS 자산관리파트 Help Desk</div>
+    <div style="color:white;font-size:18px;font-weight:800;">IdsTrust 자산관리파트 Help Desk</div>
     <div style="color:rgba(255,255,255,0.75);font-size:13px;margin-top:4px;">신규 문의가 접수되었습니다</div>
   </div>
   <div style="padding:28px 32px;">
@@ -62,7 +62,7 @@ export function buildHelpdeskNewInquiryEmail(opts: {
     <p style="font-size:12px;color:#94A3B8;text-align:center;margin:0;">본 메일은 발신 전용입니다.</p>
   </div>
   <div style="background:#F8FAFC;border-top:1px solid #E2E8F0;padding:16px 32px;text-align:center;">
-    <p style="font-size:11px;color:#CBD5E1;margin:0;">IDS 자산관리파트 · PC/OA 관리팀</p>
+    <p style="font-size:11px;color:#CBD5E1;margin:0;">IdsTrust 자산관리파트</p>
   </div>
 </div>
 </body>
@@ -92,7 +92,7 @@ export function buildRepairNewInquiryEmail(opts: {
 <body style="margin:0;padding:0;background:#F8FAFC;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;">
 <div style="max-width:560px;margin:40px auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
   <div style="background:#DC2626;padding:28px 32px;">
-    <div style="color:white;font-size:18px;font-weight:800;">IDS 자산관리파트 수리 접수</div>
+    <div style="color:white;font-size:18px;font-weight:800;">IdsTrust 자산관리파트 수리 접수</div>
     <div style="color:rgba(255,255,255,0.75);font-size:13px;margin-top:4px;">신규 수리 접수가 등록되었습니다</div>
   </div>
   <div style="padding:28px 32px;">
@@ -117,7 +117,7 @@ export function buildRepairNewInquiryEmail(opts: {
     <p style="font-size:12px;color:#94A3B8;text-align:center;margin:0;">본 메일은 발신 전용입니다.</p>
   </div>
   <div style="background:#F8FAFC;border-top:1px solid #E2E8F0;padding:16px 32px;text-align:center;">
-    <p style="font-size:11px;color:#CBD5E1;margin:0;">IDS 자산관리파트 · PC/OA 관리팀</p>
+    <p style="font-size:11px;color:#CBD5E1;margin:0;">IdsTrust 자산관리파트</p>
   </div>
 </div>
 </body>
@@ -144,7 +144,7 @@ export function buildAssetReadyHeadquartersEmail(opts: {
 <body style="margin:0;padding:0;background:#F8FAFC;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;">
 <div style="max-width:560px;margin:40px auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
   <div style="background:#10B981;padding:28px 32px;">
-    <div style="color:white;font-size:18px;font-weight:800;">IDS 자산관리파트</div>
+    <div style="color:white;font-size:18px;font-weight:800;">IdsTrust 자산관리파트</div>
     <div style="color:rgba(255,255,255,0.8);font-size:13px;margin-top:4px;">기기 수령 안내</div>
   </div>
   <div style="padding:28px 32px;">
@@ -174,7 +174,7 @@ export function buildAssetReadyHeadquartersEmail(opts: {
     <p style="font-size:12px;color:#94A3B8;text-align:center;margin:0;">본 메일은 발신 전용입니다. 문의사항은 자산관리파트로 연락해주세요.</p>
   </div>
   <div style="background:#F8FAFC;border-top:1px solid #E2E8F0;padding:16px 32px;text-align:center;">
-    <p style="font-size:11px;color:#CBD5E1;margin:0;">IDS 자산관리파트 · PC/OA 관리팀</p>
+    <p style="font-size:11px;color:#CBD5E1;margin:0;">IdsTrust 자산관리파트</p>
   </div>
 </div>
 </body>
@@ -202,7 +202,7 @@ export function buildAssetReadyCourierEmail(opts: {
 <body style="margin:0;padding:0;background:#F8FAFC;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;">
 <div style="max-width:560px;margin:40px auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
   <div style="background:#3B82F6;padding:28px 32px;">
-    <div style="color:white;font-size:18px;font-weight:800;">IDS 자산관리파트</div>
+    <div style="color:white;font-size:18px;font-weight:800;">IdsTrust 자산관리파트</div>
     <div style="color:rgba(255,255,255,0.8);font-size:13px;margin-top:4px;">기기 발송 안내</div>
   </div>
   <div style="padding:28px 32px;">
@@ -228,7 +228,7 @@ export function buildAssetReadyCourierEmail(opts: {
     <p style="font-size:12px;color:#94A3B8;text-align:center;margin:0;">본 메일은 발신 전용입니다. 문의사항은 자산관리파트로 연락해주세요.</p>
   </div>
   <div style="background:#F8FAFC;border-top:1px solid #E2E8F0;padding:16px 32px;text-align:center;">
-    <p style="font-size:11px;color:#CBD5E1;margin:0;">IDS 자산관리파트 · PC/OA 관리팀</p>
+    <p style="font-size:11px;color:#CBD5E1;margin:0;">IdsTrust 자산관리파트</p>
   </div>
 </div>
 </body>
@@ -256,7 +256,7 @@ export function buildReturnRequestHeadquartersEmail(opts: {
 <body style="margin:0;padding:0;background:#F8FAFC;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;">
 <div style="max-width:560px;margin:40px auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
   <div style="background:#D97706;padding:28px 32px;">
-    <div style="color:white;font-size:18px;font-weight:800;">IDS 자산관리파트</div>
+    <div style="color:white;font-size:18px;font-weight:800;">IdsTrust 자산관리파트</div>
     <div style="color:rgba(255,255,255,0.8);font-size:13px;margin-top:4px;">기기 반납 안내</div>
   </div>
   <div style="padding:28px 32px;">
@@ -282,7 +282,7 @@ export function buildReturnRequestHeadquartersEmail(opts: {
     <p style="font-size:12px;color:#94A3B8;text-align:center;margin:0;">본 메일은 발신 전용입니다. 문의사항은 자산관리파트로 연락해주세요.</p>
   </div>
   <div style="background:#F8FAFC;border-top:1px solid #E2E8F0;padding:16px 32px;text-align:center;">
-    <p style="font-size:11px;color:#CBD5E1;margin:0;">IDS 자산관리파트 · PC/OA 관리팀</p>
+    <p style="font-size:11px;color:#CBD5E1;margin:0;">IdsTrust 자산관리파트</p>
   </div>
 </div>
 </body>
@@ -311,7 +311,7 @@ export function buildReturnRequestCourierEmail(opts: {
 <body style="margin:0;padding:0;background:#F8FAFC;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;">
 <div style="max-width:560px;margin:40px auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
   <div style="background:#EA580C;padding:28px 32px;">
-    <div style="color:white;font-size:18px;font-weight:800;">IDS 자산관리파트</div>
+    <div style="color:white;font-size:18px;font-weight:800;">IdsTrust 자산관리파트</div>
     <div style="color:rgba(255,255,255,0.8);font-size:13px;margin-top:4px;">기기 반납 안내 (행낭 발송)</div>
   </div>
   <div style="padding:28px 32px;">
@@ -338,7 +338,7 @@ export function buildReturnRequestCourierEmail(opts: {
     <p style="font-size:12px;color:#94A3B8;text-align:center;margin:0;">본 메일은 발신 전용입니다. 문의사항은 자산관리파트로 연락해주세요.</p>
   </div>
   <div style="background:#F8FAFC;border-top:1px solid #E2E8F0;padding:16px 32px;text-align:center;">
-    <p style="font-size:11px;color:#CBD5E1;margin:0;">IDS 자산관리파트 · PC/OA 관리팀</p>
+    <p style="font-size:11px;color:#CBD5E1;margin:0;">IdsTrust 자산관리파트</p>
   </div>
 </div>
 </body>
