@@ -2870,6 +2870,41 @@ export default function ExchangeReturnPanel() {
   const [queuedIds, setQueuedIds] = useState<Set<string>>(new Set());
   const [labelSenderInfo] = useState("idsTrust 자산관리파트");
   const [queuingId, setQueuingId] = useState<string | null>(null);
+  const [mailTarget, setMailTarget] = useState<ExchangeReturnRecord | null>(null);
+  const [mailPreviewData, setMailPreviewData] = useState<{ html: string; subject: string } | null>(null);
+  const [mailPreviewLoading, setMailPreviewLoading] = useState(false);
+  const [mailSendingId, setMailSendingId] = useState<string | null>(null);
+  const [mailSentIds, setMailSentIds] = useState<Set<string>>(new Set());
+  const [mailPanelErr, setMailPanelErr] = useState<string | null>(null);
+
+  const handleMailPreview = useCallback(async (r: ExchangeReturnRecord) => {
+    setMailTarget(r);
+    setMailPreviewData(null);
+    setMailPanelErr(null);
+    setMailPreviewLoading(true);
+    try {
+      const isReturn = r.stage === "반납요청";
+      const res = await fetch("/api/exchange-return/notify-ready?preview=1", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stage: r.stage,
+          requesterEmail: r.requesterEmail || "",
+          requester: r.user || "",
+          company: r.company || "",
+          department: r.department || "",
+          assetNo: isReturn ? (r.assetId || "") : (r.newAssetId || r.assetId || ""),
+          model: "",
+          address: r.address || "",
+          returnDue: r.returnDue || "",
+        }),
+      });
+      const json = await res.json();
+      if (json.ok) setMailPreviewData({ html: json.html, subject: json.subject });
+      else setMailPanelErr(json.error || "미리보기 로드 실패");
+    } catch (e) { setMailPanelErr(String(e)); }
+    finally { setMailPreviewLoading(false); }
+  }, []);
 
   const handleAddToQueue = useCallback(async (r: ExchangeReturnRecord) => {
     setQueuingId(r.id);
@@ -3322,6 +3357,32 @@ export default function ExchangeReturnPanel() {
                             {queuingId === r.id ? "…" : queuedIds.has(r.id) ? "🏷️ 대기중" : "🏷️ 출력대기"}
                           </button>
                         )}
+                        {(r.stage === "기기준비완료" || r.stage === "반납요청") && !r.isClosed && (
+                          <button
+                            onClick={() => handleMailPreview(r)}
+                            disabled={mailPreviewLoading && mailTarget?.id === r.id}
+                            className="flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
+                            style={{
+                              background: mailSentIds.has(r.id)
+                                ? "#D1FAE5"
+                                : r.stage === "반납요청"
+                                  ? (r.address === "본사" ? "#FFFBEB" : "#FFF7ED")
+                                  : (r.address === "본사" ? "#ECFDF5" : "#EFF6FF"),
+                              color: mailSentIds.has(r.id)
+                                ? "#065F46"
+                                : r.stage === "반납요청"
+                                  ? (r.address === "본사" ? "#D97706" : "#EA580C")
+                                  : (r.address === "본사" ? "#065F46" : "#1D4ED8"),
+                            }}
+                            title="메일 발송"
+                          >
+                            {mailPreviewLoading && mailTarget?.id === r.id
+                              ? "…"
+                              : mailSentIds.has(r.id)
+                                ? "✓ 발송됨"
+                                : "✉️ 메일발송"}
+                          </button>
+                        )}
                       </div>
                     </div>
                   </td>
@@ -3439,6 +3500,102 @@ export default function ExchangeReturnPanel() {
           assetNo={hwDetailAsset}
           onClose={() => setHwDetailAsset(null)}
         />
+      )}
+
+      {mailTarget && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50"
+          onMouseDown={e => { if (e.target === e.currentTarget) { setMailTarget(null); setMailPreviewData(null); setMailPanelErr(null); } }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden flex flex-col"
+            style={{ maxHeight: "90vh" }}
+            onClick={e => e.stopPropagation()}>
+
+            <div className="px-6 py-4 border-b border-gray-100 flex items-start justify-between gap-4 shrink-0">
+              <div>
+                <h3 className="font-bold text-gray-900 text-base">메일 미리보기</h3>
+                {mailTarget.requesterEmail
+                  ? <p className="text-xs text-gray-400 mt-0.5">수신: {mailTarget.requesterEmail}</p>
+                  : <p className="text-xs text-red-500 mt-0.5">⚠️ 기안자 이메일이 없습니다. 상세 모달에서 먼저 입력해주세요.</p>}
+                {mailPreviewData && <p className="text-xs text-gray-500 mt-0.5 font-medium truncate max-w-sm">{mailPreviewData.subject}</p>}
+              </div>
+              <button onClick={() => { setMailTarget(null); setMailPreviewData(null); setMailPanelErr(null); }}
+                className="text-gray-400 hover:text-gray-600 text-2xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 shrink-0">×</button>
+            </div>
+
+            <div className="flex-1 overflow-hidden" style={{ minHeight: "420px" }}>
+              {mailPreviewLoading ? (
+                <div className="flex items-center justify-center h-full gap-2 text-gray-400">
+                  <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                  </svg>
+                  <span className="text-sm">불러오는 중...</span>
+                </div>
+              ) : mailPreviewData ? (
+                <iframe srcDoc={mailPreviewData.html} className="w-full h-full border-0" style={{ minHeight: "420px" }} sandbox="allow-same-origin" />
+              ) : mailPanelErr ? (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-sm text-red-500">⚠️ {mailPanelErr}</p>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between shrink-0">
+              {mailTarget.address !== "본사"
+                ? <p className="text-xs text-gray-400">첨부: 행낭포장안내.pdf, 행낭배송부착양식.pptx</p>
+                : <span />}
+              <div className="flex gap-2">
+                <button onClick={() => { setMailTarget(null); setMailPreviewData(null); setMailPanelErr(null); }}
+                  className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">
+                  취소
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!mailTarget.requesterEmail) { setMailPanelErr("기안자 이메일이 없습니다. 상세 모달에서 먼저 입력해주세요."); return; }
+                    const isReturn = mailTarget.stage === "반납요청";
+                    setMailSendingId(mailTarget.id); setMailPanelErr(null);
+                    try {
+                      const res = await fetch("/api/exchange-return/notify-ready", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          stage: mailTarget.stage,
+                          requesterEmail: mailTarget.requesterEmail,
+                          requester: mailTarget.user || "",
+                          company: mailTarget.company || "",
+                          department: mailTarget.department || "",
+                          assetNo: isReturn ? (mailTarget.assetId || "") : (mailTarget.newAssetId || mailTarget.assetId || ""),
+                          model: "",
+                          address: mailTarget.address || "",
+                          returnDue: mailTarget.returnDue || "",
+                        }),
+                      });
+                      const json = await res.json();
+                      if (json.ok) {
+                        setMailSentIds(prev => new Set(prev).add(mailTarget.id));
+                        setMailTarget(null);
+                        setMailPreviewData(null);
+                      } else { setMailPanelErr(json.error || "발송 실패"); }
+                    } catch (e) { setMailPanelErr(String(e)); }
+                    finally { setMailSendingId(null); }
+                  }}
+                  disabled={!!mailSendingId || !mailTarget.requesterEmail || !mailPreviewData}
+                  className="text-sm px-5 py-2 rounded-lg font-semibold text-white disabled:opacity-40 flex items-center gap-1.5"
+                  style={{
+                    background: mailTarget.stage === "반납요청"
+                      ? (mailTarget.address === "본사" ? "#D97706" : "#EA580C")
+                      : (mailTarget.address === "본사" ? "#10B981" : "#3B82F6"),
+                  }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                    <polyline points="22,6 12,13 2,6"/>
+                  </svg>
+                  {mailSendingId === mailTarget.id ? "발송 중…" : "발송"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
       </>)}
     </div>
