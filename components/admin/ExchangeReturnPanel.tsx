@@ -1186,14 +1186,21 @@ function DetailModal({
   const [mailSending, setMailSending] = useState(false);
   const [mailSent, setMailSent] = useState(false);
   const [mailErr, setMailErr] = useState<string | null>(null);
-  const [reason, setReason] = useState(record.reason ?? "");
   const [note, setNote] = useState(record.note ?? "");
-  const noteRef = useRef<HTMLTextAreaElement>(null);
+  const noteRef         = useRef<HTMLTextAreaElement>(null);
+  const departmentRef   = useRef<HTMLInputElement>(null);
+  const userRef         = useRef<HTMLInputElement>(null);
+  const reasonRef       = useRef<HTMLInputElement>(null);
+  const emailRef        = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setNote(record.note ?? "");
-    if (noteRef.current) noteRef.current.value = record.note ?? "";
-  }, [record.note]);
+    if (noteRef.current)       noteRef.current.value       = record.note           ?? "";
+    if (departmentRef.current) departmentRef.current.value = record.department     ?? "";
+    if (userRef.current)       userRef.current.value       = record.user           ?? "";
+    if (reasonRef.current)     reasonRef.current.value     = record.reason         ?? "";
+    if (emailRef.current)      emailRef.current.value      = record.requesterEmail ?? "";
+  }, [record.note, record.department, record.user, record.reason, record.requesterEmail]);
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<Record<string, boolean>>({});
   const [saveErr, setSaveErr] = useState<{ field: string; msg: string } | null>(null);
@@ -1343,17 +1350,21 @@ function DetailModal({
           </SaveRow>
 
           <SaveRow label="부서" field="department">
-            <input value={department} onChange={e => setDepartment(e.target.value)} className={selectCls + " w-32"} placeholder="부서명" />
-            <button onClick={() => save("department", { department })} disabled={saving === "department" || department === record.department} className={saveBtnCls("department", department, record.department)}>
+            <input ref={departmentRef} defaultValue={record.department ?? ""} className={selectCls + " w-32"} placeholder="부서명" />
+            <button onClick={() => save("department", { department: departmentRef.current?.value ?? "" })} disabled={saving === "department"}
+              className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40">
               {saving === "department" ? "저장 중…" : "저장"}
             </button>
+            {saved["department"] && <span className="text-xs text-green-600">✓ 변경됨</span>}
           </SaveRow>
 
           <SaveRow label="사용자" field="user">
-            <input value={user} onChange={e => setUser(e.target.value)} className={selectCls + " w-32"} placeholder="이름" />
-            <button onClick={() => save("user", { user })} disabled={saving === "user" || user === record.user} className={saveBtnCls("user", user, record.user)}>
+            <input ref={userRef} defaultValue={record.user ?? ""} className={selectCls + " w-32"} placeholder="이름" />
+            <button onClick={() => save("user", { user: userRef.current?.value ?? "" })} disabled={saving === "user"}
+              className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40">
               {saving === "user" ? "저장 중…" : "저장"}
             </button>
+            {saved["user"] && <span className="text-xs text-green-600">✓ 변경됨</span>}
           </SaveRow>
 
           <SaveRow label="사용일자" field="useDate">
@@ -1495,18 +1506,19 @@ function DetailModal({
 
           <SaveRow label="기안자이메일" field="requesterEmail">
             <input
+              ref={emailRef}
               type="email"
-              value={requesterEmail}
-              onChange={e => setRequesterEmail(e.target.value)}
+              defaultValue={record.requesterEmail ?? ""}
               className={selectCls + " w-52"}
               placeholder="example@company.com"
             />
             <button
-              onClick={() => save("requesterEmail", { requesterEmail })}
-              disabled={saving === "requesterEmail" || requesterEmail === (record.requesterEmail ?? "")}
-              className={saveBtnCls("requesterEmail", requesterEmail, record.requesterEmail ?? "")}>
+              onClick={() => save("requesterEmail", { requesterEmail: emailRef.current?.value ?? "" })}
+              disabled={saving === "requesterEmail"}
+              className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40">
               {saving === "requesterEmail" ? "저장 중…" : "저장"}
             </button>
+            {saved["requesterEmail"] && <span className="text-xs text-green-600">✓ 변경됨</span>}
           </SaveRow>
 
           {(stage === "기기준비완료" || stage === "반납요청") && (
@@ -1515,19 +1527,17 @@ function DetailModal({
                 <div className="flex items-center gap-2 flex-wrap">
                   <button
                     onClick={async () => {
-                      if (!requesterEmail) { setMailErr("기안자 이메일을 먼저 입력하고 저장해주세요."); return; }
+                      const currentEmail = emailRef.current?.value ?? record.requesterEmail ?? "";
+                      if (!currentEmail) { setMailErr("기안자 이메일을 먼저 입력하고 저장해주세요."); return; }
                       setMailPreviewLoading(true); setMailErr(null);
                       const isReturn = stage === "반납요청";
-                      const btnColor = isReturn
-                        ? (record.address === "본사" ? "#D97706" : "#EA580C")
-                        : (record.address === "본사" ? "#10B981" : "#3B82F6");
                       try {
                         const res = await fetch("/api/exchange-return/notify-ready?preview=1", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({
                             stage,
-                            requesterEmail,
+                            requesterEmail: currentEmail,
                             requester: record.user || "",
                             company: record.company || "",
                             department: record.department || "",
@@ -1562,7 +1572,7 @@ function DetailModal({
                   </button>
                   {mailSent && <span className="text-xs text-green-600 font-medium">✓ 발송 완료</span>}
                 </div>
-                {!requesterEmail && <p className="text-xs text-amber-600">기안자 이메일을 입력해야 발송할 수 있습니다.</p>}
+                {!(emailRef.current?.value ?? record.requesterEmail ?? "") && <p className="text-xs text-amber-600">기안자 이메일을 입력해야 발송할 수 있습니다.</p>}
                 {mailErr && <p className="text-xs text-red-500">⚠️ {mailErr}</p>}
               </div>
             </Row>
@@ -1653,10 +1663,12 @@ function DetailModal({
           )}
 
           <SaveRow label="신청사유" field="reason">
-            <input value={reason} onChange={e => setReason(e.target.value)} className={selectCls + " w-56"} placeholder="신청사유" />
-            <button onClick={() => save("reason", { reason })} disabled={saving === "reason" || reason === record.reason} className={saveBtnCls("reason", reason, record.reason)}>
+            <input ref={reasonRef} defaultValue={record.reason ?? ""} className={selectCls + " w-56"} placeholder="신청사유" />
+            <button onClick={() => save("reason", { reason: reasonRef.current?.value ?? "" })} disabled={saving === "reason"}
+              className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40">
               {saving === "reason" ? "저장 중…" : "저장"}
             </button>
+            {saved["reason"] && <span className="text-xs text-green-600">✓ 변경됨</span>}
           </SaveRow>
 
           <Row label="비고">
@@ -1770,6 +1782,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const [niUseDate, setNiUseDate] = useState(new Date().toISOString().slice(0, 10));
   const [niUser, setNiUser] = useState("");
   const [niDept, setNiDept] = useState("");
+  const [niEmail, setNiEmail] = useState("");
   const [niReason, setNiReason] = useState("");
   const [niMemo, setNiMemo] = useState("");
 
@@ -1786,6 +1799,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const [rtReturnDue, setRtReturnDue] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().slice(0, 10);
   });
+  const [rtEmail, setRtEmail] = useState("");
   const [rtReason, setRtReason] = useState("");
   const [rtNote, setRtNote] = useState("");
 
@@ -1803,6 +1817,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const [exStockLoading, setExStockLoading] = useState(false);
   const [exNewAsset, setExNewAsset] = useState<StockAsset | null>(null);
   const [exUseDate, setExUseDate] = useState(new Date().toISOString().slice(0, 10));
+  const [exEmail, setExEmail] = useState("");
   const [exReason, setExReason] = useState("");
   const [exNote, setExNote] = useState("");
   const [exNewPurchasing, setExNewPurchasing] = useState(false);
@@ -1907,6 +1922,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
           company: niCompany, department: niDept, user: niUser,
           stage: "요청기안", requestedAt: new Date().toISOString().slice(0, 10),
           note: niMemo || undefined, reason: niReason || undefined,
+          requesterEmail: niEmail || undefined,
         }),
       });
       const json = await res.json();
@@ -1927,6 +1943,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
           company: niCompany, department: niDept, user: niUser,
           stage: "기기준비", requestedAt: new Date().toISOString().slice(0, 10),
           completedAt: niUseDate, note: niMemo || undefined, reason: niReason || undefined,
+          requesterEmail: niEmail || undefined,
         }),
       });
       const json = await res.json();
@@ -2029,6 +2046,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
           company: exCompany, department: exSelected.dept, user: exUserName || exSelected.user,
           stage: "교체요청", requestedAt: new Date().toISOString().slice(0, 10),
           reason: exReason || undefined, note: exNote || undefined,
+          requesterEmail: exEmail || undefined,
         }),
       });
       const json = await res.json();
@@ -2096,6 +2114,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
           returnDue: rtReturnDue || undefined,
           reason: rtReason || undefined,
           note: rtNote || undefined,
+          requesterEmail: rtEmail || undefined,
         }),
       });
       const json = await res.json();
@@ -2311,6 +2330,12 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
                 </div>
               </div>
               <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-gray-500 font-medium">기안자 이메일</label>
+                <input type="email" value={niEmail} onChange={e => setNiEmail(e.target.value)}
+                  placeholder="example@company.com"
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-200 w-full" />
+              </div>
+              <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-gray-500 font-medium">신청사유</label>
                 <input value={niReason} onChange={e => setNiReason(e.target.value)}
                   placeholder="신청사유 (선택)"
@@ -2319,7 +2344,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-gray-500 font-medium">메모</label>
                 <textarea value={niMemo} onChange={e => setNiMemo(e.target.value)} rows={3}
-                  placeholder="기안자 : XXX, 기타 특이사항 등..."
+                  placeholder="기타 특이사항 등..."
                   className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-200 w-full resize-none" />
               </div>
             </div>
@@ -2746,6 +2771,12 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
                 </div>
               </div>
               <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-gray-500 font-medium">기안자 이메일</label>
+                <input type="email" value={exEmail} onChange={e => setExEmail(e.target.value)}
+                  placeholder="example@company.com"
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full" />
+              </div>
+              <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-gray-500 font-medium">신청사유</label>
                 <input value={exReason} onChange={e => setExReason(e.target.value)}
                   placeholder="신청사유를 입력하세요"
@@ -2754,7 +2785,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-gray-500 font-medium">비고</label>
                 <textarea value={exNote} onChange={e => setExNote(e.target.value)} rows={3}
-                  placeholder="기안자 : XXX, 기타 특이사항 등..."
+                  placeholder="기타 특이사항 등..."
                   className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full resize-none" />
               </div>
               {err && <p className="text-xs text-red-600">⚠️ {err}</p>}
@@ -2790,6 +2821,12 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
                     className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-200 flex-1" />
                   {rtReturnDue && <button type="button" onClick={() => setRtReturnDue("")} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
                 </div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-gray-500 font-medium">기안자 이메일</label>
+                <input type="email" value={rtEmail} onChange={e => setRtEmail(e.target.value)}
+                  placeholder="example@company.com"
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-200 w-full" />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-gray-500 font-medium">신청사유</label>
