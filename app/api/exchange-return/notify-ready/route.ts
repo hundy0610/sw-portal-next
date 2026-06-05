@@ -5,6 +5,8 @@ import {
   createMailTransporter,
   buildAssetReadyHeadquartersEmail,
   buildAssetReadyCourierEmail,
+  buildReturnRequestHeadquartersEmail,
+  buildReturnRequestCourierEmail,
 } from "@/lib/mail";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +21,7 @@ function getCourierAttachments() {
 }
 
 type MailPayload = {
+  stage: string;
   requesterEmail: string;
   requester: string;
   company: string;
@@ -26,18 +29,32 @@ type MailPayload = {
   assetNo: string;
   model: string;
   address: string;
+  returnDue?: string;
 };
 
 function buildMailContent(payload: MailPayload) {
-  const { requester, company, department, assetNo, model, address } = payload;
+  const { stage, requester, company, department, assetNo, model, address, returnDue = "" } = payload;
   const isHeadquarters = address === "본사";
-  const html = isHeadquarters
-    ? buildAssetReadyHeadquartersEmail({ requester, company, department, assetNo, model })
-    : buildAssetReadyCourierEmail({ requester, company, department, assetNo, model, deliveryLocation: address });
-  const subject = isHeadquarters
-    ? `[IDS 자산관리] 기기 수령 안내 - ${assetNo || model}`
-    : `[IDS 자산관리] 기기 발송 안내 - ${assetNo || model}`;
-  return { html, subject, isHeadquarters };
+  const isReturn = stage === "반납요청";
+
+  let html: string;
+  let subject: string;
+
+  if (isReturn) {
+    html = isHeadquarters
+      ? buildReturnRequestHeadquartersEmail({ requester, company, department, assetNo, model, returnDue })
+      : buildReturnRequestCourierEmail({ requester, company, department, assetNo, model, returnDue, deliveryLocation: address });
+    subject = `[IDS 자산관리] 기기 반납 안내 - ${assetNo || model}`;
+  } else {
+    html = isHeadquarters
+      ? buildAssetReadyHeadquartersEmail({ requester, company, department, assetNo, model })
+      : buildAssetReadyCourierEmail({ requester, company, department, assetNo, model, deliveryLocation: address });
+    subject = isHeadquarters
+      ? `[IDS 자산관리] 기기 수령 안내 - ${assetNo || model}`
+      : `[IDS 자산관리] 기기 발송 안내 - ${assetNo || model}`;
+  }
+
+  return { html, subject, isHeadquarters, isReturn };
 }
 
 export async function POST(req: NextRequest) {
@@ -46,9 +63,8 @@ export async function POST(req: NextRequest) {
     const preview = url.searchParams.get("preview") === "1";
 
     const body = await req.json() as MailPayload;
-    const { requesterEmail } = body;
 
-    if (!requesterEmail) {
+    if (!body.requesterEmail) {
       return NextResponse.json({ ok: false, error: "기안자 이메일이 없습니다." }, { status: 400 });
     }
 
@@ -68,7 +84,7 @@ export async function POST(req: NextRequest) {
 
     await transporter.sendMail({
       from: `"IDS 자산관리파트" <${process.env.GMAIL_USER}>`,
-      to: requesterEmail,
+      to: body.requesterEmail,
       subject,
       html,
       attachments: isHeadquarters ? [] : getCourierAttachments(),

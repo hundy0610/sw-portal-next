@@ -1509,7 +1509,7 @@ function DetailModal({
             </button>
           </SaveRow>
 
-          {stage === "기기준비완료" && (
+          {(stage === "기기준비완료" || stage === "반납요청") && (
             <Row label="메일 발송">
               <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -1517,18 +1517,24 @@ function DetailModal({
                     onClick={async () => {
                       if (!requesterEmail) { setMailErr("기안자 이메일을 먼저 입력하고 저장해주세요."); return; }
                       setMailPreviewLoading(true); setMailErr(null);
+                      const isReturn = stage === "반납요청";
+                      const btnColor = isReturn
+                        ? (record.address === "본사" ? "#D97706" : "#EA580C")
+                        : (record.address === "본사" ? "#10B981" : "#3B82F6");
                       try {
                         const res = await fetch("/api/exchange-return/notify-ready?preview=1", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({
+                            stage,
                             requesterEmail,
                             requester: record.user || "",
                             company: record.company || "",
                             department: record.department || "",
-                            assetNo: record.newAssetId || record.assetId || "",
+                            assetNo: isReturn ? (record.assetId || "") : (record.newAssetId || record.assetId || ""),
                             model: "",
                             address: record.address || "",
+                            returnDue: record.returnDue || "",
                           }),
                         });
                         const json = await res.json();
@@ -1539,13 +1545,20 @@ function DetailModal({
                     }}
                     disabled={mailPreviewLoading || !requesterEmail}
                     className="text-xs px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    style={{ background: record.address === "본사" ? "#10B981" : "#3B82F6", color: "white" }}
+                    style={{
+                      background: stage === "반납요청"
+                        ? (record.address === "본사" ? "#D97706" : "#EA580C")
+                        : (record.address === "본사" ? "#10B981" : "#3B82F6"),
+                      color: "white",
+                    }}
                   >
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
                       <polyline points="22,6 12,13 2,6"/>
                     </svg>
-                    {mailPreviewLoading ? "불러오는 중…" : record.address === "본사" ? "수령 안내 메일 미리보기" : "행낭 발송 안내 메일 미리보기"}
+                    {mailPreviewLoading ? "불러오는 중…" : stage === "반납요청"
+                      ? (record.address === "본사" ? "반납 안내 메일 미리보기" : "반납(행낭) 안내 메일 미리보기")
+                      : (record.address === "본사" ? "수령 안내 메일 미리보기" : "행낭 발송 안내 메일 미리보기")}
                   </button>
                   {mailSent && <span className="text-xs text-green-600 font-medium">✓ 발송 완료</span>}
                 </div>
@@ -1582,10 +1595,9 @@ function DetailModal({
                 </div>
 
                 <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between shrink-0">
-                  {record.address !== "본사" && (
-                    <p className="text-xs text-gray-400">첨부: 행낭포장안내.pdf, 행낭배송부착양식.pptx</p>
-                  )}
-                  {record.address === "본사" && <span />}
+                  {record.address !== "본사"
+                    ? <p className="text-xs text-gray-400">첨부: 행낭포장안내.pdf, 행낭배송부착양식.pptx</p>
+                    : <span />}
                   <div className="flex gap-2">
                     <button onClick={() => { setMailPreview(null); setMailErr(null); }}
                       className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">
@@ -1593,19 +1605,22 @@ function DetailModal({
                     </button>
                     <button
                       onClick={async () => {
+                        const isReturn = stage === "반납요청";
                         setMailSending(true); setMailErr(null);
                         try {
                           const res = await fetch("/api/exchange-return/notify-ready", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({
+                              stage,
                               requesterEmail,
                               requester: record.user || "",
                               company: record.company || "",
                               department: record.department || "",
-                              assetNo: record.newAssetId || record.assetId || "",
+                              assetNo: isReturn ? (record.assetId || "") : (record.newAssetId || record.assetId || ""),
                               model: "",
                               address: record.address || "",
+                              returnDue: record.returnDue || "",
                             }),
                           });
                           const json = await res.json();
@@ -1619,7 +1634,11 @@ function DetailModal({
                       }}
                       disabled={mailSending}
                       className="text-sm px-5 py-2 rounded-lg font-semibold text-white disabled:opacity-40 flex items-center gap-1.5"
-                      style={{ background: record.address === "본사" ? "#10B981" : "#3B82F6" }}
+                      style={{
+                        background: stage === "반납요청"
+                          ? (record.address === "본사" ? "#D97706" : "#EA580C")
+                          : (record.address === "본사" ? "#10B981" : "#3B82F6"),
+                      }}
                     >
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
