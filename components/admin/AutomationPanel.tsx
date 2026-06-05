@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import type { AutomationTask } from "@/app/api/automation-tasks/route";
+import type { AutomationTaskRecord as AutomationTask } from "@/lib/notion";
 
 const STATUS_OPTIONS = ["접수", "검토 중", "개발 중", "완료", "보류"];
 
@@ -20,10 +20,12 @@ const DEPT_COLOR: Record<string, string> = {
 };
 
 export default function AutomationPanel() {
-  const [tasks,    setTasks]    = useState<AutomationTask[]>([]);
-  const [loading,  setLoading]  = useState(true);
+  const [tasks,      setTasks]      = useState<AutomationTask[]>([]);
+  const [loading,    setLoading]    = useState(true);
   const [missingEnv, setMissingEnv] = useState(false);
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [expanded,   setExpanded]   = useState<string | null>(null);
+  const [saving,     setSaving]     = useState<string | null>(null);
+  const [editAssignee, setEditAssignee] = useState<Record<string, string>>({});
 
   const [filterDept,   setFilterDept]   = useState("");
   const [filterStatus, setFilterStatus] = useState("");
@@ -36,6 +38,18 @@ export default function AutomationPanel() {
       if (json.missingEnv) { setMissingEnv(true); setTasks([]); }
       else { setMissingEnv(false); setTasks(json.tasks ?? []); }
     } finally { setLoading(false); }
+  }, []);
+
+  const handleUpdate = useCallback(async (id: string, patch: { status?: string; assignee?: string }) => {
+    setSaving(id);
+    try {
+      await fetch("/api/automation-tasks", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, ...patch }),
+      });
+      setTasks(prev => prev.map(t => t.id === id ? { ...t, ...patch } : t));
+    } finally { setSaving(null); }
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -188,7 +202,40 @@ export default function AutomationPanel() {
 
               {/* 상세 */}
               {expanded === task.id && (
-                <div className="border-t border-gray-100 px-5 py-4 space-y-3">
+                <div className="border-t border-gray-100 px-5 py-4 space-y-4">
+                  {/* 관리 영역 */}
+                  <div className="flex flex-wrap gap-3 items-end p-3 bg-gray-50 rounded-xl">
+                    <div>
+                      <p className="text-[11px] font-semibold text-gray-500 mb-1">진행 상태 변경</p>
+                      <select
+                        value={task.status}
+                        disabled={saving === task.id}
+                        onChange={e => handleUpdate(task.id, { status: e.target.value })}
+                        className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white disabled:opacity-50"
+                      >
+                        {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                    <div className="flex-1 min-w-[160px]">
+                      <p className="text-[11px] font-semibold text-gray-500 mb-1">담당자</p>
+                      <div className="flex gap-2">
+                        <input
+                          value={editAssignee[task.id] ?? task.assignee}
+                          onChange={e => setEditAssignee(prev => ({ ...prev, [task.id]: e.target.value }))}
+                          placeholder="담당자 이름"
+                          className="flex-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                        />
+                        <button
+                          disabled={saving === task.id}
+                          onClick={() => handleUpdate(task.id, { assignee: editAssignee[task.id] ?? task.assignee })}
+                          className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                        >
+                          {saving === task.id ? "저장 중…" : "저장"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  {/* 신청 정보 */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                     <div><p className="font-semibold text-gray-400 mb-0.5">신청자</p><p className="text-gray-800">{task.requester}</p></div>
                     <div><p className="font-semibold text-gray-400 mb-0.5">이메일</p><p className="text-gray-800">{task.email || "-"}</p></div>
