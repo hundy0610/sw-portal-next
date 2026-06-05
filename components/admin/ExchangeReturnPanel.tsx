@@ -2907,6 +2907,7 @@ export default function ExchangeReturnPanel() {
   const [queuedIds, setQueuedIds] = useState<Set<string>>(new Set());
   const [labelSenderInfo] = useState("idsTrust 자산관리파트");
   const [queuingId, setQueuingId] = useState<string | null>(null);
+  const [mailMethodSelect, setMailMethodSelect] = useState<ExchangeReturnRecord | null>(null);
   const [mailTarget, setMailTarget] = useState<ExchangeReturnRecord | null>(null);
   const [mailReturnMethod, setMailReturnMethod] = useState<"행낭" | "직접방문">("행낭");
   const [mailPreviewData, setMailPreviewData] = useState<{ html: string; subject: string } | null>(null);
@@ -3414,10 +3415,14 @@ export default function ExchangeReturnPanel() {
                         {(r.stage === "기기준비완료" || r.stage === "반납요청") && !r.isClosed && (
                           <button
                             onClick={() => {
+                              const open = () => {
+                                if (r.stage === "반납요청") setMailMethodSelect(r);
+                                else handleMailPreview(r);
+                              };
                               if (mailSentIds.has(r.id)) {
-                                if (confirm("이미 발송된 메일입니다. 다시 발송하시겠습니까?")) handleMailPreview(r);
+                                if (confirm("이미 발송된 메일입니다. 다시 발송하시겠습니까?")) open();
                               } else {
-                                handleMailPreview(r);
+                                open();
                               }
                             }}
                             disabled={mailPreviewLoading && mailTarget?.id === r.id}
@@ -3562,6 +3567,41 @@ export default function ExchangeReturnPanel() {
         />
       )}
 
+      {mailMethodSelect && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50"
+          onMouseDown={e => { if (e.target === e.currentTarget) setMailMethodSelect(null); }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden"
+            onClick={e => e.stopPropagation()}>
+            <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="font-bold text-gray-900 text-base">반납 방법 선택</h3>
+              <button onClick={() => setMailMethodSelect(null)}
+                className="text-gray-400 hover:text-gray-600 text-2xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">×</button>
+            </div>
+            <div className="px-6 py-6 flex flex-col gap-3">
+              <p className="text-xs text-gray-500 mb-1">어떤 방식으로 반납하는지 선택하세요.</p>
+              <button
+                onClick={() => { setMailMethodSelect(null); handleMailPreview(mailMethodSelect, "행낭"); }}
+                className="flex items-center gap-3 p-4 rounded-xl border-2 border-orange-200 bg-orange-50 hover:bg-orange-100 transition-colors text-left">
+                <span className="text-2xl">📦</span>
+                <div>
+                  <p className="text-sm font-bold text-orange-700">행낭 발송</p>
+                  <p className="text-xs text-orange-500 mt-0.5">행낭으로 포장하여 본사로 발송</p>
+                </div>
+              </button>
+              <button
+                onClick={() => { setMailMethodSelect(null); handleMailPreview(mailMethodSelect, "직접방문"); }}
+                className="flex items-center gap-3 p-4 rounded-xl border-2 border-amber-200 bg-amber-50 hover:bg-amber-100 transition-colors text-left">
+                <span className="text-2xl">🚶</span>
+                <div>
+                  <p className="text-sm font-bold text-amber-700">직접 방문</p>
+                  <p className="text-xs text-amber-500 mt-0.5">신관 4층 자산관리파트 직접 방문 반납</p>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {mailTarget && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50"
           onMouseDown={e => { if (e.target === e.currentTarget) { setMailTarget(null); setMailPreviewData(null); setMailPanelErr(null); } }}>
@@ -3577,20 +3617,10 @@ export default function ExchangeReturnPanel() {
                   : <p className="text-xs text-red-500 mt-0.5">⚠️ 기안자 이메일이 없습니다. 상세 모달에서 먼저 입력해주세요.</p>}
                 {mailPreviewData && <p className="text-xs text-gray-500 mt-0.5 font-medium truncate max-w-sm">{mailPreviewData.subject}</p>}
                 {mailTarget.stage === "반납요청" && (
-                  <div className="flex items-center gap-1 mt-2">
-                    <span className="text-xs text-gray-400 mr-1">반납 방법:</span>
-                    {(["행낭", "직접방문"] as const).map(m => (
-                      <button key={m} onClick={() => handleMailPreview(mailTarget, m)}
-                        disabled={mailPreviewLoading}
-                        className="text-xs px-2.5 py-1 rounded-full font-semibold transition-colors disabled:opacity-40"
-                        style={{
-                          background: mailReturnMethod === m ? (m === "행낭" ? "#EA580C" : "#D97706") : "#F1F5F9",
-                          color: mailReturnMethod === m ? "white" : "#64748B",
-                        }}>
-                        {m === "행낭" ? "📦 행낭" : "🚶 직접방문"}
-                      </button>
-                    ))}
-                  </div>
+                  <span className="inline-flex items-center gap-1 mt-1.5 text-xs font-semibold px-2 py-0.5 rounded-full"
+                    style={{ background: mailReturnMethod === "행낭" ? "#FFF7ED" : "#FFFBEB", color: mailReturnMethod === "행낭" ? "#EA580C" : "#D97706" }}>
+                    {mailReturnMethod === "행낭" ? "📦 행낭 반납" : "🚶 직접방문 반납"}
+                  </span>
                 )}
               </div>
               <button onClick={() => { setMailTarget(null); setMailPreviewData(null); setMailPanelErr(null); }}
