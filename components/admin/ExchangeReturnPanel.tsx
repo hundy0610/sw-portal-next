@@ -732,6 +732,7 @@ function ReturnRegModal({
     hwUser: string | null;
   } | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<ReturnStatus>("재고");
+  const [returnDate, setReturnDate] = useState(new Date().toISOString().slice(0, 10));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -776,7 +777,6 @@ function ReturnRegModal({
     setSaving(true);
     setError(null);
     try {
-      const today = new Date().toISOString().slice(0, 10);
       const updates: Promise<unknown>[] = [];
 
       if (searchResult.matchedRecord) {
@@ -786,7 +786,7 @@ function ReturnRegModal({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               id: searchResult.matchedRecord.id,
-              fields: { stage: "반납완료", completedAt: today },
+              fields: { stage: "반납완료", completedAt: returnDate },
             }),
           })
         );
@@ -797,7 +797,7 @@ function ReturnRegModal({
           fetch("/api/hw/update", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: searchResult.hwPageId, fields: { status: selectedStatus, returnDate: today } }),
+            body: JSON.stringify({ id: searchResult.hwPageId, fields: { status: selectedStatus, returnDate, returnDue: "" } }),
           })
         );
       }
@@ -815,7 +815,7 @@ function ReturnRegModal({
               assetId: assetInput.trim(),
               stage: "수리접수",
               faultType: "과실없음",
-              receivedAt: today,
+              receivedAt: returnDate,
               ...(company    && { company }),
               ...(department && { department }),
               ...(user       && { user }),
@@ -827,7 +827,7 @@ function ReturnRegModal({
       await Promise.all(updates);
 
       if (searchResult.matchedRecord) {
-        onUpdated(searchResult.matchedRecord.id, { stage: "반납완료", completedAt: today });
+        onUpdated(searchResult.matchedRecord.id, { stage: "반납완료", completedAt: returnDate });
       }
       onClose();
     } catch (e) {
@@ -979,18 +979,24 @@ function ReturnRegModal({
                   </div>
                 </div>
               )}
+              <div>
+                <p className="text-xs text-gray-500 font-medium mb-1.5">반납일자</p>
+                <input type="date" value={returnDate} onChange={e => setReturnDate(e.target.value)}
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-200 w-full" />
+              </div>
               <div className="bg-green-50 rounded-xl p-4 space-y-2">
                 <p className="font-semibold text-green-800 text-sm">반납 처리 시 자동 적용 사항</p>
                 <ul className="space-y-1 list-disc list-inside text-xs text-green-700">
                   {searchResult.hwPageId && (
                     <li>자산 <strong className="font-mono">{assetNo}</strong> → HW DB 상태: <strong>{selectedStatus}</strong></li>
                   )}
+                  {searchResult.hwPageId && searchResult.hwReturnDue && (
+                    <li>반납예정일 <strong className="font-mono">{searchResult.hwReturnDue}</strong> → 삭제</li>
+                  )}
                   {searchResult.matchedRecord && (
                     <li>트래커 단계 → <strong>반납완료</strong></li>
                   )}
-                  {searchResult.matchedRecord && (
-                    <li>완료일 → <strong>오늘 날짜</strong> 자동 입력</li>
-                  )}
+                  <li>반납일자 → <strong>{returnDate}</strong></li>
                   {selectedStatus === "수리" && (
                     <li>수리/과실청구 트래커 → <strong>수리접수</strong> · <strong>과실없음</strong>으로 자동 등록</li>
                   )}
