@@ -1296,9 +1296,10 @@ function ExcelUploadTab(){
   const [showDupModal,setShowDupModal]=useState(false);
   const [dupItems,setDupItems]=useState<DupItem[]>([]);
   const [cleanRows,setCleanRows]=useState<ExcelRow[]>([]);
+  const [syncWarn,setSyncWarn]=useState("");
 
   const handleFile=async(file:File)=>{
-    setPErr("");setRows([]);setResults(null);setSummary(null);
+    setPErr("");setRows([]);setResults(null);setSummary(null);setSyncWarn("");
     setShowDupModal(false);setDupItems([]);setCleanRows([]);setFile(file.name);
     try{
       const XLSX=await import("xlsx");
@@ -1366,18 +1367,75 @@ function ExcelUploadTab(){
       setResults(json.results);setSummary({success:json.success,failed:json.failed});
       // 신규 지급 이력 기록 (성공 건만)
       const successSet=new Set<number>((json.results as UploadResult[]).filter((r:UploadResult)=>r.ok).map((r:UploadResult)=>r.index));
-      if(successSet.size>0){
+      const successRows=convertedRows.filter((_,i)=>successSet.has(i));
+      if(successRows.length>0){
         const now=new Date().toISOString();
-        const events=convertedRows.filter((_,i)=>successSet.has(i)).map(r=>({
+        const events=successRows.map(r=>({
           id:crypto.randomUUID(),dispatchedAt:now,type:"신규" as const,
           assetNo:r.assetNo||"",model:r.model||"",serial:r.serial||"",
           user:r.user||"",company:r.company||"",dept:r.dept||"",useDate:r.useDate||"",
         }));
         fetch("/api/hw/dispatch-history",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(events)}).catch(console.error);
+
+        // 자산흐름관리 자동 연동: 신규구매로안내됨 항목 → 사용자수령
+        try {
+          const erJson=await fetch("/api/exchange-return").then(r=>r.json());
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const candidates=(erJson.records??[]).filter((r:any)=>
+            (r.type==="신규지급"||r.type==="교체") &&
+            r.newAssetId==="신규구매로안내됨" &&
+            !r.isClosed
+          );
+          if(candidates.length>0){
+            const defaultDue=new Date(Date.now()+7*86400000).toISOString().slice(0,10);
+            for(const row of successRows){
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const matched=candidates.filter((r:any)=>r.company===row.company&&r.user===row.user);
+              for(const rec of matched){
+                const updates:Promise<unknown>[]=[
+                  fetch("/api/exchange-return/update",{
+                    method:"POST",headers:{"Content-Type":"application/json"},
+                    body:JSON.stringify({id:rec.id,fields:{
+                      stage:"사용자수령",
+                      newAssetId:row.assetNo,
+                      ...(rec.type==="교체"?{returnDue:defaultDue}:{}),
+                    }}),
+                  }),
+                ];
+                // 새 자산 HW 상태 → 사용중
+                if(row.assetNo){
+                  updates.push(
+                    fetch(`/api/hw?search=${encodeURIComponent(row.assetNo)}`).then(r=>r.json()).then(d=>{
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      const found=(d.records??[]).find((r:any)=>r.assetNo===row.assetNo)??(d.records?.length===1?d.records[0]:null);
+                      if(found) return fetch("/api/hw/update",{method:"POST",headers:{"Content-Type":"application/json"},
+                        body:JSON.stringify({id:found.id,fields:{status:"사용중"}})});
+                    })
+                  );
+                }
+                // 교체인 경우 기존 자산 → 반납예정
+                if(rec.type==="교체"&&rec.assetId){
+                  updates.push(
+                    fetch(`/api/hw?search=${encodeURIComponent(rec.assetId)}`).then(r=>r.json()).then(d=>{
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      const found=(d.records??[]).find((r:any)=>r.assetNo===rec.assetId)??(d.records?.length===1?d.records[0]:null);
+                      if(found) return fetch("/api/hw/update",{method:"POST",headers:{"Content-Type":"application/json"},
+                        body:JSON.stringify({id:found.id,fields:{status:"반납예정",returnDue:defaultDue}})});
+                    })
+                  );
+                }
+                await Promise.all(updates);
+              }
+            }
+          }
+        } catch(e){
+          console.warn("[ExcelUpload] 자산흐름관리 자동 연동 실패:",e);
+          setSyncWarn("자산흐름관리 자동 연동 중 오류가 발생했습니다. 해당 항목을 수동으로 확인해주세요.");
+        }
       }
     }catch(e){setPErr(String(e));}finally{setUploading(false);}
   };
-  const reset=()=>{setRows([]);setFile("");setPErr("");setResults(null);setSummary(null);setProgress(0);setShowDupModal(false);setDupItems([]);setCleanRows([]);if(fileRef.current)fileRef.current.value="";};
+  const reset=()=>{setRows([]);setFile("");setPErr("");setResults(null);setSummary(null);setProgress(0);setSyncWarn("");setShowDupModal(false);setDupItems([]);setCleanRows([]);if(fileRef.current)fileRef.current.value="";};
 
   return(
     <div className="space-y-4">
@@ -1466,6 +1524,15 @@ function ExcelUploadTab(){
             <p className={`text-base font-bold mb-1 ${summary.failed===0?"text-green-800":"text-yellow-800"}`}>{summary.failed===0?"✅ 전체 등록 완료!":"⚠️ 등록 완료 (일부 실패)"}</p>
             <p className="text-sm text-gray-700">성공 <span className="font-bold text-green-700">{summary.success}</span>건 · 실패 <span className="font-bold text-red-600">{summary.failed}</span>건</p>
           </div>
+          {syncWarn&&(
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+              <span className="text-lg shrink-0">⚠️</span>
+              <div>
+                <p className="text-sm font-semibold text-amber-800">자산흐름관리 연동 실패</p>
+                <p className="text-xs text-amber-700 mt-0.5">{syncWarn}</p>
+              </div>
+            </div>
+          )}
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="px-5 py-3 border-b border-gray-100"><p className="text-sm font-semibold text-gray-700">등록 상세 결과</p></div>
             <div className="overflow-x-auto max-h-72">
