@@ -54,8 +54,20 @@ const pplFirstId = (p: Props, k: string): string => {
   return v.people[0]?.id || "";
 };
 
+const email = (p: Props, k: string): string => {
+  const v = p[k];
+  if (!v) return "";
+  if (v.type === "email") return v.email || "";
+  if (v.type === "rich_text") return v.rich_text.map(t => t.plain_text).join("");
+  return "";
+};
+
 function mapPage(page: PageObjectResponse): ExchangeReturnRecord {
   const p = page.properties;
+  const stage      = sel(p, "현재단계");
+  const completedAt = dt(p, "완료일");
+  // 기존 버그로 인해 사용일자가 완료일로 잘못 저장된 레코드의 fallback 처리
+  const useDate    = dt(p, "사용일자") || (stage !== "반납완료" ? completedAt : "");
   return {
     id:           page.id,
     type:         sel(p, "유형"),
@@ -64,16 +76,17 @@ function mapPage(page: PageObjectResponse): ExchangeReturnRecord {
     company:      sel(p, "법인"),
     department:   txt(p, "부서"),
     user:         txt(p, "사용자"),
-    stage:        sel(p, "현재단계"),
+    stage,
     requestedAt:  dt(p,  "신청일"),
-    useDate:      dt(p,  "사용일자"),
+    useDate,
     returnDue:    dt(p,  "반납예정일"),
-    completedAt:  dt(p,  "완료일"),
+    completedAt,
     reason:       txt(p, "신청사유"),
     assignee:     ppl(p, "담당자"),
     assigneeId:   pplFirstId(p, "담당자"),
     note:         txt(p, "비고"),
-    address:      sel(p, "배송지"),
+    address:          sel(p, "배송지"),
+    requesterEmail:   email(p, "기안자이메일"),
     autoSynced:   chk(p, "자동동기화"),
     isClosed:     chk(p, "케이스종료"),
     lastEditedAt: page.last_edited_time,
@@ -118,6 +131,7 @@ export interface CreateFields {
   reason?: string;
   assigneeId?: string;
   note?: string;
+  requesterEmail?: string;
   autoSynced?: boolean;
   isClosed?: boolean;
 }
@@ -141,10 +155,11 @@ export async function createExchangeReturn(fields: CreateFields): Promise<Exchan
   if (fields.requestedAt) props["신청일"]        = { date: { start: fields.requestedAt } };
   if (fields.returnDue)   props["반납예정일"]    = { date: { start: fields.returnDue } };
   if (fields.completedAt) props["완료일"]        = { date: { start: fields.completedAt } };
-  if (fields.reason)      props["신청사유"]      = { rich_text: [{ text: { content: fields.reason } }] };
-  if (fields.assigneeId)  props["담당자"]        = { people: [{ object: "user", id: fields.assigneeId }] };
-  if (fields.note)        props["비고"]          = { rich_text: [{ text: { content: fields.note } }] };
-  if (fields.autoSynced)  props["자동동기화"]    = { checkbox: true };
+  if (fields.reason)         props["신청사유"]      = { rich_text: [{ text: { content: fields.reason } }] };
+  if (fields.assigneeId)     props["담당자"]        = { people: [{ object: "user", id: fields.assigneeId }] };
+  if (fields.note)           props["비고"]          = { rich_text: [{ text: { content: fields.note } }] };
+  if (fields.requesterEmail) props["기안자이메일"]  = { email: fields.requesterEmail };
+  if (fields.autoSynced)     props["자동동기화"]    = { checkbox: true };
 
   const page = await notion.pages.create({ parent: { database_id: dbId }, properties: props });
   return mapPage(page as PageObjectResponse);
@@ -165,6 +180,7 @@ export interface UpdateFields {
   assigneeId?: string;
   note?: string;
   address?: string;
+  requesterEmail?: string;
   autoSynced?: boolean;
   isClosed?: boolean;
 }
@@ -187,8 +203,9 @@ export async function updateExchangeReturn(id: string, fields: UpdateFields): Pr
     ? { people: [{ object: "user", id: fields.assigneeId }] }
     : { people: [] };
   if (fields.note        !== undefined) props["비고"]         = { rich_text: [{ text: { content: fields.note } }] };
-  if (fields.address     !== undefined) props["배송지"]       = { select: fields.address ? { name: fields.address } : null };
-  if (fields.autoSynced  !== undefined) props["자동동기화"]   = { checkbox: fields.autoSynced };
+  if (fields.address         !== undefined) props["배송지"]       = { select: fields.address ? { name: fields.address } : null };
+  if (fields.requesterEmail  !== undefined) props["기안자이메일"] = { email: fields.requesterEmail || null };
+  if (fields.autoSynced      !== undefined) props["자동동기화"]   = { checkbox: fields.autoSynced };
   if (fields.isClosed    !== undefined) props["케이스종료"]   = { checkbox: fields.isClosed };
 
   if (Object.keys(props).length === 0) return;
