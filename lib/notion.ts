@@ -426,8 +426,8 @@ export async function fetchHelpDeskTickets(): Promise<HelpDeskTicket[]> {
       page.created_time;
     return {
       id: page.id,
-      title: getPropText(p, "제목") || getPropText(p, "Title") || getPropText(p, "No") || "",
-      status: getPropSelect(p, "상태") || getPropSelect(p, "Status") || "진행 중",
+      title: getPropText(p, "문의내용") || getPropText(p, "제목") || getPropText(p, "Title") || getPropText(p, "No") || "",
+      status: getPropSelect(p, "status") || getPropSelect(p, "상태") || getPropSelect(p, "Status") || "진행 중",
       inquiryType: getPropSelect(p, "문의유형") || getPropSelect(p, "Category") || "기타",
       company: getPropSelect(p, "법인") || getPropText(p, "법인") || "",
       department: getPropText(p, "부서") || getPropText(p, "Department") || "",
@@ -663,23 +663,31 @@ export async function createHelpDeskTicket(data: {
   const dbId = process.env.NOTION_DB_HELPDESK;
   if (!dbId) throw new Error("NOTION_DB_HELPDESK 환경변수가 설정되지 않았습니다.");
 
+  // 실제 Notion DB 속성명에 맞게 작성
+  // - 제목 type 속성명: "문의내용"
+  // - 상태는 DB 기본값 사용 (생성 시 미설정)
   const props: Record<string, unknown> = {
-    "제목":     { title: [{ text: { content: data.title } }] },
-    "상태":     { select: { name: "진행 중" } },
-    "문의유형": { select: { name: data.inquiryType } },
-    "부서":     { rich_text: [{ text: { content: data.department } }] },
-    "문의자":   { rich_text: [{ text: { content: data.requester } }] },
+    "문의내용":  { title: [{ text: { content: data.title } }] },
+    "문의유형":  { select: { name: data.inquiryType } },
+    "부서":      { rich_text: [{ text: { content: data.department } }] },
+    "문의자":    { rich_text: [{ text: { content: data.requester } }] },
     "문의자 이메일": { email: data.requesterEmail },
-    "문의내용": { rich_text: [{ text: { content: data.content } }] },
-    "긴급도":   { select: { name: data.urgency } },
+    "긴급도":    { select: { name: data.urgency } },
   };
-  // 법인은 select 또는 rich_text 모두 허용 (DB 설정에 따라)
   if (data.company) props["법인"] = { select: { name: data.company } };
   if (data.assetNo) props["자산번호"] = { rich_text: [{ text: { content: data.assetNo } }] };
 
   const response = await notion.pages.create({
     parent: { database_id: dbId },
     properties: props as Parameters<typeof notion.pages.create>[0]["properties"],
+    // 문의 상세 내용은 페이지 본문에 기록
+    children: data.content ? [{
+      object: "block" as const,
+      type:   "paragraph" as const,
+      paragraph: {
+        rich_text: [{ type: "text" as const, text: { content: data.content.slice(0, 2000) } }],
+      },
+    }] : undefined,
   });
 
   return response.id;
@@ -1203,5 +1211,110 @@ export async function fetchSwFiles(): Promise<SwFile[]> {
       visible: getPropCheckbox(p, "공개 여부"),
       updatedAt: getPropDate(p, "수정일") || page.last_edited_time.slice(0, 10),
     };
+  });
+}
+
+// ────────────────────────────────────────────────────────────
+// 자동화 과제 DB (NOTION_DB_AUTOMATION)
+// ────────────────────────────────────────────────────────────
+export interface AutomationTaskRecord {
+  id:          string;
+  taskName:    string;
+  requester:   string;
+  email:       string;
+  department:  string;
+  tools:       string;
+  cycle:       string;
+  weeklyHours: string;
+  currentFlow: string;
+  desiredFlow: string;
+  status:      string;
+  assignee:    string;
+  submittedAt: string;
+  notionUrl:   string;
+}
+
+export async function fetchAutomationTasks(): Promise<AutomationTaskRecord[]> {
+  const dbId = process.env.NOTION_DB_AUTOMATION;
+  if (!dbId) return [];
+
+  const pages = await queryAllPages(dbId, undefined, [
+    { timestamp: "created_time", direction: "descending" },
+  ]);
+
+  return pages.map((page) => {
+    const p = page.properties;
+    return {
+      id:          page.id,
+      taskName:    getPropText(p, "업무명"),
+      requester:   getPropText(p, "신청자"),
+      email:       getPropText(p, "이메일") || (p["이메일"]?.type === "email" ? (p["이메일"] as { type: "email"; email: string | null }).email || "" : ""),
+      department:  getPropSelect(p, "주업무"),
+      tools:       getPropText(p, "사용 도구"),
+      cycle:       getPropSelect(p, "반복 주기"),
+      weeklyHours: getPropSelect(p, "주간 소요 시간"),
+      currentFlow: getPropText(p, "현재 처리 방식"),
+      desiredFlow: getPropText(p, "자동화 목표"),
+      status:      getPropSelect(p, "진행 상태") || "접수",
+      assignee:    getPropText(p, "담당자"),
+      submittedAt: getPropDate(p, "접수일") || page.created_time.slice(0, 10),
+      notionUrl:   (page as PageObjectResponse).url || "",
+    };
+  });
+}
+
+export async function createAutomationTask(data: {
+  taskName:    string;
+  requester:   string;
+  email:       string;
+  department:  string;
+  tools:       string;
+  cycle:       string;
+  weeklyHours: string;
+  currentFlow: string;
+  desiredFlow: string;
+}): Promise<string> {
+  const dbId = process.env.NOTION_DB_AUTOMATION;
+  if (!dbId) throw new Error("NOTION_DB_AUTOMATION 환경변수가 설정되지 않았습니다.");
+
+  const response = await notion.pages.create({
+    parent: { database_id: dbId },
+    properties: {
+      "업무명":         { title:     [{ text: { content: data.taskName } }] },
+      "신청자":         { rich_text: [{ text: { content: data.requester } }] },
+      "이메일":         { email: data.email },
+      "주업무":        { select:    { name: data.department } },
+      "사용 도구":      { rich_text: [{ text: { content: data.tools } }] },
+      "반복 주기":      { select:    { name: data.cycle || "비정기" } },
+      "주간 소요 시간": { select:    { name: data.weeklyHours || "1시간 미만" } },
+      "현재 처리 방식": { rich_text: [{ text: { content: data.currentFlow } }] },
+      "자동화 목표":    { rich_text: [{ text: { content: data.desiredFlow } }] },
+      "진행 상태":      { select:    { name: "접수" } },
+      "접수일":         { date:      { start: new Date().toISOString().slice(0, 10) } },
+    } as Parameters<typeof notion.pages.create>[0]["properties"],
+  });
+
+  return response.id;
+}
+
+export async function updateAutomationTask(pageId: string, data: {
+  status?:   string;
+  assignee?: string;
+}): Promise<void> {
+  const props: Record<string, unknown> = {};
+  if (data.status)   props["진행 상태"] = { select: { name: data.status } };
+  if (data.assignee !== undefined) props["담당자"] = { rich_text: [{ text: { content: data.assignee } }] };
+  if (Object.keys(props).length === 0) return;
+
+  await notion.pages.update({
+    page_id: pageId,
+    properties: props as Parameters<typeof notion.pages.update>[0]["properties"],
+  });
+}
+
+export async function deleteAutomationTask(pageId: string): Promise<void> {
+  await notion.pages.update({
+    page_id: pageId,
+    archived: true,
   });
 }
