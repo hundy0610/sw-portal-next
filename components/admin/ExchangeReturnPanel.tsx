@@ -625,14 +625,13 @@ function ReturnCompleteModal({
 }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<ReturnStatus>("재고");
+  const [returnDate, setReturnDate] = useState(new Date().toISOString().slice(0, 10));
 
   const confirm = async () => {
     setSaving(true);
     setError(null);
     try {
-      const today = new Date().toISOString().slice(0, 10);
-
-      // 기존 자산 HW 페이지 ID 조회
       let hwPageId: string | null = null;
       if (assetId) {
         const res = await fetch(`/api/hw?search=${encodeURIComponent(assetId)}`).then(r => r.json());
@@ -646,14 +645,14 @@ function ReturnCompleteModal({
         fetch("/api/exchange-return/update", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: recordId, fields: { stage: "반납완료", completedAt: today } }),
+          body: JSON.stringify({ id: recordId, fields: { stage: "반납완료", completedAt: returnDate } }),
         }),
       ];
       if (hwPageId) updates.push(
         fetch("/api/hw/update", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: hwPageId, fields: { status: "재고", returnDate: today } }),
+          body: JSON.stringify({ id: hwPageId, fields: { status: selectedStatus, returnDate, returnDue: "" } }),
         })
       );
 
@@ -679,12 +678,35 @@ function ReturnCompleteModal({
         </div>
 
         <div className="px-6 py-5 space-y-4">
+          {assetId && (
+            <div>
+              <p className="text-xs text-gray-500 font-medium mb-2">반납 후 자산 상태</p>
+              <div className="flex flex-wrap gap-2">
+                {RETURN_STATUSES.map(s => (
+                  <button key={s} type="button" onClick={() => setSelectedStatus(s)}
+                    className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors ${
+                      selectedStatus === s
+                        ? "bg-gray-900 text-white border-gray-900"
+                        : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+                    }`}>
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div>
+            <p className="text-xs text-gray-500 font-medium mb-1.5">반납일자</p>
+            <input type="date" value={returnDate} onChange={e => setReturnDate(e.target.value)}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-200 w-full" />
+          </div>
           <div className="bg-green-50 rounded-xl p-4 space-y-2">
             <p className="font-semibold text-green-800 text-sm">완료 처리 시 자동 적용 사항</p>
             <ul className="space-y-1 list-disc list-inside text-xs text-green-700">
-              {assetId && <li>기존 자산 <strong className="font-mono">{assetId}</strong> → HW DB 상태: <strong>재고</strong></li>}
+              {assetId && <li>기존 자산 <strong className="font-mono">{assetId}</strong> → HW DB 상태: <strong>{selectedStatus}</strong></li>}
+              {assetId && <li>반납예정일 → 삭제</li>}
               <li>트래커 단계 → <strong>반납완료</strong></li>
-              <li>완료일 → <strong>오늘 날짜</strong> 자동 입력</li>
+              <li>반납일자 → <strong>{returnDate}</strong></li>
             </ul>
           </div>
           {error && <p className="text-xs text-red-600">⚠️ {error}</p>}
@@ -693,7 +715,7 @@ function ReturnCompleteModal({
         <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
           <button onClick={onClose}
             className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">취소</button>
-          <button onClick={confirm} disabled={saving}
+          <button onClick={confirm} disabled={saving || !returnDate}
             className="text-sm px-5 py-2 rounded-lg bg-green-700 text-white font-medium hover:bg-green-800 disabled:opacity-40">
             {saving ? "처리 중…" : "반납 완료 확정"}
           </button>
@@ -732,6 +754,7 @@ function ReturnRegModal({
     hwUser: string | null;
   } | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<ReturnStatus>("재고");
+  const [returnDate, setReturnDate] = useState(new Date().toISOString().slice(0, 10));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -776,7 +799,6 @@ function ReturnRegModal({
     setSaving(true);
     setError(null);
     try {
-      const today = new Date().toISOString().slice(0, 10);
       const updates: Promise<unknown>[] = [];
 
       if (searchResult.matchedRecord) {
@@ -786,7 +808,7 @@ function ReturnRegModal({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               id: searchResult.matchedRecord.id,
-              fields: { stage: "반납완료", completedAt: today },
+              fields: { stage: "반납완료", completedAt: returnDate },
             }),
           })
         );
@@ -797,7 +819,7 @@ function ReturnRegModal({
           fetch("/api/hw/update", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: searchResult.hwPageId, fields: { status: selectedStatus, returnDate: today } }),
+            body: JSON.stringify({ id: searchResult.hwPageId, fields: { status: selectedStatus, returnDate, returnDue: "" } }),
           })
         );
       }
@@ -815,7 +837,7 @@ function ReturnRegModal({
               assetId: assetInput.trim(),
               stage: "수리접수",
               faultType: "과실없음",
-              receivedAt: today,
+              receivedAt: returnDate,
               ...(company    && { company }),
               ...(department && { department }),
               ...(user       && { user }),
@@ -827,7 +849,7 @@ function ReturnRegModal({
       await Promise.all(updates);
 
       if (searchResult.matchedRecord) {
-        onUpdated(searchResult.matchedRecord.id, { stage: "반납완료", completedAt: today });
+        onUpdated(searchResult.matchedRecord.id, { stage: "반납완료", completedAt: returnDate });
       }
       onClose();
     } catch (e) {
@@ -979,18 +1001,24 @@ function ReturnRegModal({
                   </div>
                 </div>
               )}
+              <div>
+                <p className="text-xs text-gray-500 font-medium mb-1.5">반납일자</p>
+                <input type="date" value={returnDate} onChange={e => setReturnDate(e.target.value)}
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-200 w-full" />
+              </div>
               <div className="bg-green-50 rounded-xl p-4 space-y-2">
                 <p className="font-semibold text-green-800 text-sm">반납 처리 시 자동 적용 사항</p>
                 <ul className="space-y-1 list-disc list-inside text-xs text-green-700">
                   {searchResult.hwPageId && (
                     <li>자산 <strong className="font-mono">{assetNo}</strong> → HW DB 상태: <strong>{selectedStatus}</strong></li>
                   )}
+                  {searchResult.hwPageId && searchResult.hwReturnDue && (
+                    <li>반납예정일 <strong className="font-mono">{searchResult.hwReturnDue}</strong> → 삭제</li>
+                  )}
                   {searchResult.matchedRecord && (
                     <li>트래커 단계 → <strong>반납완료</strong></li>
                   )}
-                  {searchResult.matchedRecord && (
-                    <li>완료일 → <strong>오늘 날짜</strong> 자동 입력</li>
-                  )}
+                  <li>반납일자 → <strong>{returnDate}</strong></li>
                   {selectedStatus === "수리" && (
                     <li>수리/과실청구 트래커 → <strong>수리접수</strong> · <strong>과실없음</strong>으로 자동 등록</li>
                   )}
@@ -1778,7 +1806,7 @@ const TYPE_META = [
   { type: "신규지급", desc: "신규 입사 또는 재고 자산 지급",        color: "#15803D", bg: "#F0FDF4" },
 ];
 
-function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onCreated: () => void; records: ExchangeReturnRecord[] }) {
   const [phase, setPhase] = useState<CreatePhase>("type");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -1787,6 +1815,8 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const [form, setForm] = useState<CreateForm>(EMPTY_FORM);
   const [autoFilling, setAutoFilling] = useState(false);
   const [autoFilled, setAutoFilled] = useState(false);
+  const [dupRecord, setDupRecord] = useState<ExchangeReturnRecord | null>(null);
+  const [dupDismissed, setDupDismissed] = useState(false);
 
   // ── 신규지급 state ──
   const [niCompany, setNiCompany] = useState("");
@@ -1845,26 +1875,31 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // 교체/퇴사반납: 자산번호 자동채움
+  // 교체/퇴사반납: 자산번호 자동채움 + exchange-return 중복 체크
   useEffect(() => {
     if (phase !== "form") return;
     const id = form.assetId.trim();
-    if (id.length < 4) { setAutoFilled(false); return; }
+    if (id.length < 4) { setAutoFilled(false); setDupRecord(null); setDupDismissed(false); return; }
     const timer = setTimeout(async () => {
       setAutoFilling(true);
       try {
         const res = await fetch(`/api/hw?search=${encodeURIComponent(id)}`);
         const data = await res.json();
-        const records: { assetNo: string; user: string; dept: string; company: string }[] = data.records ?? [];
-        const found = records.find(r => r.assetNo === id) ?? (records.length === 1 ? records[0] : null);
+        const hwRecs: { assetNo: string; user: string; dept: string; company: string }[] = data.records ?? [];
+        const found = hwRecs.find(r => r.assetNo === id) ?? (hwRecs.length === 1 ? hwRecs[0] : null);
         if (found) {
           setForm(p => ({ ...p, user: found.user || p.user, department: found.dept || p.department, company: found.company || p.company }));
           setAutoFilled(true);
         } else { setAutoFilled(false); }
       } catch { /* 무시 */ } finally { setAutoFilling(false); }
+
+      // exchange-return 중복 체크 (오픈 케이스만)
+      const dup = records.find(r => !r.isClosed && (r.assetId === id || r.newAssetId === id)) ?? null;
+      setDupRecord(dup);
+      setDupDismissed(false);
     }, 600);
     return () => clearTimeout(timer);
-  }, [form.assetId, phase]);
+  }, [form.assetId, phase, records]);
 
   // 신규지급: 법인 변경 시 재고 로드
   useEffect(() => {
@@ -2252,6 +2287,56 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
                 </div>
                 <input className={inputCls} placeholder="예) DW-NB-0123" value={form.assetId} onChange={set("assetId")} autoFocus />
               </div>
+
+              {dupRecord && !dupDismissed && (
+                <div className="border border-amber-200 bg-amber-50 rounded-xl overflow-hidden">
+                  <div className="px-4 py-3 flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-semibold text-amber-800">이미 등록된 항목이 있습니다</p>
+                      <p className="text-[11px] text-amber-700 mt-0.5">오픈 케이스에서 동일한 자산번호가 발견됐습니다. 병합하면 아래 필드가 채워집니다.</p>
+                    </div>
+                    <button type="button" onClick={() => setDupDismissed(true)} className="text-amber-400 hover:text-amber-600 text-lg leading-none shrink-0">×</button>
+                  </div>
+                  <div className="px-4 pb-3 grid grid-cols-2 gap-x-6 gap-y-1 text-[11px]">
+                    {[
+                      ["유형",   dupRecord.type],
+                      ["단계",   dupRecord.stage],
+                      ["법인",   dupRecord.company],
+                      ["부서",   dupRecord.department],
+                      ["사용자", dupRecord.user],
+                      ["등록일", dupRecord.requestedAt ? dupRecord.requestedAt.slice(0, 10) : "—"],
+                      ["사유",   dupRecord.reason],
+                      ["비고",   dupRecord.note],
+                    ].filter(([, v]) => v).map(([label, value]) => (
+                      <div key={label} className="flex gap-1.5">
+                        <span className="text-amber-500 shrink-0">{label}</span>
+                        <span className="text-amber-900 font-medium truncate">{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="px-4 pb-3 flex gap-2">
+                    <button type="button"
+                      onClick={() => {
+                        setForm(p => ({
+                          ...p,
+                          company:    dupRecord.company    || p.company,
+                          department: dupRecord.department || p.department,
+                          user:       dupRecord.user       || p.user,
+                          reason:     dupRecord.reason     || p.reason,
+                          note:       dupRecord.note       || p.note,
+                        }));
+                        setDupDismissed(true);
+                      }}
+                      className="text-xs px-3 py-1.5 rounded-lg bg-amber-600 text-white font-semibold hover:bg-amber-700">
+                      병합하기
+                    </button>
+                    <button type="button" onClick={() => setDupDismissed(true)}
+                      className="text-xs px-3 py-1.5 rounded-lg border border-amber-200 text-amber-700 hover:bg-amber-100">
+                      무시하고 계속
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {form.type === "교체" && (
                 <div>
@@ -2892,6 +2977,7 @@ export default function ExchangeReturnPanel() {
   const [advancingId, setAdvancingId] = useState<string | null>(null);
   const [pickerTarget, setPickerTarget] = useState<ExchangeReturnRecord | null>(null);
   const [receiptTarget, setReceiptTarget] = useState<ExchangeReturnRecord | null>(null);
+  const [returnCompleteTarget, setReturnCompleteTarget] = useState<ExchangeReturnRecord | null>(null);
   const [hwDetailAsset, setHwDetailAsset] = useState<string | null>(null);
   const [mainTab, setMainTab] = useState<"list" | "label">("list");
   const [hwRecords, setHwRecords] = useState<HwRecord[]>([]);
@@ -3087,16 +3173,7 @@ export default function ExchangeReturnPanel() {
       return;
     }
     if (nextStage === "반납완료") {
-      const today = new Date().toISOString().slice(0, 10);
-      setAdvancingId(r.id);
-      try {
-        const res = await fetch("/api/exchange-return/update", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: r.id, fields: { stage: "반납완료", completedAt: today } }),
-        });
-        const json = await res.json();
-        if (json.ok) handleUpdated(r.id, { stage: "반납완료", completedAt: today });
-      } finally { setAdvancingId(null); }
+      setReturnCompleteTarget(r);
       return;
     }
     if (nextStage === "기기준비완료" && r.newAssetId && r.newAssetId !== "신규구매로안내됨") {
@@ -3542,6 +3619,7 @@ export default function ExchangeReturnPanel() {
         <CreateModal
           onClose={() => setCreateOpen(false)}
           onCreated={() => { setCreateOpen(false); load(true); }}
+          records={records}
         />
       )}
 
@@ -3573,6 +3651,18 @@ export default function ExchangeReturnPanel() {
           onConfirmed={(due) => {
             handleUpdated(receiptTarget.id, { stage: "사용자수령", ...(due ? { returnDue: due } : {}) });
             setReceiptTarget(null);
+          }}
+        />
+      )}
+
+      {returnCompleteTarget && (
+        <ReturnCompleteModal
+          recordId={returnCompleteTarget.id}
+          assetId={returnCompleteTarget.assetId || ""}
+          onClose={() => setReturnCompleteTarget(null)}
+          onConfirmed={() => {
+            handleUpdated(returnCompleteTarget.id, { stage: "반납완료", completedAt: new Date().toISOString().slice(0, 10) });
+            setReturnCompleteTarget(null);
           }}
         />
       )}

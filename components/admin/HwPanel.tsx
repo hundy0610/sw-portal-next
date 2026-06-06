@@ -1232,6 +1232,7 @@ function buildColIndex(headers:string[]):Partial<Record<keyof ExcelRow,number>>{
 }
 type UploadResult={index:number;user:string;assetNo:string;ok:boolean;error?:string};
 interface DupItem{excelRow:ExcelRow;matchedBy:"serial"|"assetNo";existingUser:string;existingModel:string;existingStatus:string;existingNotionUrl:string;}
+interface SyncMatch{erId:string;erType:string;erCompany:string;erUser:string;erDept:string;erAssetId:string;newAssetNo:string;confirmed:boolean;confirming:boolean;error:string;}
 
 function DuplicateModal({dups,cleanCount,onSkipDups,onUploadAll,onCancel}:{
   dups:DupItem[];cleanCount:number;onSkipDups:()=>void;onUploadAll:()=>void;onCancel:()=>void;
@@ -1296,9 +1297,12 @@ function ExcelUploadTab(){
   const [showDupModal,setShowDupModal]=useState(false);
   const [dupItems,setDupItems]=useState<DupItem[]>([]);
   const [cleanRows,setCleanRows]=useState<ExcelRow[]>([]);
+  const [syncWarn,setSyncWarn]=useState("");
+  const [syncMatches,setSyncMatches]=useState<SyncMatch[]>([]);
+  const [expandedSyncIdx,setExpandedSyncIdx]=useState<number|null>(null);
 
   const handleFile=async(file:File)=>{
-    setPErr("");setRows([]);setResults(null);setSummary(null);
+    setPErr("");setRows([]);setResults(null);setSummary(null);setSyncWarn("");
     setShowDupModal(false);setDupItems([]);setCleanRows([]);setFile(file.name);
     try{
       const XLSX=await import("xlsx");
@@ -1366,18 +1370,79 @@ function ExcelUploadTab(){
       setResults(json.results);setSummary({success:json.success,failed:json.failed});
       // 신규 지급 이력 기록 (성공 건만)
       const successSet=new Set<number>((json.results as UploadResult[]).filter((r:UploadResult)=>r.ok).map((r:UploadResult)=>r.index));
-      if(successSet.size>0){
+      const successRows=convertedRows.filter((_,i)=>successSet.has(i));
+      if(successRows.length>0){
         const now=new Date().toISOString();
-        const events=convertedRows.filter((_,i)=>successSet.has(i)).map(r=>({
+        const events=successRows.map(r=>({
           id:crypto.randomUUID(),dispatchedAt:now,type:"신규" as const,
           assetNo:r.assetNo||"",model:r.model||"",serial:r.serial||"",
           user:r.user||"",company:r.company||"",dept:r.dept||"",useDate:r.useDate||"",
         }));
         fetch("/api/hw/dispatch-history",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(events)}).catch(console.error);
+
+        // 자산흐름관리 연동 대상 수집 (자동 실행 없이 리스트만)
+        try {
+          const erJson=await fetch("/api/exchange-return").then(r=>r.json());
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const candidates=(erJson.records??[]).filter((r:any)=>
+            (r.type==="신규지급"||r.type==="교체") &&
+            r.newAssetId==="신규구매로안내됨" &&
+            !r.isClosed
+          );
+          const matches:SyncMatch[]=[];
+          for(const row of successRows){
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const matched=candidates.filter((r:any)=>r.company===row.company&&r.user===row.user);
+            for(const rec of matched){
+              matches.push({
+                erId:rec.id, erType:rec.type, erCompany:rec.company, erUser:rec.user,
+                erDept:rec.department??rec.dept??"", erAssetId:rec.assetId??"",
+                newAssetNo:row.assetNo, confirmed:false, confirming:false, error:"",
+              });
+            }
+          }
+          if(matches.length>0) setSyncMatches(matches);
+        } catch(e){
+          console.warn("[ExcelUpload] 자산흐름관리 연동 대상 조회 실패:",e);
+          setSyncWarn("자산흐름관리 연동 대상 조회 중 오류가 발생했습니다. 수동으로 확인해주세요.");
+        }
       }
     }catch(e){setPErr(String(e));}finally{setUploading(false);}
   };
-  const reset=()=>{setRows([]);setFile("");setPErr("");setResults(null);setSummary(null);setProgress(0);setShowDupModal(false);setDupItems([]);setCleanRows([]);if(fileRef.current)fileRef.current.value="";};
+  const confirmSync=async(idx:number)=>{
+    const m=syncMatches[idx];
+    if(!m||m.confirmed||m.confirming) return;
+    setSyncMatches(prev=>prev.map((x,i)=>i===idx?{...x,confirming:true,error:""}:x));
+    try{
+      const defaultDue=new Date(Date.now()+7*86400000).toISOString().slice(0,10);
+      const updates:Promise<unknown>[]=[
+        fetch("/api/exchange-return/update",{method:"POST",headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({id:m.erId,fields:{stage:"사용자수령",newAssetId:m.newAssetNo,...(m.erType==="교체"?{returnDue:defaultDue}:{})}}),
+        }),
+      ];
+      if(m.newAssetNo){
+        updates.push(fetch(`/api/hw?search=${encodeURIComponent(m.newAssetNo)}`).then(r=>r.json()).then(d=>{
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const found=(d.records??[]).find((r:any)=>r.assetNo===m.newAssetNo)??(d.records?.length===1?d.records[0]:null);
+          if(found) return fetch("/api/hw/update",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:found.id,fields:{status:"사용중"}})});
+        }));
+      }
+      if(m.erType==="교체"&&m.erAssetId){
+        updates.push(fetch(`/api/hw?search=${encodeURIComponent(m.erAssetId)}`).then(r=>r.json()).then(d=>{
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const found=(d.records??[]).find((r:any)=>r.assetNo===m.erAssetId)??(d.records?.length===1?d.records[0]:null);
+          if(found) return fetch("/api/hw/update",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:found.id,fields:{status:"반납예정",returnDue:defaultDue}})});
+        }));
+      }
+      await Promise.all(updates);
+      setSyncMatches(prev=>prev.map((x,i)=>i===idx?{...x,confirmed:true,confirming:false}:x));
+      setExpandedSyncIdx(null);
+    }catch(e){
+      setSyncMatches(prev=>prev.map((x,i)=>i===idx?{...x,confirming:false,error:String(e)}:x));
+    }
+  };
+
+  const reset=()=>{setRows([]);setFile("");setPErr("");setResults(null);setSummary(null);setProgress(0);setSyncWarn("");setSyncMatches([]);setExpandedSyncIdx(null);setShowDupModal(false);setDupItems([]);setCleanRows([]);if(fileRef.current)fileRef.current.value="";};
 
   return(
     <div className="space-y-4">
@@ -1466,6 +1531,15 @@ function ExcelUploadTab(){
             <p className={`text-base font-bold mb-1 ${summary.failed===0?"text-green-800":"text-yellow-800"}`}>{summary.failed===0?"✅ 전체 등록 완료!":"⚠️ 등록 완료 (일부 실패)"}</p>
             <p className="text-sm text-gray-700">성공 <span className="font-bold text-green-700">{summary.success}</span>건 · 실패 <span className="font-bold text-red-600">{summary.failed}</span>건</p>
           </div>
+          {syncWarn&&(
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+              <span className="text-lg shrink-0">⚠️</span>
+              <div>
+                <p className="text-sm font-semibold text-amber-800">자산흐름관리 연동 실패</p>
+                <p className="text-xs text-amber-700 mt-0.5">{syncWarn}</p>
+              </div>
+            </div>
+          )}
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="px-5 py-3 border-b border-gray-100"><p className="text-sm font-semibold text-gray-700">등록 상세 결과</p></div>
             <div className="overflow-x-auto max-h-72">
@@ -1487,6 +1561,64 @@ function ExcelUploadTab(){
               </table>
             </div>
           </div>
+          {syncMatches.length>0&&(
+            <div className="bg-white rounded-xl border border-blue-200 overflow-hidden">
+              <div className="px-5 py-3 border-b border-blue-100 bg-blue-50 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-blue-800">자산흐름관리 연동 필요 항목</p>
+                  <p className="text-xs text-blue-600 mt-0.5">신규 등록 자산과 법인·사용자가 일치하는 신규구매 대기 항목입니다. 확인 후 처리해주세요.</p>
+                </div>
+                <span className="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-1 rounded-full">{syncMatches.filter(m=>!m.confirmed).length}건 대기</span>
+              </div>
+              <div className="divide-y divide-gray-100">
+                {syncMatches.map((m,i)=>(
+                  <div key={i} className={`transition-colors ${m.confirmed?"bg-green-50/50":""}`}>
+                    <button type="button" onClick={()=>setExpandedSyncIdx(expandedSyncIdx===i?null:i)}
+                      className="w-full px-5 py-3 flex items-center justify-between hover:bg-gray-50 text-left">
+                      <div className="flex items-center gap-3">
+                        {m.confirmed
+                          ? <span className="text-xs font-semibold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">완료</span>
+                          : <span className="text-xs font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">{m.erType}</span>
+                        }
+                        <span className="text-sm font-medium text-gray-800">{m.erUser}</span>
+                        <span className="text-xs text-gray-400">{m.erCompany} · {m.erDept}</span>
+                      </div>
+                      <span className="text-gray-400 text-xs">{expandedSyncIdx===i?"▲":"▼"}</span>
+                    </button>
+                    {expandedSyncIdx===i&&(
+                      <div className="px-5 pb-4 space-y-3">
+                        <div className="bg-gray-50 rounded-xl p-4 text-xs space-y-2">
+                          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
+                            <div><span className="text-gray-400">유형</span><span className="ml-2 font-medium text-gray-800">{m.erType}</span></div>
+                            <div><span className="text-gray-400">사용자</span><span className="ml-2 font-medium text-gray-800">{m.erUser}</span></div>
+                            <div><span className="text-gray-400">법인</span><span className="ml-2 font-medium text-gray-800">{m.erCompany}</span></div>
+                            <div><span className="text-gray-400">부서</span><span className="ml-2 font-medium text-gray-800">{m.erDept||"-"}</span></div>
+                            {m.erAssetId&&<div><span className="text-gray-400">기존 자산번호</span><span className="ml-2 font-mono font-medium text-gray-800">{m.erAssetId}</span></div>}
+                            <div><span className="text-gray-400">신규 자산번호</span><span className="ml-2 font-mono font-medium text-blue-700">{m.newAssetNo||"-"}</span></div>
+                          </div>
+                          <div className="border-t border-gray-200 pt-2 mt-1">
+                            <p className="text-gray-500 font-medium mb-1">확인 시 자동 처리:</p>
+                            <ul className="space-y-0.5 text-gray-600">
+                              <li>· 트래커 단계 → <strong>사용자수령</strong> · 교체 자산번호 → <strong>{m.newAssetNo}</strong></li>
+                              <li>· 신규 자산 HW 상태 → <strong>사용중</strong></li>
+                              {m.erType==="교체"&&m.erAssetId&&<li>· 기존 자산 <strong className="font-mono">{m.erAssetId}</strong> → <strong>반납예정</strong> (반납예정일 +7일)</li>}
+                            </ul>
+                          </div>
+                        </div>
+                        {m.error&&<p className="text-xs text-red-600">⚠️ {m.error}</p>}
+                        {!m.confirmed&&(
+                          <button onClick={()=>confirmSync(i)} disabled={m.confirming}
+                            className="w-full py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-40">
+                            {m.confirming?"처리 중…":"확인 · 사용자수령 처리"}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <button onClick={reset} className="w-full py-2.5 rounded-xl border border-gray-300 text-gray-600 text-sm hover:bg-gray-50">새 파일 업로드</button>
         </div>
       )}
