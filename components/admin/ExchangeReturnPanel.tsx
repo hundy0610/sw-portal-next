@@ -1806,7 +1806,7 @@ const TYPE_META = [
   { type: "신규지급", desc: "신규 입사 또는 재고 자산 지급",        color: "#15803D", bg: "#F0FDF4" },
 ];
 
-function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onCreated: () => void; records: ExchangeReturnRecord[] }) {
   const [phase, setPhase] = useState<CreatePhase>("type");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -1815,6 +1815,8 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const [form, setForm] = useState<CreateForm>(EMPTY_FORM);
   const [autoFilling, setAutoFilling] = useState(false);
   const [autoFilled, setAutoFilled] = useState(false);
+  const [dupRecord, setDupRecord] = useState<ExchangeReturnRecord | null>(null);
+  const [dupDismissed, setDupDismissed] = useState(false);
 
   // ── 신규지급 state ──
   const [niCompany, setNiCompany] = useState("");
@@ -1873,26 +1875,31 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // 교체/퇴사반납: 자산번호 자동채움
+  // 교체/퇴사반납: 자산번호 자동채움 + exchange-return 중복 체크
   useEffect(() => {
     if (phase !== "form") return;
     const id = form.assetId.trim();
-    if (id.length < 4) { setAutoFilled(false); return; }
+    if (id.length < 4) { setAutoFilled(false); setDupRecord(null); setDupDismissed(false); return; }
     const timer = setTimeout(async () => {
       setAutoFilling(true);
       try {
         const res = await fetch(`/api/hw?search=${encodeURIComponent(id)}`);
         const data = await res.json();
-        const records: { assetNo: string; user: string; dept: string; company: string }[] = data.records ?? [];
-        const found = records.find(r => r.assetNo === id) ?? (records.length === 1 ? records[0] : null);
+        const hwRecs: { assetNo: string; user: string; dept: string; company: string }[] = data.records ?? [];
+        const found = hwRecs.find(r => r.assetNo === id) ?? (hwRecs.length === 1 ? hwRecs[0] : null);
         if (found) {
           setForm(p => ({ ...p, user: found.user || p.user, department: found.dept || p.department, company: found.company || p.company }));
           setAutoFilled(true);
         } else { setAutoFilled(false); }
       } catch { /* 무시 */ } finally { setAutoFilling(false); }
+
+      // exchange-return 중복 체크 (오픈 케이스만)
+      const dup = records.find(r => !r.isClosed && (r.assetId === id || r.newAssetId === id)) ?? null;
+      setDupRecord(dup);
+      setDupDismissed(false);
     }, 600);
     return () => clearTimeout(timer);
-  }, [form.assetId, phase]);
+  }, [form.assetId, phase, records]);
 
   // 신규지급: 법인 변경 시 재고 로드
   useEffect(() => {
@@ -2280,6 +2287,56 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
                 </div>
                 <input className={inputCls} placeholder="예) DW-NB-0123" value={form.assetId} onChange={set("assetId")} autoFocus />
               </div>
+
+              {dupRecord && !dupDismissed && (
+                <div className="border border-amber-200 bg-amber-50 rounded-xl overflow-hidden">
+                  <div className="px-4 py-3 flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-semibold text-amber-800">이미 등록된 항목이 있습니다</p>
+                      <p className="text-[11px] text-amber-700 mt-0.5">오픈 케이스에서 동일한 자산번호가 발견됐습니다. 병합하면 아래 필드가 채워집니다.</p>
+                    </div>
+                    <button type="button" onClick={() => setDupDismissed(true)} className="text-amber-400 hover:text-amber-600 text-lg leading-none shrink-0">×</button>
+                  </div>
+                  <div className="px-4 pb-3 grid grid-cols-2 gap-x-6 gap-y-1 text-[11px]">
+                    {[
+                      ["유형",   dupRecord.type],
+                      ["단계",   dupRecord.stage],
+                      ["법인",   dupRecord.company],
+                      ["부서",   dupRecord.department],
+                      ["사용자", dupRecord.user],
+                      ["등록일", dupRecord.requestedAt ? dupRecord.requestedAt.slice(0, 10) : "—"],
+                      ["사유",   dupRecord.reason],
+                      ["비고",   dupRecord.note],
+                    ].filter(([, v]) => v).map(([label, value]) => (
+                      <div key={label} className="flex gap-1.5">
+                        <span className="text-amber-500 shrink-0">{label}</span>
+                        <span className="text-amber-900 font-medium truncate">{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="px-4 pb-3 flex gap-2">
+                    <button type="button"
+                      onClick={() => {
+                        setForm(p => ({
+                          ...p,
+                          company:    dupRecord.company    || p.company,
+                          department: dupRecord.department || p.department,
+                          user:       dupRecord.user       || p.user,
+                          reason:     dupRecord.reason     || p.reason,
+                          note:       dupRecord.note       || p.note,
+                        }));
+                        setDupDismissed(true);
+                      }}
+                      className="text-xs px-3 py-1.5 rounded-lg bg-amber-600 text-white font-semibold hover:bg-amber-700">
+                      병합하기
+                    </button>
+                    <button type="button" onClick={() => setDupDismissed(true)}
+                      className="text-xs px-3 py-1.5 rounded-lg border border-amber-200 text-amber-700 hover:bg-amber-100">
+                      무시하고 계속
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {form.type === "교체" && (
                 <div>
@@ -3562,6 +3619,7 @@ export default function ExchangeReturnPanel() {
         <CreateModal
           onClose={() => setCreateOpen(false)}
           onCreated={() => { setCreateOpen(false); load(true); }}
+          records={records}
         />
       )}
 
