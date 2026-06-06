@@ -625,14 +625,13 @@ function ReturnCompleteModal({
 }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<ReturnStatus>("재고");
+  const [returnDate, setReturnDate] = useState(new Date().toISOString().slice(0, 10));
 
   const confirm = async () => {
     setSaving(true);
     setError(null);
     try {
-      const today = new Date().toISOString().slice(0, 10);
-
-      // 기존 자산 HW 페이지 ID 조회
       let hwPageId: string | null = null;
       if (assetId) {
         const res = await fetch(`/api/hw?search=${encodeURIComponent(assetId)}`).then(r => r.json());
@@ -646,14 +645,14 @@ function ReturnCompleteModal({
         fetch("/api/exchange-return/update", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: recordId, fields: { stage: "반납완료", completedAt: today } }),
+          body: JSON.stringify({ id: recordId, fields: { stage: "반납완료", completedAt: returnDate } }),
         }),
       ];
       if (hwPageId) updates.push(
         fetch("/api/hw/update", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: hwPageId, fields: { status: "재고", returnDate: today } }),
+          body: JSON.stringify({ id: hwPageId, fields: { status: selectedStatus, returnDate, returnDue: "" } }),
         })
       );
 
@@ -679,12 +678,35 @@ function ReturnCompleteModal({
         </div>
 
         <div className="px-6 py-5 space-y-4">
+          {assetId && (
+            <div>
+              <p className="text-xs text-gray-500 font-medium mb-2">반납 후 자산 상태</p>
+              <div className="flex flex-wrap gap-2">
+                {RETURN_STATUSES.map(s => (
+                  <button key={s} type="button" onClick={() => setSelectedStatus(s)}
+                    className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors ${
+                      selectedStatus === s
+                        ? "bg-gray-900 text-white border-gray-900"
+                        : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+                    }`}>
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div>
+            <p className="text-xs text-gray-500 font-medium mb-1.5">반납일자</p>
+            <input type="date" value={returnDate} onChange={e => setReturnDate(e.target.value)}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-200 w-full" />
+          </div>
           <div className="bg-green-50 rounded-xl p-4 space-y-2">
             <p className="font-semibold text-green-800 text-sm">완료 처리 시 자동 적용 사항</p>
             <ul className="space-y-1 list-disc list-inside text-xs text-green-700">
-              {assetId && <li>기존 자산 <strong className="font-mono">{assetId}</strong> → HW DB 상태: <strong>재고</strong></li>}
+              {assetId && <li>기존 자산 <strong className="font-mono">{assetId}</strong> → HW DB 상태: <strong>{selectedStatus}</strong></li>}
+              {assetId && <li>반납예정일 → 삭제</li>}
               <li>트래커 단계 → <strong>반납완료</strong></li>
-              <li>완료일 → <strong>오늘 날짜</strong> 자동 입력</li>
+              <li>반납일자 → <strong>{returnDate}</strong></li>
             </ul>
           </div>
           {error && <p className="text-xs text-red-600">⚠️ {error}</p>}
@@ -693,7 +715,7 @@ function ReturnCompleteModal({
         <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
           <button onClick={onClose}
             className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">취소</button>
-          <button onClick={confirm} disabled={saving}
+          <button onClick={confirm} disabled={saving || !returnDate}
             className="text-sm px-5 py-2 rounded-lg bg-green-700 text-white font-medium hover:bg-green-800 disabled:opacity-40">
             {saving ? "처리 중…" : "반납 완료 확정"}
           </button>
@@ -2898,6 +2920,7 @@ export default function ExchangeReturnPanel() {
   const [advancingId, setAdvancingId] = useState<string | null>(null);
   const [pickerTarget, setPickerTarget] = useState<ExchangeReturnRecord | null>(null);
   const [receiptTarget, setReceiptTarget] = useState<ExchangeReturnRecord | null>(null);
+  const [returnCompleteTarget, setReturnCompleteTarget] = useState<ExchangeReturnRecord | null>(null);
   const [hwDetailAsset, setHwDetailAsset] = useState<string | null>(null);
   const [mainTab, setMainTab] = useState<"list" | "label">("list");
   const [hwRecords, setHwRecords] = useState<HwRecord[]>([]);
@@ -3093,16 +3116,7 @@ export default function ExchangeReturnPanel() {
       return;
     }
     if (nextStage === "반납완료") {
-      const today = new Date().toISOString().slice(0, 10);
-      setAdvancingId(r.id);
-      try {
-        const res = await fetch("/api/exchange-return/update", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: r.id, fields: { stage: "반납완료", completedAt: today } }),
-        });
-        const json = await res.json();
-        if (json.ok) handleUpdated(r.id, { stage: "반납완료", completedAt: today });
-      } finally { setAdvancingId(null); }
+      setReturnCompleteTarget(r);
       return;
     }
     if (nextStage === "기기준비완료" && r.newAssetId && r.newAssetId !== "신규구매로안내됨") {
@@ -3579,6 +3593,18 @@ export default function ExchangeReturnPanel() {
           onConfirmed={(due) => {
             handleUpdated(receiptTarget.id, { stage: "사용자수령", ...(due ? { returnDue: due } : {}) });
             setReceiptTarget(null);
+          }}
+        />
+      )}
+
+      {returnCompleteTarget && (
+        <ReturnCompleteModal
+          recordId={returnCompleteTarget.id}
+          assetId={returnCompleteTarget.assetId || ""}
+          onClose={() => setReturnCompleteTarget(null)}
+          onConfirmed={() => {
+            handleUpdated(returnCompleteTarget.id, { stage: "반납완료", completedAt: new Date().toISOString().slice(0, 10) });
+            setReturnCompleteTarget(null);
           }}
         />
       )}
