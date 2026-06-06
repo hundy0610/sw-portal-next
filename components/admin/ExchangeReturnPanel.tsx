@@ -962,6 +962,23 @@ function ReturnRegModal({
         {step === "confirm" && searchResult && (
           <>
             <div className="px-6 py-5 space-y-4">
+              {searchResult.hwPageId && (
+                <div>
+                  <p className="text-xs text-gray-500 font-medium mb-2">반납 후 자산 상태</p>
+                  <div className="flex flex-wrap gap-2">
+                    {RETURN_STATUSES.map(s => (
+                      <button key={s} type="button" onClick={() => setSelectedStatus(s)}
+                        className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors ${
+                          selectedStatus === s
+                            ? "bg-gray-900 text-white border-gray-900"
+                            : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+                        }`}>
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="bg-green-50 rounded-xl p-4 space-y-2">
                 <p className="font-semibold text-green-800 text-sm">반납 처리 시 자동 적용 사항</p>
                 <ul className="space-y-1 list-disc list-inside text-xs text-green-700">
