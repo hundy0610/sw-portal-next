@@ -1832,6 +1832,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
   const [niEmail, setNiEmail] = useState("");
   const [niReason, setNiReason] = useState("");
   const [niMemo, setNiMemo] = useState("");
+  const [niDelivery, setNiDelivery] = useState("본사");
 
   // ── 퇴사반납 state ──
   const [rtCompany, setRtCompany] = useState("");
@@ -1867,6 +1868,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
   const [exEmail, setExEmail] = useState("");
   const [exReason, setExReason] = useState("");
   const [exNote, setExNote] = useState("");
+  const [exDelivery, setExDelivery] = useState("본사");
   const [exNewPurchasing, setExNewPurchasing] = useState(false);
 
   useEffect(() => {
@@ -1974,6 +1976,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
           company: niCompany, department: niDept, user: niUser,
           stage: "요청기안", requestedAt: new Date().toISOString().slice(0, 10),
           note: niMemo || undefined, reason: niReason || undefined,
+          address: niDelivery || undefined,
           requesterEmail: niEmail || undefined,
         }),
       });
@@ -1995,6 +1998,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
           company: niCompany, department: niDept, user: niUser,
           stage: "기기준비", requestedAt: new Date().toISOString().slice(0, 10),
           completedAt: niUseDate, note: niMemo || undefined, reason: niReason || undefined,
+          address: niDelivery || undefined,
           requesterEmail: niEmail || undefined,
         }),
       });
@@ -2074,6 +2078,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
           type: "교체", assetId: exSelected.assetNo, newAssetId: "신규구매로안내됨",
           company: exCompany, department: exSelected.dept, user: exUserName || exSelected.user,
           stage: "교체요청", requestedAt: new Date().toISOString().slice(0, 10),
+          address: exDelivery || undefined,
         }),
       });
       const json = await res.json();
@@ -2098,6 +2103,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
           company: exCompany, department: exSelected.dept, user: exUserName || exSelected.user,
           stage: "교체요청", requestedAt: new Date().toISOString().slice(0, 10),
           reason: exReason || undefined, note: exNote || undefined,
+          address: exDelivery || undefined,
           requesterEmail: exEmail || undefined,
         }),
       });
@@ -2231,7 +2237,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
                 } else if (type === "교체") {
                   setExCompany(""); setExUserName(""); setExAssets([]);
                   setExSelected(null); setExManualMode(false); setExManualInput(""); setExManualResults([]);
-                  setExNewAsset(null); setExReason(""); setExNote("");
+                  setExNewAsset(null); setExReason(""); setExNote(""); setExDelivery("본사");
                   setExUseDate(new Date().toISOString().slice(0, 10));
                   setPhase("ex_search");
                 } else {
@@ -2442,6 +2448,13 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
                 <input value={niReason} onChange={e => setNiReason(e.target.value)}
                   placeholder="신청사유 (선택)"
                   className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-200 w-full" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-gray-500 font-medium">배송지</label>
+                <select value={niDelivery} onChange={e => setNiDelivery(e.target.value)}
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-200 w-full bg-white">
+                  {["본사","횡성센터","향남","용인","성수","신사","오송"].map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-gray-500 font-medium">메모</label>
@@ -2883,6 +2896,13 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
                 <input value={exReason} onChange={e => setExReason(e.target.value)}
                   placeholder="신청사유를 입력하세요"
                   className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-gray-500 font-medium">배송지</label>
+                <select value={exDelivery} onChange={e => setExDelivery(e.target.value)}
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full bg-white">
+                  {["본사","횡성센터","향남","용인","성수","신사","오송"].map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-gray-500 font-medium">비고</label>
