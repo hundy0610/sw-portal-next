@@ -783,14 +783,22 @@ function AssetDetailModal({ assetId, onClose }: { assetId: string; onClose: () =
 type CreateForm = {
   assetId: string; stage: string; company: string; department: string;
   user: string; vendor: string; receivedAt: string; faultType: string; note: string;
+  assetStatus: string; address: string; requesterEmail: string;
 };
 
 const EMPTY_FORM: CreateForm = {
   assetId: "", stage: "수리접수", company: "", department: "", user: "",
   vendor: "", receivedAt: "", faultType: "", note: "",
+  assetStatus: "사용중", address: "본사", requesterEmail: "",
 };
 
 const VENDORS = ["삼성공식수리(출장)", "다정씨엔씨", "기타"];
+
+const DELIVERY_LOCATIONS = [
+  "본사", "용인(연구소)", "향남", "마곡", "바이오센터", "바이오3공장",
+  "안성공장", "성수", "유로프라자", "오송", "세파센터", "S캠퍼스",
+  "선택시티", "한올(대전공장)", "기타",
+] as const;
 
 function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [form, setForm] = useState<CreateForm>(EMPTY_FORM);
@@ -939,6 +947,30 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
               onChange={set("note")} style={{ resize: "vertical" }} />
           </div>
 
+          <div>
+            <label className={labelCls}>대분류</label>
+            <select className={inputCls} value={form.assetStatus} onChange={set("assetStatus")}>
+              <option value="사용중">사용중</option>
+              <option value="재고">재고</option>
+            </select>
+          </div>
+
+          {form.assetStatus === "사용중" && (
+            <>
+              <div>
+                <label className={labelCls}>기안자 이메일</label>
+                <input type="email" className={inputCls} placeholder="example@company.com"
+                  value={form.requesterEmail} onChange={set("requesterEmail")} />
+              </div>
+              <div>
+                <label className={labelCls}>배송지</label>
+                <select className={inputCls} value={form.address} onChange={set("address")}>
+                  {DELIVERY_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+              </div>
+            </>
+          )}
+
           {err && <p className="text-xs text-red-600">{err}</p>}
         </div>
 
@@ -1046,7 +1078,46 @@ export default function HwRepairPanel() {
         body: JSON.stringify({ id: r.id, fields: { stage: nextStage } }),
       });
       const json = await res.json();
-      if (json.ok) handleUpdated(r.id, { stage: nextStage });
+      if (!json.ok) return;
+      handleUpdated(r.id, { stage: nextStage });
+
+      if (nextStage === "수리완료") {
+        const today = new Date().toISOString().slice(0, 10);
+
+        if (r.assetStatus === "사용중") {
+          // 사용중 → 자산흐름관리에 수리 케이스 자동 등록
+          fetch("/api/exchange-return/create", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: "수리",
+              assetId: r.assetId,
+              company: r.company,
+              department: r.department,
+              user: r.user,
+              stage: "기기준비완료",
+              requestedAt: today,
+              address: r.address || undefined,
+              requesterEmail: r.requesterEmail || undefined,
+            }),
+          }).catch(console.error);
+        } else if (r.assetStatus === "재고") {
+          // 재고 → HW DB 자산 상태를 재고로, 반납일자를 오늘로 변경
+          fetch(`/api/hw?search=${encodeURIComponent(r.assetId)}`)
+            .then(d => d.json())
+            .then(data => {
+              const recs: { id: string; assetNo: string }[] = data.records ?? [];
+              const found = recs.find(rec => rec.assetNo === r.assetId) ?? (recs.length === 1 ? recs[0] : null);
+              if (found) {
+                fetch("/api/hw/update", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ id: found.id, fields: { status: "재고", returnDate: today } }),
+                }).catch(console.error);
+              }
+            }).catch(console.error);
+        }
+      }
     } finally {
       setAdvancingId(null);
     }

@@ -15,10 +15,11 @@ const STAGES_BY_TYPE: Record<string, readonly Stage[]> = {
   "교체":     STAGES,
   "퇴사반납": ["반납요청", "반납완료"],
   "신규지급": ["요청기안", "기기준비", "기기준비완료", "사용자수령"],
+  "수리":     ["기기준비완료", "사용자수령"],
 };
 const FINAL_STAGE: Stage = "반납완료";
 
-const RECORD_TYPES = ["교체", "퇴사반납", "신규지급"] as const;
+const RECORD_TYPES = ["교체", "퇴사반납", "신규지급", "수리"] as const;
 
 const DELIVERY_LOCATIONS = [
   "본사", "용인(연구소)", "향남", "마곡", "바이오센터", "바이오3공장",
@@ -50,6 +51,7 @@ const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
   "교체":     { bg: "#EFF6FF", text: "#1D4ED8" },
   "퇴사반납": { bg: "#FEF2F2", text: "#B91C1C" },
   "신규지급": { bg: "#F0FDF4", text: "#15803D" },
+  "수리":     { bg: "#FFF7ED", text: "#C2410C" },
 };
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -500,7 +502,7 @@ function ReceiptConfirmModal({
   onClose: () => void;
   onConfirmed: (returnDue: string) => void;
 }) {
-  const isNewIssue = recordType === "신규지급";
+  const isNewIssue = recordType === "신규지급" || recordType === "수리";
   const defaultDue = (() => {
     const d = new Date();
     d.setDate(d.getDate() + 7);
@@ -544,7 +546,7 @@ function ReceiptConfirmModal({
         fetch("/api/hw/update", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: oldRecord.id, fields: { status: "반납예정", returnDue } }),
+          body: JSON.stringify({ id: oldRecord.id, fields: recordType === "수리" ? { status: "사용중" } : { status: "반납예정", returnDue } }),
         })
       );
       if (newRecord) updates.push(
@@ -2453,7 +2455,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
                 <label className="text-xs text-gray-500 font-medium">배송지</label>
                 <select value={niDelivery} onChange={e => setNiDelivery(e.target.value)}
                   className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-200 w-full bg-white">
-                  {["본사","횡성센터","향남","용인","성수","신사","오송"].map(l => <option key={l} value={l}>{l}</option>)}
+                  {DELIVERY_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
                 </select>
               </div>
               <div className="flex flex-col gap-1.5">
@@ -2901,7 +2903,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
                 <label className="text-xs text-gray-500 font-medium">배송지</label>
                 <select value={exDelivery} onChange={e => setExDelivery(e.target.value)}
                   className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full bg-white">
-                  {["본사","횡성센터","향남","용인","성수","신사","오송"].map(l => <option key={l} value={l}>{l}</option>)}
+                  {DELIVERY_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
                 </select>
               </div>
               <div className="flex flex-col gap-1.5">

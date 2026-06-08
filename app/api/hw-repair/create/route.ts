@@ -21,6 +21,9 @@ export async function POST(req: NextRequest) {
       faultType?: string;
       assigneeId?: string;
       note?: string;
+      assetStatus?: string;
+      address?: string;
+      requesterEmail?: string;
     };
 
     if (!body.assetId?.trim()) {
@@ -39,8 +42,11 @@ export async function POST(req: NextRequest) {
     if (body.vendor)     properties["수리업체"]   = { select: { name: body.vendor } };
     if (body.receivedAt) properties["접수일"]     = { date: { start: body.receivedAt } };
     if (body.faultType)  properties["과실여부"]   = { select: { name: body.faultType } };
-    if (body.assigneeId) properties["담당자"]     = { people: [{ object: "user", id: body.assigneeId }] };
-    if (body.note)       properties["수리내용"]   = { rich_text: [{ text: { content: body.note } }] };
+    if (body.assigneeId)      properties["담당자"]       = { people: [{ object: "user", id: body.assigneeId }] };
+    if (body.note)            properties["수리내용"]     = { rich_text: [{ text: { content: body.note } }] };
+    if (body.assetStatus)     properties["대분류"]       = { select: { name: body.assetStatus } };
+    if (body.address)         properties["배송지"]       = { select: { name: body.address } };
+    if (body.requesterEmail)  properties["기안자이메일"] = { email: body.requesterEmail };
 
     const page = await notion.pages.create({
       parent: { database_id: dbId },
