@@ -219,10 +219,13 @@ function InlineAssigneeCell({
     setSaving(true); setResult("idle");
     try {
       const found = assigneeList.find(u => u.name === newName);
+      const updateFields: Record<string, string> = {};
+      if (newName === "") updateFields.assigneeId = "";
+      else if (found?.id) updateFields.assigneeId = found.id;
       const res = await fetch("/api/helpdesk/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: ticket.id, fields: { assigneeId: found?.id ?? "" } }),
+        body: JSON.stringify({ id: ticket.id, fields: updateFields }),
       });
       const json = await res.json();
       if (json.ok) {
@@ -515,6 +518,7 @@ function HelpDeskTicketFloating({
     try {
       const found = assigneeList.find(u => u.name === selectedAssignee);
       const noteText = textareaRef.current?.value ?? noteValue;
+      const assigneeIdField = selectedAssignee === "" ? "" : (found?.id || undefined);
       const res = await fetch("/api/helpdesk/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -522,7 +526,7 @@ function HelpDeskTicketFloating({
           id: ticket.id,
           fields: {
             status: selectedStatus,
-            assigneeId: found?.id ?? "",
+            assigneeId: assigneeIdField,
             actionCategory: selectedCategories,
             actionMethod: selectedMethod,
             actionNote: noteText,
@@ -549,7 +553,8 @@ function HelpDeskTicketFloating({
         fields.status = selectedStatus;
       } else {
         const found = assigneeList.find(u => u.name === selectedAssignee);
-        fields.assigneeId = found?.id ?? "";
+        if (selectedAssignee === "") fields.assigneeId = "";
+        else if (found?.id) fields.assigneeId = found.id;
       }
       const res = await fetch("/api/helpdesk/update", {
         method: "POST",
@@ -1285,16 +1290,27 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
     status: "all", type: "all", company: "all", urgency: "all", search: "",
   });
 
+  // 담당자 리스트 관리 상태
+  const [storedAssignees,   setStoredAssignees]   = useState<{ id: string; name: string }[]>([]);
+  const [assigneeListOpen,  setAssigneeListOpen]  = useState(false);
+  const [assigneeInput,     setAssigneeInput]     = useState("");
+  const [assigneeSaving,    setAssigneeSaving]    = useState(false);
+  const [assigneeMsg,       setAssigneeMsg]       = useState<{ type: "ok" | "err"; text: string } | null>(null);
+
   const assigneeList = useMemo(() => {
-    const seen = new Map<string, string>();
-    tickets.forEach(t => {
-      if (t.assignee) seen.set(t.assigneeId || `name:${t.assignee}`, t.assignee);
-    });
     const EXCLUDED = ["이상목", "조성빈"];
-    return [...seen.entries()].map(([id, name]) => ({ id: id.startsWith("name:") ? "" : id, name }))
+    const map = new Map<string, string>();
+    // 저장된 담당자 리스트 (최우선)
+    storedAssignees.forEach(u => map.set(u.id || `name:${u.name}`, u.name));
+    // 기존 티켓에서 추출한 담당자 (UUID 있는 경우만)
+    tickets.forEach(t => {
+      if (t.assignee && t.assigneeId && !map.has(t.assigneeId)) map.set(t.assigneeId, t.assignee);
+    });
+    return [...map.entries()]
+      .map(([id, name]) => ({ id: id.startsWith("name:") ? "" : id, name }))
       .filter(({ name }) => !EXCLUDED.includes(name))
       .sort((a, b) => a.name.localeCompare(b.name, "ko"));
-  }, [tickets]);
+  }, [tickets, storedAssignees]);
 
   const uniqueStatuses = useMemo(() => {
     const fromData = [...new Set(tickets.map(t => t.status).filter(Boolean))].sort();
@@ -1374,6 +1390,14 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
   // 초기 로드
   useEffect(() => { load(); }, [load]);
 
+  // 저장된 담당자 목록 로드
+  useEffect(() => {
+    fetch("/api/helpdesk/assignees")
+      .then(r => r.json())
+      .then(res => { if (res.ok) setStoredAssignees(res.assignees ?? []); })
+      .catch(() => {});
+  }, []);
+
   // 알림 이메일 목록 로드
   useEffect(() => {
     fetch("/api/helpdesk/notify-emails")
@@ -1410,6 +1434,40 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
     } finally {
       setNotifySaving(false);
       setTimeout(() => setNotifyMsg(null), 3000);
+    }
+  };
+
+  // 담당자 리스트 핸들러
+  const handleAssigneeAdd = () => {
+    const name = assigneeInput.trim();
+    if (!name) return;
+    if (storedAssignees.some(a => a.name === name)) { setAssigneeInput(""); return; }
+    // 현재 티켓 데이터에서 UUID 조회
+    const fromTicket = tickets.find(t => t.assignee === name && t.assigneeId);
+    setStoredAssignees(prev => [...prev, { id: fromTicket?.assigneeId ?? "", name }]);
+    setAssigneeInput("");
+  };
+
+  const handleAssigneeRemove = (name: string) => {
+    setStoredAssignees(prev => prev.filter(a => a.name !== name));
+  };
+
+  const handleAssigneeSave = async () => {
+    setAssigneeSaving(true); setAssigneeMsg(null);
+    try {
+      const res = await fetch("/api/helpdesk/assignees", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignees: storedAssignees }),
+      });
+      const json = await res.json();
+      if (json.ok) setAssigneeMsg({ type: "ok", text: "저장되었습니다." });
+      else setAssigneeMsg({ type: "err", text: json.error || "저장 실패" });
+    } catch {
+      setAssigneeMsg({ type: "err", text: "저장 실패" });
+    } finally {
+      setAssigneeSaving(false);
+      setTimeout(() => setAssigneeMsg(null), 3000);
     }
   };
 
@@ -1672,6 +1730,93 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                 disabled={notifySaving}
                 className="px-4 py-1.5 bg-violet-600 text-white text-xs font-bold rounded-lg hover:bg-violet-700 disabled:opacity-50 transition-colors">
                 {notifySaving ? "저장 중..." : "저장"}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── 담당자 리스트 관리 ── */}
+      <div className="mb-5 border border-gray-200 rounded-xl overflow-hidden">
+        <button
+          onClick={() => setAssigneeListOpen(o => !o)}
+          className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-sm font-semibold text-gray-700">
+          <span className="flex items-center gap-2">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2.5">
+              <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+            </svg>
+            담당자 리스트 관리
+            <span className="text-xs font-normal text-gray-400">({storedAssignees.length}명)</span>
+          </span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+            style={{ transform: assigneeListOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>
+            <path d="M6 9l6 6 6-6"/>
+          </svg>
+        </button>
+
+        {assigneeListOpen && (
+          <div className="px-4 py-4 bg-white space-y-3">
+            <p className="text-xs text-gray-500">
+              담당자 드롭다운에 표시될 인원을 관리합니다.
+              Notion DB에 있는 사람 이름을 그대로 입력하세요.
+            </p>
+
+            {/* 추가 입력 */}
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  list="assignee-suggestions"
+                  value={assigneeInput}
+                  onChange={e => setAssigneeInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleAssigneeAdd(); } }}
+                  placeholder="담당자 이름 입력 또는 목록에서 선택"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 transition"
+                />
+                <datalist id="assignee-suggestions">
+                  {tickets
+                    .filter(t => t.assignee && !storedAssignees.some(a => a.name === t.assignee))
+                    .reduce<string[]>((acc, t) => acc.includes(t.assignee!) ? acc : [...acc, t.assignee!], [])
+                    .sort((a, b) => a.localeCompare(b, "ko"))
+                    .map(name => <option key={name} value={name} />)}
+                </datalist>
+              </div>
+              <button
+                onClick={handleAssigneeAdd}
+                disabled={!assigneeInput.trim()}
+                className="px-3 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors">
+                추가
+              </button>
+            </div>
+
+            {/* 담당자 목록 */}
+            {storedAssignees.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {storedAssignees.map(a => (
+                  <span key={a.name} className="flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-200 rounded-full text-xs text-blue-700 font-medium">
+                    {a.name}
+                    {!a.id && <span className="text-[9px] text-gray-400 font-normal">(ID 없음)</span>}
+                    <button onClick={() => handleAssigneeRemove(a.name)}
+                      className="text-blue-400 hover:text-blue-700 transition-colors leading-none">×</button>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 text-center py-2">등록된 담당자가 없습니다</p>
+            )}
+
+            {/* 저장 버튼 */}
+            <div className="flex items-center justify-end gap-3">
+              {assigneeMsg && (
+                <span className={`text-xs font-medium ${assigneeMsg.type === "ok" ? "text-green-600" : "text-red-500"}`}>
+                  {assigneeMsg.text}
+                </span>
+              )}
+              <button
+                onClick={handleAssigneeSave}
+                disabled={assigneeSaving}
+                className="px-4 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                {assigneeSaving ? "저장 중..." : "저장"}
               </button>
             </div>
           </div>

@@ -1317,7 +1317,7 @@ export default function HwRepairPanel() {
       {selected && (
         <DetailModal
           record={selected}
-          assigneeList={assigneeList}
+          assigneeList={mergedUsers}
           onClose={() => setSelected(null)}
           onUpdated={handleUpdated}
           onPreview={(url, name) => setPreview({ url, name })}
