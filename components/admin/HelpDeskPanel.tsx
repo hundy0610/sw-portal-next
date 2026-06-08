@@ -2384,13 +2384,15 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
         // 전체 배정 티켓 (처리 통계용)
         const assignedTickets = displayTickets.filter(t => t.assignee);
 
-        // 담당자 목록 (배정 티켓 기준으로 확대)
-        const assigneeNames = [...new Set(assignedTickets.map(t => t.assignee))].sort();
+        // 담당자 목록: 저장된 리스트 우선, 없으면 티켓 기반 전체
+        const assigneeNames = storedAssignees.length > 0
+          ? storedAssignees.map(a => a.name)
+          : [...new Set(assignedTickets.map(t => t.assignee))].sort() as string[];
 
         if (assigneeNames.length === 0) return (
           <div className="bg-white border border-gray-200 rounded-xl p-10 text-center text-gray-400 text-sm">
             배정된 담당자가 없습니다.<br />
-            <span className="text-xs text-gray-300 mt-1 block">Notion에서 티켓에 담당자를 지정해주세요.</span>
+            <span className="text-xs text-gray-300 mt-1 block">담당자 리스트 관리에서 인원을 추가해주세요.</span>
           </div>
         );
 
