@@ -131,6 +131,7 @@ export interface CreateFields {
   reason?: string;
   assigneeId?: string;
   note?: string;
+  address?: string;
   requesterEmail?: string;
   autoSynced?: boolean;
   isClosed?: boolean;
@@ -156,6 +157,7 @@ export async function createExchangeReturn(fields: CreateFields): Promise<Exchan
   if (fields.returnDue)   props["반납예정일"]    = { date: { start: fields.returnDue } };
   if (fields.completedAt) props["완료일"]        = { date: { start: fields.completedAt } };
   if (fields.reason)         props["신청사유"]      = { rich_text: [{ text: { content: fields.reason } }] };
+  if (fields.address)        props["배송지"]        = { select: { name: fields.address } };
   if (fields.assigneeId)     props["담당자"]        = { people: [{ object: "user", id: fields.assigneeId }] };
   if (fields.note)           props["비고"]          = { rich_text: [{ text: { content: fields.note } }] };
   if (fields.requesterEmail) props["기안자이메일"]  = { email: fields.requesterEmail };
