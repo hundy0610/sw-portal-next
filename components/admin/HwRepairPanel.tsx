@@ -783,14 +783,22 @@ function AssetDetailModal({ assetId, onClose }: { assetId: string; onClose: () =
 type CreateForm = {
   assetId: string; stage: string; company: string; department: string;
   user: string; vendor: string; receivedAt: string; faultType: string; note: string;
+  assetStatus: string; address: string; requesterEmail: string;
 };
 
 const EMPTY_FORM: CreateForm = {
   assetId: "", stage: "수리접수", company: "", department: "", user: "",
   vendor: "", receivedAt: "", faultType: "", note: "",
+  assetStatus: "사용중", address: "본사", requesterEmail: "",
 };
 
 const VENDORS = ["삼성공식수리(출장)", "다정씨엔씨", "기타"];
+
+const DELIVERY_LOCATIONS = [
+  "본사", "용인(연구소)", "향남", "마곡", "바이오센터", "바이오3공장",
+  "안성공장", "성수", "유로프라자", "오송", "세파센터", "S캠퍼스",
+  "선택시티", "한올(대전공장)", "기타",
+] as const;
 
 function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [form, setForm] = useState<CreateForm>(EMPTY_FORM);
@@ -939,6 +947,30 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
               onChange={set("note")} style={{ resize: "vertical" }} />
           </div>
 
+          <div>
+            <label className={labelCls}>대분류</label>
+            <select className={inputCls} value={form.assetStatus} onChange={set("assetStatus")}>
+              <option value="사용중">사용중</option>
+              <option value="재고">재고</option>
+            </select>
+          </div>
+
+          {form.assetStatus === "사용중" && (
+            <>
+              <div>
+                <label className={labelCls}>기안자 이메일</label>
+                <input type="email" className={inputCls} placeholder="example@company.com"
+                  value={form.requesterEmail} onChange={set("requesterEmail")} />
+              </div>
+              <div>
+                <label className={labelCls}>배송지</label>
+                <select className={inputCls} value={form.address} onChange={set("address")}>
+                  {DELIVERY_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+              </div>
+            </>
+          )}
+
           {err && <p className="text-xs text-red-600">{err}</p>}
         </div>
 
@@ -972,25 +1004,39 @@ export default function HwRepairPanel() {
   const [blockMsg, setBlockMsg] = useState<{ id: string; msg: string } | null>(null);
   const [allUsers, setAllUsers] = useState<{ id: string; name: string }[]>([]);
 
+  // 담당자 리스트 관리 상태
+  const [storedAssignees,  setStoredAssignees]  = useState<{ id: string; name: string }[]>([]);
+  const [assigneeListOpen, setAssigneeListOpen] = useState(false);
+  const [assigneeInput,    setAssigneeInput]    = useState("");
+  const [assigneeSaving,   setAssigneeSaving]   = useState(false);
+  const [assigneeMsg,      setAssigneeMsg]      = useState<{ type: "ok" | "err"; text: string } | null>(null);
+
   const assigneeList = useMemo(() => {
     const seen = new Map<string, string>();
     records.forEach(r => { if (r.assigneeId && r.assignee) seen.set(r.assigneeId, r.assignee); });
     return [...seen.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, "ko"));
   }, [records]);
 
+  // 저장된 리스트 있으면 그것만, 없으면 기존 방식(API + 레코드 + 고정 목록) 유지
   const STATIC_USERS = [
     { id: "335d872b-594c-811b-8c49-000297d936e0", name: "이동경" },
     { id: "a4a74b12-760f-46d4-bb10-2a1dcc1317ab", name: "자산관리파트_권정훈" },
   ];
 
-  // API 결과 + 기존 레코드 + 고정 담당자 병합
   const mergedUsers = useMemo(() => {
+    if (storedAssignees.length > 0) {
+      return storedAssignees.map(a => {
+        const fromRecord = assigneeList.find(u => u.name === a.name);
+        const fromApi    = allUsers.find(u => u.name === a.name);
+        return { id: a.id || fromRecord?.id || fromApi?.id || "", name: a.name };
+      }).sort((a, b) => a.name.localeCompare(b.name, "ko"));
+    }
     const map = new Map<string, string>();
     allUsers.forEach(u => map.set(u.id, u.name));
     assigneeList.forEach(u => map.set(u.id, u.name));
     STATIC_USERS.forEach(u => { if (!map.has(u.id)) map.set(u.id, u.name); });
     return [...map.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, "ko"));
-  }, [allUsers, assigneeList]);
+  }, [allUsers, assigneeList, storedAssignees]);
 
   const handleUpdated = useCallback((id: string, fields: Partial<HwRepairRecord>) => {
     setRecords(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r));
@@ -1032,7 +1078,46 @@ export default function HwRepairPanel() {
         body: JSON.stringify({ id: r.id, fields: { stage: nextStage } }),
       });
       const json = await res.json();
-      if (json.ok) handleUpdated(r.id, { stage: nextStage });
+      if (!json.ok) return;
+      handleUpdated(r.id, { stage: nextStage });
+
+      if (nextStage === "수리완료") {
+        const today = new Date().toISOString().slice(0, 10);
+
+        if (r.assetStatus === "사용중") {
+          // 사용중 → 자산흐름관리에 수리 케이스 자동 등록
+          fetch("/api/exchange-return/create", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: "수리",
+              assetId: r.assetId,
+              company: r.company,
+              department: r.department,
+              user: r.user,
+              stage: "기기준비완료",
+              requestedAt: today,
+              address: r.address || undefined,
+              requesterEmail: r.requesterEmail || undefined,
+            }),
+          }).catch(console.error);
+        } else if (r.assetStatus === "재고") {
+          // 재고 → HW DB 자산 상태를 재고로, 반납일자를 오늘로 변경
+          fetch(`/api/hw?search=${encodeURIComponent(r.assetId)}`)
+            .then(d => d.json())
+            .then(data => {
+              const recs: { id: string; assetNo: string }[] = data.records ?? [];
+              const found = recs.find(rec => rec.assetNo === r.assetId) ?? (recs.length === 1 ? recs[0] : null);
+              if (found) {
+                fetch("/api/hw/update", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ id: found.id, fields: { status: "재고", returnDate: today } }),
+                }).catch(console.error);
+              }
+            }).catch(console.error);
+        }
+      }
     } finally {
       setAdvancingId(null);
     }
@@ -1059,9 +1144,48 @@ export default function HwRepairPanel() {
       .then(res => { if (res.ok) setAllUsers(res.users); });
   }, []);
   useEffect(() => {
+    fetch("/api/hw-repair/assignees-list")
+      .then(r => r.json())
+      .then(res => { if (res.ok) setStoredAssignees(res.assignees ?? []); })
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
     const id = setInterval(() => load(true), 30_000);
     return () => clearInterval(id);
   }, [load]);
+
+  const handleAssigneeAdd = () => {
+    const name = assigneeInput.trim();
+    if (!name) return;
+    if (storedAssignees.some(a => a.name === name)) { setAssigneeInput(""); return; }
+    const fromRecord = assigneeList.find(u => u.name === name);
+    const fromApi    = allUsers.find(u => u.name === name);
+    setStoredAssignees(prev => [...prev, { id: fromRecord?.id || fromApi?.id || "", name }]);
+    setAssigneeInput("");
+  };
+
+  const handleAssigneeRemove = (name: string) => {
+    setStoredAssignees(prev => prev.filter(a => a.name !== name));
+  };
+
+  const handleAssigneeSave = async () => {
+    setAssigneeSaving(true); setAssigneeMsg(null);
+    try {
+      const res = await fetch("/api/hw-repair/assignees-list", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignees: storedAssignees }),
+      });
+      const json = await res.json();
+      if (json.ok) setAssigneeMsg({ type: "ok", text: "저장되었습니다." });
+      else setAssigneeMsg({ type: "err", text: json.error || "저장 실패" });
+    } catch {
+      setAssigneeMsg({ type: "err", text: "저장 실패" });
+    } finally {
+      setAssigneeSaving(false);
+      setTimeout(() => setAssigneeMsg(null), 3000);
+    }
+  };
 
   const openRecords   = useMemo(() => records.filter(r => !r.isClosed), [records]);
   const closedRecords = useMemo(() => records.filter(r =>  r.isClosed), [records]);
@@ -1151,6 +1275,86 @@ export default function HwRepairPanel() {
           Closed Cases
           <span className="text-xs font-normal text-gray-400 ml-0.5">{closedRecords.length}</span>
         </button>
+      </div>
+
+      {/* 담당자 리스트 관리 */}
+      <div className="mb-5 border border-gray-200 rounded-xl overflow-hidden">
+        <button
+          onClick={() => setAssigneeListOpen(o => !o)}
+          className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-sm font-semibold text-gray-700">
+          <span className="flex items-center gap-2">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2.5">
+              <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+            </svg>
+            담당자 리스트 관리
+            <span className="text-xs font-normal text-gray-400">({storedAssignees.length}명)</span>
+          </span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+            style={{ transform: assigneeListOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>
+            <path d="M6 9l6 6 6-6"/>
+          </svg>
+        </button>
+
+        {assigneeListOpen && (
+          <div className="px-4 py-4 bg-white space-y-3">
+            <p className="text-xs text-gray-500">
+              담당자 드롭다운에 표시될 인원을 관리합니다.
+              Notion DB에 있는 사람 이름을 그대로 입력하세요.
+            </p>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  list="repair-assignee-suggestions"
+                  value={assigneeInput}
+                  onChange={e => setAssigneeInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleAssigneeAdd(); } }}
+                  placeholder="담당자 이름 입력 또는 목록에서 선택"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 transition"
+                />
+                <datalist id="repair-assignee-suggestions">
+                  {[...new Set([...assigneeList.map(u => u.name), ...allUsers.map(u => u.name)])]
+                    .filter(n => !storedAssignees.some(a => a.name === n))
+                    .sort((a, b) => a.localeCompare(b, "ko"))
+                    .map(name => <option key={name} value={name} />)}
+                </datalist>
+              </div>
+              <button
+                onClick={handleAssigneeAdd}
+                disabled={!assigneeInput.trim()}
+                className="px-3 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors">
+                추가
+              </button>
+            </div>
+            {storedAssignees.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {storedAssignees.map(a => (
+                  <span key={a.name} className="flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-200 rounded-full text-xs text-blue-700 font-medium">
+                    {a.name}
+                    {!a.id && <span className="text-[9px] text-gray-400 font-normal">(ID 없음)</span>}
+                    <button onClick={() => handleAssigneeRemove(a.name)}
+                      className="text-blue-400 hover:text-blue-700 transition-colors leading-none">×</button>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 text-center py-2">등록된 담당자가 없습니다</p>
+            )}
+            <div className="flex items-center justify-end gap-3">
+              {assigneeMsg && (
+                <span className={`text-xs font-medium ${assigneeMsg.type === "ok" ? "text-green-600" : "text-red-500"}`}>
+                  {assigneeMsg.text}
+                </span>
+              )}
+              <button
+                onClick={handleAssigneeSave}
+                disabled={assigneeSaving}
+                className="px-4 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                {assigneeSaving ? "저장 중..." : "저장"}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 요약 카드 */}

@@ -166,6 +166,9 @@ export interface HwRepairRecord {
   assignee: string;        // 담당자 이름 (people)
   assigneeId: string;      // 담당자 Notion user ID
   note: string;            // 수리내용 (rich_text)
+  assetStatus: string;     // 대분류 (select): 재고 | 사용중
+  address: string;         // 배송지 (select)
+  requesterEmail: string;  // 기안자이메일 (email)
   isClosed: boolean;       // 케이스 종료 여부 (checkbox)
   lastEditedAt: string;    // 최종 편집 일시 (last_edited_time)
   notionUrl: string;
