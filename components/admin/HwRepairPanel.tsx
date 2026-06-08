@@ -375,6 +375,9 @@ function DetailModal({
   const [user, setUser] = useState(record.user ?? "");
   const [vendor, setVendor] = useState(record.vendor ?? "");
   const [assigneeName, setAssigneeName] = useState(record.assignee ?? "");
+  const [assetStatus, setAssetStatus] = useState(record.assetStatus ?? "사용중");
+  const [address, setAddress] = useState(record.address ?? "본사");
+  const [requesterEmail, setRequesterEmail] = useState(record.requesterEmail ?? "");
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<Record<string, boolean>>({});
 
@@ -509,6 +512,35 @@ function DetailModal({
             <input value={vendor} onChange={e => setVendor(e.target.value)} className={selectCls + " w-40"} placeholder="업체명" />
             <button onClick={() => save("vendor", { vendor })} disabled={saving === "vendor" || vendor === record.vendor} className={saveBtnCls("vendor", vendor, record.vendor)}>
               {saving === "vendor" ? "저장 중…" : "저장"}
+            </button>
+          </SaveRow>
+
+          {/* 대분류 */}
+          <SaveRow label="대분류" field="assetStatus">
+            <select value={assetStatus} onChange={e => setAssetStatus(e.target.value)} className={selectCls}>
+              <option value="사용중">사용중</option>
+              <option value="재고">재고</option>
+            </select>
+            <button onClick={() => save("assetStatus", { assetStatus })} disabled={saving === "assetStatus" || assetStatus === (record.assetStatus ?? "")} className={saveBtnCls("assetStatus", assetStatus, record.assetStatus ?? "")}>
+              {saving === "assetStatus" ? "저장 중…" : "저장"}
+            </button>
+          </SaveRow>
+
+          {/* 배송지 */}
+          <SaveRow label="배송지" field="address">
+            <select value={address} onChange={e => setAddress(e.target.value)} className={selectCls}>
+              {DELIVERY_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
+            </select>
+            <button onClick={() => save("address", { address })} disabled={saving === "address" || address === (record.address ?? "")} className={saveBtnCls("address", address, record.address ?? "")}>
+              {saving === "address" ? "저장 중…" : "저장"}
+            </button>
+          </SaveRow>
+
+          {/* 기안자 이메일 */}
+          <SaveRow label="기안자 이메일" field="requesterEmail">
+            <input type="email" value={requesterEmail} onChange={e => setRequesterEmail(e.target.value)} className={selectCls + " w-52"} placeholder="example@company.com" />
+            <button onClick={() => save("requesterEmail", { requesterEmail })} disabled={saving === "requesterEmail" || requesterEmail === (record.requesterEmail ?? "")} className={saveBtnCls("requesterEmail", requesterEmail, record.requesterEmail ?? "")}>
+              {saving === "requesterEmail" ? "저장 중…" : "저장"}
             </button>
           </SaveRow>
 
@@ -1407,14 +1439,14 @@ export default function HwRepairPanel() {
         <table className="data-table">
           <thead>
             <tr>
-              {["진행단계", "자산번호", "법인", "부서", "사용자", "접수일", "과실여부", "수리업체", "담당자", "수리내용", "영수증", "진행동의서", "세금계산서결재", "내부결재내용"].map(h => (
+              {["진행단계", "자산번호", "대분류", "법인", "부서", "사용자", "접수일", "과실여부", "수리업체", "담당자", "수리내용", "영수증", "진행동의서", "세금계산서결재", "내부결재내용"].map(h => (
                 <th key={h}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={14} className="text-center text-gray-400 py-10">데이터 없음</td></tr>
+              <tr><td colSpan={15} className="text-center text-gray-400 py-10">데이터 없음</td></tr>
             ) : filtered.map(r => {
               const days = agingDays(r.receivedAt, r.completedAt, r.stage);
               return (
@@ -1465,6 +1497,15 @@ export default function HwRepairPanel() {
                     <button className="font-mono text-sm font-semibold text-blue-600 hover:underline" onClick={() => r.assetId && setAssetModal(r.assetId)}>
                       {r.assetId || "—"}
                     </button>
+                  </td>
+                  {/* 대분류 */}
+                  <td>
+                    {r.assetStatus ? (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap"
+                        style={r.assetStatus === "재고" ? { background: "#F0FDF4", color: "#15803D" } : { background: "#EFF6FF", color: "#1D4ED8" }}>
+                        {r.assetStatus}
+                      </span>
+                    ) : <span className="text-xs text-gray-300">—</span>}
                   </td>
                   {/* 법인 */}
                   <td className="text-xs text-gray-600">{r.company || "—"}</td>
