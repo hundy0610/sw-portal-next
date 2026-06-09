@@ -168,35 +168,49 @@ export default function BugReportPanel() {
           onClick={e => { if (e.target === e.currentTarget) setSelected(null); }}
           style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
         >
-          <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 600, maxHeight: "90vh", overflowY: "auto" as const, boxShadow: "0 20px 60px rgba(0,0,0,.2)", display: "flex", flexDirection: "column" as const }}>
+          <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 600, height: "min(90vh, 700px)", boxShadow: "0 20px 60px rgba(0,0,0,.2)", display: "flex", flexDirection: "column" as const, overflow: "hidden" }}>
 
-            {/* 모달 헤더 */}
-            <div style={{ padding: "22px 24px 16px", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" as const, alignItems: "center" }}>
-                  <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, background: "#F1F5F9", color: "#334155" }}>{selected.page} › {selected.feature}</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: selected.type === "버그" ? "#FEE2E2" : "#E0F2FE", color: selected.type === "버그" ? "#DC2626" : "#0369A1" }}>{selected.type}</span>
+            {/* ── 고정 헤더 ── */}
+            <div style={{ padding: "18px 20px 14px", borderBottom: "1px solid #E2E8F0", flexShrink: 0 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: "flex", gap: 6, marginBottom: 6, flexWrap: "wrap" as const, alignItems: "center" }}>
+                    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, background: "#F1F5F9", color: "#334155" }}>{selected.page} › {selected.feature}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: selected.type === "버그" ? "#FEE2E2" : "#E0F2FE", color: selected.type === "버그" ? "#DC2626" : "#0369A1" }}>{selected.type}</span>
+                  </div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a", lineHeight: 1.4 }}>{selected.title}</div>
                 </div>
-                <div style={{ fontSize: 17, fontWeight: 700, color: "#0f172a", lineHeight: 1.4 }}>{selected.title}</div>
+                <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#94a3b8", lineHeight: 1, flexShrink: 0 }}>✕</button>
               </div>
-              <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#94a3b8", lineHeight: 1, flexShrink: 0 }}>✕</button>
+              {/* 처리 상태 — 헤더에 */}
+              <div style={{ display: "flex", gap: 8 }}>
+                {(["접수됨", "처리중", "완료"] as const).map(s => {
+                  const sc = STATUS_COLOR[s];
+                  return (
+                    <button key={s} onClick={() => setReplyStatus(s)}
+                      style={{ padding: "5px 14px", borderRadius: 20, border: `2px solid ${replyStatus === s ? sc.color : "#E2E8F0"}`, background: replyStatus === s ? sc.bg : "#fff", color: replyStatus === s ? sc.color : "#64748b", fontSize: 12, fontWeight: replyStatus === s ? 700 : 500, cursor: "pointer" }}>
+                      {s}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            {/* 모달 본문 */}
-            <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column" as const, gap: 16 }}>
+            {/* ── 스크롤 본문 ── */}
+            <div style={{ flex: 1, overflowY: "auto" as const, padding: "16px 20px", display: "flex", flexDirection: "column" as const, gap: 14 }}>
 
-              {/* ── 스레드: 제출자 메시지 ── */}
+              {/* 제출자 메시지 */}
               <div style={{ display: "flex", gap: 10 }}>
-                <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#E2E8F0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#64748b", flexShrink: 0 }}>
+                <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#E2E8F0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#64748b", flexShrink: 0 }}>
                   {selected.reporterName?.[0] ?? "?"}
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 6 }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 5 }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>{selected.reporterName}</span>
                     <span style={{ fontSize: 11, color: "#cbd5e1" }}>{selected.createdAt ? new Date(selected.createdAt).toLocaleString("ko-KR") : "-"}</span>
                   </div>
-                  <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "0 10px 10px 10px", padding: "12px 14px" }}>
-                    <p style={{ fontSize: 14, color: "#0f172a", margin: 0, lineHeight: 1.7, whiteSpace: "pre-wrap" as const }}>{selected.content}</p>
+                  <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "0 10px 10px 10px", padding: "10px 14px" }}>
+                    <p style={{ fontSize: 14, color: "#0f172a", margin: 0, lineHeight: 1.7, whiteSpace: "pre-wrap" as const }}>{selected.content || "(내용 없음)"}</p>
                     {selected.screenshotUrls?.length > 0 && (
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, marginTop: 10 }}>
                         {selected.screenshotUrls.map((url, i) => (
@@ -212,45 +226,24 @@ export default function BugReportPanel() {
                 </div>
               </div>
 
-              {/* ── 스레드: 기존 답변 (있을 때) ── */}
+              {/* 기존 답변 */}
               {selected.reply && (
                 <div style={{ display: "flex", gap: 10, flexDirection: "row-reverse" as const }}>
-                  <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#1E3A8A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
-                    관
-                  </div>
+                  <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#1E3A8A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#fff", flexShrink: 0 }}>관</div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 6, justifyContent: "flex-end" }}>
+                    <div style={{ display: "flex", marginBottom: 5, justifyContent: "flex-end" }}>
                       <span style={{ fontSize: 11, color: "#cbd5e1" }}>관리자</span>
                     </div>
-                    <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: "10px 0 10px 10px", padding: "12px 14px" }}>
+                    <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: "10px 0 10px 10px", padding: "10px 14px" }}>
                       <p style={{ fontSize: 14, color: "#1E3A8A", margin: 0, lineHeight: 1.7, whiteSpace: "pre-wrap" as const }}>{selected.reply}</p>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* ── 구분선 ── */}
-              <div style={{ borderTop: "1px solid #E2E8F0", margin: "4px 0" }} />
-
-              {/* ── 상태 변경 ── */}
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", marginBottom: 8 }}>처리 상태</div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  {(["접수됨", "처리중", "완료"] as const).map(s => {
-                    const sc = STATUS_COLOR[s];
-                    return (
-                      <button key={s} onClick={() => setReplyStatus(s)}
-                        style={{ padding: "6px 14px", borderRadius: 20, border: `2px solid ${replyStatus === s ? sc.color : "#E2E8F0"}`, background: replyStatus === s ? sc.bg : "#fff", color: replyStatus === s ? sc.color : "#64748b", fontSize: 12, fontWeight: replyStatus === s ? 700 : 500, cursor: "pointer" }}>
-                        {s}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* ── 완료 선택 시 답변 입력창 ── */}
+              {/* 완료 선택 시 답변 입력 */}
               {replyStatus === "완료" && (
-                <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 10, padding: "14px" }}>
+                <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 10, padding: "12px 14px" }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "#15803D", marginBottom: 8 }}>
                     ✅ {selected.reply ? "처리 내용 수정" : "처리 내용 입력"}
                   </div>
@@ -263,23 +256,23 @@ export default function BugReportPanel() {
                   />
                 </div>
               )}
+            </div>
 
-              {/* ── 버튼 ── */}
-              <div style={{ display: "flex", gap: 8, justifyContent: "space-between" }}>
-                <button onClick={() => handleDelete(selected.id)}
-                  style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid #FEE2E2", background: "#FFF5F5", color: "#DC2626", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-                  삭제
+            {/* ── 고정 하단 버튼 ── */}
+            <div style={{ padding: "12px 20px", borderTop: "1px solid #E2E8F0", display: "flex", gap: 8, justifyContent: "space-between", flexShrink: 0, background: "#fff" }}>
+              <button onClick={() => handleDelete(selected.id)}
+                style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #FEE2E2", background: "#FFF5F5", color: "#DC2626", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                삭제
+              </button>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => setSelected(null)}
+                  style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", color: "#64748b", fontSize: 13, cursor: "pointer" }}>
+                  취소
                 </button>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={() => setSelected(null)}
-                    style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", color: "#64748b", fontSize: 13, cursor: "pointer" }}>
-                    취소
-                  </button>
-                  <button onClick={handleSaveReply} disabled={saving}
-                    style={{ padding: "9px 20px", borderRadius: 8, background: saving ? "#cbd5e1" : "#2563EB", color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>
-                    {saving ? "저장 중..." : "저장"}
-                  </button>
-                </div>
+                <button onClick={handleSaveReply} disabled={saving}
+                  style={{ padding: "8px 20px", borderRadius: 8, background: saving ? "#cbd5e1" : "#2563EB", color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>
+                  {saving ? "저장 중..." : "저장"}
+                </button>
               </div>
             </div>
           </div>
