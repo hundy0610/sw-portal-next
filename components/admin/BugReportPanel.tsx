@@ -244,16 +244,21 @@ export default function BugReportPanel() {
                 </div>
               </div>
 
-              {/* ── 답변 입력 ── */}
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", marginBottom: 8 }}>{selected.reply ? "답변 수정" : "답변 작성"}</div>
-                <textarea
-                  value={replyText}
-                  onChange={e => setReplyText(e.target.value)}
-                  placeholder="처리 내용이나 답변을 입력하세요."
-                  style={{ width: "100%", minHeight: 90, padding: "10px 12px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 14, color: "#0f172a", resize: "vertical" as const, outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const }}
-                />
-              </div>
+              {/* ── 완료 선택 시 답변 입력창 ── */}
+              {replyStatus === "완료" && (
+                <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 10, padding: "14px" }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#15803D", marginBottom: 8 }}>
+                    ✅ {selected.reply ? "처리 내용 수정" : "처리 내용 입력"}
+                  </div>
+                  <textarea
+                    value={replyText}
+                    onChange={e => setReplyText(e.target.value)}
+                    placeholder="어떻게 처리했는지 입력해주세요."
+                    autoFocus
+                    style={{ width: "100%", minHeight: 90, padding: "10px 12px", border: "1px solid #BBF7D0", borderRadius: 8, fontSize: 14, color: "#0f172a", resize: "vertical" as const, outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const, background: "#fff" }}
+                  />
+                </div>
+              )}
 
               {/* ── 버튼 ── */}
               <div style={{ display: "flex", gap: 8, justifyContent: "space-between" }}>
