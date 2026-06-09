@@ -551,6 +551,7 @@ export async function fetchHwRepairs(): Promise<HwRepairRecord[]> {
       assignee: getPropPeople(p, "담당자"),
       assigneeId: getPropPeopleList(p, "담당자")[0]?.id ?? "",
       note: getPropText(p, "수리내용"),
+      repairCost: getPropNumber(p, "수리비용"),
       assetStatus: getPropSelect(p, "대분류"),
       address: getPropSelect(p, "배송지"),
       requesterEmail: getPropEmail(p, "기안자이메일"),

@@ -483,6 +483,7 @@ export const mockHwRepairs = [
     assignee: "담당자A",
     assigneeId: "mock-user-1",
     note: "배터리 팽창으로 교체 의뢰",
+    repairCost: 0,
     assetStatus: "사용중",
     address: "본사",
     requesterEmail: "",
