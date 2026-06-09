@@ -373,8 +373,8 @@ function DetailModal({
   const [department, setDepartment] = useState(record.department ?? "");
   const [user, setUser] = useState(record.user ?? "");
   const [vendor, setVendor] = useState(record.vendor ?? "");
-  const [assetStatus, setAssetStatus] = useState(record.assetStatus ?? "사용중");
-  const [address, setAddress] = useState(record.address ?? "본사");
+  const [assetStatus, setAssetStatus] = useState(record.assetStatus || "사용중");
+  const [address, setAddress] = useState(record.address || "본사");
   const [requesterEmail, setRequesterEmail] = useState(record.requesterEmail ?? "");
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<Record<string, boolean>>({});
@@ -519,7 +519,7 @@ function DetailModal({
               <option value="사용중">사용중</option>
               <option value="재고">재고</option>
             </select>
-            <button onClick={() => save("assetStatus", { assetStatus })} disabled={saving === "assetStatus" || assetStatus === (record.assetStatus ?? "")} className={saveBtnCls("assetStatus", assetStatus, record.assetStatus ?? "")}>
+            <button onClick={() => save("assetStatus", { assetStatus })} disabled={saving === "assetStatus" || assetStatus === (record.assetStatus || "사용중")} className={saveBtnCls("assetStatus", assetStatus, record.assetStatus || "사용중")}>
               {saving === "assetStatus" ? "저장 중…" : "저장"}
             </button>
           </SaveRow>
@@ -529,13 +529,13 @@ function DetailModal({
             <select value={address} onChange={e => setAddress(e.target.value)} className={selectCls}>
               {DELIVERY_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
             </select>
-            <button onClick={() => save("address", { address })} disabled={saving === "address" || address === (record.address ?? "")} className={saveBtnCls("address", address, record.address ?? "")}>
+            <button onClick={() => save("address", { address })} disabled={saving === "address" || address === (record.address || "본사")} className={saveBtnCls("address", address, record.address || "본사")}>
               {saving === "address" ? "저장 중…" : "저장"}
             </button>
           </SaveRow>
 
-          {/* 기안자 이메일 */}
-          <SaveRow label="기안자 이메일" field="requesterEmail">
+          {/* 이메일 */}
+          <SaveRow label="이메일" field="requesterEmail">
             <input type="email" value={requesterEmail} onChange={e => setRequesterEmail(e.target.value)} className={selectCls + " w-52"} placeholder="example@company.com" />
             <button onClick={() => save("requesterEmail", { requesterEmail })} disabled={saving === "requesterEmail" || requesterEmail === (record.requesterEmail ?? "")} className={saveBtnCls("requesterEmail", requesterEmail, record.requesterEmail ?? "")}>
               {saving === "requesterEmail" ? "저장 중…" : "저장"}
@@ -558,10 +558,19 @@ function DetailModal({
             </div>
           </Row>
 
+          {/* 수리비용 */}
+          <Row label="수리비용">
+            {record.repairCost ? (
+              <span className="text-sm font-semibold text-gray-800">{record.repairCost.toLocaleString("ko-KR")}원</span>
+            ) : (
+              <span className="text-xs text-gray-300">미입력</span>
+            )}
+          </Row>
+
           {/* 파일 필드 */}
           {(["receiptUrl", "consentUrl", "taxInvoiceUrl", "approvalUrl"] as const).map(key => {
             const labels: Record<string, string> = {
-              receiptUrl: "영수증", consentUrl: "진행동의서", taxInvoiceUrl: "세금계산서결재", approvalUrl: "내부결재내용",
+              receiptUrl: "점검확인서", consentUrl: "진행동의서", taxInvoiceUrl: "세금계산서결재", approvalUrl: "내부결재내용",
             };
             return (
               <Row key={key} label={labels[key]}>
@@ -876,7 +885,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
           {form.assetStatus === "사용중" && (
             <>
               <div>
-                <label className={labelCls}>기안자 이메일</label>
+                <label className={labelCls}>이메일</label>
                 <input type="email" className={inputCls} placeholder="example@company.com"
                   value={form.requesterEmail} onChange={set("requesterEmail")} />
               </div>
@@ -1166,7 +1175,7 @@ export default function HwRepairPanel() {
         <table className="data-table">
           <thead>
             <tr>
-              {["진행단계", "자산번호", "대분류", "법인", "부서", "사용자", "접수일", "과실여부", "수리업체", "수리내용", "영수증", "진행동의서", "세금계산서결재", "내부결재내용"].map(h => (
+              {["진행단계", "자산번호", "대분류", "법인", "부서", "사용자", "접수일", "과실여부", "수리업체", "수리내용", "점검확인서", "진행동의서", "세금계산서결재", "내부결재내용"].map(h => (
                 <th key={h}>{h}</th>
               ))}
             </tr>
@@ -1253,7 +1262,7 @@ export default function HwRepairPanel() {
                   {/* 파일 4개 */}
                   {(["receiptUrl", "consentUrl", "taxInvoiceUrl", "approvalUrl"] as const).map(key => {
                     const labels: Record<string, string> = {
-                      receiptUrl: "영수증", consentUrl: "진행동의서", taxInvoiceUrl: "세금계산서결재", approvalUrl: "내부결재내용",
+                      receiptUrl: "점검확인서", consentUrl: "진행동의서", taxInvoiceUrl: "세금계산서결재", approvalUrl: "내부결재내용",
                     };
                     return (
                       <td key={key}>
