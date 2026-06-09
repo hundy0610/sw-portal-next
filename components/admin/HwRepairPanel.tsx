@@ -373,6 +373,7 @@ function DetailModal({
   const [department, setDepartment] = useState(record.department ?? "");
   const [user, setUser] = useState(record.user ?? "");
   const [vendor, setVendor] = useState(record.vendor ?? "");
+  const [repairCost, setRepairCost] = useState(record.repairCost ? String(record.repairCost) : "");
   const [assetStatus, setAssetStatus] = useState(record.assetStatus || "사용중");
   const [address, setAddress] = useState(record.address || "본사");
   const [requesterEmail, setRequesterEmail] = useState(record.requesterEmail ?? "");
@@ -559,13 +560,29 @@ function DetailModal({
           </Row>
 
           {/* 수리비용 */}
-          <Row label="수리비용">
-            {record.repairCost ? (
-              <span className="text-sm font-semibold text-gray-800">{record.repairCost.toLocaleString("ko-KR")}원</span>
-            ) : (
-              <span className="text-xs text-gray-300">미입력</span>
+          <SaveRow label="수리비용" field="repairCost">
+            <div className="flex items-center gap-1">
+              <input
+                type="number"
+                min={0}
+                value={repairCost}
+                onChange={e => setRepairCost(e.target.value)}
+                className={selectCls + " w-36"}
+                placeholder="0"
+              />
+              <span className="text-sm text-gray-500">원</span>
+            </div>
+            {repairCost && Number(repairCost) > 0 && (
+              <span className="text-xs text-gray-400">{Number(repairCost).toLocaleString("ko-KR")}원</span>
             )}
-          </Row>
+            <button
+              onClick={() => save("repairCost", { repairCost: Number(repairCost) || 0 })}
+              disabled={saving === "repairCost" || Number(repairCost) === (record.repairCost ?? 0)}
+              className={saveBtnCls("repairCost", repairCost, String(record.repairCost ?? 0))}
+            >
+              {saving === "repairCost" ? "저장 중…" : "저장"}
+            </button>
+          </SaveRow>
 
           {/* 파일 필드 */}
           {(["receiptUrl", "consentUrl", "taxInvoiceUrl", "approvalUrl"] as const).map(key => {
@@ -1175,7 +1192,7 @@ export default function HwRepairPanel() {
         <table className="data-table">
           <thead>
             <tr>
-              {["진행단계", "자산번호", "대분류", "법인", "부서", "사용자", "접수일", "과실여부", "수리업체", "수리내용", "점검확인서", "진행동의서", "세금계산서결재", "내부결재내용"].map(h => (
+              {["진행단계", "자산번호", "대분류", "법인", "부서", "사용자", "접수일", "과실여부", "수리비용", "수리내용", "점검확인서", "진행동의서", "세금계산서결재", "내부결재내용"].map(h => (
                 <th key={h}>{h}</th>
               ))}
             </tr>
@@ -1253,8 +1270,10 @@ export default function HwRepairPanel() {
                   <td className="text-xs text-gray-500">{fmtDate(r.receivedAt)}</td>
                   {/* 과실여부 */}
                   <td><FaultBadge fault={r.faultType} /></td>
-                  {/* 수리업체 */}
-                  <td className="text-xs text-gray-600">{r.vendor || "—"}</td>
+                  {/* 수리비용 */}
+                  <td className="text-xs text-gray-700 font-medium">
+                    {r.repairCost ? `${r.repairCost.toLocaleString("ko-KR")}원` : "—"}
+                  </td>
                   {/* 수리내용 */}
                   <td className="max-w-[120px]">
                     <p className="text-xs text-gray-700 truncate" title={r.note}>{r.note || "—"}</p>
