@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import BugReportButton from "@/components/BugReportButton";
 
 export const metadata: Metadata = {
   title: "SW 자산관리 포털",
@@ -24,7 +25,10 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <BugReportButton />
+      </body>
     </html>
   );
 }

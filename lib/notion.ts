@@ -1322,3 +1322,89 @@ export async function deleteAutomationTask(pageId: string): Promise<void> {
     archived: true,
   });
 }
+
+// ────────────────────────────────────────────────────────────
+// 버그리포트
+// ────────────────────────────────────────────────────────────
+
+export interface BugReport {
+  id:           string;
+  page:         string;
+  feature:      string;
+  type:         "버그" | "개선요청";
+  description:  string;
+  reporterName: string;
+  reporterId:   string;
+  status:       "접수됨" | "처리중" | "완료";
+  createdAt:    string;
+  screenshotUrl?: string;
+}
+
+export async function listBugReports(): Promise<BugReport[]> {
+  const dbId = process.env.NOTION_DB_BUG_REPORTS;
+  if (!dbId) throw new Error("NOTION_DB_BUG_REPORTS not set");
+
+  const pages = await queryAllPages(dbId, undefined, [{ property: "제출일시", direction: "descending" }]);
+
+  return pages.map((p) => {
+    const props = (p as PageObjectResponse).properties;
+    const files = props["스크린샷"];
+    let screenshotUrl: string | undefined;
+    if (files?.type === "files" && files.files.length > 0) {
+      const f = files.files[0];
+      screenshotUrl = f.type === "file" ? f.file.url : f.type === "external" ? f.external.url : undefined;
+    }
+    return {
+      id:           p.id,
+      page:         getPropSelect(props, "페이지"),
+      feature:      getPropText(props, "기능"),
+      type:         (getPropSelect(props, "유형") || "버그") as BugReport["type"],
+      description:  getPropText(props, "설명"),
+      reporterName: getPropText(props, "제출자"),
+      reporterId:   getPropText(props, "제출자ID"),
+      status:       (getPropSelect(props, "상태") || "접수됨") as BugReport["status"],
+      createdAt:    getPropDate(props, "제출일시"),
+      screenshotUrl,
+    };
+  });
+}
+
+export async function createBugReport(
+  data: Omit<BugReport, "id" | "screenshotUrl">,
+  fileUploadId?: string,
+): Promise<string> {
+  const dbId = process.env.NOTION_DB_BUG_REPORTS;
+  if (!dbId) throw new Error("NOTION_DB_BUG_REPORTS not set");
+
+  const props: Record<string, unknown> = {
+    "설명":      { title:     [{ text: { content: data.description } }] },
+    "페이지":    { select:    { name: data.page } },
+    "기능":      { rich_text: [{ text: { content: data.feature } }] },
+    "유형":      { select:    { name: data.type } },
+    "상태":      { select:    { name: data.status } },
+    "제출자":    { rich_text: [{ text: { content: data.reporterName } }] },
+    "제출자ID":  { rich_text: [{ text: { content: data.reporterId } }] },
+    "제출일시":  { date:      { start: data.createdAt } },
+  };
+
+  if (fileUploadId) {
+    props["스크린샷"] = { files: [{ type: "file_upload", file_upload: { id: fileUploadId } }] };
+  }
+
+  const res = await notion.pages.create({
+    parent: { database_id: dbId },
+    properties: props as Parameters<typeof notion.pages.create>[0]["properties"],
+  });
+  return res.id;
+}
+
+export async function updateBugReportStatus(id: string, status: BugReport["status"]): Promise<void> {
+  await notion.pages.update({
+    page_id: id,
+    properties: { "상태": { select: { name: status } } } as Parameters<typeof notion.pages.update>[0]["properties"],
+  });
+}
+
+export async function deleteBugReport(id: string): Promise<void> {
+  await notion.pages.update({ page_id: id, archived: true });
+}
