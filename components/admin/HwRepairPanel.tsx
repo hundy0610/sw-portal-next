@@ -359,10 +359,9 @@ function FileCell({
 
 // ── 상세 모달 ─────────────────────────────────────────────────
 function DetailModal({
-  record, assigneeList, onClose, onUpdated, onPreview,
+  record, onClose, onUpdated, onPreview,
 }: {
   record: HwRepairRecord;
-  assigneeList: { id: string; name: string }[];
   onClose: () => void;
   onUpdated: (id: string, fields: Partial<HwRepairRecord>) => void;
   onPreview: (url: string, name: string) => void;
@@ -374,7 +373,6 @@ function DetailModal({
   const [department, setDepartment] = useState(record.department ?? "");
   const [user, setUser] = useState(record.user ?? "");
   const [vendor, setVendor] = useState(record.vendor ?? "");
-  const [assigneeName, setAssigneeName] = useState(record.assignee ?? "");
   const [assetStatus, setAssetStatus] = useState(record.assetStatus ?? "사용중");
   const [address, setAddress] = useState(record.address ?? "본사");
   const [requesterEmail, setRequesterEmail] = useState(record.requesterEmail ?? "");
@@ -544,18 +542,6 @@ function DetailModal({
             </button>
           </SaveRow>
 
-          {/* 담당자 */}
-          <SaveRow label="담당자" field="assignee">
-            <select value={assigneeName} onChange={e => setAssigneeName(e.target.value)} className={selectCls}>
-              <option value="">미배정</option>
-              {assigneeList.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
-            </select>
-            <button onClick={() => { const found = assigneeList.find(u => u.name === assigneeName); save("assignee", { assigneeId: found?.id ?? "" }); }}
-              disabled={saving === "assignee" || assigneeName === (record.assignee ?? "")} className={saveBtnCls("assignee", assigneeName, record.assignee ?? "")}>
-              {saving === "assignee" ? "저장 중…" : "저장"}
-            </button>
-          </SaveRow>
-
           {/* 수리 내용 */}
           <Row label="수리 내용">
             <div className="flex flex-col gap-2">
@@ -617,106 +603,6 @@ function DetailModal({
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-// ── 담당자 인라인 드롭다운 셀 ─────────────────────────────────
-function AssigneeCell({
-  recordId, assigneeId, assigneeName, allUsers, onUpdated,
-}: {
-  recordId: string;
-  assigneeId: string;
-  assigneeName: string;
-  allUsers: { id: string; name: string }[];
-  onUpdated: (id: string, fields: Partial<HwRepairRecord>) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
-  const ref = useRef<HTMLDivElement>(null);
-  const btnRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
-
-  const handleOpen = () => {
-    if (btnRef.current) {
-      const rect = btnRef.current.getBoundingClientRect();
-      setDropdownPos({ top: rect.bottom + 4, left: rect.left });
-    }
-    setOpen(o => !o);
-  };
-
-  const select = async (user: { id: string; name: string } | null) => {
-    setOpen(false);
-    setSaving(true);
-    try {
-      const res = await fetch("/api/hw-repair/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: recordId, fields: { assigneeId: user?.id ?? "" } }),
-      });
-      const json = await res.json();
-      if (json.ok) onUpdated(recordId, { assigneeId: user?.id ?? "", assignee: user?.name ?? "" });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div ref={ref}>
-      <button
-        ref={btnRef}
-        onClick={handleOpen}
-        disabled={saving}
-        className="flex items-center gap-1 text-xs text-gray-700 hover:text-blue-600 hover:underline transition-colors disabled:opacity-40 whitespace-nowrap"
-      >
-        {saving ? (
-          <svg className="animate-spin w-3 h-3 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity="0.25"/><path d="M21 12a9 9 0 00-9-9"/>
-          </svg>
-        ) : assigneeName ? (
-          assigneeName
-        ) : (
-          <span className="text-gray-300">미배정</span>
-        )}
-        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-300 shrink-0">
-          <path d="M6 9l6 6 6-6"/>
-        </svg>
-      </button>
-
-      {open && (
-        <div
-          className="fixed z-[200] bg-white border border-gray-200 rounded-xl shadow-xl py-1 min-w-[140px] max-h-52 overflow-y-auto"
-          style={{ top: dropdownPos.top, left: dropdownPos.left }}
-        >
-          <button
-            onClick={() => select(null)}
-            className="w-full text-left px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50"
-          >
-            미배정
-          </button>
-          {allUsers.length === 0 && (
-            <p className="px-3 py-2 text-xs text-gray-400">사용자 없음</p>
-          )}
-          {allUsers.map(u => (
-            <button
-              key={u.id}
-              onClick={() => select(u)}
-              className={`w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 hover:text-blue-700 transition-colors ${u.id === assigneeId ? "font-bold text-blue-600" : "text-gray-700"}`}
-            >
-              {u.name}
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -1034,41 +920,6 @@ export default function HwRepairPanel() {
   const [createOpen, setCreateOpen] = useState(false);
   const [advancingId, setAdvancingId] = useState<string | null>(null);
   const [blockMsg, setBlockMsg] = useState<{ id: string; msg: string } | null>(null);
-  const [allUsers, setAllUsers] = useState<{ id: string; name: string }[]>([]);
-
-  // 담당자 리스트 관리 상태
-  const [storedAssignees,  setStoredAssignees]  = useState<{ id: string; name: string }[]>([]);
-  const [assigneeListOpen, setAssigneeListOpen] = useState(false);
-  const [assigneeInput,    setAssigneeInput]    = useState("");
-  const [assigneeSaving,   setAssigneeSaving]   = useState(false);
-  const [assigneeMsg,      setAssigneeMsg]      = useState<{ type: "ok" | "err"; text: string } | null>(null);
-
-  const assigneeList = useMemo(() => {
-    const seen = new Map<string, string>();
-    records.forEach(r => { if (r.assigneeId && r.assignee) seen.set(r.assigneeId, r.assignee); });
-    return [...seen.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, "ko"));
-  }, [records]);
-
-  // 저장된 리스트 있으면 그것만, 없으면 기존 방식(API + 레코드 + 고정 목록) 유지
-  const STATIC_USERS = [
-    { id: "335d872b-594c-811b-8c49-000297d936e0", name: "이동경" },
-    { id: "a4a74b12-760f-46d4-bb10-2a1dcc1317ab", name: "자산관리파트_권정훈" },
-  ];
-
-  const mergedUsers = useMemo(() => {
-    if (storedAssignees.length > 0) {
-      return storedAssignees.map(a => {
-        const fromRecord = assigneeList.find(u => u.name === a.name);
-        const fromApi    = allUsers.find(u => u.name === a.name);
-        return { id: a.id || fromRecord?.id || fromApi?.id || "", name: a.name };
-      }).sort((a, b) => a.name.localeCompare(b.name, "ko"));
-    }
-    const map = new Map<string, string>();
-    allUsers.forEach(u => map.set(u.id, u.name));
-    assigneeList.forEach(u => map.set(u.id, u.name));
-    STATIC_USERS.forEach(u => { if (!map.has(u.id)) map.set(u.id, u.name); });
-    return [...map.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, "ko"));
-  }, [allUsers, assigneeList, storedAssignees]);
 
   const handleUpdated = useCallback((id: string, fields: Partial<HwRepairRecord>) => {
     setRecords(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r));
@@ -1171,53 +1022,9 @@ export default function HwRepairPanel() {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    fetch("/api/hw-repair/assignees")
-      .then(r => r.json())
-      .then(res => { if (res.ok) setAllUsers(res.users); });
-  }, []);
-  useEffect(() => {
-    fetch("/api/hw-repair/assignees-list")
-      .then(r => r.json())
-      .then(res => { if (res.ok) setStoredAssignees(res.assignees ?? []); })
-      .catch(() => {});
-  }, []);
-  useEffect(() => {
     const id = setInterval(() => load(true), 30_000);
     return () => clearInterval(id);
   }, [load]);
-
-  const handleAssigneeAdd = () => {
-    const name = assigneeInput.trim();
-    if (!name) return;
-    if (storedAssignees.some(a => a.name === name)) { setAssigneeInput(""); return; }
-    const fromRecord = assigneeList.find(u => u.name === name);
-    const fromApi    = allUsers.find(u => u.name === name);
-    setStoredAssignees(prev => [...prev, { id: fromRecord?.id || fromApi?.id || "", name }]);
-    setAssigneeInput("");
-  };
-
-  const handleAssigneeRemove = (name: string) => {
-    setStoredAssignees(prev => prev.filter(a => a.name !== name));
-  };
-
-  const handleAssigneeSave = async () => {
-    setAssigneeSaving(true); setAssigneeMsg(null);
-    try {
-      const res = await fetch("/api/hw-repair/assignees-list", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assignees: storedAssignees }),
-      });
-      const json = await res.json();
-      if (json.ok) setAssigneeMsg({ type: "ok", text: "저장되었습니다." });
-      else setAssigneeMsg({ type: "err", text: json.error || "저장 실패" });
-    } catch {
-      setAssigneeMsg({ type: "err", text: "저장 실패" });
-    } finally {
-      setAssigneeSaving(false);
-      setTimeout(() => setAssigneeMsg(null), 3000);
-    }
-  };
 
   const openRecords   = useMemo(() => records.filter(r => !r.isClosed), [records]);
   const closedRecords = useMemo(() => records.filter(r =>  r.isClosed), [records]);
@@ -1309,86 +1116,6 @@ export default function HwRepairPanel() {
         </button>
       </div>
 
-      {/* 담당자 리스트 관리 */}
-      <div className="mb-5 border border-gray-200 rounded-xl overflow-hidden">
-        <button
-          onClick={() => setAssigneeListOpen(o => !o)}
-          className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-sm font-semibold text-gray-700">
-          <span className="flex items-center gap-2">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2.5">
-              <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
-              <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
-            </svg>
-            담당자 리스트 관리
-            <span className="text-xs font-normal text-gray-400">({storedAssignees.length}명)</span>
-          </span>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
-            style={{ transform: assigneeListOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>
-            <path d="M6 9l6 6 6-6"/>
-          </svg>
-        </button>
-
-        {assigneeListOpen && (
-          <div className="px-4 py-4 bg-white space-y-3">
-            <p className="text-xs text-gray-500">
-              담당자 드롭다운에 표시될 인원을 관리합니다.
-              Notion DB에 있는 사람 이름을 그대로 입력하세요.
-            </p>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <input
-                  list="repair-assignee-suggestions"
-                  value={assigneeInput}
-                  onChange={e => setAssigneeInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleAssigneeAdd(); } }}
-                  placeholder="담당자 이름 입력 또는 목록에서 선택"
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 transition"
-                />
-                <datalist id="repair-assignee-suggestions">
-                  {[...new Set([...assigneeList.map(u => u.name), ...allUsers.map(u => u.name)])]
-                    .filter(n => !storedAssignees.some(a => a.name === n))
-                    .sort((a, b) => a.localeCompare(b, "ko"))
-                    .map(name => <option key={name} value={name} />)}
-                </datalist>
-              </div>
-              <button
-                onClick={handleAssigneeAdd}
-                disabled={!assigneeInput.trim()}
-                className="px-3 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors">
-                추가
-              </button>
-            </div>
-            {storedAssignees.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {storedAssignees.map(a => (
-                  <span key={a.name} className="flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-200 rounded-full text-xs text-blue-700 font-medium">
-                    {a.name}
-                    {!a.id && <span className="text-[9px] text-gray-400 font-normal">(ID 없음)</span>}
-                    <button onClick={() => handleAssigneeRemove(a.name)}
-                      className="text-blue-400 hover:text-blue-700 transition-colors leading-none">×</button>
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-gray-400 text-center py-2">등록된 담당자가 없습니다</p>
-            )}
-            <div className="flex items-center justify-end gap-3">
-              {assigneeMsg && (
-                <span className={`text-xs font-medium ${assigneeMsg.type === "ok" ? "text-green-600" : "text-red-500"}`}>
-                  {assigneeMsg.text}
-                </span>
-              )}
-              <button
-                onClick={handleAssigneeSave}
-                disabled={assigneeSaving}
-                className="px-4 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
-                {assigneeSaving ? "저장 중..." : "저장"}
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
       {/* 요약 카드 */}
       <div className="grid grid-cols-4 gap-3 mb-6">
         {[
@@ -1439,14 +1166,14 @@ export default function HwRepairPanel() {
         <table className="data-table">
           <thead>
             <tr>
-              {["진행단계", "자산번호", "대분류", "법인", "부서", "사용자", "접수일", "과실여부", "수리업체", "담당자", "수리내용", "영수증", "진행동의서", "세금계산서결재", "내부결재내용"].map(h => (
+              {["진행단계", "자산번호", "대분류", "법인", "부서", "사용자", "접수일", "과실여부", "수리업체", "수리내용", "영수증", "진행동의서", "세금계산서결재", "내부결재내용"].map(h => (
                 <th key={h}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={15} className="text-center text-gray-400 py-10">데이터 없음</td></tr>
+              <tr><td colSpan={14} className="text-center text-gray-400 py-10">데이터 없음</td></tr>
             ) : filtered.map(r => {
               const days = agingDays(r.receivedAt, r.completedAt, r.stage);
               return (
@@ -1519,16 +1246,6 @@ export default function HwRepairPanel() {
                   <td><FaultBadge fault={r.faultType} /></td>
                   {/* 수리업체 */}
                   <td className="text-xs text-gray-600">{r.vendor || "—"}</td>
-                  {/* 담당자 */}
-                  <td>
-                    <AssigneeCell
-                      recordId={r.id}
-                      assigneeId={r.assigneeId}
-                      assigneeName={r.assignee}
-                      allUsers={mergedUsers}
-                      onUpdated={handleUpdated}
-                    />
-                  </td>
                   {/* 수리내용 */}
                   <td className="max-w-[120px]">
                     <p className="text-xs text-gray-700 truncate" title={r.note}>{r.note || "—"}</p>
@@ -1562,7 +1279,6 @@ export default function HwRepairPanel() {
       {selected && (
         <DetailModal
           record={selected}
-          assigneeList={mergedUsers}
           onClose={() => setSelected(null)}
           onUpdated={handleUpdated}
           onPreview={(url, name) => setPreview({ url, name })}
