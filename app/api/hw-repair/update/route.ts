@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
         faultType?: string;
         assigneeId?: string;
         note?: string;
+        repairCost?: number;
         assetStatus?: string;
         address?: string;
         requesterEmail?: string;
@@ -62,6 +63,9 @@ export async function POST(req: NextRequest) {
     }
     if (fields.note !== undefined) {
       properties["수리내용"] = { rich_text: [{ text: { content: fields.note } }] };
+    }
+    if (fields.repairCost !== undefined) {
+      properties["수리비용"] = { number: fields.repairCost || null };
     }
     if (fields.assetStatus !== undefined) {
       properties["대분류"] = { select: fields.assetStatus ? { name: fields.assetStatus } : null };
