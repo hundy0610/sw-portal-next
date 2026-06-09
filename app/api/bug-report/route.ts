@@ -4,6 +4,7 @@ import {
   listBugReports,
   createBugReport,
   updateBugReportStatus,
+  updateBugReportReply,
   deleteBugReport,
   type BugReport,
 } from "@/lib/notion";
@@ -38,12 +39,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
+  if (body._action === "reply") {
+    await updateBugReportReply(body.id, body.reply ?? "", body.status);
+    return NextResponse.json({ ok: true });
+  }
+
   // create
-  const data: Omit<BugReport, "id" | "screenshotUrl"> = {
+  const data: Omit<BugReport, "id" | "screenshotUrl" | "reply"> = {
+    title:        body.title        ?? "",
+    content:      body.content      ?? "",
     page:         body.page         ?? "",
     feature:      body.feature      ?? "",
     type:         body.type         ?? "버그",
-    description:  body.description  ?? "",
     reporterName: s.name            ?? "",
     reporterId:   s.userId          ?? "",
     status:       "접수됨",

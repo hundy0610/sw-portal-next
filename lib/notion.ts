@@ -1329,14 +1329,16 @@ export async function deleteAutomationTask(pageId: string): Promise<void> {
 
 export interface BugReport {
   id:           string;
+  title:        string;
+  content:      string;
   page:         string;
   feature:      string;
   type:         "버그" | "개선요청";
-  description:  string;
   reporterName: string;
   reporterId:   string;
   status:       "접수됨" | "처리중" | "완료";
   createdAt:    string;
+  reply:        string;
   screenshotUrl?: string;
 }
 
@@ -1356,28 +1358,31 @@ export async function listBugReports(): Promise<BugReport[]> {
     }
     return {
       id:           p.id,
+      title:        getPropText(props, "제목"),
+      content:      getPropText(props, "내용"),
       page:         getPropSelect(props, "페이지"),
       feature:      getPropText(props, "기능"),
       type:         (getPropSelect(props, "유형") || "버그") as BugReport["type"],
-      description:  getPropText(props, "설명"),
       reporterName: getPropText(props, "제출자"),
       reporterId:   getPropText(props, "제출자ID"),
       status:       (getPropSelect(props, "상태") || "접수됨") as BugReport["status"],
       createdAt:    getPropDate(props, "제출일시"),
+      reply:        getPropText(props, "답변"),
       screenshotUrl,
     };
   });
 }
 
 export async function createBugReport(
-  data: Omit<BugReport, "id" | "screenshotUrl">,
+  data: Omit<BugReport, "id" | "screenshotUrl" | "reply">,
   fileUploadId?: string,
 ): Promise<string> {
   const dbId = process.env.NOTION_DB_BUG_REPORTS;
   if (!dbId) throw new Error("NOTION_DB_BUG_REPORTS not set");
 
   const props: Record<string, unknown> = {
-    "설명":      { title:     [{ text: { content: data.description } }] },
+    "제목":      { title:     [{ text: { content: data.title } }] },
+    "내용":      { rich_text: [{ text: { content: data.content } }] },
     "페이지":    { select:    { name: data.page } },
     "기능":      { rich_text: [{ text: { content: data.feature } }] },
     "유형":      { select:    { name: data.type } },
@@ -1402,6 +1407,16 @@ export async function updateBugReportStatus(id: string, status: BugReport["statu
   await notion.pages.update({
     page_id: id,
     properties: { "상태": { select: { name: status } } } as Parameters<typeof notion.pages.update>[0]["properties"],
+  });
+}
+
+export async function updateBugReportReply(id: string, reply: string, status: BugReport["status"]): Promise<void> {
+  await notion.pages.update({
+    page_id: id,
+    properties: {
+      "답변": { rich_text: [{ text: { content: reply } }] },
+      "상태": { select:    { name: status } },
+    } as Parameters<typeof notion.pages.update>[0]["properties"],
   });
 }
 
