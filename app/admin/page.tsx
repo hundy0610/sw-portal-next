@@ -22,6 +22,7 @@ const HwRepairPanel          = dynamic(() => import("@/components/admin/HwRepair
 const ExchangeReturnPanel    = dynamic(() => import("@/components/admin/ExchangeReturnPanel"),    { ssr: false });
 const WorkFeedbackPanel      = dynamic(() => import("@/components/admin/WorkFeedbackPanel"),      { ssr: false });
 const AutomationPanel        = dynamic(() => import("@/components/admin/AutomationPanel"),        { ssr: false });
+const BugReportPanel         = dynamic(() => import("@/components/admin/BugReportPanel"),         { ssr: false });
 
 // ── 세션 타입 ──────────────────────────────────────────────────
 interface SessionInfo {
@@ -82,6 +83,7 @@ const SUPER_GROUPS: MenuGroup[] = [
       { id: "accounts",      icon: "👤", label: "계정 권한 설정", desc: "담당자 계정 관리"    },
       { id: "contracts",     icon: "📋", label: "계약 관리",       desc: "PC/OA 유지보수 계약" },
       { id: "work-feedback", icon: "🌱", label: "업무 피드백",     desc: "연/월/주간 목표 관리" },
+      { id: "bugreport",     icon: "🐛", label: "버그리포트",      desc: "버그 및 개선요청 관리" },
     ],
   },
 ];
@@ -225,6 +227,7 @@ export default function AdminPage() {
       case "accounts":    return canAccess("accounts")    ? <AccountsPanel isSuperAdmin={session?.role === "super"} />   : <AccessDenied />;
       case "contracts":     return canAccess("contracts")   ? <ContractPanel />   : <AccessDenied />;
       case "work-feedback": return canAccess("work-feedback") ? <WorkFeedbackPanel session={{ role: session.role, userId: session.userId, name: session.name }} /> : <AccessDenied />;
+      case "bugreport":     return <BugReportPanel />;
       default:            return null;
     }
   }
