@@ -33,15 +33,23 @@ export default function BugReportPanel() {
   const [filterPage, setFilterPage]     = useState("전체");
   const [filterStatus, setFilterStatus] = useState("전체");
   const [preview, setPreview]           = useState<string | null>(null);
+  const [error, setError]               = useState<string | null>(null);
 
   const pages = ["전체", ...Array.from(new Set(reports.map(r => r.page)))];
 
   async function load() {
     setLoading(true);
-    const res = await fetch("/api/bug-report");
-    const { data } = await res.json();
-    setReports(data ?? []);
-    setLoading(false);
+    setError(null);
+    try {
+      const res = await fetch("/api/bug-report");
+      if (!res.ok) { setError(`오류 ${res.status}: ${await res.text()}`); return; }
+      const { data } = await res.json();
+      setReports(data ?? []);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { load(); }, []);
@@ -98,6 +106,11 @@ export default function BugReportPanel() {
 
       {loading ? (
         <div style={{ textAlign: "center", padding: 60, color: "#94a3b8" }}>불러오는 중...</div>
+      ) : error ? (
+        <div style={{ textAlign: "center", padding: 60, color: "#DC2626", fontSize: 13 }}>
+          <div style={{ marginBottom: 8 }}>⚠️ 데이터를 불러오지 못했습니다</div>
+          <div style={{ color: "#94a3b8", fontSize: 12 }}>{error}</div>
+        </div>
       ) : filtered.length === 0 ? (
         <div style={{ textAlign: "center", padding: 60, color: "#94a3b8" }}>리포트가 없습니다.</div>
       ) : (
