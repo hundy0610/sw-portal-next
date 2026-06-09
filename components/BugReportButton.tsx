@@ -113,7 +113,8 @@ export default function BugReportButton() {
   const [page, setPage]           = useState(defaultPage);
   const [feature, setFeature]     = useState(PAGE_FEATURES[defaultPage]?.[0] ?? "기타");
   const [type, setType]           = useState<"버그" | "개선요청">("버그");
-  const [description, setDescription] = useState("");
+  const [title, setTitle]         = useState("");
+  const [content, setContent]     = useState("");
   const [screenshot, setScreenshot] = useState<File | null>(null);
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -153,7 +154,8 @@ export default function BugReportButton() {
     setPage(detected);
     setFeature(PAGE_FEATURES[detected]?.[0] ?? "기타");
     setType("버그");
-    setDescription("");
+    setTitle("");
+    setContent("");
     setScreenshot(null);
     setScreenshotPreview(null);
     setDone(false);
@@ -161,7 +163,7 @@ export default function BugReportButton() {
   }
 
   async function handleSubmit() {
-    if (!description.trim()) return;
+    if (!title.trim() || !content.trim()) return;
     setSubmitting(true);
     try {
       let fileUploadId: string | undefined;
@@ -186,7 +188,7 @@ export default function BugReportButton() {
       await fetch("/api/bug-report", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ page, feature, type, description: description.trim(), fileUploadId }),
+        body: JSON.stringify({ page, feature, type, title: title.trim(), content: content.trim(), fileUploadId }),
       });
 
       setDone(true);
@@ -285,12 +287,24 @@ export default function BugReportButton() {
                   </select>
                 </div>
 
-                {/* 설명 */}
+                {/* 제목 */}
                 <div>
-                  <label style={S.label}>설명 <span style={{ color: "#ef4444" }}>*</span></label>
+                  <label style={S.label}>제목 <span style={{ color: "#ef4444" }}>*</span></label>
+                  <input
+                    type="text"
+                    value={title}
+                    onChange={e => setTitle(e.target.value)}
+                    placeholder={type === "버그" ? "발생한 버그를 한 줄로 요약해주세요." : "개선 요청 내용을 한 줄로 요약해주세요."}
+                    style={{ ...S.select, padding: "9px 12px" }}
+                  />
+                </div>
+
+                {/* 내용 */}
+                <div>
+                  <label style={S.label}>내용 <span style={{ color: "#ef4444" }}>*</span></label>
                   <textarea
-                    value={description}
-                    onChange={e => setDescription(e.target.value)}
+                    value={content}
+                    onChange={e => setContent(e.target.value)}
                     placeholder={type === "버그" ? "어떤 오류가 발생했나요? 재현 방법도 알려주세요." : "어떤 부분을 개선하면 좋을까요?"}
                     style={S.textarea}
                   />
@@ -337,16 +351,16 @@ export default function BugReportButton() {
                 {/* 제출 버튼 */}
                 <button
                   onClick={handleSubmit}
-                  disabled={submitting || !description.trim()}
+                  disabled={submitting || !title.trim() || !content.trim()}
                   style={{
                     padding: "12px",
-                    background: submitting || !description.trim() ? "#cbd5e1" : "#2563EB",
+                    background: submitting || !title.trim() || !content.trim() ? "#cbd5e1" : "#2563EB",
                     color: "#fff",
                     border: "none",
                     borderRadius: 8,
                     fontSize: 15,
                     fontWeight: 600,
-                    cursor: submitting || !description.trim() ? "not-allowed" : "pointer",
+                    cursor: submitting || !title.trim() || !content.trim() ? "not-allowed" : "pointer",
                     marginTop: 4,
                   }}
                 >
