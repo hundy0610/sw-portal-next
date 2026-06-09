@@ -241,21 +241,23 @@ export default function BugReportPanel() {
                 </div>
               )}
 
-              {/* 완료 선택 시 답변 입력 */}
-              {replyStatus === "완료" && (
-                <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 10, padding: "12px 14px" }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#15803D", marginBottom: 8 }}>
-                    ✅ {selected.reply ? "처리 내용 수정" : "처리 내용 입력"}
-                  </div>
-                  <textarea
-                    value={replyText}
-                    onChange={e => setReplyText(e.target.value)}
-                    placeholder="어떻게 처리했는지 입력해주세요."
-                    autoFocus
-                    style={{ width: "100%", minHeight: 90, padding: "10px 12px", border: "1px solid #BBF7D0", borderRadius: 8, fontSize: 14, color: "#0f172a", resize: "vertical" as const, outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const, background: "#fff" }}
-                  />
+              {/* 답변 / 메모 입력 — 항상 표시 */}
+              <div style={{
+                background: replyStatus === "완료" ? "#F0FDF4" : "#F8FAFC",
+                border: `1px solid ${replyStatus === "완료" ? "#BBF7D0" : "#E2E8F0"}`,
+                borderRadius: 10,
+                padding: "12px 14px",
+              }}>
+                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: replyStatus === "완료" ? "#15803D" : "#64748b" }}>
+                  {replyStatus === "완료" ? "✅ 처리 내용" : "💬 메모 / 답변"}
                 </div>
-              )}
+                <textarea
+                  value={replyText}
+                  onChange={e => setReplyText(e.target.value)}
+                  placeholder={replyStatus === "완료" ? "어떻게 처리했는지 입력해주세요." : "처리 중인 내용이나 메모를 남겨주세요."}
+                  style={{ width: "100%", minHeight: 90, padding: "10px 12px", border: `1px solid ${replyStatus === "완료" ? "#BBF7D0" : "#E2E8F0"}`, borderRadius: 8, fontSize: 14, color: "#0f172a", resize: "vertical" as const, outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const, background: "#fff" }}
+                />
+              </div>
             </div>
 
             {/* ── 고정 하단 버튼 ── */}
