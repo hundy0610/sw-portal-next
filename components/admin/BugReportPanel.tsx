@@ -148,7 +148,6 @@ export default function BugReportPanel() {
                     <span style={{ fontSize: 11, color: "#94a3b8" }}>›</span>
                     <span style={{ fontSize: 11, color: "#94a3b8" }}>{r.feature}</span>
                     <span style={{ fontSize: 11, fontWeight: 700, padding: "1px 7px", borderRadius: 20, background: r.type === "버그" ? "#FEE2E2" : "#E0F2FE", color: r.type === "버그" ? "#DC2626" : "#0369A1" }}>{r.type}</span>
-                    {r.reply && <span style={{ fontSize: 11, padding: "1px 7px", borderRadius: 20, background: "#F0FDF4", color: "#15803D" }}>답변완료</span>}
                   </div>
                 </div>
                 {/* 우측 */}
@@ -184,40 +183,55 @@ export default function BugReportPanel() {
             </div>
 
             {/* 모달 본문 */}
-            <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column" as const, gap: 20 }}>
+            <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column" as const, gap: 16 }}>
 
-              {/* 내용 */}
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", marginBottom: 6 }}>내용</div>
-                <p style={{ fontSize: 14, color: "#0f172a", margin: 0, lineHeight: 1.7, whiteSpace: "pre-wrap" as const }}>{selected.content}</p>
+              {/* ── 스레드: 제출자 메시지 ── */}
+              <div style={{ display: "flex", gap: 10 }}>
+                <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#E2E8F0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#64748b", flexShrink: 0 }}>
+                  {selected.reporterName?.[0] ?? "?"}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>{selected.reporterName}</span>
+                    <span style={{ fontSize: 11, color: "#cbd5e1" }}>{selected.createdAt ? new Date(selected.createdAt).toLocaleString("ko-KR") : "-"}</span>
+                  </div>
+                  <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "0 10px 10px 10px", padding: "12px 14px" }}>
+                    <p style={{ fontSize: 14, color: "#0f172a", margin: 0, lineHeight: 1.7, whiteSpace: "pre-wrap" as const }}>{selected.content}</p>
+                    {selected.screenshotUrl && (
+                      <button onClick={() => setImgPreview(selected.screenshotUrl!)}
+                        style={{ background: "none", border: "none", padding: 0, cursor: "pointer", marginTop: 10, display: "block" }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={selected.screenshotUrl} alt="screenshot" style={{ maxWidth: "100%", maxHeight: 200, borderRadius: 8, border: "1px solid #E2E8F0", display: "block" }} />
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
 
-              {/* 스크린샷 */}
-              {selected.screenshotUrl && (
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", marginBottom: 6 }}>스크린샷</div>
-                  <button onClick={() => setImgPreview(selected.screenshotUrl!)}
-                    style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={selected.screenshotUrl} alt="screenshot" style={{ maxWidth: "100%", maxHeight: 220, borderRadius: 8, border: "1px solid #E2E8F0", display: "block" }} />
-                  </button>
+              {/* ── 스레드: 기존 답변 (있을 때) ── */}
+              {selected.reply && (
+                <div style={{ display: "flex", gap: 10, flexDirection: "row-reverse" as const }}>
+                  <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#1E3A8A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
+                    관
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 6, justifyContent: "flex-end" }}>
+                      <span style={{ fontSize: 11, color: "#cbd5e1" }}>관리자</span>
+                    </div>
+                    <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: "10px 0 10px 10px", padding: "12px 14px" }}>
+                      <p style={{ fontSize: 14, color: "#1E3A8A", margin: 0, lineHeight: 1.7, whiteSpace: "pre-wrap" as const }}>{selected.reply}</p>
+                    </div>
+                  </div>
                 </div>
               )}
 
-              {/* 제출 정보 */}
-              <div style={{ fontSize: 12, color: "#94a3b8", display: "flex", gap: 12 }}>
-                <span>제출자: {selected.reporterName} ({selected.reporterId})</span>
-                <span>·</span>
-                <span>{selected.createdAt ? new Date(selected.createdAt).toLocaleString("ko-KR") : "-"}</span>
-              </div>
+              {/* ── 구분선 ── */}
+              <div style={{ borderTop: "1px solid #E2E8F0", margin: "4px 0" }} />
 
-              {/* 구분선 */}
-              <div style={{ borderTop: "1px solid #E2E8F0" }} />
-
-              {/* 답변 + 상태 변경 */}
+              {/* ── 상태 변경 ── */}
               <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", marginBottom: 8 }}>답변 및 처리 상태</div>
-                <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", marginBottom: 8 }}>처리 상태</div>
+                <div style={{ display: "flex", gap: 8 }}>
                   {(["접수됨", "처리중", "완료"] as const).map(s => {
                     const sc = STATUS_COLOR[s];
                     return (
@@ -228,15 +242,20 @@ export default function BugReportPanel() {
                     );
                   })}
                 </div>
+              </div>
+
+              {/* ── 답변 입력 ── */}
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", marginBottom: 8 }}>{selected.reply ? "답변 수정" : "답변 작성"}</div>
                 <textarea
                   value={replyText}
                   onChange={e => setReplyText(e.target.value)}
                   placeholder="처리 내용이나 답변을 입력하세요."
-                  style={{ width: "100%", minHeight: 100, padding: "10px 12px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 14, color: "#0f172a", resize: "vertical" as const, outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const }}
+                  style={{ width: "100%", minHeight: 90, padding: "10px 12px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 14, color: "#0f172a", resize: "vertical" as const, outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const }}
                 />
               </div>
 
-              {/* 버튼 */}
+              {/* ── 버튼 ── */}
               <div style={{ display: "flex", gap: 8, justifyContent: "space-between" }}>
                 <button onClick={() => handleDelete(selected.id)}
                   style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid #FEE2E2", background: "#FFF5F5", color: "#DC2626", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
