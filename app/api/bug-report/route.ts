@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
   }
 
   // create
-  const data: Omit<BugReport, "id" | "screenshotUrl" | "reply"> = {
+  const data: Omit<BugReport, "id" | "screenshotUrls" | "reply"> = {
     title:        body.title        ?? "",
     content:      body.content      ?? "",
     page:         body.page         ?? "",
@@ -57,6 +57,6 @@ export async function POST(req: NextRequest) {
     createdAt:    new Date().toISOString(),
   };
 
-  const id = await createBugReport(data, body.fileUploadId);
+  const id = await createBugReport(data, body.fileUploadIds ?? (body.fileUploadId ? [body.fileUploadId] : []));
   return NextResponse.json({ ok: true, id });
 }

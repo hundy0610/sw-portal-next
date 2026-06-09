@@ -13,8 +13,8 @@ interface BugReport {
   reporterId:   string;
   status:       "접수됨" | "처리중" | "완료";
   createdAt:    string;
-  reply:        string;
-  screenshotUrl?: string;
+  reply:          string;
+  screenshotUrls: string[];
 }
 
 const STATUS_COLOR: Record<string, { bg: string; color: string }> = {
@@ -197,12 +197,16 @@ export default function BugReportPanel() {
                   </div>
                   <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "0 10px 10px 10px", padding: "12px 14px" }}>
                     <p style={{ fontSize: 14, color: "#0f172a", margin: 0, lineHeight: 1.7, whiteSpace: "pre-wrap" as const }}>{selected.content}</p>
-                    {selected.screenshotUrl && (
-                      <button onClick={() => setImgPreview(selected.screenshotUrl!)}
-                        style={{ background: "none", border: "none", padding: 0, cursor: "pointer", marginTop: 10, display: "block" }}>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={selected.screenshotUrl} alt="screenshot" style={{ maxWidth: "100%", maxHeight: 200, borderRadius: 8, border: "1px solid #E2E8F0", display: "block" }} />
-                      </button>
+                    {selected.screenshotUrls?.length > 0 && (
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, marginTop: 10 }}>
+                        {selected.screenshotUrls.map((url, i) => (
+                          <button key={i} onClick={() => setImgPreview(url)}
+                            style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={url} alt={`screenshot-${i}`} style={{ width: 80, height: 80, objectFit: "cover" as const, borderRadius: 8, border: "1px solid #E2E8F0", display: "block" }} />
+                          </button>
+                        ))}
+                      </div>
                     )}
                   </div>
                 </div>

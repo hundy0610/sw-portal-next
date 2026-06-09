@@ -1337,9 +1337,9 @@ export interface BugReport {
   reporterName: string;
   reporterId:   string;
   status:       "접수됨" | "처리중" | "완료";
-  createdAt:    string;
-  reply:        string;
-  screenshotUrl?: string;
+  createdAt:      string;
+  reply:          string;
+  screenshotUrls: string[];
 }
 
 export async function listBugReports(): Promise<BugReport[]> {
@@ -1351,31 +1351,33 @@ export async function listBugReports(): Promise<BugReport[]> {
   return pages.map((p) => {
     const props = (p as PageObjectResponse).properties;
     const files = props["스크린샷"];
-    let screenshotUrl: string | undefined;
-    if (files?.type === "files" && files.files.length > 0) {
-      const f = files.files[0];
-      screenshotUrl = f.type === "file" ? f.file.url : f.type === "external" ? f.external.url : undefined;
+    const screenshotUrls: string[] = [];
+    if (files?.type === "files") {
+      for (const f of files.files) {
+        const url = f.type === "file" ? f.file.url : f.type === "external" ? f.external.url : null;
+        if (url) screenshotUrls.push(url);
+      }
     }
     return {
-      id:           p.id,
-      title:        getPropText(props, "제목"),
-      content:      getPropText(props, "내용"),
-      page:         getPropSelect(props, "페이지"),
-      feature:      getPropText(props, "기능"),
-      type:         (getPropSelect(props, "유형") || "버그") as BugReport["type"],
-      reporterName: getPropText(props, "제출자"),
-      reporterId:   getPropText(props, "제출자ID"),
-      status:       (getPropSelect(props, "상태") || "접수됨") as BugReport["status"],
-      createdAt:    getPropDate(props, "제출일시"),
-      reply:        getPropText(props, "답변"),
-      screenshotUrl,
+      id:             p.id,
+      title:          getPropText(props, "제목"),
+      content:        getPropText(props, "내용"),
+      page:           getPropSelect(props, "페이지"),
+      feature:        getPropText(props, "기능"),
+      type:           (getPropSelect(props, "유형") || "버그") as BugReport["type"],
+      reporterName:   getPropText(props, "제출자"),
+      reporterId:     getPropText(props, "제출자ID"),
+      status:         (getPropSelect(props, "상태") || "접수됨") as BugReport["status"],
+      createdAt:      getPropDate(props, "제출일시"),
+      reply:          getPropText(props, "답변"),
+      screenshotUrls,
     };
   });
 }
 
 export async function createBugReport(
-  data: Omit<BugReport, "id" | "screenshotUrl" | "reply">,
-  fileUploadId?: string,
+  data: Omit<BugReport, "id" | "screenshotUrls" | "reply">,
+  fileUploadIds?: string[],
 ): Promise<string> {
   const dbId = process.env.NOTION_DB_BUG_REPORTS;
   if (!dbId) throw new Error("NOTION_DB_BUG_REPORTS not set");
@@ -1392,8 +1394,8 @@ export async function createBugReport(
     "제출일시":  { date:      { start: data.createdAt } },
   };
 
-  if (fileUploadId) {
-    props["스크린샷"] = { files: [{ type: "file_upload", file_upload: { id: fileUploadId } }] };
+  if (fileUploadIds && fileUploadIds.length > 0) {
+    props["스크린샷"] = { files: fileUploadIds.map(id => ({ type: "file_upload", file_upload: { id } })) };
   }
 
   const res = await notion.pages.create({

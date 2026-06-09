@@ -115,8 +115,8 @@ export default function BugReportButton() {
   const [type, setType]           = useState<"버그" | "개선요청">("버그");
   const [title, setTitle]         = useState("");
   const [content, setContent]     = useState("");
-  const [screenshot, setScreenshot] = useState<File | null>(null);
-  const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
+  const [files, setFiles]     = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // admin 여부 확인
@@ -138,15 +138,22 @@ export default function BugReportButton() {
     setPage(detected);
   }, [pathname]);
 
-  function handleScreenshotChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0] ?? null;
-    setScreenshot(file);
-    if (file) {
-      const url = URL.createObjectURL(file);
-      setScreenshotPreview(url);
-    } else {
-      setScreenshotPreview(null);
-    }
+  function handleFilesChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const selected = Array.from(e.target.files ?? []);
+    setFiles(prev => {
+      const merged = [...prev, ...selected].slice(0, 5); // 최대 5개
+      setPreviews(merged.map(f => URL.createObjectURL(f)));
+      return merged;
+    });
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function removeFile(idx: number) {
+    setFiles(prev => {
+      const next = prev.filter((_, i) => i !== idx);
+      setPreviews(next.map(f => URL.createObjectURL(f)));
+      return next;
+    });
   }
 
   function resetForm() {
@@ -156,39 +163,38 @@ export default function BugReportButton() {
     setType("버그");
     setTitle("");
     setContent("");
-    setScreenshot(null);
-    setScreenshotPreview(null);
+    setFiles([]);
+    setPreviews([]);
     setDone(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  async function uploadFile(file: File): Promise<string> {
+    const initRes = await fetch("/api/bug-report/upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filename: file.name, contentType: file.type, size: file.size }),
+    });
+    const { fileUploadId } = await initRes.json();
+    const fd = new FormData();
+    fd.append("file", file, file.name);
+    fd.append("fileUploadId", fileUploadId);
+    await fetch("/api/bug-report/upload", { method: "POST", body: fd });
+    return fileUploadId as string;
   }
 
   async function handleSubmit() {
     if (!title.trim() || !content.trim()) return;
     setSubmitting(true);
     try {
-      let fileUploadId: string | undefined;
-
-      if (screenshot) {
-        // 1. 업로드 세션 초기화
-        const initRes = await fetch("/api/bug-report/upload", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ filename: screenshot.name, contentType: screenshot.type, size: screenshot.size }),
-        });
-        const { fileUploadId: uploadId } = await initRes.json();
-        fileUploadId = uploadId;
-
-        // 2. 파일 전송
-        const fd = new FormData();
-        fd.append("file", screenshot, screenshot.name);
-        fd.append("fileUploadId", fileUploadId!);
-        await fetch("/api/bug-report/upload", { method: "POST", body: fd });
-      }
+      const fileUploadIds = files.length > 0
+        ? await Promise.all(files.map(uploadFile))
+        : [];
 
       await fetch("/api/bug-report", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ page, feature, type, title: title.trim(), content: content.trim(), fileUploadId }),
+        body: JSON.stringify({ page, feature, type, title: title.trim(), content: content.trim(), fileUploadIds }),
       });
 
       setDone(true);
@@ -312,38 +318,35 @@ export default function BugReportButton() {
 
                 {/* 스크린샷 */}
                 <div>
-                  <label style={S.label}>스크린샷 (선택)</label>
+                  <label style={S.label}>첨부파일 <span style={{ color: "#94a3b8", fontWeight: 400 }}>(최대 5개)</span></label>
                   <input
                     ref={fileInputRef}
                     type="file"
                     accept="image/*"
-                    onChange={handleScreenshotChange}
+                    multiple
+                    onChange={handleFilesChange}
                     style={{ display: "none" }}
                   />
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    style={{
-                      width: "100%",
-                      padding: "10px",
-                      border: "1.5px dashed #cbd5e1",
-                      borderRadius: 8,
-                      background: "#f8fafc",
-                      color: "#64748b",
-                      fontSize: 13,
-                      cursor: "pointer",
-                      textAlign: "center" as const,
-                    }}
-                  >
-                    {screenshot ? `📎 ${screenshot.name}` : "클릭하여 이미지 첨부"}
-                  </button>
-                  {screenshotPreview && (
-                    <div style={{ marginTop: 8, position: "relative", display: "inline-block" }}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={screenshotPreview} alt="preview" style={{ maxWidth: "100%", maxHeight: 200, borderRadius: 8, border: "1px solid #e2e8f0" }} />
-                      <button
-                        onClick={() => { setScreenshot(null); setScreenshotPreview(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
-                        style={{ position: "absolute", top: 4, right: 4, background: "rgba(0,0,0,.5)", color: "#fff", border: "none", borderRadius: "50%", width: 22, height: 22, cursor: "pointer", fontSize: 12, lineHeight: 1 }}
-                      >✕</button>
+                  {files.length < 5 && (
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      style={{ width: "100%", padding: "10px", border: "1.5px dashed #cbd5e1", borderRadius: 8, background: "#f8fafc", color: "#64748b", fontSize: 13, cursor: "pointer", textAlign: "center" as const }}
+                    >
+                      📎 클릭하여 이미지 추가 {files.length > 0 ? `(${files.length}/5)` : ""}
+                    </button>
+                  )}
+                  {previews.length > 0 && (
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, marginTop: 8 }}>
+                      {previews.map((src, i) => (
+                        <div key={i} style={{ position: "relative", display: "inline-block" }}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={src} alt={`preview-${i}`} style={{ width: 72, height: 72, objectFit: "cover" as const, borderRadius: 8, border: "1px solid #e2e8f0", display: "block" }} />
+                          <button
+                            onClick={() => removeFile(i)}
+                            style={{ position: "absolute", top: 2, right: 2, background: "rgba(0,0,0,.55)", color: "#fff", border: "none", borderRadius: "50%", width: 18, height: 18, cursor: "pointer", fontSize: 10, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}
+                          >✕</button>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
