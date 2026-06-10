@@ -10,7 +10,7 @@ type Stage = typeof STAGES[number];
 
 const FAULT_TYPES = ["사용자과실", "과실없음", "기타"] as const;
 
-const COMPANIES = ["대웅", "대웅제약", "대웅바이오", "대웅개발", "대웅펫", "시지바이오", "클리슈어리서치", "IDS", "유와이즈원", "페이지원", "엠서클"];
+const COMPANIES = ["대웅제약", "대웅바이오", "대웅", "대웅개발", "대웅이엔지", "대웅펫", "한올바이오파마", "시지바이오", "시지메드텍", "IdsTrust", "디엔컴퍼니", "디엔코스메틱스", "더편한샵", "페이지원", "엠서클", "애디테라", "노바메디텍", "에이하나", "다나아데이터", "클리슈어리서치", "유와이즈원", "DNC", "석천나눔재단", "HR코리아", "힐코", "블루넷"];
 
 const STAGE_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
   "수리접수":         { bg: "#F8FAFC", text: "#64748B", dot: "#94A3B8" },
