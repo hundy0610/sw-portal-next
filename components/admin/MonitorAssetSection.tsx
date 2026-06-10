@@ -4,7 +4,7 @@ import type { MonitorAsset } from "@/lib/notion";
 
 const STATUS_OPTIONS = ["사용중", "수리중", "예비", "미설치", "폐기"];
 
-type AssetForm = {
+export type AssetForm = {
   assetNo: string;
   model: string;
   status: string;
@@ -15,7 +15,8 @@ type AssetForm = {
 
 const EMPTY_FORM: AssetForm = { assetNo: "", model: "", status: "사용중", corp: "", purchaseDate: "", note: "" };
 
-export default function MonitorAssetSection({
+// 자산 정보 조회 + 단일/복수 필드 저장(없으면 신규 생성) 훅
+export function useMonitorAsset({
   itemId, building, floor, defaultTitle,
 }: {
   itemId: string;
@@ -25,47 +26,110 @@ export default function MonitorAssetSection({
 }) {
   const [asset,   setAsset]   = useState<MonitorAsset | null>(null);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
-  const [saving,  setSaving]  = useState(false);
-  const [form,    setForm]    = useState<AssetForm>(EMPTY_FORM);
 
-  const load = useCallback(() => {
+  const reload = useCallback(() => {
     setLoading(true);
     fetch(`/api/monitor-assets?itemId=${encodeURIComponent(itemId)}`)
       .then(r => r.json())
-      .then(({ assets }) => {
-        const a: MonitorAsset | null = assets?.[0] ?? null;
-        setAsset(a);
-        setForm(a
-          ? { assetNo: a.assetNo, model: a.model, status: a.status || "사용중", corp: a.corp, purchaseDate: a.purchaseDate, note: a.note }
-          : EMPTY_FORM);
-      })
+      .then(({ assets }) => setAsset(assets?.[0] ?? null))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [itemId]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { reload(); }, [reload]);
+
+  const saveFields = useCallback(async (fields: Partial<AssetForm>) => {
+    if (asset) {
+      setAsset(prev => prev ? { ...prev, ...fields } : prev);
+      await fetch(`/api/monitor-assets/${asset.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(fields),
+      });
+    } else {
+      const res = await fetch(`/api/monitor-assets`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId, title: defaultTitle, building, floor, ...fields }),
+      });
+      const { id } = await res.json();
+      setAsset({ id, itemId, title: defaultTitle, building, floor, ...EMPTY_FORM, ...fields });
+    }
+  }, [asset, itemId, building, floor, defaultTitle]);
+
+  return { asset, loading, saveFields, reload };
+}
+
+// 패널 헤더에 표시되는 자산번호 배지 (클릭하여 인라인 편집)
+export function AssetNoBadge({
+  asset, loading, saveFields,
+}: {
+  asset: MonitorAsset | null;
+  loading: boolean;
+  saveFields: (fields: Partial<AssetForm>) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value,   setValue]   = useState("");
+  const [saving,  setSaving]  = useState(false);
+
+  useEffect(() => { setValue(asset?.assetNo ?? ""); }, [asset?.assetNo]);
+
+  if (loading) return null;
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1 mt-1">
+        <input
+          autoFocus
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          placeholder="자산번호 입력"
+          className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:border-white/50 w-32"
+        />
+        <button
+          disabled={saving}
+          onClick={async () => { setSaving(true); try { await saveFields({ assetNo: value }); setEditing(false); } finally { setSaving(false); } }}
+          className="text-[10px] text-blue-300 hover:text-blue-100 disabled:opacity-50">
+          {saving ? "…" : "저장"}
+        </button>
+        <button onClick={() => { setValue(asset?.assetNo ?? ""); setEditing(false); }} className="text-[10px] text-white/50 hover:text-white/80">취소</button>
+      </div>
+    );
+  }
+
+  return (
+    <button onClick={() => setEditing(true)} className="flex items-center gap-1.5 mt-1 group">
+      <span className="text-[11px] font-mono font-semibold text-blue-300">{asset?.assetNo || "자산번호 미등록"}</span>
+      <span className="text-[9px] opacity-0 group-hover:opacity-60 transition-opacity">✏️</span>
+    </button>
+  );
+}
+
+export default function MonitorAssetSection({
+  asset, loading, saveFields,
+}: {
+  asset: MonitorAsset | null;
+  loading: boolean;
+  saveFields: (fields: Partial<AssetForm>) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [saving,  setSaving]  = useState(false);
+  const [form,    setForm]    = useState<AssetForm>(EMPTY_FORM);
+
+  useEffect(() => {
+    setForm(asset
+      ? { assetNo: asset.assetNo, model: asset.model, status: asset.status || "사용중", corp: asset.corp, purchaseDate: asset.purchaseDate, note: asset.note }
+      : EMPTY_FORM);
+  }, [asset]);
 
   const save = async () => {
     setSaving(true);
     try {
-      if (asset) {
-        await fetch(`/api/monitor-assets/${asset.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
-        });
-      } else {
-        await fetch(`/api/monitor-assets`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ itemId, title: defaultTitle, building, floor, ...form }),
-        });
-      }
+      await saveFields(form);
       setEditing(false);
-      load();
-    } catch {}
-    finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -75,7 +139,9 @@ export default function MonitorAssetSection({
         {!loading && (
           editing ? (
             <div className="flex gap-1">
-              <button onClick={() => { setEditing(false); load(); }} className="text-[10px] text-gray-400 hover:text-gray-600">취소</button>
+              <button onClick={() => { setEditing(false); setForm(asset
+                ? { assetNo: asset.assetNo, model: asset.model, status: asset.status || "사용중", corp: asset.corp, purchaseDate: asset.purchaseDate, note: asset.note }
+                : EMPTY_FORM); }} className="text-[10px] text-gray-400 hover:text-gray-600">취소</button>
               <button onClick={save} disabled={saving} className="text-[10px] text-blue-500 hover:text-blue-700 font-semibold disabled:opacity-50">
                 {saving ? "저장 중…" : "저장"}
               </button>

@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import type { MonitorHistoryEntry } from "@/lib/notion";
 import { FLOOR_SKETCHES, SketchCtx, SketchZone } from "./FloorSketches";
-import MonitorAssetSection from "./MonitorAssetSection";
+import MonitorAssetSection, { useMonitorAsset, AssetNoBadge } from "./MonitorAssetSection";
 import FloorMapEditor, { type EditorData, migrate } from "./FloorMapEditor";
 import FloorMapView from "./FloorMapView";
 
@@ -691,6 +691,13 @@ function SeatDetailPanel({
   const [histLoading,  setHistLoading]  = useState(false);
   const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
 
+  const { asset, loading: assetLoading, saveFields } = useMonitorAsset({
+    itemId: seat.id,
+    building: building?.label ?? "",
+    floor: floor?.label ?? "",
+    defaultTitle: [building?.label, floor?.label, zone.label, `${rowLabel}행${seat.col + 1}번`].filter(Boolean).join(" - "),
+  });
+
   // 이력 로드
   useEffect(() => {
     setHistLoading(true);
@@ -752,6 +759,7 @@ function SeatDetailPanel({
           <div className="text-[10px] opacity-60 mb-0.5">좌석 상세 정보</div>
           <div className="text-lg font-extrabold tracking-widest leading-tight font-mono">{seat.id}</div>
           <div className="text-[10px] opacity-60 mt-1">{building?.label ?? ""} · {floor?.label ?? ""} · {zone.label}</div>
+          <AssetNoBadge asset={asset} loading={assetLoading} saveFields={saveFields} />
         </div>
         <button onClick={onClose} className="opacity-60 hover:opacity-100 text-lg mt-0.5">✕</button>
       </div>
@@ -873,12 +881,7 @@ function SeatDetailPanel({
         </button>
 
         {/* 자산 정보 */}
-        <MonitorAssetSection
-          itemId={seat.id}
-          building={building?.label ?? ""}
-          floor={floor?.label ?? ""}
-          defaultTitle={[building?.label, floor?.label, zone.label, `${rowLabel}행${seat.col + 1}번`].filter(Boolean).join(" - ")}
-        />
+        <MonitorAssetSection asset={asset} loading={assetLoading} saveFields={saveFields} />
 
         {/* 이력 목록 */}
         <div className="bg-white border border-gray-100 rounded-xl p-3">
@@ -996,6 +999,13 @@ function ItemDetailPanel({
   const [histLoading,    setHistLoading]    = useState(false);
   const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
 
+  const { asset, loading: assetLoading, saveFields } = useMonitorAsset({
+    itemId: item.id,
+    building: buildingLabel,
+    floor: floorLabel,
+    defaultTitle: [buildingLabel, floorLabel, item.label || item.id].filter(Boolean).join(" - "),
+  });
+
   const loadHistory = useCallback(() => {
     setHistLoading(true);
     fetch(`/api/monitor-history?itemId=${encodeURIComponent(item.id)}`)
@@ -1061,6 +1071,7 @@ function ItemDetailPanel({
           <div className="text-[10px] opacity-60 mt-1">
             {buildingLabel} · {floorLabel}{zone ? ` · ${zone.name}` : ""}
           </div>
+          <AssetNoBadge asset={asset} loading={assetLoading} saveFields={saveFields} />
         </div>
         <button onClick={onClose} className="opacity-60 hover:opacity-100 text-lg mt-0.5">✕</button>
       </div>
@@ -1165,12 +1176,7 @@ function ItemDetailPanel({
         </div>
 
         {/* 자산 정보 */}
-        <MonitorAssetSection
-          itemId={item.id}
-          building={buildingLabel}
-          floor={floorLabel}
-          defaultTitle={[buildingLabel, floorLabel, item.label || item.id].filter(Boolean).join(" - ")}
-        />
+        <MonitorAssetSection asset={asset} loading={assetLoading} saveFields={saveFields} />
 
         {/* 이력 목록 */}
         <div className="bg-white border border-gray-100 rounded-xl p-3">
