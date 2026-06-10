@@ -658,6 +658,17 @@ function FloorPlanSVG({
 // ══════════════════════════════════════════════════════════════════════════════
 const REPAIR_REASONS = ["화면 불량", "전원 이슈", "해상도/색상 문제", "물리적 파손", "기타"] as const;
 
+// 수리 접수 현황 DB의 "고장 내역" 옵션으로 매핑
+const FAULT_TYPE_MAP: Record<string, string> = {
+  "화면 불량":        "기타",
+  "전원 이슈":        "기타",
+  "해상도/색상 문제": "기타",
+  "물리적 파손":      "기타파손",
+  "기타":            "기타",
+};
+
+const URGENCY_OPTIONS = ["매우 급합니다.", "조금 급합니다.", "기다릴 수 있어요."] as const;
+
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
   pending:     { label: "접수",    color: "#F59E0B" },
   수리중:       { label: "수리중",  color: "#EF4444" },
@@ -973,6 +984,7 @@ function ItemDetailPanel({
   editorData,
   buildingLabel,
   floorLabel,
+  session,
   onClose,
   onUpdateType,
 }: {
@@ -980,6 +992,7 @@ function ItemDetailPanel({
   editorData: EditorData;
   buildingLabel: string;
   floorLabel: string;
+  session?: { name: string } | null;
   onClose: () => void;
   onUpdateType: (itemId: string, type: MonitorType) => void;
 }) {
@@ -992,8 +1005,15 @@ function ItemDetailPanel({
   const [repairOpen,   setRepairOpen]   = useState(false);
   const [repairReason, setRepairReason] = useState<string>(REPAIR_REASONS[0]);
   const [repairNote,   setRepairNote]   = useState("");
+  const [requester,    setRequester]    = useState(session?.name ?? "");
+  const [urgency,      setUrgency]      = useState<string>(URGENCY_OPTIONS[1]);
   const [submitting,   setSubmitting]   = useState(false);
   const [submitMsg,    setSubmitMsg]    = useState("");
+
+  const defaultLocation = [buildingLabel, floorLabel, zone?.name, item.label].filter(Boolean).join(" ");
+  const [location, setLocation] = useState(defaultLocation);
+
+  useEffect(() => { setRequester(session?.name ?? ""); }, [session?.name]);
 
   const [history,        setHistory]        = useState<MonitorHistoryEntry[]>([]);
   const [histLoading,    setHistLoading]    = useState(false);
@@ -1020,7 +1040,7 @@ function ItemDetailPanel({
   const submitRepair = async () => {
     setSubmitting(true); setSubmitMsg("");
     try {
-      const locationLabel = [buildingLabel, floorLabel, zone?.name, item.label].filter(Boolean).join(" ");
+      const locationLabel = location.trim() || defaultLocation;
       const res = await fetch("/api/monitor-history", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1035,6 +1055,21 @@ function ItemDetailPanel({
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "요청 실패");
+
+      // 수리 접수 현황 DB에도 등록
+      await fetch("/api/repair-tickets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title:      `[모니터] ${repairReason}${repairNote ? ` — ${repairNote}` : ""} (${locationLabel || item.id})`,
+          faultTypes: [FAULT_TYPE_MAP[repairReason] ?? "기타"],
+          location:   locationLabel,
+          assetId:    asset?.assetNo || "",
+          requester:  requester.trim(),
+          priority:   urgency,
+        }),
+      });
+
       setSubmitMsg("✓ 수리 요청이 접수되었습니다.");
       setRepairOpen(false); setRepairNote("");
       loadHistory();
@@ -1159,6 +1194,31 @@ function ItemDetailPanel({
                   rows={2}
                   placeholder="상세 증상 또는 요청 내용"
                   className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-red-400"/>
+              </div>
+              <div>
+                <div className="text-[10px] text-gray-400 mb-1">긴급도</div>
+                <select
+                  value={urgency}
+                  onChange={e => setUrgency(e.target.value)}
+                  className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-red-400">
+                  {URGENCY_OPTIONS.map(u => <option key={u}>{u}</option>)}
+                </select>
+              </div>
+              <div>
+                <div className="text-[10px] text-gray-400 mb-1">문의자</div>
+                <input
+                  value={requester}
+                  onChange={e => setRequester(e.target.value)}
+                  placeholder="이름"
+                  className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-red-400"/>
+              </div>
+              <div>
+                <div className="text-[10px] text-gray-400 mb-1">실제 근무 위치</div>
+                <input
+                  value={location}
+                  onChange={e => setLocation(e.target.value)}
+                  placeholder="예: 신관 4층 OO팀"
+                  className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-red-400"/>
               </div>
               <button
                 onClick={submitRepair}
@@ -2410,6 +2470,7 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
                 editorData={editorData}
                 buildingLabel={building?.label ?? ""}
                 floorLabel={floor?.label ?? ""}
+                session={session}
                 onClose={() => setSelectedItemId(null)}
                 onUpdateType={updateItemType}
               />

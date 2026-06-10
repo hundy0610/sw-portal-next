@@ -519,6 +519,40 @@ export async function fetchRepairTickets(): Promise<RepairTicket[]> {
   });
 }
 
+export async function createRepairTicket(data: {
+  title: string;
+  faultTypes: string[];
+  company?: string;
+  department?: string;
+  location?: string;
+  assetId?: string;
+  requester?: string;
+  priority?: string;
+}): Promise<string> {
+  if (isMock()) { console.log("[MOCK] createRepairTicket", data); return "mock-repair-new"; }
+  const dbId = process.env.NOTION_DB_REPAIR_TICKETS;
+  if (!dbId) throw new Error("NOTION_DB_REPAIR_TICKETS 환경변수가 설정되지 않았습니다.");
+
+  const properties: Record<string, unknown> = {
+    "고장증상":       { title:        [{ text: { content: data.title } }] },
+    "고장 내역":      { multi_select: data.faultTypes.map((name) => ({ name })) },
+    "상태":          { status:       { name: "시작 전" } },
+    "부서":          { rich_text:    [{ text: { content: data.department || "" } }] },
+    "실제 근무 위치":  { rich_text:    [{ text: { content: data.location || "" } }] },
+    "자산번호":       { rich_text:    [{ text: { content: data.assetId || "" } }] },
+    "문의자":        { rich_text:    [{ text: { content: data.requester || "" } }] },
+  };
+  if (data.company) properties["법인"] = { select: { name: data.company } };
+  if (data.priority) properties["긴급도"] = { select: { name: data.priority } };
+
+  const response = await notion.pages.create({
+    parent: { database_id: toNotionId(dbId) },
+    properties: properties as Parameters<typeof notion.pages.create>[0]["properties"],
+  });
+
+  return response.id;
+}
+
 // ────────────────────────────────────────────────────────────
 // HW 외부 수리 추적
 // ────────────────────────────────────────────────────────────
