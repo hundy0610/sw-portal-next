@@ -5,6 +5,7 @@ import {
   createBugReport,
   updateBugReportStatus,
   updateBugReportReply,
+  updateBugReportHandler,
   deleteBugReport,
   type BugReport,
 } from "@/lib/notion";
@@ -40,12 +41,22 @@ export async function POST(req: NextRequest) {
   }
 
   if (body._action === "reply") {
-    await updateBugReportReply(body.id, body.reply ?? "", body.status);
-    return NextResponse.json({ ok: true });
+    const text = body.text ?? "";
+    const formatted = `[${s.userId}|${s.name}]\n${text}`;
+    const newReply = body.currentReply
+      ? body.currentReply + "\n---\n" + formatted
+      : formatted;
+    await updateBugReportReply(body.id, newReply, body.status);
+    return NextResponse.json({ ok: true, message: formatted });
+  }
+
+  if (body._action === "handler") {
+    await updateBugReportHandler(body.id, s.name, s.userId);
+    return NextResponse.json({ ok: true, handler: s.name, handlerId: s.userId });
   }
 
   // create
-  const data: Omit<BugReport, "id" | "screenshotUrls" | "reply"> = {
+  const data: Omit<BugReport, "id" | "screenshotUrls" | "reply" | "handler" | "handlerId"> = {
     title:        body.title        ?? "",
     content:      body.content      ?? "",
     page:         body.page         ?? "",
