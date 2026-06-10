@@ -18,7 +18,7 @@ https://www.notion.so/workspace/[DATABASE_ID]?v=...
 ```
 URL의 `?v=` 앞 32자리가 DB ID입니다.
 
-## 3단계: 로컬 실행
+## 3단계: 환경변수 설정
 
 ```bash
 # 1. 프로젝트 폴더로 이동
@@ -32,12 +32,6 @@ cp .env.example .env.local
 
 # 4. .env.local 파일 편집
 # NOTION_TOKEN, NOTION_DB_SWDB 등 입력
-
-# 5. 개발 서버 실행
-npm run dev
-
-# http://localhost:3000 에서 확인
-# http://localhost:3000/admin 에서 관리자 대시보드 확인
 ```
 
 ## 4단계: Vercel 배포 (무료)
