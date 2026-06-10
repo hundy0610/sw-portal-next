@@ -38,6 +38,14 @@ const COMPANIES = [
   "석천나눔재단","HR코리아","힐코","블루넷",
 ];
 
+// 자산번호 자동 채번용 법인 코드 (형식: YY+법인코드-MM+일련번호, 예: 2601-06101)
+const COMPANY_ASSET_CODES: Record<string,string> = {
+  "대웅제약":"01", "대웅":"02", "대웅개발":"03", "대웅바이오":"04", "엠서클":"05",
+  "시지바이오":"06", "디엔코스메틱스":"07", "대웅펫":"08", "IdsTrust":"09", "유와이즈원":"10",
+  "페이지원":"11", "시지메드텍":"12", "클리슈어리서치":"13", "디엔컴퍼니":"15", "더편한샵":"16",
+  "한올바이오파마":"17", "다나아데이터":"18", "애디테라":"20", "HR코리아":"21",
+};
+
 const STATUSES = [
   "사용중","재고","교체요청","반납예정","출고준비중","출고준비완료",
   "수리","렌탈","임시지급","폐기","폐기확정(리스트화)","폐기완료",
@@ -1620,6 +1628,80 @@ function ExcelUploadTab(){
             </div>
           )}
           <button onClick={reset} className="w-full py-2.5 rounded-xl border border-gray-300 text-gray-600 text-sm hover:bg-gray-50">새 파일 업로드</button>
+        </div>
+      )}
+      <NextAssetNoPanel/>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 법인별 다음 자산번호 추천 (형식: YY+법인코드-MM+일련번호, 예: 2601-06101)
+// ─────────────────────────────────────────────────────────────────────────────
+function NextAssetNoPanel(){
+  const [records,setRecords]=useState<HwRecord[]|null>(null);
+  const [loading,setLoading]=useState(true);
+  const [error,setError]=useState("");
+
+  useEffect(()=>{
+    (async()=>{
+      try{
+        const res=await fetch("/api/hw");
+        const json=await res.json();
+        if(!json.ok) throw new Error(json.error);
+        setRecords(json.records);
+      }catch(e){setError(String(e));}
+      finally{setLoading(false);}
+    })();
+  },[]);
+
+  const now=new Date();
+  const yy=String(now.getFullYear()).slice(-2);
+  const mm=String(now.getMonth()+1).padStart(2,"0");
+  const companies=COMPANIES.filter(c=>COMPANY_ASSET_CODES[c]);
+
+  const recommendations=useMemo(()=>{
+    if(!records) return null;
+    const map:Record<string,string>={};
+    for(const c of companies){
+      const code=COMPANY_ASSET_CODES[c];
+      const prefix=`${yy}${code}-${mm}`;
+      const re=new RegExp(`^${prefix}(\\d{3})$`);
+      let maxSeq=0;
+      for(const r of records){
+        const m=re.exec((r.assetNo||"").trim());
+        if(m){const seq=parseInt(m[1],10); if(seq>maxSeq) maxSeq=seq;}
+      }
+      const next=maxSeq>0?maxSeq+1:101;
+      map[c]=`${prefix}${String(next).padStart(3,"0")}`;
+    }
+    return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[records,yy,mm]);
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="px-5 py-3 border-b border-gray-100">
+        <p className="text-sm font-semibold text-gray-700">🔢 법인별 다음 자산번호 추천 ({yy}년 {mm}월)</p>
+        <p className="text-xs text-gray-400 mt-0.5">형식: 연도(YY) + 법인코드 - 월(MM) + 일련번호(101~). 같은 연/월/법인에 등록된 최대 번호 +1로 계산됩니다.</p>
+      </div>
+      {loading&&<div className="px-5 py-4 text-sm text-gray-400">불러오는 중…</div>}
+      {error&&<div className="px-5 py-4 text-sm text-red-500">{error}</div>}
+      {recommendations&&(
+        <div className="overflow-x-auto max-h-72">
+          <table className="w-full text-xs">
+            <thead className="bg-gray-50 text-gray-500 font-semibold sticky top-0">
+              <tr><th className="px-3 py-2 text-left">법인</th><th className="px-3 py-2 text-left">추천 자산번호</th></tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {companies.map(c=>(
+                <tr key={c} className="hover:bg-gray-50">
+                  <td className="px-3 py-2 text-gray-700">{c}</td>
+                  <td className="px-3 py-2 font-mono font-semibold text-teal-700">{recommendations[c]}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
