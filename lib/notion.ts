@@ -1340,6 +1340,8 @@ export interface BugReport {
   createdAt:      string;
   reply:          string;
   screenshotUrls: string[];
+  handler:    string;
+  handlerId:  string;
 }
 
 export async function listBugReports(): Promise<BugReport[]> {
@@ -1371,12 +1373,24 @@ export async function listBugReports(): Promise<BugReport[]> {
       createdAt:      getPropDate(props, "제출일시"),
       reply:          getPropText(props, "답변"),
       screenshotUrls,
+      handler:    getPropText(props, "처리자"),
+      handlerId:  getPropText(props, "처리자ID"),
     };
   });
 }
 
+export async function updateBugReportHandler(id: string, handler: string, handlerId: string): Promise<void> {
+  await notion.pages.update({
+    page_id: id,
+    properties: {
+      "처리자":   { rich_text: [{ text: { content: handler } }] },
+      "처리자ID": { rich_text: [{ text: { content: handlerId } }] },
+    } as Parameters<typeof notion.pages.update>[0]["properties"],
+  });
+}
+
 export async function createBugReport(
-  data: Omit<BugReport, "id" | "screenshotUrls" | "reply">,
+  data: Omit<BugReport, "id" | "screenshotUrls" | "reply" | "handler" | "handlerId">,
   fileUploadIds?: string[],
 ): Promise<string> {
   const dbId = process.env.NOTION_DB_BUG_REPORTS;

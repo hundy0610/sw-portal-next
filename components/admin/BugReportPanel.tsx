@@ -13,8 +13,16 @@ interface BugReport {
   reporterId:   string;
   status:       "접수됨" | "처리중" | "완료";
   createdAt:    string;
-  reply:          string;
+  reply:        string;
   screenshotUrls: string[];
+  handler:    string;
+  handlerId:  string;
+}
+
+interface ParsedMessage {
+  senderId:   string;
+  senderName: string;
+  text:       string;
 }
 
 const STATUS_COLOR: Record<string, { bg: string; color: string }> = {
@@ -23,9 +31,15 @@ const STATUS_COLOR: Record<string, { bg: string; color: string }> = {
   "완료":   { bg: "#DCFCE7", color: "#15803D" },
 };
 
-function parseReplies(reply: string): string[] {
+function parseMessage(raw: string): ParsedMessage {
+  const match = raw.match(/^\[([^|]+)\|([^\]]+)\]\n([\s\S]*)$/);
+  if (match) return { senderId: match[1], senderName: match[2], text: match[3] };
+  return { senderId: "admin", senderName: "관리자", text: raw };
+}
+
+function parseReplies(reply: string): ParsedMessage[] {
   if (!reply) return [];
-  return reply.split("\n---\n").filter(s => s.trim());
+  return reply.split("\n---\n").filter(s => s.trim()).map(parseMessage);
 }
 
 export default function BugReportPanel() {
@@ -35,12 +49,12 @@ export default function BugReportPanel() {
   const [filterPage, setFilterPage]     = useState("전체");
   const [filterStatus, setFilterStatus] = useState("전체");
 
-  const [selected, setSelected]         = useState<BugReport | null>(null);
-  const [replyText, setReplyText]       = useState("");
-  const [replyStatus, setReplyStatus]   = useState<BugReport["status"]>("처리중");
-  const [sending, setSending]           = useState(false);
-  const [imgPreview, setImgPreview]     = useState<string | null>(null);
-  const chatBottomRef                   = useRef<HTMLDivElement>(null);
+  const [selected, setSelected]       = useState<BugReport | null>(null);
+  const [replyText, setReplyText]     = useState("");
+  const [replyStatus, setReplyStatus] = useState<BugReport["status"]>("처리중");
+  const [sending, setSending]         = useState(false);
+  const [imgPreview, setImgPreview]   = useState<string | null>(null);
+  const chatBottomRef                 = useRef<HTMLDivElement>(null);
 
   const pages = ["전체", ...Array.from(new Set(reports.map(r => r.page)))];
 
@@ -71,6 +85,12 @@ export default function BugReportPanel() {
   useEffect(() => { load(); }, []);
 
   useEffect(() => {
+    const handler = () => backgroundLoad();
+    window.addEventListener("bug-report-submitted", handler);
+    return () => window.removeEventListener("bug-report-submitted", handler);
+  }, []);
+
+  useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [selected?.reply]);
 
@@ -92,18 +112,35 @@ export default function BugReportPanel() {
     backgroundLoad();
   }
 
+  async function handleAssignHandler() {
+    if (!selected) return;
+    const res = await fetch("/api/bug-report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ _action: "handler", id: selected.id }),
+    });
+    const { handler, handlerId } = await res.json();
+    setSelected(prev => prev ? { ...prev, handler, handlerId } : null);
+    backgroundLoad();
+  }
+
   async function handleSendMessage() {
     if (!selected || !replyText.trim() || sending) return;
     setSending(true);
-    const newReply = selected.reply
-      ? selected.reply + "\n---\n" + replyText.trim()
-      : replyText.trim();
     try {
-      await fetch("/api/bug-report", {
+      const res = await fetch("/api/bug-report", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ _action: "reply", id: selected.id, reply: newReply, status: replyStatus }),
+        body: JSON.stringify({
+          _action: "reply",
+          id: selected.id,
+          text: replyText.trim(),
+          currentReply: selected.reply,
+          status: replyStatus,
+        }),
       });
+      const { message } = await res.json();
+      const newReply = selected.reply ? selected.reply + "\n---\n" + message : message;
       setSelected(prev => prev ? { ...prev, reply: newReply } : null);
       setReplyText("");
       backgroundLoad();
@@ -171,7 +208,7 @@ export default function BugReportPanel() {
             return (
               <div key={r.id}
                 onClick={() => openDetail(r)}
-                style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 10, padding: "14px 18px", cursor: "pointer", display: "flex", alignItems: "center", gap: 14, transition: "box-shadow .15s" }}
+                style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 10, padding: "14px 18px", cursor: "pointer", display: "flex", alignItems: "center", gap: 14 }}
                 onMouseEnter={e => (e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,.08)")}
                 onMouseLeave={e => (e.currentTarget.style.boxShadow = "none")}
               >
@@ -189,6 +226,7 @@ export default function BugReportPanel() {
                 <div style={{ display: "flex", flexDirection: "column" as const, alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
                   <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: sc.bg, color: sc.color }}>{r.status}</span>
                   <span style={{ fontSize: 11, color: "#94a3b8" }}>{r.reporterName}</span>
+                  {r.handler && <span style={{ fontSize: 11, color: "#2563EB" }}>담당: {r.handler}</span>}
                   <span style={{ fontSize: 11, color: "#cbd5e1" }}>{r.createdAt ? new Date(r.createdAt).toLocaleDateString("ko-KR") : "-"}</span>
                 </div>
               </div>
@@ -206,41 +244,58 @@ export default function BugReportPanel() {
           <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 600, height: "min(90vh, 720px)", boxShadow: "0 20px 60px rgba(0,0,0,.2)", display: "flex", flexDirection: "column" as const, overflow: "hidden" }}>
 
             {/* ── 고정 헤더 ── */}
-            <div style={{ padding: "18px 20px 14px", borderBottom: "1px solid #E2E8F0", flexShrink: 0 }}>
-              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
+            <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid #E2E8F0", flexShrink: 0 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ display: "flex", gap: 6, marginBottom: 6, flexWrap: "wrap" as const, alignItems: "center" }}>
+                  <div style={{ display: "flex", gap: 6, marginBottom: 5, flexWrap: "wrap" as const, alignItems: "center" }}>
                     <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, background: "#F1F5F9", color: "#334155" }}>{selected.page} › {selected.feature}</span>
                     <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: selected.type === "버그" ? "#FEE2E2" : "#E0F2FE", color: selected.type === "버그" ? "#DC2626" : "#0369A1" }}>{selected.type}</span>
                   </div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a", lineHeight: 1.4 }}>{selected.title}</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: "#0f172a", lineHeight: 1.4 }}>{selected.title}</div>
                 </div>
                 <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#94a3b8", lineHeight: 1, flexShrink: 0 }}>✕</button>
               </div>
-              <div style={{ display: "flex", gap: 8 }}>
+
+              {/* 상태 버튼 */}
+              <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                 {(["접수됨", "처리중", "완료"] as const).map(s => {
                   const sc = STATUS_COLOR[s];
                   return (
                     <button key={s} onClick={() => handleStatusChange(s)}
-                      style={{ padding: "5px 14px", borderRadius: 20, border: `2px solid ${replyStatus === s ? sc.color : "#E2E8F0"}`, background: replyStatus === s ? sc.bg : "#fff", color: replyStatus === s ? sc.color : "#64748b", fontSize: 12, fontWeight: replyStatus === s ? 700 : 500, cursor: "pointer" }}>
+                      style={{ padding: "4px 13px", borderRadius: 20, border: `2px solid ${replyStatus === s ? sc.color : "#E2E8F0"}`, background: replyStatus === s ? sc.bg : "#fff", color: replyStatus === s ? sc.color : "#64748b", fontSize: 12, fontWeight: replyStatus === s ? 700 : 500, cursor: "pointer" }}>
                       {s}
                     </button>
                   );
                 })}
               </div>
+
+              {/* 담당자 */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 12, color: "#64748b" }}>담당자:</span>
+                {selected.handler ? (
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#1E3A8A", background: "#EFF6FF", padding: "2px 10px", borderRadius: 20 }}>{selected.handler}</span>
+                ) : (
+                  <span style={{ fontSize: 12, color: "#94a3b8" }}>미지정</span>
+                )}
+                <button onClick={handleAssignHandler}
+                  style={{ fontSize: 11, padding: "3px 10px", borderRadius: 20, border: "1px solid #BFDBFE", background: "#EFF6FF", color: "#2563EB", cursor: "pointer", fontWeight: 600 }}>
+                  내가 담당
+                </button>
+              </div>
             </div>
 
-            {/* ── 스크롤 본문 (채팅 영역) ── */}
+            {/* ── 스크롤 채팅 영역 ── */}
             <div style={{ flex: 1, overflowY: "auto" as const, padding: "16px 20px", display: "flex", flexDirection: "column" as const, gap: 14 }}>
 
-              {/* 제출자 메시지 */}
+              {/* 접수자 메시지 */}
               <div style={{ display: "flex", gap: 10 }}>
-                <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#E2E8F0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#64748b", flexShrink: 0 }}>
+                <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#E2E8F0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#64748b", flexShrink: 0 }}>
                   {selected.reporterName?.[0] ?? "?"}
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 5 }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 4 }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>{selected.reporterName}</span>
+                    <span style={{ fontSize: 11, color: "#94a3b8" }}>접수자</span>
                     <span style={{ fontSize: 11, color: "#cbd5e1" }}>{selected.createdAt ? new Date(selected.createdAt).toLocaleString("ko-KR") : "-"}</span>
                   </div>
                   <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "0 10px 10px 10px", padding: "10px 14px" }}>
@@ -248,8 +303,7 @@ export default function BugReportPanel() {
                     {selected.screenshotUrls?.length > 0 && (
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, marginTop: 10 }}>
                         {selected.screenshotUrls.map((url, i) => (
-                          <button key={i} onClick={() => setImgPreview(url)}
-                            style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}>
+                          <button key={i} onClick={() => setImgPreview(url)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}>
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img src={url} alt={`screenshot-${i}`} style={{ width: 80, height: 80, objectFit: "cover" as const, borderRadius: 8, border: "1px solid #E2E8F0", display: "block" }} />
                           </button>
@@ -260,20 +314,26 @@ export default function BugReportPanel() {
                 </div>
               </div>
 
-              {/* 관리자 답변 버블들 */}
-              {parseReplies(selected.reply).map((msg, i) => (
-                <div key={i} style={{ display: "flex", gap: 10, flexDirection: "row-reverse" as const }}>
-                  <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#1E3A8A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#fff", flexShrink: 0 }}>관</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", marginBottom: 5, justifyContent: "flex-end" }}>
-                      <span style={{ fontSize: 11, color: "#cbd5e1" }}>관리자</span>
+              {/* 답변 버블들 — 발신자별 좌/우 구분 */}
+              {parseReplies(selected.reply).map((msg, i) => {
+                const isReporter = msg.senderId === selected.reporterId;
+                return (
+                  <div key={i} style={{ display: "flex", gap: 10, flexDirection: isReporter ? "row" : "row-reverse" as const }}>
+                    <div style={{ width: 32, height: 32, borderRadius: "50%", background: isReporter ? "#E2E8F0" : "#1E3A8A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: isReporter ? "#64748b" : "#fff", flexShrink: 0 }}>
+                      {msg.senderName?.[0] ?? "?"}
                     </div>
-                    <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: "10px 0 10px 10px", padding: "10px 14px" }}>
-                      <p style={{ fontSize: 14, color: "#1E3A8A", margin: 0, lineHeight: 1.7, whiteSpace: "pre-wrap" as const }}>{msg}</p>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", gap: 6, alignItems: "baseline", marginBottom: 4, justifyContent: isReporter ? "flex-start" : "flex-end" }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: "#0f172a" }}>{msg.senderName}</span>
+                        {!isReporter && <span style={{ fontSize: 11, color: "#94a3b8" }}>담당자</span>}
+                      </div>
+                      <div style={{ background: isReporter ? "#F8FAFC" : "#EFF6FF", border: `1px solid ${isReporter ? "#E2E8F0" : "#BFDBFE"}`, borderRadius: isReporter ? "0 10px 10px 10px" : "10px 0 10px 10px", padding: "10px 14px" }}>
+                        <p style={{ fontSize: 14, color: isReporter ? "#0f172a" : "#1E3A8A", margin: 0, lineHeight: 1.7, whiteSpace: "pre-wrap" as const }}>{msg.text}</p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
 
               <div ref={chatBottomRef} />
             </div>

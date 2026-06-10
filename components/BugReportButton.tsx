@@ -198,6 +198,8 @@ export default function BugReportButton() {
       });
 
       setDone(true);
+      window.dispatchEvent(new CustomEvent("bug-report-submitted"));
+      setTimeout(() => { setOpen(false); resetForm(); }, 1500);
     } catch {
       alert("제출 중 오류가 발생했습니다.");
     } finally {
