@@ -2,6 +2,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import type { MonitorHistoryEntry } from "@/lib/notion";
 import { FLOOR_SKETCHES, SketchCtx, SketchZone } from "./FloorSketches";
+import MonitorAssetSection from "./MonitorAssetSection";
 import FloorMapEditor, { type EditorData, migrate } from "./FloorMapEditor";
 import FloorMapView from "./FloorMapView";
 
@@ -871,6 +872,14 @@ function SeatDetailPanel({
           📋 위치 텍스트 복사
         </button>
 
+        {/* 자산 정보 */}
+        <MonitorAssetSection
+          itemId={seat.id}
+          building={building?.label ?? ""}
+          floor={floor?.label ?? ""}
+          defaultTitle={[building?.label, floor?.label, zone.label, `${rowLabel}행${seat.col + 1}번`].filter(Boolean).join(" - ")}
+        />
+
         {/* 이력 목록 */}
         <div className="bg-white border border-gray-100 rounded-xl p-3">
           <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">📋 이력</div>
@@ -1154,6 +1163,14 @@ function ItemDetailPanel({
             </div>
           )}
         </div>
+
+        {/* 자산 정보 */}
+        <MonitorAssetSection
+          itemId={item.id}
+          building={buildingLabel}
+          floor={floorLabel}
+          defaultTitle={[buildingLabel, floorLabel, item.label || item.id].filter(Boolean).join(" - ")}
+        />
 
         {/* 이력 목록 */}
         <div className="bg-white border border-gray-100 rounded-xl p-3">

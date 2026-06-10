@@ -12,7 +12,7 @@ import {
   isMock,
   mockSwItems, mockSwDatabase, mockSubscriptions, mockLicenses,
   mockLicenseRecords, mockHelpDeskTickets, mockTickets, mockRepairTickets,
-  mockHwRepairs, mockMonitorHistory, mockCredentials, mockSwFiles,
+  mockHwRepairs, mockMonitorHistory, mockMonitorAssets, mockCredentials, mockSwFiles,
 } from "./mock";
 
 // ────────────────────────────────────────────────────────────
@@ -1021,6 +1021,139 @@ export async function updateMonitorHistoryStatus(
     page_id: pageId,
     properties: { Status: { select: { name: status } } },
   });
+}
+
+// ────────────────────────────────────────────────────────────
+// 모니터 자산 (NOTION_DB_MONITOR_ASSETS)
+// ────────────────────────────────────────────────────────────
+
+export interface MonitorAsset {
+  id: string;
+  itemId: string;
+  title: string;
+  assetNo: string;
+  building: string;
+  floor: string;
+  model: string;
+  status: string;
+  corp: string;
+  purchaseDate: string;
+  note: string;
+}
+
+export async function fetchMonitorAssets(opts: {
+  itemId?: string;
+  building?: string;
+  floor?: string;
+} = {}): Promise<MonitorAsset[]> {
+  if (isMock()) {
+    let list = mockMonitorAssets as MonitorAsset[];
+    if (opts.itemId)   list = list.filter(a => a.itemId === opts.itemId);
+    if (opts.building) list = list.filter(a => a.building === opts.building);
+    if (opts.floor)    list = list.filter(a => a.floor === opts.floor);
+    return list;
+  }
+  const dbId = process.env.NOTION_DB_MONITOR_ASSETS;
+  if (!dbId) return [];
+  let normalizedDbId: string;
+  try { normalizedDbId = toNotionId(dbId); }
+  catch (e: any) { console.error("[notion] fetchMonitorAssets DB ID error:", e.message); return []; }
+
+  const filters: any[] = [];
+  if (opts.itemId)   filters.push({ property: "ItemId",   rich_text: { equals: opts.itemId } });
+  if (opts.building) filters.push({ property: "Building", select:    { equals: opts.building } });
+  if (opts.floor)    filters.push({ property: "Floor",    select:    { equals: opts.floor } });
+
+  const filter =
+    filters.length === 0 ? undefined :
+    filters.length === 1 ? filters[0] :
+    { and: filters };
+
+  const pages = await queryAllPages(normalizedDbId, filter);
+
+  return pages.map(page => {
+    const p = page.properties;
+    return {
+      id:           page.id,
+      itemId:       getPropText(p, "ItemId"),
+      title:        getPropText(p, "제목"),
+      assetNo:      getPropText(p, "AssetNo"),
+      building:     getPropSelect(p, "Building"),
+      floor:        getPropSelect(p, "Floor"),
+      model:        getPropText(p, "Model"),
+      status:       getPropSelect(p, "Status"),
+      corp:         getPropSelect(p, "Corp"),
+      purchaseDate: getPropDate(p, "PurchaseDate"),
+      note:         getPropText(p, "Note"),
+    };
+  });
+}
+
+export async function createMonitorAsset(data: {
+  itemId: string;
+  title: string;
+  building: string;
+  floor: string;
+  model?: string;
+  status?: string;
+  assetNo?: string;
+  corp?: string;
+  purchaseDate?: string;
+  note?: string;
+}): Promise<string> {
+  if (isMock()) { console.log("[MOCK] createMonitorAsset", data); return "mock-ma-new"; }
+  const rawDbId = process.env.NOTION_DB_MONITOR_ASSETS;
+  if (!rawDbId) throw new Error("NOTION_DB_MONITOR_ASSETS 환경변수가 설정되지 않았습니다.");
+  const dbId = toNotionId(rawDbId);
+
+  const props: Record<string, any> = {
+    "제목":   { title:     [{ text: { content: data.title } }] },
+    ItemId:   { rich_text: [{ text: { content: data.itemId } }] },
+    Building: { select:    { name: data.building } },
+    Floor:    { select:    { name: data.floor } },
+  };
+  if (data.model)        props.Model        = { rich_text: [{ text: { content: data.model } }] };
+  if (data.status)       props.Status       = { select:    { name: data.status } };
+  if (data.assetNo)      props.AssetNo      = { rich_text: [{ text: { content: data.assetNo } }] };
+  if (data.corp)         props.Corp         = { select:    { name: data.corp } };
+  if (data.purchaseDate) props.PurchaseDate = { date:      { start: data.purchaseDate } };
+  if (data.note)         props.Note         = { rich_text: [{ text: { content: data.note } }] };
+
+  const response = await notion.pages.create({
+    parent: { database_id: dbId },
+    properties: props,
+  });
+
+  return response.id;
+}
+
+export async function updateMonitorAsset(pageId: string, data: Partial<{
+  title: string;
+  assetNo: string;
+  building: string;
+  floor: string;
+  model: string;
+  status: string;
+  corp: string;
+  purchaseDate: string;
+  note: string;
+}>): Promise<void> {
+  if (isMock()) { console.log("[MOCK] updateMonitorAsset", pageId, data); return; }
+
+  const props: Record<string, any> = {};
+  if (data.title        !== undefined) props["제목"]      = { title:     [{ text: { content: data.title } }] };
+  if (data.assetNo      !== undefined) props.AssetNo       = { rich_text: [{ text: { content: data.assetNo } }] };
+  if (data.building      !== undefined) props.Building     = { select:    { name: data.building } };
+  if (data.floor        !== undefined) props.Floor         = { select:    { name: data.floor } };
+  if (data.model        !== undefined) props.Model         = { rich_text: [{ text: { content: data.model } }] };
+  if (data.status       !== undefined) props.Status        = { select:    { name: data.status } };
+  if (data.corp         !== undefined) props.Corp          = { select:    { name: data.corp } };
+  if (data.purchaseDate !== undefined) props.PurchaseDate  = data.purchaseDate
+    ? { date: { start: data.purchaseDate } }
+    : { date: null };
+  if (data.note         !== undefined) props.Note          = { rich_text: [{ text: { content: data.note } }] };
+
+  await notion.pages.update({ page_id: pageId, properties: props });
 }
 
 // ─── SW 설치파일 DB 조회 ──────────────────────────────────────
