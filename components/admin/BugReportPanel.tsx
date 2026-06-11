@@ -204,6 +204,10 @@ export default function BugReportPanel() {
   const [subTaskForm, setSubTaskForm]     = useState<{ title: string; content: string } | null>(null);
   const [creatingSubtask, setCreatingSubtask] = useState(false);
 
+  const [modalTab, setModalTab]         = useState<"subtasks" | "reply">("subtasks");
+  const [modalDragId, setModalDragId]   = useState<string | null>(null);
+  const [modalDragOver, setModalDragOver] = useState<string | null>(null);
+
   const pages = ["전체", ...Array.from(new Set(reports.map(r => r.page)))];
 
   async function load() {
@@ -254,6 +258,10 @@ export default function BugReportPanel() {
     setReplyText("");
     setReplyStatus(r.status);
     setSubTaskForm(null);
+    setModalDragId(null);
+    setModalDragOver(null);
+    const hasChildren = reports.some(c => c.parentId === r.id);
+    setModalTab(hasChildren || !r.parentId ? "subtasks" : "reply");
   }
 
   function childrenOf(id: string) {
@@ -374,6 +382,7 @@ export default function BugReportPanel() {
   }
 
   const filtered = reports.filter(r =>
+    !r.parentId &&
     (filterPage === "전체" || r.page === filterPage) &&
     (!search.trim() || r.title.includes(search.trim()) || r.content.includes(search.trim()))
   );
@@ -468,7 +477,7 @@ export default function BugReportPanel() {
           onClick={e => { if (e.target === e.currentTarget) setSelected(null); }}
           style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
         >
-          <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 600, height: "min(90vh, 720px)", boxShadow: "0 20px 60px rgba(0,0,0,.2)", display: "flex", flexDirection: "column" as const, overflow: "hidden" }}>
+          <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 1200, height: "min(90vh, 820px)", boxShadow: "0 20px 60px rgba(0,0,0,.2)", display: "flex", flexDirection: "column" as const, overflow: "hidden" }}>
 
             {/* ── 고정 헤더 ── */}
             <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid #E2E8F0", flexShrink: 0 }}>
@@ -524,125 +533,178 @@ export default function BugReportPanel() {
                 ) : null;
               })()}
 
-              {/* 하위 작업 */}
-              <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #F1F5F9" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: "#334155" }}>하위 작업 ({childrenOf(selected.id).length})</span>
+            </div>
+
+            {/* ── 탭 ── */}
+            <div style={{ display: "flex", gap: 4, padding: "0 20px", borderBottom: "1px solid #E2E8F0", flexShrink: 0 }}>
+              {([["subtasks", `하위 작업 (${childrenOf(selected.id).length})`], ["reply", "답변"]] as const).map(([key, label]) => (
+                <button key={key} onClick={() => setModalTab(key)}
+                  style={{
+                    padding: "10px 14px", border: "none", borderBottom: `2px solid ${modalTab === key ? "#2563EB" : "transparent"}`,
+                    background: "none", color: modalTab === key ? "#2563EB" : "#94a3b8",
+                    fontSize: 13, fontWeight: modalTab === key ? 700 : 500, cursor: "pointer",
+                  }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {modalTab === "subtasks" ? (
+              <div style={{ flex: 1, display: "flex", flexDirection: "column" as const, overflow: "hidden" }}>
+                {/* + 하위 작업 추가 */}
+                <div style={{ padding: "12px 20px 0", flexShrink: 0 }}>
                   <button onClick={() => setSubTaskForm(f => f ? null : { title: "", content: "" })}
                     style={{ fontSize: 11, padding: "3px 10px", borderRadius: 20, border: "1px solid #BFDBFE", background: "#EFF6FF", color: "#2563EB", cursor: "pointer", fontWeight: 600 }}>
-                    {subTaskForm ? "취소" : "+ 추가"}
+                    {subTaskForm ? "취소" : "+ 하위 작업 추가"}
                   </button>
-                </div>
-                {subTaskForm && (
-                  <div style={{ display: "flex", flexDirection: "column" as const, gap: 6, marginBottom: 8 }}>
-                    <input value={subTaskForm.title} onChange={e => setSubTaskForm(f => f ? { ...f, title: e.target.value } : f)}
-                      placeholder="제목"
-                      style={{ padding: "7px 10px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 12, color: "#0f172a" }} />
-                    <textarea value={subTaskForm.content} onChange={e => setSubTaskForm(f => f ? { ...f, content: e.target.value } : f)}
-                      placeholder="내용 (선택)" rows={2}
-                      style={{ padding: "7px 10px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 12, color: "#0f172a", resize: "none" as const, fontFamily: "inherit" }} />
-                    <button onClick={handleCreateSubtask} disabled={!subTaskForm.title.trim() || creatingSubtask}
-                      style={{ alignSelf: "flex-start", padding: "5px 14px", borderRadius: 8, border: "none", background: !subTaskForm.title.trim() || creatingSubtask ? "#E2E8F0" : "#2563EB", color: !subTaskForm.title.trim() || creatingSubtask ? "#94a3b8" : "#fff", fontSize: 12, fontWeight: 700, cursor: !subTaskForm.title.trim() || creatingSubtask ? "not-allowed" : "pointer" }}>
-                      {creatingSubtask ? "추가 중..." : "추가"}
-                    </button>
-                  </div>
-                )}
-                <div style={{ display: "flex", flexDirection: "column" as const, gap: 4 }}>
-                  {childrenOf(selected.id).map(c => {
-                    const st = stages.find(s => s.name === c.status) ?? UNASSIGNED_BUG_STAGE;
-                    return (
-                      <button key={c.id} onClick={() => openDetail(c)}
-                        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", cursor: "pointer", textAlign: "left" }}>
-                        <span style={{ fontSize: 12, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, flex: 1 }}>{c.title}</span>
-                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: st.color, color: st.tc, flexShrink: 0 }}>{c.status}</span>
+                  {subTaskForm && (
+                    <div style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "flex-start" }}>
+                      <input value={subTaskForm.title} onChange={e => setSubTaskForm(f => f ? { ...f, title: e.target.value } : f)}
+                        placeholder="제목"
+                        style={{ flex: 1, padding: "7px 10px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 12, color: "#0f172a" }} />
+                      <input value={subTaskForm.content} onChange={e => setSubTaskForm(f => f ? { ...f, content: e.target.value } : f)}
+                        placeholder="내용 (선택)"
+                        style={{ flex: 2, padding: "7px 10px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 12, color: "#0f172a" }} />
+                      <button onClick={handleCreateSubtask} disabled={!subTaskForm.title.trim() || creatingSubtask}
+                        style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: !subTaskForm.title.trim() || creatingSubtask ? "#E2E8F0" : "#2563EB", color: !subTaskForm.title.trim() || creatingSubtask ? "#94a3b8" : "#fff", fontSize: 12, fontWeight: 700, cursor: !subTaskForm.title.trim() || creatingSubtask ? "not-allowed" : "pointer", flexShrink: 0 }}>
+                        {creatingSubtask ? "추가 중..." : "추가"}
                       </button>
-                    );
-                  })}
-                  {childrenOf(selected.id).length === 0 && !subTaskForm && (
-                    <div style={{ fontSize: 11, color: "#cbd5e1" }}>없음</div>
+                    </div>
                   )}
                 </div>
-              </div>
-            </div>
 
-            {/* ── 스크롤 채팅 영역 ── */}
-            <div style={{ flex: 1, overflowY: "auto" as const, padding: "16px 20px", display: "flex", flexDirection: "column" as const, gap: 14 }}>
-
-              {/* 접수자 메시지 */}
-              <div style={{ display: "flex", gap: 10 }}>
-                <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#E2E8F0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#64748b", flexShrink: 0 }}>
-                  {selected.reporterName?.[0] ?? "?"}
+                {/* 하위 작업 칸반 */}
+                <div style={{ flex: 1, overflow: "auto" as const, display: "flex", alignItems: "flex-start", padding: 16 }}>
+                  {stages.map(stage => {
+                    const subTasks = childrenOf(selected.id);
+                    return (
+                      <KanbanColumn
+                        key={stage.name}
+                        stage={stage}
+                        reports={subTasks.filter(c => c.status === stage.name)}
+                        allReports={reports}
+                        lastStageName={lastStageName}
+                        isDragTarget={modalDragOver === stage.name}
+                        dragId={modalDragId}
+                        onDragOver={() => setModalDragOver(stage.name)}
+                        onDragLeave={() => setModalDragOver(null)}
+                        onDrop={() => {
+                          setModalDragOver(null);
+                          const dragged = subTasks.find(c => c.id === modalDragId);
+                          if (modalDragId && dragged && dragged.status !== stage.name) {
+                            handleStatusChange(modalDragId, stage.name);
+                          }
+                          setModalDragId(null);
+                        }}
+                        onCardClick={openDetail}
+                        onCardDragStart={setModalDragId}
+                        onCardDragEnd={() => { setModalDragId(null); setModalDragOver(null); }}
+                      />
+                    );
+                  })}
+                  {(() => {
+                    const subUnassigned = childrenOf(selected.id).filter(c => !stages.some(s => s.name === c.status));
+                    return subUnassigned.length > 0 ? (
+                      <KanbanColumn
+                        stage={UNASSIGNED_BUG_STAGE}
+                        reports={subUnassigned}
+                        allReports={reports}
+                        lastStageName={lastStageName}
+                        isDragTarget={false}
+                        dragId={modalDragId}
+                        onDragOver={() => {}}
+                        onDragLeave={() => {}}
+                        onDrop={() => {}}
+                        onCardClick={openDetail}
+                        onCardDragStart={setModalDragId}
+                        onCardDragEnd={() => { setModalDragId(null); setModalDragOver(null); }}
+                      />
+                    ) : null;
+                  })()}
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 4 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>{selected.reporterName}</span>
-                    <span style={{ fontSize: 11, color: "#94a3b8" }}>접수자</span>
-                    <span style={{ fontSize: 11, color: "#cbd5e1" }}>{selected.createdAt ? new Date(selected.createdAt).toLocaleString("ko-KR") : "-"}</span>
-                  </div>
-                  <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "0 10px 10px 10px", padding: "10px 14px" }}>
-                    <p style={{ fontSize: 14, color: "#0f172a", margin: 0, lineHeight: 1.7, whiteSpace: "pre-wrap" as const }}>{selected.content || "(내용 없음)"}</p>
-                    {selected.screenshotUrls?.length > 0 && (
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, marginTop: 10 }}>
-                        {selected.screenshotUrls.map((url, i) => (
-                          <button key={i} onClick={() => setImgPreview(url)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}>
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={url} alt={`screenshot-${i}`} style={{ width: 80, height: 80, objectFit: "cover" as const, borderRadius: 8, border: "1px solid #E2E8F0", display: "block" }} />
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
               </div>
+            ) : (
+              <>
+                {/* ── 스크롤 채팅 영역 ── */}
+                <div style={{ flex: 1, overflowY: "auto" as const, padding: "16px 20px", display: "flex", flexDirection: "column" as const, gap: 14 }}>
 
-              {/* 답변 버블들 — 발신자별 좌/우 구분 */}
-              {parseReplies(selected.reply).map((msg, i) => {
-                const isReporter = msg.senderId === selected.reporterId;
-                return (
-                  <div key={i} style={{ display: "flex", gap: 10, flexDirection: isReporter ? "row" : "row-reverse" as const }}>
-                    <div style={{ width: 32, height: 32, borderRadius: "50%", background: isReporter ? "#E2E8F0" : "#1E3A8A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: isReporter ? "#64748b" : "#fff", flexShrink: 0 }}>
-                      {msg.senderName?.[0] ?? "?"}
+                  {/* 접수자 메시지 */}
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#E2E8F0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#64748b", flexShrink: 0 }}>
+                      {selected.reporterName?.[0] ?? "?"}
                     </div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ display: "flex", gap: 6, alignItems: "baseline", marginBottom: 4, justifyContent: isReporter ? "flex-start" : "flex-end" }}>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: "#0f172a" }}>{msg.senderName}</span>
-                        {!isReporter && <span style={{ fontSize: 11, color: "#94a3b8" }}>담당자</span>}
+                      <div style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 4 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>{selected.reporterName}</span>
+                        <span style={{ fontSize: 11, color: "#94a3b8" }}>접수자</span>
+                        <span style={{ fontSize: 11, color: "#cbd5e1" }}>{selected.createdAt ? new Date(selected.createdAt).toLocaleString("ko-KR") : "-"}</span>
                       </div>
-                      <div style={{ background: isReporter ? "#F8FAFC" : "#EFF6FF", border: `1px solid ${isReporter ? "#E2E8F0" : "#BFDBFE"}`, borderRadius: isReporter ? "0 10px 10px 10px" : "10px 0 10px 10px", padding: "10px 14px" }}>
-                        <p style={{ fontSize: 14, color: isReporter ? "#0f172a" : "#1E3A8A", margin: 0, lineHeight: 1.7, whiteSpace: "pre-wrap" as const }}>{msg.text}</p>
+                      <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "0 10px 10px 10px", padding: "10px 14px" }}>
+                        <p style={{ fontSize: 14, color: "#0f172a", margin: 0, lineHeight: 1.7, whiteSpace: "pre-wrap" as const }}>{selected.content || "(내용 없음)"}</p>
+                        {selected.screenshotUrls?.length > 0 && (
+                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, marginTop: 10 }}>
+                            {selected.screenshotUrls.map((url, i) => (
+                              <button key={i} onClick={() => setImgPreview(url)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={url} alt={`screenshot-${i}`} style={{ width: 80, height: 80, objectFit: "cover" as const, borderRadius: 8, border: "1px solid #E2E8F0", display: "block" }} />
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
-                );
-              })}
 
-              <div ref={chatBottomRef} />
-            </div>
+                  {/* 답변 버블들 — 발신자별 좌/우 구분 */}
+                  {parseReplies(selected.reply).map((msg, i) => {
+                    const isReporter = msg.senderId === selected.reporterId;
+                    return (
+                      <div key={i} style={{ display: "flex", gap: 10, flexDirection: isReporter ? "row" : "row-reverse" as const }}>
+                        <div style={{ width: 32, height: 32, borderRadius: "50%", background: isReporter ? "#E2E8F0" : "#1E3A8A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: isReporter ? "#64748b" : "#fff", flexShrink: 0 }}>
+                          {msg.senderName?.[0] ?? "?"}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: "flex", gap: 6, alignItems: "baseline", marginBottom: 4, justifyContent: isReporter ? "flex-start" : "flex-end" }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: "#0f172a" }}>{msg.senderName}</span>
+                            {!isReporter && <span style={{ fontSize: 11, color: "#94a3b8" }}>담당자</span>}
+                          </div>
+                          <div style={{ background: isReporter ? "#F8FAFC" : "#EFF6FF", border: `1px solid ${isReporter ? "#E2E8F0" : "#BFDBFE"}`, borderRadius: isReporter ? "0 10px 10px 10px" : "10px 0 10px 10px", padding: "10px 14px" }}>
+                            <p style={{ fontSize: 14, color: isReporter ? "#0f172a" : "#1E3A8A", margin: 0, lineHeight: 1.7, whiteSpace: "pre-wrap" as const }}>{msg.text}</p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
 
-            {/* ── 채팅 입력 바 ── */}
-            <div style={{ padding: "10px 16px", borderTop: "1px solid #E2E8F0", background: "#F8FAFC", flexShrink: 0 }}>
-              <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-                <textarea
-                  value={replyText}
-                  onChange={e => setReplyText(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }
-                  }}
-                  placeholder="답변 입력... (Enter: 전송 / Shift+Enter: 줄바꿈)"
-                  rows={2}
-                  style={{ flex: 1, padding: "10px 12px", border: "1px solid #E2E8F0", borderRadius: 10, fontSize: 14, color: "#0f172a", resize: "none" as const, outline: "none", fontFamily: "inherit", background: "#fff", lineHeight: 1.5, boxSizing: "border-box" as const }}
-                />
-                <button
-                  onClick={handleSendMessage}
-                  disabled={sending || !replyText.trim()}
-                  style={{ padding: "10px 18px", borderRadius: 10, background: sending || !replyText.trim() ? "#E2E8F0" : "#2563EB", color: sending || !replyText.trim() ? "#94a3b8" : "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: sending || !replyText.trim() ? "not-allowed" : "pointer", flexShrink: 0, alignSelf: "flex-end" }}>
-                  {sending ? "..." : "전송"}
-                </button>
-              </div>
-            </div>
+                  <div ref={chatBottomRef} />
+                </div>
+
+                {/* ── 채팅 입력 바 ── */}
+                <div style={{ padding: "10px 16px", borderTop: "1px solid #E2E8F0", background: "#F8FAFC", flexShrink: 0 }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+                    <textarea
+                      value={replyText}
+                      onChange={e => setReplyText(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSendMessage();
+                        }
+                      }}
+                      placeholder="답변 입력... (Enter: 전송 / Shift+Enter: 줄바꿈)"
+                      rows={2}
+                      style={{ flex: 1, padding: "10px 12px", border: "1px solid #E2E8F0", borderRadius: 10, fontSize: 14, color: "#0f172a", resize: "none" as const, outline: "none", fontFamily: "inherit", background: "#fff", lineHeight: 1.5, boxSizing: "border-box" as const }}
+                    />
+                    <button
+                      onClick={handleSendMessage}
+                      disabled={sending || !replyText.trim()}
+                      style={{ padding: "10px 18px", borderRadius: 10, background: sending || !replyText.trim() ? "#E2E8F0" : "#2563EB", color: sending || !replyText.trim() ? "#94a3b8" : "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: sending || !replyText.trim() ? "not-allowed" : "pointer", flexShrink: 0, alignSelf: "flex-end" }}>
+                      {sending ? "..." : "전송"}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
 
             {/* ── 하단 버튼 ── */}
             <div style={{ padding: "10px 20px", borderTop: "1px solid #F1F5F9", display: "flex", justifyContent: "space-between", flexShrink: 0, background: "#fff" }}>
