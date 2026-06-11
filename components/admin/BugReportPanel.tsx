@@ -19,6 +19,7 @@ interface BugReport {
   screenshotUrls: string[];
   handler:    string;
   handlerId:  string;
+  parentId:   string;
 }
 
 interface ParsedMessage {
@@ -39,9 +40,12 @@ function parseReplies(reply: string): ParsedMessage[] {
 }
 
 // ── 버그 카드 ─────────────────────────────────────────────
-function BugCard({ r, dragging, onClick, onDragStart, onDragEnd }: {
+function BugCard({ r, dragging, parentTitle, childTotal, childDone, onClick, onDragStart, onDragEnd }: {
   r: BugReport;
   dragging: boolean;
+  parentTitle?: string;
+  childTotal: number;
+  childDone: number;
   onClick: () => void;
   onDragStart: () => void;
   onDragEnd: () => void;
@@ -59,6 +63,11 @@ function BugCard({ r, dragging, onClick, onDragStart, onDragEnd }: {
         marginBottom: 8, cursor: "grab",
       }}
     >
+      {parentTitle && (
+        <div style={{ fontSize: 10, color: "#94a3b8", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
+          ↳ {parentTitle}
+        </div>
+      )}
       <div style={{
         fontSize: 13, fontWeight: 600, color: "#0f172a", marginBottom: 6, lineHeight: 1.4,
         overflow: "hidden", display: "-webkit-box",
@@ -69,6 +78,11 @@ function BugCard({ r, dragging, onClick, onDragStart, onDragEnd }: {
       <div style={{ display: "flex", gap: 4, flexWrap: "wrap" as const, marginBottom: 6 }}>
         <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 20, background: "#F1F5F9", color: "#334155" }}>{r.page}</span>
         <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 20, background: r.type === "버그" ? "#FEE2E2" : "#E0F2FE", color: r.type === "버그" ? "#DC2626" : "#0369A1" }}>{r.type}</span>
+        {childTotal > 0 && (
+          <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 20, background: childDone === childTotal ? "#DCFCE7" : "#EFF6FF", color: childDone === childTotal ? "#15803D" : "#2563EB" }}>
+            하위 {childDone}/{childTotal}
+          </span>
+        )}
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
         <span style={{ fontSize: 11, color: "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{r.reporterName}</span>
@@ -79,9 +93,11 @@ function BugCard({ r, dragging, onClick, onDragStart, onDragEnd }: {
 }
 
 // ── 칸반 컬럼 ─────────────────────────────────────────────
-function KanbanColumn({ stage, reports, isDragTarget, dragId, onDragOver, onDragLeave, onDrop, onDeleteStage, onCardClick, onCardDragStart, onCardDragEnd }: {
+function KanbanColumn({ stage, reports, allReports, lastStageName, isDragTarget, dragId, onDragOver, onDragLeave, onDrop, onDeleteStage, onCardClick, onCardDragStart, onCardDragEnd }: {
   stage: BugStage;
   reports: BugReport[];
+  allReports: BugReport[];
+  lastStageName: string;
   isDragTarget: boolean;
   dragId: string | null;
   onDragOver: () => void;
@@ -126,12 +142,19 @@ function KanbanColumn({ stage, reports, isDragTarget, dragId, onDragOver, onDrag
           <div style={{ textAlign: "center", padding: "30px 0", fontSize: 11, color: "#cbd5e1" }}>
             {isDragTarget ? "여기에 놓기" : "없음"}
           </div>
-        ) : reports.map(r => (
-          <BugCard key={r.id} r={r} dragging={dragId === r.id}
-            onClick={() => onCardClick(r)}
-            onDragStart={() => onCardDragStart(r.id)}
-            onDragEnd={onCardDragEnd} />
-        ))}
+        ) : reports.map(r => {
+          const children = allReports.filter(c => c.parentId === r.id);
+          const parent = r.parentId ? allReports.find(p => p.id === r.parentId) : undefined;
+          return (
+            <BugCard key={r.id} r={r} dragging={dragId === r.id}
+              parentTitle={parent?.title}
+              childTotal={children.length}
+              childDone={children.filter(c => c.status === lastStageName).length}
+              onClick={() => onCardClick(r)}
+              onDragStart={() => onCardDragStart(r.id)}
+              onDragEnd={onCardDragEnd} />
+          );
+        })}
       </div>
     </div>
   );
@@ -177,6 +200,9 @@ export default function BugReportPanel() {
 
   const [dragId, setDragId]     = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null);
+
+  const [subTaskForm, setSubTaskForm]     = useState<{ title: string; content: string } | null>(null);
+  const [creatingSubtask, setCreatingSubtask] = useState(false);
 
   const pages = ["전체", ...Array.from(new Set(reports.map(r => r.page)))];
 
@@ -227,6 +253,35 @@ export default function BugReportPanel() {
     setSelected(r);
     setReplyText("");
     setReplyStatus(r.status);
+    setSubTaskForm(null);
+  }
+
+  function childrenOf(id: string) {
+    return reports.filter(r => r.parentId === id);
+  }
+
+  async function handleCreateSubtask() {
+    if (!selected || !subTaskForm || !subTaskForm.title.trim() || creatingSubtask) return;
+    setCreatingSubtask(true);
+    try {
+      await fetch("/api/bug-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: subTaskForm.title.trim(),
+          content: subTaskForm.content.trim(),
+          page: selected.page,
+          feature: selected.feature,
+          type: selected.type,
+          status: stages[0]?.name ?? "접수됨",
+          parentId: selected.id,
+        }),
+      });
+      setSubTaskForm(null);
+      backgroundLoad();
+    } finally {
+      setCreatingSubtask(false);
+    }
   }
 
   async function handleStatusChange(id: string, status: string) {
@@ -324,6 +379,7 @@ export default function BugReportPanel() {
   );
 
   const unassigned = filtered.filter(r => !stages.some(s => s.name === r.status));
+  const lastStageName = stages[stages.length - 1]?.name ?? "";
 
   return (
     <div>
@@ -365,6 +421,8 @@ export default function BugReportPanel() {
               <KanbanColumn
                 stage={stage}
                 reports={filtered.filter(r => r.status === stage.name)}
+                allReports={reports}
+                lastStageName={lastStageName}
                 isDragTarget={dragOver === stage.name}
                 dragId={dragId}
                 onDragOver={() => setDragOver(stage.name)}
@@ -389,6 +447,8 @@ export default function BugReportPanel() {
             <KanbanColumn
               stage={UNASSIGNED_BUG_STAGE}
               reports={unassigned}
+              allReports={reports}
+              lastStageName={lastStageName}
               isDragTarget={false}
               dragId={dragId}
               onDragOver={() => {}}
@@ -448,6 +508,60 @@ export default function BugReportPanel() {
                   style={{ fontSize: 11, padding: "3px 10px", borderRadius: 20, border: "1px solid #BFDBFE", background: "#EFF6FF", color: "#2563EB", cursor: "pointer", fontWeight: 600 }}>
                   내가 담당
                 </button>
+              </div>
+
+              {/* 상위 작업 */}
+              {selected.parentId && (() => {
+                const parent = reports.find(r => r.id === selected.parentId);
+                return parent ? (
+                  <div style={{ marginTop: 8, fontSize: 12, color: "#64748b" }}>
+                    상위 작업:{" "}
+                    <button onClick={() => openDetail(parent)}
+                      style={{ background: "none", border: "none", color: "#2563EB", cursor: "pointer", fontWeight: 600, padding: 0, fontSize: 12 }}>
+                      {parent.title}
+                    </button>
+                  </div>
+                ) : null;
+              })()}
+
+              {/* 하위 작업 */}
+              <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #F1F5F9" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#334155" }}>하위 작업 ({childrenOf(selected.id).length})</span>
+                  <button onClick={() => setSubTaskForm(f => f ? null : { title: "", content: "" })}
+                    style={{ fontSize: 11, padding: "3px 10px", borderRadius: 20, border: "1px solid #BFDBFE", background: "#EFF6FF", color: "#2563EB", cursor: "pointer", fontWeight: 600 }}>
+                    {subTaskForm ? "취소" : "+ 추가"}
+                  </button>
+                </div>
+                {subTaskForm && (
+                  <div style={{ display: "flex", flexDirection: "column" as const, gap: 6, marginBottom: 8 }}>
+                    <input value={subTaskForm.title} onChange={e => setSubTaskForm(f => f ? { ...f, title: e.target.value } : f)}
+                      placeholder="제목"
+                      style={{ padding: "7px 10px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 12, color: "#0f172a" }} />
+                    <textarea value={subTaskForm.content} onChange={e => setSubTaskForm(f => f ? { ...f, content: e.target.value } : f)}
+                      placeholder="내용 (선택)" rows={2}
+                      style={{ padding: "7px 10px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 12, color: "#0f172a", resize: "none" as const, fontFamily: "inherit" }} />
+                    <button onClick={handleCreateSubtask} disabled={!subTaskForm.title.trim() || creatingSubtask}
+                      style={{ alignSelf: "flex-start", padding: "5px 14px", borderRadius: 8, border: "none", background: !subTaskForm.title.trim() || creatingSubtask ? "#E2E8F0" : "#2563EB", color: !subTaskForm.title.trim() || creatingSubtask ? "#94a3b8" : "#fff", fontSize: 12, fontWeight: 700, cursor: !subTaskForm.title.trim() || creatingSubtask ? "not-allowed" : "pointer" }}>
+                      {creatingSubtask ? "추가 중..." : "추가"}
+                    </button>
+                  </div>
+                )}
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 4 }}>
+                  {childrenOf(selected.id).map(c => {
+                    const st = stages.find(s => s.name === c.status) ?? UNASSIGNED_BUG_STAGE;
+                    return (
+                      <button key={c.id} onClick={() => openDetail(c)}
+                        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", cursor: "pointer", textAlign: "left" }}>
+                        <span style={{ fontSize: 12, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, flex: 1 }}>{c.title}</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: st.color, color: st.tc, flexShrink: 0 }}>{c.status}</span>
+                      </button>
+                    );
+                  })}
+                  {childrenOf(selected.id).length === 0 && !subTaskForm && (
+                    <div style={{ fontSize: 11, color: "#cbd5e1" }}>없음</div>
+                  )}
+                </div>
               </div>
             </div>
 

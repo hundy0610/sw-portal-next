@@ -1509,6 +1509,7 @@ export interface BugReport {
   screenshotUrls: string[];
   handler:    string;
   handlerId:  string;
+  parentId:   string; // 상위 작업 page id (없으면 "")
 }
 
 export async function listBugReports(): Promise<BugReport[]> {
@@ -1542,6 +1543,7 @@ export async function listBugReports(): Promise<BugReport[]> {
       screenshotUrls,
       handler:    getPropText(props, "처리자"),
       handlerId:  getPropText(props, "처리자ID"),
+      parentId:   getPropText(props, "상위ID"),
     };
   });
 }
@@ -1573,6 +1575,7 @@ export async function createBugReport(
     "제출자":    { rich_text: [{ text: { content: data.reporterName } }] },
     "제출자ID":  { rich_text: [{ text: { content: data.reporterId } }] },
     "제출일시":  { date:      { start: data.createdAt } },
+    "상위ID":    { rich_text: [{ text: { content: data.parentId || "" } }] },
   };
 
   if (fileUploadIds && fileUploadIds.length > 0) {
