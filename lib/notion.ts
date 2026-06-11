@@ -1503,7 +1503,7 @@ export interface BugReport {
   type:         "버그" | "개선요청";
   reporterName: string;
   reporterId:   string;
-  status:       "접수됨" | "처리중" | "완료";
+  status:       string; // 칸반 단계명 (동적, types/bug-report.ts 참고)
   createdAt:      string;
   reply:          string;
   screenshotUrls: string[];

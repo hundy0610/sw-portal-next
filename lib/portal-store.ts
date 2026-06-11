@@ -2,12 +2,15 @@ import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { memGet, memSet } from "@/lib/mem-cache";
 import type { Notice, Course, Resource } from "@/types/portal";
 import type { SwItem } from "@/types";
+import type { BugStage } from "@/types/bug-report";
+import { DEFAULT_BUG_STAGES } from "@/types/bug-report";
 
-const KV_NOTICES   = "portal:notices";
-const KV_COURSES   = "portal:courses";
-const KV_RESOURCES = "portal:resources";
-const KV_SWDB      = "portal:swdb";
-const KV_AUDIT     = "portal:audit_log";
+const KV_NOTICES    = "portal:notices";
+const KV_COURSES    = "portal:courses";
+const KV_RESOURCES  = "portal:resources";
+const KV_SWDB       = "portal:swdb";
+const KV_AUDIT      = "portal:audit_log";
+const KV_BUG_STAGES = "portal:bug_stages";
 
 // ─── Audit Log ──────────────────────────────────────────
 export interface AuditLog {
@@ -91,6 +94,21 @@ export async function getResources(onlyVisible = true): Promise<Resource[]> {
 export async function saveResources(resources: Resource[]): Promise<void> {
   await kvSetPermanent(KV_RESOURCES, resources);
   memSet(KV_RESOURCES, resources, MEM_TTL);
+}
+
+// ─── 버그리포트 칸반 단계 ──────────────────────────────────
+export async function getBugStages(): Promise<BugStage[]> {
+  let data = memGet<BugStage[]>(KV_BUG_STAGES);
+  if (!data) {
+    data = (await kvGet<BugStage[]>(KV_BUG_STAGES)) ?? DEFAULT_BUG_STAGES;
+    memSet(KV_BUG_STAGES, data, MEM_TTL);
+  }
+  return data;
+}
+
+export async function saveBugStages(stages: BugStage[]): Promise<void> {
+  await kvSetPermanent(KV_BUG_STAGES, stages);
+  memSet(KV_BUG_STAGES, stages, MEM_TTL);
 }
 
 // ─── SW DB (화이트/블랙리스트) ───────────────────────────
