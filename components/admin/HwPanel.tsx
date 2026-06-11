@@ -1392,7 +1392,7 @@ function ExcelUploadTab(){
         try {
           const erJson=await fetch("/api/exchange-return").then(r=>r.json());
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const candidates=(erJson.records??[]).filter((r:any)=>
+          const candidates=(erJson.data??[]).filter((r:any)=>
             (r.type==="신규지급"||r.type==="교체") &&
             r.newAssetId==="신규구매로안내됨" &&
             !r.isClosed
