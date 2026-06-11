@@ -64,8 +64,9 @@ export async function POST(req: NextRequest) {
     type:         body.type         ?? "버그",
     reporterName: s.name            ?? "",
     reporterId:   s.userId          ?? "",
-    status:       "접수됨",
+    status:       body.status       ?? "접수됨",
     createdAt:    new Date().toISOString(),
+    parentId:     body.parentId     ?? "",
   };
 
   const id = await createBugReport(data, body.fileUploadIds ?? (body.fileUploadId ? [body.fileUploadId] : []));
