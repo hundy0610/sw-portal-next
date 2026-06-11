@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { Fragment, useState, useEffect, useRef } from "react";
+import type { BugStage } from "@/types/bug-report";
+import { DEFAULT_BUG_STAGES, UNASSIGNED_BUG_STAGE, BUG_STAGE_PALETTE } from "@/types/bug-report";
 
 interface BugReport {
   id:           string;
@@ -11,7 +13,7 @@ interface BugReport {
   type:         string;
   reporterName: string;
   reporterId:   string;
-  status:       "접수됨" | "처리중" | "완료";
+  status:       string;
   createdAt:    string;
   reply:        string;
   screenshotUrls: string[];
@@ -25,12 +27,6 @@ interface ParsedMessage {
   text:       string;
 }
 
-const STATUS_COLOR: Record<string, { bg: string; color: string }> = {
-  "접수됨": { bg: "#FEF9C3", color: "#854D0E" },
-  "처리중": { bg: "#DBEAFE", color: "#1E40AF" },
-  "완료":   { bg: "#DCFCE7", color: "#15803D" },
-};
-
 function parseMessage(raw: string): ParsedMessage {
   const match = raw.match(/^\[([^|]+)\|([^\]]+)\]\n([\s\S]*)$/);
   if (match) return { senderId: match[1], senderName: match[2], text: match[3] };
@@ -42,19 +38,145 @@ function parseReplies(reply: string): ParsedMessage[] {
   return reply.split("\n---\n").filter(s => s.trim()).map(parseMessage);
 }
 
+// ── 버그 카드 ─────────────────────────────────────────────
+function BugCard({ r, dragging, onClick, onDragStart, onDragEnd }: {
+  r: BugReport;
+  dragging: boolean;
+  onClick: () => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+}) {
+  return (
+    <div
+      draggable
+      onClick={onClick}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      style={{
+        background: dragging ? "#F0F4FF" : "#fff",
+        opacity: dragging ? 0.6 : 1,
+        border: "1px solid #E2E8F0", borderRadius: 10, padding: "10px 12px",
+        marginBottom: 8, cursor: "grab",
+      }}
+    >
+      <div style={{
+        fontSize: 13, fontWeight: 600, color: "#0f172a", marginBottom: 6, lineHeight: 1.4,
+        overflow: "hidden", display: "-webkit-box",
+        WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const,
+      }}>
+        {r.title || "(제목 없음)"}
+      </div>
+      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" as const, marginBottom: 6 }}>
+        <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 20, background: "#F1F5F9", color: "#334155" }}>{r.page}</span>
+        <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 20, background: r.type === "버그" ? "#FEE2E2" : "#E0F2FE", color: r.type === "버그" ? "#DC2626" : "#0369A1" }}>{r.type}</span>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
+        <span style={{ fontSize: 11, color: "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{r.reporterName}</span>
+        {r.handler && <span style={{ fontSize: 11, color: "#2563EB", flexShrink: 0 }}>담당:{r.handler}</span>}
+      </div>
+    </div>
+  );
+}
+
+// ── 칸반 컬럼 ─────────────────────────────────────────────
+function KanbanColumn({ stage, reports, isDragTarget, dragId, onDragOver, onDragLeave, onDrop, onDeleteStage, onCardClick, onCardDragStart, onCardDragEnd }: {
+  stage: BugStage;
+  reports: BugReport[];
+  isDragTarget: boolean;
+  dragId: string | null;
+  onDragOver: () => void;
+  onDragLeave: () => void;
+  onDrop: () => void;
+  onDeleteStage?: () => void;
+  onCardClick: (r: BugReport) => void;
+  onCardDragStart: (id: string) => void;
+  onCardDragEnd: () => void;
+}) {
+  return (
+    <div
+      style={{
+        flex: "0 0 240px", minWidth: 240, marginRight: 10, minHeight: 360,
+        display: "flex", flexDirection: "column" as const, borderRadius: 12,
+        background: isDragTarget ? stage.color : "#F8FAFC",
+        border: `2px solid ${isDragTarget ? stage.border : "#E2E8F0"}`,
+        transition: "all .15s",
+      }}
+      onDragOver={e => { e.preventDefault(); onDragOver(); }}
+      onDragLeave={onDragLeave}
+      onDrop={e => { e.preventDefault(); onDrop(); }}
+    >
+      <div style={{
+        padding: "10px 12px", borderRadius: "10px 10px 0 0", background: stage.color,
+        borderBottom: `2px solid ${stage.border}30`,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+          <span style={{ fontSize: 12, fontWeight: 800, color: stage.tc, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{stage.name}</span>
+          <span style={{ fontSize: 11, fontWeight: 700, padding: "1px 7px", borderRadius: 20, background: stage.border + "20", color: stage.tc, flexShrink: 0 }}>{reports.length}</span>
+        </div>
+        {onDeleteStage && (
+          <button onClick={onDeleteStage} title="단계 삭제"
+            style={{ background: "none", border: "none", cursor: "pointer", color: stage.tc, opacity: .5, fontSize: 13, lineHeight: 1, padding: 2, flexShrink: 0 }}>
+            ✕
+          </button>
+        )}
+      </div>
+      <div style={{ flex: 1, padding: 10, overflowY: "auto" as const }}>
+        {reports.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "30px 0", fontSize: 11, color: "#cbd5e1" }}>
+            {isDragTarget ? "여기에 놓기" : "없음"}
+          </div>
+        ) : reports.map(r => (
+          <BugCard key={r.id} r={r} dragging={dragId === r.id}
+            onClick={() => onCardClick(r)}
+            onDragStart={() => onCardDragStart(r.id)}
+            onDragEnd={onCardDragEnd} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── 단계 추가 버튼(컬럼 사이 갭) ───────────────────────────
+function InsertGap({ onClick }: { onClick: () => void }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <div
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      title="단계 추가"
+      style={{
+        flex: "0 0 18px", minWidth: 18, marginRight: 10, minHeight: 360, borderRadius: 8,
+        cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+        background: hover ? "#EFF6FF" : "transparent",
+        border: `1px dashed ${hover ? "#BFDBFE" : "transparent"}`,
+        color: hover ? "#2563EB" : "#cbd5e1", fontSize: 16, fontWeight: 700,
+        transition: "all .15s",
+      }}
+    >
+      +
+    </div>
+  );
+}
+
 export default function BugReportPanel() {
-  const [reports, setReports]           = useState<BugReport[]>([]);
-  const [loading, setLoading]           = useState(true);
-  const [error, setError]               = useState<string | null>(null);
-  const [filterPage, setFilterPage]     = useState("전체");
-  const [filterStatus, setFilterStatus] = useState("전체");
+  const [reports, setReports]       = useState<BugReport[]>([]);
+  const [stages, setStages]         = useState<BugStage[]>(DEFAULT_BUG_STAGES);
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState<string | null>(null);
+  const [filterPage, setFilterPage] = useState("전체");
+  const [search, setSearch]         = useState("");
 
   const [selected, setSelected]       = useState<BugReport | null>(null);
   const [replyText, setReplyText]     = useState("");
-  const [replyStatus, setReplyStatus] = useState<BugReport["status"]>("처리중");
+  const [replyStatus, setReplyStatus] = useState("");
   const [sending, setSending]         = useState(false);
   const [imgPreview, setImgPreview]   = useState<string | null>(null);
   const chatBottomRef                 = useRef<HTMLDivElement>(null);
+
+  const [dragId, setDragId]     = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState<string | null>(null);
 
   const pages = ["전체", ...Array.from(new Set(reports.map(r => r.page)))];
 
@@ -62,10 +184,17 @@ export default function BugReportPanel() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/bug-report");
-      if (!res.ok) { setError(`오류 ${res.status}: ${await res.text()}`); return; }
-      const { data } = await res.json();
+      const [reportsRes, stagesRes] = await Promise.all([
+        fetch("/api/bug-report"),
+        fetch("/api/bug-report/stages"),
+      ]);
+      if (!reportsRes.ok) { setError(`오류 ${reportsRes.status}: ${await reportsRes.text()}`); return; }
+      const { data } = await reportsRes.json();
       setReports(data ?? []);
+      if (stagesRes.ok) {
+        const { data: stageData } = await stagesRes.json();
+        if (Array.isArray(stageData) && stageData.length > 0) setStages(stageData);
+      }
     } catch (e) {
       setError(String(e));
     } finally {
@@ -100,14 +229,14 @@ export default function BugReportPanel() {
     setReplyStatus(r.status);
   }
 
-  async function handleStatusChange(s: BugReport["status"]) {
-    if (!selected) return;
-    setReplyStatus(s);
-    setSelected(prev => prev ? { ...prev, status: s } : null);
+  async function handleStatusChange(id: string, status: string) {
+    setReports(prev => prev.map(r => r.id === id ? { ...r, status } : r));
+    setSelected(prev => prev && prev.id === id ? { ...prev, status } : prev);
+    if (selected?.id === id) setReplyStatus(status);
     await fetch("/api/bug-report", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ _action: "status", id: selected.id, status: s }),
+      body: JSON.stringify({ _action: "status", id, status }),
     });
     backgroundLoad();
   }
@@ -160,10 +289,41 @@ export default function BugReportPanel() {
     load();
   }
 
+  async function saveStages(next: BugStage[]) {
+    setStages(next);
+    await fetch("/api/bug-report/stages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stages: next }),
+    });
+  }
+
+  function addStage(atIndex: number) {
+    const name = window.prompt("새 단계 이름을 입력하세요");
+    if (!name || !name.trim()) return;
+    const trimmed = name.trim();
+    if (stages.some(s => s.name === trimmed) || trimmed === UNASSIGNED_BUG_STAGE.name) {
+      alert("이미 존재하는 단계 이름입니다.");
+      return;
+    }
+    const palette = BUG_STAGE_PALETTE[stages.length % BUG_STAGE_PALETTE.length];
+    const next = [...stages.slice(0, atIndex), { name: trimmed, ...palette }, ...stages.slice(atIndex)];
+    saveStages(next);
+  }
+
+  function deleteStage(name: string) {
+    const count = reports.filter(r => r.status === name).length;
+    if (count > 0) { alert(`"${name}" 단계에 리포트가 ${count}건 있어 삭제할 수 없습니다.`); return; }
+    if (!confirm(`"${name}" 단계를 삭제할까요?`)) return;
+    saveStages(stages.filter(s => s.name !== name));
+  }
+
   const filtered = reports.filter(r =>
-    (filterPage   === "전체" || r.page   === filterPage) &&
-    (filterStatus === "전체" || r.status === filterStatus)
+    (filterPage === "전체" || r.page === filterPage) &&
+    (!search.trim() || r.title.includes(search.trim()) || r.content.includes(search.trim()))
   );
+
+  const unassigned = filtered.filter(r => !stages.some(s => s.name === r.status));
 
   return (
     <div>
@@ -185,13 +345,11 @@ export default function BugReportPanel() {
           style={{ padding: "7px 12px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 13, color: "#334155", background: "#fff" }}>
           {pages.map(p => <option key={p} value={p}>{p}</option>)}
         </select>
-        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-          style={{ padding: "7px 12px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 13, color: "#334155", background: "#fff" }}>
-          {["전체", "접수됨", "처리중", "완료"].map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="제목/내용 검색"
+          style={{ padding: "7px 12px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 13, color: "#334155", background: "#fff", minWidth: 180 }} />
       </div>
 
-      {/* 리스트 */}
+      {/* 칸반 보드 */}
       {loading ? (
         <div style={{ textAlign: "center", padding: 60, color: "#94a3b8" }}>불러오는 중...</div>
       ) : error ? (
@@ -199,39 +357,48 @@ export default function BugReportPanel() {
           <div style={{ marginBottom: 8 }}>⚠️ 데이터를 불러오지 못했습니다</div>
           <div style={{ color: "#94a3b8", fontSize: 12 }}>{error}</div>
         </div>
-      ) : filtered.length === 0 ? (
-        <div style={{ textAlign: "center", padding: 60, color: "#94a3b8" }}>리포트가 없습니다.</div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
-          {filtered.map(r => {
-            const sc = STATUS_COLOR[r.status] ?? STATUS_COLOR["접수됨"];
-            return (
-              <div key={r.id}
-                onClick={() => openDetail(r)}
-                style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 10, padding: "14px 18px", cursor: "pointer", display: "flex", alignItems: "center", gap: 14 }}
-                onMouseEnter={e => (e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,.08)")}
-                onMouseLeave={e => (e.currentTarget.style.boxShadow = "none")}
-              >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: "#0f172a", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
-                    {r.title || "(제목 없음)"}
-                  </div>
-                  <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" as const }}>
-                    <span style={{ fontSize: 11, padding: "1px 7px", borderRadius: 20, background: "#F1F5F9", color: "#334155" }}>{r.page}</span>
-                    <span style={{ fontSize: 11, color: "#94a3b8" }}>›</span>
-                    <span style={{ fontSize: 11, color: "#94a3b8" }}>{r.feature}</span>
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: "1px 7px", borderRadius: 20, background: r.type === "버그" ? "#FEE2E2" : "#E0F2FE", color: r.type === "버그" ? "#DC2626" : "#0369A1" }}>{r.type}</span>
-                  </div>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column" as const, alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: sc.bg, color: sc.color }}>{r.status}</span>
-                  <span style={{ fontSize: 11, color: "#94a3b8" }}>{r.reporterName}</span>
-                  {r.handler && <span style={{ fontSize: 11, color: "#2563EB" }}>담당: {r.handler}</span>}
-                  <span style={{ fontSize: 11, color: "#cbd5e1" }}>{r.createdAt ? new Date(r.createdAt).toLocaleDateString("ko-KR") : "-"}</span>
-                </div>
-              </div>
-            );
-          })}
+        <div style={{ display: "flex", overflowX: "auto" as const, paddingBottom: 12 }}>
+          {stages.map((stage, i) => (
+            <Fragment key={stage.name}>
+              <InsertGap onClick={() => addStage(i)} />
+              <KanbanColumn
+                stage={stage}
+                reports={filtered.filter(r => r.status === stage.name)}
+                isDragTarget={dragOver === stage.name}
+                dragId={dragId}
+                onDragOver={() => setDragOver(stage.name)}
+                onDragLeave={() => setDragOver(null)}
+                onDrop={() => {
+                  setDragOver(null);
+                  const dragged = reports.find(r => r.id === dragId);
+                  if (dragId && dragged && dragged.status !== stage.name) {
+                    handleStatusChange(dragId, stage.name);
+                  }
+                  setDragId(null);
+                }}
+                onDeleteStage={() => deleteStage(stage.name)}
+                onCardClick={openDetail}
+                onCardDragStart={setDragId}
+                onCardDragEnd={() => { setDragId(null); setDragOver(null); }}
+              />
+            </Fragment>
+          ))}
+          <InsertGap onClick={() => addStage(stages.length)} />
+          {unassigned.length > 0 && (
+            <KanbanColumn
+              stage={UNASSIGNED_BUG_STAGE}
+              reports={unassigned}
+              isDragTarget={false}
+              dragId={dragId}
+              onDragOver={() => {}}
+              onDragLeave={() => {}}
+              onDrop={() => {}}
+              onCardClick={openDetail}
+              onCardDragStart={setDragId}
+              onCardDragEnd={() => { setDragId(null); setDragOver(null); }}
+            />
+          )}
         </div>
       )}
 
@@ -256,14 +423,14 @@ export default function BugReportPanel() {
                 <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#94a3b8", lineHeight: 1, flexShrink: 0 }}>✕</button>
               </div>
 
-              {/* 상태 버튼 */}
-              <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                {(["접수됨", "처리중", "완료"] as const).map(s => {
-                  const sc = STATUS_COLOR[s];
+              {/* 단계 버튼 */}
+              <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" as const }}>
+                {stages.map(s => {
+                  const active = replyStatus === s.name;
                   return (
-                    <button key={s} onClick={() => handleStatusChange(s)}
-                      style={{ padding: "4px 13px", borderRadius: 20, border: `2px solid ${replyStatus === s ? sc.color : "#E2E8F0"}`, background: replyStatus === s ? sc.bg : "#fff", color: replyStatus === s ? sc.color : "#64748b", fontSize: 12, fontWeight: replyStatus === s ? 700 : 500, cursor: "pointer" }}>
-                      {s}
+                    <button key={s.name} onClick={() => handleStatusChange(selected.id, s.name)}
+                      style={{ padding: "4px 13px", borderRadius: 20, border: `2px solid ${active ? s.tc : "#E2E8F0"}`, background: active ? s.color : "#fff", color: active ? s.tc : "#64748b", fontSize: 12, fontWeight: active ? 700 : 500, cursor: "pointer" }}>
+                      {s.name}
                     </button>
                   );
                 })}
