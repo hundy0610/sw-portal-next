@@ -262,6 +262,9 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
   const [editTitle, setEditTitle]     = useState("");
   const [editContent, setEditContent] = useState("");
 
+  const [editingCollaborators, setEditingCollaborators] = useState(false);
+  const [editCollaboratorNames, setEditCollaboratorNames] = useState<string[]>([]);
+
   const [dragId, setDragId]     = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null);
 
@@ -304,8 +307,10 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
       if (!res.ok) return;
       const { accounts } = await res.json();
       if (Array.isArray(accounts)) {
-        const names: string[] = accounts.filter((a: { active: boolean }) => a.active).map((a: { name: string }) => a.name);
-        setCollaboratorOptions(Array.from(new Set([session.name, ...names])));
+        const names: string[] = accounts
+          .filter((a: { active: boolean; role: string; name: string }) => a.active && a.role === "super" && a.name !== session.name)
+          .map((a: { name: string }) => a.name);
+        setCollaboratorOptions(names);
       }
     } catch {}
   }
@@ -326,6 +331,8 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
     setEditing(false);
     setEditTitle(t.title);
     setEditContent(t.content);
+    setEditingCollaborators(false);
+    setEditCollaboratorNames(t.collaboratorName ? t.collaboratorName.split(",").map(s => s.trim()).filter(Boolean) : []);
     setSubTaskForm(null);
     setModalDragId(null);
     setModalDragOver(null);
@@ -422,6 +429,20 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ _action: "content", id: selected.id, title, content }),
+    });
+    backgroundLoad();
+  }
+
+  async function handleSaveCollaborators() {
+    if (!selected) return;
+    const collaboratorName = editCollaboratorNames.join(", ");
+    setTasks(prev => prev.map(t => t.id === selected.id ? { ...t, collaboratorName } : t));
+    setSelected(prev => prev ? { ...prev, collaboratorName } : prev);
+    setEditingCollaborators(false);
+    await fetch("/api/work-tracker", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ _action: "collaborators", id: selected.id, collaboratorName }),
     });
     backgroundLoad();
   }
@@ -529,7 +550,7 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
                 setDragId(null);
               }}
               onDeleteStage={() => deleteStage(stage.name)}
-              onAddClick={!isAllTab && i === 0 ? () => setNewTaskForm({ title: "", content: "", collaboratorNames: [session.name], shared: false }) : undefined}
+              onAddClick={!isAllTab && i === 0 ? () => setNewTaskForm({ title: "", content: "", collaboratorNames: [], shared: false }) : undefined}
               addLabel="+ 새 작업 추가"
               onCardClick={openDetail}
               onCardDragStart={setDragId}
@@ -568,11 +589,47 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
             <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid #E2E8F0", flexShrink: 0 }}>
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ display: "flex", gap: 6, marginBottom: 5, flexWrap: "wrap" as const, alignItems: "center" }}>
-                    {selected.collaboratorName.split(",").map(s => s.trim()).filter(Boolean).map(name => (
-                      <span key={name} style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, background: "#F1F5F9", color: "#334155" }}>{name}</span>
-                    ))}
-                  </div>
+                  {editingCollaborators ? (
+                    <div style={{ marginBottom: 8 }}>
+                      <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 6, marginBottom: 6 }}>
+                        {Array.from(new Set([...collaboratorOptions, ...editCollaboratorNames])).map(name => {
+                          const active = editCollaboratorNames.includes(name);
+                          return (
+                            <button key={name} type="button"
+                              onClick={() => setEditCollaboratorNames(prev => active ? prev.filter(n => n !== name) : [...prev, name])}
+                              style={{
+                                padding: "5px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                                border: `1px solid ${active ? "#2563EB" : "#E2E8F0"}`,
+                                background: active ? "#EFF6FF" : "#fff",
+                                color: active ? "#2563EB" : "#64748b",
+                              }}>
+                              {name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button onClick={handleSaveCollaborators}
+                          style={{ padding: "5px 12px", borderRadius: 8, border: "none", background: "#2563EB", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                          저장
+                        </button>
+                        <button onClick={() => { setEditingCollaborators(false); setEditCollaboratorNames(selected.collaboratorName ? selected.collaboratorName.split(",").map(s => s.trim()).filter(Boolean) : []); }}
+                          style={{ padding: "5px 12px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", color: "#64748b", fontSize: 12, cursor: "pointer" }}>
+                          취소
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", gap: 6, marginBottom: 5, flexWrap: "wrap" as const, alignItems: "center" }}>
+                      {selected.collaboratorName.split(",").map(s => s.trim()).filter(Boolean).map(name => (
+                        <span key={name} style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, background: "#F1F5F9", color: "#334155" }}>{name}</span>
+                      ))}
+                      <button onClick={() => setEditingCollaborators(true)}
+                        style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, border: "1px solid #E2E8F0", background: "#F8FAFC", color: "#64748b", cursor: "pointer", fontWeight: 600 }}>
+                        협업자 수정
+                      </button>
+                    </div>
+                  )}
                   {editing ? (
                     <input value={editTitle} onChange={e => setEditTitle(e.target.value)}
                       style={{ width: "100%", fontSize: 15, fontWeight: 700, color: "#0f172a", border: "1px solid #E2E8F0", borderRadius: 8, padding: "6px 10px", boxSizing: "border-box" as const }} />
@@ -685,7 +742,7 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
                         }
                         setModalDragId(null);
                       }}
-                      onAddClick={i === 0 ? () => setSubTaskForm({ title: "", content: "", collaboratorNames: selected.collaboratorName ? selected.collaboratorName.split(",").map(s => s.trim()).filter(Boolean) : [], shared: false }) : undefined}
+                      onAddClick={i === 0 ? () => setSubTaskForm({ title: "", content: "", collaboratorNames: selected.collaboratorName ? selected.collaboratorName.split(",").map(s => s.trim()).filter(Boolean).filter(n => n !== session.name) : [], shared: false }) : undefined}
                       addLabel="+ 하위 작업 추가"
                       onCardClick={openDetail}
                       onCardDragStart={setModalDragId}

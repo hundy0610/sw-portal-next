@@ -5,6 +5,7 @@ import {
   createWorkTask,
   updateWorkTaskStatus,
   updateWorkTaskContent,
+  updateWorkTaskCollaborators,
   updateWorkTaskShared,
   deleteWorkTask,
   type WorkTask,
@@ -42,6 +43,11 @@ export async function POST(req: NextRequest) {
 
   if (body._action === "content") {
     await updateWorkTaskContent(body.id, body.title ?? "", body.content ?? "");
+    return NextResponse.json({ ok: true });
+  }
+
+  if (body._action === "collaborators") {
+    await updateWorkTaskCollaborators(body.id, body.collaboratorName ?? "");
     return NextResponse.json({ ok: true });
   }
 

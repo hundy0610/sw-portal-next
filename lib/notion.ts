@@ -1689,6 +1689,13 @@ export async function updateWorkTaskContent(id: string, title: string, content: 
   });
 }
 
+export async function updateWorkTaskCollaborators(id: string, collaboratorName: string): Promise<void> {
+  await notion.pages.update({
+    page_id: id,
+    properties: { "협업자": { rich_text: [{ text: { content: collaboratorName } }] } } as Parameters<typeof notion.pages.update>[0]["properties"],
+  });
+}
+
 export async function updateWorkTaskShared(id: string, shared: boolean): Promise<void> {
   await notion.pages.update({
     page_id: id,
