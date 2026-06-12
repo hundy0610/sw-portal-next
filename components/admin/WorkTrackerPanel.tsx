@@ -71,7 +71,7 @@ function TaskCard({ t, dragging, parentTitle, childTotal, childDone, showCollabo
 }
 
 // ── 칸반 컬럼 ─────────────────────────────────────────────
-function KanbanColumn({ stage, tasks, allTasks, lastStageName, isDragTarget, dragId, showCollaborator, onDragOver, onDragLeave, onDrop, onDeleteStage, onCardClick, onCardDragStart, onCardDragEnd }: {
+function KanbanColumn({ stage, tasks, allTasks, lastStageName, isDragTarget, dragId, showCollaborator, onDragOver, onDragLeave, onDrop, onDeleteStage, onAddClick, onCardClick, onCardDragStart, onCardDragEnd }: {
   stage: WorkStage;
   tasks: WorkTask[];
   allTasks: WorkTask[];
@@ -83,6 +83,7 @@ function KanbanColumn({ stage, tasks, allTasks, lastStageName, isDragTarget, dra
   onDragLeave: () => void;
   onDrop: () => void;
   onDeleteStage?: () => void;
+  onAddClick?: () => void;
   onCardClick: (t: WorkTask) => void;
   onCardDragStart: (id: string) => void;
   onCardDragEnd: () => void;
@@ -109,12 +110,20 @@ function KanbanColumn({ stage, tasks, allTasks, lastStageName, isDragTarget, dra
           <span style={{ fontSize: 12, fontWeight: 800, color: stage.tc, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{stage.name}</span>
           <span style={{ fontSize: 11, fontWeight: 700, padding: "1px 7px", borderRadius: 20, background: stage.border + "20", color: stage.tc, flexShrink: 0 }}>{tasks.length}</span>
         </div>
-        {onDeleteStage && (
-          <button onClick={onDeleteStage} title="단계 삭제"
-            style={{ background: "none", border: "none", cursor: "pointer", color: stage.tc, opacity: .5, fontSize: 13, lineHeight: 1, padding: 2, flexShrink: 0 }}>
-            ✕
-          </button>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+          {onAddClick && (
+            <button onClick={onAddClick} title="작업 추가"
+              style={{ background: "none", border: "none", cursor: "pointer", color: stage.tc, opacity: .6, fontSize: 15, lineHeight: 1, padding: 2, fontWeight: 800 }}>
+              +
+            </button>
+          )}
+          {onDeleteStage && (
+            <button onClick={onDeleteStage} title="단계 삭제"
+              style={{ background: "none", border: "none", cursor: "pointer", color: stage.tc, opacity: .5, fontSize: 13, lineHeight: 1, padding: 2 }}>
+              ✕
+            </button>
+          )}
+        </div>
       </div>
       <div style={{ flex: 1, padding: 10, overflowY: "auto" as const }}>
         {tasks.length === 0 ? (
@@ -371,30 +380,6 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
         </button>
       </div>
 
-      {/* + 새 작업 추가 */}
-      {!isAllTab && (
-        <div style={{ marginBottom: 16 }}>
-          <button onClick={() => setNewTaskForm(f => f ? null : { title: "", content: "" })}
-            style={{ fontSize: 12, padding: "6px 14px", borderRadius: 20, border: "1px solid #BFDBFE", background: "#EFF6FF", color: "#2563EB", cursor: "pointer", fontWeight: 600 }}>
-            {newTaskForm ? "취소" : "+ 새 작업 추가"}
-          </button>
-          {newTaskForm && (
-            <div style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "flex-start" }}>
-              <input value={newTaskForm.title} onChange={e => setNewTaskForm(f => f ? { ...f, title: e.target.value } : f)}
-                placeholder="제목"
-                style={{ flex: 1, padding: "7px 10px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 12, color: "#0f172a" }} />
-              <input value={newTaskForm.content} onChange={e => setNewTaskForm(f => f ? { ...f, content: e.target.value } : f)}
-                placeholder="내용 (선택)"
-                style={{ flex: 2, padding: "7px 10px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 12, color: "#0f172a" }} />
-              <button onClick={handleCreateTask} disabled={!newTaskForm.title.trim() || creating}
-                style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: !newTaskForm.title.trim() || creating ? "#E2E8F0" : "#2563EB", color: !newTaskForm.title.trim() || creating ? "#94a3b8" : "#fff", fontSize: 12, fontWeight: 700, cursor: !newTaskForm.title.trim() || creating ? "not-allowed" : "pointer", flexShrink: 0 }}>
-                {creating ? "추가 중..." : "추가"}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* 칸반 보드 */}
       {loading ? (
         <div style={{ textAlign: "center", padding: 60, color: "#94a3b8" }}>불러오는 중...</div>
@@ -405,7 +390,7 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
         </div>
       ) : (
         <div style={{ display: "flex", overflowX: "auto" as const, paddingBottom: 12 }}>
-          {stages.map((stage) => (
+          {stages.map((stage, i) => (
             <KanbanColumn
               key={stage.name}
               stage={stage}
@@ -426,6 +411,7 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
                 setDragId(null);
               }}
               onDeleteStage={() => deleteStage(stage.name)}
+              onAddClick={!isAllTab && i === 0 ? () => setNewTaskForm({ title: "", content: "" }) : undefined}
               onCardClick={openDetail}
               onCardDragStart={setDragId}
               onCardDragEnd={() => { setDragId(null); setDragOver(null); }}
@@ -634,6 +620,39 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
               <button onClick={() => setSelected(null)}
                 style={{ padding: "7px 16px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", color: "#64748b", fontSize: 12, cursor: "pointer" }}>
                 닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 새 작업 추가 모달 ── */}
+      {newTaskForm && (
+        <div
+          onClick={e => { if (e.target === e.currentTarget) setNewTaskForm(null); }}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+        >
+          <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 480, boxShadow: "0 20px 60px rgba(0,0,0,.2)", padding: 20 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 800, color: "#0f172a", margin: 0 }}>새 작업 추가</h3>
+              <button onClick={() => setNewTaskForm(null)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#94a3b8", lineHeight: 1 }}>✕</button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
+              <input value={newTaskForm.title} onChange={e => setNewTaskForm(f => f ? { ...f, title: e.target.value } : f)}
+                placeholder="제목" autoFocus
+                style={{ padding: "10px 12px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 13, color: "#0f172a", boxSizing: "border-box" as const }} />
+              <textarea value={newTaskForm.content} onChange={e => setNewTaskForm(f => f ? { ...f, content: e.target.value } : f)}
+                placeholder="내용 (선택)" rows={5}
+                style={{ padding: "10px 12px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 13, color: "#0f172a", resize: "vertical" as const, boxSizing: "border-box" as const, fontFamily: "inherit" }} />
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 16, justifyContent: "flex-end" }}>
+              <button onClick={() => setNewTaskForm(null)}
+                style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", color: "#64748b", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                취소
+              </button>
+              <button onClick={handleCreateTask} disabled={!newTaskForm.title.trim() || creating}
+                style={{ padding: "8px 18px", borderRadius: 8, border: "none", background: !newTaskForm.title.trim() || creating ? "#E2E8F0" : "#2563EB", color: !newTaskForm.title.trim() || creating ? "#94a3b8" : "#fff", fontSize: 12, fontWeight: 700, cursor: !newTaskForm.title.trim() || creating ? "not-allowed" : "pointer" }}>
+                {creating ? "추가 중..." : "추가"}
               </button>
             </div>
           </div>
