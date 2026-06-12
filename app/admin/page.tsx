@@ -23,6 +23,7 @@ const ExchangeReturnPanel    = dynamic(() => import("@/components/admin/Exchange
 const WorkFeedbackPanel      = dynamic(() => import("@/components/admin/WorkFeedbackPanel"),      { ssr: false });
 const AutomationPanel        = dynamic(() => import("@/components/admin/AutomationPanel"),        { ssr: false });
 const BugReportPanel         = dynamic(() => import("@/components/admin/BugReportPanel"),         { ssr: false });
+const WorkTrackerPanel        = dynamic(() => import("@/components/admin/WorkTrackerPanel"),       { ssr: false });
 
 // ── 세션 타입 ──────────────────────────────────────────────────
 interface SessionInfo {
@@ -33,10 +34,10 @@ interface SessionInfo {
   mustChangePassword?: boolean;
 }
 
-type PageId = "home" | "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "rental-hw" | "accounts" | "assetmap" | "helpdesk" | "contracts" | "repair" | "hw-repair" | "exchange-return" | "work-feedback" | "automation";
+type PageId = "home" | "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "rental-hw" | "accounts" | "assetmap" | "helpdesk" | "contracts" | "repair" | "hw-repair" | "exchange-return" | "work-feedback" | "automation" | "worktracker";
 
 // 슈퍼어드민 전용 페이지 (company 계정은 접근 불가)
-const SUPER_ONLY_PAGES = new Set<PageId>(["credentials", "swdb", "accounts", "contracts", "rental-hw", "hw-repair", "exchange-return", "work-feedback"]);
+const SUPER_ONLY_PAGES = new Set<PageId>(["credentials", "swdb", "accounts", "contracts", "rental-hw", "hw-repair", "exchange-return", "work-feedback", "worktracker"]);
 
 // ── 메뉴 정의 ──────────────────────────────────────────────────
 type MenuItem = { id: PageId; icon: string; label: string; desc: string };
@@ -84,6 +85,7 @@ const SUPER_GROUPS: MenuGroup[] = [
       { id: "contracts",     icon: "📋", label: "계약 관리",       desc: "PC/OA 유지보수 계약" },
       { id: "work-feedback", icon: "🌱", label: "업무 피드백",     desc: "연/월/주간 목표 관리" },
       { id: "bugreport",     icon: "🐛", label: "버그리포트",      desc: "버그 및 개선요청 관리" },
+      { id: "worktracker",   icon: "🗂️", label: "작업 트래커",     desc: "개인 작업 칸반 관리"   },
     ],
   },
 ];
@@ -228,6 +230,7 @@ export default function AdminPage() {
       case "contracts":     return canAccess("contracts")   ? <ContractPanel />   : <AccessDenied />;
       case "work-feedback": return canAccess("work-feedback") ? <WorkFeedbackPanel session={{ role: session.role, userId: session.userId, name: session.name }} /> : <AccessDenied />;
       case "bugreport":     return <BugReportPanel />;
+      case "worktracker":   return canAccess("worktracker") ? <WorkTrackerPanel /> : <AccessDenied />;
       default:            return null;
     }
   }

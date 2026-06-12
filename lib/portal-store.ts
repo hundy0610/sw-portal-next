@@ -4,6 +4,8 @@ import type { Notice, Course, Resource } from "@/types/portal";
 import type { SwItem } from "@/types";
 import type { BugStage } from "@/types/bug-report";
 import { DEFAULT_BUG_STAGES } from "@/types/bug-report";
+import type { WorkStage } from "@/types/work-tracker";
+import { DEFAULT_WORK_STAGES } from "@/types/work-tracker";
 
 const KV_NOTICES    = "portal:notices";
 const KV_COURSES    = "portal:courses";
@@ -11,6 +13,7 @@ const KV_RESOURCES  = "portal:resources";
 const KV_SWDB       = "portal:swdb";
 const KV_AUDIT      = "portal:audit_log";
 const KV_BUG_STAGES = "portal:bug_stages";
+const KV_WORK_STAGES = "portal:work_stages";
 
 // ─── Audit Log ──────────────────────────────────────────
 export interface AuditLog {
@@ -109,6 +112,21 @@ export async function getBugStages(): Promise<BugStage[]> {
 export async function saveBugStages(stages: BugStage[]): Promise<void> {
   await kvSetPermanent(KV_BUG_STAGES, stages);
   memSet(KV_BUG_STAGES, stages, MEM_TTL);
+}
+
+// ─── 작업 트래커 칸반 단계 ─────────────────────────────────
+export async function getWorkStages(): Promise<WorkStage[]> {
+  let data = memGet<WorkStage[]>(KV_WORK_STAGES);
+  if (!data) {
+    data = (await kvGet<WorkStage[]>(KV_WORK_STAGES)) ?? DEFAULT_WORK_STAGES;
+    memSet(KV_WORK_STAGES, data, MEM_TTL);
+  }
+  return data;
+}
+
+export async function saveWorkStages(stages: WorkStage[]): Promise<void> {
+  await kvSetPermanent(KV_WORK_STAGES, stages);
+  memSet(KV_WORK_STAGES, stages, MEM_TTL);
 }
 
 // ─── SW DB (화이트/블랙리스트) ───────────────────────────

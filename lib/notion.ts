@@ -1609,3 +1609,93 @@ export async function updateBugReportReply(id: string, reply: string, status: Bu
 export async function deleteBugReport(id: string): Promise<void> {
   await notion.pages.update({ page_id: id, archived: true });
 }
+
+// ────────────────────────────────────────────────────────────
+// 개인 작업 트래커
+// ────────────────────────────────────────────────────────────
+
+export interface WorkTask {
+  id:               string;
+  title:            string;
+  content:          string;
+  collaboratorName: string;
+  collaboratorId:   string;
+  status:           string; // 칸반 단계명 (동적, types/work-tracker.ts 참고)
+  createdAt:        string;
+  parentId:         string; // 상위 작업 page id (없으면 "")
+  shared:           boolean;
+}
+
+export async function listWorkTasks(): Promise<WorkTask[]> {
+  const dbId = process.env.NOTION_DB_WORK_TRACKER;
+  if (!dbId) throw new Error("NOTION_DB_WORK_TRACKER not set");
+
+  const pages = await queryAllPages(dbId, undefined, [{ property: "생성일시", direction: "descending" }]);
+
+  return pages.map((p) => {
+    const props = (p as PageObjectResponse).properties;
+    return {
+      id:               p.id,
+      title:            getPropText(props, "작업명"),
+      content:          getPropText(props, "내용"),
+      collaboratorName: getPropText(props, "협업자"),
+      collaboratorId:   getPropText(props, "협업자ID"),
+      status:           getPropSelect(props, "상태") || "할 일",
+      createdAt:        getPropDate(props, "생성일시"),
+      parentId:         getPropText(props, "상위ID"),
+      shared:           getPropCheckbox(props, "공유"),
+    };
+  });
+}
+
+export async function createWorkTask(
+  data: Omit<WorkTask, "id">,
+): Promise<string> {
+  const dbId = process.env.NOTION_DB_WORK_TRACKER;
+  if (!dbId) throw new Error("NOTION_DB_WORK_TRACKER not set");
+
+  const props: Record<string, unknown> = {
+    "작업명":    { title:     [{ text: { content: data.title } }] },
+    "내용":      { rich_text: [{ text: { content: data.content } }] },
+    "협업자":    { rich_text: [{ text: { content: data.collaboratorName } }] },
+    "협업자ID":  { rich_text: [{ text: { content: data.collaboratorId } }] },
+    "상태":      { select:    { name: data.status } },
+    "생성일시":  { date:      { start: data.createdAt } },
+    "상위ID":    { rich_text: [{ text: { content: data.parentId || "" } }] },
+    "공유":      { checkbox:  data.shared },
+  };
+
+  const res = await notion.pages.create({
+    parent: { database_id: dbId },
+    properties: props as Parameters<typeof notion.pages.create>[0]["properties"],
+  });
+  return res.id;
+}
+
+export async function updateWorkTaskStatus(id: string, status: string): Promise<void> {
+  await notion.pages.update({
+    page_id: id,
+    properties: { "상태": { select: { name: status } } } as Parameters<typeof notion.pages.update>[0]["properties"],
+  });
+}
+
+export async function updateWorkTaskContent(id: string, title: string, content: string): Promise<void> {
+  await notion.pages.update({
+    page_id: id,
+    properties: {
+      "작업명": { title:     [{ text: { content: title } }] },
+      "내용":   { rich_text: [{ text: { content } }] },
+    } as Parameters<typeof notion.pages.update>[0]["properties"],
+  });
+}
+
+export async function updateWorkTaskShared(id: string, shared: boolean): Promise<void> {
+  await notion.pages.update({
+    page_id: id,
+    properties: { "공유": { checkbox: shared } } as Parameters<typeof notion.pages.update>[0]["properties"],
+  });
+}
+
+export async function deleteWorkTask(id: string): Promise<void> {
+  await notion.pages.update({ page_id: id, archived: true });
+}
