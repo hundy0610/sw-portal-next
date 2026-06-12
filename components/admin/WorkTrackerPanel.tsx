@@ -16,6 +16,67 @@ interface WorkTask {
   shared:           boolean;
 }
 
+interface TaskFormState {
+  title:            string;
+  content:          string;
+  collaboratorName: string;
+  shared:           boolean;
+}
+
+// ── 작업 추가 모달 ────────────────────────────────────────
+function TaskFormModal({ title, form, setForm, onCancel, onSubmit, submitting }: {
+  title: string;
+  form: TaskFormState;
+  setForm: (updater: (f: TaskFormState | null) => TaskFormState | null) => void;
+  onCancel: () => void;
+  onSubmit: () => void;
+  submitting: boolean;
+}) {
+  return (
+    <div
+      onClick={e => { if (e.target === e.currentTarget) onCancel(); }}
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+    >
+      <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 480, boxShadow: "0 20px 60px rgba(0,0,0,.2)", padding: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 800, color: "#0f172a", margin: 0 }}>{title}</h3>
+          <button onClick={onCancel} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#94a3b8", lineHeight: 1 }}>✕</button>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
+          <input value={form.title} onChange={e => setForm(f => f ? { ...f, title: e.target.value } : f)}
+            placeholder="제목" autoFocus
+            style={{ padding: "10px 12px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 13, color: "#0f172a", boxSizing: "border-box" as const }} />
+          <textarea value={form.content} onChange={e => setForm(f => f ? { ...f, content: e.target.value } : f)}
+            placeholder="내용 (선택)" rows={5}
+            style={{ padding: "10px 12px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 13, color: "#0f172a", resize: "vertical" as const, boxSizing: "border-box" as const, fontFamily: "inherit" }} />
+          <input value={form.collaboratorName} onChange={e => setForm(f => f ? { ...f, collaboratorName: e.target.value } : f)}
+            placeholder="협업자"
+            style={{ padding: "10px 12px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 13, color: "#0f172a", boxSizing: "border-box" as const }} />
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button type="button" onClick={() => setForm(f => f ? { ...f, shared: !f.shared } : f)}
+              style={{ width: 36, height: 20, borderRadius: 20, border: "none", position: "relative" as const, background: form.shared ? "#2563EB" : "#E2E8F0", cursor: "pointer", padding: 0, flexShrink: 0 }}>
+              <span style={{ position: "absolute" as const, top: 2, left: form.shared ? 18 : 2, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left .15s" }} />
+            </button>
+            <span style={{ fontSize: 12, color: form.shared ? "#2563EB" : "#94a3b8", fontWeight: 600 }}>
+              {form.shared ? "공유됨 (전체 보기에 표시)" : "비공개"}
+            </span>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 16, justifyContent: "flex-end" }}>
+          <button onClick={onCancel}
+            style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", color: "#64748b", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+            취소
+          </button>
+          <button onClick={onSubmit} disabled={!form.title.trim() || submitting}
+            style={{ padding: "8px 18px", borderRadius: 8, border: "none", background: !form.title.trim() || submitting ? "#E2E8F0" : "#2563EB", color: !form.title.trim() || submitting ? "#94a3b8" : "#fff", fontSize: 12, fontWeight: 700, cursor: !form.title.trim() || submitting ? "not-allowed" : "pointer" }}>
+            {submitting ? "추가 중..." : "추가"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── 작업 카드 ─────────────────────────────────────────────
 function TaskCard({ t, dragging, parentTitle, childTotal, childDone, showCollaborator, onClick, onDragStart, onDragEnd }: {
   t: WorkTask;
@@ -71,7 +132,7 @@ function TaskCard({ t, dragging, parentTitle, childTotal, childDone, showCollabo
 }
 
 // ── 칸반 컬럼 ─────────────────────────────────────────────
-function KanbanColumn({ stage, tasks, allTasks, lastStageName, isDragTarget, dragId, showCollaborator, onDragOver, onDragLeave, onDrop, onDeleteStage, onAddClick, onCardClick, onCardDragStart, onCardDragEnd }: {
+function KanbanColumn({ stage, tasks, allTasks, lastStageName, isDragTarget, dragId, showCollaborator, onDragOver, onDragLeave, onDrop, onDeleteStage, onAddClick, addLabel, onCardClick, onCardDragStart, onCardDragEnd }: {
   stage: WorkStage;
   tasks: WorkTask[];
   allTasks: WorkTask[];
@@ -84,6 +145,7 @@ function KanbanColumn({ stage, tasks, allTasks, lastStageName, isDragTarget, dra
   onDrop: () => void;
   onDeleteStage?: () => void;
   onAddClick?: () => void;
+  addLabel?: string;
   onCardClick: (t: WorkTask) => void;
   onCardDragStart: (id: string) => void;
   onCardDragEnd: () => void;
@@ -110,22 +172,24 @@ function KanbanColumn({ stage, tasks, allTasks, lastStageName, isDragTarget, dra
           <span style={{ fontSize: 12, fontWeight: 800, color: stage.tc, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{stage.name}</span>
           <span style={{ fontSize: 11, fontWeight: 700, padding: "1px 7px", borderRadius: 20, background: stage.border + "20", color: stage.tc, flexShrink: 0 }}>{tasks.length}</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-          {onAddClick && (
-            <button onClick={onAddClick} title="작업 추가"
-              style={{ background: "none", border: "none", cursor: "pointer", color: stage.tc, opacity: .6, fontSize: 15, lineHeight: 1, padding: 2, fontWeight: 800 }}>
-              +
-            </button>
-          )}
-          {onDeleteStage && (
-            <button onClick={onDeleteStage} title="단계 삭제"
-              style={{ background: "none", border: "none", cursor: "pointer", color: stage.tc, opacity: .5, fontSize: 13, lineHeight: 1, padding: 2 }}>
-              ✕
-            </button>
-          )}
-        </div>
+        {onDeleteStage && (
+          <button onClick={onDeleteStage} title="단계 삭제"
+            style={{ background: "none", border: "none", cursor: "pointer", color: stage.tc, opacity: .5, fontSize: 13, lineHeight: 1, padding: 2, flexShrink: 0 }}>
+            ✕
+          </button>
+        )}
       </div>
       <div style={{ flex: 1, padding: 10, overflowY: "auto" as const }}>
+        {onAddClick && (
+          <div onClick={onAddClick}
+            style={{
+              border: "1px dashed #CBD5E1", borderRadius: 8, padding: "6px 10px",
+              marginBottom: 8, textAlign: "center" as const, fontSize: 12,
+              color: "#94a3b8", cursor: "pointer", background: "#FAFBFC", fontWeight: 600,
+            }}>
+            {addLabel ?? "+ 추가"}
+          </div>
+        )}
         {tasks.length === 0 ? (
           <div style={{ textAlign: "center", padding: "30px 0", fontSize: 11, color: "#cbd5e1" }}>
             {isDragTarget ? "여기에 놓기" : "없음"}
@@ -168,10 +232,10 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
   const [dragId, setDragId]     = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null);
 
-  const [newTaskForm, setNewTaskForm] = useState<{ title: string; content: string } | null>(null);
+  const [newTaskForm, setNewTaskForm] = useState<TaskFormState | null>(null);
   const [creating, setCreating] = useState(false);
 
-  const [subTaskForm, setSubTaskForm] = useState<{ title: string; content: string } | null>(null);
+  const [subTaskForm, setSubTaskForm] = useState<TaskFormState | null>(null);
   const [creatingSubtask, setCreatingSubtask] = useState(false);
 
   const [modalDragId, setModalDragId]     = useState<string | null>(null);
@@ -224,6 +288,11 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
     return tasks.filter(t => t.parentId === id);
   }
 
+  function closeDetail() {
+    setSelected(null);
+    setSubTaskForm(null);
+  }
+
   async function handleCreateTask() {
     if (!newTaskForm || !newTaskForm.title.trim() || creating || activeTab !== MY_TAB) return;
     setCreating(true);
@@ -235,9 +304,10 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
           title: newTaskForm.title.trim(),
           content: newTaskForm.content.trim(),
           collaboratorId: session.userId,
-          collaboratorName: session.name,
+          collaboratorName: newTaskForm.collaboratorName.trim() || session.name,
           status: stages[0]?.name ?? "할 일",
           parentId: "",
+          shared: newTaskForm.shared,
         }),
       });
       setNewTaskForm(null);
@@ -258,9 +328,10 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
           title: subTaskForm.title.trim(),
           content: subTaskForm.content.trim(),
           collaboratorId: selected.collaboratorId,
-          collaboratorName: selected.collaboratorName,
+          collaboratorName: subTaskForm.collaboratorName.trim() || selected.collaboratorName,
           status: stages[0]?.name ?? "할 일",
           parentId: selected.id,
+          shared: subTaskForm.shared,
         }),
       });
       setSubTaskForm(null);
@@ -315,7 +386,7 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ _action: "delete", id }),
     });
-    setSelected(null);
+    closeDetail();
     load();
   }
 
@@ -411,7 +482,8 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
                 setDragId(null);
               }}
               onDeleteStage={() => deleteStage(stage.name)}
-              onAddClick={!isAllTab && i === 0 ? () => setNewTaskForm({ title: "", content: "" }) : undefined}
+              onAddClick={!isAllTab && i === 0 ? () => setNewTaskForm({ title: "", content: "", collaboratorName: session.name, shared: false }) : undefined}
+              addLabel="+ 새 작업 추가"
               onCardClick={openDetail}
               onCardDragStart={setDragId}
               onCardDragEnd={() => { setDragId(null); setDragOver(null); }}
@@ -440,7 +512,7 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
       {/* ── 상세 모달 ── */}
       {selected && (
         <div
-          onClick={e => { if (e.target === e.currentTarget) setSelected(null); }}
+          onClick={e => { if (e.target === e.currentTarget) closeDetail(); }}
           style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
         >
           <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 1200, height: "min(90vh, 820px)", boxShadow: "0 20px 60px rgba(0,0,0,.2)", display: "flex", flexDirection: "column" as const, overflow: "hidden" }}>
@@ -459,7 +531,7 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
                     <div style={{ fontSize: 15, fontWeight: 700, color: "#0f172a", lineHeight: 1.4 }}>{selected.title}</div>
                   )}
                 </div>
-                <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#94a3b8", lineHeight: 1, flexShrink: 0 }}>✕</button>
+                <button onClick={closeDetail} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#94a3b8", lineHeight: 1, flexShrink: 0 }}>✕</button>
               </div>
 
               {/* 단계 버튼 */}
@@ -538,29 +610,11 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
             <div style={{ flex: 1, display: "flex", flexDirection: "column" as const, overflow: "hidden" }}>
               <div style={{ padding: "12px 20px 0", flexShrink: 0, display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>하위 작업 ({childrenOf(selected.id).length})</span>
-                <button onClick={() => setSubTaskForm(f => f ? null : { title: "", content: "" })}
-                  style={{ fontSize: 11, padding: "3px 10px", borderRadius: 20, border: "1px solid #BFDBFE", background: "#EFF6FF", color: "#2563EB", cursor: "pointer", fontWeight: 600 }}>
-                  {subTaskForm ? "취소" : "+ 하위 작업 추가"}
-                </button>
               </div>
-              {subTaskForm && (
-                <div style={{ display: "flex", gap: 6, margin: "8px 20px 0", alignItems: "flex-start" }}>
-                  <input value={subTaskForm.title} onChange={e => setSubTaskForm(f => f ? { ...f, title: e.target.value } : f)}
-                    placeholder="제목"
-                    style={{ flex: 1, padding: "7px 10px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 12, color: "#0f172a" }} />
-                  <input value={subTaskForm.content} onChange={e => setSubTaskForm(f => f ? { ...f, content: e.target.value } : f)}
-                    placeholder="내용 (선택)"
-                    style={{ flex: 2, padding: "7px 10px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 12, color: "#0f172a" }} />
-                  <button onClick={handleCreateSubtask} disabled={!subTaskForm.title.trim() || creatingSubtask}
-                    style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: !subTaskForm.title.trim() || creatingSubtask ? "#E2E8F0" : "#2563EB", color: !subTaskForm.title.trim() || creatingSubtask ? "#94a3b8" : "#fff", fontSize: 12, fontWeight: 700, cursor: !subTaskForm.title.trim() || creatingSubtask ? "not-allowed" : "pointer", flexShrink: 0 }}>
-                    {creatingSubtask ? "추가 중..." : "추가"}
-                  </button>
-                </div>
-              )}
 
               {/* 하위 작업 칸반 */}
               <div style={{ flex: 1, overflow: "auto" as const, display: "flex", alignItems: "flex-start", padding: 16 }}>
-                {stages.map(stage => {
+                {stages.map((stage, i) => {
                   const subTasks = childrenOf(selected.id);
                   return (
                     <KanbanColumn
@@ -582,6 +636,8 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
                         }
                         setModalDragId(null);
                       }}
+                      onAddClick={i === 0 ? () => setSubTaskForm({ title: "", content: "", collaboratorName: selected.collaboratorName, shared: false }) : undefined}
+                      addLabel="+ 하위 작업 추가"
                       onCardClick={openDetail}
                       onCardDragStart={setModalDragId}
                       onCardDragEnd={() => { setModalDragId(null); setModalDragOver(null); }}
@@ -617,7 +673,7 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
                 style={{ padding: "7px 14px", borderRadius: 8, border: "1px solid #FEE2E2", background: "#FFF5F5", color: "#DC2626", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
                 삭제
               </button>
-              <button onClick={() => setSelected(null)}
+              <button onClick={closeDetail}
                 style={{ padding: "7px 16px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", color: "#64748b", fontSize: 12, cursor: "pointer" }}>
                 닫기
               </button>
@@ -628,35 +684,26 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
 
       {/* ── 새 작업 추가 모달 ── */}
       {newTaskForm && (
-        <div
-          onClick={e => { if (e.target === e.currentTarget) setNewTaskForm(null); }}
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
-        >
-          <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 480, boxShadow: "0 20px 60px rgba(0,0,0,.2)", padding: 20 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-              <h3 style={{ fontSize: 16, fontWeight: 800, color: "#0f172a", margin: 0 }}>새 작업 추가</h3>
-              <button onClick={() => setNewTaskForm(null)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#94a3b8", lineHeight: 1 }}>✕</button>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
-              <input value={newTaskForm.title} onChange={e => setNewTaskForm(f => f ? { ...f, title: e.target.value } : f)}
-                placeholder="제목" autoFocus
-                style={{ padding: "10px 12px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 13, color: "#0f172a", boxSizing: "border-box" as const }} />
-              <textarea value={newTaskForm.content} onChange={e => setNewTaskForm(f => f ? { ...f, content: e.target.value } : f)}
-                placeholder="내용 (선택)" rows={5}
-                style={{ padding: "10px 12px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 13, color: "#0f172a", resize: "vertical" as const, boxSizing: "border-box" as const, fontFamily: "inherit" }} />
-            </div>
-            <div style={{ display: "flex", gap: 8, marginTop: 16, justifyContent: "flex-end" }}>
-              <button onClick={() => setNewTaskForm(null)}
-                style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", color: "#64748b", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                취소
-              </button>
-              <button onClick={handleCreateTask} disabled={!newTaskForm.title.trim() || creating}
-                style={{ padding: "8px 18px", borderRadius: 8, border: "none", background: !newTaskForm.title.trim() || creating ? "#E2E8F0" : "#2563EB", color: !newTaskForm.title.trim() || creating ? "#94a3b8" : "#fff", fontSize: 12, fontWeight: 700, cursor: !newTaskForm.title.trim() || creating ? "not-allowed" : "pointer" }}>
-                {creating ? "추가 중..." : "추가"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <TaskFormModal
+          title="새 작업 추가"
+          form={newTaskForm}
+          setForm={setNewTaskForm}
+          onCancel={() => setNewTaskForm(null)}
+          onSubmit={handleCreateTask}
+          submitting={creating}
+        />
+      )}
+
+      {/* ── 하위 작업 추가 모달 ── */}
+      {subTaskForm && (
+        <TaskFormModal
+          title="하위 작업 추가"
+          form={subTaskForm}
+          setForm={setSubTaskForm}
+          onCancel={() => setSubTaskForm(null)}
+          onSubmit={handleCreateSubtask}
+          submitting={creatingSubtask}
+        />
       )}
     </div>
   );
