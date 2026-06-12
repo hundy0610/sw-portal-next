@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     status:           body.status           ?? "할 일",
     createdAt:        new Date().toISOString(),
     parentId:         body.parentId         ?? "",
-    shared:           false,
+    shared:           !!body.shared,
   };
 
   const id = await createWorkTask(data);
