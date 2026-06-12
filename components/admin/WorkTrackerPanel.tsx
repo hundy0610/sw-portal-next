@@ -24,10 +24,14 @@ interface TaskFormState {
 }
 
 // ── 작업 추가 모달 ────────────────────────────────────────
-function TaskFormModal({ title, form, setForm, onCancel, onSubmit, submitting }: {
+const FIELD_LABEL_STYLE = { fontSize: 12, fontWeight: 700, color: "#475569", marginBottom: 6, display: "block" as const };
+const FIELD_INPUT_STYLE = { width: "100%", padding: "10px 12px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 13, color: "#0f172a", boxSizing: "border-box" as const, background: "#fff" };
+
+function TaskFormModal({ title, form, setForm, collaboratorOptions, onCancel, onSubmit, submitting }: {
   title: string;
   form: TaskFormState;
   setForm: (updater: (f: TaskFormState | null) => TaskFormState | null) => void;
+  collaboratorOptions: string[];
   onCancel: () => void;
   onSubmit: () => void;
   submitting: boolean;
@@ -35,40 +39,58 @@ function TaskFormModal({ title, form, setForm, onCancel, onSubmit, submitting }:
   return (
     <div
       onClick={e => { if (e.target === e.currentTarget) onCancel(); }}
-      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+      style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
     >
-      <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 480, boxShadow: "0 20px 60px rgba(0,0,0,.2)", padding: 20 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 800, color: "#0f172a", margin: 0 }}>{title}</h3>
+      <div style={{ background: "#fff", borderRadius: 18, width: "100%", maxWidth: 480, boxShadow: "0 24px 70px rgba(0,0,0,.25)", overflow: "hidden" }}>
+        <div style={{ padding: "18px 22px", borderBottom: "1px solid #F1F5F9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <h3 style={{ fontSize: 17, fontWeight: 800, color: "#0f172a", margin: 0 }}>{title}</h3>
           <button onClick={onCancel} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#94a3b8", lineHeight: 1 }}>✕</button>
         </div>
-        <div style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
-          <input value={form.title} onChange={e => setForm(f => f ? { ...f, title: e.target.value } : f)}
-            placeholder="제목" autoFocus
-            style={{ padding: "10px 12px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 13, color: "#0f172a", boxSizing: "border-box" as const }} />
-          <textarea value={form.content} onChange={e => setForm(f => f ? { ...f, content: e.target.value } : f)}
-            placeholder="내용 (선택)" rows={5}
-            style={{ padding: "10px 12px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 13, color: "#0f172a", resize: "vertical" as const, boxSizing: "border-box" as const, fontFamily: "inherit" }} />
-          <input value={form.collaboratorName} onChange={e => setForm(f => f ? { ...f, collaboratorName: e.target.value } : f)}
-            placeholder="협업자"
-            style={{ padding: "10px 12px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 13, color: "#0f172a", boxSizing: "border-box" as const }} />
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ padding: 22, display: "flex", flexDirection: "column" as const, gap: 16 }}>
+          <div>
+            <label style={FIELD_LABEL_STYLE}>제목</label>
+            <input value={form.title} onChange={e => setForm(f => f ? { ...f, title: e.target.value } : f)}
+              placeholder="작업 제목을 입력하세요" autoFocus
+              style={FIELD_INPUT_STYLE} />
+          </div>
+          <div>
+            <label style={FIELD_LABEL_STYLE}>내용</label>
+            <textarea value={form.content} onChange={e => setForm(f => f ? { ...f, content: e.target.value } : f)}
+              placeholder="내용 (선택)" rows={5}
+              style={{ ...FIELD_INPUT_STYLE, resize: "vertical" as const, fontFamily: "inherit" }} />
+          </div>
+          <div>
+            <label style={FIELD_LABEL_STYLE}>협업자</label>
+            <select value={form.collaboratorName} onChange={e => setForm(f => f ? { ...f, collaboratorName: e.target.value } : f)}
+              style={{ ...FIELD_INPUT_STYLE, cursor: "pointer" }}>
+              {!collaboratorOptions.includes(form.collaboratorName) && form.collaboratorName && (
+                <option value={form.collaboratorName}>{form.collaboratorName}</option>
+              )}
+              {collaboratorOptions.map(name => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ background: "#F8FAFC", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#334155" }}>공유</div>
+              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
+                {form.shared ? "전체 보기(공유됨)에 표시됩니다" : "나에게만 표시됩니다"}
+              </div>
+            </div>
             <button type="button" onClick={() => setForm(f => f ? { ...f, shared: !f.shared } : f)}
-              style={{ width: 36, height: 20, borderRadius: 20, border: "none", position: "relative" as const, background: form.shared ? "#2563EB" : "#E2E8F0", cursor: "pointer", padding: 0, flexShrink: 0 }}>
-              <span style={{ position: "absolute" as const, top: 2, left: form.shared ? 18 : 2, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left .15s" }} />
+              style={{ width: 40, height: 22, borderRadius: 20, border: "none", position: "relative" as const, background: form.shared ? "#2563EB" : "#CBD5E1", cursor: "pointer", padding: 0, flexShrink: 0, transition: "background .15s" }}>
+              <span style={{ position: "absolute" as const, top: 2, left: form.shared ? 20 : 2, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "left .15s", boxShadow: "0 1px 3px rgba(0,0,0,.2)" }} />
             </button>
-            <span style={{ fontSize: 12, color: form.shared ? "#2563EB" : "#94a3b8", fontWeight: 600 }}>
-              {form.shared ? "공유됨 (전체 보기에 표시)" : "비공개"}
-            </span>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 8, marginTop: 16, justifyContent: "flex-end" }}>
+        <div style={{ padding: "14px 22px", borderTop: "1px solid #F1F5F9", display: "flex", gap: 8, justifyContent: "flex-end", background: "#FAFBFC" }}>
           <button onClick={onCancel}
-            style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", color: "#64748b", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+            style={{ padding: "9px 18px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", color: "#64748b", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
             취소
           </button>
           <button onClick={onSubmit} disabled={!form.title.trim() || submitting}
-            style={{ padding: "8px 18px", borderRadius: 8, border: "none", background: !form.title.trim() || submitting ? "#E2E8F0" : "#2563EB", color: !form.title.trim() || submitting ? "#94a3b8" : "#fff", fontSize: 12, fontWeight: 700, cursor: !form.title.trim() || submitting ? "not-allowed" : "pointer" }}>
+            style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: !form.title.trim() || submitting ? "#E2E8F0" : "#2563EB", color: !form.title.trim() || submitting ? "#94a3b8" : "#fff", fontSize: 12, fontWeight: 700, cursor: !form.title.trim() || submitting ? "not-allowed" : "pointer" }}>
             {submitting ? "추가 중..." : "추가"}
           </button>
         </div>
@@ -241,6 +263,8 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
   const [modalDragId, setModalDragId]     = useState<string | null>(null);
   const [modalDragOver, setModalDragOver] = useState<string | null>(null);
 
+  const [collaboratorOptions, setCollaboratorOptions] = useState<string[]>([]);
+
   async function load() {
     setLoading(true);
     setError(null);
@@ -263,6 +287,18 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
     }
   }
 
+  async function loadAccounts() {
+    try {
+      const res = await fetch("/api/admin/accounts");
+      if (!res.ok) return;
+      const { accounts } = await res.json();
+      if (Array.isArray(accounts)) {
+        const names: string[] = accounts.filter((a: { active: boolean }) => a.active).map((a: { name: string }) => a.name);
+        setCollaboratorOptions(Array.from(new Set([session.name, ...names])));
+      }
+    } catch {}
+  }
+
   async function backgroundLoad() {
     try {
       const res = await fetch("/api/work-tracker");
@@ -272,7 +308,7 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
     } catch {}
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); loadAccounts(); }, []);
 
   function openDetail(t: WorkTask) {
     setSelected(t);
@@ -688,6 +724,7 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
           title="새 작업 추가"
           form={newTaskForm}
           setForm={setNewTaskForm}
+          collaboratorOptions={collaboratorOptions}
           onCancel={() => setNewTaskForm(null)}
           onSubmit={handleCreateTask}
           submitting={creating}
@@ -700,6 +737,7 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
           title="하위 작업 추가"
           form={subTaskForm}
           setForm={setSubTaskForm}
+          collaboratorOptions={collaboratorOptions}
           onCancel={() => setSubTaskForm(null)}
           onSubmit={handleCreateSubtask}
           submitting={creatingSubtask}
