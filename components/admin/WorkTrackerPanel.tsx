@@ -16,12 +16,6 @@ interface WorkTask {
   shared:           boolean;
 }
 
-interface Account {
-  userId: string;
-  name:   string;
-  active: boolean;
-}
-
 // ── 작업 카드 ─────────────────────────────────────────────
 function TaskCard({ t, dragging, parentTitle, childTotal, childDone, showCollaborator, onClick, onDragStart, onDragEnd }: {
   t: WorkTask;
@@ -170,15 +164,15 @@ function InsertGap({ onClick }: { onClick: () => void }) {
 }
 
 const ALL_TAB = "__all__";
+const MY_TAB  = "__mine__";
 
-export default function WorkTrackerPanel() {
+export default function WorkTrackerPanel({ session }: { session: { userId: string; name: string } }) {
   const [tasks, setTasks]     = useState<WorkTask[]>([]);
   const [stages, setStages]   = useState<WorkStage[]>(DEFAULT_WORK_STAGES);
-  const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<string>(ALL_TAB);
+  const [activeTab, setActiveTab] = useState<string>(MY_TAB);
 
   const [selected, setSelected] = useState<WorkTask | null>(null);
   const [editing, setEditing]   = useState(false);
@@ -201,10 +195,9 @@ export default function WorkTrackerPanel() {
     setLoading(true);
     setError(null);
     try {
-      const [tasksRes, stagesRes, accountsRes] = await Promise.all([
+      const [tasksRes, stagesRes] = await Promise.all([
         fetch("/api/work-tracker"),
         fetch("/api/work-tracker/stages"),
-        fetch("/api/admin/accounts"),
       ]);
       if (!tasksRes.ok) { setError(`오류 ${tasksRes.status}: ${await tasksRes.text()}`); return; }
       const { data } = await tasksRes.json();
@@ -212,10 +205,6 @@ export default function WorkTrackerPanel() {
       if (stagesRes.ok) {
         const { data: stageData } = await stagesRes.json();
         if (Array.isArray(stageData) && stageData.length > 0) setStages(stageData);
-      }
-      if (accountsRes.ok) {
-        const { accounts: accs } = await accountsRes.json();
-        setAccounts((accs ?? []).filter((a: Account) => a.active));
       }
     } catch (e) {
       setError(String(e));
@@ -250,8 +239,7 @@ export default function WorkTrackerPanel() {
   }
 
   async function handleCreateTask() {
-    if (!newTaskForm || !newTaskForm.title.trim() || creating || activeTab === ALL_TAB) return;
-    const account = accounts.find(a => a.userId === activeTab);
+    if (!newTaskForm || !newTaskForm.title.trim() || creating || activeTab !== MY_TAB) return;
     setCreating(true);
     try {
       await fetch("/api/work-tracker", {
@@ -260,8 +248,8 @@ export default function WorkTrackerPanel() {
         body: JSON.stringify({
           title: newTaskForm.title.trim(),
           content: newTaskForm.content.trim(),
-          collaboratorId: activeTab,
-          collaboratorName: account?.name ?? "",
+          collaboratorId: session.userId,
+          collaboratorName: session.name,
           status: stages[0]?.name ?? "할 일",
           parentId: "",
         }),
@@ -377,7 +365,7 @@ export default function WorkTrackerPanel() {
   const isAllTab = activeTab === ALL_TAB;
 
   const filtered = tasks.filter(t =>
-    !t.parentId && (isAllTab ? t.shared : t.collaboratorId === activeTab)
+    !t.parentId && (isAllTab ? t.shared : t.collaboratorId === session.userId)
   );
 
   const unassigned = filtered.filter(t => !stages.some(s => s.name === t.status));
@@ -397,8 +385,17 @@ export default function WorkTrackerPanel() {
         </button>
       </div>
 
-      {/* 사용자 탭 */}
+      {/* 탭 */}
       <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" as const, borderBottom: "1px solid #E2E8F0", paddingBottom: 10 }}>
+        <button onClick={() => setActiveTab(MY_TAB)}
+          style={{
+            padding: "6px 14px", borderRadius: 20, border: "none",
+            background: !isAllTab ? "#0f172a" : "#F1F5F9",
+            color: !isAllTab ? "#fff" : "#334155",
+            fontSize: 12, fontWeight: 700, cursor: "pointer",
+          }}>
+          내 작업
+        </button>
         <button onClick={() => setActiveTab(ALL_TAB)}
           style={{
             padding: "6px 14px", borderRadius: 20, border: "none",
@@ -408,17 +405,6 @@ export default function WorkTrackerPanel() {
           }}>
           전체 보기 (공유됨)
         </button>
-        {accounts.map(a => (
-          <button key={a.userId} onClick={() => setActiveTab(a.userId)}
-            style={{
-              padding: "6px 14px", borderRadius: 20, border: "none",
-              background: activeTab === a.userId ? "#0f172a" : "#F1F5F9",
-              color: activeTab === a.userId ? "#fff" : "#334155",
-              fontSize: 12, fontWeight: 700, cursor: "pointer",
-            }}>
-            {a.name}
-          </button>
-        ))}
       </div>
 
       {/* + 새 작업 추가 */}

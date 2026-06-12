@@ -230,7 +230,7 @@ export default function AdminPage() {
       case "contracts":     return canAccess("contracts")   ? <ContractPanel />   : <AccessDenied />;
       case "work-feedback": return canAccess("work-feedback") ? <WorkFeedbackPanel session={{ role: session.role, userId: session.userId, name: session.name }} /> : <AccessDenied />;
       case "bugreport":     return <BugReportPanel />;
-      case "worktracker":   return canAccess("worktracker") ? <WorkTrackerPanel /> : <AccessDenied />;
+      case "worktracker":   return canAccess("worktracker") ? <WorkTrackerPanel session={{ userId: session.userId, name: session.name }} /> : <AccessDenied />;
       default:            return null;
     }
   }
