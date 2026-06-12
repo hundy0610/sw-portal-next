@@ -1,8 +1,8 @@
 "use client";
 
-import { Fragment, useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { BugStage } from "@/types/bug-report";
-import { DEFAULT_BUG_STAGES, UNASSIGNED_BUG_STAGE, BUG_STAGE_PALETTE } from "@/types/bug-report";
+import { DEFAULT_BUG_STAGES, UNASSIGNED_BUG_STAGE } from "@/types/bug-report";
 
 interface BugReport {
   id:           string;
@@ -156,29 +156,6 @@ function KanbanColumn({ stage, reports, allReports, lastStageName, isDragTarget,
           );
         })}
       </div>
-    </div>
-  );
-}
-
-// ── 단계 추가 버튼(컬럼 사이 갭) ───────────────────────────
-function InsertGap({ onClick }: { onClick: () => void }) {
-  const [hover, setHover] = useState(false);
-  return (
-    <div
-      onClick={onClick}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      title="단계 추가"
-      style={{
-        flex: "0 0 18px", minWidth: 18, marginRight: 10, minHeight: 360, borderRadius: 8,
-        cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-        background: hover ? "#EFF6FF" : "transparent",
-        border: `1px dashed ${hover ? "#BFDBFE" : "transparent"}`,
-        color: hover ? "#2563EB" : "#cbd5e1", fontSize: 16, fontWeight: 700,
-        transition: "all .15s",
-      }}
-    >
-      +
     </div>
   );
 }
@@ -361,19 +338,6 @@ export default function BugReportPanel() {
     });
   }
 
-  function addStage(atIndex: number) {
-    const name = window.prompt("새 단계 이름을 입력하세요");
-    if (!name || !name.trim()) return;
-    const trimmed = name.trim();
-    if (stages.some(s => s.name === trimmed) || trimmed === UNASSIGNED_BUG_STAGE.name) {
-      alert("이미 존재하는 단계 이름입니다.");
-      return;
-    }
-    const palette = BUG_STAGE_PALETTE[stages.length % BUG_STAGE_PALETTE.length];
-    const next = [...stages.slice(0, atIndex), { name: trimmed, ...palette }, ...stages.slice(atIndex)];
-    saveStages(next);
-  }
-
   function deleteStage(name: string) {
     const count = reports.filter(r => r.status === name).length;
     if (count > 0) { alert(`"${name}" 단계에 리포트가 ${count}건 있어 삭제할 수 없습니다.`); return; }
@@ -424,34 +388,31 @@ export default function BugReportPanel() {
         </div>
       ) : (
         <div style={{ display: "flex", overflowX: "auto" as const, paddingBottom: 12 }}>
-          {stages.map((stage, i) => (
-            <Fragment key={stage.name}>
-              <InsertGap onClick={() => addStage(i)} />
-              <KanbanColumn
-                stage={stage}
-                reports={filtered.filter(r => r.status === stage.name)}
-                allReports={reports}
-                lastStageName={lastStageName}
-                isDragTarget={dragOver === stage.name}
-                dragId={dragId}
-                onDragOver={() => setDragOver(stage.name)}
-                onDragLeave={() => setDragOver(null)}
-                onDrop={() => {
-                  setDragOver(null);
-                  const dragged = reports.find(r => r.id === dragId);
-                  if (dragId && dragged && dragged.status !== stage.name) {
-                    handleStatusChange(dragId, stage.name);
-                  }
-                  setDragId(null);
-                }}
-                onDeleteStage={() => deleteStage(stage.name)}
-                onCardClick={openDetail}
-                onCardDragStart={setDragId}
-                onCardDragEnd={() => { setDragId(null); setDragOver(null); }}
-              />
-            </Fragment>
+          {stages.map((stage) => (
+            <KanbanColumn
+              key={stage.name}
+              stage={stage}
+              reports={filtered.filter(r => r.status === stage.name)}
+              allReports={reports}
+              lastStageName={lastStageName}
+              isDragTarget={dragOver === stage.name}
+              dragId={dragId}
+              onDragOver={() => setDragOver(stage.name)}
+              onDragLeave={() => setDragOver(null)}
+              onDrop={() => {
+                setDragOver(null);
+                const dragged = reports.find(r => r.id === dragId);
+                if (dragId && dragged && dragged.status !== stage.name) {
+                  handleStatusChange(dragId, stage.name);
+                }
+                setDragId(null);
+              }}
+              onDeleteStage={() => deleteStage(stage.name)}
+              onCardClick={openDetail}
+              onCardDragStart={setDragId}
+              onCardDragEnd={() => { setDragId(null); setDragOver(null); }}
+            />
           ))}
-          <InsertGap onClick={() => addStage(stages.length)} />
           {unassigned.length > 0 && (
             <KanbanColumn
               stage={UNASSIGNED_BUG_STAGE}

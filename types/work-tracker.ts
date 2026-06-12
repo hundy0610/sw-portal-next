@@ -10,18 +10,11 @@ export interface WorkStage {
 }
 
 export const DEFAULT_WORK_STAGES: WorkStage[] = [
-  { name: "할 일",  color: "#FEF9C3", border: "#FACC15", tc: "#854D0E" },
-  { name: "진행중", color: "#DBEAFE", border: "#3B82F6", tc: "#1E40AF" },
-  { name: "완료",   color: "#DCFCE7", border: "#22C55E", tc: "#15803D" },
-];
-
-// 새 단계 추가 시 순환 사용할 색상 팔레트
-export const WORK_STAGE_PALETTE: Omit<WorkStage, "name">[] = [
-  { color: "#F3E8FD", border: "#AB47BC", tc: "#7B1FA2" },
-  { color: "#FFEDD5", border: "#FB923C", tc: "#C2410C" },
-  { color: "#FCE7F3", border: "#EC4899", tc: "#BE185D" },
-  { color: "#CFFAFE", border: "#06B6D4", tc: "#0E7490" },
-  { color: "#E2E8F0", border: "#64748B", tc: "#334155" },
+  { name: "할 일",     color: "#FEF9C3", border: "#FACC15", tc: "#854D0E" },
+  { name: "계획중",    color: "#F3E8FD", border: "#AB47BC", tc: "#7B1FA2" },
+  { name: "작업중",    color: "#DBEAFE", border: "#3B82F6", tc: "#1E40AF" },
+  { name: "피드백 필요", color: "#FFEDD5", border: "#FB923C", tc: "#C2410C" },
+  { name: "완료",      color: "#DCFCE7", border: "#22C55E", tc: "#15803D" },
 ];
 
 // 정의된 단계에 속하지 않는 기존 데이터를 위한 안전망 컬럼
