@@ -17,10 +17,10 @@ interface WorkTask {
 }
 
 interface TaskFormState {
-  title:            string;
-  content:          string;
-  collaboratorName: string;
-  shared:           boolean;
+  title:             string;
+  content:           string;
+  collaboratorNames: string[];
+  shared:            boolean;
 }
 
 // ── 작업 추가 모달 ────────────────────────────────────────
@@ -60,16 +60,27 @@ function TaskFormModal({ title, form, setForm, collaboratorOptions, onCancel, on
               style={{ ...FIELD_INPUT_STYLE, resize: "vertical" as const, fontFamily: "inherit" }} />
           </div>
           <div>
-            <label style={FIELD_LABEL_STYLE}>협업자</label>
-            <select value={form.collaboratorName} onChange={e => setForm(f => f ? { ...f, collaboratorName: e.target.value } : f)}
-              style={{ ...FIELD_INPUT_STYLE, cursor: "pointer" }}>
-              {!collaboratorOptions.includes(form.collaboratorName) && form.collaboratorName && (
-                <option value={form.collaboratorName}>{form.collaboratorName}</option>
-              )}
-              {collaboratorOptions.map(name => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-            </select>
+            <label style={FIELD_LABEL_STYLE}>협업자 (복수 선택 가능)</label>
+            <div style={{ ...FIELD_INPUT_STYLE, display: "flex", flexWrap: "wrap" as const, gap: 6, cursor: "default" }}>
+              {Array.from(new Set([...collaboratorOptions, ...form.collaboratorNames])).map(name => {
+                const active = form.collaboratorNames.includes(name);
+                return (
+                  <button key={name} type="button"
+                    onClick={() => setForm(f => f ? {
+                      ...f,
+                      collaboratorNames: active ? f.collaboratorNames.filter(n => n !== name) : [...f.collaboratorNames, name],
+                    } : f)}
+                    style={{
+                      padding: "5px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                      border: `1px solid ${active ? "#2563EB" : "#E2E8F0"}`,
+                      background: active ? "#EFF6FF" : "#fff",
+                      color: active ? "#2563EB" : "#64748b",
+                    }}>
+                    {name}
+                  </button>
+                );
+              })}
+            </div>
           </div>
           <div style={{ background: "#F8FAFC", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
@@ -340,7 +351,7 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
           title: newTaskForm.title.trim(),
           content: newTaskForm.content.trim(),
           collaboratorId: session.userId,
-          collaboratorName: newTaskForm.collaboratorName.trim() || session.name,
+          collaboratorName: newTaskForm.collaboratorNames.join(", ") || session.name,
           status: stages[0]?.name ?? "할 일",
           parentId: "",
           shared: newTaskForm.shared,
@@ -364,7 +375,7 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
           title: subTaskForm.title.trim(),
           content: subTaskForm.content.trim(),
           collaboratorId: selected.collaboratorId,
-          collaboratorName: subTaskForm.collaboratorName.trim() || selected.collaboratorName,
+          collaboratorName: subTaskForm.collaboratorNames.join(", ") || selected.collaboratorName,
           status: stages[0]?.name ?? "할 일",
           parentId: selected.id,
           shared: subTaskForm.shared,
@@ -518,7 +529,7 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
                 setDragId(null);
               }}
               onDeleteStage={() => deleteStage(stage.name)}
-              onAddClick={!isAllTab && i === 0 ? () => setNewTaskForm({ title: "", content: "", collaboratorName: session.name, shared: false }) : undefined}
+              onAddClick={!isAllTab && i === 0 ? () => setNewTaskForm({ title: "", content: "", collaboratorNames: [session.name], shared: false }) : undefined}
               addLabel="+ 새 작업 추가"
               onCardClick={openDetail}
               onCardDragStart={setDragId}
@@ -558,7 +569,9 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: "flex", gap: 6, marginBottom: 5, flexWrap: "wrap" as const, alignItems: "center" }}>
-                    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, background: "#F1F5F9", color: "#334155" }}>{selected.collaboratorName}</span>
+                    {selected.collaboratorName.split(",").map(s => s.trim()).filter(Boolean).map(name => (
+                      <span key={name} style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, background: "#F1F5F9", color: "#334155" }}>{name}</span>
+                    ))}
                   </div>
                   {editing ? (
                     <input value={editTitle} onChange={e => setEditTitle(e.target.value)}
@@ -672,7 +685,7 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
                         }
                         setModalDragId(null);
                       }}
-                      onAddClick={i === 0 ? () => setSubTaskForm({ title: "", content: "", collaboratorName: selected.collaboratorName, shared: false }) : undefined}
+                      onAddClick={i === 0 ? () => setSubTaskForm({ title: "", content: "", collaboratorNames: selected.collaboratorName ? selected.collaboratorName.split(",").map(s => s.trim()).filter(Boolean) : [], shared: false }) : undefined}
                       addLabel="+ 하위 작업 추가"
                       onCardClick={openDetail}
                       onCardDragStart={setModalDragId}
