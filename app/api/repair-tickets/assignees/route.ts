@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { decodeSession } from "@/lib/session";
 
-const ASSIGNEES_KEY = "repair:assignees";
+// 문의 접수 현황과 담당자 리스트를 공유한다
+const ASSIGNEES_KEY = "helpdesk:assignees";
 
 function getSession(req: NextRequest) {
   const token = req.cookies.get("admin_session")?.value;
