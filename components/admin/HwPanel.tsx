@@ -1394,13 +1394,14 @@ function ExcelUploadTab(){
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const candidates=(erJson.data??[]).filter((r:any)=>
             (r.type==="신규지급"||r.type==="교체") &&
-            r.newAssetId==="신규구매로안내됨" &&
-            !r.isClosed
+            (r.newAssetId??"").trim()==="신규구매로안내됨" &&
+            !r.isClosed &&
+            r.stage!=="사용자수령"&&r.stage!=="반납요청"&&r.stage!=="반납완료"
           );
           const matches:SyncMatch[]=[];
           for(const row of successRows){
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const matched=candidates.filter((r:any)=>r.company===row.company&&r.user===row.user);
+            const matched=candidates.filter((r:any)=>(r.company??"").trim()===(row.company??"").trim()&&(r.user??"").trim()===(row.user??"").trim());
             for(const rec of matched){
               matches.push({
                 erId:rec.id, erType:rec.type, erCompany:rec.company, erUser:rec.user,
@@ -1426,7 +1427,7 @@ function ExcelUploadTab(){
       const updates:Promise<unknown>[]=[
         fetch("/api/exchange-return/update",{method:"POST",headers:{"Content-Type":"application/json"},
           body:JSON.stringify({id:m.erId,fields:{stage:"사용자수령",newAssetId:m.newAssetNo,...(m.erType==="교체"?{returnDue:defaultDue}:{})}}),
-        }),
+        }).then(async res=>{const j=await res.json();if(!j.ok) throw new Error(j.error||`HTTP ${res.status}`);}),
       ];
       if(m.newAssetNo){
         updates.push(fetch(`/api/hw?search=${encodeURIComponent(m.newAssetNo)}`).then(r=>r.json()).then(d=>{
