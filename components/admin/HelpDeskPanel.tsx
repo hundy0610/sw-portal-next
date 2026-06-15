@@ -1287,7 +1287,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
   const [notifyMsg,       setNotifyMsg]       = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
   const [listFilter, setListFilter] = useState({
-    status: "all", type: "all", company: "all", urgency: "all", search: "",
+    status: "all", type: "all", company: "all", urgency: "all", assignee: "all", search: "",
   });
 
   // 담당자 리스트 관리 상태
@@ -1551,6 +1551,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
     if (listFilter.type    !== "all" && t.inquiryType !== listFilter.type)    return false;
     if (listFilter.company !== "all" && t.company     !== listFilter.company) return false;
     if (listFilter.urgency !== "all" && t.urgency     !== listFilter.urgency) return false;
+    if (listFilter.assignee !== "all" && t.assignee   !== listFilter.assignee) return false;
     if (listFilter.search) {
       const q = listFilter.search.toLowerCase();
       return (t.content || t.title || "").toLowerCase().includes(q)
@@ -2234,6 +2235,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
               { key: "type",    opts: ["all",...uniqueTypes],       label: "전체 유형" },
               { key: "company", opts: ["all",...uniqueCompanies],   label: "전체 법인" },
               { key: "urgency", opts: ["all",...uniqueUrgencies],   label: "전체 긴급도" },
+              { key: "assignee", opts: ["all",...assigneeList.map(a => a.name)], label: "전체 담당자" },
             ] as { key: string; opts: string[]; label: string }[]).map(({ key, opts, label }) => (
               <select key={key}
                 value={(listFilter as Record<string, string>)[key]}
@@ -2243,9 +2245,9 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                 {opts.filter(o => o !== "all").map(o => <option key={o} value={o}>{o}</option>)}
               </select>
             ))}
-            {(listFilter.status !== "all" || listFilter.type !== "all" || listFilter.company !== "all" || listFilter.urgency !== "all" || listFilter.search) && (
+            {(listFilter.status !== "all" || listFilter.type !== "all" || listFilter.company !== "all" || listFilter.urgency !== "all" || listFilter.assignee !== "all" || listFilter.search) && (
               <button
-                onClick={() => setListFilter({ status: "all", type: "all", company: "all", urgency: "all", search: "" })}
+                onClick={() => setListFilter({ status: "all", type: "all", company: "all", urgency: "all", assignee: "all", search: "" })}
                 className="text-xs text-gray-400 hover:text-gray-600 underline"
               >
                 초기화
