@@ -834,9 +834,9 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
       {/* ── Header ── */}
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <div>
-          <h2 className="text-xl font-bold text-gray-900 mb-0.5">수리 접수 현황</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-0.5">모니터 수리 접수 내역</h2>
           <p className="text-sm text-gray-500">
-            IT 기기 수리 접수 및 처리 현황 · 전체 {total}건
+            모니터 수리 접수 및 처리 현황 · 전체 {total}건
             {lastSynced && (
               <span className="ml-2 text-gray-300 text-[10px]">
                 {new Date(lastSynced).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 동기화
@@ -1343,14 +1343,14 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
             <table className="data-table">
               <thead>
                 <tr>
-                  {["티켓", "상태", "법인", "모니터 번호", "문의자", "고장유형", "고장증상", "담당자", "동의서", "노션"].map(h => (
+                  {["티켓", "상태", "법인", "모니터 번호", "문의자", "고장유형", "고장증상", "담당자"].map(h => (
                     <th key={h}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {filteredList.length === 0 ? (
-                  <tr><td colSpan={12} className="text-center text-gray-400 py-10">데이터 없음</td></tr>
+                  <tr><td colSpan={8} className="text-center text-gray-400 py-10">데이터 없음</td></tr>
                 ) : filteredList.map(t => (
                   <tr key={t.id}>
                     <td className="text-xs text-gray-400 font-mono">{t.ticketNumber || "—"}</td>
@@ -1412,24 +1412,6 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
                       </button>
                     </td>
                     <td><InlineAssigneeCell ticket={t} assigneeList={assigneeList} onUpdated={handleTicketUpdated} /></td>
-                    <td>
-                      {t.consentGiven
-                        ? <span className="text-green-600 text-xs font-medium">✓</span>
-                        : <span className="text-gray-300 text-xs">—</span>
-                      }
-                    </td>
-                    <td>
-                      {t.notionUrl && (
-                        <a href={t.notionUrl} target="_blank" rel="noopener noreferrer"
-                          className="text-blue-600 text-xs flex items-center gap-1 hover:underline">
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
-                            <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-                          </svg>
-                          보기
-                        </a>
-                      )}
-                    </td>
                   </tr>
                 ))}
               </tbody>

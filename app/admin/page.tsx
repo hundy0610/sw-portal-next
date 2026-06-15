@@ -74,7 +74,7 @@ const SUPER_GROUPS: MenuGroup[] = [
     label: "사용자 지원",
     items: [
       { id: "helpdesk",   icon: "🎫", label: "문의 접수 현황",  desc: "유형·법인별 분석"       },
-      { id: "repair",     icon: "🔧", label: "수리 접수 현황",  desc: "기기 수리 접수 · 처리" },
+      { id: "repair",     icon: "🖥️", label: "모니터 수리 접수 내역",  desc: "모니터 수리 접수 · 처리" },
       { id: "automation", icon: "⚙️", label: "자동화 과제 현황", desc: "업무 자동화 접수 관리"   },
     ],
   },
