@@ -97,7 +97,7 @@ export function buildRepairNewInquiryEmail(opts: {
   </div>
   <div style="padding:28px 32px;">
     <table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:13px;">
-      ${row("자산번호", assetId)}
+      ${row("모니터 번호", assetId)}
       ${row("법인", company)}
       ${row("부서", department)}
       ${row("문의자", requester)}

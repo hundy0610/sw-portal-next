@@ -417,9 +417,9 @@ function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2 flex-wrap">
               <span className="text-xs text-gray-400 font-mono">#{ticket.ticketNumber || "—"}</span>
-              <PriorityBadge priority={ticket.priority} />
+              {ticket.priority && <PriorityBadge priority={ticket.priority} />}
             </div>
-            <h2 className="text-lg font-bold text-gray-900 leading-snug">{ticket.title || "—"}</h2>
+            <h2 className="text-lg font-bold text-gray-900 leading-snug">{ticket.detail || ticket.title || "—"}</h2>
           </div>
           <button onClick={onClose}
             className="text-gray-400 hover:text-gray-600 text-2xl leading-none w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 shrink-0">
@@ -484,11 +484,18 @@ function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
           </DetailRow>
 
           {ticket.department && <DetailRow label="부서"><span>{ticket.department}</span></DetailRow>}
-          {ticket.location   && <DetailRow label="위치"><span>{ticket.location}</span></DetailRow>}
 
-          {/* 자산번호 — 클릭 시 자산 상세 */}
+          {(ticket.building || ticket.floor) ? (
+            <DetailRow label="위치"><span>{[ticket.building, ticket.floor].filter(Boolean).join(" ")}</span></DetailRow>
+          ) : ticket.location ? (
+            <DetailRow label="위치"><span>{ticket.location}</span></DetailRow>
+          ) : null}
+
+          {ticket.detail && <DetailRow label="세부내역"><span className="whitespace-pre-wrap">{ticket.detail}</span></DetailRow>}
+
+          {/* 모니터 번호 — 클릭 시 자산 상세 */}
           {ticket.assetId && (
-            <DetailRow label="자산번호">
+            <DetailRow label="모니터 번호">
               <div>
                 <button
                   onClick={loadAsset}
@@ -658,12 +665,11 @@ function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
 
           {ticket.repairDate && <DetailRow label="수리일정"><span>{ticket.repairDate}</span></DetailRow>}
 
-          <DetailRow label="동의서">
-            {ticket.consentGiven
-              ? <span className="text-green-600 font-medium">완료</span>
-              : <span className="text-gray-400">미완료</span>
-            }
-          </DetailRow>
+          {ticket.consentGiven && (
+            <DetailRow label="동의서">
+              <span className="text-green-600 font-medium">완료</span>
+            </DetailRow>
+          )}
         </div>
 
         {/* Footer */}
@@ -799,7 +805,8 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
     if (listFilter.fault   !== "all" && !t.faultTypes.includes(listFilter.fault)) return false;
     if (listFilter.search) {
       const q = listFilter.search.toLowerCase();
-      return (t.title || "").toLowerCase().includes(q)
+      return (t.detail || "").toLowerCase().includes(q)
+        || (t.title || "").toLowerCase().includes(q)
         || (t.requester || "").toLowerCase().includes(q)
         || (t.assetId || "").toLowerCase().includes(q)
         || (t.ticketNumber || "").toLowerCase().includes(q);
@@ -914,7 +921,7 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
                   <div key={t.id} className="flex items-start gap-2 py-2 border-b border-gray-50 last:border-0">
                     <StatusBadge status={t.status} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-gray-800 truncate">{t.title || "—"}</p>
+                      <p className="text-xs font-medium text-gray-800 truncate">{t.detail || t.title || "—"}</p>
                       <p className="text-[10px] text-gray-400 mt-0.5">
                         {[t.company, t.requester, (t.createdAt || "").slice(0, 10)].filter(Boolean).join(" · ")}
                       </p>
@@ -1279,7 +1286,7 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
           <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-wrap gap-3 items-center">
             <input
               type="text"
-              placeholder="티켓번호 / 증상 / 문의자 / 자산번호 검색..."
+              placeholder="티켓번호 / 증상 / 문의자 / 모니터 번호 검색..."
               value={listFilter.search}
               onChange={e => setListFilter(f => ({ ...f, search: e.target.value }))}
               className="flex-1 min-w-48 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-orange-200"
@@ -1336,7 +1343,7 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
             <table className="data-table">
               <thead>
                 <tr>
-                  {["티켓", "상태", "법인", "자산번호", "문의자", "고장유형", "고장증상", "담당자", "동의서", "노션"].map(h => (
+                  {["티켓", "상태", "법인", "모니터 번호", "문의자", "고장유형", "고장증상", "담당자", "동의서", "노션"].map(h => (
                     <th key={h}>{h}</th>
                   ))}
                 </tr>
@@ -1398,7 +1405,7 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
                         onClick={e => { e.stopPropagation(); setFloatingTicket({ ticket: t, rect: (e.currentTarget as HTMLElement).getBoundingClientRect() }); }}
                         className="text-left w-full hover:text-orange-600 transition-colors"
                       >
-                        <div className="truncate underline decoration-dotted underline-offset-2" title={t.title}>{t.title}</div>
+                        <div className="truncate underline decoration-dotted underline-offset-2" title={t.detail || t.title}>{t.detail || t.title}</div>
                         {t.actionNote && (
                           <div className="text-xs text-gray-400 truncate mt-0.5" title={t.actionNote}>{t.actionNote}</div>
                         )}

@@ -127,20 +127,23 @@ export interface Ticket {
 export interface RepairTicket {
   id: string;
   ticketNumber: string;
-  title: string;           // 고장증상 (title)
+  title: string;           // 고장증상 (title) — 모니터 번호 식별용 (구 티켓은 증상 텍스트)
   faultTypes: string[];    // 고장 내역 (multi_select)
   status: "시작 전" | "진행 중" | "완료" | "이관" | "기타";
-  priority: string;        // 긴급도 (매우 급합니다. / 조금 급합니다. / 기다릴 수 있어요.)
+  priority: string;        // [deprecated] 긴급도 (select) — 구 티켓에만 값 존재
   company: string;         // 법인 (select)
   department: string;      // 부서 (rich_text)
-  location: string;        // 실제 근무 위치 (rich_text)
-  assetId: string;         // 자산번호 (rich_text)
+  location: string;        // [deprecated] 실제 근무 위치 (rich_text) — 구 티켓에만 값 존재
+  building: string;        // 건물명 (select)
+  floor: string;           // 층수 (rich_text)
+  assetId: string;         // 자산번호 (rich_text) — 모니터 번호
+  detail: string;          // 세부내역 (rich_text) — 고장 증상 상세
   requester: string;       // 문의자 (rich_text)
   assignee: string;        // 담당자 이름 (people)
   assigneeId: string;      // 담당자 Notion user ID
   repairDate: string;      // 수리 일정 (date)
   actionNote: string;      // 조치내용 (rich_text)
-  consentGiven: boolean;   // 수리 진행 동의서 (checkbox)
+  consentGiven: boolean;   // [deprecated] 수리 진행 동의서 (checkbox) — 구 티켓에만 값 존재
   createdAt: string;       // 문의 제출 시간 (created_time)
   notionUrl: string;
 }
