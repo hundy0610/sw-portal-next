@@ -1635,6 +1635,25 @@ function ExcelUploadTab(){
   );
 }
 
+// ── 자산번호 복사 버튼 ───────────────────────────────────────────
+function CopyAssetNo({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      className="font-mono font-semibold text-teal-700 hover:text-teal-900 transition-colors"
+      onClick={() => {
+        navigator.clipboard.writeText(value).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        });
+      }}
+      title="클릭하여 복사"
+    >
+      {copied ? "✓ 복사됨" : value}
+    </button>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 법인별 다음 자산번호 추천 (형식: YY+법인코드-MM+일련번호, 예: 2601-06101)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1697,7 +1716,7 @@ function NextAssetNoPanel(){
               {companies.map(c=>(
                 <tr key={c} className="hover:bg-gray-50">
                   <td className="px-3 py-2 text-gray-700">{c}</td>
-                  <td className="px-3 py-2 font-mono font-semibold text-teal-700">{recommendations[c]}</td>
+                  <td className="px-3 py-2"><CopyAssetNo value={recommendations[c]}/></td>
                 </tr>
               ))}
             </tbody>
