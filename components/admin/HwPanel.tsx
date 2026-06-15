@@ -1667,12 +1667,12 @@ function NextAssetNoPanel(){
       const code=COMPANY_ASSET_CODES[c];
       const prefix=`${yy}${code}-${mm}`;
       const re=new RegExp(`^${prefix}(\\d{3})$`);
-      let maxSeq=0;
+      let maxSeq=100;
       for(const r of records){
         const m=re.exec((r.assetNo||"").trim());
-        if(m){const seq=parseInt(m[1],10); if(seq>maxSeq) maxSeq=seq;}
+        if(m){const seq=parseInt(m[1],10); if(seq>=100&&seq>maxSeq) maxSeq=seq;}
       }
-      const next=maxSeq>0?maxSeq+1:101;
+      const next=maxSeq+1;
       map[c]=`${prefix}${String(next).padStart(3,"0")}`;
     }
     return map;
