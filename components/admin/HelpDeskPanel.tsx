@@ -2107,6 +2107,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
               { key: "type",    opts: ["all",...uniqueTypes],       label: "유형" },
               { key: "company", opts: ["all",...uniqueCompanies],   label: "법인" },
               { key: "urgency", opts: ["all",...uniqueUrgencies],   label: "긴급도" },
+              { key: "assignee", opts: ["all",...assigneeList.map(a => a.name)], label: "담당자" },
             ] as { key: string; opts: string[]; label: string }[]).map(({ key, opts, label }) => (
               <select key={key}
                 value={(listFilter as Record<string, string>)[key]}
