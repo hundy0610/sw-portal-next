@@ -39,6 +39,57 @@ function parseReplies(reply: string): ParsedMessage[] {
   return reply.split("\n---\n").filter(s => s.trim()).map(parseMessage);
 }
 
+// ── 하위 작업 추가 모달 ────────────────────────────────────
+const FIELD_LABEL_STYLE = { fontSize: 12, fontWeight: 700, color: "#475569", marginBottom: 6, display: "block" as const };
+const FIELD_INPUT_STYLE = { width: "100%", padding: "10px 12px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 13, color: "#0f172a", boxSizing: "border-box" as const, background: "#fff" };
+
+function SubTaskFormModal({ title, form, setForm, onCancel, onSubmit, submitting }: {
+  title: string;
+  form: { title: string; content: string };
+  setForm: (updater: (f: { title: string; content: string } | null) => { title: string; content: string } | null) => void;
+  onCancel: () => void;
+  onSubmit: () => void;
+  submitting: boolean;
+}) {
+  return (
+    <div
+      onClick={e => { if (e.target === e.currentTarget) onCancel(); }}
+      style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+    >
+      <div style={{ background: "#fff", borderRadius: 18, width: "100%", maxWidth: 480, boxShadow: "0 24px 70px rgba(0,0,0,.25)", overflow: "hidden" }}>
+        <div style={{ padding: "18px 22px", borderBottom: "1px solid #F1F5F9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <h3 style={{ fontSize: 17, fontWeight: 800, color: "#0f172a", margin: 0 }}>{title}</h3>
+          <button onClick={onCancel} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#94a3b8", lineHeight: 1 }}>✕</button>
+        </div>
+        <div style={{ padding: 22, display: "flex", flexDirection: "column" as const, gap: 16 }}>
+          <div>
+            <label style={FIELD_LABEL_STYLE}>제목</label>
+            <input value={form.title} onChange={e => setForm(f => f ? { ...f, title: e.target.value } : f)}
+              placeholder="작업 제목을 입력하세요" autoFocus
+              style={FIELD_INPUT_STYLE} />
+          </div>
+          <div>
+            <label style={FIELD_LABEL_STYLE}>내용</label>
+            <textarea value={form.content} onChange={e => setForm(f => f ? { ...f, content: e.target.value } : f)}
+              placeholder="내용 (선택)" rows={5}
+              style={{ ...FIELD_INPUT_STYLE, resize: "vertical" as const, fontFamily: "inherit" }} />
+          </div>
+        </div>
+        <div style={{ padding: "14px 22px", borderTop: "1px solid #F1F5F9", display: "flex", gap: 8, justifyContent: "flex-end", background: "#FAFBFC" }}>
+          <button onClick={onCancel}
+            style={{ padding: "9px 18px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", color: "#64748b", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+            취소
+          </button>
+          <button onClick={onSubmit} disabled={!form.title.trim() || submitting}
+            style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: !form.title.trim() || submitting ? "#E2E8F0" : "#2563EB", color: !form.title.trim() || submitting ? "#94a3b8" : "#fff", fontSize: 12, fontWeight: 700, cursor: !form.title.trim() || submitting ? "not-allowed" : "pointer" }}>
+            {submitting ? "추가 중..." : "추가"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── 버그 카드 ─────────────────────────────────────────────
 function BugCard({ r, dragging, parentTitle, childTotal, childDone, onClick, onDragStart, onDragEnd }: {
   r: BugReport;
@@ -93,7 +144,7 @@ function BugCard({ r, dragging, parentTitle, childTotal, childDone, onClick, onD
 }
 
 // ── 칸반 컬럼 ─────────────────────────────────────────────
-function KanbanColumn({ stage, reports, allReports, lastStageName, isDragTarget, dragId, onDragOver, onDragLeave, onDrop, onDeleteStage, onCardClick, onCardDragStart, onCardDragEnd }: {
+function KanbanColumn({ stage, reports, allReports, lastStageName, isDragTarget, dragId, onDragOver, onDragLeave, onDrop, onDeleteStage, onAddClick, addLabel, onCardClick, onCardDragStart, onCardDragEnd }: {
   stage: BugStage;
   reports: BugReport[];
   allReports: BugReport[];
@@ -104,6 +155,8 @@ function KanbanColumn({ stage, reports, allReports, lastStageName, isDragTarget,
   onDragLeave: () => void;
   onDrop: () => void;
   onDeleteStage?: () => void;
+  onAddClick?: () => void;
+  addLabel?: string;
   onCardClick: (r: BugReport) => void;
   onCardDragStart: (id: string) => void;
   onCardDragEnd: () => void;
@@ -138,6 +191,16 @@ function KanbanColumn({ stage, reports, allReports, lastStageName, isDragTarget,
         )}
       </div>
       <div style={{ flex: 1, padding: 10, overflowY: "auto" as const }}>
+        {onAddClick && (
+          <div onClick={onAddClick}
+            style={{
+              border: "1px dashed #CBD5E1", borderRadius: 8, padding: "6px 10px",
+              marginBottom: 8, textAlign: "center" as const, fontSize: 12,
+              color: "#94a3b8", cursor: "pointer", background: "#FAFBFC", fontWeight: 600,
+            }}>
+            {addLabel ?? "+ 추가"}
+          </div>
+        )}
         {reports.length === 0 ? (
           <div style={{ textAlign: "center", padding: "30px 0", fontSize: 11, color: "#cbd5e1" }}>
             {isDragTarget ? "여기에 놓기" : "없음"}
@@ -512,31 +575,9 @@ export default function BugReportPanel() {
 
             {modalTab === "subtasks" ? (
               <div style={{ flex: 1, display: "flex", flexDirection: "column" as const, overflow: "hidden" }}>
-                {/* + 하위 작업 추가 */}
-                <div style={{ padding: "12px 20px 0", flexShrink: 0 }}>
-                  <button onClick={() => setSubTaskForm(f => f ? null : { title: "", content: "" })}
-                    style={{ fontSize: 11, padding: "3px 10px", borderRadius: 20, border: "1px solid #BFDBFE", background: "#EFF6FF", color: "#2563EB", cursor: "pointer", fontWeight: 600 }}>
-                    {subTaskForm ? "취소" : "+ 하위 작업 추가"}
-                  </button>
-                  {subTaskForm && (
-                    <div style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "flex-start" }}>
-                      <input value={subTaskForm.title} onChange={e => setSubTaskForm(f => f ? { ...f, title: e.target.value } : f)}
-                        placeholder="제목"
-                        style={{ flex: 1, padding: "7px 10px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 12, color: "#0f172a" }} />
-                      <input value={subTaskForm.content} onChange={e => setSubTaskForm(f => f ? { ...f, content: e.target.value } : f)}
-                        placeholder="내용 (선택)"
-                        style={{ flex: 2, padding: "7px 10px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 12, color: "#0f172a" }} />
-                      <button onClick={handleCreateSubtask} disabled={!subTaskForm.title.trim() || creatingSubtask}
-                        style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: !subTaskForm.title.trim() || creatingSubtask ? "#E2E8F0" : "#2563EB", color: !subTaskForm.title.trim() || creatingSubtask ? "#94a3b8" : "#fff", fontSize: 12, fontWeight: 700, cursor: !subTaskForm.title.trim() || creatingSubtask ? "not-allowed" : "pointer", flexShrink: 0 }}>
-                        {creatingSubtask ? "추가 중..." : "추가"}
-                      </button>
-                    </div>
-                  )}
-                </div>
-
                 {/* 하위 작업 칸반 */}
                 <div style={{ flex: 1, overflow: "auto" as const, display: "flex", alignItems: "flex-start", padding: 16 }}>
-                  {stages.map(stage => {
+                  {stages.map((stage, i) => {
                     const subTasks = childrenOf(selected.id);
                     return (
                       <KanbanColumn
@@ -557,6 +598,8 @@ export default function BugReportPanel() {
                           }
                           setModalDragId(null);
                         }}
+                        onAddClick={i === 0 ? () => setSubTaskForm({ title: "", content: "" }) : undefined}
+                        addLabel="+ 하위 작업 추가"
                         onCardClick={openDetail}
                         onCardDragStart={setModalDragId}
                         onCardDragEnd={() => { setModalDragId(null); setModalDragOver(null); }}
@@ -680,6 +723,18 @@ export default function BugReportPanel() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── 하위 작업 추가 모달 ── */}
+      {subTaskForm && (
+        <SubTaskFormModal
+          title="하위 작업 추가"
+          form={subTaskForm}
+          setForm={setSubTaskForm}
+          onCancel={() => setSubTaskForm(null)}
+          onSubmit={handleCreateSubtask}
+          submitting={creatingSubtask}
+        />
       )}
 
       {/* 스크린샷 풀스크린 */}

@@ -1,6 +1,6 @@
 {
   "name": "sw-portal-next",
-  "version": "3.2.14",
+  "version": "3.2.15",
   "private": true,
   "scripts": {
     "dev": "next dev",
