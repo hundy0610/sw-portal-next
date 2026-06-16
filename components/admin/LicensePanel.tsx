@@ -526,6 +526,399 @@ function CategoryView({ records, onEdit }: { records: SwDbRecord[]; onEdit: (r: 
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SW 직접 등록 컴포넌트
+// ─────────────────────────────────────────────────────────────────────────────
+
+// 단일 선택 + 새 항목 추가 드롭다운
+function AddableSelect({ value, initOptions, onChange, placeholder }: {
+  value: string; initOptions: string[]; onChange: (v: string) => void; placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [options, setOptions] = useState(initOptions);
+  const [search, setSearch] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setSearch(""); }
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, []);
+
+  useEffect(() => {
+    if (open) setTimeout(() => inputRef.current?.focus(), 0);
+    else setSearch("");
+  }, [open]);
+
+  const filtered = options.filter(o => o.toLowerCase().includes(search.toLowerCase()));
+  const canCreate = search.trim() && !options.some(o => o.toLowerCase() === search.trim().toLowerCase());
+
+  function select(v: string) { onChange(v); setOpen(false); setSearch(""); }
+
+  function createNew() {
+    const v = search.trim();
+    if (!v) return;
+    setOptions(prev => [...prev, v]);
+    select(v);
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-indigo-300">
+        <span className={value ? "text-gray-900" : "text-gray-400"}>{value || placeholder || "선택"}</span>
+        <span className="text-gray-400 text-xs">▾</span>
+      </button>
+      {open && (
+        <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+          <div className="p-2 border-b border-gray-100">
+            <input ref={inputRef} value={search} onChange={e => setSearch(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && canCreate) createNew(); }}
+              className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-300"
+              placeholder="검색..." />
+          </div>
+          <div className="max-h-44 overflow-y-auto">
+            {filtered.length === 0 && !canCreate && <p className="px-3 py-2 text-xs text-gray-400">일치하는 항목 없음</p>}
+            {filtered.map(o => (
+              <button key={o} type="button"
+                className={`w-full px-3 py-2 text-sm text-left hover:bg-indigo-50 transition-colors ${value === o ? "bg-indigo-50 text-indigo-700 font-medium" : "text-gray-700"}`}
+                onClick={() => select(o)}>
+                {o}
+              </button>
+            ))}
+          </div>
+          {canCreate && (
+            <div className="border-t border-gray-100 p-1.5">
+              <button type="button" onClick={createNew}
+                className="w-full px-3 py-2 text-xs text-left text-indigo-600 font-medium hover:bg-indigo-50 rounded-lg transition-colors">
+                + 새로운 항목 만들기 &ldquo;{search.trim()}&rdquo;
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 다중 선택 + 새 항목 추가 드롭다운 (버전용)
+function AddableMultiSelect({ value, initOptions, onChange }: {
+  value: string[]; initOptions: string[]; onChange: (v: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [options, setOptions] = useState(initOptions);
+  const [search, setSearch] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setSearch(""); }
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, []);
+
+  useEffect(() => {
+    if (open) setTimeout(() => inputRef.current?.focus(), 0);
+    else setSearch("");
+  }, [open]);
+
+  const filtered = options.filter(o => o.toLowerCase().includes(search.toLowerCase()));
+  const canCreate = search.trim() && !options.some(o => o.toLowerCase() === search.trim().toLowerCase());
+
+  function toggle(opt: string) {
+    onChange(value.includes(opt) ? value.filter(v => v !== opt) : [...value, opt]);
+  }
+
+  function createNew() {
+    const v = search.trim();
+    if (!v) return;
+    if (!options.includes(v)) setOptions(prev => [...prev, v]);
+    if (!value.includes(v)) onChange([...value, v]);
+    setSearch("");
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white flex items-start justify-between gap-2 focus:outline-none focus:ring-2 focus:ring-indigo-300 min-h-[38px]">
+        <div className="flex flex-wrap gap-1 flex-1">
+          {value.length === 0
+            ? <span className="text-gray-400">버전 선택</span>
+            : value.map(v => (
+              <span key={v} className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs rounded-full font-medium">
+                {v}
+                <button type="button" onClick={e => { e.stopPropagation(); toggle(v); }}
+                  className="hover:text-red-500 leading-none">✕</button>
+              </span>
+            ))
+          }
+        </div>
+        <span className="text-gray-400 text-xs shrink-0 mt-0.5">▾</span>
+      </button>
+      {open && (
+        <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+          <div className="p-2 border-b border-gray-100">
+            <input ref={inputRef} value={search} onChange={e => setSearch(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && canCreate) createNew(); }}
+              className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-300"
+              placeholder="검색..." />
+          </div>
+          <div className="max-h-44 overflow-y-auto">
+            {filtered.length === 0 && !canCreate && <p className="px-3 py-2 text-xs text-gray-400">일치하는 항목 없음</p>}
+            {filtered.map(o => (
+              <button key={o} type="button"
+                className={`w-full px-3 py-2 text-sm text-left flex items-center gap-2 hover:bg-indigo-50 transition-colors ${value.includes(o) ? "text-indigo-700" : "text-gray-700"}`}
+                onClick={() => toggle(o)}>
+                <span className={`w-3.5 h-3.5 rounded border flex-shrink-0 flex items-center justify-center text-xs font-bold
+                  ${value.includes(o) ? "bg-indigo-600 border-indigo-600 text-white" : "border-gray-300"}`}>
+                  {value.includes(o) && "✓"}
+                </span>
+                {o}
+              </button>
+            ))}
+          </div>
+          {canCreate && (
+            <div className="border-t border-gray-100 p-1.5">
+              <button type="button" onClick={createNew}
+                className="w-full px-3 py-2 text-xs text-left text-indigo-600 font-medium hover:bg-indigo-50 rounded-lg transition-colors">
+                + 새로운 항목 만들기 &ldquo;{search.trim()}&rdquo;
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const EMPTY_FORM = {
+  user: "", swCategory: "", swDetail: "", status: "신규등록",
+  company: "", licenseType: "", department: "", usageDate: "", renewalDate: "",
+  purchaseDate: "", accountType: "", renewalCycle: "", licenseKey: "", vendor: "",
+  workType: "", billingType: "", monthlyKrw: 0, monthlyUsd: 0,
+};
+
+interface SwManualAddProps {
+  onClose: () => void;
+  onSuccess: () => void;
+  swCategoryOptions: string[];
+  versionOptions: string[];
+  companyOptions: string[];
+  accountTypeOptions: string[];
+  workTypeOptions: string[];
+  billingTypeOptions: string[];
+}
+
+function SwManualAdd({ onClose, onSuccess, swCategoryOptions, versionOptions, companyOptions, accountTypeOptions, workTypeOptions, billingTypeOptions }: SwManualAddProps) {
+  const [form, setForm] = useState({ ...EMPTY_FORM });
+  const [selectedVersions, setSelectedVersions] = useState<string[]>([]);
+  const [certFile, setCertFile] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState("");
+  const [error, setError] = useState("");
+  const certFileRef = useRef<HTMLInputElement>(null);
+
+  function set(key: keyof typeof EMPTY_FORM, value: string | number) {
+    setForm(prev => ({ ...prev, [key]: value }));
+  }
+
+  async function handleSubmit() {
+    if (!form.user.trim()) { setError("사용자는 필수 입력입니다."); return; }
+    if (!form.swCategory.trim()) { setError("SW대분류는 필수 입력입니다."); return; }
+    setError("");
+    setSubmitting(true);
+    try {
+      let certificateFileUploadId: string | undefined;
+
+      if (certFile) {
+        setSubmitStatus("증서 파일 업로드 중…");
+        const fd = new FormData();
+        fd.append("file", certFile);
+        const uploadRes = await fetch("/api/sw/cert-upload", { method: "POST", body: fd });
+        const uploadJson = await uploadRes.json();
+        if (!uploadJson.ok) throw new Error(uploadJson.error ?? "증서 파일 업로드 실패");
+        certificateFileUploadId = uploadJson.fileUploadId;
+      }
+
+      setSubmitStatus("Notion에 등록 중…");
+      const res = await fetch("/api/sw/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows: [{ ...form, version: selectedVersions.join(","), certificateFileUploadId }] }),
+      });
+      const json = await res.json();
+      if (!json.ok || json.failed > 0) throw new Error(json.results?.[0]?.error ?? "등록 실패");
+      onSuccess();
+      onClose();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSubmitting(false);
+      setSubmitStatus("");
+    }
+  }
+
+  const Field = ({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) => (
+    <div>
+      <label className="block text-xs font-semibold text-gray-600 mb-1">
+        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
+      </label>
+      {children}
+    </div>
+  );
+
+  const inputCls = "w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300";
+  const selectCls = inputCls + " bg-white";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
+        onClick={e => e.stopPropagation()}>
+
+        <div className="px-6 py-4 bg-indigo-600 text-white flex items-center justify-between shrink-0">
+          <div>
+            <div className="font-bold text-base">✏️ SW 자산 직접 등록</div>
+            <div className="text-xs opacity-80 mt-0.5">항목을 직접 입력하여 Notion에 등록합니다</div>
+          </div>
+          <button onClick={onClose} className="text-white/70 hover:text-white text-2xl leading-none">✕</button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 px-6 py-5">
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="사용자" required>
+              <input className={inputCls} value={form.user} onChange={e => set("user", e.target.value)} placeholder="홍길동" />
+            </Field>
+            <Field label="SW대분류" required>
+              <AddableSelect value={form.swCategory} initOptions={swCategoryOptions}
+                onChange={v => set("swCategory", v)} placeholder="SW 선택 또는 추가" />
+            </Field>
+            <Field label="SW소분류">
+              <input className={inputCls} value={form.swDetail} onChange={e => set("swDetail", e.target.value)} placeholder="Office 365" />
+            </Field>
+            <Field label="버전">
+              <AddableMultiSelect value={selectedVersions} initOptions={versionOptions} onChange={setSelectedVersions} />
+            </Field>
+            <Field label="상태">
+              <select className={selectCls} value={form.status} onChange={e => set("status", e.target.value)}>
+                {["신규등록","사용중","재고","갱신필요","만료","반납예정","출고준비중","임시지급"].map(v => (
+                  <option key={v}>{v}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="라이선스 유형">
+              <select className={selectCls} value={form.licenseType} onChange={e => set("licenseType", e.target.value)}>
+                <option value="">선택 안 함</option>
+                {["영구","구독(업체)","구독(웹)"].map(v => <option key={v}>{v}</option>)}
+              </select>
+            </Field>
+            <Field label="법인명">
+              <AddableSelect value={form.company} initOptions={companyOptions}
+                onChange={v => set("company", v)} placeholder="법인 선택 또는 추가" />
+            </Field>
+            <Field label="부서">
+              <input className={inputCls} value={form.department} onChange={e => set("department", e.target.value)} placeholder="IT팀" />
+            </Field>
+            <Field label="계정유형">
+              <select className={selectCls} value={form.accountType} onChange={e => set("accountType", e.target.value)}>
+                <option value="">선택 안 함</option>
+                {accountTypeOptions.map(v => <option key={v}>{v}</option>)}
+              </select>
+            </Field>
+            <Field label="갱신주기">
+              <select className={selectCls} value={form.renewalCycle} onChange={e => set("renewalCycle", e.target.value)}>
+                <option value="">선택 안 함</option>
+                <option>연</option>
+                <option>월</option>
+              </select>
+            </Field>
+            <Field label="사용일자">
+              <input type="date" className={inputCls} value={form.usageDate} onChange={e => set("usageDate", e.target.value)} />
+            </Field>
+            <Field label="갱신필요일">
+              <input type="date" className={inputCls} value={form.renewalDate} onChange={e => set("renewalDate", e.target.value)} />
+            </Field>
+            <Field label="구매일자">
+              <input type="date" className={inputCls} value={form.purchaseDate} onChange={e => set("purchaseDate", e.target.value)} />
+            </Field>
+            <Field label="구매처">
+              <input className={inputCls} value={form.vendor} onChange={e => set("vendor", e.target.value)} placeholder="MS Korea" />
+            </Field>
+            <div className="col-span-2">
+              <Field label="인증키 / 인증계정">
+                <input className={inputCls} value={form.licenseKey} onChange={e => set("licenseKey", e.target.value)} placeholder="XXXXX-XXXXX-XXXXX" />
+              </Field>
+            </div>
+            <Field label="SW사용직군">
+              <select className={selectCls} value={form.workType} onChange={e => set("workType", e.target.value)}>
+                <option value="">선택 안 함</option>
+                {workTypeOptions.map(v => <option key={v}>{v}</option>)}
+              </select>
+            </Field>
+            <Field label="결재방식">
+              <select className={selectCls} value={form.billingType} onChange={e => set("billingType", e.target.value)}>
+                <option value="">선택 안 함</option>
+                {billingTypeOptions.map(v => <option key={v}>{v}</option>)}
+              </select>
+            </Field>
+            <Field label="월비용 KRW">
+              <input type="number" className={inputCls} value={form.monthlyKrw || ""} min={0}
+                onChange={e => set("monthlyKrw", Number(e.target.value))} placeholder="0" />
+            </Field>
+            <Field label="월비용 USD">
+              <input type="number" className={inputCls} value={form.monthlyUsd || ""} min={0}
+                onChange={e => set("monthlyUsd", Number(e.target.value))} placeholder="0" />
+            </Field>
+
+            {/* 증서 파일 */}
+            <div className="col-span-2">
+              <Field label="증서 파일 (선택)">
+                <input ref={certFileRef} type="file" className="hidden"
+                  accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
+                  onChange={e => setCertFile(e.target.files?.[0] ?? null)} />
+                {certFile ? (
+                  <div className="flex items-center gap-2 px-3 py-2 text-sm border border-indigo-300 bg-indigo-50 rounded-lg">
+                    <span className="text-indigo-600">📎</span>
+                    <span className="flex-1 truncate text-indigo-700 font-medium">{certFile.name}</span>
+                    <button type="button" onClick={() => { setCertFile(null); if (certFileRef.current) certFileRef.current.value = ""; }}
+                      className="text-gray-400 hover:text-red-500 text-xs font-bold">✕</button>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => certFileRef.current?.click()}
+                    className="w-full px-3 py-2 text-sm border border-dashed border-gray-300 rounded-lg text-gray-400 hover:border-indigo-400 hover:text-indigo-500 hover:bg-indigo-50/30 transition-colors text-left">
+                    📎 파일 선택 (PDF, 이미지)
+                  </button>
+                )}
+              </Field>
+            </div>
+          </div>
+
+          {error && (
+            <div className="mt-4 bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">
+              ⚠️ {error}
+            </div>
+          )}
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-100 shrink-0 flex gap-3">
+          <button onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+            취소
+          </button>
+          <button onClick={handleSubmit} disabled={submitting}
+            className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 disabled:opacity-60 transition-colors shadow-sm">
+            {submitting ? (submitStatus || "등록 중…") : "🚀 Notion에 등록"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── 메인 컴포넌트 ───────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
 // SW 엑셀 업로드 컴포넌트
@@ -879,6 +1272,14 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
   const [detailView, setDetailView] = useState<"category" | "list">("list");
   const [editRecord, setEditRecord] = useState<SwDbRecord | null>(null);
   const [showUpload, setShowUpload] = useState(false);
+  const [showManualAdd, setShowManualAdd] = useState(false);
+
+  const maSwCategoryOptions  = useMemo(() => [...new Set(records.map(r => r.swCategory).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ko")), [records]);
+  const maVersionOptions     = useMemo(() => [...new Set(records.flatMap(r => r.version ?? []).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ko")), [records]);
+  const maCompanyOptions     = useMemo(() => [...new Set(records.map(r => r.company).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ko")), [records]);
+  const maAccountTypeOptions = useMemo(() => [...new Set(records.map(r => r.accountType).filter(Boolean))], [records]);
+  const maWorkTypeOptions    = useMemo(() => [...new Set(records.map(r => r.workType).filter(Boolean))], [records]);
+  const maBillingTypeOptions = useMemo(() => [...new Set(records.map(r => r.billingType).filter((v): v is string => !!v))], [records]);
 
   const handleUploadSuccess = useCallback(() => {
     const url = company ? `/api/sw-records?company=${encodeURIComponent(company)}` : "/api/sw-records";
@@ -1035,12 +1436,20 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
           <h2 className="text-xl font-bold text-gray-900 mb-0.5">라이선스 현황</h2>
           <p className="text-sm text-gray-500">영구 · 구독 통합 SW 라이선스 검색 (Notion 실시간 연동)</p>
         </div>
-        <button
-          onClick={() => setShowUpload(true)}
-          className="shrink-0 flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
-        >
-          📂 엑셀 등록
-        </button>
+        <div className="flex gap-2 shrink-0">
+          <button
+            onClick={() => setShowManualAdd(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-indigo-300 text-indigo-600 text-sm font-semibold rounded-lg hover:bg-indigo-50 transition-colors shadow-sm"
+          >
+            ✏️ 직접 등록
+          </button>
+          <button
+            onClick={() => setShowUpload(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
+          >
+            📂 엑셀 등록
+          </button>
+        </div>
       </div>
 
       {/* ── 라이선스 유형 탭 ── */}
@@ -1170,6 +1579,20 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
         </div>
         <span className="text-xs text-gray-400">{filtered.length}건 조회됨</span>
       </div>
+
+      {/* ── 직접 등록 모달 ── */}
+      {showManualAdd && (
+        <SwManualAdd
+          onClose={() => setShowManualAdd(false)}
+          onSuccess={handleUploadSuccess}
+          swCategoryOptions={maSwCategoryOptions}
+          versionOptions={maVersionOptions}
+          companyOptions={maCompanyOptions}
+          accountTypeOptions={maAccountTypeOptions}
+          workTypeOptions={maWorkTypeOptions}
+          billingTypeOptions={maBillingTypeOptions}
+        />
+      )}
 
       {/* ── 엑셀 업로드 모달 ── */}
       {showUpload && (

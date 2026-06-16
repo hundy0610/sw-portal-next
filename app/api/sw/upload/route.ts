@@ -27,6 +27,7 @@ export interface SwUploadRow {
   billingType:  string;   // 결제방식
   monthlyKrw:   number;   // 월비용(KRW)
   monthlyUsd:   number;   // 월비용(USD)
+  certificateFileUploadId?: string; // 증서 파일 업로드 ID (선택)
 }
 
 // ISO 날짜 정규화 (YYYY-MM-DD / YYYY.MM.DD / Excel serial)
@@ -122,6 +123,12 @@ async function createSwPage(row: SwUploadRow) {
       } : {}),
       ...(row.monthlyUsd > 0 ? {
         "월 비용 (USD)": { number: row.monthlyUsd },
+      } : {}),
+      // 파일과 미디어 (증서) ─────────────────
+      ...(row.certificateFileUploadId ? {
+        "파일과 미디어": {
+          files: [{ type: "file_upload", file_upload: { id: row.certificateFileUploadId } }],
+        },
       } : {}),
     },
   });
