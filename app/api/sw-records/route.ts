@@ -37,8 +37,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       data: result,
       lastSynced: new Date().toISOString(),
-    }, {
-      headers: { "Cache-Control": "s-maxage=300, stale-while-revalidate=60" },
     });
   } catch (e: any) {
     console.error("[sw-records] fetch error:", e?.message);
