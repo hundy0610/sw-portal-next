@@ -263,6 +263,8 @@ export default function WorkFeedbackPanel({ session }: Props) {
   const [weeklyFormOpen,  setWeeklyFormOpen]  = useState<number | null>(null);
   const [editingWeekly,   setEditingWeekly]   = useState<WeeklyEntry | undefined>();
   const [evalModalGoal,   setEvalModalGoal]   = useState<MonthlyGoal | null>(null);
+  // 주간 코멘트 (슈퍼 어드민용): key = weeklyEntry.id → 편집 중인 코멘트 텍스트
+  const [commentEditing,  setCommentEditing]  = useState<Record<string, string>>({});
 
   // ── fetch data ──────────────────────────────────────────────
   const fetchData = useCallback(async () => {
@@ -358,6 +360,21 @@ export default function WorkFeedbackPanel({ session }: Props) {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ monthlyGoalId, grade, comment }),
+      });
+      const json = await res.json();
+      if (json.ok) setStore(json.data);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function apiPatchWeeklyComment(weeklyEntryId: string, comment: string) {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/work-feedback", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "weeklyComment", weeklyEntryId, comment }),
       });
       const json = await res.json();
       if (json.ok) setStore(json.data);
@@ -737,6 +754,66 @@ export default function WorkFeedbackPanel({ session }: Props) {
                                 <div>
                                   <div className="text-xs font-bold text-purple-600 mb-1">피드백 요청</div>
                                   <div className="text-gray-700 whitespace-pre-wrap bg-purple-50 rounded-lg p-3 border border-purple-100">{entry.feedbackNeeded}</div>
+                                </div>
+                              )}
+
+                              {/* 매니저 코멘트 — 슈퍼 어드민: 입력/수정 가능 / 팀원: 읽기 전용 */}
+                              {isSuper ? (
+                                <div className="border-t border-gray-100 pt-3 mt-1">
+                                  <div className="text-xs font-bold text-blue-700 mb-1.5">💬 코멘트</div>
+                                  {entry.id in commentEditing ? (
+                                    <div className="space-y-2">
+                                      <textarea
+                                        className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                        rows={3}
+                                        value={commentEditing[entry.id]}
+                                        onChange={e => setCommentEditing(prev => ({ ...prev, [entry.id]: e.target.value }))}
+                                        placeholder="팀원의 활동에 대한 피드백을 작성하세요."
+                                        autoFocus
+                                      />
+                                      <div className="flex gap-2 justify-end">
+                                        <button
+                                          onClick={() => setCommentEditing(prev => { const n = { ...prev }; delete n[entry.id]; return n; })}
+                                          className="px-3 py-1 text-xs rounded-lg border border-gray-200 hover:bg-gray-50"
+                                        >취소</button>
+                                        <button
+                                          onClick={async () => {
+                                            await apiPatchWeeklyComment(entry.id, commentEditing[entry.id] ?? "");
+                                            setCommentEditing(prev => { const n = { ...prev }; delete n[entry.id]; return n; });
+                                          }}
+                                          className="px-3 py-1 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-semibold"
+                                        >저장</button>
+                                      </div>
+                                    </div>
+                                  ) : entry.managerComment ? (
+                                    <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
+                                      <div className="text-gray-700 whitespace-pre-wrap text-sm">{entry.managerComment.comment}</div>
+                                      <div className="flex items-center justify-between mt-2">
+                                        <span className="text-xs text-blue-500">
+                                          {entry.managerComment.commentedBy} · {entry.managerComment.commentedAt.slice(0, 10)}
+                                        </span>
+                                        <button
+                                          onClick={() => setCommentEditing(prev => ({ ...prev, [entry.id]: entry.managerComment!.comment }))}
+                                          className="text-xs text-blue-600 hover:underline"
+                                        >수정</button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      onClick={() => setCommentEditing(prev => ({ ...prev, [entry.id]: "" }))}
+                                      className="text-xs text-blue-500 hover:text-blue-700 border border-dashed border-blue-300 rounded-lg px-3 py-1.5 w-full text-center hover:bg-blue-50"
+                                    >+ 코멘트 작성</button>
+                                  )}
+                                </div>
+                              ) : entry.managerComment && (
+                                <div className="border-t border-gray-100 pt-3 mt-1">
+                                  <div className="text-xs font-bold text-blue-700 mb-1.5">💬 매니저 코멘트</div>
+                                  <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
+                                    <div className="text-gray-700 whitespace-pre-wrap text-sm">{entry.managerComment.comment}</div>
+                                    <div className="text-xs text-blue-500 mt-2">
+                                      {entry.managerComment.commentedBy} · {entry.managerComment.commentedAt.slice(0, 10)}
+                                    </div>
+                                  </div>
                                 </div>
                               )}
                             </div>

@@ -99,15 +99,30 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true, data: store });
 }
 
-// PATCH /api/work-feedback  — update monthly evaluation (super only)
+// PATCH /api/work-feedback  — update monthly evaluation or weekly comment (super only)
 export async function PATCH(req: NextRequest) {
   const session = getSession(req);
   if (!session || session.role !== "super") {
     return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
   }
 
-  const { monthlyGoalId, grade, comment } = await req.json() as { monthlyGoalId: string; grade: Grade; comment: string };
+  const body = await req.json();
   const store = (await kvGet<WorkFeedbackStore>(KV_KEY)) ?? emptyStore();
+
+  // 주간 코멘트
+  if (body.type === "weeklyComment") {
+    const { weeklyEntryId, comment } = body as { weeklyEntryId: string; comment: string };
+    const idx = store.weeklyEntries.findIndex(e => e.id === weeklyEntryId);
+    if (idx < 0) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
+    store.weeklyEntries[idx].managerComment = comment.trim()
+      ? { comment: comment.trim(), commentedBy: session.name || session.userId, commentedAt: new Date().toISOString() }
+      : undefined;
+    await kvSetPermanent(KV_KEY, store);
+    return NextResponse.json({ ok: true, data: store });
+  }
+
+  // 월간 평가 (기존)
+  const { monthlyGoalId, grade, comment } = body as { monthlyGoalId: string; grade: Grade; comment: string };
   const idx = store.monthlyGoals.findIndex(g => g.id === monthlyGoalId);
   if (idx < 0) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
 
