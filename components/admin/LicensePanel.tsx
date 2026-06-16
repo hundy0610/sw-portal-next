@@ -536,7 +536,7 @@ const SW_COL_MAP: { key: string; aliases: string[] }[] = [
   { key: "user",         aliases: ["사용자","user"] },
   { key: "swCategory",   aliases: ["sw대분류","sw분류","swcategory","대분류"] },
   { key: "swDetail",     aliases: ["sw소분류","소분류","swdetail","에디션","버전명"] },
-  { key: "version",      aliases: ["버전","version","ver"] },
+  { key: "version",      aliases: ["버전","version","ver","버전(쉼표구분)","버전(대표버전구성)"] },
   { key: "status",       aliases: ["상태","status"] },
   { key: "company",      aliases: ["법인명","법인","company"] },
   { key: "licenseType",  aliases: ["라이선스유형","영구/구독","licensetype","유형","라이선스"] },
