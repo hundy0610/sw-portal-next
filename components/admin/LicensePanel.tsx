@@ -210,6 +210,9 @@ function SwEditModal({
       swDetail:    record.swDetail,
       renewalDate: record.renewalDate,
       vendor:      record.vendor,
+      billingType: record.billingType,
+      monthlyKrw:  record.monthlyKrw,
+      monthlyUsd:  record.monthlyUsd,
     });
   }, [record]);
 
@@ -305,6 +308,39 @@ function SwEditModal({
             <label className="block text-xs font-semibold text-gray-500 mb-1">구매처</label>
             <input value={String(form.vendor ?? "")} onChange={e => set("vendor", e.target.value)}
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          </div>
+          {/* 결제 방식 */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">결제 방식</label>
+            <input value={String(form.billingType ?? "")} onChange={e => set("billingType", e.target.value as SwDbRecord["billingType"])}
+              placeholder="예) 법인카드, 계좌이체, 개인결제"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          </div>
+          {/* 월 비용 */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">월 비용</label>
+            <div className="flex gap-2">
+              <div className="flex-1 relative">
+                <input
+                  type="number" min="0" step="1"
+                  value={form.monthlyKrw ?? ""}
+                  onChange={e => set("monthlyKrw", e.target.value === "" ? 0 : Number(e.target.value) as SwDbRecord["monthlyKrw"])}
+                  placeholder="0"
+                  className="w-full px-3 py-2 pr-12 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-semibold">KRW</span>
+              </div>
+              <div className="flex-1 relative">
+                <input
+                  type="number" min="0" step="0.01"
+                  value={form.monthlyUsd ?? ""}
+                  onChange={e => set("monthlyUsd", e.target.value === "" ? 0 : Number(e.target.value) as SwDbRecord["monthlyUsd"])}
+                  placeholder="0.00"
+                  className="w-full px-3 py-2 pr-12 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-semibold">USD</span>
+              </div>
+            </div>
           </div>
           {error && <div className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</div>}
         </div>
