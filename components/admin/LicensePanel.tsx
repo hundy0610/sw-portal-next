@@ -500,24 +500,33 @@ function AddableSelect({ value, initOptions, onChange, placeholder }: {
 }) {
   const [open, setOpen] = useState(false);
   const [options, setOptions] = useState(initOptions);
-  const [newInput, setNewInput] = useState("");
+  const [search, setSearch] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handle(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setSearch(""); }
     }
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
   }, []);
 
-  function addNew() {
-    const v = newInput.trim();
+  useEffect(() => {
+    if (open) setTimeout(() => inputRef.current?.focus(), 0);
+    else setSearch("");
+  }, [open]);
+
+  const filtered = options.filter(o => o.toLowerCase().includes(search.toLowerCase()));
+  const canCreate = search.trim() && !options.some(o => o.toLowerCase() === search.trim().toLowerCase());
+
+  function select(v: string) { onChange(v); setOpen(false); setSearch(""); }
+
+  function createNew() {
+    const v = search.trim();
     if (!v) return;
-    if (!options.includes(v)) setOptions(prev => [...prev, v]);
-    onChange(v);
-    setNewInput("");
-    setOpen(false);
+    setOptions(prev => [...prev, v]);
+    select(v);
   }
 
   return (
@@ -529,26 +538,30 @@ function AddableSelect({ value, initOptions, onChange, placeholder }: {
       </button>
       {open && (
         <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+          <div className="p-2 border-b border-gray-100">
+            <input ref={inputRef} value={search} onChange={e => setSearch(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && canCreate) createNew(); }}
+              className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-300"
+              placeholder="검색..." />
+          </div>
           <div className="max-h-44 overflow-y-auto">
-            {options.length === 0 && <p className="px-3 py-2 text-xs text-gray-400">등록된 항목 없음</p>}
-            {options.map(o => (
+            {filtered.length === 0 && !canCreate && <p className="px-3 py-2 text-xs text-gray-400">일치하는 항목 없음</p>}
+            {filtered.map(o => (
               <button key={o} type="button"
                 className={`w-full px-3 py-2 text-sm text-left hover:bg-indigo-50 transition-colors ${value === o ? "bg-indigo-50 text-indigo-700 font-medium" : "text-gray-700"}`}
-                onClick={() => { onChange(o); setOpen(false); }}>
+                onClick={() => select(o)}>
                 {o}
               </button>
             ))}
           </div>
-          <div className="border-t border-gray-100 p-2 flex gap-1.5">
-            <input value={newInput} onChange={e => setNewInput(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && addNew()}
-              className="flex-1 px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-300"
-              placeholder="새 항목 입력..." />
-            <button type="button" onClick={addNew}
-              className="px-2.5 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700">
-              +
-            </button>
-          </div>
+          {canCreate && (
+            <div className="border-t border-gray-100 p-1.5">
+              <button type="button" onClick={createNew}
+                className="w-full px-3 py-2 text-xs text-left text-indigo-600 font-medium hover:bg-indigo-50 rounded-lg transition-colors">
+                + 새로운 항목 만들기 &ldquo;{search.trim()}&rdquo;
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -561,27 +574,36 @@ function AddableMultiSelect({ value, initOptions, onChange }: {
 }) {
   const [open, setOpen] = useState(false);
   const [options, setOptions] = useState(initOptions);
-  const [newInput, setNewInput] = useState("");
+  const [search, setSearch] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handle(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setSearch(""); }
     }
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
   }, []);
 
+  useEffect(() => {
+    if (open) setTimeout(() => inputRef.current?.focus(), 0);
+    else setSearch("");
+  }, [open]);
+
+  const filtered = options.filter(o => o.toLowerCase().includes(search.toLowerCase()));
+  const canCreate = search.trim() && !options.some(o => o.toLowerCase() === search.trim().toLowerCase());
+
   function toggle(opt: string) {
     onChange(value.includes(opt) ? value.filter(v => v !== opt) : [...value, opt]);
   }
 
-  function addNew() {
-    const v = newInput.trim();
+  function createNew() {
+    const v = search.trim();
     if (!v) return;
     if (!options.includes(v)) setOptions(prev => [...prev, v]);
     if (!value.includes(v)) onChange([...value, v]);
-    setNewInput("");
+    setSearch("");
   }
 
   return (
@@ -604,9 +626,15 @@ function AddableMultiSelect({ value, initOptions, onChange }: {
       </button>
       {open && (
         <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+          <div className="p-2 border-b border-gray-100">
+            <input ref={inputRef} value={search} onChange={e => setSearch(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && canCreate) createNew(); }}
+              className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-300"
+              placeholder="검색..." />
+          </div>
           <div className="max-h-44 overflow-y-auto">
-            {options.length === 0 && <p className="px-3 py-2 text-xs text-gray-400">등록된 버전 없음</p>}
-            {options.map(o => (
+            {filtered.length === 0 && !canCreate && <p className="px-3 py-2 text-xs text-gray-400">일치하는 항목 없음</p>}
+            {filtered.map(o => (
               <button key={o} type="button"
                 className={`w-full px-3 py-2 text-sm text-left flex items-center gap-2 hover:bg-indigo-50 transition-colors ${value.includes(o) ? "text-indigo-700" : "text-gray-700"}`}
                 onClick={() => toggle(o)}>
@@ -618,16 +646,14 @@ function AddableMultiSelect({ value, initOptions, onChange }: {
               </button>
             ))}
           </div>
-          <div className="border-t border-gray-100 p-2 flex gap-1.5">
-            <input value={newInput} onChange={e => setNewInput(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && addNew()}
-              className="flex-1 px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-300"
-              placeholder="새 버전 입력..." />
-            <button type="button" onClick={addNew}
-              className="px-2.5 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700">
-              +
-            </button>
-          </div>
+          {canCreate && (
+            <div className="border-t border-gray-100 p-1.5">
+              <button type="button" onClick={createNew}
+                className="w-full px-3 py-2 text-xs text-left text-indigo-600 font-medium hover:bg-indigo-50 rounded-lg transition-colors">
+                + 새로운 항목 만들기 &ldquo;{search.trim()}&rdquo;
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
