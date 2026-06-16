@@ -1307,6 +1307,7 @@ function ExcelUploadTab(){
   const [cleanRows,setCleanRows]=useState<ExcelRow[]>([]);
   const [syncWarn,setSyncWarn]=useState("");
   const [syncMatches,setSyncMatches]=useState<SyncMatch[]>([]);
+  const [syncChecked,setSyncChecked]=useState(false);
   const [expandedSyncIdx,setExpandedSyncIdx]=useState<number|null>(null);
 
   const handleFile=async(file:File)=>{
@@ -1410,10 +1411,12 @@ function ExcelUploadTab(){
               });
             }
           }
-          if(matches.length>0) setSyncMatches(matches);
+          setSyncMatches(matches);
+          setSyncChecked(true);
         } catch(e){
           console.warn("[ExcelUpload] 자산흐름관리 연동 대상 조회 실패:",e);
           setSyncWarn("자산흐름관리 연동 대상 조회 중 오류가 발생했습니다. 수동으로 확인해주세요.");
+          setSyncChecked(true);
         }
       }
     }catch(e){setPErr(String(e));}finally{setUploading(false);}
@@ -1451,7 +1454,7 @@ function ExcelUploadTab(){
     }
   };
 
-  const reset=()=>{setRows([]);setFile("");setPErr("");setResults(null);setSummary(null);setProgress(0);setSyncWarn("");setSyncMatches([]);setExpandedSyncIdx(null);setShowDupModal(false);setDupItems([]);setCleanRows([]);if(fileRef.current)fileRef.current.value="";};
+  const reset=()=>{setRows([]);setFile("");setPErr("");setResults(null);setSummary(null);setProgress(0);setSyncWarn("");setSyncMatches([]);setSyncChecked(false);setExpandedSyncIdx(null);setShowDupModal(false);setDupItems([]);setCleanRows([]);if(fileRef.current)fileRef.current.value="";};
 
   return(
     <div className="space-y-4">
@@ -1570,15 +1573,18 @@ function ExcelUploadTab(){
               </table>
             </div>
           </div>
-          {syncMatches.length>0&&(
+          {syncChecked&&(
             <div className="bg-white rounded-xl border border-blue-200 overflow-hidden">
               <div className="px-5 py-3 border-b border-blue-100 bg-blue-50 flex items-center justify-between">
                 <div>
                   <p className="text-sm font-semibold text-blue-800">자산흐름관리 연동 필요 항목</p>
-                  <p className="text-xs text-blue-600 mt-0.5">신규 등록 자산과 법인·사용자가 일치하는 신규구매 대기 항목입니다. 확인 후 처리해주세요.</p>
+                  <p className="text-xs text-blue-600 mt-0.5">신규 등록 자산과 법인·사용자가 일치하는 신규구매 대기 항목입니다.</p>
                 </div>
                 <span className="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-1 rounded-full">{syncMatches.filter(m=>!m.confirmed).length}건 대기</span>
               </div>
+              {syncMatches.length===0?(
+                <div className="px-5 py-6 text-center text-sm text-gray-400">연동 필요 항목 없음</div>
+              ):(
               <div className="divide-y divide-gray-100">
                 {syncMatches.map((m,i)=>(
                   <div key={i} className={`transition-colors ${m.confirmed?"bg-green-50/50":""}`}>
@@ -1626,6 +1632,7 @@ function ExcelUploadTab(){
                   </div>
                 ))}
               </div>
+              )}
             </div>
           )}
           <button onClick={reset} className="w-full py-2.5 rounded-xl border border-gray-300 text-gray-600 text-sm hover:bg-gray-50">새 파일 업로드</button>
