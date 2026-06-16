@@ -25,6 +25,18 @@ export async function GET(req: NextRequest) {
   if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
   const store = (await kvGet<WorkFeedbackStore>(KV_KEY)) ?? emptyStore();
+
+  // 슈퍼 어드민은 전체 데이터, 일반 사용자는 본인 데이터만 반환
+  if (session.role !== "super") {
+    const uid = session.userId;
+    const filtered: WorkFeedbackStore = {
+      annualGoals:   store.annualGoals.filter(g => g.userId === uid),
+      monthlyGoals:  store.monthlyGoals.filter(g => g.userId === uid),
+      weeklyEntries: store.weeklyEntries.filter(e => e.userId === uid),
+    };
+    return NextResponse.json({ ok: true, data: filtered });
+  }
+
   return NextResponse.json({ ok: true, data: store });
 }
 
