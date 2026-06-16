@@ -38,6 +38,11 @@ export interface WeeklyEntry {
   activities: string;
   concerns: string;
   feedbackNeeded: string;
+  managerComment?: {
+    comment: string;
+    commentedBy: string;
+    commentedAt: string;
+  };
   createdAt: string;
   updatedAt: string;
 }
