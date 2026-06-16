@@ -494,15 +494,167 @@ function CategoryView({ records, onEdit }: { records: SwDbRecord[]; onEdit: (r: 
 // SW 직접 등록 컴포넌트
 // ─────────────────────────────────────────────────────────────────────────────
 
+// 단일 선택 + 새 항목 추가 드롭다운
+function AddableSelect({ value, initOptions, onChange, placeholder }: {
+  value: string; initOptions: string[]; onChange: (v: string) => void; placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [options, setOptions] = useState(initOptions);
+  const [newInput, setNewInput] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, []);
+
+  function addNew() {
+    const v = newInput.trim();
+    if (!v) return;
+    if (!options.includes(v)) setOptions(prev => [...prev, v]);
+    onChange(v);
+    setNewInput("");
+    setOpen(false);
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-indigo-300">
+        <span className={value ? "text-gray-900" : "text-gray-400"}>{value || placeholder || "선택"}</span>
+        <span className="text-gray-400 text-xs">▾</span>
+      </button>
+      {open && (
+        <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+          <div className="max-h-44 overflow-y-auto">
+            {options.length === 0 && <p className="px-3 py-2 text-xs text-gray-400">등록된 항목 없음</p>}
+            {options.map(o => (
+              <button key={o} type="button"
+                className={`w-full px-3 py-2 text-sm text-left hover:bg-indigo-50 transition-colors ${value === o ? "bg-indigo-50 text-indigo-700 font-medium" : "text-gray-700"}`}
+                onClick={() => { onChange(o); setOpen(false); }}>
+                {o}
+              </button>
+            ))}
+          </div>
+          <div className="border-t border-gray-100 p-2 flex gap-1.5">
+            <input value={newInput} onChange={e => setNewInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && addNew()}
+              className="flex-1 px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-300"
+              placeholder="새 항목 입력..." />
+            <button type="button" onClick={addNew}
+              className="px-2.5 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700">
+              +
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 다중 선택 + 새 항목 추가 드롭다운 (버전용)
+function AddableMultiSelect({ value, initOptions, onChange }: {
+  value: string[]; initOptions: string[]; onChange: (v: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [options, setOptions] = useState(initOptions);
+  const [newInput, setNewInput] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, []);
+
+  function toggle(opt: string) {
+    onChange(value.includes(opt) ? value.filter(v => v !== opt) : [...value, opt]);
+  }
+
+  function addNew() {
+    const v = newInput.trim();
+    if (!v) return;
+    if (!options.includes(v)) setOptions(prev => [...prev, v]);
+    if (!value.includes(v)) onChange([...value, v]);
+    setNewInput("");
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white flex items-start justify-between gap-2 focus:outline-none focus:ring-2 focus:ring-indigo-300 min-h-[38px]">
+        <div className="flex flex-wrap gap-1 flex-1">
+          {value.length === 0
+            ? <span className="text-gray-400">버전 선택</span>
+            : value.map(v => (
+              <span key={v} className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs rounded-full font-medium">
+                {v}
+                <button type="button" onClick={e => { e.stopPropagation(); toggle(v); }}
+                  className="hover:text-red-500 leading-none">✕</button>
+              </span>
+            ))
+          }
+        </div>
+        <span className="text-gray-400 text-xs shrink-0 mt-0.5">▾</span>
+      </button>
+      {open && (
+        <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+          <div className="max-h-44 overflow-y-auto">
+            {options.length === 0 && <p className="px-3 py-2 text-xs text-gray-400">등록된 버전 없음</p>}
+            {options.map(o => (
+              <button key={o} type="button"
+                className={`w-full px-3 py-2 text-sm text-left flex items-center gap-2 hover:bg-indigo-50 transition-colors ${value.includes(o) ? "text-indigo-700" : "text-gray-700"}`}
+                onClick={() => toggle(o)}>
+                <span className={`w-3.5 h-3.5 rounded border flex-shrink-0 flex items-center justify-center text-xs font-bold
+                  ${value.includes(o) ? "bg-indigo-600 border-indigo-600 text-white" : "border-gray-300"}`}>
+                  {value.includes(o) && "✓"}
+                </span>
+                {o}
+              </button>
+            ))}
+          </div>
+          <div className="border-t border-gray-100 p-2 flex gap-1.5">
+            <input value={newInput} onChange={e => setNewInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && addNew()}
+              className="flex-1 px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-300"
+              placeholder="새 버전 입력..." />
+            <button type="button" onClick={addNew}
+              className="px-2.5 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700">
+              +
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const EMPTY_FORM = {
-  user: "", swCategory: "", swDetail: "", version: "", status: "신규등록",
+  user: "", swCategory: "", swDetail: "", status: "신규등록",
   company: "", licenseType: "", department: "", usageDate: "", renewalDate: "",
   purchaseDate: "", accountType: "", renewalCycle: "", licenseKey: "", vendor: "",
   workType: "", billingType: "", monthlyKrw: 0, monthlyUsd: 0,
 };
 
-function SwManualAdd({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+interface SwManualAddProps {
+  onClose: () => void;
+  onSuccess: () => void;
+  swCategoryOptions: string[];
+  versionOptions: string[];
+  companyOptions: string[];
+  accountTypeOptions: string[];
+  workTypeOptions: string[];
+  billingTypeOptions: string[];
+}
+
+function SwManualAdd({ onClose, onSuccess, swCategoryOptions, versionOptions, companyOptions, accountTypeOptions, workTypeOptions, billingTypeOptions }: SwManualAddProps) {
   const [form, setForm] = useState({ ...EMPTY_FORM });
+  const [selectedVersions, setSelectedVersions] = useState<string[]>([]);
   const [certFile, setCertFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState("");
@@ -535,7 +687,7 @@ function SwManualAdd({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
       const res = await fetch("/api/sw/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rows: [{ ...form, certificateFileUploadId }] }),
+        body: JSON.stringify({ rows: [{ ...form, version: selectedVersions.join(","), certificateFileUploadId }] }),
       });
       const json = await res.json();
       if (!json.ok || json.failed > 0) throw new Error(json.results?.[0]?.error ?? "등록 실패");
@@ -580,13 +732,14 @@ function SwManualAdd({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
               <input className={inputCls} value={form.user} onChange={e => set("user", e.target.value)} placeholder="홍길동" />
             </Field>
             <Field label="SW대분류" required>
-              <input className={inputCls} value={form.swCategory} onChange={e => set("swCategory", e.target.value)} placeholder="MS Office" />
+              <AddableSelect value={form.swCategory} initOptions={swCategoryOptions}
+                onChange={v => set("swCategory", v)} placeholder="SW 선택 또는 추가" />
             </Field>
             <Field label="SW소분류">
               <input className={inputCls} value={form.swDetail} onChange={e => set("swDetail", e.target.value)} placeholder="Office 365" />
             </Field>
-            <Field label="버전 (쉼표 구분)">
-              <input className={inputCls} value={form.version} onChange={e => set("version", e.target.value)} placeholder="2021, 2024" />
+            <Field label="버전">
+              <AddableMultiSelect value={selectedVersions} initOptions={versionOptions} onChange={setSelectedVersions} />
             </Field>
             <Field label="상태">
               <select className={selectCls} value={form.status} onChange={e => set("status", e.target.value)}>
@@ -602,13 +755,17 @@ function SwManualAdd({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
               </select>
             </Field>
             <Field label="법인명">
-              <input className={inputCls} value={form.company} onChange={e => set("company", e.target.value)} placeholder="대웅제약" />
+              <AddableSelect value={form.company} initOptions={companyOptions}
+                onChange={v => set("company", v)} placeholder="법인 선택 또는 추가" />
             </Field>
             <Field label="부서">
               <input className={inputCls} value={form.department} onChange={e => set("department", e.target.value)} placeholder="IT팀" />
             </Field>
             <Field label="계정유형">
-              <input className={inputCls} value={form.accountType} onChange={e => set("accountType", e.target.value)} placeholder="법인 / 개인 / 공용" />
+              <select className={selectCls} value={form.accountType} onChange={e => set("accountType", e.target.value)}>
+                <option value="">선택 안 함</option>
+                {accountTypeOptions.map(v => <option key={v}>{v}</option>)}
+              </select>
             </Field>
             <Field label="갱신주기">
               <select className={selectCls} value={form.renewalCycle} onChange={e => set("renewalCycle", e.target.value)}>
@@ -635,10 +792,16 @@ function SwManualAdd({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
               </Field>
             </div>
             <Field label="SW사용직군">
-              <input className={inputCls} value={form.workType} onChange={e => set("workType", e.target.value)} placeholder="사무직 / 개발직 / 디자인직" />
+              <select className={selectCls} value={form.workType} onChange={e => set("workType", e.target.value)}>
+                <option value="">선택 안 함</option>
+                {workTypeOptions.map(v => <option key={v}>{v}</option>)}
+              </select>
             </Field>
-            <Field label="결제방식">
-              <input className={inputCls} value={form.billingType} onChange={e => set("billingType", e.target.value)} placeholder="법인카드 / 개인카드" />
+            <Field label="결재방식">
+              <select className={selectCls} value={form.billingType} onChange={e => set("billingType", e.target.value)}>
+                <option value="">선택 안 함</option>
+                {billingTypeOptions.map(v => <option key={v}>{v}</option>)}
+              </select>
             </Field>
             <Field label="월비용 KRW">
               <input type="number" className={inputCls} value={form.monthlyKrw || ""} min={0}
@@ -1049,6 +1212,13 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
   const [showUpload, setShowUpload] = useState(false);
   const [showManualAdd, setShowManualAdd] = useState(false);
 
+  const maSwCategoryOptions  = useMemo(() => [...new Set(records.map(r => r.swCategory).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ko")), [records]);
+  const maVersionOptions     = useMemo(() => [...new Set(records.flatMap(r => r.version ?? []).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ko")), [records]);
+  const maCompanyOptions     = useMemo(() => [...new Set(records.map(r => r.company).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ko")), [records]);
+  const maAccountTypeOptions = useMemo(() => [...new Set(records.map(r => r.accountType).filter(Boolean))], [records]);
+  const maWorkTypeOptions    = useMemo(() => [...new Set(records.map(r => r.workType).filter(Boolean))], [records]);
+  const maBillingTypeOptions = useMemo(() => [...new Set(records.map(r => r.billingType).filter((v): v is string => !!v))], [records]);
+
   const handleUploadSuccess = useCallback(() => {
     const url = company ? `/api/sw-records?company=${encodeURIComponent(company)}` : "/api/sw-records";
     // 업로드 후 sessionStorage 무효화
@@ -1353,6 +1523,12 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
         <SwManualAdd
           onClose={() => setShowManualAdd(false)}
           onSuccess={handleUploadSuccess}
+          swCategoryOptions={maSwCategoryOptions}
+          versionOptions={maVersionOptions}
+          companyOptions={maCompanyOptions}
+          accountTypeOptions={maAccountTypeOptions}
+          workTypeOptions={maWorkTypeOptions}
+          billingTypeOptions={maBillingTypeOptions}
         />
       )}
 
