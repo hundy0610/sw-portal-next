@@ -1604,8 +1604,8 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
                   </th>
                   <th className={thS}>갱신일</th>
                   <th className={thS}>인증키</th>
-                  <th className={thS}>최종수정</th>
                   <th className={thS}>노션</th>
+                  <th className={thS}>최종수정</th>
                 </tr>
               </thead>
               <tbody>
@@ -1649,14 +1649,6 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
                           <span className="text-xs text-gray-300">없음</span>
                         ) : "—"}
                       </td>
-                      <td className="px-3 py-3 whitespace-nowrap">
-                        {r.lastModifiedBy ? (
-                          <div className="text-[11px]">
-                            <div className="text-gray-700 font-medium">{r.lastModifiedBy}</div>
-                            <div className="text-gray-400">{fmtDate(r.lastModifiedAt)}</div>
-                          </div>
-                        ) : <span className="text-gray-300">—</span>}
-                      </td>
                       <td className="px-3 py-3">
                         {r.notionUrl
                           ? <a href={r.notionUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700 text-xs underline">보기</a>
@@ -1667,6 +1659,14 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
                           onClick={() => setEditRecord(r)}
                           className="text-xs text-gray-400 hover:text-blue-600 border border-gray-100 hover:border-blue-300 px-2 py-0.5 rounded transition-colors"
                         >✏️</button>
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        {r.lastModifiedBy ? (
+                          <div className="text-[11px]">
+                            <div className="text-gray-700 font-medium">{r.lastModifiedBy}</div>
+                            <div className="text-gray-400">{fmtDate(r.lastModifiedAt)}</div>
+                          </div>
+                        ) : <span className="text-gray-300">—</span>}
                       </td>
                     </tr>
                   );
