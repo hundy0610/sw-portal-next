@@ -118,6 +118,12 @@ const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
 };
 const ALL_STAGES = ["교체요청","요청기안","기기준비","기기준비완료","사용자수령","반납요청"] as const;
 
+function fmtDateTime(iso: string) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 function agingDays(requestedAt: string, completedAt: string, stage: string) {
   if (!requestedAt) return 0;
   const start = new Date(requestedAt);
@@ -362,7 +368,7 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
                       {r.lastModifiedBy ? (
                         <>
                           <div className="text-gray-700 font-medium truncate">{r.lastModifiedBy}</div>
-                          <div className="text-gray-400">{r.lastEditedAt ? r.lastEditedAt.slice(0, 10) : "—"}</div>
+                          <div className="text-gray-400">{fmtDateTime(r.lastEditedAt)}</div>
                         </>
                       ) : <span className="text-gray-300">—</span>}
                     </div>

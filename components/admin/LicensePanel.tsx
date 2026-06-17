@@ -93,6 +93,12 @@ function TypeBadge({ type }: { type: string }) {
 }
 
 function fmtDate(d?: string) { return d ? d.slice(0, 10) : "—"; }
+function fmtDateTime(iso?: string) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 function daysLeft(d?: string): number | null {
   if (!d) return null;
   return Math.ceil((new Date(d).getTime() - Date.now()) / 86400000);
@@ -1664,7 +1670,7 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
                         {r.lastModifiedBy ? (
                           <div className="text-[11px]">
                             <div className="text-gray-700 font-medium">{r.lastModifiedBy}</div>
-                            <div className="text-gray-400">{fmtDate(r.lastModifiedAt)}</div>
+                            <div className="text-gray-400">{fmtDateTime(r.lastModifiedAt)}</div>
                           </div>
                         ) : <span className="text-gray-300">—</span>}
                       </td>
