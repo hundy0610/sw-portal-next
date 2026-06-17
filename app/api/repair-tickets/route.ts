@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchRepairTickets, createRepairTicket } from "@/lib/notion";
 import { getSessionFromCookieHeader } from "@/lib/session";
+import { createMailTransporter, buildMonitorRepairEmail } from "@/lib/mail";
 import type { RepairTicket } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -29,8 +30,9 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  const { title, faultTypes, location, assetId, requester, priority } = body as {
+  const { title, faultTypes, location, assetId, requester, priority, notifyGmEmail, notifyGmName, emailHtml } = body as {
     title?: string; faultTypes?: string[]; location?: string; assetId?: string; requester?: string; priority?: string;
+    notifyGmEmail?: string; notifyGmName?: string; emailHtml?: string;
   };
 
   if (!title) return NextResponse.json({ ok: false, error: "title 필수" }, { status: 400 });
@@ -46,6 +48,34 @@ export async function POST(req: NextRequest) {
       requester: requester || session.name,
       priority,
     });
+
+    // 총무 담당자에게 이메일 발송
+    if (notifyGmEmail) {
+      try {
+        const transporter = createMailTransporter();
+        if (transporter) {
+          const html = emailHtml ?? buildMonitorRepairEmail({
+            building: location ?? "",
+            floor: "",
+            zone: "",
+            seatId: assetId ?? "",
+            requestType: "repair",
+            requestedBy: requester || session.name,
+            note: title,
+            appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "",
+          });
+          await transporter.sendMail({
+            from: `"SW 포털 자산관리" <${process.env.GMAIL_USER}>`,
+            to: notifyGmEmail,
+            subject: `[자산관리] 모니터 교체/수리 요청 — ${location ?? title}`,
+            html,
+          });
+        }
+      } catch (mailErr) {
+        console.error("[repair-tickets] 메일 발송 실패", mailErr);
+      }
+    }
+
     return NextResponse.json({ ok: true, id });
   } catch (error) {
     console.error("[API POST /repair-tickets]", error);
