@@ -1660,12 +1660,6 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
                           ? <a href={r.notionUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700 text-xs underline">보기</a>
                           : "—"}
                       </td>
-                      <td className="px-3 py-3">
-                        <button
-                          onClick={() => setEditRecord(r)}
-                          className="text-xs text-gray-400 hover:text-blue-600 border border-gray-100 hover:border-blue-300 px-2 py-0.5 rounded transition-colors"
-                        >✏️</button>
-                      </td>
                       <td className="px-3 py-3 whitespace-nowrap">
                         {r.lastModifiedBy ? (
                           <div className="text-[11px]">
@@ -1673,6 +1667,12 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
                             <div className="text-gray-400">{fmtDateTime(r.lastModifiedAt)}</div>
                           </div>
                         ) : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="px-3 py-3">
+                        <button
+                          onClick={() => setEditRecord(r)}
+                          className="text-xs text-gray-400 hover:text-blue-600 border border-gray-100 hover:border-blue-300 px-2 py-0.5 rounded transition-colors"
+                        >✏️</button>
                       </td>
                     </tr>
                   );
