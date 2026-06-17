@@ -1418,12 +1418,9 @@ function ItemDetailPanel({
 
               {/* HTML 이메일 미리보기 */}
               <div className="flex-1 overflow-auto bg-gray-50 p-3" style={{ minHeight: 280 }}>
-                <iframe
-                  srcDoc={emailHtml}
-                  className="w-full border-0 rounded-lg bg-white"
-                  style={{ height: 380 }}
-                  sandbox="allow-same-origin"
-                  title="메일 미리보기"
+                <div
+                  dangerouslySetInnerHTML={{ __html: emailHtml }}
+                  className="rounded-lg overflow-hidden"
                 />
               </div>
 
