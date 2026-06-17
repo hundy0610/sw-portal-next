@@ -26,19 +26,36 @@ export default function EventAdminPage() {
   const [submissions, setSubmissions] = useState<EventSubmission[]>([]);
   const [eventOpen, setEventOpen]     = useState(true);
   const [loading, setLoading]         = useState(true);
+  const [loadError, setLoadError]     = useState("");
   const [toggling, setToggling]       = useState(false);
   const [search, setSearch]           = useState("");
   const [corpFilter, setCorpFilter]   = useState("all");
 
   async function load() {
     setLoading(true);
-    const [subRes, statusRes] = await Promise.all([
-      fetch("/api/event/submissions").then(r => r.json()),
-      fetch("/api/event/toggle").then(r => r.json()),
-    ]);
-    setSubmissions(subRes.data ?? []);
-    setEventOpen(statusRes.open ?? true);
-    setLoading(false);
+    setLoadError("");
+    try {
+      const [subResp, statusResp] = await Promise.all([
+        fetch("/api/event/submissions"),
+        fetch("/api/event/toggle"),
+      ]);
+      if (!subResp.ok) {
+        const err = await subResp.json().catch(() => ({}));
+        setLoadError(`참여자 조회 실패 (${subResp.status}): ${err.error ?? "서버 오류"}`);
+        setLoading(false);
+        return;
+      }
+      const [subRes, statusRes] = await Promise.all([
+        subResp.json(),
+        statusResp.json(),
+      ]);
+      setSubmissions(subRes.data ?? []);
+      setEventOpen(statusRes.open ?? true);
+    } catch (e) {
+      setLoadError(`네트워크 오류: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { load(); }, []);
@@ -129,6 +146,13 @@ export default function EventAdminPage() {
             </button>
           </div>
         </div>
+
+        {loadError && (
+          <div className="mb-6 p-4 rounded-2xl text-sm font-medium"
+            style={{ background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca" }}>
+            ⚠️ {loadError}
+          </div>
+        )}
 
         {loading ? (
           <div className="text-center py-20" style={{ color: C.text4 }}>불러오는 중...</div>
