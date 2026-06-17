@@ -247,7 +247,7 @@ export default function EventAdminPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr style={{ borderBottom: `1px solid ${C.border}`, background: C.soft }}>
-                        {["이름", "법인", "부서", "🇰🇷 한국", "🇧🇷 브라질", "참여시각"].map(h => (
+                        {["이름", "법인", "부서", "예측 점수", "참여시각"].map(h => (
                           <th key={h} className="px-5 py-3 text-left text-xs font-bold"
                             style={{ color: C.text2 }}>{h}</th>
                         ))}
@@ -260,11 +260,14 @@ export default function EventAdminPage() {
                           <td className="px-5 py-3 font-semibold" style={{ color: C.text1 }}>{s.name}</td>
                           <td className="px-5 py-3" style={{ color: C.text3 }}>{s.corporation}</td>
                           <td className="px-5 py-3" style={{ color: C.text3 }}>{s.department}</td>
-                          <td className="px-5 py-3 font-extrabold text-center" style={{ color: "#1e40af" }}>
-                            {s.koreaScore}
-                          </td>
-                          <td className="px-5 py-3 font-extrabold text-center" style={{ color: "#78350f" }}>
-                            {s.brazilScore}
+                          <td className="px-5 py-3">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm">🇰🇷</span>
+                              <span className="font-extrabold text-sm" style={{ color: "#1e40af" }}>{s.koreaScore}</span>
+                              <span className="text-xs font-bold" style={{ color: C.text4 }}>:</span>
+                              <span className="font-extrabold text-sm" style={{ color: "#78350f" }}>{s.brazilScore}</span>
+                              <span className="text-sm">🇧🇷</span>
+                            </div>
                           </td>
                           <td className="px-5 py-3 text-xs" style={{ color: C.text4 }}>
                             {formatDate(s.createdAt)}
