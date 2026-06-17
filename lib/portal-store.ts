@@ -143,3 +143,22 @@ export async function saveSwItems(items: SwItem[]): Promise<void> {
   await kvSetPermanent(KV_SWDB, items);
   memSet(KV_SWDB, items, MEM_TTL);
 }
+
+// ─── Event Status ────────────────────────────────────────
+const KV_EVENT_OPEN = "event:toto:open";
+
+export async function getEventOpen(): Promise<boolean> {
+  const cached = memGet<boolean>(KV_EVENT_OPEN);
+  if (cached !== null) return cached;
+  const kvValue = await kvGet<boolean>(KV_EVENT_OPEN);
+  if (kvValue !== null) {
+    memSet(KV_EVENT_OPEN, kvValue, MEM_TTL);
+    return kvValue;
+  }
+  return true; // default: open
+}
+
+export async function setEventOpen(open: boolean): Promise<void> {
+  memSet(KV_EVENT_OPEN, open, 3600 * 24 * 7);
+  await kvSetPermanent(KV_EVENT_OPEN, open);
+}

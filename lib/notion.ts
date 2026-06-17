@@ -1709,3 +1709,122 @@ export async function updateWorkTaskShared(id: string, shared: boolean): Promise
 export async function deleteWorkTask(id: string): Promise<void> {
   await notion.pages.update({ page_id: id, archived: true });
 }
+
+// ────────────────────────────────────────────────────────────
+// 이벤트: 직원 DB — 법인/부서 드롭다운 + 이름 검증용
+// ────────────────────────────────────────────────────────────
+export async function fetchEventEmployeeData(): Promise<{
+  corporations: string[];
+  departments: Record<string, string[]>;
+}> {
+  const dbId = process.env.NOTION_DB_EVENT_EMPLOYEES;
+  if (!dbId) return { corporations: [], departments: {} };
+
+  const pages = await queryAllPages(toNotionId(dbId));
+  const corpsSet = new Set<string>();
+  const deptMap: Record<string, Set<string>> = {};
+
+  for (const page of pages) {
+    const props = page.properties;
+    const corp = getPropSelect(props, "법인");
+    const dept = getPropSelect(props, "부서");
+    if (corp) {
+      corpsSet.add(corp);
+      if (!deptMap[corp]) deptMap[corp] = new Set();
+      if (dept) deptMap[corp].add(dept);
+    }
+  }
+
+  return {
+    corporations: Array.from(corpsSet).sort(),
+    departments: Object.fromEntries(
+      Object.entries(deptMap).map(([k, v]) => [k, Array.from(v).sort()])
+    ),
+  };
+}
+
+// 이름이 직원 DB에 존재하는지 검증
+export async function checkEventEmployee(name: string): Promise<boolean> {
+  const dbId = process.env.NOTION_DB_EVENT_EMPLOYEES;
+  if (!dbId) return false;
+
+  const pages = await queryAllPages(toNotionId(dbId), {
+    property: "이름",
+    title: { equals: name },
+  });
+  return pages.length > 0;
+}
+
+// 이미 토토에 참여했는지 확인
+export async function checkEventAlreadySubmitted(name: string): Promise<boolean> {
+  const dbId = process.env.NOTION_DB_EVENT_TOTO;
+  if (!dbId) return false;
+
+  const pages = await queryAllPages(toNotionId(dbId), {
+    property: "이름",
+    title: { equals: name },
+  });
+  return pages.length > 0;
+}
+
+// 토토 예측 제출
+export async function createEventSubmission(data: {
+  name: string;
+  corporation: string;
+  department: string;
+  koreaScore: number;
+  brazilScore: number;
+}): Promise<string> {
+  const dbId = process.env.NOTION_DB_EVENT_TOTO;
+  if (!dbId) throw new Error("NOTION_DB_EVENT_TOTO 환경변수가 설정되지 않았습니다.");
+
+  const res = await notion.pages.create({
+    parent: { database_id: toNotionId(dbId) },
+    properties: {
+      "이름":        { title:     [{ text: { content: data.name } }] },
+      "법인":        { rich_text: [{ text: { content: data.corporation } }] },
+      "부서":        { rich_text: [{ text: { content: data.department } }] },
+      "한국_점수":   { number: data.koreaScore },
+      "브라질_점수": { number: data.brazilScore },
+    } as Parameters<typeof notion.pages.create>[0]["properties"],
+  });
+  return res.id;
+}
+
+// 전체 제출 목록 조회
+export interface EventSubmission {
+  id: string;
+  name: string;
+  corporation: string;
+  department: string;
+  koreaScore: number;
+  brazilScore: number;
+  createdAt: string;
+}
+
+export async function fetchEventSubmissions(): Promise<EventSubmission[]> {
+  const dbId = process.env.NOTION_DB_EVENT_TOTO;
+  if (!dbId) return [];
+
+  const pages = await queryAllPages(toNotionId(dbId));
+
+  return pages
+    .map(page => {
+      const props = page.properties;
+      const createdTimeProp = props["참여시각"];
+      const createdAt =
+        createdTimeProp?.type === "created_time"
+          ? createdTimeProp.created_time
+          : page.created_time;
+      return {
+        id: page.id,
+        name:        getPropText(props, "이름"),
+        corporation: getPropText(props, "법인"),
+        department:  getPropText(props, "부서"),
+        koreaScore:  getPropNumber(props, "한국_점수"),
+        brazilScore: getPropNumber(props, "브라질_점수"),
+        createdAt,
+      };
+    })
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
