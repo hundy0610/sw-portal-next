@@ -17,10 +17,15 @@ const C = {
 
 type Step = "verify" | "predict" | "done";
 
+const DEFAULT_CORPS = ["대웅제약", "엠서클", "힐리언스", "IdsTrust"];
+const DEFAULT_DEPTS = ["재경팀", "인사팀", "페이롤", "마케팅", "자산관리파트"];
+
 export default function EventPage() {
   const [step, setStep]             = useState<Step>("verify");
-  const [corporations, setCorporations] = useState<string[]>([]);
-  const [departments, setDepartments]   = useState<Record<string, string[]>>({});
+  const [corporations, setCorporations] = useState<string[]>(DEFAULT_CORPS);
+  const [departments, setDepartments]   = useState<Record<string, string[]>>(
+    Object.fromEntries(DEFAULT_CORPS.map(c => [c, DEFAULT_DEPTS]))
+  );
   const [eventOpen, setEventOpen]   = useState(true);
 
   const [corporation, setCorporation] = useState("");
@@ -38,9 +43,13 @@ export default function EventPage() {
     fetch("/api/event/employees")
       .then(r => r.json())
       .then(d => {
-        setCorporations(d.corporations ?? []);
-        setDepartments(d.departments ?? {});
-      });
+        if (d.corporations?.length > 0) {
+          setCorporations(d.corporations);
+          setDepartments(d.departments ?? {});
+        }
+        // 노션 DB가 비어있으면 하드코딩 기본값 유지
+      })
+      .catch(() => { /* 기본값 유지 */ });
     fetch("/api/event/toggle")
       .then(r => r.json())
       .then(d => setEventOpen(d.open ?? true));
@@ -124,7 +133,7 @@ export default function EventPage() {
             한국 vs 브라질 토토
           </h1>
           <p className="text-sm" style={{ color: C.text3 }}>
-            정확한 점수를 맞추면 특별 경품이 주어집니다!
+            6월 17일 한국 vs 브라질 정확한 점수를 맞추면 좋은 일이 생깁니다!
           </p>
         </div>
 
