@@ -84,17 +84,17 @@ export default function EventAdminPage() {
       .sort((a, b) => a.score - b.score);
   }, [submissions]);
 
-  // 브라질 점수 분포
-  const brazilDistribution = useMemo(() => {
+  // 멕시코 점수 분포
+  const mexicoDistribution = useMemo(() => {
     const map: Record<number, number> = {};
-    submissions.forEach(s => { map[s.brazilScore] = (map[s.brazilScore] ?? 0) + 1; });
+    submissions.forEach(s => { map[s.mexicoScore] = (map[s.mexicoScore] ?? 0) + 1; });
     return Object.entries(map)
       .map(([score, count]) => ({ score: Number(score), count }))
       .sort((a, b) => a.score - b.score);
   }, [submissions]);
 
   const maxKorea  = Math.max(...koreaDistribution.map(d => d.count), 1);
-  const maxBrazil = Math.max(...brazilDistribution.map(d => d.count), 1);
+  const maxMexico = Math.max(...mexicoDistribution.map(d => d.count), 1);
 
   return (
     <div className="min-h-screen" style={{ background: C.bgPage }}>
@@ -107,7 +107,7 @@ export default function EventAdminPage() {
               ⚽ 토토 이벤트 관리자
             </h1>
             <p className="text-sm mt-1" style={{ color: C.text3 }}>
-              한국 vs 브라질 점수 예측 참여 현황
+              한국 vs 멕시코 점수 예측 참여 현황
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -180,24 +180,24 @@ export default function EventAdminPage() {
                 )}
               </div>
 
-              {/* 브라질 점수 분포 */}
+              {/* 멕시코 점수 분포 */}
               <div className="bg-white rounded-2xl p-6" style={{ border: `1px solid ${C.border}` }}>
                 <div className="flex items-center gap-2 mb-5">
-                  <span className="text-lg">🇧🇷</span>
-                  <span className="font-bold text-sm" style={{ color: C.text1 }}>브라질 점수 분포</span>
+                  <span className="text-lg">🇲🇽</span>
+                  <span className="font-bold text-sm" style={{ color: C.text1 }}>멕시코 점수 분포</span>
                 </div>
-                {brazilDistribution.length === 0 ? (
+                {mexicoDistribution.length === 0 ? (
                   <div className="text-sm text-center py-4" style={{ color: C.text4 }}>데이터 없음</div>
                 ) : (
                   <div className="space-y-2">
-                    {brazilDistribution.map(({ score, count }) => (
+                    {mexicoDistribution.map(({ score, count }) => (
                       <div key={score} className="flex items-center gap-3">
                         <span className="w-6 text-right text-xs font-bold" style={{ color: "#78350f" }}>{score}</span>
                         <div className="flex-1 bg-slate-100 rounded-full h-5 overflow-hidden">
                           <div
                             className="h-full rounded-full flex items-center justify-end pr-2 transition-all"
                             style={{
-                              width: `${Math.max((count / maxBrazil) * 100, 8)}%`,
+                              width: `${Math.max((count / maxMexico) * 100, 8)}%`,
                               background: "#eab308",
                             }}>
                             <span className="text-white text-[10px] font-bold">{count}</span>
@@ -265,8 +265,8 @@ export default function EventAdminPage() {
                               <span className="text-sm">🇰🇷</span>
                               <span className="font-extrabold text-sm" style={{ color: "#1e40af" }}>{s.koreaScore}</span>
                               <span className="text-xs font-bold" style={{ color: C.text4 }}>:</span>
-                              <span className="font-extrabold text-sm" style={{ color: "#78350f" }}>{s.brazilScore}</span>
-                              <span className="text-sm">🇧🇷</span>
+                              <span className="font-extrabold text-sm" style={{ color: "#78350f" }}>{s.mexicoScore}</span>
+                              <span className="text-sm">🇲🇽</span>
                             </div>
                           </td>
                           <td className="px-5 py-3 text-xs" style={{ color: C.text4 }}>

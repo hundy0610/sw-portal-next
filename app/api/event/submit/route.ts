@@ -8,7 +8,7 @@ import { getEventOpen } from "@/lib/portal-store";
 
 export async function POST(req: NextRequest) {
   try {
-    const { name, corporation, department, koreaScore, brazilScore, _checkOnly } = await req.json();
+    const { name, corporation, department, koreaScore, mexicoScore, _checkOnly } = await req.json();
 
     if (!name || !corporation || !department) {
       return NextResponse.json({ error: "필수 항목이 누락되었습니다." }, { status: 400 });
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    if (typeof koreaScore !== "number" || typeof brazilScore !== "number") {
+    if (typeof koreaScore !== "number" || typeof mexicoScore !== "number") {
       return NextResponse.json({ error: "점수 형식이 올바르지 않습니다." }, { status: 400 });
     }
 
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
       corporation,
       department,
       koreaScore,
-      brazilScore,
+      mexicoScore,
     });
 
     return NextResponse.json({ ok: true });

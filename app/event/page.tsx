@@ -35,7 +35,7 @@ export default function EventPage() {
   const [verifying, setVerifying]     = useState(false);
 
   const [koreaScore, setKoreaScore]   = useState<number | "">("");
-  const [brazilScore, setBrazilScore] = useState<number | "">("");
+  const [mexicoScore, setMexicoScore] = useState<number | "">("");
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting]   = useState(false);
 
@@ -70,7 +70,7 @@ export default function EventPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: name.trim(), corporation, department,
-          koreaScore: 0, brazilScore: 0,
+          koreaScore: 0, mexicoScore: 0,
           _checkOnly: true,
         }),
       });
@@ -94,8 +94,8 @@ export default function EventPage() {
   }
 
   async function handleSubmit() {
-    if (koreaScore === "" || brazilScore === "") {
-      setSubmitError("한국과 브라질 점수를 모두 입력해 주세요.");
+    if (koreaScore === "" || mexicoScore === "") {
+      setSubmitError("한국과 멕시코 점수를 모두 입력해 주세요.");
       return;
     }
     setSubmitError("");
@@ -107,7 +107,7 @@ export default function EventPage() {
         body: JSON.stringify({
           name: name.trim(), corporation, department,
           koreaScore: Number(koreaScore),
-          brazilScore: Number(brazilScore),
+          mexicoScore: Number(mexicoScore),
         }),
       });
       const json = await res.json();
@@ -130,10 +130,10 @@ export default function EventPage() {
         <div className="text-center mb-8">
           <div className="text-5xl mb-3">⚽</div>
           <h1 className="text-2xl font-extrabold mb-1" style={{ color: C.text1 }}>
-            한국 vs 브라질 토토
+            한국 vs 멕시코 토토
           </h1>
           <p className="text-sm" style={{ color: C.text3 }}>
-            6월 17일 한국 vs 브라질 정확한 점수를 맞추면 좋은 일이 생깁니다!
+            6월 17일 한국 vs 멕시코 정확한 점수를 맞추면 좋은 일이 생깁니다!
           </p>
         </div>
 
@@ -248,15 +248,15 @@ export default function EventPage() {
                 />
               </div>
 
-              {/* 브라질 */}
+              {/* 멕시코 */}
               <div className="p-5 rounded-2xl text-center"
                 style={{ background: "#fefce8", border: "1px solid #fde047" }}>
-                <div className="text-2xl mb-1">🇧🇷</div>
-                <div className="font-bold text-sm mb-3" style={{ color: "#78350f" }}>브라질</div>
+                <div className="text-2xl mb-1">🇲🇽</div>
+                <div className="font-bold text-sm mb-3" style={{ color: "#78350f" }}>멕시코</div>
                 <input
                   type="number" min={0} max={20}
-                  value={brazilScore}
-                  onChange={e => setBrazilScore(e.target.value === "" ? "" : Number(e.target.value))}
+                  value={mexicoScore}
+                  onChange={e => setMexicoScore(e.target.value === "" ? "" : Number(e.target.value))}
                   placeholder="0"
                   className="w-full h-12 text-center text-2xl font-extrabold rounded-xl focus:outline-none"
                   style={{ border: "2px solid #fde047", color: "#78350f", background: "#fff" }}
@@ -306,8 +306,8 @@ export default function EventPage() {
               </div>
               <div className="text-3xl font-black self-center" style={{ color: C.text3 }}>:</div>
               <div className="text-center">
-                <div className="text-3xl font-black" style={{ color: "#78350f" }}>{brazilScore}</div>
-                <div className="text-xs mt-1" style={{ color: C.text4 }}>🇧🇷 브라질</div>
+                <div className="text-3xl font-black" style={{ color: "#78350f" }}>{mexicoScore}</div>
+                <div className="text-xs mt-1" style={{ color: C.text4 }}>🇲🇽 멕시코</div>
               </div>
             </div>
             <p className="text-xs" style={{ color: C.text4 }}>
