@@ -93,6 +93,12 @@ function TypeBadge({ type }: { type: string }) {
 }
 
 function fmtDate(d?: string) { return d ? d.slice(0, 10) : "—"; }
+function fmtDateTime(iso?: string) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 function daysLeft(d?: string): number | null {
   if (!d) return null;
   return Math.ceil((new Date(d).getTime() - Date.now()) / 86400000);
@@ -1641,12 +1647,13 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
                   <th className={thS}>갱신일</th>
                   <th className={thS}>인증키</th>
                   <th className={thS}>노션</th>
+                  <th className={thS}>최종수정</th>
                 </tr>
               </thead>
               <tbody>
                 {paginated.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="text-center py-12 text-gray-400">검색 결과가 없습니다</td>
+                    <td colSpan={11} className="text-center py-12 text-gray-400">검색 결과가 없습니다</td>
                   </tr>
                 ) : paginated.map(r => {
                   const days = daysLeft(r.renewalDate);
@@ -1688,6 +1695,14 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
                         {r.notionUrl
                           ? <a href={r.notionUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700 text-xs underline">보기</a>
                           : "—"}
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        {r.lastModifiedBy ? (
+                          <div className="text-[11px]">
+                            <div className="text-gray-700 font-medium">{r.lastModifiedBy}</div>
+                            <div className="text-gray-400">{fmtDateTime(r.lastModifiedAt)}</div>
+                          </div>
+                        ) : <span className="text-gray-300">—</span>}
                       </td>
                       <td className="px-3 py-3">
                         <button

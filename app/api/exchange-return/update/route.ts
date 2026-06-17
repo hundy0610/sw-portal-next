@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updateExchangeReturn, type UpdateFields } from "@/lib/exchange-return";
 import { memDel } from "@/lib/mem-cache";
+import { getSessionFromCookieHeader } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "업데이트할 필드 없음" }, { status: 400 });
     }
 
-    await updateExchangeReturn(id, fields);
+    const session = getSessionFromCookieHeader(req.headers.get("cookie"));
+    const fieldsWithModifier: UpdateFields = {
+      ...fields,
+      lastModifiedBy: session ? `${session.name} (${session.userId})` : "시스템",
+    };
+
+    await updateExchangeReturn(id, fieldsWithModifier);
     memDel("exchange-return:all");
     return NextResponse.json({ ok: true });
   } catch (e) {

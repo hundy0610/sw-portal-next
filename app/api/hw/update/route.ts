@@ -4,6 +4,7 @@ import { computeHwStats, type HwRecord } from "@/lib/hw";
 import { kvGet, kvSet, kvSetPermanent } from "@/lib/kv-store";
 import { memDel } from "@/lib/mem-cache";
 import { autoCompleteReturnsByAssetId } from "@/lib/exchange-return";
+import { getSessionFromCookieHeader } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,9 @@ function buildProperties(fields: FieldMap) {
     props["실사확인"] = { checkbox: !!fields.verified };
   }
 
+  if (fields.lastModifiedBy !== undefined) txt("마지막수정자",   String(fields.lastModifiedBy));
+  if (fields.lastModifiedAt !== undefined) txt("마지막수정일시", String(fields.lastModifiedAt));
+
   return props;
 }
 
@@ -61,10 +65,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "fields 필수" }, { status: 400 });
     }
 
+    const session = getSessionFromCookieHeader(req.headers.get("cookie"));
+    const modifiedBy = session ? `${session.name} (${session.userId})` : "시스템";
+    const modifiedAt = new Date().toISOString();
+
     // 재고 상태로 변경 시 반납예정일 자동 초기화
-    const fields: FieldMap = rawFields.status === "재고" && rawFields.returnDue === undefined
-      ? { ...rawFields, returnDue: "" }
-      : rawFields;
+    const fields: FieldMap = {
+      ...(rawFields.status === "재고" && rawFields.returnDue === undefined
+        ? { ...rawFields, returnDue: "" }
+        : rawFields),
+      lastModifiedBy: modifiedBy,
+      lastModifiedAt: modifiedAt,
+    };
 
     const properties = buildProperties(fields);
     if (Object.keys(properties).length === 0) {

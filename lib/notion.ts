@@ -257,6 +257,8 @@ export async function fetchSwDatabase(): Promise<SwDbRecord[]> {
       certificate: getPropFile(p, "증서"),
       workType: getPropSelect(p, "SW사용직군"),
       billingType: getPropSelect(p, "결재방식"),
+      lastModifiedBy: getPropText(p, "마지막수정자"),
+      lastModifiedAt: getPropText(p, "마지막수정일시"),
       monthlyUsd: getPropNumber(p, "월 비용 (USD)") || 0,
       monthlyKrw: getPropNumber(p, "월 비용 (KRW)") || getPropNumber(p, "월 금액") || getPropNumber(p, "월간 금액") || getPropNumber(p, "월 비용") || 0,
       annualUsd:  getPropNumber(p, "연 비용 (USD)") || getPropNumber(p, "연비용(USD)") || 0,

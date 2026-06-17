@@ -25,6 +25,8 @@ export interface SwDbRecord {
   certificate: string;                    // 증서 (file URL)
   workType: string;                       // SW사용직군
   billingType?: string;                   // 결제방식 (대웅 등)
+  lastModifiedBy?: string;                // 마지막수정자 (이름 + 아이디)
+  lastModifiedAt?: string;                // 마지막수정일시 (ISO)
   monthlyUsd: number;                     // 월 비용 (USD)
   monthlyKrw: number;                     // 월 비용 (KRW)
   annualUsd: number;                      // 연 비용 (USD) — formula 또는 monthlyUsd×12
@@ -205,6 +207,7 @@ export interface ExchangeReturnRecord {
   autoSynced: boolean;     // HW DB sync로 자동 진행됐는지 표시
   isClosed: boolean;       // 케이스 종료 여부 (마지막 단계 통과 시 true)
   lastEditedAt: string;
+  lastModifiedBy: string;  // 마지막수정자 (이름 + 아이디)
   notionUrl: string;
 }
 
