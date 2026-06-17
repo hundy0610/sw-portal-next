@@ -1773,7 +1773,7 @@ export async function createEventSubmission(data: {
   corporation: string;
   department: string;
   koreaScore: number;
-  brazilScore: number;
+  mexicoScore: number;
 }): Promise<string> {
   const dbId = process.env.NOTION_DB_EVENT_TOTO;
   if (!dbId) throw new Error("NOTION_DB_EVENT_TOTO 환경변수가 설정되지 않았습니다.");
@@ -1785,7 +1785,7 @@ export async function createEventSubmission(data: {
       "법인":        { rich_text: [{ text: { content: data.corporation } }] },
       "부서":        { rich_text: [{ text: { content: data.department } }] },
       "한국_점수":   { number: data.koreaScore },
-      "브라질_점수": { number: data.brazilScore },
+      "멕시코_점수": { number: data.mexicoScore },
     } as Parameters<typeof notion.pages.create>[0]["properties"],
   });
   return res.id;
@@ -1798,7 +1798,7 @@ export interface EventSubmission {
   corporation: string;
   department: string;
   koreaScore: number;
-  brazilScore: number;
+  mexicoScore: number;
   createdAt: string;
 }
 
@@ -1822,7 +1822,7 @@ export async function fetchEventSubmissions(): Promise<EventSubmission[]> {
         corporation: getPropText(props, "법인"),
         department:  getPropText(props, "부서"),
         koreaScore:  getPropNumber(props, "한국_점수"),
-        brazilScore: getPropNumber(props, "브라질_점수"),
+        mexicoScore: getPropNumber(props, "멕시코_점수"),
         createdAt,
       };
     })
