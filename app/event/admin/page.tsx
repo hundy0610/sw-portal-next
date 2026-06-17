@@ -22,6 +22,8 @@ function formatDate(iso: string) {
   return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+const AUTO_REFRESH_SEC = 30;
+
 export default function EventAdminPage() {
   const [submissions, setSubmissions] = useState<EventSubmission[]>([]);
   const [eventOpen, setEventOpen]     = useState(true);
@@ -30,9 +32,11 @@ export default function EventAdminPage() {
   const [toggling, setToggling]       = useState(false);
   const [search, setSearch]           = useState("");
   const [corpFilter, setCorpFilter]   = useState("all");
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [countdown, setCountdown]     = useState(AUTO_REFRESH_SEC);
 
-  async function load() {
-    setLoading(true);
+  async function load(silent = false) {
+    if (!silent) setLoading(true);
     setLoadError("");
     try {
       const [subResp, statusResp] = await Promise.all([
@@ -42,7 +46,6 @@ export default function EventAdminPage() {
       if (!subResp.ok) {
         const err = await subResp.json().catch(() => ({}));
         setLoadError(`참여자 조회 실패 (${subResp.status}): ${err.error ?? "서버 오류"}`);
-        setLoading(false);
         return;
       }
       const [subRes, statusRes] = await Promise.all([
@@ -51,6 +54,8 @@ export default function EventAdminPage() {
       ]);
       setSubmissions(subRes.data ?? []);
       setEventOpen(statusRes.open ?? true);
+      setLastUpdated(new Date());
+      setCountdown(AUTO_REFRESH_SEC);
     } catch (e) {
       setLoadError(`네트워크 오류: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -58,7 +63,22 @@ export default function EventAdminPage() {
     }
   }
 
+  // 최초 로드
   useEffect(() => { load(); }, []);
+
+  // 30초 자동 새로고침
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          load(true);
+          return AUTO_REFRESH_SEC;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   async function handleToggle() {
     setToggling(true);
@@ -126,6 +146,11 @@ export default function EventAdminPage() {
             <p className="text-sm mt-1" style={{ color: C.text3 }}>
               한국 vs 멕시코 점수 예측 참여 현황
             </p>
+            {lastUpdated && (
+              <p className="text-xs mt-1" style={{ color: C.text4 }}>
+                마지막 업데이트: {lastUpdated.toLocaleTimeString("ko-KR")} · {countdown}초 후 자동 갱신
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${eventOpen ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
@@ -139,7 +164,7 @@ export default function EventAdminPage() {
               {toggling ? "처리 중..." : eventOpen ? "이벤트 마감" : "이벤트 재개"}
             </button>
             <button
-              onClick={load}
+              onClick={() => load()}
               className="px-4 py-2 rounded-xl text-sm font-bold"
               style={{ background: C.soft, color: C.brand, border: `1px solid ${C.border}` }}>
               새로고침
