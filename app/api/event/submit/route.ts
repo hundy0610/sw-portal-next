@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  getEventIsOpen,
   checkEventEmployee,
   checkEventAlreadySubmitted,
   createEventSubmission,
 } from "@/lib/notion";
-import { getEventOpen } from "@/lib/portal-store";
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "필수 항목이 누락되었습니다." }, { status: 400 });
     }
 
-    const isOpen = await getEventOpen();
+    const isOpen = await getEventIsOpen();
     if (!isOpen) {
       return NextResponse.json({ error: "이벤트가 마감되었습니다." }, { status: 403 });
     }
