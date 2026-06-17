@@ -979,6 +979,58 @@ function SeatDetailPanel({
 // ══════════════════════════════════════════════════════════════════════════════
 type EditorItem = EditorData["items"][number];
 
+function buildEmailPreview(opts: {
+  reason: string; note: string; requester: string;
+  location: string; assetNo: string; gmName: string;
+}): string {
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F8FAFC;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;">
+<div style="max-width:520px;margin:32px auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+  <div style="background:#DC2626;padding:24px 32px;">
+    <div style="color:white;font-size:17px;font-weight:800;">🖥️ 모니터 교체/수리 요청</div>
+    <div style="color:rgba(255,255,255,0.8);font-size:12px;margin-top:4px;">스마트오피스 자산관리</div>
+  </div>
+  <div style="padding:28px 32px;">
+    <p style="font-size:14px;color:#475569;margin:0 0 20px;">
+      안녕하세요${opts.gmName ? `, <strong>${opts.gmName}</strong>님` : ""}.<br>
+      아래 위치의 모니터 교체/수리 요청이 접수되었습니다. 확인 후 조치 부탁드립니다.
+    </p>
+    <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:12px;padding:18px;margin-bottom:20px;">
+      <table style="width:100%;border-collapse:collapse;">
+        <tr>
+          <td style="font-size:12px;color:#6B7280;padding:5px 0;width:72px;vertical-align:top;">사유</td>
+          <td style="font-size:14px;font-weight:700;color:#111827;">${opts.reason}</td>
+        </tr>
+        ${opts.note ? `<tr>
+          <td style="font-size:12px;color:#6B7280;padding:5px 0;vertical-align:top;">메모</td>
+          <td style="font-size:13px;color:#374151;white-space:pre-wrap;">${opts.note}</td>
+        </tr>` : ""}
+        ${opts.requester ? `<tr>
+          <td style="font-size:12px;color:#6B7280;padding:5px 0;vertical-align:top;">문의자</td>
+          <td style="font-size:13px;color:#374151;">${opts.requester}</td>
+        </tr>` : ""}
+        <tr>
+          <td style="font-size:12px;color:#6B7280;padding:5px 0;vertical-align:top;">위치</td>
+          <td style="font-size:13px;color:#374151;">${opts.location}</td>
+        </tr>
+        ${opts.assetNo ? `<tr>
+          <td style="font-size:12px;color:#6B7280;padding:5px 0;vertical-align:top;">자산번호</td>
+          <td style="font-size:13px;font-family:monospace;color:#374151;">${opts.assetNo}</td>
+        </tr>` : ""}
+      </table>
+    </div>
+    <p style="font-size:11px;color:#94A3B8;text-align:center;margin:0;">본 메일은 발신 전용입니다.</p>
+  </div>
+  <div style="background:#F8FAFC;border-top:1px solid #E2E8F0;padding:14px 32px;text-align:center;">
+    <p style="font-size:11px;color:#CBD5E1;margin:0;">스마트오피스 자산관리파트</p>
+  </div>
+</div>
+</body>
+</html>`;
+}
+
 function ItemDetailPanel({
   item,
   editorData,
@@ -1005,15 +1057,27 @@ function ItemDetailPanel({
   const [repairOpen,   setRepairOpen]   = useState(false);
   const [repairReason, setRepairReason] = useState<string>(REPAIR_REASONS[0]);
   const [repairNote,   setRepairNote]   = useState("");
-  const [requester,    setRequester]    = useState(session?.name ?? "");
-  const [urgency,      setUrgency]      = useState<string>(URGENCY_OPTIONS[1]);
+  const [requester,    setRequester]    = useState("");
   const [submitting,   setSubmitting]   = useState(false);
   const [submitMsg,    setSubmitMsg]    = useState("");
+  const [gmList,       setGmList]       = useState<{ userId: string; name: string; email: string }[]>([]);
+  const [selectedGmId, setSelectedGmId] = useState("");
+  const [showPreview,  setShowPreview]  = useState(false);
 
   const defaultLocation = [buildingLabel, floorLabel, zone?.name, item.label].filter(Boolean).join(" ");
   const [location, setLocation] = useState(defaultLocation);
 
-  useEffect(() => { setRequester(session?.name ?? ""); }, [session?.name]);
+  useEffect(() => {
+    fetch("/api/general-managers")
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data.details) && data.details.length > 0) {
+          setGmList(data.details);
+          setSelectedGmId(data.details[0].userId);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const [history,        setHistory]        = useState<MonitorHistoryEntry[]>([]);
   const [histLoading,    setHistLoading]    = useState(false);
@@ -1037,10 +1101,12 @@ function ItemDetailPanel({
 
   useEffect(() => { loadHistory(); }, [loadHistory]);
 
-  const submitRepair = async () => {
+  const submitRepair = async (emailHtml: string) => {
     setSubmitting(true); setSubmitMsg("");
     try {
       const locationLabel = location.trim() || defaultLocation;
+      const selectedGm = gmList.find(g => g.userId === selectedGmId);
+
       const res = await fetch("/api/monitor-history", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1056,24 +1122,27 @@ function ItemDetailPanel({
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "요청 실패");
 
-      // 수리 접수 현황 DB에도 등록
+      // 수리 접수 현황 DB 등록 + 총무 담당자 이메일 발송
       await fetch("/api/repair-tickets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title:      `[모니터] ${repairReason}${repairNote ? ` — ${repairNote}` : ""} (${locationLabel || item.id})`,
-          faultTypes: [FAULT_TYPE_MAP[repairReason] ?? "기타"],
-          location:   locationLabel,
-          assetId:    asset?.assetNo || "",
-          requester:  requester.trim(),
-          priority:   urgency,
+          title:         `[모니터] ${repairReason}${repairNote ? ` — ${repairNote}` : ""} (${locationLabel || item.id})`,
+          faultTypes:    [FAULT_TYPE_MAP[repairReason] ?? "기타"],
+          location:      locationLabel,
+          assetId:       asset?.assetNo || "",
+          requester:     requester.trim(),
+          notifyGmEmail: selectedGm?.email,
+          notifyGmName:  selectedGm?.name,
+          emailHtml,
         }),
       });
 
       setSubmitMsg("✓ 수리 요청이 접수되었습니다.");
-      setRepairOpen(false); setRepairNote("");
+      setShowPreview(false);
+      setRepairOpen(false);
+      setRepairNote("");
       loadHistory();
-      // 모니터 상태를 "수리 요청"으로 자동 변경
       onUpdateType(item.id, "repair");
     } catch (e: any) {
       setSubmitMsg(`✗ ${e.message}`);
@@ -1178,6 +1247,19 @@ function ItemDetailPanel({
           {repairOpen && (
             <div className="px-3 pb-3 space-y-2 border-t border-gray-100">
               <div className="pt-2">
+                <div className="text-[10px] text-gray-400 mb-1">총무 담당자</div>
+                {gmList.length === 0 ? (
+                  <p className="text-[10px] text-gray-400 italic">담당자 목록 없음</p>
+                ) : (
+                  <select
+                    value={selectedGmId}
+                    onChange={e => setSelectedGmId(e.target.value)}
+                    className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-red-400">
+                    {gmList.map(g => <option key={g.userId} value={g.userId}>{g.name}</option>)}
+                  </select>
+                )}
+              </div>
+              <div>
                 <div className="text-[10px] text-gray-400 mb-1">사유 선택</div>
                 <select
                   value={repairReason}
@@ -1196,15 +1278,6 @@ function ItemDetailPanel({
                   className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-red-400"/>
               </div>
               <div>
-                <div className="text-[10px] text-gray-400 mb-1">긴급도</div>
-                <select
-                  value={urgency}
-                  onChange={e => setUrgency(e.target.value)}
-                  className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-red-400">
-                  {URGENCY_OPTIONS.map(u => <option key={u}>{u}</option>)}
-                </select>
-              </div>
-              <div>
                 <div className="text-[10px] text-gray-400 mb-1">문의자</div>
                 <input
                   value={requester}
@@ -1221,10 +1294,13 @@ function ItemDetailPanel({
                   className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-red-400"/>
               </div>
               <button
-                onClick={submitRepair}
+                onClick={() => {
+                  if (!selectedGmId) { alert("총무 담당자를 선택해주세요."); return; }
+                  setShowPreview(true);
+                }}
                 disabled={submitting}
                 className="w-full py-2 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 disabled:opacity-50 transition-colors">
-                {submitting ? "접수 중…" : "요청 제출"}
+                요청 제출
               </button>
             </div>
           )}
@@ -1302,6 +1378,79 @@ function ItemDetailPanel({
           )}
         </div>
       </div>
+
+      {/* 메일 미리보기 모달 */}
+      {showPreview && (() => {
+        const selectedGm = gmList.find(g => g.userId === selectedGmId);
+        const locationLabel = location.trim() || defaultLocation;
+        const emailHtml = buildEmailPreview({
+          reason:    repairReason,
+          note:      repairNote,
+          requester,
+          location:  locationLabel,
+          assetNo:   asset?.assetNo || "",
+          gmName:    selectedGm?.name ?? "",
+        });
+        return (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60"
+            onMouseDown={e => { if (e.target === e.currentTarget) setShowPreview(false); }}>
+            <div className="bg-white rounded-2xl shadow-2xl flex flex-col mx-4"
+              style={{ width: "min(560px, 95vw)", maxHeight: "90vh" }}
+              onClick={e => e.stopPropagation()}>
+
+              {/* 헤더 */}
+              <div className="flex items-start justify-between px-5 py-4 border-b border-gray-100 shrink-0">
+                <div>
+                  <div className="text-sm font-bold text-gray-900">📧 메일 미리보기</div>
+                  <div className="text-[11px] text-gray-500 mt-1">
+                    수신자: <span className="font-semibold text-gray-800">{selectedGm?.name}</span>
+                    {selectedGm?.email && (
+                      <span className="text-gray-400 ml-1">({selectedGm.email})</span>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-gray-400 mt-0.5">
+                    제목: [자산관리] 모니터 교체/수리 요청 — {locationLabel}
+                  </div>
+                </div>
+                <button onClick={() => setShowPreview(false)}
+                  className="text-gray-400 hover:text-gray-700 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-xl shrink-0">×</button>
+              </div>
+
+              {/* HTML 이메일 미리보기 */}
+              <div className="flex-1 overflow-auto bg-gray-50 p-3" style={{ minHeight: 280 }}>
+                <iframe
+                  srcDoc={emailHtml}
+                  className="w-full border-0 rounded-lg bg-white"
+                  style={{ height: 380 }}
+                  sandbox="allow-same-origin"
+                  title="메일 미리보기"
+                />
+              </div>
+
+              {/* 버튼 */}
+              <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-2 shrink-0">
+                <button onClick={() => setShowPreview(false)}
+                  className="text-xs px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 font-medium transition-colors">
+                  취소
+                </button>
+                <button
+                  onClick={() => submitRepair(emailHtml)}
+                  disabled={submitting}
+                  className="text-xs px-5 py-2 rounded-lg bg-red-600 text-white font-bold hover:bg-red-700 disabled:opacity-40 transition-colors flex items-center gap-1.5">
+                  {submitting ? (
+                    <>
+                      <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity="0.25"/><path d="M21 12a9 9 0 00-9-9"/>
+                      </svg>
+                      발송 중…
+                    </>
+                  ) : "📨 메일 발송"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
