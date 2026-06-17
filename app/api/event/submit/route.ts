@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   getEventIsOpen,
-  checkEventEmployee,
   checkEventAlreadySubmitted,
   createEventSubmission,
 } from "@/lib/notion";
@@ -17,11 +16,6 @@ export async function POST(req: NextRequest) {
     const isOpen = await getEventIsOpen();
     if (!isOpen) {
       return NextResponse.json({ error: "이벤트가 마감되었습니다." }, { status: 403 });
-    }
-
-    const exists = await checkEventEmployee(name.trim());
-    if (!exists) {
-      return NextResponse.json({ error: "등록된 직원 정보와 일치하지 않습니다." }, { status: 403 });
     }
 
     const alreadySubmitted = await checkEventAlreadySubmitted(name.trim());
