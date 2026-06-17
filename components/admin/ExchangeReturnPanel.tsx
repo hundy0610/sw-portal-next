@@ -71,6 +71,12 @@ function fmtDate(iso: string): string {
   if (!iso) return "—";
   return iso.slice(0, 10);
 }
+function fmtDateTime(iso: string): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 
 function fmtDateKo(iso: string): string {
   if (!iso) return "—";
@@ -3616,7 +3622,7 @@ export default function ExchangeReturnPanel() {
                     {r.lastModifiedBy ? (
                       <div>
                         <div className="text-gray-700 font-medium">{r.lastModifiedBy}</div>
-                        <div className="text-gray-400">{r.lastEditedAt ? r.lastEditedAt.slice(0, 10) : "—"}</div>
+                        <div className="text-gray-400">{fmtDateTime(r.lastEditedAt)}</div>
                       </div>
                     ) : <span className="text-gray-300">—</span>}
                   </td>

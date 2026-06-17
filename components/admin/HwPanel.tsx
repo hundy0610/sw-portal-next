@@ -94,6 +94,12 @@ function dDay(dateStr: string): { label: string; cls: string } {
   return              { label: `D-${diff}`,               cls: "text-gray-500" };
 }
 function fmtDate(s: string) { return s ? s.slice(0, 10) : "-"; }
+function fmtDateTime(iso: string) {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 function fmtKrw(n: number)  { return n > 0 ? `₩${n.toLocaleString("ko-KR")}` : "-"; }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -355,7 +361,7 @@ function ShipmentTab({ onUpdate, companyLock = "", isSuperAdmin = false }: { onU
                     {r.lastModifiedBy ? (
                       <div className="text-[11px]">
                         <div className="text-gray-700 font-medium">{r.lastModifiedBy}</div>
-                        <div className="text-gray-400">{fmtDate(r.lastModifiedAt ?? "")}</div>
+                        <div className="text-gray-400">{fmtDateTime(r.lastModifiedAt ?? "")}</div>
                       </div>
                     ) : <span className="text-gray-300">-</span>}
                   </td>
