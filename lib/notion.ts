@@ -1743,6 +1743,44 @@ export async function fetchEventEmployeeData(): Promise<{
   };
 }
 
+// ────────────────────────────────────────────────────────────
+// 이벤트: 열기/닫기 상태 — Notion toto DB의 __closed__ 레코드로 관리
+// (인스턴스 재시작 시에도 Notion에서 복원되어 상태 유지)
+// ────────────────────────────────────────────────────────────
+const EVENT_CLOSED_SENTINEL = "__closed__";
+
+export async function getEventIsOpen(): Promise<boolean> {
+  const dbId = process.env.NOTION_DB_EVENT_TOTO;
+  if (!dbId) return true;
+
+  const pages = await queryAllPages(toNotionId(dbId), {
+    property: "이름",
+    title: { equals: EVENT_CLOSED_SENTINEL },
+  });
+  return pages.length === 0;
+}
+
+export async function setEventIsOpen(open: boolean): Promise<void> {
+  const dbId = process.env.NOTION_DB_EVENT_TOTO;
+  if (!dbId) return;
+
+  const existing = await queryAllPages(toNotionId(dbId), {
+    property: "이름",
+    title: { equals: EVENT_CLOSED_SENTINEL },
+  });
+
+  if (!open && existing.length === 0) {
+    await notion.pages.create({
+      parent: { database_id: toNotionId(dbId) },
+      properties: {
+        "이름": { title: [{ text: { content: EVENT_CLOSED_SENTINEL } }] },
+      } as Parameters<typeof notion.pages.create>[0]["properties"],
+    });
+  } else if (open && existing.length > 0) {
+    await Promise.all(existing.map(p => notion.pages.update({ page_id: p.id, archived: true })));
+  }
+}
+
 // 이름이 직원 DB에 존재하는지 검증
 export async function checkEventEmployee(name: string): Promise<boolean> {
   const dbId = process.env.NOTION_DB_EVENT_EMPLOYEES;
@@ -1809,6 +1847,7 @@ export async function fetchEventSubmissions(): Promise<EventSubmission[]> {
   const pages = await queryAllPages(toNotionId(dbId));
 
   return pages
+    .filter(page => getPropText(page.properties, "이름") !== EVENT_CLOSED_SENTINEL)
     .map(page => {
       const props = page.properties;
       const createdTimeProp = props["참여시각"];
