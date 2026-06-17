@@ -3463,19 +3463,19 @@ export default function ExchangeReturnPanel() {
             <tr>
               {["진행단계", "유형", "자산번호", "교체 자산번호", "법인", "부서", "사용자",
               RETURN_STAGES.includes(stageFilter) || stageFilter === "all" ? "반납예정" : "배송지",
-              "메모", "사용일자"].map(h => (
+              "메모", "최종수정", "사용일자"].map(h => (
                 <th key={h}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={10} className="text-center text-gray-400 py-10">데이터 없음</td></tr>
+              <tr><td colSpan={11} className="text-center text-gray-400 py-10">데이터 없음</td></tr>
             ) : filtered.map(r => {
               const days = agingDays(r.requestedAt, r.completedAt, r.stage);
               const overdueRow = isOverdue(r);
               return (
-                <tr key={r.id} className={overdueRow ? "bg-red-50/40" : ""}>
+                <tr key={r.id} className={`${overdueRow ? "bg-red-50/40" : ""}`}>
                   {/* 진행단계 */}
                   <td>
                     <div className="flex flex-col gap-1">
@@ -3609,6 +3609,15 @@ export default function ExchangeReturnPanel() {
                   </td>
                   {/* 메모 */}
                   <td className="text-xs text-gray-500 max-w-[160px] truncate" title={r.note || ""}>{r.note || "—"}</td>
+                  {/* 최종수정 */}
+                  <td className="text-[11px] whitespace-nowrap">
+                    {r.lastModifiedBy ? (
+                      <div>
+                        <div className="text-gray-700 font-medium">{r.lastModifiedBy}</div>
+                        <div className="text-gray-400">{r.lastEditedAt ? r.lastEditedAt.slice(0, 10) : "—"}</div>
+                      </div>
+                    ) : <span className="text-gray-300">—</span>}
+                  </td>
                   {/* 출고예정일 */}
                   <td className="text-xs text-gray-500 whitespace-nowrap">{r.completedAt ? fmtDate(r.completedAt) : "—"}</td>
                 </tr>
