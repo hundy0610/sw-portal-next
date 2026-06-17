@@ -326,11 +326,11 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
           <>
             {/* 컬럼 헤더 */}
             <div className="grid px-5 py-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide bg-gray-50 border-b border-gray-100"
-              style={{ gridTemplateColumns: "130px 64px 108px 108px 88px 80px 90px 1fr 90px" }}>
+              style={{ gridTemplateColumns: "130px 64px 108px 108px 88px 80px 90px 1fr 100px 90px" }}>
               <span>진행 단계</span><span>유형</span>
               <span>자산번호(현)</span><span>자산번호(신)</span>
               <span>법인</span><span>부서</span><span>사용자</span>
-              <span>메모</span><span>사용일자</span>
+              <span>메모</span><span>최종수정</span><span>사용일자</span>
             </div>
             {/* 행 목록 */}
             <div className="max-h-[480px] overflow-y-auto divide-y divide-gray-50">
@@ -341,7 +341,7 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
                 return (
                   <div key={r.id}
                     className="grid items-center px-5 py-2.5 hover:bg-gray-50 transition-colors"
-                    style={{ gridTemplateColumns: "130px 64px 108px 108px 88px 80px 90px 1fr 90px" }}>
+                    style={{ gridTemplateColumns: "130px 64px 108px 108px 88px 80px 90px 1fr 100px 90px" }}>
                     <div className="flex items-center gap-1.5 min-w-0">
                       <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap shrink-0"
                         style={{ background: sc.bg, color: sc.text }}>{r.stage}</span>
@@ -358,6 +358,14 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
                     <span className="text-[11px] text-gray-600 truncate pr-1">{r.department || "—"}</span>
                     <span className="text-[11px] text-gray-800 font-medium truncate pr-1">{r.user || "—"}</span>
                     <span className="text-[11px] text-gray-400 truncate pr-2">{r.note || "—"}</span>
+                    <div className="text-[10px] pr-1">
+                      {r.lastModifiedBy ? (
+                        <>
+                          <div className="text-gray-700 font-medium truncate">{r.lastModifiedBy}</div>
+                          <div className="text-gray-400">{r.lastEditedAt ? r.lastEditedAt.slice(0, 10) : "—"}</div>
+                        </>
+                      ) : <span className="text-gray-300">—</span>}
+                    </div>
                     <span className="text-[11px] text-gray-400">{r.useDate ? r.useDate.slice(0, 10) : "—"}</span>
                   </div>
                 );

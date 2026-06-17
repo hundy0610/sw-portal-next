@@ -87,10 +87,11 @@ function mapPage(page: PageObjectResponse): ExchangeReturnRecord {
     note:         txt(p, "비고"),
     address:          sel(p, "배송지"),
     requesterEmail:   email(p, "기안자이메일"),
-    autoSynced:   chk(p, "자동동기화"),
-    isClosed:     chk(p, "케이스종료"),
-    lastEditedAt: page.last_edited_time,
-    notionUrl:    page.url,
+    autoSynced:      chk(p, "자동동기화"),
+    isClosed:        chk(p, "케이스종료"),
+    lastEditedAt:    page.last_edited_time,
+    lastModifiedBy:  txt(p, "마지막수정자"),
+    notionUrl:       page.url,
   };
 }
 
@@ -185,6 +186,7 @@ export interface UpdateFields {
   requesterEmail?: string;
   autoSynced?: boolean;
   isClosed?: boolean;
+  lastModifiedBy?: string;
 }
 
 export async function updateExchangeReturn(id: string, fields: UpdateFields): Promise<void> {
@@ -208,7 +210,8 @@ export async function updateExchangeReturn(id: string, fields: UpdateFields): Pr
   if (fields.address         !== undefined) props["배송지"]       = { select: fields.address ? { name: fields.address } : null };
   if (fields.requesterEmail  !== undefined) props["기안자이메일"] = { email: fields.requesterEmail || null };
   if (fields.autoSynced      !== undefined) props["자동동기화"]   = { checkbox: fields.autoSynced };
-  if (fields.isClosed    !== undefined) props["케이스종료"]   = { checkbox: fields.isClosed };
+  if (fields.isClosed        !== undefined) props["케이스종료"]   = { checkbox: fields.isClosed };
+  if (fields.lastModifiedBy  !== undefined) props["마지막수정자"] = { rich_text: [{ text: { content: fields.lastModifiedBy } }] };
 
   if (Object.keys(props).length === 0) return;
 
