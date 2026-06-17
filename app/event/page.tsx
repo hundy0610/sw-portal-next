@@ -17,8 +17,8 @@ const C = {
 
 type Step = "verify" | "predict" | "done";
 
-const DEFAULT_CORPS = ["대웅제약", "엠서클", "힐리언스", "IdsTrust"];
-const DEFAULT_DEPTS = ["재경팀", "인사팀", "페이롤", "마케팅", "자산관리파트"];
+const DEFAULT_CORPS = ["대웅", "대웅제약", "엠서클", "힐리언스", "IdsTrust", "기타"];
+const DEFAULT_DEPTS = ["재경팀", "인사팀", "페이롤", "마케팅", "자산관리파트", "회계팀", "기타"];
 
 export default function EventPage() {
   const [step, setStep]             = useState<Step>("verify");
