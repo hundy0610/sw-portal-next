@@ -357,6 +357,27 @@ function FileCell({
   );
 }
 
+// ── 상세 모달 헬퍼 컴포넌트 (모달 밖에 정의해야 리렌더 시 재생성 방지) ──
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-4 py-3 border-b border-gray-50 last:border-0">
+      <span className="text-xs text-gray-400 w-24 shrink-0 pt-0.5">{label}</span>
+      <div className="flex-1 text-sm text-gray-800">{children}</div>
+    </div>
+  );
+}
+
+function SaveRow({ label, field, saved, children }: { label: string; field: string; saved: Record<string, boolean>; children: React.ReactNode }) {
+  return (
+    <Row label={label}>
+      <div className="flex items-center gap-2 flex-wrap">
+        {children}
+        {saved[field] && <span className="text-xs text-green-600">✓ 변경됨</span>}
+      </div>
+    </Row>
+  );
+}
+
 // ── 상세 모달 ─────────────────────────────────────────────────
 function DetailModal({
   record, onClose, onUpdated, onPreview,
@@ -407,22 +428,6 @@ function DetailModal({
 
   const days = agingDays(record.receivedAt, record.completedAt, record.stage);
 
-  const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div className="flex items-start gap-4 py-3 border-b border-gray-50 last:border-0">
-      <span className="text-xs text-gray-400 w-24 shrink-0 pt-0.5">{label}</span>
-      <div className="flex-1 text-sm text-gray-800">{children}</div>
-    </div>
-  );
-
-  const SaveRow = ({ label, field, children }: { label: string; field: string; children: React.ReactNode }) => (
-    <Row label={label}>
-      <div className="flex items-center gap-2 flex-wrap">
-        {children}
-        {saved[field] && <span className="text-xs text-green-600">✓ 변경됨</span>}
-      </div>
-    </Row>
-  );
-
   const selectCls = "text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-blue-200";
   const saveBtnCls = (field: string, cur: string, orig: string) =>
     `text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed ${saving === field || cur === orig ? "opacity-40 cursor-not-allowed" : ""}`;
@@ -456,7 +461,7 @@ function DetailModal({
 
         <div className="px-7 py-1">
           {/* 현재 단계 */}
-          <SaveRow label="현재 단계" field="stage">
+          <SaveRow label="현재 단계" field="stage" saved={saved}>
             <select value={stage} onChange={e => setStage(e.target.value)} className={selectCls}>
               {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
@@ -466,7 +471,7 @@ function DetailModal({
           </SaveRow>
 
           {/* 법인 */}
-          <SaveRow label="법인" field="company">
+          <SaveRow label="법인" field="company" saved={saved}>
             <select value={company} onChange={e => setCompany(e.target.value)} className={selectCls}>
               <option value="">—</option>
               {COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
@@ -477,7 +482,7 @@ function DetailModal({
           </SaveRow>
 
           {/* 부서 */}
-          <SaveRow label="부서" field="department">
+          <SaveRow label="부서" field="department" saved={saved}>
             <input value={department} onChange={e => setDepartment(e.target.value)} className={selectCls + " w-32"} placeholder="부서명" />
             <button onClick={() => save("department", { department })} disabled={saving === "department" || department === record.department} className={saveBtnCls("department", department, record.department)}>
               {saving === "department" ? "저장 중…" : "저장"}
@@ -485,7 +490,7 @@ function DetailModal({
           </SaveRow>
 
           {/* 사용자 */}
-          <SaveRow label="사용자" field="user">
+          <SaveRow label="사용자" field="user" saved={saved}>
             <input value={user} onChange={e => setUser(e.target.value)} className={selectCls + " w-32"} placeholder="이름" />
             <button onClick={() => save("user", { user })} disabled={saving === "user" || user === record.user} className={saveBtnCls("user", user, record.user)}>
               {saving === "user" ? "저장 중…" : "저장"}
@@ -496,7 +501,7 @@ function DetailModal({
           <Row label="접수일">{fmtDateKo(record.receivedAt)}</Row>
 
           {/* 과실 여부 */}
-          <SaveRow label="과실 여부" field="faultType">
+          <SaveRow label="과실 여부" field="faultType" saved={saved}>
             <select value={faultType} onChange={e => setFaultType(e.target.value)} className={selectCls}>
               <option value="">—</option>
               {FAULT_TYPES.map(f => <option key={f} value={f}>{f}</option>)}
@@ -507,7 +512,7 @@ function DetailModal({
           </SaveRow>
 
           {/* 수리 업체 */}
-          <SaveRow label="수리 업체" field="vendor">
+          <SaveRow label="수리 업체" field="vendor" saved={saved}>
             <input value={vendor} onChange={e => setVendor(e.target.value)} className={selectCls + " w-40"} placeholder="업체명" />
             <button onClick={() => save("vendor", { vendor })} disabled={saving === "vendor" || vendor === record.vendor} className={saveBtnCls("vendor", vendor, record.vendor)}>
               {saving === "vendor" ? "저장 중…" : "저장"}
@@ -515,7 +520,7 @@ function DetailModal({
           </SaveRow>
 
           {/* 대분류 */}
-          <SaveRow label="대분류" field="assetStatus">
+          <SaveRow label="대분류" field="assetStatus" saved={saved}>
             <select value={assetStatus} onChange={e => setAssetStatus(e.target.value)} className={selectCls}>
               <option value="사용중">사용중</option>
               <option value="재고">재고</option>
@@ -526,7 +531,7 @@ function DetailModal({
           </SaveRow>
 
           {/* 배송지 */}
-          <SaveRow label="배송지" field="address">
+          <SaveRow label="배송지" field="address" saved={saved}>
             <select value={address} onChange={e => setAddress(e.target.value)} className={selectCls}>
               {DELIVERY_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
             </select>
@@ -536,7 +541,7 @@ function DetailModal({
           </SaveRow>
 
           {/* 이메일 */}
-          <SaveRow label="이메일" field="requesterEmail">
+          <SaveRow label="이메일" field="requesterEmail" saved={saved}>
             <input type="email" value={requesterEmail} onChange={e => setRequesterEmail(e.target.value)} className={selectCls + " w-52"} placeholder="example@company.com" />
             <button onClick={() => save("requesterEmail", { requesterEmail })} disabled={saving === "requesterEmail" || requesterEmail === (record.requesterEmail ?? "")} className={saveBtnCls("requesterEmail", requesterEmail, record.requesterEmail ?? "")}>
               {saving === "requesterEmail" ? "저장 중…" : "저장"}
@@ -560,7 +565,7 @@ function DetailModal({
           </Row>
 
           {/* 수리비용 */}
-          <SaveRow label="수리비용" field="repairCost">
+          <SaveRow label="수리비용" field="repairCost" saved={saved}>
             <div className="flex items-center gap-1">
               <input
                 type="number"

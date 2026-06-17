@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { decodeSession } from "@/lib/session";
+import type { GmDetail } from "@/app/api/admin/accounts/route";
 
-const GM_KEY = "sw:general-managers";
+const GM_KEY         = "sw:general-managers";
+const GM_DETAILS_KEY = "sw:gm-details";
 
 function getSession(req: NextRequest) {
   const token = req.cookies.get("admin_session")?.value;
@@ -19,13 +21,22 @@ async function getManagers(): Promise<string[]> {
   }
 }
 
-// GET /api/general-managers — 총무 관리자 userId 목록 조회
+async function getGmDetails(): Promise<GmDetail[]> {
+  try {
+    if (!process.env.REDIS_URL) return [];
+    return (await kvGet<GmDetail[]>(GM_DETAILS_KEY)) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+// GET /api/general-managers — 총무 관리자 userId 목록 + 상세(name, email) 조회
 export async function GET(req: NextRequest) {
   const session = getSession(req);
   if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
-  const managers = await getManagers();
-  return NextResponse.json({ ok: true, managers });
+  const [managers, details] = await Promise.all([getManagers(), getGmDetails()]);
+  return NextResponse.json({ ok: true, managers, details });
 }
 
 // PUT /api/general-managers — 목록 전체 교체 (슈퍼어드민만)
