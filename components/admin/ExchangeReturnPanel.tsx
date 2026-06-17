@@ -3463,7 +3463,7 @@ export default function ExchangeReturnPanel() {
             <tr>
               {["진행단계", "유형", "자산번호", "교체 자산번호", "법인", "부서", "사용자",
               RETURN_STAGES.includes(stageFilter) || stageFilter === "all" ? "반납예정" : "배송지",
-              "메모", "최종수정", "사용일자"].map(h => (
+              "메모", "사용일자", "최종수정"].map(h => (
                 <th key={h}>{h}</th>
               ))}
             </tr>
@@ -3609,6 +3609,8 @@ export default function ExchangeReturnPanel() {
                   </td>
                   {/* 메모 */}
                   <td className="text-xs text-gray-500 max-w-[160px] truncate" title={r.note || ""}>{r.note || "—"}</td>
+                  {/* 출고예정일 */}
+                  <td className="text-xs text-gray-500 whitespace-nowrap">{r.completedAt ? fmtDate(r.completedAt) : "—"}</td>
                   {/* 최종수정 */}
                   <td className="text-[11px] whitespace-nowrap">
                     {r.lastModifiedBy ? (
@@ -3618,8 +3620,6 @@ export default function ExchangeReturnPanel() {
                       </div>
                     ) : <span className="text-gray-300">—</span>}
                   </td>
-                  {/* 출고예정일 */}
-                  <td className="text-xs text-gray-500 whitespace-nowrap">{r.completedAt ? fmtDate(r.completedAt) : "—"}</td>
                 </tr>
               );
             })}

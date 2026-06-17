@@ -332,7 +332,7 @@ function ShipmentTab({ onUpdate, companyLock = "", isSuperAdmin = false }: { onU
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead className="bg-gray-50 text-gray-500 font-semibold">
-              <tr>{["자산번호","사용자","법인명","부서","모델명","상태","사용일자","위치","최종수정",""].map(h=><th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}</tr>
+              <tr>{["자산번호","사용자","법인명","부서","모델명","상태","사용일자","위치","","최종수정"].map(h=><th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}</tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {items.map(r => (
@@ -347,6 +347,10 @@ function ShipmentTab({ onUpdate, companyLock = "", isSuperAdmin = false }: { onU
                   </td>
                   <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{fmtDate(r.useDate)}</td>
                   <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.location||"-"}</td>
+                  <td className="px-3 py-2.5 flex items-center gap-2">
+                    {r.notionUrl && <a href={r.notionUrl} target="_blank" rel="noreferrer" className="text-amber-400 hover:text-amber-600 underline underline-offset-2">Notion ↗</a>}
+                    <button onClick={() => setEditRecord(r)} className="px-2 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-600 hover:bg-amber-100 transition-colors">수정</button>
+                  </td>
                   <td className="px-3 py-2.5 whitespace-nowrap">
                     {r.lastModifiedBy ? (
                       <div className="text-[11px]">
@@ -354,10 +358,6 @@ function ShipmentTab({ onUpdate, companyLock = "", isSuperAdmin = false }: { onU
                         <div className="text-gray-400">{fmtDate(r.lastModifiedAt ?? "")}</div>
                       </div>
                     ) : <span className="text-gray-300">-</span>}
-                  </td>
-                  <td className="px-3 py-2.5 flex items-center gap-2">
-                    {r.notionUrl && <a href={r.notionUrl} target="_blank" rel="noreferrer" className="text-amber-400 hover:text-amber-600 underline underline-offset-2">Notion ↗</a>}
-                    <button onClick={() => setEditRecord(r)} className="px-2 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-600 hover:bg-amber-100 transition-colors">수정</button>
                   </td>
                 </tr>
               ))}
