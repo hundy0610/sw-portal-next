@@ -101,6 +101,8 @@ function pageToHwRecord(page: PageObjectResponse): HwRecord {
     docNo:         txt("결재문서번호"),
     verified:   p["실사확인"]?.type === "checkbox" ? p["실사확인"].checkbox : false,
     duplicated: p["중복"]?.type     === "checkbox" ? p["중복"].checkbox    : false,
+    lastModifiedBy: txt("마지막수정자"),
+    lastModifiedAt: txt("마지막수정일시"),
   };
 }
 

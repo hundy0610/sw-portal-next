@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
 import { kvDel } from "@/lib/kv-store";
+import { getSessionFromCookieHeader } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +44,9 @@ function buildProperties(fields: FieldMap) {
   if (fields.usageDate           !== undefined) dt("사용일자",            String(fields.usageDate ?? ""));
   if (fields.returnDate          !== undefined) dt("회수일자",            String(fields.returnDate ?? ""));
 
+  if (fields.lastModifiedBy !== undefined) txt("마지막수정자",   String(fields.lastModifiedBy));
+  if (fields.lastModifiedAt !== undefined) txt("마지막수정일시", String(fields.lastModifiedAt));
+
   return props;
 }
 
@@ -58,7 +62,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "fields 필수" }, { status: 400 });
     }
 
-    const properties = buildProperties(fields);
+    const session = getSessionFromCookieHeader(req.headers.get("cookie"));
+    const modifiedBy = session ? `${session.name} (${session.userId})` : "시스템";
+    const fieldsWithModifier: FieldMap = {
+      ...fields,
+      lastModifiedBy: modifiedBy,
+      lastModifiedAt: new Date().toISOString(),
+    };
+
+    const properties = buildProperties(fieldsWithModifier);
     if (Object.keys(properties).length === 0) {
       return NextResponse.json({ ok: false, error: "업데이트할 필드 없음" }, { status: 400 });
     }
