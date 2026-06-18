@@ -654,18 +654,9 @@ function FloorPlanSVG({
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// SEAT DETAIL PANEL
+// DETAIL PANEL 공용 상수
 // ══════════════════════════════════════════════════════════════════════════════
 const REPAIR_REASONS = ["화면 불량", "전원 이슈", "해상도/색상 문제", "물리적 파손", "기타"] as const;
-
-// 수리 접수 현황 DB의 "고장 내역" 옵션으로 매핑
-const FAULT_TYPE_MAP: Record<string, string> = {
-  "화면 불량":        "기타",
-  "전원 이슈":        "기타",
-  "해상도/색상 문제": "기타",
-  "물리적 파손":      "기타파손",
-  "기타":            "기타",
-};
 
 const URGENCY_OPTIONS = ["매우 급합니다.", "조금 급합니다.", "기다릴 수 있어요."] as const;
 
@@ -681,298 +672,6 @@ const EVENT_LABEL: Record<string, string> = {
   repair_done:     "수리 완료",
   note:            "메모",
 };
-
-function SeatDetailPanel({
-  seat, zone, floor, building, onClose, onUpdateType,
-}: {
-  seat: SeatData; zone: ZoneData; floor: FloorData; building: BuildingData;
-  onClose: () => void;
-  onUpdateType: (seatId: string, type: MonitorType) => void;
-}) {
-  const meta = MONITOR[seat.type];
-  const rowLabel = String.fromCharCode(65 + seat.row);
-
-  const [repairOpen,   setRepairOpen]   = useState(false);
-  const [repairReason, setRepairReason] = useState<string>(REPAIR_REASONS[0]);
-  const [repairNote,   setRepairNote]   = useState("");
-  const [submitting,   setSubmitting]   = useState(false);
-  const [submitMsg,    setSubmitMsg]    = useState("");
-
-  const [history,      setHistory]      = useState<MonitorHistoryEntry[]>([]);
-  const [histLoading,  setHistLoading]  = useState(false);
-  const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
-
-  const { asset, loading: assetLoading, saveFields } = useMonitorAsset({
-    itemId: seat.id,
-    building: building?.label ?? "",
-    floor: floor?.label ?? "",
-    defaultTitle: [building?.label, floor?.label, zone.label, `${rowLabel}행${seat.col + 1}번`].filter(Boolean).join(" - "),
-  });
-
-  // 이력 로드
-  useEffect(() => {
-    setHistLoading(true);
-    fetch(`/api/monitor-history?itemId=${encodeURIComponent(seat.id)}`)
-      .then(r => r.json())
-      .then(({ entries }) => setHistory(entries ?? []))
-      .catch(() => {})
-      .finally(() => setHistLoading(false));
-  }, [seat.id]);
-
-  const submitRepair = async () => {
-    setSubmitting(true); setSubmitMsg("");
-    try {
-      const res = await fetch("/api/monitor-history", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          itemId:      seat.id,
-          label:       `${building?.label ?? ""} ${floor?.label ?? ""} ${zone.label} ${rowLabel}행${seat.col + 1}번`,
-          building:    building?.label ?? "",
-          floor:       floor?.label ?? "",
-          eventType:   "repair_request",
-          description: `${repairReason}${repairNote ? ` — ${repairNote}` : ""}`,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "요청 실패");
-      setSubmitMsg("✓ 수리 요청이 접수되었습니다.");
-      setRepairOpen(false); setRepairNote("");
-      // 이력 갱신
-      const refresh = await fetch(`/api/monitor-history?itemId=${encodeURIComponent(seat.id)}`).then(r => r.json());
-      setHistory(refresh.entries ?? []);
-    } catch (e: any) {
-      setSubmitMsg(`✗ ${e.message}`);
-    } finally {
-      setSubmitting(false);
-      setTimeout(() => setSubmitMsg(""), 4000);
-    }
-  };
-
-  const updateStatus = async (entryId: string, status: string) => {
-    setStatusUpdating(entryId);
-    try {
-      await fetch(`/api/monitor-history/${entryId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
-      setHistory(prev => prev.map(e => e.id === entryId ? { ...e, status: status as any } : e));
-    } catch {}
-    finally { setStatusUpdating(null); }
-  };
-
-  return (
-    <div className="flex flex-col h-full overflow-y-auto text-sm">
-      {/* 헤더 */}
-      <div className="flex items-start justify-between px-4 py-3 bg-slate-800 text-white flex-shrink-0">
-        <div>
-          <div className="text-[10px] opacity-60 mb-0.5">좌석 상세 정보</div>
-          <div className="text-lg font-extrabold tracking-widest leading-tight font-mono">{seat.id}</div>
-          <div className="text-[10px] opacity-60 mt-1">{building?.label ?? ""} · {floor?.label ?? ""} · {zone.label}</div>
-          <AssetNoBadge asset={asset} loading={assetLoading} saveFields={saveFields} />
-        </div>
-        <button onClick={onClose} className="opacity-60 hover:opacity-100 text-lg mt-0.5">✕</button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-3 space-y-3">
-        {/* 모니터 현황 */}
-        <div className="rounded-xl p-3 border" style={{ background: meta.pale, borderColor: meta.border }}>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white text-sm font-black"
-              style={{ background: meta.color }}>{meta.label}</div>
-            <div>
-              <div className="font-bold" style={{ color: meta.color }}>{meta.long}</div>
-              <div className="text-[10px] opacity-70" style={{ color: meta.color }}>
-                {seat.type === "unk" ? "미확인 좌석" : seat.type === "none" ? "모니터 미설치" : seat.type === "dev34" ? "개발자용 와이드 모니터" : "표준형 모니터 설치됨"}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* 위치 정보 */}
-        <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-          <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">📍 위치</div>
-          <div className="flex flex-wrap gap-1.5 mb-2">
-            {[building?.label ?? "", floor?.label ?? "", zone.label].map(tag => (
-              <span key={tag} className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-semibold border border-blue-100">{tag}</span>
-            ))}
-          </div>
-          <div className="text-xs text-gray-600 space-y-0.5">
-            <div><span className="text-gray-400">행</span> <strong>{rowLabel}행</strong></div>
-            <div><span className="text-gray-400">열</span> <strong>{seat.col + 1}번</strong></div>
-          </div>
-        </div>
-
-        {/* 찾아가는 방법 */}
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-          <div className="text-[10px] font-bold text-amber-700 mb-1.5">🗺 찾아가는 방법</div>
-          <div className="text-[11px] text-amber-700 leading-relaxed">
-            {building?.label ?? ""} 건물 진입<br/>
-            → <strong>{floor?.label ?? ""}</strong> 이동 (계단/엘리베이터)<br/>
-            → <strong>{zone.label}</strong> 구역<br/>
-            → <strong>{rowLabel}행 {seat.col + 1}번째 자리</strong>
-          </div>
-        </div>
-
-        {/* 모니터 타입 변경 */}
-        <div className="bg-white border border-gray-100 rounded-xl p-3">
-          <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">✏️ 모니터 상태 변경</div>
-          <div className="grid grid-cols-1 gap-1.5">
-            {TYPES.map(t => {
-              const m = MONITOR[t];
-              const isActive = seat.type === t;
-              return (
-                <button key={t} onClick={() => onUpdateType(seat.id, t)}
-                  className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-semibold transition-all border"
-                  style={{
-                    background: isActive ? m.color : m.pale,
-                    color: isActive ? "white" : m.color,
-                    borderColor: m.border,
-                    outline: isActive ? `2px solid ${m.color}` : "none",
-                  }}>
-                  <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
-                    style={{ background: isActive ? "white" : m.color + "CC" }}/>
-                  {m.long}
-                  {isActive && <span className="ml-auto text-[10px] opacity-80">✓ 현재</span>}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* 수리 요청 */}
-        <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
-          <button
-            onClick={() => setRepairOpen(o => !o)}
-            className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-bold text-red-600 hover:bg-red-50 transition-colors">
-            <span>🔧 교체/수리 요청</span>
-            <span className="text-gray-400 text-[10px]">{repairOpen ? "▲" : "▼"}</span>
-          </button>
-          {repairOpen && (
-            <div className="px-3 pb-3 space-y-2 border-t border-gray-100">
-              <div className="pt-2">
-                <div className="text-[10px] text-gray-400 mb-1">사유 선택</div>
-                <select
-                  value={repairReason}
-                  onChange={e => setRepairReason(e.target.value)}
-                  className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-red-400">
-                  {REPAIR_REASONS.map(r => <option key={r}>{r}</option>)}
-                </select>
-              </div>
-              <div>
-                <div className="text-[10px] text-gray-400 mb-1">메모 (선택)</div>
-                <textarea
-                  value={repairNote}
-                  onChange={e => setRepairNote(e.target.value)}
-                  rows={2}
-                  placeholder="상세 증상 또는 요청 내용"
-                  className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-red-400"/>
-              </div>
-              <button
-                onClick={submitRepair}
-                disabled={submitting}
-                className="w-full py-2 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 disabled:opacity-50 transition-colors">
-                {submitting ? "접수 중…" : "요청 제출"}
-              </button>
-            </div>
-          )}
-          {submitMsg && (
-            <div className={`px-3 pb-2 text-[11px] font-medium ${submitMsg.startsWith("✓") ? "text-green-600" : "text-red-500"}`}>
-              {submitMsg}
-            </div>
-          )}
-        </div>
-
-        {/* 위치 복사 */}
-        <button
-          className="w-full py-2 rounded-lg border border-gray-200 bg-white text-gray-600 text-xs font-semibold hover:bg-gray-50 transition-colors"
-          onClick={() => navigator.clipboard?.writeText(`${building?.label ?? ""} ${floor?.label ?? ""} ${zone.label} ${rowLabel}행 ${seat.col + 1}번 (${seat.id})`)}>
-          📋 위치 텍스트 복사
-        </button>
-
-        {/* 자산 정보 */}
-        <MonitorAssetSection asset={asset} loading={assetLoading} saveFields={saveFields} />
-
-        {/* 이력 목록 */}
-        <div className="bg-white border border-gray-100 rounded-xl p-3">
-          <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">📋 이력</div>
-          {histLoading ? (
-            <div className="text-[11px] text-gray-400 text-center py-3">불러오는 중…</div>
-          ) : history.length === 0 ? (
-            <div className="text-[11px] text-gray-400 text-center py-3">이력 없음</div>
-          ) : (
-            <div className="space-y-2">
-              {history.map(entry => {
-                const st = STATUS_LABEL[entry.status] ?? STATUS_LABEL.pending;
-                return (
-                  <div key={entry.id} className="border border-gray-100 rounded-lg p-2 space-y-1">
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="text-[10px] font-semibold text-slate-600">
-                        {EVENT_LABEL[entry.eventType] ?? entry.eventType}
-                      </span>
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                        style={{ background: st.color + "22", color: st.color }}>
-                        {st.label}
-                      </span>
-                    </div>
-                    {(entry.from || entry.to) && (
-                      <div className="text-[10px] text-gray-500">
-                        {entry.from && <span>{entry.from}</span>}
-                        {entry.from && entry.to && <span className="mx-1 text-gray-300">→</span>}
-                        {entry.to && <span>{entry.to}</span>}
-                      </div>
-                    )}
-                    {entry.description && (
-                      <div className="text-[10px] text-gray-400 truncate">{entry.description}</div>
-                    )}
-                    <div className="text-[9px] text-gray-300">
-                      {entry.createdAt ? new Date(entry.createdAt).toLocaleDateString("ko-KR") : "—"}
-                      {entry.createdBy ? ` · ${entry.createdBy}` : ""}
-                    </div>
-                    {/* 관리자 상태 변경 */}
-                    {entry.status !== "done" && (
-                      <div className="flex gap-1 pt-0.5 flex-wrap">
-                        {(entry.status === "pending" || entry.status === "수리중") && (
-                          <button
-                            disabled={statusUpdating === entry.id}
-                            onClick={() => updateStatus(entry.id, "in_progress")}
-                            className="text-[9px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 disabled:opacity-50">
-                            처리 중으로
-                          </button>
-                        )}
-                        <button
-                          disabled={statusUpdating === entry.id}
-                          onClick={() => updateStatus(entry.id, "done")}
-                          className="text-[9px] px-1.5 py-0.5 rounded bg-green-50 text-green-600 border border-green-200 hover:bg-green-100 disabled:opacity-50">
-                          완료
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* 범례 */}
-        <div className="bg-white border border-gray-100 rounded-xl p-3">
-          <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">범례</div>
-          <div className="space-y-1.5">
-            {TYPES.map(t => (
-              <div key={t} className="flex items-center gap-2">
-                <div className="w-3.5 h-3 rounded-sm flex-shrink-0"
-                  style={{ background: MONITOR[t].color + (t === "unk" ? "55" : "CC") }}/>
-                <span className="text-[10px] text-gray-500">{MONITOR[t].long}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ITEM DETAIL PANEL  (편집도면 모니터 클릭 시)
@@ -1122,21 +821,18 @@ function ItemDetailPanel({
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "요청 실패");
 
-      // 수리 접수 현황 DB 등록 + 총무 담당자 이메일 발송
-      await fetch("/api/repair-tickets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title:         `[모니터] ${repairReason}${repairNote ? ` — ${repairNote}` : ""} (${locationLabel || item.id})`,
-          faultTypes:    [FAULT_TYPE_MAP[repairReason] ?? "기타"],
-          location:      locationLabel,
-          assetId:       asset?.assetNo || "",
-          requester:     requester.trim(),
-          notifyGmEmail: selectedGm?.email,
-          notifyGmName:  selectedGm?.name,
-          emailHtml,
-        }),
-      });
+      // 총무 담당자에게 이메일 발송 (수리 접수 현황 DB 등록은 하지 않음)
+      if (selectedGm?.email) {
+        await fetch("/api/monitor-repair-notify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to:      selectedGm.email,
+            subject: `[자산관리] 모니터 교체/수리 요청 — ${locationLabel}`,
+            html:    emailHtml,
+          }),
+        });
+      }
 
       setSubmitMsg("✓ 수리 요청이 접수되었습니다.");
       setShowPreview(false);
