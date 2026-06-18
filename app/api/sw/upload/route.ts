@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
 import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
+import { memDel } from "@/lib/mem-cache";
+import { kvDel } from "@/lib/kv-store";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
@@ -177,6 +179,11 @@ export async function POST(req: NextRequest) {
 
     const success = results.filter(r => r.ok).length;
     const failed  = results.filter(r => !r.ok).length;
+
+    if (success > 0) {
+      memDel("sw:all");
+      await kvDel("sw:all");
+    }
 
     return NextResponse.json({ ok: true, success, failed, results });
   } catch (e) {
