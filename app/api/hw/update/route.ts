@@ -66,7 +66,10 @@ export async function POST(req: NextRequest) {
     }
 
     const session = getSessionFromCookieHeader(req.headers.get("cookie"));
-    const modifiedBy = session ? `${await resolveCurrentName(session)} (${session.userId})` : "시스템";
+    if (!session) {
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
+    const modifiedBy = `${await resolveCurrentName(session)} (${session.userId})`;
     const modifiedAt = new Date().toISOString();
 
     // 재고 상태로 변경 시 반납예정일 자동 초기화

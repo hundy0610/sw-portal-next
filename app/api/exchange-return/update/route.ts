@@ -19,9 +19,12 @@ export async function POST(req: NextRequest) {
     }
 
     const session = getSessionFromCookieHeader(req.headers.get("cookie"));
+    if (!session) {
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
     const fieldsWithModifier: UpdateFields = {
       ...fields,
-      lastModifiedBy: session ? `${await resolveCurrentName(session)} (${session.userId})` : "시스템",
+      lastModifiedBy: `${await resolveCurrentName(session)} (${session.userId})`,
     };
 
     await updateExchangeReturn(id, fieldsWithModifier);

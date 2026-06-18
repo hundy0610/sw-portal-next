@@ -35,7 +35,10 @@ export async function POST(req: NextRequest) {
     }
 
     const session = getSessionFromCookieHeader(req.headers.get("cookie"));
-    const lastModifiedBy = session ? `${await resolveCurrentName(session)} (${session.userId})` : "시스템";
+    if (!session) {
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
+    const lastModifiedBy = `${await resolveCurrentName(session)} (${session.userId})`;
 
     const record = await createExchangeReturn({ ...body, lastModifiedBy });
     memDel("exchange-return:all");

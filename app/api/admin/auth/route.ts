@@ -119,22 +119,6 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // 구버전 admin_key 쿠키 fallback
-  const key = request.cookies.get("admin_key")?.value;
-  if (key) {
-    const ADMIN_KEY = process.env.ADMIN_SECRET_KEY ?? "3589";
-    if (key === ADMIN_KEY) {
-      return NextResponse.json({
-        ok:      true,
-        role:    "super",
-        company: "",
-        name:    "슈퍼 어드민",
-        email:   "",
-        userId:  "admin",
-      });
-    }
-  }
-
   return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 }
 
