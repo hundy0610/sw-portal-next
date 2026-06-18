@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
+import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
@@ -45,7 +46,7 @@ function toIsoDate(val: string | number | undefined): string | null {
   return null;
 }
 
-async function createSwPage(row: SwUploadRow) {
+async function createSwPage(row: SwUploadRow, modifiedBy: string, modifiedAt: string) {
   const usageDate    = toIsoDate(row.usageDate);
   const renewalDate  = toIsoDate(row.renewalDate);
   const purchaseDate = toIsoDate(row.purchaseDate);
@@ -130,6 +131,13 @@ async function createSwPage(row: SwUploadRow) {
           files: [{ type: "file_upload", file_upload: { id: row.certificateFileUploadId } }],
         },
       } : {}),
+      // 마지막수정자/일시 (신규 등록 시점 = 최초 수정으로 기록)
+      "마지막수정자": {
+        rich_text: [{ text: { content: modifiedBy } }],
+      },
+      "마지막수정일시": {
+        rich_text: [{ text: { content: modifiedAt } }],
+      },
     },
   });
 }
@@ -149,12 +157,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "한 번에 최대 200개까지 등록할 수 있습니다." }, { status: 400 });
     }
 
+    const session = getSessionFromCookieHeader(req.headers.get("cookie"));
+    const modifiedBy = session ? `${await resolveCurrentName(session)} (${session.userId})` : "시스템";
+    const modifiedAt = new Date().toISOString();
+
     const results: { index: number; user: string; sw: string; ok: boolean; error?: string }[] = [];
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       try {
-        await createSwPage(row);
+        await createSwPage(row, modifiedBy, modifiedAt);
         results.push({ index: i, user: row.user, sw: row.swCategory, ok: true });
       } catch (e) {
         results.push({ index: i, user: row.user, sw: row.swCategory, ok: false, error: String(e) });

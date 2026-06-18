@@ -3,6 +3,7 @@ import { Client } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
 import { computeHwStats, type HwRecord } from "@/lib/hw";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
+import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
@@ -106,7 +107,7 @@ function pageToHwRecord(page: PageObjectResponse): HwRecord {
   };
 }
 
-async function createHwPage(row: ExcelRow) {
+async function createHwPage(row: ExcelRow, modifiedBy: string, modifiedAt: string) {
   const purchaseDate = toIsoDate(row.purchaseDate as unknown as string | number);
   const useDate      = toIsoDate(row.useDate      as unknown as string | number);
 
@@ -173,6 +174,13 @@ async function createHwPage(row: ExcelRow) {
       ...(useDate ? {
         "사용일자": { date: { start: useDate } },
       } : {}),
+      // 마지막수정자/일시 (신규 등록 시점 = 최초 수정으로 기록)
+      "마지막수정자": {
+        rich_text: [{ text: { content: modifiedBy } }],
+      },
+      "마지막수정일시": {
+        rich_text: [{ text: { content: modifiedAt } }],
+      },
     },
   });
 }
@@ -188,12 +196,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "한 번에 최대 100개까지 등록할 수 있습니다." }, { status: 400 });
     }
 
+    const session = getSessionFromCookieHeader(req.headers.get("cookie"));
+    const modifiedBy = session ? `${await resolveCurrentName(session)} (${session.userId})` : "시스템";
+    const modifiedAt = new Date().toISOString();
+
     const results: { index: number; user: string; assetNo: string; ok: boolean; error?: string; page?: PageObjectResponse }[] = [];
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       try {
-        const page = await createHwPage(row) as PageObjectResponse;
+        const page = await createHwPage(row, modifiedBy, modifiedAt) as PageObjectResponse;
         results.push({ index: i, user: row.user, assetNo: row.assetNo, ok: true, page });
       } catch (e) {
         results.push({ index: i, user: row.user, assetNo: row.assetNo, ok: false, error: String(e) });
