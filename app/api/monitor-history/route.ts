@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { decodeSession } from "@/lib/session";
+import { decodeSession, resolveCurrentName } from "@/lib/session";
 import { fetchMonitorHistory, createMonitorHistory } from "@/lib/notion";
 
 function getSession(req: NextRequest) {
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
 
   const id = await createMonitorHistory({
     itemId, label, building, floor, eventType, from, to, description,
-    createdBy: session.name,
+    createdBy: await resolveCurrentName(session),
   });
 
   return NextResponse.json({ ok: true, id });

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSwItems, saveSwItems, appendAuditLog } from "@/lib/portal-store";
-import { getSessionFromCookieHeader } from "@/lib/session";
+import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
 import type { SwItem } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -29,13 +29,14 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const items = await getSwItems();
+  const adminName = await resolveCurrentName(session);
 
   // 삭제
   if (body._action === "delete") {
     const target = items.find(i => i.id === body.id);
     const updated = items.filter(i => i.id !== body.id);
     await saveSwItems(updated);
-    await appendAuditLog({ adminId: session.userId, adminName: session.name, action: "delete", target: "swdb", itemTitle: target?.name ?? body.id, timestamp: new Date().toISOString() });
+    await appendAuditLog({ adminId: session.userId, adminName, action: "delete", target: "swdb", itemTitle: target?.name ?? body.id, timestamp: new Date().toISOString() });
     return NextResponse.json({ ok: true });
   }
 
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
     const updated = items.map(i => i.id === body.id ? { ...i, ...body.data } : i);
     await saveSwItems(updated);
     const target = items.find(i => i.id === body.id);
-    await appendAuditLog({ adminId: session.userId, adminName: session.name, action: "update", target: "swdb", itemTitle: target?.name ?? body.id, timestamp: new Date().toISOString() });
+    await appendAuditLog({ adminId: session.userId, adminName, action: "update", target: "swdb", itemTitle: target?.name ?? body.id, timestamp: new Date().toISOString() });
     return NextResponse.json({ ok: true });
   }
 
@@ -62,6 +63,6 @@ export async function POST(req: NextRequest) {
     resourceId:   body.resourceId   || undefined,
   };
   await saveSwItems([...items, newItem]);
-  await appendAuditLog({ adminId: session.userId, adminName: session.name, action: "create", target: "swdb", itemTitle: newItem.name, timestamp: new Date().toISOString() });
+  await appendAuditLog({ adminId: session.userId, adminName, action: "create", target: "swdb", itemTitle: newItem.name, timestamp: new Date().toISOString() });
   return NextResponse.json({ ok: true, id: newItem.id });
 }

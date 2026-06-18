@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { encodeSession, decodeSession, type AdminSession } from "@/lib/session";
+import { encodeSession, decodeSession, resolveCurrentName, type AdminSession } from "@/lib/session";
 import { verifyPassword } from "@/lib/crypto";
 import { kvGet } from "@/lib/kv-store";
 import type { Account } from "@/app/api/admin/accounts/route";
@@ -111,7 +111,7 @@ export async function GET(request: NextRequest) {
         ok:                 true,
         role:               session.role,
         company:            session.company,
-        name:               session.name,
+        name:               await resolveCurrentName(session),
         email:              session.email,
         userId:             session.userId,
         mustChangePassword: session.mustChangePassword ?? false,

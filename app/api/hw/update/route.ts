@@ -4,7 +4,7 @@ import { computeHwStats, type HwRecord } from "@/lib/hw";
 import { kvGet, kvSet, kvSetPermanent } from "@/lib/kv-store";
 import { memDel } from "@/lib/mem-cache";
 import { autoCompleteReturnsByAssetId } from "@/lib/exchange-return";
-import { getSessionFromCookieHeader } from "@/lib/session";
+import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
     }
 
     const session = getSessionFromCookieHeader(req.headers.get("cookie"));
-    const modifiedBy = session ? `${session.name} (${session.userId})` : "시스템";
+    const modifiedBy = session ? `${await resolveCurrentName(session)} (${session.userId})` : "시스템";
     const modifiedAt = new Date().toISOString();
 
     // 재고 상태로 변경 시 반납예정일 자동 초기화
