@@ -40,9 +40,15 @@ function buildProperties(fields: FieldMap) {
   if (fields.vendor              !== undefined) txt("구매처",             String(fields.vendor));
   if (fields.swDetail            !== undefined) txt("SW소분류",          String(fields.swDetail));
 
+  if (fields.billingType         !== undefined) sel("결재방식",           String(fields.billingType));
+
   if (fields.renewalDate         !== undefined) dt("갱신필요일",          String(fields.renewalDate ?? ""));
   if (fields.usageDate           !== undefined) dt("사용일자",            String(fields.usageDate ?? ""));
   if (fields.returnDate          !== undefined) dt("회수일자",            String(fields.returnDate ?? ""));
+
+  const num = (name: string, val: number) => { props[name] = { number: val > 0 ? val : null }; };
+  if (fields.monthlyKrw          !== undefined) num("월 비용 (KRW)",      Number(fields.monthlyKrw ?? 0));
+  if (fields.monthlyUsd          !== undefined) num("월 비용 (USD)",      Number(fields.monthlyUsd ?? 0));
 
   if (fields.lastModifiedBy !== undefined) txt("마지막수정자",   String(fields.lastModifiedBy));
   if (fields.lastModifiedAt !== undefined) txt("마지막수정일시", String(fields.lastModifiedAt));
