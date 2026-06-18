@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createExchangeReturn, type CreateFields } from "@/lib/exchange-return";
 import { memGet, memDel } from "@/lib/mem-cache";
+import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
 import type { ExchangeReturnRecord } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +34,10 @@ export async function POST(req: NextRequest) {
       if (dup) return NextResponse.json({ ok: true, skipped: true, existingId: dup.id });
     }
 
-    const record = await createExchangeReturn(body);
+    const session = getSessionFromCookieHeader(req.headers.get("cookie"));
+    const lastModifiedBy = session ? `${await resolveCurrentName(session)} (${session.userId})` : "시스템";
+
+    const record = await createExchangeReturn({ ...body, lastModifiedBy });
     memDel("exchange-return:all");
     return NextResponse.json({ ok: true, record });
   } catch (e) {

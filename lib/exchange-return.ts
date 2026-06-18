@@ -136,6 +136,7 @@ export interface CreateFields {
   requesterEmail?: string;
   autoSynced?: boolean;
   isClosed?: boolean;
+  lastModifiedBy?: string;
 }
 
 export async function createExchangeReturn(fields: CreateFields): Promise<ExchangeReturnRecord> {
@@ -163,6 +164,7 @@ export async function createExchangeReturn(fields: CreateFields): Promise<Exchan
   if (fields.note)           props["비고"]          = { rich_text: [{ text: { content: fields.note } }] };
   if (fields.requesterEmail) props["기안자이메일"]  = { email: fields.requesterEmail };
   if (fields.autoSynced)     props["자동동기화"]    = { checkbox: true };
+  if (fields.lastModifiedBy) props["마지막수정자"]  = { rich_text: [{ text: { content: fields.lastModifiedBy } }] };
 
   const page = await notion.pages.create({ parent: { database_id: dbId }, properties: props });
   return mapPage(page as PageObjectResponse);
