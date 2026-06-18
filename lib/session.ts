@@ -2,6 +2,10 @@
 // 관리자 세션 유틸리티
 // ────────────────────────────────────────────────────────────
 
+import { kvGet } from "@/lib/kv-store";
+
+const ACCOUNTS_KEY = "sw:accounts";
+
 export interface AdminSession {
   notionPageId: string;      // Notion 계정 페이지 ID ("env-super" for ENV-based)
   userId: string;            // 로그인 아이디
@@ -28,6 +32,18 @@ export function decodeSession(token: string): AdminSession | null {
     return s;
   } catch {
     return null;
+  }
+}
+
+// 쿠키의 이름은 로그인 시점 스냅샷이라 이후 계정관리에서 이름(닉네임)이
+// 바뀌어도 갱신되지 않는다. 기록/표시 직전에 최신 이름을 다시 조회한다.
+export async function resolveCurrentName(session: AdminSession): Promise<string> {
+  try {
+    const accounts = await kvGet<{ userId: string; name: string }[]>(ACCOUNTS_KEY);
+    const found = accounts?.find(a => a.userId === session.userId);
+    return found?.name ?? session.name;
+  } catch {
+    return session.name;
   }
 }
 

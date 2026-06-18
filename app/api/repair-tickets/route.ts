@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchRepairTickets, createRepairTicket } from "@/lib/notion";
-import { getSessionFromCookieHeader } from "@/lib/session";
+import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
 import { createMailTransporter, buildMonitorRepairEmail } from "@/lib/mail";
 import type { RepairTicket } from "@/types";
 
@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
   if (!title) return NextResponse.json({ ok: false, error: "title 필수" }, { status: 400 });
 
   try {
+    const currentName = await resolveCurrentName(session);
     const id = await createRepairTicket({
       title,
       faultTypes: faultTypes?.length ? faultTypes : ["기타"],
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
       department: session.department,
       location,
       assetId,
-      requester: requester || session.name,
+      requester: requester || currentName,
       priority,
     });
 
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest) {
             zone: "",
             seatId: assetId ?? "",
             requestType: "repair",
-            requestedBy: requester || session.name,
+            requestedBy: requester || currentName,
             note: title,
             appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "",
           });

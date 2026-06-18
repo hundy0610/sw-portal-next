@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
 import { kvDel } from "@/lib/kv-store";
-import { getSessionFromCookieHeader } from "@/lib/session";
+import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     }
 
     const session = getSessionFromCookieHeader(req.headers.get("cookie"));
-    const modifiedBy = session ? `${session.name} (${session.userId})` : "시스템";
+    const modifiedBy = session ? `${await resolveCurrentName(session)} (${session.userId})` : "시스템";
     const fieldsWithModifier: FieldMap = {
       ...fields,
       lastModifiedBy: modifiedBy,

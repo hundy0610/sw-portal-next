@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
-import { getSessionFromCookieHeader } from "@/lib/session";
+import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
 import type { Grade, AnnualGoal, MonthlyGoal, WeeklyEntry, WorkFeedbackStore } from "@/types/work-feedback";
 
 export type { Grade, AnnualGoal, MonthlyGoal, WeeklyEntry, WorkFeedbackStore };
@@ -103,7 +103,7 @@ export async function PATCH(req: NextRequest) {
     grade,
     comment,
     evaluatedAt: new Date().toISOString(),
-    evaluatedBy: session.name || session.userId,
+    evaluatedBy: (await resolveCurrentName(session)) || session.userId,
   };
 
   await kvSetPermanent(KV_KEY, store);

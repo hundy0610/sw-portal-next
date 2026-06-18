@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getResources, saveResources, appendAuditLog } from "@/lib/portal-store";
-import { getSessionFromCookieHeader } from "@/lib/session";
+import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
 import type { Resource } from "@/types/portal";
 
 function getSuperSession(req: NextRequest) {
@@ -24,12 +24,13 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const all = await getResources(false);
+  const adminName = await resolveCurrentName(session);
 
   if (body._action === "delete") {
     const target = all.find(r => r.id === body.id);
     await saveResources(all.filter(r => r.id !== body.id));
     await appendAuditLog({
-      adminId: session.userId, adminName: session.name,
+      adminId: session.userId, adminName,
       action: "delete", target: "resources",
       itemTitle: target?.title ?? body.id,
       timestamp: new Date().toISOString(),
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
     const target = all.find(r => r.id === body.id);
     await saveResources(all.map(r => r.id === body.id ? { ...r, ...body.data } : r));
     await appendAuditLog({
-      adminId: session.userId, adminName: session.name,
+      adminId: session.userId, adminName,
       action: "update", target: "resources",
       itemTitle: body.data?.title ?? target?.title ?? body.id,
       timestamp: new Date().toISOString(),
@@ -65,7 +66,7 @@ export async function POST(req: NextRequest) {
   };
   await saveResources([...all, resource]);
   await appendAuditLog({
-    adminId: session.userId, adminName: session.name,
+    adminId: session.userId, adminName,
     action: "create", target: "resources",
     itemTitle: resource.title,
     timestamp: new Date().toISOString(),
