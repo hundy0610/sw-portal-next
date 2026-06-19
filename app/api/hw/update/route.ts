@@ -86,8 +86,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "업데이트할 필드 없음" }, { status: 400 });
     }
 
-    // Notion 페이지 업데이트 + KV 패치를 병렬 시작
-    const notionPromise = notion.pages.update({
+    // Notion 페이지 업데이트 — 성공을 먼저 확인해야 캐시도 그 값으로 갱신
+    await notion.pages.update({
       page_id: id,
       properties: properties as Parameters<typeof notion.pages.update>[0]["properties"],
     });
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
       await kvSet("hw:deltas", { ...existing, [id]: fields }, 3600);
     })();
 
-    await Promise.all([notionPromise, kvPatchPromise, deltaPromise]);
+    await Promise.all([kvPatchPromise, deltaPromise]);
 
     // 상태가 "재고"로 변경된 경우 — 반납요청 단계의 자산 흐름 레코드 자동 완료 처리
     if (fields.status === "재고" && process.env.NOTION_DB_EXCHANGE_RETURN) {
