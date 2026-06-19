@@ -256,4 +256,36 @@ export async function autoCompleteReturnsByAssetId(assetId: string): Promise<num
   return pending.length;
 }
 
+// HW 자산의 사용일자가 변경될 때 호출 — 연결된 진행 중(미종료) 자산 흐름 레코드의 사용일자 동기화
+export async function autoSyncUseDateByAssetId(assetId: string, useDate: string): Promise<number> {
+  if (!assetId) return 0;
+  const dbId = getDbId();
+
+  const res = await notion.databases.query({
+    database_id: dbId,
+    filter: {
+      and: [
+        { property: "케이스종료", checkbox: { equals: false } },
+        { or: [
+          { property: "자산번호",     title:     { equals: assetId } },
+          { property: "교체 자산번호", rich_text: { equals: assetId } },
+        ] },
+      ],
+    },
+  });
+
+  const targets = res.results as PageObjectResponse[];
+  if (targets.length === 0) return 0;
+
+  await Promise.all(targets.map(p =>
+    notion.pages.update({
+      page_id: p.id,
+      properties: {
+        "사용일자": { date: useDate ? { start: useDate } : null },
+      } as Parameters<typeof notion.pages.update>[0]["properties"],
+    })
+  ));
+  return targets.length;
+}
+
 

@@ -3,7 +3,7 @@ import { Client } from "@notionhq/client";
 import { computeHwStats, type HwRecord } from "@/lib/hw";
 import { kvGet, kvSet, kvSetPermanent } from "@/lib/kv-store";
 import { memDel } from "@/lib/mem-cache";
-import { autoCompleteReturnsByAssetId } from "@/lib/exchange-return";
+import { autoCompleteReturnsByAssetId, autoSyncUseDateByAssetId } from "@/lib/exchange-return";
 import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
 import { errorMessage } from "@/lib/api-error";
 
@@ -114,18 +114,24 @@ export async function POST(req: NextRequest) {
 
     await Promise.all([kvPatchPromise, deltaPromise]);
 
-    // 상태가 "재고"로 변경된 경우 — 반납요청 단계의 자산 흐름 레코드 자동 완료 처리
-    if (fields.status === "재고" && process.env.NOTION_DB_EXCHANGE_RETURN) {
+    // 상태가 "재고"로 변경되거나 사용일자가 변경된 경우 — 연결된 자산 흐름 레코드에 반영
+    if ((fields.status === "재고" || fields.useDate !== undefined) && process.env.NOTION_DB_EXCHANGE_RETURN) {
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const page: any = await notion.pages.retrieve({ page_id: id });
         const assetNo: string = page.properties?.["자산번호"]?.title?.[0]?.plain_text || "";
         if (assetNo) {
-          const count = await autoCompleteReturnsByAssetId(assetNo);
-          if (count > 0) memDel("exchange-return:all");
+          let changed = 0;
+          if (fields.status === "재고") {
+            changed += await autoCompleteReturnsByAssetId(assetNo);
+          }
+          if (fields.useDate !== undefined) {
+            changed += await autoSyncUseDateByAssetId(assetNo, String(fields.useDate ?? ""));
+          }
+          if (changed > 0) memDel("exchange-return:all");
         }
       } catch (e) {
-        console.error("[hw/update → autoCompleteReturn]", e);
+        console.error("[hw/update → exchange-return sync]", e);
       }
     }
 
