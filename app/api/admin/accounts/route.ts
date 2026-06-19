@@ -4,6 +4,7 @@ import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { hashPassword } from "@/lib/crypto";
 import { createMailTransporter, buildWelcomeEmail } from "@/lib/mail";
 import crypto from "crypto";
+import { errorMessage } from "@/lib/api-error";
 
 // 임시 비밀번호 생성 (혼동하기 쉬운 문자 제외)
 function generateTempPassword(): string {
@@ -159,7 +160,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, account: safe });
   } catch (e) {
     console.error("[accounts POST]", e);
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }
 
@@ -235,7 +236,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ ok: true, account: safe });
   } catch (e) {
     console.error("[accounts PATCH]", e);
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }
 
@@ -269,6 +270,6 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[accounts DELETE]", e);
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }

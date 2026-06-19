@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deleteExchangeReturn } from "@/lib/exchange-return";
 import { memDel } from "@/lib/mem-cache";
+import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[API /exchange-return/delete]", e);
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }

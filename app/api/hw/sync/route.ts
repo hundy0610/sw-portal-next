@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { triggerWarmHw } from "@/lib/trigger-warm-hw";
+import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,6 @@ export async function POST() {
 
     return NextResponse.json({ ok: true, message: "Notion 동기화 시작됨 (약 1~2분 소요)" });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }

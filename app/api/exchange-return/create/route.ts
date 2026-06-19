@@ -3,6 +3,7 @@ import { createExchangeReturn, type CreateFields } from "@/lib/exchange-return";
 import { memGet, memDel } from "@/lib/mem-cache";
 import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
 import type { ExchangeReturnRecord } from "@/types";
+import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +46,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, record });
   } catch (e) {
     console.error("[API /exchange-return/create]", e);
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }

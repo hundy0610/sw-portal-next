@@ -4,6 +4,7 @@ import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoint
 import { computeHwStats, type HwRecord } from "@/lib/hw";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
+import { errorMessage } from "@/lib/api-error";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
@@ -211,7 +212,7 @@ export async function POST(req: NextRequest) {
         const page = await createHwPage(row, modifiedBy, modifiedAt) as PageObjectResponse;
         results.push({ index: i, user: row.user, assetNo: row.assetNo, ok: true, page });
       } catch (e) {
-        results.push({ index: i, user: row.user, assetNo: row.assetNo, ok: false, error: String(e) });
+        results.push({ index: i, user: row.user, assetNo: row.assetNo, ok: false, error: errorMessage(e) });
       }
       // Rate limit 방지 (Notion API: 3 req/sec)
       if (i < rows.length - 1) await new Promise(r => setTimeout(r, 350));
@@ -247,6 +248,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, success, failed, results: results.map(({ page: _p, ...r }) => r) });
   } catch (e) {
     console.error("[API /hw/upload]", e);
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }

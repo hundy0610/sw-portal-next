@@ -9,6 +9,7 @@ import {
   buildReturnRequestHeadquartersEmail,
   buildReturnRequestCourierEmail,
 } from "@/lib/mail";
+import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
 
@@ -106,6 +107,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[API /exchange-return/notify-ready]", e);
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }

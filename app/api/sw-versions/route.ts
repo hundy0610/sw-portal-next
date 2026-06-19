@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchSwVersions, createSwVersion, updateSwVersion, archiveSwVersion } from "@/lib/notion";
 import { getSessionFromCookieHeader } from "@/lib/session";
+import { errorMessage } from "@/lib/api-error";
 
 function getSuperSession(req: NextRequest) {
   const s = getSessionFromCookieHeader(req.headers.get("cookie"));
@@ -16,7 +17,7 @@ export async function GET(req: NextRequest) {
     const data = await fetchSwVersions(all ? false : true);
     return NextResponse.json({ data });
   } catch (e) {
-    return NextResponse.json({ data: [], error: String(e) });
+    return NextResponse.json({ data: [], error: errorMessage(e) });
   }
 }
 
@@ -47,6 +48,6 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ ok: true, id });
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    return NextResponse.json({ error: errorMessage(e) }, { status: 500 });
   }
 }

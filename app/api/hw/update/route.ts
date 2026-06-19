@@ -5,6 +5,7 @@ import { kvGet, kvSet, kvSetPermanent } from "@/lib/kv-store";
 import { memDel } from "@/lib/mem-cache";
 import { autoCompleteReturnsByAssetId } from "@/lib/exchange-return";
 import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
+import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
 
@@ -131,6 +132,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[API /hw/update]", e);
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }

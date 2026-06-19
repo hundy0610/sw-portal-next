@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { type HwRecord, fetchHwFiltered } from "@/lib/hw";
 import { kvGet } from "@/lib/kv-store";
 import { triggerWarmHw } from "@/lib/trigger-warm-hw";
+import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
 
@@ -74,7 +75,7 @@ export async function GET(req: NextRequest) {
   } catch (e) {
     console.error("[API /hw]", e);
     return NextResponse.json(
-      { ok: false, error: String(e), records: [] },
+      { ok: false, error: errorMessage(e), records: [] },
       { status: 500 }
     );
   }

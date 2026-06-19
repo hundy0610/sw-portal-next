@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { Client } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
+import { errorMessage } from "@/lib/api-error";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
@@ -82,7 +83,7 @@ export async function GET(req: NextRequest) {
 
     return Response.json({ ok: true, records });
   } catch (e) {
-    return Response.json({ ok: false, error: String(e) }, { status: 500 });
+    return Response.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }
 
@@ -149,6 +150,6 @@ export async function POST(req: Request) {
 
     return Response.json({ ok: false, error: "Invalid type" }, { status: 400 });
   } catch (e) {
-    return Response.json({ ok: false, error: String(e) }, { status: 500 });
+    return Response.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }

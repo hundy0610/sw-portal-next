@@ -3,6 +3,7 @@ import { computeHwStats, type HwRecord } from "@/lib/hw";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import type { HwStats } from "@/lib/hw";
 import { triggerWarmHw } from "@/lib/trigger-warm-hw";
+import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, stats: null, warming: true });
   } catch (e) {
     console.error("[API /hw/stats]", e);
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }

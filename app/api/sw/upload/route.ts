@@ -3,6 +3,7 @@ import { Client } from "@notionhq/client";
 import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
 import { memDel } from "@/lib/mem-cache";
 import { kvDel } from "@/lib/kv-store";
+import { errorMessage } from "@/lib/api-error";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
@@ -174,7 +175,7 @@ export async function POST(req: NextRequest) {
         await createSwPage(row, modifiedBy, modifiedAt);
         results.push({ index: i, user: row.user, sw: row.swCategory, ok: true });
       } catch (e) {
-        results.push({ index: i, user: row.user, sw: row.swCategory, ok: false, error: String(e) });
+        results.push({ index: i, user: row.user, sw: row.swCategory, ok: false, error: errorMessage(e) });
       }
       // Notion API rate limit 방지 (3 req/sec)
       if (i < rows.length - 1) await new Promise(r => setTimeout(r, 350));
@@ -191,6 +192,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, success, failed, results });
   } catch (e) {
     console.error("[API /sw/upload]", e);
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }

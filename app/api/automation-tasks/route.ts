@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchAutomationTasks, updateAutomationTask, deleteAutomationTask } from "@/lib/notion";
+import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,7 @@ export async function GET() {
     const tasks = await fetchAutomationTasks();
     return NextResponse.json({ ok: true, tasks });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: String(e), tasks: [] }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e), tasks: [] }, { status: 500 });
   }
 }
 
@@ -26,7 +27,7 @@ export async function PATCH(req: NextRequest) {
     await updateAutomationTask(id, { status, assignee });
     return NextResponse.json({ ok: true });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }
 
@@ -38,6 +39,6 @@ export async function DELETE(req: NextRequest) {
     await deleteAutomationTask(id);
     return NextResponse.json({ ok: true });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
+import { errorMessage } from "@/lib/api-error";
 
 const KV_KEY = "label-print-queue";
 
@@ -20,7 +21,7 @@ export async function GET() {
     const items = (await kvGet<PrintQueueItem[]>(KV_KEY)) ?? [];
     return NextResponse.json({ ok: true, items });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }
 
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
     await kvSetPermanent(KV_KEY, [...existing, item]);
     return NextResponse.json({ ok: true });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }
 
@@ -46,6 +47,6 @@ export async function DELETE(req: NextRequest) {
     await kvSetPermanent(KV_KEY, id ? existing.filter(i => i.id !== id) : []);
     return NextResponse.json({ ok: true });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }

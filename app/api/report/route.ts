@@ -3,6 +3,7 @@ import { mapCategory } from "@/lib/reportTypes";
 import type { SubRow, DeptSummary, ReportData } from "@/lib/reportTypes";
 import { kvGet, kvSet } from "@/lib/kv-store";
 import type { SwDbRecord } from "@/types";
+import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
 
@@ -123,6 +124,6 @@ export async function GET(req: Request) {
       headers: { "Cache-Control": "s-maxage=60, stale-while-revalidate=30" },
     });
   } catch (e: unknown) {
-    return Response.json({ ok: false, error: String(e) }, { status: 500 });
+    return Response.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }

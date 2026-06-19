@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSwItems, saveSwItems, appendAuditLog } from "@/lib/portal-store";
 import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
 import type { SwItem } from "@/types";
+import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,7 @@ export async function GET() {
     return NextResponse.json({ data, lastSynced: new Date().toISOString() });
   } catch (error) {
     console.error("[API /sw-db]", error);
-    return NextResponse.json({ data: [], error: String(error) }, { status: 500 });
+    return NextResponse.json({ data: [], error: errorMessage(error) }, { status: 500 });
   }
 }
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchHelpDeskTickets } from "@/lib/notion";
 import { kvGet, kvSet } from "@/lib/kv-store";
+import { errorMessage } from "@/lib/api-error";
 
 /**
  * GET /api/cron/send-feedback
@@ -94,6 +95,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (e) {
     console.error("[cron/send-feedback]", e);
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    return NextResponse.json({ error: errorMessage(e) }, { status: 500 });
   }
 }

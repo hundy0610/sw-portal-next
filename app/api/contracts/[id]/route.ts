@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updateContract, updateContractStage, deleteContract } from "@/lib/contract-notion";
 import type { ContractStage } from "@/types/contract";
+import { errorMessage } from "@/lib/api-error";
 
 // PUT /api/contracts/[id]  (multipart/form-data)
 export async function PUT(
@@ -37,7 +38,7 @@ export async function PUT(
     return NextResponse.json({ ok: true, contract });
   } catch (e) {
     console.error("[contracts PUT]", e);
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }
 
@@ -53,7 +54,7 @@ export async function PATCH(
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[contracts PATCH]", e);
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }
 
@@ -67,6 +68,6 @@ export async function DELETE(
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[contracts DELETE]", e);
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }

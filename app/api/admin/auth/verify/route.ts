@@ -3,6 +3,7 @@ import { decodeSession } from "@/lib/session";
 import { verifyPassword } from "@/lib/crypto";
 import { kvGet } from "@/lib/kv-store";
 import type { Account } from "@/app/api/admin/accounts/route";
+import { errorMessage } from "@/lib/api-error";
 
 const ACCOUNTS_KEY   = "sw:accounts";
 const SUPER_ADMIN_ID = process.env.SUPER_ADMIN_ID ?? "admin";
@@ -38,6 +39,6 @@ export async function POST(request: NextRequest) {
     const ok = verifyPassword(password, account.password);
     return NextResponse.json(ok ? { ok: true } : { ok: false, error: "비밀번호가 올바르지 않습니다" });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { fetchContracts, createContract } from "@/lib/contract-notion";
 import { kvDel } from "@/lib/kv-store";
 import type { ContractStage } from "@/types/contract";
+import { errorMessage } from "@/lib/api-error";
 
 // DELETE /api/contracts  — KV 캐시 강제 무효화
 export async function DELETE() {
@@ -60,6 +61,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, contract });
   } catch (e) {
     console.error("[contracts POST]", e);
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }
