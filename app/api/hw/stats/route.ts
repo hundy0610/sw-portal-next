@@ -4,11 +4,17 @@ import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import type { HwStats } from "@/lib/hw";
 import { triggerWarmHw } from "@/lib/trigger-warm-hw";
 import { errorMessage } from "@/lib/api-error";
+import { getSessionFromCookieHeader, companyScope } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  const company = new URL(req.url).searchParams.get("company")?.trim() || "";
+  const session = getSessionFromCookieHeader(req.headers.get("cookie"));
+  if (!session) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+  const scope = companyScope(session);
+  const company = scope ?? (new URL(req.url).searchParams.get("company")?.trim() || "");
 
   try {
     // 법인 필터가 있으면 전체 캐시에서 레코드를 가져와 필터 후 통계 계산

@@ -526,11 +526,9 @@ export function LabelPrintTab({
 // ─────────────────────────────────────────────────────────────────────────────
 export function PrintQueueSection({
   senderInfo,
-  onAdvanceStages,
   onQueueChange,
 }: {
   senderInfo: string;
-  onAdvanceStages: (ids: string[]) => Promise<void>;
   onQueueChange?: (ids: string[]) => void;
 }) {
   const [items, setItems] = useState<PrintQueueItem[]>([]);
@@ -598,8 +596,7 @@ export function PrintQueueSection({
         body: JSON.stringify(record),
       }).catch(() => {});
 
-      // 단계 진행 + 큐 제거
-      await onAdvanceStages(selected);
+      // 큐 제거
       await Promise.all(selected.map(id =>
         fetch(`/api/print-queue?id=${encodeURIComponent(id)}`, { method: "DELETE" }).catch(() => {})
       ));

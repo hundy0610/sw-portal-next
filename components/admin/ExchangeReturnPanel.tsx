@@ -3117,58 +3117,6 @@ export default function ExchangeReturnPanel() {
     }
   }, []);
 
-  const handleAdvanceToReceipt = useCallback(async (ids: string[]) => {
-    const today = new Date();
-    const returnDue = new Date(today.setDate(today.getDate() + 7)).toISOString().slice(0, 10);
-    const isRealAsset = (id: string) => !!id && id !== "신규구매로안내됨";
-    const findRecord = (res: { records: { id: string; assetNo: string }[] }, assetNo: string) =>
-      res.records.find(r => r.assetNo === assetNo) ?? (res.records.length === 1 ? res.records[0] : null);
-
-    await Promise.all(ids.map(async id => {
-      const record = records.find(r => r.id === id);
-      if (!record) return;
-
-      const isNewIssue = record.type === "신규지급";
-      const { assetId: oldAssetId, newAssetId } = record;
-
-      // HW DB 조회 (신규지급이면 기존 자산 조회 생략)
-      const [oldRes, newRes] = await Promise.all([
-        isRealAsset(oldAssetId) && !isNewIssue
-          ? fetch(`/api/hw?search=${encodeURIComponent(oldAssetId)}`).then(r => r.json())
-          : Promise.resolve({ records: [] }),
-        isRealAsset(newAssetId)
-          ? fetch(`/api/hw?search=${encodeURIComponent(newAssetId)}`).then(r => r.json())
-          : Promise.resolve({ records: [] }),
-      ]);
-
-      const oldHwRecord = findRecord(oldRes, oldAssetId);
-      const newHwRecord = findRecord(newRes, newAssetId);
-
-      const updates: Promise<unknown>[] = [
-        fetch("/api/exchange-return/update", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id, fields: { stage: "사용자수령", returnDue } }),
-        }),
-      ];
-      if (!isNewIssue && oldHwRecord) updates.push(
-        fetch("/api/hw/update", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: oldHwRecord.id, fields: { status: "반납예정", returnDue } }),
-        })
-      );
-      if (newHwRecord) updates.push(
-        fetch("/api/hw/update", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: newHwRecord.id, fields: { status: "사용중" } }),
-        })
-      );
-
-      await Promise.all(updates);
-      handleUpdated(id, { stage: "사용자수령", returnDue });
-    }));
-    setQueuedIds(prev => { const next = new Set(prev); ids.forEach(id => next.delete(id)); return next; });
-  }, [records, handleUpdated]);
-
   const handleDeleted = useCallback((id: string) => {
     setRecords(prev => prev.filter(r => r.id !== id));
     setSelected(prev => prev?.id === id ? null : prev);
@@ -3369,7 +3317,6 @@ export default function ExchangeReturnPanel() {
         <div className="space-y-0">
           <PrintQueueSection
             senderInfo={labelSenderInfo}
-            onAdvanceStages={handleAdvanceToReceipt}
             onQueueChange={ids => setQueuedIds(new Set(ids))}
           />
           <LabelPrintTab records={hwRecords} recordsReady={hwRecordsReady} onLoadRecords={loadHwRecords} />

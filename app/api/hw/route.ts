@@ -3,14 +3,22 @@ import { type HwRecord, fetchHwFiltered } from "@/lib/hw";
 import { kvGet } from "@/lib/kv-store";
 import { triggerWarmHw } from "@/lib/trigger-warm-hw";
 import { errorMessage } from "@/lib/api-error";
+import { getSessionFromCookieHeader, companyScope } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   if (!process.env.NOTION_TOKEN) return NextResponse.json({ missingEnv: "NOTION_TOKEN", error: "환경변수 NOTION_TOKEN 이 설정되지 않았습니다." }, { status: 503 });
+
+  const session = getSessionFromCookieHeader(req.headers.get("cookie"));
+  if (!session) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+  const scope = companyScope(session);
+
   const { searchParams } = new URL(req.url);
   const search    = searchParams.get("search")?.trim()    || "";
-  const company   = searchParams.get("company")?.trim()   || "";
+  const company   = scope ?? (searchParams.get("company")?.trim() || "");
   const status    = searchParams.get("status")?.trim()    || "";
   const location  = searchParams.get("location")?.trim()  || "";
   const assetNo   = searchParams.get("assetNo")?.trim()   || "";

@@ -3,6 +3,7 @@ import { fetchSwDatabase } from "@/lib/notion";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { memGet, memSet } from "@/lib/mem-cache";
 import type { SwDbRecord } from "@/types";
+import { getSessionFromCookieHeader, companyScope } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -10,9 +11,15 @@ export async function GET(request: NextRequest) {
   for (const v of ["NOTION_TOKEN", "NOTION_DB_SW_UNIFIED"]) {
     if (!process.env[v]) return NextResponse.json({ missingEnv: v, error: `환경변수 ${v} 가 설정되지 않았습니다.` }, { status: 503 });
   }
+  const session = getSessionFromCookieHeader(request.headers.get("cookie"));
+  if (!session) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+  const scope = companyScope(session);
+
   try {
     const { searchParams } = new URL(request.url);
-    const filterCompany = searchParams.get("company")?.trim() || "";
+    const filterCompany = scope ?? (searchParams.get("company")?.trim() || "");
 
     // 1. 인메모리 캐시 (0ms)
     let data = memGet<SwDbRecord[]>("sw:all");

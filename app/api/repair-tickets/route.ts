@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchRepairTickets, createRepairTicket } from "@/lib/notion";
-import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
+import { getSessionFromCookieHeader, resolveCurrentName, companyScope } from "@/lib/session";
 import { createMailTransporter, buildMonitorRepairEmail } from "@/lib/mail";
 import type { RepairTicket } from "@/types";
 
@@ -10,7 +10,12 @@ export async function GET(req: NextRequest) {
   for (const v of ["NOTION_TOKEN", "NOTION_DB_REPAIR_TICKETS"]) {
     if (!process.env[v]) return NextResponse.json({ missingEnv: v, error: `환경변수 ${v} 가 설정되지 않았습니다.` }, { status: 503 });
   }
-  const company = new URL(req.url).searchParams.get("company")?.trim() || "";
+  const session = getSessionFromCookieHeader(req.headers.get("cookie"));
+  if (!session) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+  const scope = companyScope(session);
+  const company = scope ?? (new URL(req.url).searchParams.get("company")?.trim() || "");
   try {
     const all = await fetchRepairTickets();
     const data = company ? all.filter((t: RepairTicket) => t.company === company) : all;

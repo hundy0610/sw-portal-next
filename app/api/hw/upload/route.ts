@@ -3,7 +3,7 @@ import { Client } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
 import { computeHwStats, type HwRecord } from "@/lib/hw";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
-import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
+import { getSessionFromCookieHeader, resolveCurrentName, companyScope } from "@/lib/session";
 import { errorMessage } from "@/lib/api-error";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
@@ -200,6 +200,10 @@ export async function POST(req: NextRequest) {
     const session = getSessionFromCookieHeader(req.headers.get("cookie"));
     if (!session) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
+    const scope = companyScope(session);
+    if (scope && rows.some(r => (r.company || "").trim() !== scope)) {
+      return NextResponse.json({ ok: false, error: "본인 법인 데이터만 등록할 수 있습니다." }, { status: 403 });
     }
     const modifiedBy = `${await resolveCurrentName(session)} (${session.userId})`;
     const modifiedAt = new Date().toISOString();

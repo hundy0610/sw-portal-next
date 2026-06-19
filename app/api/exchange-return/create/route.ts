@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createExchangeReturn, type CreateFields } from "@/lib/exchange-return";
 import { memGet, memDel } from "@/lib/mem-cache";
-import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
+import { getSessionFromCookieHeader, resolveCurrentName, companyScope } from "@/lib/session";
 import type { ExchangeReturnRecord } from "@/types";
 import { errorMessage } from "@/lib/api-error";
 
@@ -38,6 +38,10 @@ export async function POST(req: NextRequest) {
     const session = getSessionFromCookieHeader(req.headers.get("cookie"));
     if (!session) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
+    const scope = companyScope(session);
+    if (scope && (body.company || "").trim() !== scope) {
+      return NextResponse.json({ ok: false, error: "본인 법인 데이터만 등록할 수 있습니다." }, { status: 403 });
     }
     const lastModifiedBy = `${await resolveCurrentName(session)} (${session.userId})`;
 

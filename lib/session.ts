@@ -66,6 +66,12 @@ export async function resolveCurrentName(session: AdminSession): Promise<string>
   }
 }
 
+// super는 전체 법인 접근, 그 외(company/general)는 자기 법인으로 범위 제한
+// null = 제한 없음(super), string = 이 법인으로만 제한
+export function companyScope(session: AdminSession): string | null {
+  return session.role === "super" ? null : session.company;
+}
+
 export function getSessionFromCookieHeader(cookieHeader: string | null): AdminSession | null {
   if (!cookieHeader) return null;
 

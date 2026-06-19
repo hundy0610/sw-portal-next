@@ -3,13 +3,20 @@ import { fetchLicenseRecords } from "@/lib/notion";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { memGet, memSet } from "@/lib/mem-cache";
 import type { LicenseRecord } from "@/types";
+import { getSessionFromCookieHeader, companyScope } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
+  const session = getSessionFromCookieHeader(request.headers.get("cookie"));
+  if (!session) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+  const scope = companyScope(session);
+
   try {
     const { searchParams } = new URL(request.url);
-    const company = searchParams.get("company")?.trim() || "";
+    const company = scope ?? (searchParams.get("company")?.trim() || "");
 
     // 1. 인메모리 캐시 (0ms)
     let data = memGet<LicenseRecord[]>("licenses:all");
@@ -32,8 +39,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       data: result,
       lastSynced: new Date().toISOString(),
-    }, {
-      headers: { "Cache-Control": "s-maxage=300, stale-while-revalidate=60" },
     });
   } catch (error) {
     console.error("[API /licenses]", error);

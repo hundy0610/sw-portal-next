@@ -4,12 +4,26 @@ import { computeHwStats, type HwRecord } from "@/lib/hw";
 import { kvGet, kvSet, kvSetPermanent } from "@/lib/kv-store";
 import { memDel } from "@/lib/mem-cache";
 import { autoCompleteReturnsByAssetId, autoSyncUseDateByAssetId } from "@/lib/exchange-return";
-import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
+import { getSessionFromCookieHeader, resolveCurrentName, companyScope } from "@/lib/session";
 import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
+
+// 캐시 우선 조회, 미스 시 Notion 직접 조회 (법인 범위 검증용)
+async function getRecordCompany(id: string): Promise<string | null> {
+  const all = await kvGet<HwRecord[]>("hw:all");
+  const cached = all?.find(r => r.id === id);
+  if (cached) return cached.company;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const page: any = await notion.pages.retrieve({ page_id: id });
+    return page.properties?.["법인명"]?.select?.name ?? "";
+  } catch {
+    return null;
+  }
+}
 
 // HwRecord 필드 → Notion 프로퍼티 매핑
 type FieldMap = Record<string, unknown>;
@@ -67,6 +81,10 @@ export async function POST(req: NextRequest) {
     const session = getSessionFromCookieHeader(req.headers.get("cookie"));
     if (!session) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
+    const scope = companyScope(session);
+    if (scope && (await getRecordCompany(id)) !== scope) {
+      return NextResponse.json({ ok: false, error: "본인 법인 데이터만 수정할 수 있습니다." }, { status: 403 });
     }
     const modifiedBy = `${await resolveCurrentName(session)} (${session.userId})`;
     const modifiedAt = new Date().toISOString();

@@ -4,16 +4,22 @@ import type { SubRow, DeptSummary, ReportData } from "@/lib/reportTypes";
 import { kvGet, kvSet } from "@/lib/kv-store";
 import type { SwDbRecord } from "@/types";
 import { errorMessage } from "@/lib/api-error";
+import { getSessionFromCookieHeader, companyScope } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   for (const v of ["NOTION_TOKEN", "NOTION_DB_SW_UNIFIED"]) {
-    if (!process.env[v]) return NextResponse.json({ missingEnv: v, error: `환경변수 ${v} 가 설정되지 않았습니다.` }, { status: 503 });
+    if (!process.env[v]) return Response.json({ missingEnv: v, error: `환경변수 ${v} 가 설정되지 않았습니다.` }, { status: 503 });
   }
+  const session = getSessionFromCookieHeader(req.headers.get("cookie"));
+  if (!session) {
+    return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+  const scope = companyScope(session);
   try {
     const { searchParams } = new URL(req.url);
-    const filterCompany = searchParams.get("company")?.trim() || "";
+    const filterCompany = scope ?? (searchParams.get("company")?.trim() || "");
 
     // ✅ KV에서 즉시 읽기 (sw:all 키 공유 - sw-records API와 동일 데이터)
     let allRecords = await kvGet<SwDbRecord[]>("sw:all");
@@ -120,9 +126,7 @@ export async function GET(req: Request) {
       generatedAt: new Date().toISOString(),
     };
 
-    return Response.json({ ok: true, data }, {
-      headers: { "Cache-Control": "s-maxage=60, stale-while-revalidate=30" },
-    });
+    return Response.json({ ok: true, data });
   } catch (e: unknown) {
     return Response.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
