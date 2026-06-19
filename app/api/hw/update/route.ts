@@ -30,7 +30,6 @@ function buildProperties(fields: FieldMap) {
 
   if (fields.status      !== undefined) sel("사용/재고/폐기/기타",  String(fields.status));
   if (fields.company     !== undefined) sel("법인명",                String(fields.company));
-  if (fields.maker       !== undefined) sel("제조사",                String(fields.maker));
 
   if (fields.user        !== undefined) txt("사용자",       String(fields.user),  true);
   if (fields.assetNo     !== undefined) txt("자산번호",     String(fields.assetNo));
@@ -38,7 +37,6 @@ function buildProperties(fields: FieldMap) {
   if (fields.dept        !== undefined) txt("부서",         String(fields.dept));
   if (fields.location    !== undefined) txt("위치",         String(fields.location));
   if (fields.note        !== undefined) txt("기타",         String(fields.note));
-  if (fields.docNo       !== undefined) txt("결재문서번호",  String(fields.docNo));
 
   if (fields.returnDue   !== undefined) dt("반납예정일", String(fields.returnDue  ?? ""));
   if (fields.returnDate  !== undefined) dt("반납일자",   String(fields.returnDate ?? ""));
