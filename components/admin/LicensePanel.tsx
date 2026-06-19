@@ -720,6 +720,17 @@ interface SwManualAddProps {
   billingTypeOptions: string[];
 }
 
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-gray-600 mb-1">
+        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
+      </label>
+      {children}
+    </div>
+  );
+}
+
 function SwManualAdd({ onClose, onSuccess, swCategoryOptions, versionOptions, companyOptions, accountTypeOptions, workTypeOptions, billingTypeOptions }: SwManualAddProps) {
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [selectedVersions, setSelectedVersions] = useState<string[]>([]);
@@ -768,15 +779,6 @@ function SwManualAdd({ onClose, onSuccess, swCategoryOptions, versionOptions, co
       setSubmitStatus("");
     }
   }
-
-  const Field = ({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) => (
-    <div>
-      <label className="block text-xs font-semibold text-gray-600 mb-1">
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
-      {children}
-    </div>
-  );
 
   const inputCls = "w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300";
   const selectCls = inputCls + " bg-white";
