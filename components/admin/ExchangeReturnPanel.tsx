@@ -3615,8 +3615,8 @@ export default function ExchangeReturnPanel() {
                   </td>
                   {/* 메모 */}
                   <td className="text-xs text-gray-500 max-w-[160px] truncate" title={r.note || ""}>{r.note || "—"}</td>
-                  {/* 출고예정일 */}
-                  <td className="text-xs text-gray-500 whitespace-nowrap">{r.completedAt ? fmtDate(r.completedAt) : "—"}</td>
+                  {/* 사용일자 */}
+                  <td className="text-xs text-gray-500 whitespace-nowrap">{r.useDate ? fmtDate(r.useDate) : "—"}</td>
                   {/* 최종수정 */}
                   <td className="text-[11px] whitespace-nowrap">
                     {r.lastModifiedBy ? (
@@ -3668,7 +3668,7 @@ export default function ExchangeReturnPanel() {
           recordId={pickerTarget.id}
           onClose={() => setPickerTarget(null)}
           onPicked={(assetNo, extras) => {
-            handleUpdated(pickerTarget.id, { newAssetId: assetNo, stage: "기기준비", ...(extras.note ? { note: extras.note } : {}), completedAt: extras.completedAt });
+            handleUpdated(pickerTarget.id, { newAssetId: assetNo, stage: "기기준비", ...(extras.note ? { note: extras.note } : {}), useDate: extras.useDate });
             setPickerTarget(null);
           }}
           onNewPurchase={() => {
