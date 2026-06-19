@@ -128,9 +128,9 @@ async function createSwPage(row: SwUploadRow, modifiedBy: string, modifiedAt: st
       ...(row.monthlyUsd > 0 ? {
         "월 비용 (USD)": { number: row.monthlyUsd },
       } : {}),
-      // 파일과 미디어 (증서) ─────────────────
+      // 증서 파일 ─────────────────
       ...(row.certificateFileUploadId ? {
-        "파일과 미디어": {
+        "증서": {
           files: [{ type: "file_upload", file_upload: { id: row.certificateFileUploadId } }],
         },
       } : {}),
