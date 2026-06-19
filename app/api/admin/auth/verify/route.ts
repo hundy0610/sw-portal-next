@@ -6,7 +6,7 @@ import type { Account } from "@/app/api/admin/accounts/route";
 
 const ACCOUNTS_KEY   = "sw:accounts";
 const SUPER_ADMIN_ID = process.env.SUPER_ADMIN_ID ?? "admin";
-const SUPER_ADMIN_PW = process.env.SUPER_ADMIN_PW ?? "3589";
+const SUPER_ADMIN_PW = process.env.SUPER_ADMIN_PW;
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
 
   // ENV 슈퍼어드민 — 평문 비교
   if (userId === SUPER_ADMIN_ID) {
-    const ok = password === SUPER_ADMIN_PW;
+    const ok = !!SUPER_ADMIN_PW && password === SUPER_ADMIN_PW;
     return NextResponse.json(ok ? { ok: true } : { ok: false, error: "비밀번호가 올바르지 않습니다" });
   }
 
