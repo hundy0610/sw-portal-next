@@ -1358,7 +1358,7 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) throw new Error(json.error ?? "삭제 실패");
       if (json.failed > 0) setDeleteError(`${json.failed}건 삭제 실패`);
       const next = records.filter(r => !ids.includes(r.id));
@@ -1372,24 +1372,19 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
     }
   }, [company, records]);
 
-  // 강제 갱신: 서버 KV 재워밍 후 최신 데이터 수신
+  // 강제 갱신: Notion → KV → 메모리 재워밍 후 필터된 데이터 즉시 반환 (1회 요청)
   const handleForceRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
       lcDel(LC_KEY(company));
-      const res  = await fetch("/api/sw-records", { method: "POST" });
-      const json = await res.json();
-      if (json.ok && json.count) {
-        // POST가 성공했으면 GET으로 최신 데이터 가져오기
-        const url = company ? `/api/sw-records?company=${encodeURIComponent(company)}` : "/api/sw-records";
-        const r2 = await fetch(url);
-        const d2 = await r2.json();
-        if (!d2.missingEnv) {
-          setRecords(d2.data ?? []);
-          setLastSynced(d2.lastSynced ?? "");
-          setFromCache(false);
-          lcSet(LC_KEY(company), d2.data ?? []);
-        }
+      const url = company ? `/api/sw-records?company=${encodeURIComponent(company)}` : "/api/sw-records";
+      const res  = await fetch(url, { method: "POST" });
+      const json = await safeJson(res);
+      if (json.ok && json.data) {
+        setRecords(json.data ?? []);
+        setLastSynced(json.lastSynced ?? "");
+        setFromCache(false);
+        lcSet(LC_KEY(company), json.data ?? []);
       }
     } catch { /* ignore */ } finally {
       setRefreshing(false);

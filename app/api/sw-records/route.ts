@@ -58,16 +58,23 @@ export async function GET(request: NextRequest) {
 }
 
 // POST: 수동 캐시 강제 갱신 — UI "새로고침" 버튼에서 호출
+// Notion에서 최신 데이터를 가져와 KV/메모리 갱신 후, 필터된 데이터 즉시 반환
 export async function POST(request: NextRequest) {
   const session = getSessionFromCookieHeader(request.headers.get("cookie"));
   if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
+  const scope = companyScope(session);
   try {
     memDel("sw:all");
     const data = await fetchSwDatabase();
     await kvSetPermanent("sw:all", compactSwRecords(data));
     memSet("sw:all", data, 600);
-    return NextResponse.json({ ok: true, count: data.length, refreshedAt: new Date().toISOString() });
+
+    const { searchParams } = new URL(request.url);
+    const filterCompany = scope ?? (searchParams.get("company")?.trim() || "");
+    const result = filterCompany ? data.filter(r => r.company === filterCompany) : data;
+
+    return NextResponse.json({ ok: true, data: result, count: data.length, lastSynced: new Date().toISOString() });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message }, { status: 500 });
   }
