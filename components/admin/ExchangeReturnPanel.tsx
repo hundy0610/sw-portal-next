@@ -10,16 +10,16 @@ import { LabelPrintTab, PrintQueueSection } from "@/components/admin/LabelPrintT
 const STAGES = ["교체요청", "요청기안", "기기준비", "기기준비완료", "사용자수령", "반납요청", "반납완료"] as const;
 type Stage = typeof STAGES[number];
 
-// 퇴사반납은 반납요청부터 시작, 신규지급은 사용자수령이 최종
+// 퇴사반납은 반납요청부터 시작, 신규지급은 사용자수령이 최종, 임대는 요청기안 없이 기기준비부터 시작 + 반납 추적
 const STAGES_BY_TYPE: Record<string, readonly Stage[]> = {
   "교체":     STAGES,
   "퇴사반납": ["반납요청", "반납완료"],
   "신규지급": ["요청기안", "기기준비", "기기준비완료", "사용자수령"],
-  "수리":     ["기기준비완료", "사용자수령"],
+  "임대":     ["기기준비", "기기준비완료", "사용자수령", "반납요청", "반납완료"],
 };
 const FINAL_STAGE: Stage = "반납완료";
 
-const RECORD_TYPES = ["교체", "퇴사반납", "신규지급", "수리"] as const;
+const RECORD_TYPES = ["교체", "퇴사반납", "신규지급", "임대"] as const;
 
 const DELIVERY_LOCATIONS = [
   "본사", "용인(연구소)", "향남", "마곡", "바이오센터", "바이오3공장",
@@ -51,7 +51,7 @@ const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
   "교체":     { bg: "#EFF6FF", text: "#1D4ED8" },
   "퇴사반납": { bg: "#FEF2F2", text: "#B91C1C" },
   "신규지급": { bg: "#F0FDF4", text: "#15803D" },
-  "수리":     { bg: "#FFF7ED", text: "#C2410C" },
+  "임대":     { bg: "#FFF7ED", text: "#C2410C" },
 };
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -508,7 +508,8 @@ function ReceiptConfirmModal({
   onClose: () => void;
   onConfirmed: (returnDue: string) => void;
 }) {
-  const isNewIssue = recordType === "신규지급" || recordType === "수리";
+  const isNewIssue = recordType === "신규지급";
+  const isRental   = recordType === "임대";
   const defaultDue = (() => {
     const d = new Date();
     d.setDate(d.getDate() + 7);
@@ -524,18 +525,23 @@ function ReceiptConfirmModal({
     try {
       const isRealAsset = (id: string) => !!id && id !== "신규구매로안내됨";
 
-      const [oldRes, newRes] = await Promise.all([
-        isRealAsset(oldAssetId) ? fetch(`/api/hw?search=${encodeURIComponent(oldAssetId)}`).then(r => r.json()) : Promise.resolve({ records: [] }),
-        isRealAsset(newAssetId) ? fetch(`/api/hw?search=${encodeURIComponent(newAssetId)}`).then(r => r.json()) : Promise.resolve({ records: [] }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const find = (list: any[], assetNo: string) =>
+        list.find((r: any) => r.assetNo === assetNo) ?? (list.length === 1 ? list[0] : null);
+
+      const [oldList, newList] = await Promise.all([
+        isRealAsset(oldAssetId)
+          ? isRental
+            ? fetch("/api/rental-hw").then(r => r.json()).then(j => j.data ?? [])
+            : fetch(`/api/hw?search=${encodeURIComponent(oldAssetId)}`).then(r => r.json()).then(j => j.records ?? [])
+          : Promise.resolve([]),
+        isRealAsset(newAssetId)
+          ? fetch(`/api/hw?search=${encodeURIComponent(newAssetId)}`).then(r => r.json()).then(j => j.records ?? [])
+          : Promise.resolve([]),
       ]);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const find = (res: any, assetNo: string) =>
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (res.records as any[]).find((r: any) => r.assetNo === assetNo) ?? (res.records.length === 1 ? res.records[0] : null);
-
-      const oldRecord = isRealAsset(oldAssetId) ? find(oldRes, oldAssetId) : null;
-      const newRecord = isRealAsset(newAssetId) ? find(newRes, newAssetId) : null;
+      const oldRecord = isRealAsset(oldAssetId) ? find(oldList, oldAssetId) : null;
+      const newRecord = isRealAsset(newAssetId) ? find(newList, newAssetId) : null;
 
       const stageFields = isNewIssue
         ? { stage: "사용자수령" }
@@ -549,11 +555,17 @@ function ReceiptConfirmModal({
         }),
       ];
       if (!isNewIssue && oldRecord) updates.push(
-        fetch("/api/hw/update", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: oldRecord.id, fields: recordType === "수리" ? { status: "사용중" } : { status: "반납예정", returnDue } }),
-        })
+        isRental
+          ? fetch("/api/rental-hw/update", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: oldRecord.id, fields: { startDate: new Date().toISOString().slice(0, 10), returnDue } }),
+            })
+          : fetch("/api/hw/update", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: oldRecord.id, fields: { status: "반납예정", returnDue } }),
+            })
       );
       if (newRecord) updates.push(
         fetch("/api/hw/update", {
@@ -589,7 +601,11 @@ function ReceiptConfirmModal({
             <p className="font-semibold text-orange-800 text-sm">수령 확정 시 자동 적용 사항</p>
             <ul className="space-y-1 list-disc list-inside text-xs text-orange-700">
               {newAssetId && newAssetId !== "신규구매로안내됨" && <li>교체 자산 <strong className="font-mono">{newAssetId}</strong> → HW DB 상태: <strong>사용중</strong></li>}
-              {!isNewIssue && oldAssetId && <li>기존 자산 <strong className="font-mono">{oldAssetId}</strong> → HW DB 상태: <strong>반납예정</strong></li>}
+              {!isNewIssue && oldAssetId && (
+                isRental
+                  ? <li>임대 자산 <strong className="font-mono">{oldAssetId}</strong> → 임대노트북현황관리 DB 사용시작일/반납예정일 갱신</li>
+                  : <li>기존 자산 <strong className="font-mono">{oldAssetId}</strong> → HW DB 상태: <strong>반납예정</strong></li>
+              )}
               <li>트래커 단계 → <strong>사용자수령</strong></li>
               {!isNewIssue && <li>반납예정일 자동 설정</li>}
             </ul>
@@ -624,13 +640,15 @@ function ReceiptConfirmModal({
 
 // ── 반납 완료 확정 모달 ──────────────────────────────────────
 function ReturnCompleteModal({
-  recordId, assetId, onClose, onConfirmed,
+  recordId, assetId, recordType, onClose, onConfirmed,
 }: {
   recordId: string;
   assetId: string;
+  recordType: string;
   onClose: () => void;
   onConfirmed: () => void;
 }) {
+  const isRental = recordType === "임대";
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<ReturnStatus>("재고");
@@ -640,13 +658,20 @@ function ReturnCompleteModal({
     setSaving(true);
     setError(null);
     try {
-      let hwPageId: string | null = null;
+      let assetPageId: string | null = null;
       if (assetId) {
-        const res = await fetch(`/api/hw?search=${encodeURIComponent(assetId)}`).then(r => r.json());
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const found = (res.records as any[]).find((r: any) => r.assetNo === assetId) ??
-          (res.records.length === 1 ? res.records[0] : null);
-        hwPageId = found?.id ?? null;
+        if (isRental) {
+          const res = await fetch("/api/rental-hw").then(r => r.json());
+          const list: { id: string; assetNo: string }[] = res.data ?? [];
+          const found = list.find(r => r.assetNo === assetId) ?? (list.length === 1 ? list[0] : null);
+          assetPageId = found?.id ?? null;
+        } else {
+          const res = await fetch(`/api/hw?search=${encodeURIComponent(assetId)}`).then(r => r.json());
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const found = (res.records as any[]).find((r: any) => r.assetNo === assetId) ??
+            (res.records.length === 1 ? res.records[0] : null);
+          assetPageId = found?.id ?? null;
+        }
       }
 
       const updates: Promise<unknown>[] = [
@@ -656,12 +681,18 @@ function ReturnCompleteModal({
           body: JSON.stringify({ id: recordId, fields: { stage: "반납완료", completedAt: returnDate } }),
         }),
       ];
-      if (hwPageId) updates.push(
-        fetch("/api/hw/update", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: hwPageId, fields: { status: selectedStatus, returnDate, returnDue: "" } }),
-        })
+      if (assetPageId) updates.push(
+        isRental
+          ? fetch("/api/rental-hw/update", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: assetPageId, fields: { inStock: true, returnDue: "" } }),
+            })
+          : fetch("/api/hw/update", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: assetPageId, fields: { status: selectedStatus, returnDate, returnDue: "" } }),
+            })
       );
 
       await Promise.all(updates);
@@ -686,7 +717,7 @@ function ReturnCompleteModal({
         </div>
 
         <div className="px-6 py-5 space-y-4">
-          {assetId && (
+          {assetId && !isRental && (
             <div>
               <p className="text-xs text-gray-500 font-medium mb-2">반납 후 자산 상태</p>
               <div className="flex flex-wrap gap-2">
@@ -711,7 +742,11 @@ function ReturnCompleteModal({
           <div className="bg-green-50 rounded-xl p-4 space-y-2">
             <p className="font-semibold text-green-800 text-sm">완료 처리 시 자동 적용 사항</p>
             <ul className="space-y-1 list-disc list-inside text-xs text-green-700">
-              {assetId && <li>기존 자산 <strong className="font-mono">{assetId}</strong> → HW DB 상태: <strong>{selectedStatus}</strong></li>}
+              {assetId && (
+                isRental
+                  ? <li>임대 자산 <strong className="font-mono">{assetId}</strong> → 임대노트북현황관리 DB: <strong>재고</strong></li>
+                  : <li>기존 자산 <strong className="font-mono">{assetId}</strong> → HW DB 상태: <strong>{selectedStatus}</strong></li>
+              )}
               {assetId && <li>반납예정일 → 삭제</li>}
               <li>트래커 단계 → <strong>반납완료</strong></li>
               <li>반납일자 → <strong>{returnDate}</strong></li>
@@ -1524,6 +1559,7 @@ function DetailModal({
             <ReturnCompleteModal
               recordId={record.id}
               assetId={record.assetId || ""}
+              recordType={record.type || ""}
               onClose={() => setReturnCompleteOpen(false)}
               onConfirmed={() => {
                 const today = new Date().toISOString().slice(0, 10);
@@ -1812,6 +1848,7 @@ const TYPE_META = [
   { type: "교체",     desc: "기존 기기를 새 기기로 교체",          color: "#1D4ED8", bg: "#EFF6FF" },
   { type: "퇴사반납", desc: "반납 등록",                           color: "#B91C1C", bg: "#FEF2F2" },
   { type: "신규지급", desc: "신규 입사 또는 재고 자산 지급",        color: "#15803D", bg: "#F0FDF4" },
+  { type: "임대",     desc: "임대노트북현황관리 DB 자산 지급",      color: "#C2410C", bg: "#FFF7ED" },
 ];
 
 function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onCreated: () => void; records: ExchangeReturnRecord[] }) {
@@ -1885,7 +1922,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // 교체/퇴사반납: 자산번호 자동채움 + exchange-return 중복 체크
+  // 교체/퇴사반납/임대: 자산번호 자동채움 + exchange-return 중복 체크
   useEffect(() => {
     if (phase !== "form") return;
     const id = form.assetId.trim();
@@ -1893,14 +1930,25 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
     const timer = setTimeout(async () => {
       setAutoFilling(true);
       try {
-        const res = await fetch(`/api/hw?search=${encodeURIComponent(id)}`);
-        const data = await res.json();
-        const hwRecs: { assetNo: string; user: string; dept: string; company: string }[] = data.records ?? [];
-        const found = hwRecs.find(r => r.assetNo === id) ?? (hwRecs.length === 1 ? hwRecs[0] : null);
-        if (found) {
-          setForm(p => ({ ...p, user: found.user || p.user, department: found.dept || p.department, company: found.company || p.company }));
-          setAutoFilled(true);
-        } else { setAutoFilled(false); }
+        if (form.type === "임대") {
+          const res = await fetch("/api/rental-hw");
+          const data = await res.json();
+          const rentalRecs: { assetNo: string; company: string; dept: string }[] = data.data ?? [];
+          const found = rentalRecs.find(r => r.assetNo === id) ?? (rentalRecs.length === 1 ? rentalRecs[0] : null);
+          if (found) {
+            setForm(p => ({ ...p, department: found.dept || p.department, company: found.company || p.company }));
+            setAutoFilled(true);
+          } else { setAutoFilled(false); }
+        } else {
+          const res = await fetch(`/api/hw?search=${encodeURIComponent(id)}`);
+          const data = await res.json();
+          const hwRecs: { assetNo: string; user: string; dept: string; company: string }[] = data.records ?? [];
+          const found = hwRecs.find(r => r.assetNo === id) ?? (hwRecs.length === 1 ? hwRecs[0] : null);
+          if (found) {
+            setForm(p => ({ ...p, user: found.user || p.user, department: found.dept || p.department, company: found.company || p.company }));
+            setAutoFilled(true);
+          } else { setAutoFilled(false); }
+        }
       } catch { /* 무시 */ } finally { setAutoFilling(false); }
 
       // exchange-return 중복 체크 (오픈 케이스만)
@@ -1909,7 +1957,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
       setDupDismissed(false);
     }, 600);
     return () => clearTimeout(timer);
-  }, [form.assetId, phase, records]);
+  }, [form.assetId, form.type, phase, records]);
 
   // 신규지급: 법인 변경 시 재고 로드
   useEffect(() => {
@@ -2298,8 +2346,18 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
                     </span>
                   )}
                   {!autoFilling && autoFilled && <span className="text-[10px] text-green-500">✓ 자동입력 완료</span>}
+                  {!autoFilling && !autoFilled && form.assetId.trim().length >= 4 && (
+                    <span className="text-[10px] text-amber-500">
+                      {form.type === "임대" ? "임대노트북현황관리 DB에 없는 번호" : "HW DB에 없는 번호"}
+                    </span>
+                  )}
                 </div>
-                <input className={inputCls} placeholder="예) DW-NB-0123" value={form.assetId} onChange={set("assetId")} autoFocus />
+                <input className={inputCls}
+                  placeholder={form.type === "임대" ? "임대노트북현황관리의 출고자산번호" : "예) DW-NB-0123"}
+                  value={form.assetId} onChange={set("assetId")} autoFocus />
+                {form.type === "임대" && (
+                  <p className="text-[11px] text-gray-400 mt-1">임대노트북현황관리에 이미 등록된 자산번호를 입력해야 사용자수령/반납 처리 시 해당 DB와 자동 연동됩니다.</p>
+                )}
               </div>
 
               {dupRecord && !dupDismissed && (
@@ -3643,6 +3701,7 @@ export default function ExchangeReturnPanel() {
         <ReturnCompleteModal
           recordId={returnCompleteTarget.id}
           assetId={returnCompleteTarget.assetId || ""}
+          recordType={returnCompleteTarget.type || ""}
           onClose={() => setReturnCompleteTarget(null)}
           onConfirmed={() => {
             handleUpdated(returnCompleteTarget.id, { stage: "반납완료", completedAt: new Date().toISOString().slice(0, 10) });
