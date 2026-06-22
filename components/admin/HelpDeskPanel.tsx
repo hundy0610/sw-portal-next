@@ -5,6 +5,7 @@ import type { HelpDeskTicket } from "@/lib/notion";
 import type { FeedbackEntry } from "@/app/api/feedback/route";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import { AssetModalInner, HwRecord, HW_STATUSES } from "@/components/admin/AssetModal";
+import { safeJson } from "@/lib/fetch-json";
 
 // ── Color configs ────────────────────────────────────────────
 const URGENCY: Record<string, { bg: string; text: string; bar: string }> = {
@@ -168,7 +169,7 @@ function InlineStatusCell({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: ticket.id, fields: { status: newStatus } }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) { onUpdated(ticket.id, { status: newStatus }); setResult("done"); }
       else setResult("error");
     } catch { setResult("error"); }
@@ -227,7 +228,7 @@ function InlineAssigneeCell({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: ticket.id, fields: updateFields }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) {
         onUpdated(ticket.id, { assignee: newName || undefined, assigneeId: found?.id ?? undefined });
         setResult("done");
@@ -419,7 +420,7 @@ function HelpDeskTicketFloating({
     if (!ticket.assetNo || assetState === "loading") return;
     setAssetState("loading");
     fetch(`/api/hw?search=${encodeURIComponent(ticket.assetNo)}`)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(json => {
         const match = (json.records as HwRecord[])?.find(
           r => r.assetNo.toLowerCase() === ticket.assetNo.toLowerCase()
@@ -439,7 +440,7 @@ function HelpDeskTicketFloating({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: assetData.id, fields: { status: assetStatus } }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) {
         setAssetData(prev => prev ? { ...prev, status: assetStatus } : prev); setAssetSaveResult("done");
         if (assetStatus === "교체요청" && assetData) {
@@ -467,7 +468,7 @@ function HelpDeskTicketFloating({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: ticket.id, fields: { actionNote: value } }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) {
         setNoteValue(value);
         setNoteSaveResult("done");
@@ -486,7 +487,7 @@ function HelpDeskTicketFloating({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: ticket.id, fields: { actionCategory: selectedCategories } }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) {
         setCategorySaveResult("done");
         onUpdated?.(ticket.id, { actionCategory: selectedCategories });
@@ -503,7 +504,7 @@ function HelpDeskTicketFloating({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: ticket.id, fields: { actionMethod: method } }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) {
         setMethodSaveResult("done");
         onUpdated?.(ticket.id, { actionMethod: method });
@@ -533,7 +534,7 @@ function HelpDeskTicketFloating({
           },
         }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) {
         setNoteValue(noteText);
         setAllSaveResult("done");
@@ -561,7 +562,7 @@ function HelpDeskTicketFloating({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: ticket.id, fields }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) {
         setSaveResult(prev => ({ ...prev, [field]: "done" }));
         if (field === "status")   onUpdated?.(ticket.id, { status: selectedStatus });
@@ -1345,7 +1346,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
         assignee:       ticket.assignee   || "담당자",
       }),
     })
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(json => {
         if (json.ok || json.skipped)
           setEmailSentIds(prev => new Set([...prev, ticket.id]));
@@ -1357,7 +1358,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
     if (!force) { setLoading(true); setError(null); }
     if (force) setRefreshing(true);
     fetch(`/api/helpdesk${force ? "?refresh=1" : ""}`)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(res => {
         if (res.missingEnv) { setMissingEnv(res.missingEnv); return; }
         if (res.error) { if (!force) setError(res.error); return; }
@@ -1393,7 +1394,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
   // 저장된 담당자 목록 로드
   useEffect(() => {
     fetch("/api/helpdesk/assignees")
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(res => { if (res.ok) setStoredAssignees(res.assignees ?? []); })
       .catch(() => {});
   }, []);
@@ -1401,7 +1402,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
   // 알림 이메일 목록 로드
   useEffect(() => {
     fetch("/api/helpdesk/notify-emails")
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(res => { if (res.ok) setNotifyEmails(res.emails); })
       .catch(() => {});
   }, []);
@@ -1426,7 +1427,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ emails: notifyEmails }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) setNotifyMsg({ type: "ok", text: "저장되었습니다." });
       else setNotifyMsg({ type: "err", text: json.error || "저장 실패" });
     } catch {
@@ -1460,7 +1461,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ assignees: storedAssignees }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) setAssigneeMsg({ type: "ok", text: "저장되었습니다." });
       else setAssigneeMsg({ type: "err", text: json.error || "저장 실패" });
     } catch {
@@ -1483,7 +1484,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
     if (completed.length === 0) return;
     const ids = completed.map(t => t.id).join(",");
     fetch(`/api/helpdesk/ticket-status?ids=${ids}`)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(res => {
         if (res.feedbacks)  setFeedbacks(res.feedbacks);
         if (res.emailSent)  setEmailSentIds(new Set(Object.keys(res.emailSent)));
@@ -1586,7 +1587,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
           assignee: ticket.assignee || "담당자",
         }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (res.ok || data.skipped) {
         setEmailSentIds(prev => new Set([...prev, ticket.id]));
       }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { AnnualGoal, MonthlyGoal, WeeklyEntry, WorkFeedbackStore, Grade } from "@/types/work-feedback";
+import { safeJson } from "@/lib/fetch-json";
 
 // ── Props ─────────────────────────────────────────────────────
 interface Props {
@@ -271,7 +272,7 @@ export default function WorkFeedbackPanel({ session }: Props) {
     setLoading(true);
     try {
       const res = await fetch("/api/work-feedback");
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) setStore(json.data);
     } finally {
       setLoading(false);
@@ -284,7 +285,7 @@ export default function WorkFeedbackPanel({ session }: Props) {
   useEffect(() => {
     if (!isSuper) return;
     fetch("/api/admin/accounts")
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(d => {
         if (d.ok && Array.isArray(d.accounts)) {
           const filtered = d.accounts
@@ -346,7 +347,7 @@ export default function WorkFeedbackPanel({ session }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type, payload }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) setStore(json.data);
     } finally {
       setSaving(false);
@@ -361,7 +362,7 @@ export default function WorkFeedbackPanel({ session }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ monthlyGoalId, grade, comment }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) setStore(json.data);
     } finally {
       setSaving(false);
@@ -376,7 +377,7 @@ export default function WorkFeedbackPanel({ session }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "weeklyComment", weeklyEntryId, comment }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) setStore(json.data);
     } finally {
       setSaving(false);
@@ -392,7 +393,7 @@ export default function WorkFeedbackPanel({ session }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type, id, userId }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) setStore(json.data);
     } finally {
       setSaving(false);

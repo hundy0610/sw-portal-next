@@ -5,6 +5,7 @@ import { FLOOR_SKETCHES, SketchCtx, SketchZone } from "./FloorSketches";
 import MonitorAssetSection, { useMonitorAsset, AssetNoBadge } from "./MonitorAssetSection";
 import FloorMapEditor, { type EditorData, migrate } from "./FloorMapEditor";
 import FloorMapView from "./FloorMapView";
+import { safeJson } from "@/lib/fetch-json";
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -768,7 +769,7 @@ function ItemDetailPanel({
 
   useEffect(() => {
     fetch("/api/general-managers")
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(data => {
         if (Array.isArray(data.details) && data.details.length > 0) {
           setGmList(data.details);
@@ -792,7 +793,7 @@ function ItemDetailPanel({
   const loadHistory = useCallback(() => {
     setHistLoading(true);
     fetch(`/api/monitor-history?itemId=${encodeURIComponent(item.id)}`)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(({ entries }) => setHistory(entries ?? []))
       .catch(() => {})
       .finally(() => setHistLoading(false));
@@ -818,7 +819,7 @@ function ItemDetailPanel({
           description: `${repairReason}${repairNote ? ` — ${repairNote}` : ""}`,
         }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!res.ok) throw new Error(json.error ?? "요청 실패");
 
       // 총무 담당자에게 이메일 발송 (수리 접수 현황 DB 등록은 하지 않음)
@@ -1406,7 +1407,7 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
   // ── 커스텀 건물/층 로드 ────────────────────────────────────────
   useEffect(() => {
     fetch("/api/buildings")
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(d => {
         if (d.ok) setBldConfig({ customBuildings: d.customBuildings ?? [], extraFloors: d.extraFloors ?? {}, floorOverrides: d.floorOverrides ?? {}, groups: d.groups ?? [] });
       })
@@ -1417,7 +1418,7 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
   useEffect(() => {
     if (!isSuper) return;
     fetch("/api/admin/accounts")
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(d => { if (d.ok) setAccounts(d.accounts ?? []); })
       .catch(() => {});
   }, [isSuper]);
@@ -1650,7 +1651,7 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
 
     // 2) Notion에서 최신 데이터 로드 (비동기)
     fetch(`/api/floor-map?building=${buildingId}&floor=${floorId}`)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(({ data }) => {
         if (!data) return;
         const migrated = migrate(data);
@@ -1693,7 +1694,7 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ building: buildingId, floor: floorId, data: editorData }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!res.ok) throw new Error(json.error ?? "저장 실패");
       setSaveMsg("✓ 노션 저장 완료");
     } catch (e: any) {
@@ -1722,7 +1723,7 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ building: buildingId, floor: floorId, data: nextData }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!res.ok) throw new Error(json.error ?? "저장 실패");
       setSaveMsg("✓ 상태 저장 완료");
     } catch (e: any) {

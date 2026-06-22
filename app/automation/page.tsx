@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { safeJson } from "@/lib/fetch-json";
 
 const DEPARTMENTS = ["인사", "재무", "계약관리"];
 const TOOLS = ["Excel", "SAP", "GroupWare", "이메일", "ERP", "기타"];
@@ -49,7 +50,7 @@ export default function AutomationPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!res.ok) throw new Error(json.error || "등록 실패");
       setStatus("done");
     } catch (err) {

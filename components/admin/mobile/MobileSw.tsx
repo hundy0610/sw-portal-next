@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import type { MobileSession } from "@/app/admin/mobile/page";
 import type { SwDbRecord } from "@/types";
+import { safeJson } from "@/lib/fetch-json";
 
 interface Props {
   session: MobileSession;
@@ -96,7 +97,7 @@ export default function MobileSw({ session }: Props) {
 
   useEffect(() => {
     fetch(`/api/sw-records${companyParam}`)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(d => {
         if (Array.isArray(d.data)) setRecords(d.data);
         else if (d.error) setError(d.error);

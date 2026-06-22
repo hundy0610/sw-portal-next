@@ -5,6 +5,7 @@ import * as XLSX from "xlsx";
 import type { SwDbRecord } from "@/types";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import { scGet, scSet, scDel } from "@/lib/session-cache";
+import { safeJson } from "@/lib/fetch-json";
 
 const SC_SWREC_LP = (co: string) => `sc:lp:swrec${co ? `:${co}` : ""}`;
 const TTL_SWREC_LP = 5 * 60 * 1000;
@@ -757,7 +758,7 @@ function SwManualAdd({ onClose, onSuccess, swCategoryOptions, versionOptions, co
         const fd = new FormData();
         fd.append("file", certFile);
         const uploadRes = await fetch("/api/sw/cert-upload", { method: "POST", body: fd });
-        const uploadJson = await uploadRes.json();
+        const uploadJson = await safeJson(uploadRes);
         if (!uploadJson.ok) throw new Error(uploadJson.error ?? "증서 파일 업로드 실패");
         certificateFileUploadId = uploadJson.fileUploadId;
       }
@@ -768,7 +769,7 @@ function SwManualAdd({ onClose, onSuccess, swCategoryOptions, versionOptions, co
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rows: [{ ...form, version: selectedVersions.join(","), certificateFileUploadId }] }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok || json.failed > 0) throw new Error(json.results?.[0]?.error ?? "등록 실패");
       onSuccess();
       onClose();
@@ -1104,7 +1105,7 @@ function SwExcelUpload({ onClose, onSuccess }: { onClose: () => void; onSuccess:
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rows }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       clearInterval(timer);
       setProgress(100);
       if (!json.ok) throw new Error(json.error);
@@ -1299,7 +1300,7 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
     // 업로드 후 sessionStorage 무효화
     scDel(SC_SWREC_LP(company));
     fetch(url)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(res => {
         if (!res.missingEnv) {
           setRecords(res.data ?? []);
@@ -1314,7 +1315,7 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, fields }),
     });
-    const json = await res.json();
+    const json = await safeJson(res);
     if (!json.ok) throw new Error(json.error ?? "Notion 업데이트 실패");
     setRecords(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r));
   }, []);
@@ -1363,7 +1364,7 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
       setRecords(cached);
       setLoading(false);
       // 백그라운드 재검증
-      fetch(url).then(r => r.json()).then(res => {
+      fetch(url).then(r => safeJson(r)).then(res => {
         if (res.missingEnv) return;
         setRecords(res.data ?? []);
         scSet(cacheKey, res.data ?? [], TTL_SWREC_LP);
@@ -1372,7 +1373,7 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
     }
 
     fetch(url)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(res => {
         if (res.missingEnv) { setMissingEnv(res.missingEnv); return; }
         setRecords(res.data ?? []);

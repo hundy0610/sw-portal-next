@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import type { HwStats } from "@/lib/hw";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import { LabelPrintTab } from "@/components/admin/LabelPrintTab";
+import { safeJson } from "@/lib/fetch-json";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 타입
@@ -307,7 +308,7 @@ function ShipmentTab({ onUpdate, companyLock = "", isSuperAdmin = false }: { onU
       const p = new URLSearchParams({ statuses: "출고준비중,출고준비완료" });
       if (company) p.set("company", company);
       const res  = await fetch(`/api/hw?${p}`);
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) throw new Error(json.error);
       setRecords(json.records ?? []);
     } catch { /* silent */ }
@@ -636,7 +637,7 @@ function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false }: {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password: pwValue }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) {
         setSensitiveUnlocked(true);
         setShowPwInput(false);
@@ -885,7 +886,7 @@ function ReturnTab({ onUpdate, companyLock = "", isSuperAdmin = false }: { onUpd
       const p = new URLSearchParams({ returnDue: "1" });
       if (company) p.set("company", company);
       const res  = await fetch(`/api/hw?${p}`);
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) throw new Error(json.error);
       setAllRecords(json.records ?? []);
     } catch { /* silent */ }
@@ -1056,7 +1057,7 @@ function SearchTab({ companyLock = "", onUpdate, isSuperAdmin = false }: { compa
       if (status)   q.set("status",   status);
       if (location) q.set("location", location);
       const res  = await fetch(`/api/hw?${q}`);
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) throw new Error(json.error);
       setRecords(json.records);
     } catch (e) { setError(String(e)); }
@@ -1369,7 +1370,7 @@ function ExcelUploadTab(){
   const handleCheckAndUpload=async()=>{
     setChecking(true);setPErr("");
     try{
-      const res=await fetch("/api/hw");const json=await res.json();
+      const res=await fetch("/api/hw");const json=await safeJson(res);
       if(!json.ok) throw new Error(json.error);
       const notionRecords:HwRecord[]=json.records;
       const serialSet=new Map<string,HwRecord>();
@@ -1397,7 +1398,7 @@ function ExcelUploadTab(){
       const convertedRows=targetRows.map(r=>({...r,purchaseDate:excelDateToStr(r.purchaseDate as string|number),useDate:excelDateToStr(r.useDate as string|number)}));
       const res=await fetch("/api/hw/upload",{method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({rows:convertedRows})});
-      const json=await res.json();clearInterval(timer);setProgress(100);
+      const json=await safeJson(res);clearInterval(timer);setProgress(100);
       if(!json.ok) throw new Error(json.error);
       setResults(json.results);setSummary({success:json.success,failed:json.failed});
       // 신규 지급 이력 기록 (성공 건만)
@@ -1414,7 +1415,7 @@ function ExcelUploadTab(){
 
         // 자산흐름관리 연동 대상 수집 (자동 실행 없이 리스트만)
         try {
-          const erJson=await fetch("/api/exchange-return").then(r=>r.json());
+          const erJson=await fetch("/api/exchange-return").then(r=>safeJson(r));
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const candidates=(erJson.data??[]).filter((r:any)=>
             (r.type==="신규지급"||r.type==="교체") &&
@@ -1453,17 +1454,17 @@ function ExcelUploadTab(){
       const updates:Promise<unknown>[]=[
         fetch("/api/exchange-return/update",{method:"POST",headers:{"Content-Type":"application/json"},
           body:JSON.stringify({id:m.erId,fields:{stage:"사용자수령",newAssetId:m.newAssetNo,...(m.erType==="교체"?{returnDue:defaultDue}:{})}}),
-        }).then(async res=>{const j=await res.json();if(!j.ok) throw new Error(j.error||`HTTP ${res.status}`);}),
+        }).then(async res=>{const j=await safeJson(res);if(!j.ok) throw new Error(j.error||`HTTP ${res.status}`);}),
       ];
       if(m.newAssetNo){
-        updates.push(fetch(`/api/hw?search=${encodeURIComponent(m.newAssetNo)}`).then(r=>r.json()).then(d=>{
+        updates.push(fetch(`/api/hw?search=${encodeURIComponent(m.newAssetNo)}`).then(r=>safeJson(r)).then(d=>{
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const found=(d.records??[]).find((r:any)=>r.assetNo===m.newAssetNo)??(d.records?.length===1?d.records[0]:null);
           if(found) return fetch("/api/hw/update",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:found.id,fields:{status:"사용중"}})});
         }));
       }
       if(m.erType==="교체"&&m.erAssetId){
-        updates.push(fetch(`/api/hw?search=${encodeURIComponent(m.erAssetId)}`).then(r=>r.json()).then(d=>{
+        updates.push(fetch(`/api/hw?search=${encodeURIComponent(m.erAssetId)}`).then(r=>safeJson(r)).then(d=>{
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const found=(d.records??[]).find((r:any)=>r.assetNo===m.erAssetId)??(d.records?.length===1?d.records[0]:null);
           if(found) return fetch("/api/hw/update",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:found.id,fields:{status:"반납예정",returnDue:defaultDue}})});
@@ -1697,7 +1698,7 @@ function NextAssetNoPanel(){
     (async()=>{
       try{
         const res=await fetch("/api/hw");
-        const json=await res.json();
+        const json=await safeJson(res);
         if(!json.ok) throw new Error(json.error);
         setRecords(json.records);
       }catch(e){setError(String(e));}
@@ -1772,7 +1773,7 @@ function DispatchHistoryTab() {
     setLoading(true); setError("");
     try {
       const res = await fetch("/api/hw/dispatch-history");
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) throw new Error(json.error);
       setHistory(json.history);
     } catch (e) { setError(String(e)); }
@@ -2074,7 +2075,7 @@ export default function HwPanel({ company = "", initialStats, isSuperAdmin = fal
     try {
       const statsUrl = company ? `/api/hw/stats?company=${encodeURIComponent(company)}` : "/api/hw/stats";
       const res  = await fetch(statsUrl);
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.missingEnv) { setMissingEnv(json.missingEnv); return; }
       if (!json.ok) throw new Error(json.error);
       if (json.stats) {
@@ -2084,7 +2085,7 @@ export default function HwPanel({ company = "", initialStats, isSuperAdmin = fal
         setTimeout(async () => {
           try {
             const r2 = await fetch(statsUrl);
-            const j2 = await r2.json();
+            const j2 = await safeJson(r2);
             if (j2.ok && j2.stats) setStats(j2.stats);
           } catch { /* 재시도 실패 무시 */ }
         }, 45_000);
@@ -2101,7 +2102,7 @@ export default function HwPanel({ company = "", initialStats, isSuperAdmin = fal
     try {
       const url  = company ? `/api/hw?company=${encodeURIComponent(company)}` : "/api/hw";
       const res  = await fetch(url);
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) throw new Error(json.error);
       if (json.warming) {
         // 캐시 워밍 중 — recordsReady를 true로 설정하지 않아 재시도 가능
@@ -2121,7 +2122,7 @@ export default function HwPanel({ company = "", initialStats, isSuperAdmin = fal
     try {
       const statsUrl = company ? `/api/hw/stats?company=${encodeURIComponent(company)}` : "/api/hw/stats";
       const res  = await fetch(statsUrl);
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) throw new Error(json.error);
       setStats(json.stats);
     } catch (e) { setStatsError(String(e)); }
@@ -2133,7 +2134,7 @@ export default function HwPanel({ company = "", initialStats, isSuperAdmin = fal
     try {
       const url  = company ? `/api/hw?company=${encodeURIComponent(company)}` : "/api/hw";
       const res  = await fetch(url);
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) throw new Error(json.error);
       if (json.warming) {
         setRecordsError("HW 데이터 캐시를 갱신하는 중입니다. 잠시 후 다시 시도해주세요.");
@@ -2164,7 +2165,7 @@ export default function HwPanel({ company = "", initialStats, isSuperAdmin = fal
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, fields: effectiveFields }),
     });
-    const json = await res.json();
+    const json = await safeJson(res);
     if (!json.ok) throw new Error(json.error ?? "Notion 업데이트 실패");
     // 교체요청 전환 시 교체/반납 트래커 자동 등록
     if (fields.status === "교체요청") {
@@ -2232,7 +2233,7 @@ export default function HwPanel({ company = "", initialStats, isSuperAdmin = fal
     setSyncing(true); setSyncDone(false); setSyncError("");
     try {
       const res  = await fetch("/api/hw/sync", { method: "POST" });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) throw new Error(json.error);
       setSyncDone(true);
       setTimeout(() => setSyncDone(false), 5000);

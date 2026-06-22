@@ -5,6 +5,7 @@ import type { ExchangeReturnRecord } from "@/types";
 import type { HwRecord } from "@/lib/hw";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import { LabelPrintTab, PrintQueueSection } from "@/components/admin/LabelPrintTab";
+import { safeJson } from "@/lib/fetch-json";
 
 // ── 상수 ────────────────────────────────────────────────────
 const STAGES = ["교체요청", "요청기안", "기기준비", "기기준비완료", "사용자수령", "반납요청", "반납완료"] as const;
@@ -229,7 +230,7 @@ function AssetPickerModal({
 
   useEffect(() => {
     fetch(`/api/hw?company=${encodeURIComponent(company)}&status=재고`)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .then(json => setAssets((json.records as any[]).map((r: any) => ({
         id: r.id, assetNo: r.assetNo, model: r.model, cpu: r.cpu, ram: r.ram,
@@ -243,7 +244,7 @@ function AssetPickerModal({
     setDetailLoading(true);
     try {
       const res = await fetch(`/api/hw?search=${encodeURIComponent(a.assetNo)}`);
-      const data = await res.json();
+      const data = await safeJson(res);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const r: any = (data.records ?? []).find((x: any) => x.assetNo === a.assetNo) ?? data.records?.[0] ?? null;
       if (r) setDetail({
@@ -530,10 +531,10 @@ function ReceiptConfirmModal({
 
       const [oldList, newList] = await Promise.all([
         isRealAsset(oldAssetId)
-          ? fetch(`/api/hw?search=${encodeURIComponent(oldAssetId)}`).then(r => r.json()).then(j => j.records ?? [])
+          ? fetch(`/api/hw?search=${encodeURIComponent(oldAssetId)}`).then(r => safeJson(r)).then(j => j.records ?? [])
           : Promise.resolve([]),
         isRealAsset(newAssetId)
-          ? fetch(`/api/hw?search=${encodeURIComponent(newAssetId)}`).then(r => r.json()).then(j => j.records ?? [])
+          ? fetch(`/api/hw?search=${encodeURIComponent(newAssetId)}`).then(r => safeJson(r)).then(j => j.records ?? [])
           : Promise.resolve([]),
       ]);
 
@@ -648,12 +649,12 @@ function ReturnCompleteModal({
       let assetPageId: string | null = null;
       if (assetId) {
         if (isRental) {
-          const res = await fetch("/api/rental-hw").then(r => r.json());
+          const res = await fetch("/api/rental-hw").then(r => safeJson(r));
           const list: { id: string; assetNo: string }[] = res.data ?? [];
           const found = list.find(r => r.assetNo === assetId) ?? (list.length === 1 ? list[0] : null);
           assetPageId = found?.id ?? null;
         } else {
-          const res = await fetch(`/api/hw?search=${encodeURIComponent(assetId)}`).then(r => r.json());
+          const res = await fetch(`/api/hw?search=${encodeURIComponent(assetId)}`).then(r => safeJson(r));
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const found = (res.records as any[]).find((r: any) => r.assetNo === assetId) ??
             (res.records.length === 1 ? res.records[0] : null);
@@ -810,7 +811,7 @@ function ReturnRegModal({
         r.stage === "반납요청" && (r.assetId === q || r.newAssetId === q)
       ) ?? null;
 
-      const res = await fetch(`/api/hw?search=${encodeURIComponent(q)}`).then(r => r.json());
+      const res = await fetch(`/api/hw?search=${encodeURIComponent(q)}`).then(r => safeJson(r));
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const hwRecs: any[] = res.records ?? [];
       const found = hwRecs.find(r => r.assetNo === q) ?? (hwRecs.length === 1 ? hwRecs[0] : null);
@@ -1091,7 +1092,7 @@ function HwAssetDetailModal({ assetNo, onClose }: { assetNo: string; onClose: ()
 
   useEffect(() => {
     fetch(`/api/hw?search=${encodeURIComponent(assetNo)}`)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(json => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const records = (json.records ?? []) as any[];
@@ -1222,7 +1223,7 @@ function DetailModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: record.id, fields: { isClosed: false } }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) { alert(`재열기 실패: ${json.error || "알 수 없는 오류"}`); return; }
       onUpdated(record.id, { isClosed: false });
     } catch (e) {
@@ -1241,7 +1242,7 @@ function DetailModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: record.id }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) {
         alert(`삭제 실패: ${json.error || "알 수 없는 오류"}`);
         return;
@@ -1308,7 +1309,7 @@ function DetailModal({
     const hwAssetNo = record.newAssetId || record.assetId;
     if (!hwAssetNo) return;
     fetch(`/api/hw?assetNo=${encodeURIComponent(hwAssetNo)}`)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(json => {
         const hw = (json.records ?? []).find((r: { assetNo: string }) => r.assetNo === hwAssetNo);
         if (hw) {
@@ -1324,7 +1325,7 @@ function DetailModal({
   useEffect(() => {
     if (record.type !== "임대" || !record.assetId) return;
     fetch("/api/rental-hw")
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(json => {
         const found = (json.data as { id: string; assetNo: string }[] ?? []).find(r => r.assetNo === record.assetId);
         if (found) setRentalHwId(found.id);
@@ -1341,7 +1342,7 @@ function DetailModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: record.id, fields: value }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) {
         onUpdated(record.id, value as Partial<ExchangeReturnRecord>);
         setSaved(p => ({ ...p, [field]: true }));
@@ -1500,7 +1501,7 @@ function DetailModal({
                   method: "POST", headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ id: hwId, fields: { useDate: useDate || "" } }),
                 });
-                const json = await res.json();
+                const json = await safeJson(res);
                 if (json.ok) {
                   // Exchange Return DB의 완료일도 동시에 업데이트 (30초 리프레시 시 유지)
                   fetch("/api/exchange-return/update", {
@@ -1668,7 +1669,7 @@ function DetailModal({
                             returnDue: record.returnDue || "",
                           }),
                         });
-                        const json = await res.json();
+                        const json = await safeJson(res);
                         if (json.ok) setMailPreview({ html: json.html, subject: json.subject });
                         else setMailErr(json.error || "미리보기 로드 실패");
                       } catch (e) { setMailErr(String(e)); }
@@ -1754,7 +1755,7 @@ function DetailModal({
                               returnDue: record.returnDue || "",
                             }),
                           });
-                          const json = await res.json();
+                          const json = await safeJson(res);
                           if (json.ok) {
                             setMailPreview(null);
                             setMailSent(true);
@@ -1956,7 +1957,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
   useEffect(() => {
     if (phase !== "form" || form.type !== "임대") return;
     setRnStockLoading(true);
-    fetch("/api/rental-hw").then(r => r.json()).then(json => {
+    fetch("/api/rental-hw").then(r => safeJson(r)).then(json => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const list = (json.data as any[] ?? []).filter(r => r.inStock);
       setRnStock(list.map(r => ({ id: r.id, assetNo: r.assetNo, assetNoOld: r.assetNoOld })));
@@ -1978,7 +1979,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
       setAutoFilling(true);
       try {
         const res = await fetch(`/api/hw?search=${encodeURIComponent(id)}`);
-        const data = await res.json();
+        const data = await safeJson(res);
         const hwRecs: { assetNo: string; user: string; dept: string; company: string }[] = data.records ?? [];
         const found = hwRecs.find(r => r.assetNo === id) ?? (hwRecs.length === 1 ? hwRecs[0] : null);
         if (found) {
@@ -2010,7 +2011,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
     setNiAssets([]);
     fetch(`/api/hw?company=${encodeURIComponent(niCompany)}&status=재고`)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .then(r => r.json()).then(json => setNiAssets((json.records as any[]).map((r: any) => ({ id: r.id, assetNo: r.assetNo, model: r.model, cpu: r.cpu, ram: r.ram }))))
+      .then(r => safeJson(r)).then(json => setNiAssets((json.records as any[]).map((r: any) => ({ id: r.id, assetNo: r.assetNo, model: r.model, cpu: r.cpu, ram: r.ram }))))
       .finally(() => setNiAssetsLoading(false));
   }, [niCompany, phase]);
 
@@ -2025,7 +2026,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
     setNiDetailLoading(true);
     setNiDetail(null);
     fetch(`/api/hw?search=${encodeURIComponent(niSelected.assetNo)}`)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .then((data: any) => {
         const r = (data.records ?? []).find((x: any) => x.assetNo === niSelected.assetNo) ?? data.records?.[0] ?? null;
@@ -2050,12 +2051,12 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) { setErr(json.error ?? "등록 실패"); return; }
       const hwStatus = form.type === "퇴사반납" ? "반납예정" : form.type === "교체" ? "교체요청" : null;
       if (hwStatus) {
         const assetId = form.assetId.trim();
-        fetch(`/api/hw?search=${encodeURIComponent(assetId)}`).then(r => r.json()).then(data => {
+        fetch(`/api/hw?search=${encodeURIComponent(assetId)}`).then(r => safeJson(r)).then(data => {
           const records: { id: string; assetNo: string }[] = data.records ?? [];
           const found = records.find(r => r.assetNo === assetId) ?? (records.length === 1 ? records[0] : null);
           if (found) fetch("/api/hw/update", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: found.id, fields: { status: hwStatus } }) }).catch(console.error);
@@ -2101,7 +2102,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
           requesterEmail: niEmail || undefined,
         }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) { setErr(json.error ?? "등록 실패"); return; }
       onCreated(); onClose();
     } catch (e) { setErr(String(e)); } finally { setNiNewPurchasing(false); }
@@ -2123,7 +2124,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
           requesterEmail: niEmail || undefined,
         }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) { setErr(json.error ?? "등록 실패"); return; }
       await fetch("/api/hw/update", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -2154,7 +2155,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
     setExLoading(true); setExAssets([]);
     try {
       const res = await fetch(`/api/hw?company=${encodeURIComponent(exCompany)}&search=${encodeURIComponent(exUserName.trim())}`);
-      const data = await res.json();
+      const data = await safeJson(res);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const mapped = (data.records ?? []).map((r: any) => ({
         id: r.id, assetNo: r.assetNo, model: r.model, cpu: r.cpu, ram: r.ram,
@@ -2173,7 +2174,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
     setExManualLoading(true); setExManualResults([]);
     try {
       const res = await fetch(`/api/hw?search=${encodeURIComponent(q)}`);
-      const data = await res.json();
+      const data = await safeJson(res);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setExManualResults((data.records ?? []).map((r: any) => ({
         id: r.id, assetNo: r.assetNo, model: r.model, cpu: r.cpu, ram: r.ram,
@@ -2202,7 +2203,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
           address: exDelivery || undefined,
         }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) { setErr(json.error ?? "등록 실패"); return; }
       fetch("/api/hw/update", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -2228,7 +2229,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
           requesterEmail: exEmail || undefined,
         }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) { setErr(json.error ?? "등록 실패"); return; }
       await fetch("/api/hw/update", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -2246,7 +2247,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
       const params = new URLSearchParams({ company: rtCompany });
       if (rtUserName.trim()) params.set("search", rtUserName.trim());
       const res = await fetch(`/api/hw?${params}`);
-      const data = await res.json();
+      const data = await safeJson(res);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const mapped = (data.records ?? []).map((r: any) => ({
@@ -2266,7 +2267,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
     setRtManualLoading(true); setRtManualResults([]);
     try {
       const res = await fetch(`/api/hw?search=${encodeURIComponent(q)}`);
-      const data = await res.json();
+      const data = await safeJson(res);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setRtManualResults((data.records ?? []).map((r: any) => ({
         id: r.id, assetNo: r.assetNo, model: r.model, cpu: r.cpu, ram: r.ram,
@@ -2296,7 +2297,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
           requesterEmail: rtEmail || undefined,
         }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) { setErr(json.error ?? "등록 실패"); return; }
       await fetch("/api/hw/update", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -3152,7 +3153,7 @@ export default function ExchangeReturnPanel() {
     setHwRecordsLoading(true);
     try {
       const res = await fetch("/api/hw");
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok && !json.warming) {
         setHwRecords(json.records ?? []);
         setHwRecordsReady(true);
@@ -3220,7 +3221,7 @@ export default function ExchangeReturnPanel() {
           returnMethod: method,
         }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) setMailPreviewData({ html: json.html, subject: json.subject });
       else setMailPanelErr(json.error || "미리보기 로드 실패");
     } catch (e) { setMailPanelErr(String(e)); }
@@ -3264,7 +3265,7 @@ export default function ExchangeReturnPanel() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, fields: { isClosed: true } }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) handleUpdated(id, { isClosed: true });
     } finally { setAdvancingId(null); }
   }, [handleUpdated]);
@@ -3294,12 +3295,12 @@ export default function ExchangeReturnPanel() {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id: r.id, fields: { stage: "기기준비완료" } }),
         });
-        const json = await res.json();
+        const json = await safeJson(res);
         if (json.ok) {
           handleUpdated(r.id, { stage: "기기준비완료" });
           const assetId = r.newAssetId;
           fetch(`/api/hw?search=${encodeURIComponent(assetId)}`)
-            .then(d => d.json())
+            .then(d => safeJson(d))
             .then(data => {
               const recs: { id: string; assetNo: string }[] = data.records ?? [];
               const found = recs.find(rec => rec.assetNo === assetId) ?? (recs.length === 1 ? recs[0] : null);
@@ -3321,7 +3322,7 @@ export default function ExchangeReturnPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: r.id, fields: { stage: nextStage } }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) handleUpdated(r.id, { stage: nextStage });
     } finally {
       setAdvancingId(null);
@@ -3331,7 +3332,7 @@ export default function ExchangeReturnPanel() {
   const load = useCallback((force = false) => {
     if (!force) { setLoading(true); setError(null); }
     fetch(`/api/exchange-return${force ? "?refresh=1" : ""}`)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(res => {
         if (res.missingEnv) { setMissingEnv(res.missingEnv); return; }
         if (res.error) { setError(res.error); return; }
@@ -3903,7 +3904,7 @@ export default function ExchangeReturnPanel() {
                           returnMethod: mailTarget.stage === "반납요청" ? mailReturnMethod : undefined,
                         }),
                       });
-                      const json = await res.json();
+                      const json = await safeJson(res);
                       if (json.ok) {
                         addMailSentId(mailTarget.id);
                         setMailTarget(null);
