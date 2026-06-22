@@ -509,7 +509,6 @@ function ReceiptConfirmModal({
   onConfirmed: (returnDue: string) => void;
 }) {
   const isNewIssue = recordType === "신규지급";
-  const isRental   = recordType === "임대";
   const defaultDue = (() => {
     const d = new Date();
     d.setDate(d.getDate() + 7);
@@ -531,9 +530,7 @@ function ReceiptConfirmModal({
 
       const [oldList, newList] = await Promise.all([
         isRealAsset(oldAssetId)
-          ? isRental
-            ? fetch("/api/rental-hw").then(r => r.json()).then(j => j.data ?? [])
-            : fetch(`/api/hw?search=${encodeURIComponent(oldAssetId)}`).then(r => r.json()).then(j => j.records ?? [])
+          ? fetch(`/api/hw?search=${encodeURIComponent(oldAssetId)}`).then(r => r.json()).then(j => j.records ?? [])
           : Promise.resolve([]),
         isRealAsset(newAssetId)
           ? fetch(`/api/hw?search=${encodeURIComponent(newAssetId)}`).then(r => r.json()).then(j => j.records ?? [])
@@ -555,17 +552,11 @@ function ReceiptConfirmModal({
         }),
       ];
       if (!isNewIssue && oldRecord) updates.push(
-        isRental
-          ? fetch("/api/rental-hw/update", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ id: oldRecord.id, fields: { startDate: new Date().toISOString().slice(0, 10), returnDue } }),
-            })
-          : fetch("/api/hw/update", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ id: oldRecord.id, fields: { status: "반납예정", returnDue } }),
-            })
+        fetch("/api/hw/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: oldRecord.id, fields: { status: "반납예정", returnDue } }),
+        })
       );
       if (newRecord) updates.push(
         fetch("/api/hw/update", {
@@ -601,11 +592,7 @@ function ReceiptConfirmModal({
             <p className="font-semibold text-orange-800 text-sm">수령 확정 시 자동 적용 사항</p>
             <ul className="space-y-1 list-disc list-inside text-xs text-orange-700">
               {newAssetId && newAssetId !== "신규구매로안내됨" && <li>교체 자산 <strong className="font-mono">{newAssetId}</strong> → HW DB 상태: <strong>사용중</strong></li>}
-              {!isNewIssue && oldAssetId && (
-                isRental
-                  ? <li>임대 자산 <strong className="font-mono">{oldAssetId}</strong> → 임대노트북현황관리 DB 사용시작일/반납예정일 갱신</li>
-                  : <li>기존 자산 <strong className="font-mono">{oldAssetId}</strong> → HW DB 상태: <strong>반납예정</strong></li>
-              )}
+              {!isNewIssue && oldAssetId && <li>기존 자산 <strong className="font-mono">{oldAssetId}</strong> → HW DB 상태: <strong>반납예정</strong></li>}
               <li>트래커 단계 → <strong>사용자수령</strong></li>
               {!isNewIssue && <li>반납예정일 자동 설정</li>}
             </ul>
@@ -686,7 +673,18 @@ function ReturnCompleteModal({
           ? fetch("/api/rental-hw/update", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ id: assetPageId, fields: { inStock: true, returnDue: "" } }),
+              body: JSON.stringify({
+                id: assetPageId,
+                fields: {
+                  inStock: true,
+                  returnDue: "",
+                  startDate: "",
+                  userAndReason: "",
+                  requester: "",
+                  company: "",
+                  dept: "",
+                },
+              }),
             })
           : fetch("/api/hw/update", {
               method: "POST",
@@ -744,7 +742,7 @@ function ReturnCompleteModal({
             <ul className="space-y-1 list-disc list-inside text-xs text-green-700">
               {assetId && (
                 isRental
-                  ? <li>임대 자산 <strong className="font-mono">{assetId}</strong> → 임대노트북현황관리 DB: <strong>재고</strong></li>
+                  ? <li>임대 자산 <strong className="font-mono">{assetId}</strong> → 임대노트북현황관리 DB: <strong>재고</strong> 전환, 사용자/법인/부서/사용시작일 초기화 (DLP계정·기존번호는 유지)</li>
                   : <li>기존 자산 <strong className="font-mono">{assetId}</strong> → HW DB 상태: <strong>{selectedStatus}</strong></li>
               )}
               {assetId && <li>반납예정일 → 삭제</li>}
@@ -1266,6 +1264,7 @@ function DetailModal({
   const [useDate, setUseDate] = useState("");
   const [hwId, setHwId] = useState<string | null>(null);
   const [hwOrigUseDate, setHwOrigUseDate] = useState("");
+  const [rentalHwId, setRentalHwId] = useState<string | null>(null);
   const [returnDue, setReturnDue] = useState(record.returnDue ?? "");
   const [address, setAddress] = useState(record.address ?? "");
   const [requesterEmail, setRequesterEmail] = useState(record.requesterEmail ?? "");
@@ -1321,6 +1320,18 @@ function DetailModal({
       .catch(() => {});
   }, [record.assetId, record.newAssetId]);
 
+  // 임대: 연결된 임대노트북현황관리 레코드 id 조회 (법인/부서/사용자/비고 수정 시 동기화용)
+  useEffect(() => {
+    if (record.type !== "임대" || !record.assetId) return;
+    fetch("/api/rental-hw")
+      .then(r => r.json())
+      .then(json => {
+        const found = (json.data as { id: string; assetNo: string }[] ?? []).find(r => r.assetNo === record.assetId);
+        if (found) setRentalHwId(found.id);
+      })
+      .catch(() => {});
+  }, [record.type, record.assetId]);
+
   const save = async (field: string, value: Record<string, unknown>) => {
     setSaving(field);
     setSaveErr(null);
@@ -1335,6 +1346,27 @@ function DetailModal({
         onUpdated(record.id, value as Partial<ExchangeReturnRecord>);
         setSaved(p => ({ ...p, [field]: true }));
         setTimeout(() => setSaved(p => ({ ...p, [field]: false })), 2000);
+
+        // 임대: 법인/부서/사용자/비고 수정 시 임대노트북현황관리 DB와 동기화
+        if (record.type === "임대" && rentalHwId) {
+          const rentalFields: Record<string, unknown> = {};
+          if (field === "company")    rentalFields.company = (value.company as string) || "";
+          if (field === "department") rentalFields.dept    = (value.department as string) || "";
+          if (field === "user") {
+            rentalFields.requester     = (value.user as string) || "";
+            rentalFields.userAndReason = [value.user, noteRef.current?.value ?? record.note].filter(Boolean).join(" / ");
+          }
+          if (field === "note") {
+            rentalFields.userAndReason = [userRef.current?.value ?? record.user, value.note].filter(Boolean).join(" / ");
+          }
+          if (Object.keys(rentalFields).length > 0) {
+            fetch("/api/rental-hw/update", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: rentalHwId, fields: rentalFields }),
+            }).catch(console.error);
+          }
+        }
       } else {
         setSaveErr({ field, msg: json.error || "저장 실패" });
       }
@@ -1417,7 +1449,7 @@ function DetailModal({
             </select>
             <button
               onClick={() => {
-                if (stage === "사용자수령") { setReceiptConfirmOpen(true); }
+                if (stage === "사용자수령" && record.type !== "임대") { setReceiptConfirmOpen(true); }
                 else if (stage === "반납완료") { setReturnCompleteOpen(true); }
                 else { save("stage", { stage }); }
               }}
@@ -1760,13 +1792,13 @@ function DetailModal({
             {saved["reason"] && <span className="text-xs text-green-600">✓ 변경됨</span>}
           </SaveRow>
 
-          <Row label="비고">
+          <Row label={record.type === "임대" ? "지급사유" : "비고"}>
             <div className="flex flex-col gap-2">
               <textarea ref={noteRef}
                 defaultValue={note}
                 rows={3}
                 className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 resize-none"
-                placeholder="비고 입력" />
+                placeholder={record.type === "임대" ? "지급사유 입력" : "비고 입력"} />
               <div className="flex items-center gap-2">
                 <button onClick={() => save("note", { note: noteRef.current?.value ?? "" })} disabled={saving === "note"}
                   className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed">
@@ -1916,48 +1948,60 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
   const [exDelivery, setExDelivery] = useState("본사");
   const [exNewPurchasing, setExNewPurchasing] = useState(false);
 
+  // ── 임대 state ──
+  const [rnStock, setRnStock] = useState<{ id: string; assetNo: string; assetNoOld: string }[]>([]);
+  const [rnStockLoading, setRnStockLoading] = useState(false);
+
+  // 임대: 재고(반납완료) 상태인 임대노트북현황관리 자산 목록 로드
+  useEffect(() => {
+    if (phase !== "form" || form.type !== "임대") return;
+    setRnStockLoading(true);
+    fetch("/api/rental-hw").then(r => r.json()).then(json => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const list = (json.data as any[] ?? []).filter(r => r.inStock);
+      setRnStock(list.map(r => ({ id: r.id, assetNo: r.assetNo, assetNoOld: r.assetNoOld })));
+    }).finally(() => setRnStockLoading(false));
+  }, [phase, form.type]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // 교체/퇴사반납/임대: 자산번호 자동채움 + exchange-return 중복 체크
+  // 교체/퇴사반납: 자산번호 자동채움 (임대는 재고 선택 시 바로 채워지므로 제외)
   useEffect(() => {
-    if (phase !== "form") return;
+    if (phase !== "form" || form.type === "임대") return;
     const id = form.assetId.trim();
-    if (id.length < 4) { setAutoFilled(false); setDupRecord(null); setDupDismissed(false); return; }
+    if (id.length < 4) { setAutoFilled(false); return; }
     const timer = setTimeout(async () => {
       setAutoFilling(true);
       try {
-        if (form.type === "임대") {
-          const res = await fetch("/api/rental-hw");
-          const data = await res.json();
-          const rentalRecs: { assetNo: string; company: string; dept: string }[] = data.data ?? [];
-          const found = rentalRecs.find(r => r.assetNo === id) ?? (rentalRecs.length === 1 ? rentalRecs[0] : null);
-          if (found) {
-            setForm(p => ({ ...p, department: found.dept || p.department, company: found.company || p.company }));
-            setAutoFilled(true);
-          } else { setAutoFilled(false); }
-        } else {
-          const res = await fetch(`/api/hw?search=${encodeURIComponent(id)}`);
-          const data = await res.json();
-          const hwRecs: { assetNo: string; user: string; dept: string; company: string }[] = data.records ?? [];
-          const found = hwRecs.find(r => r.assetNo === id) ?? (hwRecs.length === 1 ? hwRecs[0] : null);
-          if (found) {
-            setForm(p => ({ ...p, user: found.user || p.user, department: found.dept || p.department, company: found.company || p.company }));
-            setAutoFilled(true);
-          } else { setAutoFilled(false); }
-        }
+        const res = await fetch(`/api/hw?search=${encodeURIComponent(id)}`);
+        const data = await res.json();
+        const hwRecs: { assetNo: string; user: string; dept: string; company: string }[] = data.records ?? [];
+        const found = hwRecs.find(r => r.assetNo === id) ?? (hwRecs.length === 1 ? hwRecs[0] : null);
+        if (found) {
+          setForm(p => ({ ...p, user: found.user || p.user, department: found.dept || p.department, company: found.company || p.company }));
+          setAutoFilled(true);
+        } else { setAutoFilled(false); }
       } catch { /* 무시 */ } finally { setAutoFilling(false); }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [form.assetId, form.type, phase]);
 
-      // exchange-return 중복 체크 (오픈 케이스만)
+  // 자산번호 선택/입력 시 exchange-return 중복 체크 (모든 유형 공통)
+  useEffect(() => {
+    if (phase !== "form") return;
+    const id = form.assetId.trim();
+    if (id.length < 4) { setDupRecord(null); setDupDismissed(false); return; }
+    const timer = setTimeout(() => {
       const dup = records.find(r => !r.isClosed && (r.assetId === id || r.newAssetId === id)) ?? null;
       setDupRecord(dup);
       setDupDismissed(false);
-    }, 600);
+    }, 300);
     return () => clearTimeout(timer);
-  }, [form.assetId, form.type, phase, records]);
+  }, [form.assetId, phase, records]);
 
   // 신규지급: 법인 변경 시 재고 로드
   useEffect(() => {
@@ -2016,6 +2060,27 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
           const found = records.find(r => r.assetNo === assetId) ?? (records.length === 1 ? records[0] : null);
           if (found) fetch("/api/hw/update", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: found.id, fields: { status: hwStatus } }) }).catch(console.error);
         }).catch(console.error);
+      }
+      if (form.type === "임대") {
+        const picked = rnStock.find(r => r.assetNo === form.assetId.trim());
+        if (picked) {
+          const userAndReason = [form.user, form.note].filter(Boolean).join(" / ");
+          fetch("/api/rental-hw/update", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id: picked.id,
+              fields: {
+                inStock: false,
+                startDate: new Date().toISOString().slice(0, 10),
+                returnDue: form.returnDue || "",
+                company: form.company,
+                dept: form.department,
+                requester: form.user,
+                ...(userAndReason ? { userAndReason } : {}),
+              },
+            }),
+          }).catch(console.error);
+        }
       }
       onCreated(); onClose();
     } catch (e) { setErr(String(e)); } finally { setSaving(false); }
@@ -2297,7 +2362,10 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
                   setExUseDate(new Date().toISOString().slice(0, 10));
                   setPhase("ex_search");
                 } else {
-                  setForm(p => ({ ...p, type, stage: defaultStageFor(type) }));
+                  const defaultReturnDue = (() => {
+                    const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().slice(0, 10);
+                  })();
+                  setForm(p => ({ ...p, type, stage: defaultStageFor(type), returnDue: type === "임대" ? defaultReturnDue : p.returnDue }));
                   setPhase("form");
                 }
               }} className="flex items-center gap-4 p-4 rounded-xl border-2 border-transparent hover:border-current text-left transition-all"
@@ -2334,31 +2402,38 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
                 </div>
               </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className={labelCls} style={{ margin: 0 }}>자산번호 <span className="text-red-500">*</span></label>
-                  {autoFilling && (
-                    <span className="text-[10px] text-gray-400 flex items-center gap-1">
-                      <svg className="animate-spin w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity="0.25"/><path d="M21 12a9 9 0 00-9-9"/>
-                      </svg>
-                      조회 중…
-                    </span>
-                  )}
-                  {!autoFilling && autoFilled && <span className="text-[10px] text-green-500">✓ 자동입력 완료</span>}
-                  {!autoFilling && !autoFilled && form.assetId.trim().length >= 4 && (
-                    <span className="text-[10px] text-amber-500">
-                      {form.type === "임대" ? "임대노트북현황관리 DB에 없는 번호" : "HW DB에 없는 번호"}
-                    </span>
-                  )}
+              {form.type === "임대" ? (
+                <div>
+                  <label className={labelCls}>자산번호 (재고) <span className="text-red-500">*</span></label>
+                  <select className={inputCls} value={form.assetId} onChange={set("assetId")}>
+                    <option value="">
+                      {rnStockLoading ? "재고 불러오는 중…" : rnStock.length === 0 ? "재고 자산 없음" : "선택하세요"}
+                    </option>
+                    {rnStock.map(r => (
+                      <option key={r.id} value={r.assetNo}>
+                        {r.assetNo}{r.assetNoOld ? ` (구: ${r.assetNoOld})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-gray-400 mt-1">임대노트북현황관리 DB에서 재고 상태인 자산만 표시됩니다.</p>
                 </div>
-                <input className={inputCls}
-                  placeholder={form.type === "임대" ? "임대노트북현황관리의 출고자산번호" : "예) DW-NB-0123"}
-                  value={form.assetId} onChange={set("assetId")} autoFocus />
-                {form.type === "임대" && (
-                  <p className="text-[11px] text-gray-400 mt-1">임대노트북현황관리에 이미 등록된 자산번호를 입력해야 사용자수령/반납 처리 시 해당 DB와 자동 연동됩니다.</p>
-                )}
-              </div>
+              ) : (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className={labelCls} style={{ margin: 0 }}>자산번호 <span className="text-red-500">*</span></label>
+                    {autoFilling && (
+                      <span className="text-[10px] text-gray-400 flex items-center gap-1">
+                        <svg className="animate-spin w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity="0.25"/><path d="M21 12a9 9 0 00-9-9"/>
+                        </svg>
+                        조회 중…
+                      </span>
+                    )}
+                    {!autoFilling && autoFilled && <span className="text-[10px] text-green-500">✓ 자동입력 완료</span>}
+                  </div>
+                  <input className={inputCls} placeholder="예) DW-NB-0123" value={form.assetId} onChange={set("assetId")} autoFocus />
+                </div>
+              )}
 
               {dupRecord && !dupDismissed && (
                 <div className="border border-amber-200 bg-amber-50 rounded-xl overflow-hidden">
@@ -2436,7 +2511,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
                 <input className={inputCls} placeholder="사용자 이름" value={form.user} onChange={set("user")} />
               </div>
 
-              {form.type === "퇴사반납" && (
+              {(form.type === "퇴사반납" || form.type === "임대") && (
                 <div>
                   <label className={labelCls}>반납예정일</label>
                   <div className="flex items-center gap-1">
@@ -2452,8 +2527,10 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
               </div>
 
               <div>
-                <label className={labelCls}>비고</label>
-                <textarea className={inputCls} rows={3} placeholder="비고 메모..." value={form.note} onChange={set("note")} style={{ resize: "vertical" }} />
+                <label className={labelCls}>{form.type === "임대" ? "지급사유" : "비고"}</label>
+                <textarea className={inputCls} rows={3}
+                  placeholder={form.type === "임대" ? "지급사유를 입력하세요" : "비고 메모..."}
+                  value={form.note} onChange={set("note")} style={{ resize: "vertical" }} />
               </div>
 
               {err && <p className="text-xs text-red-600">{err}</p>}
@@ -3202,7 +3279,7 @@ export default function ExchangeReturnPanel() {
       return;
     }
     const nextStage = visible[idx + 1];
-    if (nextStage === "사용자수령") {
+    if (nextStage === "사용자수령" && r.type !== "임대") {
       setReceiptTarget(r);
       return;
     }
