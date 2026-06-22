@@ -322,6 +322,14 @@ export default function EventPage() {
             <p className="text-xs" style={{ color: C.text4 }}>
               경기 결과 발표 후 정답자에게 개별 연락드립니다.
             </p>
+            <p className="text-xs mt-2" style={{ color: C.text4 }}>
+              경기 결과 발표 후{" "}
+              <a href="https://sw-portal-next.vercel.app/event/result" target="_blank" rel="noopener noreferrer"
+                className="underline" style={{ color: C.brand }}>
+                https://sw-portal-next.vercel.app/event/result
+              </a>
+              {" "}에서 경기 결과를 확인할 수 있습니다.
+            </p>
           </div>
         )}
 

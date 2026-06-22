@@ -19,6 +19,20 @@ export async function GET() {
   }
 
   const submissions = await fetchEventSubmissions(cfg.roundStartedAt);
+  const isCorrect = (koreaScore: number, mexicoScore: number) =>
+    cfg.answerA !== null && cfg.answerB !== null &&
+    koreaScore === cfg.answerA && mexicoScore === cfg.answerB;
+
+  const participants = submissions
+    .map(s => ({
+      name: s.name,
+      corporation: s.corporation,
+      koreaScore: s.koreaScore,
+      mexicoScore: s.mexicoScore,
+      correct: isCorrect(s.koreaScore, s.mexicoScore),
+    }))
+    .sort((a, b) => Number(b.correct) - Number(a.correct));
+
   return NextResponse.json({
     published: true,
     teamA: cfg.teamA,
@@ -28,5 +42,6 @@ export async function GET() {
     totalParticipants: submissions.length,
     distributionA: distribution(submissions.map(s => s.koreaScore)),
     distributionB: distribution(submissions.map(s => s.mexicoScore)),
+    participants,
   });
 }
