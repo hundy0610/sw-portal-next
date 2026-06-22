@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { safeJson } from "@/lib/fetch-json";
 
 const C = {
   brand:   "#16a34a",
@@ -65,7 +66,7 @@ export default function EventResultPage() {
 
   useEffect(() => {
     fetch("/api/event/result", { cache: "no-store" })
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(setResult)
       .finally(() => setLoading(false));
   }, []);

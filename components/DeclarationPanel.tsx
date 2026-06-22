@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { safeJson } from "@/lib/fetch-json";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Notion 스키마 기반 실제 선택지
@@ -225,7 +226,7 @@ function Step1({ onNext }: { onNext: (info: UserInfo, records: SwRecord[]) => vo
     setLoading(true); setError("");
     try {
       const res  = await fetch(`/api/declaration?name=${encodeURIComponent(name.trim())}&company=${encodeURIComponent(company)}`);
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) throw new Error(json.error);
       onNext({ company, department: dept.trim(), name: name.trim() }, json.records);
     } catch (e) {
@@ -335,7 +336,7 @@ function AddSwForm({ userInfo, onAdd, onCancel }: {
           },
         }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) throw new Error(json.error);
       onAdd({
         id: json.id ?? `tmp-${Date.now()}`, notionUrl: "", user: userInfo.name,

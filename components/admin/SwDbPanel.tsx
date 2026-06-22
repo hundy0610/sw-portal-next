@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import type { SwItem } from "@/types";
+import { safeJson } from "@/lib/fetch-json";
 
 const INQUIRY_URL = "https://assetify-desk.vercel.app/inquiry";
 
@@ -117,7 +118,7 @@ export default function SwDbPanel() {
 
   useEffect(() => {
     fetch("/api/sw-db")
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(res => setApiItems(res.data ?? []))
       .finally(() => setLoading(false));
   }, []);

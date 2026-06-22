@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import type { SwDbRecord } from "@/types";
 import { SyncBanner } from "@/components/ui/SyncBanner";
 import { scGet, scSet } from "@/lib/session-cache";
+import { safeJson } from "@/lib/fetch-json";
 
 const SC_SWREC_SP = "sc:sp:swrec";
 const TTL_SP = 5 * 60 * 1000;
@@ -139,7 +140,7 @@ export default function SubscriptionPanel() {
       setRecords(cached);
       setLoading(false);
       // 백그라운드 재검증
-      fetch("/api/sw-records").then(r => r.json()).then(res => {
+      fetch("/api/sw-records").then(r => safeJson(r)).then(res => {
         setRecords(res.data ?? []);
         setLastSynced(res.lastSynced ?? "");
         scSet(SC_SWREC_SP, res.data ?? [], TTL_SP);
@@ -147,7 +148,7 @@ export default function SubscriptionPanel() {
       return;
     }
     fetch("/api/sw-records")
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(res => {
         setRecords(res.data ?? []);
         setLastSynced(res.lastSynced ?? "");

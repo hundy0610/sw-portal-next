@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import type { HwStats } from "@/lib/hw";
 import type { ExchangeReturnRecord } from "@/types";
 import { scGet, scSet } from "@/lib/session-cache";
+import { safeJson } from "@/lib/fetch-json";
 
 interface Props {
   company: string;
@@ -169,14 +170,14 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
     if (cached) {
       setSwSegs(buildSwSegs(cached));
       setSwLoading(false);
-      fetch(url).then(r => r.json()).then(d => {
+      fetch(url).then(r => safeJson(r)).then(d => {
         const recs = d.data ?? [];
         setSwSegs(buildSwSegs(recs));
         scSet(key, recs, TTL);
       }).catch(() => {});
       return;
     }
-    fetch(url).then(r => r.json()).then(d => {
+    fetch(url).then(r => safeJson(r)).then(d => {
       const recs: { status?: string }[] = d.data ?? [];
       setSwSegs(buildSwSegs(recs));
       scSet(key, recs, TTL);
@@ -189,7 +190,7 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
     let retry: ReturnType<typeof setTimeout> | null = null;
     async function load(isRetry = false) {
       try {
-        const d = await fetch("/api/hw/stats").then(r => r.json());
+        const d = await fetch("/api/hw/stats").then(r => safeJson(r));
         if (d.ok && d.stats) { setHwStats(d.stats); setHwLoading(false); }
         else if (d.warming && !isRetry) { retry = setTimeout(() => load(true), 45_000); }
         else { setHwLoading(false); }
@@ -202,7 +203,7 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
   // 자산흐름 데이터
   useEffect(() => {
     fetch("/api/exchange-return")
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(d => setErRecords(Array.isArray(d.data) ? d.data : []))
       .catch(() => {})
       .finally(() => setErLoading(false));

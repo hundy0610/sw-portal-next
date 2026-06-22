@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import type { AutomationTaskRecord as AutomationTask } from "@/lib/notion";
+import { safeJson } from "@/lib/fetch-json";
 
 const STATUS_OPTIONS = ["접수", "검토 중", "개발 중", "완료", "보류"];
 
@@ -36,7 +37,7 @@ export default function AutomationPanel() {
     setLoading(true);
     try {
       const res  = await fetch("/api/automation-tasks");
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.missingEnv) { setMissingEnv(true); setTasks([]); }
       else { setMissingEnv(false); setTasks(json.tasks ?? []); }
     } finally { setLoading(false); }

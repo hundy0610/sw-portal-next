@@ -5,6 +5,7 @@ import type { Notice, Course, Resource, ResourceCategory, SwVersion, SwDoc } fro
 import type { AuditLog } from "@/lib/portal-store";
 import type { SwItem } from "@/types";
 import BugReportPanel from "@/components/admin/BugReportPanel";
+import { safeJson } from "@/lib/fetch-json";
 
 /* ── 색상 토큰 ── */
 const C = {
@@ -46,7 +47,7 @@ function ManagePageInner() {
 
   useEffect(() => {
     fetch("/api/admin/auth")
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(data => {
         if (data.ok && data.role === "super") {
           setSession({ name: data.name, userId: data.userId, role: data.role });
@@ -182,7 +183,7 @@ function NoticesPanel() {
 
   const load = useCallback(() => {
     setLoading(true);
-    fetch("/api/notices?all=1").then(r => r.json()).then(res => setItems(res.data ?? [])).finally(() => setLoading(false));
+    fetch("/api/notices?all=1").then(r => safeJson(r)).then(res => setItems(res.data ?? [])).finally(() => setLoading(false));
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -247,7 +248,7 @@ function CoursesPanel() {
 
   const load = useCallback(() => {
     setLoading(true);
-    fetch("/api/courses?all=1").then(r => r.json()).then(res => setItems(res.data ?? [])).finally(() => setLoading(false));
+    fetch("/api/courses?all=1").then(r => safeJson(r)).then(res => setItems(res.data ?? [])).finally(() => setLoading(false));
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -324,7 +325,7 @@ function ResourcesPanel() {
 
   const load = useCallback(() => {
     setLoading(true);
-    fetch("/api/resources?all=1").then(r => r.json()).then(res => setItems(res.data ?? [])).finally(() => setLoading(false));
+    fetch("/api/resources?all=1").then(r => safeJson(r)).then(res => setItems(res.data ?? [])).finally(() => setLoading(false));
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -335,7 +336,7 @@ function ResourcesPanel() {
     setDetecting(true);
     try {
       const res = await fetch(`/api/manage/file-info?url=${encodeURIComponent(url)}`);
-      const data = await res.json();
+      const data = await safeJson(res);
       setForm(f => ({
         ...f,
         fileSize: data.fileSize || f.fileSize,
@@ -468,8 +469,8 @@ function SwPanel() {
   const load = useCallback(() => {
     setLoading(true);
     Promise.all([
-      fetch("/api/sw-db").then(r => r.json()),
-      fetch("/api/resources?all=1").then(r => r.json()),
+      fetch("/api/sw-db").then(r => safeJson(r)),
+      fetch("/api/resources?all=1").then(r => safeJson(r)),
     ]).then(([sw, res]) => {
       setItems(sw.data ?? []);
       setResources((res.data ?? []).map((r: { id: string; title: string }) => ({ id: r.id, title: r.title })));
@@ -634,7 +635,7 @@ function AuditPanel() {
 
   useEffect(() => {
     fetch("/api/manage/audit-log")
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(res => setLogs(res.data ?? []))
       .finally(() => setLoading(false));
   }, []);
@@ -788,7 +789,7 @@ function SwResourcesPanel() {
 
   const loadVersions = useCallback(() => {
     setLoading(true);
-    fetch("/api/sw-versions?all=1").then(r => r.json())
+    fetch("/api/sw-versions?all=1").then(r => safeJson(r))
       .then(res => setVersions(res.data ?? []))
       .finally(() => setLoading(false));
   }, []);
@@ -796,7 +797,7 @@ function SwResourcesPanel() {
   useEffect(() => { loadVersions(); }, [loadVersions]);
 
   const loadDocs = useCallback((verId: string) => {
-    fetch(`/api/sw-docs?versionId=${verId}&all=1`).then(r => r.json())
+    fetch(`/api/sw-docs?versionId=${verId}&all=1`).then(r => safeJson(r))
       .then(res => setDocs(res.data ?? []));
   }, []);
 

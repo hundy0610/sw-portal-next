@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import type { MobileSession } from "@/app/admin/mobile/page";
 import type { HwStats } from "@/lib/hw";
 import type { ExchangeReturnRecord } from "@/types";
+import { safeJson } from "@/lib/fetch-json";
 
 interface Props {
   session: MobileSession;
@@ -125,7 +126,7 @@ export default function MobileDashboard({ session, onNavigate }: Props) {
   // HW 통계
   useEffect(() => {
     fetch(`/api/hw/stats${companyParam}`)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(d => { if (d.ok && d.stats) setHwStats(d.stats); })
       .catch(() => {})
       .finally(() => setHwLoading(false));
@@ -134,7 +135,7 @@ export default function MobileDashboard({ session, onNavigate }: Props) {
   // SW 데이터
   useEffect(() => {
     const url = isFiltered ? `/api/sw-records?company=${encodeURIComponent(session.company)}` : "/api/sw-records";
-    fetch(url).then(r => r.json()).then(d => {
+    fetch(url).then(r => safeJson(r)).then(d => {
       if (Array.isArray(d.data)) {
         const counts: Record<string, number> = {};
         for (const r of d.data as { status?: string }[]) {
@@ -153,7 +154,7 @@ export default function MobileDashboard({ session, onNavigate }: Props) {
   useEffect(() => {
     if (!isSuper) { setErLoading(false); return; }
     fetch("/api/exchange-return")
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(d => { if (Array.isArray(d.data)) setErRecords(d.data); })
       .catch(() => {})
       .finally(() => setErLoading(false));

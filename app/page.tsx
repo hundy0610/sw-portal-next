@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import type { SwItem } from "@/types";
 import type { Notice, Course } from "@/types/portal";
 import DeclarationPanel from "@/components/DeclarationPanel";
+import { safeJson } from "@/lib/fetch-json";
 
 type Tab = "home" | "education" | "search" | "declaration";
 
@@ -173,7 +174,7 @@ function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
 
   useEffect(() => {
     fetch("/api/notices")
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(res => setNotices(res.data ?? []));
   }, []);
 
@@ -359,7 +360,7 @@ function EducationTab() {
 
   useEffect(() => {
     fetch("/api/courses")
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(res => setCourses(res.data ?? []));
   }, []);
 
@@ -579,7 +580,7 @@ function SearchTab() {
 
   useEffect(() => {
     fetch("/api/sw-db")
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(res => setItems(res.data ?? []))
       .finally(() => setLoading(false));
   }, []);

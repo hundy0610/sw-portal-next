@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import type { RepairTicket } from "@/types";
 import { AssetModalInner, HwRecord, HW_STATUSES } from "@/components/admin/AssetModal";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
+import { safeJson } from "@/lib/fetch-json";
 
 // ── Color configs ────────────────────────────────────────────
 const PRIORITY_COLORS: Record<string, { bg: string; text: string; bar: string }> = {
@@ -180,7 +181,7 @@ function InlineStatusCell({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: ticket.id, fields: { status: newStatus } }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) { onUpdated(ticket.id, { status: newStatus }); setResult("done"); }
       else setResult("error");
     } catch { setResult("error"); }
@@ -232,7 +233,7 @@ function InlineAssigneeCell({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: ticket.id, fields: { assigneeId: found?.id ?? "" } }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) {
         onUpdated(ticket.id, { assignee: newName || undefined, assigneeId: found?.id ?? undefined });
         setResult("done");
@@ -308,7 +309,7 @@ function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
     if (!ticket.assetId || assetState === "loading") return;
     setAssetState("loading");
     fetch(`/api/hw?search=${encodeURIComponent(ticket.assetId)}`)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(json => {
         const match = (json.records as HwRecord[])?.find(
           r => r.assetNo.toLowerCase() === ticket.assetId.toLowerCase()
@@ -328,7 +329,7 @@ function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: assetData.id, fields: { status: assetStatus } }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) {
         setAssetData(prev => prev ? { ...prev, status: assetStatus } : prev); setAssetSaveResult("done");
         if (assetStatus === "교체요청" && assetData) {
@@ -356,7 +357,7 @@ function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: ticket.id, fields: { actionNote: value } }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) {
         setNoteValue(value);
         setNoteSaveResult("done");
@@ -382,7 +383,7 @@ function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: ticket.id, fields }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) {
         setSaveResult(prev => ({ ...prev, [field]: "done" }));
         if (field === "status")   onUpdated?.(ticket.id, { status: selectedStatus as RepairTicket["status"] });
@@ -728,7 +729,7 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
   // 담당자 리스트 로드
   useEffect(() => {
     fetch("/api/repair-tickets/assignees")
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(res => { if (res.ok) setStoredAssignees(res.assignees ?? []); })
       .catch(() => {});
   }, []);
@@ -756,7 +757,7 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ assignees: storedAssignees }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) setAssigneeMsg({ type: "ok", text: "저장되었습니다." });
       else setAssigneeMsg({ type: "err", text: json.error || "저장 실패" });
     } catch {
@@ -789,7 +790,7 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
     if (company) params.set("company", company);
     const qs = params.toString();
     fetch(`/api/repair-tickets${qs ? `?${qs}` : ""}`)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(res => {
         if (res.missingEnv) { setMissingEnv(res.missingEnv); return; }
         if (res.error) { if (!force) setError(res.error); return; }

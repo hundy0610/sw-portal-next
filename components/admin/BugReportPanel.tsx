@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import type { BugStage } from "@/types/bug-report";
 import { DEFAULT_BUG_STAGES, UNASSIGNED_BUG_STAGE } from "@/types/bug-report";
+import { safeJson } from "@/lib/fetch-json";
 
 interface BugReport {
   id:           string;
@@ -259,10 +260,10 @@ export default function BugReportPanel() {
         fetch("/api/bug-report/stages"),
       ]);
       if (!reportsRes.ok) { setError(`오류 ${reportsRes.status}: ${await reportsRes.text()}`); return; }
-      const { data } = await reportsRes.json();
+      const { data } = await safeJson(reportsRes);
       setReports(data ?? []);
       if (stagesRes.ok) {
-        const { data: stageData } = await stagesRes.json();
+        const { data: stageData } = await safeJson(stagesRes);
         if (Array.isArray(stageData) && stageData.length > 0) setStages(stageData);
       }
     } catch (e) {
@@ -276,7 +277,7 @@ export default function BugReportPanel() {
     try {
       const res = await fetch("/api/bug-report");
       if (!res.ok) return;
-      const { data } = await res.json();
+      const { data } = await safeJson(res);
       setReports(data ?? []);
     } catch {}
   }
@@ -351,7 +352,7 @@ export default function BugReportPanel() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ _action: "handler", id: selected.id }),
     });
-    const { handler, handlerId } = await res.json();
+    const { handler, handlerId } = await safeJson(res);
     setSelected(prev => prev ? { ...prev, handler, handlerId } : null);
     backgroundLoad();
   }
@@ -371,7 +372,7 @@ export default function BugReportPanel() {
           status: replyStatus,
         }),
       });
-      const { message } = await res.json();
+      const { message } = await safeJson(res);
       const newReply = selected.reply ? selected.reply + "\n---\n" + message : message;
       setSelected(prev => prev ? { ...prev, reply: newReply } : null);
       setReplyText("");

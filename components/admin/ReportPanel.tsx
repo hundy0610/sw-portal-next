@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, Fragment } from "react";
 import type { ReportData, SubRow } from "@/lib/reportTypes";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
+import { safeJson } from "@/lib/fetch-json";
 
 // ─── 카테고리 색상 맵 ────────────────────────────────────────────────────
 const CATEGORY_BADGE: Record<string, string> = {
@@ -309,7 +310,7 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
       const url = company ? `/api/report?company=${encodeURIComponent(company)}` : "/api/report";
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.missingEnv) { setMissingEnv(json.missingEnv); return; }
       if (!json.ok) throw new Error(json.error || "API 오류");
       setData(json.data);
@@ -325,7 +326,7 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
   // 환율 조회
   useEffect(() => {
     fetch("https://open.er-api.com/v6/latest/USD")
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(d => { if (d?.rates?.KRW) setRate(Math.round(d.rates.KRW)); })
       .catch(() => {});
   }, []);

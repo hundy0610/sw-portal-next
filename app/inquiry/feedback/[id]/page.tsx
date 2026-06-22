@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useSearchParams } from "next/navigation";
+import { safeJson } from "@/lib/fetch-json";
 
 const STARS = [1, 2, 3, 4, 5];
 const STAR_LABELS = ["매우 불만족", "불만족", "보통", "만족", "매우 만족"];
@@ -37,7 +38,7 @@ export default function FeedbackPage() {
   useEffect(() => {
     if (!ticketId) return;
     fetch(`/api/feedback?id=${ticketId}`)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(res => { if (res.data) setStatus("already"); })
       .catch(() => {});
   }, [ticketId]);
@@ -55,7 +56,7 @@ export default function FeedbackPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ticketId, rating, comment }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (res.status === 409) { setStatus("already"); return; }
       if (!res.ok) throw new Error(json.error);
       setStatus("done");

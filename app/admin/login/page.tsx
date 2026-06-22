@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { safeJson } from "@/lib/fetch-json";
 
 type ResetStep = "idle" | "request" | "verify" | "done";
 
@@ -34,7 +35,7 @@ export default function AdminLoginPage() {
     });
 
     if (res.ok) {
-      const data = await res.json().catch(() => ({}));
+      const data = await safeJson(res);
       if (data.mustChangePassword) {
         router.push("/admin/change-password");
       } else {
@@ -42,7 +43,7 @@ export default function AdminLoginPage() {
       }
       router.refresh();
     } else {
-      const data = await res.json().catch(() => ({}));
+      const data = await safeJson(res);
       setError(data.error || "아이디 또는 비밀번호가 올바르지 않습니다.");
     }
     setLoading(false);
@@ -82,7 +83,7 @@ export default function AdminLoginPage() {
           confirmPassword: resetConfirm,
         }),
       });
-      const data = await res.json().catch(() => ({}));
+      const data = await safeJson(res);
       if (!res.ok) {
         setResetError(data.error || "인증 실패");
       } else {

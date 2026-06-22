@@ -1,6 +1,6 @@
 {
   "name": "sw-portal-next",
-  "version": "3.2.23",
+  "version": "3.2.24",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -10,7 +10,11 @@
   },
   "dependencies": {
     "@notionhq/client": "^2.2.15",
+    "@tanstack/react-query": "^5.101.0",
+    "@tanstack/react-query-devtools": "^5.101.0",
     "@upstash/redis": "^1.38.0",
+    "jotai": "^2.20.1",
+    "lucide-react": "^0.554.0",
     "next": "14.2.5",
     "nodemailer": "^6.9.14",
     "react": "^18",

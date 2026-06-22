@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
+import { safeJson } from "@/lib/fetch-json";
 
 // 서버사이드 렌더링 없이 클라이언트에서만 로드
 const DashboardHome     = dynamic(() => import("@/components/admin/DashboardHome"),     { ssr: false });
@@ -124,7 +125,7 @@ export default function AdminPage() {
   // ── 세션 조회 ──────────────────────────────────────────────
   useEffect(() => {
     fetch("/api/admin/auth")
-      .then(r => r.ok ? r.json() : null)
+      .then(r => safeJson(r))
       .then(data => {
         if (!data?.ok) {
           router.replace("/admin/login");
@@ -150,7 +151,7 @@ export default function AdminPage() {
           const companyParam = s.role === "company" && s.company ? `?company=${encodeURIComponent(s.company)}` : "";
           // stats 먼저 (법인 담당자면 법인 필터 적용)
           fetch(`/api/hw/stats${companyParam}`)
-            .then(r => r.json())
+            .then(r => safeJson(r))
             .then(d => { if (d.ok && d.stats) setHwStatsPrefetch(d.stats); })
             .catch(() => {});
           // hw:all 별도 prefetch — stats KV 히트 시 hw:all은 안 채워지므로 병렬 요청
@@ -168,7 +169,7 @@ export default function AdminPage() {
 
     function fetchPending() {
       fetch("/api/monitor-requests")
-        .then(r => r.json())
+        .then(r => safeJson(r))
         .then(data => {
           if (data.ok && Array.isArray(data.requests)) {
             const cnt = data.requests.filter((r: { status: string }) => r.status === "pending").length;

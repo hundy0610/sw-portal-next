@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import type { SwFile } from "@/types/portal";
+import { safeJson } from "@/lib/fetch-json";
 
 const C = {
   brand:       "#D97706",
@@ -49,7 +50,7 @@ export default function SwFilesPage() {
 
   useEffect(() => {
     fetch("/api/sw-files")
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(res => setFiles(res.data ?? []))
       .finally(() => setLoading(false));
   }, []);

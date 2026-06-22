@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import type { HwRepairRecord } from "@/types";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
+import { safeJson } from "@/lib/fetch-json";
 
 // ── 상수 ────────────────────────────────────────────────────
 const STAGES = ["수리접수", "수리센터입고", "수리완료", "수리동의서수령", "기기발송", "세금계산서기안", "법인청구요청", "사용자과실분청구", "완료"] as const;
@@ -251,7 +252,7 @@ function FileCell({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pageId, fieldName: notionField, remainingUrls }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) onUploaded(remainingUrls);
     } finally {
       setDeletingIdx(null);
@@ -280,7 +281,7 @@ function FileCell({
       } finally {
         clearTimeout(tid);
       }
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok && json.urls) {
         onUploaded(json.urls);
       } else {
@@ -415,7 +416,7 @@ function DetailModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: record.id, fields: value }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) {
         onUpdated(record.id, value as Partial<HwRepairRecord>);
         setSaved(p => ({ ...p, [field]: true }));
@@ -664,7 +665,7 @@ function AssetDetailModal({ assetId, onClose }: { assetId: string; onClose: () =
     setLoading(true);
     setError(null);
     fetch(`/api/hw?search=${encodeURIComponent(assetId)}`)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(data => {
         const records: HwAsset[] = data.records ?? data.data ?? [];
         const found = records.find(r => r.assetNo === assetId) ?? records[0] ?? null;
@@ -763,7 +764,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       setAutoFilling(true);
       try {
         const res = await fetch(`/api/hw?search=${encodeURIComponent(id)}`);
-        const data = await res.json();
+        const data = await safeJson(res);
         const records: { assetNo: string; user: string; dept: string; company: string }[] = data.records ?? [];
         const found = records.find(r => r.assetNo === id) ?? (records.length === 1 ? records[0] : null);
         if (found) {
@@ -802,7 +803,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) { setErr(json.error ?? "등록 실패"); return; }
       onCreated();
       onClose();
@@ -965,7 +966,7 @@ export default function HwRepairPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: r.id, fields: { isClosed: !r.isClosed } }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) handleUpdated(r.id, { isClosed: !r.isClosed });
     } finally {
       setAdvancingId(null);
@@ -991,7 +992,7 @@ export default function HwRepairPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: r.id, fields: { stage: nextStage } }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) return;
       handleUpdated(r.id, { stage: nextStage });
 
@@ -1018,7 +1019,7 @@ export default function HwRepairPanel() {
         } else if (r.assetStatus === "재고") {
           // 재고 → HW DB 자산 상태를 재고로, 반납일자를 오늘로 변경
           fetch(`/api/hw?search=${encodeURIComponent(r.assetId)}`)
-            .then(d => d.json())
+            .then(d => safeJson(d))
             .then(data => {
               const recs: { id: string; assetNo: string }[] = data.records ?? [];
               const found = recs.find(rec => rec.assetNo === r.assetId) ?? (recs.length === 1 ? recs[0] : null);
@@ -1040,7 +1041,7 @@ export default function HwRepairPanel() {
   const load = useCallback((force = false) => {
     if (!force) { setLoading(true); setError(null); }
     fetch(`/api/hw-repair${force ? "?refresh=1" : ""}`)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(res => {
         if (res.missingEnv) { setMissingEnv(res.missingEnv); return; }
         if (res.error) { setError(res.error); return; }
