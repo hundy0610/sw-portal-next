@@ -227,12 +227,6 @@ export default function EventPage() {
               style={{ background: C.brand }}>
               {verifying ? "확인 중..." : "확인"}
             </button>
-
-            <a href="/event/result"
-              className="block w-full text-center mt-4 text-xs font-semibold"
-              style={{ color: C.brand }}>
-              결과 페이지 바로가기 →
-            </a>
           </div>
         )}
 
@@ -340,7 +334,7 @@ export default function EventPage() {
         )}
 
         <div className="mt-6 text-center">
-          <a href="/" className="text-xs" style={{ color: C.text4 }}>← 포털로 돌아가기</a>
+          <a href="/event/result" className="text-xs font-semibold" style={{ color: C.brand }}>결과 보기 →</a>
         </div>
       </div>
     </div>
