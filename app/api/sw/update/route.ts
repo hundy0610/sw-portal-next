@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
 import { kvGet, kvDel } from "@/lib/kv-store";
+import { memDel } from "@/lib/mem-cache";
 import { getSessionFromCookieHeader, resolveCurrentName, companyScope } from "@/lib/session";
 import { errorMessage } from "@/lib/api-error";
 import type { SwDbRecord } from "@/types";
@@ -109,6 +110,7 @@ export async function POST(req: NextRequest) {
       properties: properties as Parameters<typeof notion.pages.update>[0]["properties"],
     });
 
+    memDel("sw:all");
     await kvDel("sw:all");
 
     return NextResponse.json({ ok: true });

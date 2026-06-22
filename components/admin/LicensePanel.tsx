@@ -1282,6 +1282,11 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
   const [showUpload, setShowUpload] = useState(false);
   const [showManualAdd, setShowManualAdd] = useState(false);
 
+  // 체크박스 선택 / 삭제
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleting,    setDeleting]    = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
   const maSwCategoryOptions  = useMemo(() => [...new Set(records.map(r => r.swCategory).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ko")), [records]);
   const maVersionOptions     = useMemo(() => [...new Set(records.flatMap(r => r.version ?? []).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ko")), [records]);
   const maCompanyOptions     = useMemo(() => [...new Set(records.map(r => r.company).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ko")), [records]);
@@ -1313,6 +1318,28 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
     if (!json.ok) throw new Error(json.error ?? "Notion 업데이트 실패");
     setRecords(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r));
   }, []);
+
+  const handleDelete = useCallback(async (ids: string[]) => {
+    if (!window.confirm(`선택한 ${ids.length}건을 삭제하시겠습니까?\n삭제된 데이터는 Notion에서 보관 처리됩니다.`)) return;
+    setDeleting(true); setDeleteError("");
+    try {
+      const res  = await fetch("/api/sw/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error ?? "삭제 실패");
+      if (json.failed > 0) setDeleteError(`${json.failed}건 삭제 실패`);
+      setRecords(prev => prev.filter(r => !ids.includes(r.id)));
+      setSelectedIds(new Set());
+      scDel(SC_SWREC_LP(company));
+    } catch (e) {
+      setDeleteError(String(e));
+    } finally {
+      setDeleting(false);
+    }
+  }, [company]);
 
   // 필터 상태
   const [search,           setSearch]           = useState("");
@@ -1571,11 +1598,11 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
         )}
       </div>
 
-      {/* ── 뷰 토글 ── */}
-      <div className="flex items-center justify-between mb-4">
+      {/* ── 뷰 토글 + 선택 삭제 ── */}
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div className="flex gap-1.5">
           {([["category", "📂 카테고리별"], ["list", "📋 전체 목록"]] as const).map(([v, label]) => (
-            <button key={v} onClick={() => setDetailView(v)}
+            <button key={v} onClick={() => { setDetailView(v); setSelectedIds(new Set()); }}
               className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all border ${
                 detailView === v
                   ? "bg-gray-800 text-white border-gray-800"
@@ -1585,7 +1612,28 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
             </button>
           ))}
         </div>
-        <span className="text-xs text-gray-400">{filtered.length}건 조회됨</span>
+        <div className="flex items-center gap-3">
+          {selectedIds.size > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500">{selectedIds.size}건 선택됨</span>
+              <button
+                onClick={() => handleDelete(Array.from(selectedIds))}
+                disabled={deleting}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-xs font-semibold rounded-lg transition-colors"
+              >
+                {deleting ? "삭제 중…" : `🗑 ${selectedIds.size}건 삭제`}
+              </button>
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 px-2 py-1.5 rounded-lg transition-colors"
+              >× 선택 해제</button>
+            </div>
+          )}
+          {deleteError && (
+            <span className="text-xs text-red-500">{deleteError}</span>
+          )}
+          <span className="text-xs text-gray-400">{filtered.length}건 조회됨</span>
+        </div>
       </div>
 
       {/* ── 직접 등록 모달 ── */}
@@ -1629,6 +1677,24 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
+                  <th className="px-3 py-2.5 w-8">
+                    <input
+                      type="checkbox"
+                      className="rounded border-gray-300 text-blue-600 cursor-pointer"
+                      checked={paginated.length > 0 && paginated.every(r => selectedIds.has(r.id))}
+                      onChange={e => {
+                        if (e.target.checked) {
+                          setSelectedIds(prev => new Set([...prev, ...paginated.map(r => r.id)]));
+                        } else {
+                          setSelectedIds(prev => {
+                            const next = new Set(prev);
+                            paginated.forEach(r => next.delete(r.id));
+                            return next;
+                          });
+                        }
+                      }}
+                    />
+                  </th>
                   <th className="px-3 py-2.5 text-left whitespace-nowrap">
                     <ColFilter label="SW 분류" value={filterMacrocat} options={macroCatOptions} onChange={setFilterMacrocat} />
                   </th>
@@ -1650,19 +1716,36 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
                   <th className={thS}>인증키</th>
                   <th className={thS}>노션</th>
                   <th className={thS}>최종수정</th>
+                  <th className={thS}></th>
                 </tr>
               </thead>
               <tbody>
                 {paginated.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="text-center py-12 text-gray-400">검색 결과가 없습니다</td>
+                    <td colSpan={12} className="text-center py-12 text-gray-400">검색 결과가 없습니다</td>
                   </tr>
                 ) : paginated.map(r => {
                   const days = daysLeft(r.renewalDate);
                   const isExpiring = days !== null && days >= 0 && days <= 30;
                   const isPermanent = r.licenseType === "영구";
+                  const isSelected = selectedIds.has(r.id);
                   return (
-                    <tr key={r.id} className="border-b border-gray-50 hover:bg-blue-50/40 transition-colors">
+                    <tr key={r.id} className={`border-b border-gray-50 transition-colors ${isSelected ? "bg-red-50/60" : "hover:bg-blue-50/40"}`}>
+                      <td className="px-3 py-3">
+                        <input
+                          type="checkbox"
+                          className="rounded border-gray-300 text-red-500 cursor-pointer"
+                          checked={isSelected}
+                          onChange={e => {
+                            setSelectedIds(prev => {
+                              const next = new Set(prev);
+                              e.target.checked ? next.add(r.id) : next.delete(r.id);
+                              return next;
+                            });
+                          }}
+                          onClick={e => e.stopPropagation()}
+                        />
+                      </td>
                       <td className="px-3 py-3 whitespace-nowrap">
                         <div className="font-semibold text-gray-900 text-xs">{r.swCategory || "—"}</div>
                         {r.swDetail && <div className="text-xs text-gray-400">{r.swDetail}</div>}
@@ -1707,10 +1790,19 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
                         ) : <span className="text-gray-300">—</span>}
                       </td>
                       <td className="px-3 py-3">
-                        <button
-                          onClick={() => setEditRecord(r)}
-                          className="text-xs text-gray-400 hover:text-blue-600 border border-gray-100 hover:border-blue-300 px-2 py-0.5 rounded transition-colors"
-                        >✏️</button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => setEditRecord(r)}
+                            className="text-xs text-gray-400 hover:text-blue-600 border border-gray-100 hover:border-blue-300 px-2 py-0.5 rounded transition-colors"
+                            title="수정"
+                          >✏️</button>
+                          <button
+                            onClick={() => handleDelete([r.id])}
+                            disabled={deleting}
+                            className="text-xs text-gray-300 hover:text-red-500 border border-gray-100 hover:border-red-300 px-2 py-0.5 rounded transition-colors disabled:opacity-40"
+                            title="삭제"
+                          >🗑</button>
+                        </div>
                       </td>
                     </tr>
                   );
