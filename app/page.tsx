@@ -201,7 +201,7 @@ function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
               안녕하세요
             </div>
             <div className="text-sm opacity-80 leading-relaxed mb-5 max-w-md">
-              SW 자산관리 포털에 오신 것을 환영합니다.<br />
+              IdsTrust 자산 관리 포털에 오신 것을 환영합니다.<br />
               SW 사용 정책을 확인하고 필요한 교육 자료를 이용하세요.
             </div>
             <div className="flex gap-2.5 flex-wrap">
