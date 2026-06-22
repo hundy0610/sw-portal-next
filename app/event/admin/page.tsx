@@ -535,7 +535,6 @@ export default function EventAdminPage() {
               {/* 팀 A 점수 분포 */}
               <div className="bg-white rounded-2xl p-6" style={{ border: `1px solid ${C.border}` }}>
                 <div className="flex items-center gap-2 mb-5">
-                  <span className="text-lg">🇰🇷</span>
                   <span className="font-bold text-sm" style={{ color: C.text1 }}>{cfg.teamA} 점수 분포</span>
                 </div>
                 {koreaDistribution.length === 0 ? (
@@ -565,7 +564,6 @@ export default function EventAdminPage() {
               {/* 팀 B 점수 분포 */}
               <div className="bg-white rounded-2xl p-6" style={{ border: `1px solid ${C.border}` }}>
                 <div className="flex items-center gap-2 mb-5">
-                  <span className="text-lg">🇲🇽</span>
                   <span className="font-bold text-sm" style={{ color: C.text1 }}>{cfg.teamB} 점수 분포</span>
                 </div>
                 {mexicoDistribution.length === 0 ? (
@@ -644,11 +642,9 @@ export default function EventAdminPage() {
                           <td className="px-5 py-3" style={{ color: C.text3 }}>{s.department}</td>
                           <td className="px-5 py-3">
                             <div className="flex items-center gap-1.5">
-                              <span className="text-sm">🇰🇷</span>
                               <span className="font-extrabold text-sm" style={{ color: "#1e40af" }}>{s.koreaScore}</span>
                               <span className="text-xs font-bold" style={{ color: C.text4 }}>:</span>
                               <span className="font-extrabold text-sm" style={{ color: "#78350f" }}>{s.mexicoScore}</span>
-                              <span className="text-sm">🇲🇽</span>
                             </div>
                           </td>
                           <td className="px-5 py-3 text-xs" style={{ color: C.text4 }}>

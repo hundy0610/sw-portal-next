@@ -247,7 +247,6 @@ export default function EventPage() {
               {/* 팀 A */}
               <div className="p-5 rounded-2xl text-center"
                 style={{ background: "#eff6ff", border: "1px solid #bfdbfe" }}>
-                <div className="text-2xl mb-1">🇰🇷</div>
                 <div className="font-bold text-sm mb-3" style={{ color: "#1e40af" }}>{cfg.teamA}</div>
                 <input
                   type="number" min={0} max={20}
@@ -262,7 +261,6 @@ export default function EventPage() {
               {/* 팀 B */}
               <div className="p-5 rounded-2xl text-center"
                 style={{ background: "#fefce8", border: "1px solid #fde047" }}>
-                <div className="text-2xl mb-1">🇲🇽</div>
                 <div className="font-bold text-sm mb-3" style={{ color: "#78350f" }}>{cfg.teamB}</div>
                 <input
                   type="number" min={0} max={20}
@@ -313,12 +311,12 @@ export default function EventPage() {
             <div className="flex justify-center gap-6 mb-6">
               <div className="text-center">
                 <div className="text-3xl font-black" style={{ color: "#1e40af" }}>{koreaScore}</div>
-                <div className="text-xs mt-1" style={{ color: C.text4 }}>🇰🇷 {cfg.teamA}</div>
+                <div className="text-xs mt-1" style={{ color: C.text4 }}>{cfg.teamA}</div>
               </div>
               <div className="text-3xl font-black self-center" style={{ color: C.text3 }}>:</div>
               <div className="text-center">
                 <div className="text-3xl font-black" style={{ color: "#78350f" }}>{mexicoScore}</div>
-                <div className="text-xs mt-1" style={{ color: C.text4 }}>🇲🇽 {cfg.teamB}</div>
+                <div className="text-xs mt-1" style={{ color: C.text4 }}>{cfg.teamB}</div>
               </div>
             </div>
             <p className="text-xs" style={{ color: C.text4 }}>

@@ -86,12 +86,12 @@ export default function EventResultPage() {
             <div className="flex justify-center gap-6 mb-8">
               <div className="text-center">
                 <div className="text-3xl font-black" style={{ color: "#1e40af" }}>{result.answerA}</div>
-                <div className="text-xs mt-1" style={{ color: C.text4 }}>🇰🇷 {result.teamA}</div>
+                <div className="text-xs mt-1" style={{ color: C.text4 }}>{result.teamA}</div>
               </div>
               <div className="text-3xl font-black self-center" style={{ color: C.text3 }}>:</div>
               <div className="text-center">
                 <div className="text-3xl font-black" style={{ color: "#78350f" }}>{result.answerB}</div>
-                <div className="text-xs mt-1" style={{ color: C.text4 }}>🇲🇽 {result.teamB}</div>
+                <div className="text-xs mt-1" style={{ color: C.text4 }}>{result.teamB}</div>
               </div>
             </div>
 
@@ -102,14 +102,12 @@ export default function EventResultPage() {
             <div className="space-y-6">
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  <span className="text-lg">🇰🇷</span>
                   <span className="font-bold text-sm" style={{ color: C.text1 }}>{result.teamA} 예측 분포</span>
                 </div>
                 <DistributionBars items={result.distributionA ?? []} color="#3b82f6" />
               </div>
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  <span className="text-lg">🇲🇽</span>
                   <span className="font-bold text-sm" style={{ color: C.text1 }}>{result.teamB} 예측 분포</span>
                 </div>
                 <DistributionBars items={result.distributionB ?? []} color="#eab308" />
