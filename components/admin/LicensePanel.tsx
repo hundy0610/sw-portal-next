@@ -6,8 +6,33 @@ import type { SwDbRecord } from "@/types";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import { scGet, scSet, scDel } from "@/lib/session-cache";
 
+const LC_KEY    = (co: string) => `lc:lp:swrec${co ? `:${co}` : ""}`;
+const LC_TTL_MS = 30 * 60 * 1000; // localStorage 30분
+
+// localStorage 캐시 (탭 간 공유, 30분 TTL)
+function lcGet<T>(key: string): T | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const { data, exp } = JSON.parse(raw) as { data: T; exp: number };
+    if (Date.now() > exp) { localStorage.removeItem(key); return null; }
+    return data;
+  } catch { return null; }
+}
+function lcSet<T>(key: string, data: T): void {
+  if (typeof window === "undefined") return;
+  try { localStorage.setItem(key, JSON.stringify({ data, exp: Date.now() + LC_TTL_MS })); }
+  catch { /* storage full */ }
+}
+function lcDel(key: string): void {
+  if (typeof window === "undefined") return;
+  try { localStorage.removeItem(key); } catch { /* ignore */ }
+}
+
+// 이전 sessionStorage 키 (하위 호환 — 무효화만 목적)
 const SC_SWREC_LP = (co: string) => `sc:lp:swrec${co ? `:${co}` : ""}`;
-const TTL_SWREC_LP = 5 * 60 * 1000;
+const TTL_SWREC_LP = 5 * 60 * 1000; // (레거시, 사용 안 함)
 
 const PAGE_SIZE = 30;
 
@@ -1281,6 +1306,9 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
   const [editRecord, setEditRecord] = useState<SwDbRecord | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [showManualAdd, setShowManualAdd] = useState(false);
+  const [lastSynced,  setLastSynced]  = useState<string>("");
+  const [refreshing,  setRefreshing]  = useState(false);
+  const [fromCache,   setFromCache]   = useState(false);
 
   // 체크박스 선택 / 삭제
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -1296,14 +1324,15 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
 
   const handleUploadSuccess = useCallback(() => {
     const url = company ? `/api/sw-records?company=${encodeURIComponent(company)}` : "/api/sw-records";
-    // 업로드 후 sessionStorage 무효화
-    scDel(SC_SWREC_LP(company));
+    lcDel(LC_KEY(company));
     fetch(url)
       .then(r => r.json())
       .then(res => {
         if (!res.missingEnv) {
           setRecords(res.data ?? []);
-          scSet(SC_SWREC_LP(company), res.data ?? [], TTL_SWREC_LP);
+          setLastSynced(res.lastSynced ?? "");
+          setFromCache(false);
+          lcSet(LC_KEY(company), res.data ?? []);
         }
       });
   }, [company]);
@@ -1331,13 +1360,38 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
       const json = await res.json();
       if (!json.ok) throw new Error(json.error ?? "삭제 실패");
       if (json.failed > 0) setDeleteError(`${json.failed}건 삭제 실패`);
-      setRecords(prev => prev.filter(r => !ids.includes(r.id)));
+      const next = records.filter(r => !ids.includes(r.id));
+      setRecords(next);
       setSelectedIds(new Set());
-      scDel(SC_SWREC_LP(company));
+      lcSet(LC_KEY(company), next); // 로컬 캐시도 즉시 반영
     } catch (e) {
       setDeleteError(String(e));
     } finally {
       setDeleting(false);
+    }
+  }, [company, records]);
+
+  // 강제 갱신: 서버 KV 재워밍 후 최신 데이터 수신
+  const handleForceRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      lcDel(LC_KEY(company));
+      const res  = await fetch("/api/sw-records", { method: "POST" });
+      const json = await res.json();
+      if (json.ok && json.count) {
+        // POST가 성공했으면 GET으로 최신 데이터 가져오기
+        const url = company ? `/api/sw-records?company=${encodeURIComponent(company)}` : "/api/sw-records";
+        const r2 = await fetch(url);
+        const d2 = await r2.json();
+        if (!d2.missingEnv) {
+          setRecords(d2.data ?? []);
+          setLastSynced(d2.lastSynced ?? "");
+          setFromCache(false);
+          lcSet(LC_KEY(company), d2.data ?? []);
+        }
+      }
+    } catch { /* ignore */ } finally {
+      setRefreshing(false);
     }
   }, [company]);
 
@@ -1356,27 +1410,33 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
 
   useEffect(() => {
     const url = company ? `/api/sw-records?company=${encodeURIComponent(company)}` : "/api/sw-records";
-    const cacheKey = SC_SWREC_LP(company);
 
-    const cached = scGet<SwDbRecord[]>(cacheKey);
+    // 1단계: localStorage 캐시 (30분) — 탭 간 공유, 즉시 표시
+    const cached = lcGet<SwDbRecord[]>(LC_KEY(company));
     if (cached) {
       setRecords(cached);
+      setFromCache(true);
       setLoading(false);
-      // 백그라운드 재검증
+      // 백그라운드 재검증 (캐시 표시 후 조용히 갱신)
       fetch(url).then(r => r.json()).then(res => {
         if (res.missingEnv) return;
         setRecords(res.data ?? []);
-        scSet(cacheKey, res.data ?? [], TTL_SWREC_LP);
+        setLastSynced(res.lastSynced ?? "");
+        setFromCache(false);
+        lcSet(LC_KEY(company), res.data ?? []);
       }).catch(() => {});
       return;
     }
 
+    // 2단계: 캐시 없음 — API 호출 (서버는 mem → KV → Notion 순 조회)
     fetch(url)
       .then(r => r.json())
       .then(res => {
         if (res.missingEnv) { setMissingEnv(res.missingEnv); return; }
         setRecords(res.data ?? []);
-        scSet(cacheKey, res.data ?? [], TTL_SWREC_LP);
+        setLastSynced(res.lastSynced ?? "");
+        setFromCache(false);
+        lcSet(LC_KEY(company), res.data ?? []);
       })
       .finally(() => setLoading(false));
   }, [company]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1466,12 +1526,33 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
   return (
     <div className="fade-in">
       {/* ── 헤더 ── */}
-      <div className="mb-5 flex items-start justify-between gap-4">
+      <div className="mb-5 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h2 className="text-xl font-bold text-gray-900 mb-0.5">라이선스 현황</h2>
-          <p className="text-sm text-gray-500">영구 · 구독 통합 SW 라이선스 검색 (Notion 실시간 연동)</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm text-gray-500">영구 · 구독 통합 SW 라이선스 검색 (Notion 연동)</p>
+            {fromCache && (
+              <span className="text-xs bg-amber-50 text-amber-600 border border-amber-200 px-2 py-0.5 rounded-full">
+                캐시 데이터 · 백그라운드 갱신 중
+              </span>
+            )}
+            {lastSynced && !fromCache && (
+              <span className="text-xs text-gray-400">
+                동기화: {new Date(lastSynced).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}
+              </span>
+            )}
+          </div>
         </div>
-        <div className="flex gap-2 shrink-0">
+        <div className="flex gap-2 shrink-0 flex-wrap">
+          <button
+            onClick={handleForceRefresh}
+            disabled={refreshing}
+            className="flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-300 text-gray-600 text-sm font-semibold rounded-lg hover:bg-gray-50 disabled:opacity-60 transition-colors"
+            title="Notion에서 최신 데이터를 강제로 가져옵니다"
+          >
+            <span className={refreshing ? "animate-spin inline-block" : ""}>🔄</span>
+            {refreshing ? "갱신 중…" : "새로고침"}
+          </button>
           <button
             onClick={() => setShowManualAdd(true)}
             className="flex items-center gap-2 px-4 py-2 bg-white border border-indigo-300 text-indigo-600 text-sm font-semibold rounded-lg hover:bg-indigo-50 transition-colors shadow-sm"
