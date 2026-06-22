@@ -227,6 +227,12 @@ export default function EventPage() {
               style={{ background: C.brand }}>
               {verifying ? "확인 중..." : "확인"}
             </button>
+
+            <a href="/event/result"
+              className="block w-full text-center mt-4 text-xs font-semibold"
+              style={{ color: C.brand }}>
+              결과 페이지 바로가기 →
+            </a>
           </div>
         )}
 
