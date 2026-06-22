@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import type { MobileSession } from "@/app/admin/mobile/page";
 import type { HwRecord } from "@/lib/hw";
+import { safeJson } from "@/lib/fetch-json";
 
 interface Props {
   session: MobileSession;
@@ -133,7 +134,7 @@ export default function MobileHw({ session }: Props) {
 
   useEffect(() => {
     fetch(`/api/hw${companyParam}`)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(data => {
         if (data.ok) setRecords(data.records ?? []);
         else setError(data.error ?? "오류");

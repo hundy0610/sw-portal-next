@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import type { MobileSession } from "@/app/admin/mobile/page";
 import type { ExchangeReturnRecord } from "@/types";
+import { safeJson } from "@/lib/fetch-json";
 
 interface Props {
   session: MobileSession;
@@ -263,7 +264,7 @@ export default function MobileExchangeReturn({ session }: Props) {
     setLoading(true);
     try {
       const res = await fetch("/api/exchange-return");
-      const data = await res.json();
+      const data = await safeJson(res);
       if (Array.isArray(data.data)) setRecords(data.data);
       else if (data.error) setError(data.error);
       else setError("데이터를 불러오지 못했습니다.");

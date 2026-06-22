@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import ServiceWorkerRegistrar from "@/components/admin/mobile/ServiceWorkerRegistrar";
+import { safeJson } from "@/lib/fetch-json";
 
 const MobileDashboard     = dynamic(() => import("@/components/admin/mobile/MobileDashboard"),     { ssr: false });
 const MobileExchangeReturn = dynamic(() => import("@/components/admin/mobile/MobileExchangeReturn"), { ssr: false });
@@ -51,7 +52,7 @@ export default function MobileAdminPage() {
 
   useEffect(() => {
     fetch("/api/admin/auth")
-      .then(r => r.ok ? r.json() : null)
+      .then(r => safeJson(r))
       .then(data => {
         if (!data?.ok) { router.replace("/admin/login"); return; }
         if (data.mustChangePassword) { router.replace("/admin/change-password"); return; }

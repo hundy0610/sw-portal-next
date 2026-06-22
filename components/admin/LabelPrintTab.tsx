@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
 import type { HwRecord } from "@/lib/hw";
+import { safeJson } from "@/lib/fetch-json";
 
 export interface PrintQueueItem {
   id: string;
@@ -114,7 +115,7 @@ export function LabelPrintTab({
   useEffect(() => {
     setHistoryLoading(true);
     fetch("/api/label-history")
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(j => {
         if (j.ok) {
           const data: PrintHistoryRecord[] = j.history ?? [];
@@ -541,7 +542,7 @@ export function PrintQueueSection({
   useEffect(() => {
     setLoading(true);
     fetch("/api/print-queue")
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(j => { if (j.ok) setItems(j.items ?? []); })
       .catch(() => {})
       .finally(() => setLoading(false));

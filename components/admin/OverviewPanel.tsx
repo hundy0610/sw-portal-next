@@ -5,6 +5,7 @@ import type { SwItem, SwDbRecord } from "@/types";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import { scGet, scSet } from "@/lib/session-cache";
+import { safeJson } from "@/lib/fetch-json";
 
 const SC_SWDB = "sc:overview:swdb";
 const SC_SWREC = (co: string) => `sc:overview:swrec${co ? `:${co}` : ""}`;
@@ -204,8 +205,8 @@ export default function OverviewPanel({ company = "" }: { company?: string }) {
       setSwRecs(cachedRec);
       setLoading(false);
       Promise.all([
-        fetch("/api/sw-db").then(r => r.json()),
-        fetch(swRecUrl).then(r => r.json()),
+        fetch("/api/sw-db").then(r => safeJson(r)),
+        fetch(swRecUrl).then(r => safeJson(r)),
       ]).then(([sw, recs]) => {
         if (recs.missingEnv) return;
         setSwDb(sw.data ?? []);
@@ -218,8 +219,8 @@ export default function OverviewPanel({ company = "" }: { company?: string }) {
 
     // 캐시 없음 — 정상 fetch
     Promise.all([
-      fetch("/api/sw-db").then(r => r.json()),
-      fetch(swRecUrl).then(r => r.json()),
+      fetch("/api/sw-db").then(r => safeJson(r)),
+      fetch(swRecUrl).then(r => safeJson(r)),
     ]).then(([sw, recs]) => {
       if (recs.missingEnv) { setMissingEnv(recs.missingEnv); return; }
       setSwDb(sw.data ?? []);

@@ -2,6 +2,7 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import type { RentalRecord } from "@/lib/rental-hw";
 import { AssetModalInner } from "@/components/admin/AssetModal";
+import { safeJson } from "@/lib/fetch-json";
 
 const COMPANIES = [
   "대웅","대웅제약","대웅바이오","대웅개발","대웅펫",
@@ -330,7 +331,7 @@ export default function RentalHwPanel() {
     setLoading(true);
     try {
       const res  = await fetch(`/api/rental-hw${refresh ? "?refresh=1" : ""}`);
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.missingEnv) { setMissingEnv(json.missingEnv); return; }
       setRecords(json.data ?? []);
     } finally { setLoading(false); }
@@ -341,14 +342,14 @@ export default function RentalHwPanel() {
 
   const handleCreate = useCallback(async (fields: Record<string, string>) => {
     const res  = await fetch("/api/rental-hw/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(fields) });
-    const json = await res.json();
+    const json = await safeJson(res);
     if (!json.ok) throw new Error(json.error ?? "등록 실패");
     setRecords(prev => [json.data, ...prev]);
   }, []);
 
   const handleUpdate = useCallback(async (id: string, fields: object) => {
     const res  = await fetch("/api/rental-hw/update", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, fields }) });
-    const json = await res.json();
+    const json = await safeJson(res);
     if (!json.ok) throw new Error(json.error ?? "수정 실패");
     await load(true);
   }, [load]);

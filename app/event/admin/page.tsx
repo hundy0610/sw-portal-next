@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import type { EventSubmission } from "@/lib/notion";
 import type { EventConfig, ParticipationMode } from "@/lib/event-config";
+import { safeJson } from "@/lib/fetch-json";
 
 const C = {
   brand:   "#16a34a",
@@ -73,7 +74,7 @@ export default function EventAdminPage() {
   // 슈퍼어드민 권한 확인
   useEffect(() => {
     fetch("/api/admin/auth")
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(data => {
         if (data.ok && data.role === "super") {
           setAuthorized(true);
@@ -94,13 +95,13 @@ export default function EventAdminPage() {
         fetch("/api/event/config", { cache: "no-store" }),
       ]);
       if (!subResp.ok) {
-        const err = await subResp.json().catch(() => ({}));
+        const err = await safeJson(subResp);
         setLoadError(`참여자 조회 실패 (${subResp.status}): ${err.error ?? "서버 오류"}`);
         return;
       }
       const [subRes, cfgRes]: [{ data: EventSubmission[] }, AdminConfig] = await Promise.all([
-        subResp.json(),
-        cfgResp.json(),
+        safeJson(subResp),
+        safeJson(cfgResp),
       ]);
       setSubmissions(subRes.data ?? []);
       setCfg(cfgRes);
@@ -147,7 +148,7 @@ export default function EventAdminPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
     });
-    const json = await res.json();
+    const json = await safeJson(res);
     return json;
   }
 

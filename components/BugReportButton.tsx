@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+import { safeJson } from "@/lib/fetch-json";
 
 // ── 페이지별 기능 목록 ──────────────────────────────────────
 const PAGE_FEATURES: Record<string, string[]> = {
@@ -122,7 +123,7 @@ export default function BugReportButton() {
   // admin 여부 확인
   useEffect(() => {
     fetch("/api/admin/auth")
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(d => setIsAdmin(d.ok === true))
       .catch(() => setIsAdmin(false));
   }, []);
@@ -175,7 +176,7 @@ export default function BugReportButton() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ filename: file.name, contentType: file.type, size: file.size }),
     });
-    const { fileUploadId } = await initRes.json();
+    const { fileUploadId } = await safeJson(initRes);
     const fd = new FormData();
     fd.append("file", file, file.name);
     fd.append("fileUploadId", fileUploadId);

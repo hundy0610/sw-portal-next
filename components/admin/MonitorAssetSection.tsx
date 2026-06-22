@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import type { MonitorAsset } from "@/lib/notion";
+import { safeJson } from "@/lib/fetch-json";
 
 const STATUS_OPTIONS = ["사용중", "수리중", "예비", "미설치", "폐기"];
 
@@ -30,7 +31,7 @@ export function useMonitorAsset({
   const reload = useCallback(() => {
     setLoading(true);
     fetch(`/api/monitor-assets?itemId=${encodeURIComponent(itemId)}`)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(({ assets }) => setAsset(assets?.[0] ?? null))
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -52,7 +53,7 @@ export function useMonitorAsset({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ itemId, title: defaultTitle, building, floor, ...fields }),
       });
-      const { id } = await res.json();
+      const { id } = await safeJson(res);
       setAsset({ id, itemId, title: defaultTitle, building, floor, ...EMPTY_FORM, ...fields });
     }
   }, [asset, itemId, building, floor, defaultTitle]);

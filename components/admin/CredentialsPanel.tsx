@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
+import { safeJson } from "@/lib/fetch-json";
 
 // ────────────────────────────────────────────────────────────
 // 타입
@@ -280,7 +281,7 @@ export default function CredentialsPanel() {
   function loadCreds() {
     setLoading(true);
     fetch("/api/credentials?t=" + Date.now())
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(res => {
         if (res.missingEnv) { setMissingEnv(res.missingEnv); return; }
         if (res.error) setError(res.error);
@@ -301,7 +302,7 @@ export default function CredentialsPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!res.ok) throw new Error(json.error ?? "추가 실패");
       setCreds(p => [...p, json.data]);
       setShowAdd(false);
@@ -323,7 +324,7 @@ export default function CredentialsPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: editTarget.id, ...form }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!res.ok) throw new Error(json.error ?? "수정 실패");
       setCreds(p => p.map(c => c.id === editTarget.id ? { ...c, ...form } : c));
       setEditTarget(null);
@@ -345,7 +346,7 @@ export default function CredentialsPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: deleteTarget.id }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!res.ok) throw new Error(json.error ?? "삭제 실패");
       setCreds(p => p.filter(c => c.id !== deleteTarget.id));
       setDeleteTarget(null);

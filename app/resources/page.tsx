@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import type { SwVersion, SwDoc } from "@/types/portal";
+import { safeJson } from "@/lib/fetch-json";
 
 const C = {
   brand:       "#D97706",
@@ -60,7 +61,7 @@ export default function ResourcesPage() {
   const [regulationConfirmed, setRegulationConfirmed] = useState(false);
 
   useEffect(() => {
-    fetch("/api/sw-versions").then(r => r.json()).then(res => setVersions(res.data ?? []));
+    fetch("/api/sw-versions").then(r => safeJson(r)).then(res => setVersions(res.data ?? []));
   }, []);
 
   useEffect(() => {
@@ -69,7 +70,7 @@ export default function ResourcesPage() {
     setOpenPreview(null);
     setRegulationConfirmed(false);
     fetch(`/api/sw-docs?versionId=${selectedVersion.id}`)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(res => {
         const data: SwDoc[] = res.data ?? [];
         setDocs(data);

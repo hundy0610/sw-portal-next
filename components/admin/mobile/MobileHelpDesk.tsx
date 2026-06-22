@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import type { MobileSession } from "@/app/admin/mobile/page";
 import type { HelpDeskTicket } from "@/lib/notion";
+import { safeJson } from "@/lib/fetch-json";
 
 interface Props {
   session: MobileSession;
@@ -174,7 +175,7 @@ export default function MobileHelpDesk({ session }: Props) {
 
   useEffect(() => {
     fetch(`/api/helpdesk${companyParam}`)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(data => {
         if (Array.isArray(data.data)) setTickets(data.data);
         else if (data.error) setError(data.error);

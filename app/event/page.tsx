@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { safeJson } from "@/lib/fetch-json";
 
 const C = {
   brand:   "#16a34a",
@@ -59,7 +60,7 @@ export default function EventPage() {
 
   useEffect(() => {
     fetch("/api/event/employees")
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(d => {
         if (d.corporations?.length > 0) {
           setCorporations(d.corporations);
@@ -69,7 +70,7 @@ export default function EventPage() {
       })
       .catch(() => { /* 기본값 유지 */ });
     fetch("/api/event/config", { cache: "no-store" })
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(d => setCfg(prev => ({ ...prev, ...d })))
       .catch(() => { /* 기본값 유지 */ });
   }, []);
@@ -93,7 +94,7 @@ export default function EventPage() {
           _checkOnly: true,
         }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!res.ok) {
         setVerifyError(json.error ?? "확인 중 오류가 발생했습니다.");
         return;
@@ -121,7 +122,7 @@ export default function EventPage() {
           mexicoScore: Number(mexicoScore),
         }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!res.ok) {
         setSubmitError(json.error ?? "제출 중 오류가 발생했습니다.");
         return;

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import type { WorkStage } from "@/types/work-tracker";
 import { DEFAULT_WORK_STAGES, UNASSIGNED_WORK_STAGE } from "@/types/work-tracker";
+import { safeJson } from "@/lib/fetch-json";
 
 interface WorkTask {
   id:               string;
@@ -288,10 +289,10 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
         fetch("/api/work-tracker/stages"),
       ]);
       if (!tasksRes.ok) { setError(`오류 ${tasksRes.status}: ${await tasksRes.text()}`); return; }
-      const { data } = await tasksRes.json();
+      const { data } = await safeJson(tasksRes);
       setTasks(data ?? []);
       if (stagesRes.ok) {
-        const { data: stageData } = await stagesRes.json();
+        const { data: stageData } = await safeJson(stagesRes);
         if (Array.isArray(stageData) && stageData.length > 0) setStages(stageData);
       }
     } catch (e) {
@@ -305,7 +306,7 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
     try {
       const res = await fetch("/api/admin/accounts");
       if (!res.ok) return;
-      const { accounts } = await res.json();
+      const { accounts } = await safeJson(res);
       if (Array.isArray(accounts)) {
         const names: string[] = accounts
           .filter((a: { active: boolean; role: string; name: string }) => a.active && a.role === "super" && a.name !== session.name)
@@ -319,7 +320,7 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
     try {
       const res = await fetch("/api/work-tracker");
       if (!res.ok) return;
-      const { data } = await res.json();
+      const { data } = await safeJson(res);
       setTasks(data ?? []);
     } catch {}
   }

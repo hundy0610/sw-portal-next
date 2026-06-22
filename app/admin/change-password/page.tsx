@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { safeJson } from "@/lib/fetch-json";
 
 export default function ChangePasswordPage() {
   const [newPassword,     setNewPassword]     = useState("");
@@ -43,7 +44,7 @@ export default function ChangePasswordPage() {
       router.replace("/admin");
       router.refresh();
     } else {
-      const data = await res.json().catch(() => ({}));
+      const data = await safeJson(res);
       setError(data.error || "비밀번호 변경에 실패했습니다");
     }
     setLoading(false);
