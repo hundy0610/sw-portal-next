@@ -1762,14 +1762,17 @@ export async function checkEventEmployee(name: string): Promise<boolean> {
 }
 
 // 이미 토토에 참여했는지 확인
-export async function checkEventAlreadySubmitted(name: string): Promise<boolean> {
+// since(회차 시작 시각)가 주어지면 그 이전 회차의 참여 기록은 무시한다.
+export async function checkEventAlreadySubmitted(name: string, since?: string | null): Promise<boolean> {
   const dbId = process.env.NOTION_DB_EVENT_TOTO;
   if (!dbId) return false;
 
-  const pages = await queryAllPages(toNotionId(dbId), {
-    property: "이름",
-    title: { equals: name },
-  });
+  const nameFilter = { property: "이름", title: { equals: name } };
+  const filter: QueryDatabaseParameters["filter"] = since
+    ? { and: [nameFilter, { timestamp: "created_time", created_time: { on_or_after: since } }] }
+    : nameFilter;
+
+  const pages = await queryAllPages(toNotionId(dbId), filter);
   return pages.length > 0;
 }
 
@@ -1808,11 +1811,15 @@ export interface EventSubmission {
   createdAt: string;
 }
 
-export async function fetchEventSubmissions(): Promise<EventSubmission[]> {
+// since(회차 시작 시각)가 주어지면 그 이전 회차의 참여 기록은 제외한다.
+export async function fetchEventSubmissions(since?: string | null): Promise<EventSubmission[]> {
   const dbId = process.env.NOTION_DB_EVENT_TOTO;
   if (!dbId) return [];
 
-  const pages = await queryAllPages(toNotionId(dbId));
+  const filter: QueryDatabaseParameters["filter"] | undefined = since
+    ? { timestamp: "created_time", created_time: { on_or_after: since } }
+    : undefined;
+  const pages = await queryAllPages(toNotionId(dbId), filter);
 
   return pages
     .filter(page => getPropText(page.properties, "이름") !== EVENT_CLOSED_SENTINEL)

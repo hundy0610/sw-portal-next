@@ -62,6 +62,7 @@ export default function EventAdminPage() {
 
   const [modeSaving, setModeSaving]   = useState(false);
   const [snapshotting, setSnapshotting] = useState(false);
+  const [startingRound, setStartingRound] = useState(false);
 
   const [resultDraft, setResultDraft] = useState({
     answerA: "", answerB: "", resultPublished: false, resultRevealAt: "",
@@ -185,6 +186,22 @@ export default function EventAdminPage() {
     await patchConfig({ participationMode: mode });
     await load(true);
     setModeSaving(false);
+  }
+
+  async function handleStartNewRound() {
+    if (!window.confirm(
+      "새 회차를 시작하시겠습니까?\n\n" +
+      "- 이전 회차 참여 기록은 Notion에 남지만, 이번 회차의 중복확인·현황·결과 집계에서는 제외됩니다.\n" +
+      "- 직전 회차의 정답·결과공개 설정은 초기화됩니다."
+    )) return;
+    setStartingRound(true);
+    await fetch("/api/event/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "start_new_round" }),
+    });
+    await load(true);
+    setStartingRound(false);
   }
 
   async function handleSnapshot() {
@@ -311,6 +328,28 @@ export default function EventAdminPage() {
           <div className="text-center py-20" style={{ color: C.text4 }}>불러오는 중...</div>
         ) : (
           <>
+            {/* 회차 관리 */}
+            <div className={`${cardCls} mb-6`} style={cardStyle}>
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div>
+                  <span className="font-bold text-sm" style={{ color: C.text1 }}>회차 관리</span>
+                  <p className="text-xs mt-1" style={{ color: C.text4 }}>
+                    현 회차 시작: {cfg.roundStartedAt ? formatDate(cfg.roundStartedAt) : "설정 안 됨 (전체 기간 기준)"}
+                  </p>
+                </div>
+                <button
+                  onClick={handleStartNewRound}
+                  disabled={startingRound}
+                  className="px-4 py-2 rounded-xl text-sm font-bold text-white disabled:opacity-50"
+                  style={{ background: "#dc2626" }}>
+                  {startingRound ? "처리 중..." : "새 회차 시작"}
+                </button>
+              </div>
+              <p className="text-xs mt-3" style={{ color: C.text4 }}>
+                새 회차를 시작하면 이전 회차 참여자가 다시 참여할 수 있고, 현황·결과는 새 회차 데이터만 집계됩니다.
+              </p>
+            </div>
+
             {/* 마감 제어 */}
             <div className={`${cardCls} mb-6`} style={cardStyle}>
               <div className="flex items-center justify-between mb-4">

@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const alreadySubmitted = await checkEventAlreadySubmitted(name.trim());
+    const alreadySubmitted = await checkEventAlreadySubmitted(name.trim(), cfg.roundStartedAt);
     if (alreadySubmitted) {
       return NextResponse.json({ error: "이미 참여하셨습니다." }, { status: 409 });
     }

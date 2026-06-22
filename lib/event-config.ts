@@ -18,6 +18,9 @@ export interface EventConfig {
   resultRevealAt: string | null;
   answerA: number | null;
   answerB: number | null;
+  // 현 회차 시작 시각. 이 시각 이전의 Notion 참여 기록은 중복확인/현황/결과 집계에서 제외된다.
+  // null이면 전체 기간을 하나의 회차로 취급(과거 데이터와의 하위호환 기본값).
+  roundStartedAt: string | null;
 }
 
 const DEFAULT_CONFIG: EventConfig = {
@@ -33,6 +36,7 @@ const DEFAULT_CONFIG: EventConfig = {
   resultRevealAt: null,
   answerA: null,
   answerB: null,
+  roundStartedAt: null,
 };
 
 export async function getEventConfig(): Promise<EventConfig> {

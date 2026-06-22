@@ -56,6 +56,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, previousParticipantsCount: submissions.length });
   }
 
+  // 새 회차 시작: 이전 회차 참여 기록은 Notion에 남기되 이후 중복확인/현황/결과 집계에서 제외하고,
+  // 직전 회차의 정답·결과공개 상태를 초기화한다.
+  if (body.action === "start_new_round") {
+    const next = await setEventConfig({
+      roundStartedAt: new Date().toISOString(),
+      resultPublished: false,
+      resultRevealAt: null,
+      answerA: null,
+      answerB: null,
+    });
+    return NextResponse.json({ ok: true, config: next });
+  }
+
   const patch: Partial<EventConfig> = body;
   const next = await setEventConfig(patch);
   return NextResponse.json({ ok: true, config: next });

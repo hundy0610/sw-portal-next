@@ -18,7 +18,7 @@ export async function GET() {
     return NextResponse.json({ published: false });
   }
 
-  const submissions = await fetchEventSubmissions();
+  const submissions = await fetchEventSubmissions(cfg.roundStartedAt);
   return NextResponse.json({
     published: true,
     teamA: cfg.teamA,
