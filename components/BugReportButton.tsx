@@ -208,7 +208,7 @@ export default function BugReportButton() {
     }
   }
 
-  if (!isAdmin) return null;
+  if (!isAdmin || pathname?.startsWith("/request")) return null;
 
   return (
     <>
