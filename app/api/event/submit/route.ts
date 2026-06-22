@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  getEventIsOpen,
   checkEventAlreadySubmitted,
+  checkEventEmployee,
   createEventSubmission,
 } from "@/lib/notion";
+import { getEventConfig, getPreviousParticipants, isEffectivelyOpen } from "@/lib/event-config";
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,9 +14,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "필수 항목이 누락되었습니다." }, { status: 400 });
     }
 
-    const isOpen = await getEventIsOpen();
-    if (!isOpen) {
+    const cfg = await getEventConfig();
+    if (!isEffectivelyOpen(cfg)) {
       return NextResponse.json({ error: "이벤트가 마감되었습니다." }, { status: 403 });
+    }
+
+    if (cfg.participationMode === "employee_list") {
+      if (!(await checkEventEmployee(name.trim()))) {
+        return NextResponse.json({ error: "등록된 직원 명단에서 확인되지 않았습니다." }, { status: 403 });
+      }
+    } else if (cfg.participationMode === "previous") {
+      const previous = await getPreviousParticipants();
+      if (!previous.includes(name.trim())) {
+        return NextResponse.json({ error: "이전 회차 참여자만 참여할 수 있습니다." }, { status: 403 });
+      }
     }
 
     const alreadySubmitted = await checkEventAlreadySubmitted(name.trim());

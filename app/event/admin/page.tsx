@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import type { EventSubmission } from "@/lib/notion";
+import type { EventConfig, ParticipationMode } from "@/lib/event-config";
 
 const C = {
   brand:   "#16a34a",
@@ -22,11 +23,25 @@ function formatDate(iso: string) {
   return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+// <input type="datetime-local"> 은 타임존 없는 "YYYY-MM-DDTHH:mm" 형식을 요구
+function toDatetimeLocal(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 const AUTO_REFRESH_SEC = 30;
 
+type AdminConfig = EventConfig & { effectiveOpen: boolean; previousParticipantsCount: number };
+
 export default function EventAdminPage() {
+  const [authChecked, setAuthChecked] = useState(false);
+  const [authorized, setAuthorized]   = useState(false);
+
   const [submissions, setSubmissions] = useState<EventSubmission[]>([]);
-  const [eventOpen, setEventOpen]     = useState(true);
+  const [cfg, setCfg]                 = useState<AdminConfig | null>(null);
   const [loading, setLoading]         = useState(true);
   const [loadError, setLoadError]     = useState("");
   const [toggling, setToggling]       = useState(false);
@@ -35,25 +50,70 @@ export default function EventAdminPage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [countdown, setCountdown]     = useState(AUTO_REFRESH_SEC);
 
+  // 설정 폼 (저장 전까지의 임시 입력값)
+  const [settingsDraft, setSettingsDraft] = useState({
+    teamA: "", teamB: "", title: "", description: "", matchDate: "",
+  });
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsSaved, setSettingsSaved]   = useState(false);
+
+  const [closeAtDraft, setCloseAtDraft]   = useState("");
+  const [closeAtSaving, setCloseAtSaving] = useState(false);
+
+  const [modeSaving, setModeSaving]   = useState(false);
+  const [snapshotting, setSnapshotting] = useState(false);
+
+  const [resultDraft, setResultDraft] = useState({
+    answerA: "", answerB: "", resultPublished: false, resultRevealAt: "",
+  });
+  const [resultSaving, setResultSaving] = useState(false);
+  const [resultSaved, setResultSaved]   = useState(false);
+
+  // 슈퍼어드민 권한 확인
+  useEffect(() => {
+    fetch("/api/admin/auth")
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok && data.role === "super") {
+          setAuthorized(true);
+        } else {
+          window.location.href = "/admin/login?redirect=/event/admin";
+        }
+      })
+      .catch(() => { window.location.href = "/admin/login?redirect=/event/admin"; })
+      .finally(() => setAuthChecked(true));
+  }, []);
+
   async function load(silent = false) {
     if (!silent) setLoading(true);
     setLoadError("");
     try {
-      const [subResp, statusResp] = await Promise.all([
-        fetch("/api/event/submissions"),
-        fetch("/api/event/toggle"),
+      const [subResp, cfgResp] = await Promise.all([
+        fetch("/api/event/submissions", { cache: "no-store" }),
+        fetch("/api/event/config", { cache: "no-store" }),
       ]);
       if (!subResp.ok) {
         const err = await subResp.json().catch(() => ({}));
         setLoadError(`참여자 조회 실패 (${subResp.status}): ${err.error ?? "서버 오류"}`);
         return;
       }
-      const [subRes, statusRes] = await Promise.all([
+      const [subRes, cfgRes]: [{ data: EventSubmission[] }, AdminConfig] = await Promise.all([
         subResp.json(),
-        statusResp.json(),
+        cfgResp.json(),
       ]);
       setSubmissions(subRes.data ?? []);
-      setEventOpen(statusRes.open ?? true);
+      setCfg(cfgRes);
+      setSettingsDraft({
+        teamA: cfgRes.teamA, teamB: cfgRes.teamB, title: cfgRes.title,
+        description: cfgRes.description, matchDate: cfgRes.matchDate,
+      });
+      setCloseAtDraft(toDatetimeLocal(cfgRes.closeAt));
+      setResultDraft({
+        answerA: cfgRes.answerA?.toString() ?? "",
+        answerB: cfgRes.answerB?.toString() ?? "",
+        resultPublished: cfgRes.resultPublished,
+        resultRevealAt: toDatetimeLocal(cfgRes.resultRevealAt),
+      });
       setLastUpdated(new Date());
       setCountdown(AUTO_REFRESH_SEC);
     } catch (e) {
@@ -63,11 +123,11 @@ export default function EventAdminPage() {
     }
   }
 
-  // 최초 로드
-  useEffect(() => { load(); }, []);
+  useEffect(() => { if (authorized) load(); }, [authorized]);
 
-  // 30초 자동 새로고침
+  // 자동 새로고침
   useEffect(() => {
+    if (!authorized) return;
     const interval = setInterval(() => {
       setCountdown(prev => {
         if (prev <= 1) {
@@ -78,17 +138,78 @@ export default function EventAdminPage() {
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [authorized]);
 
-  async function handleToggle() {
-    setToggling(true);
-    await fetch("/api/event/toggle", {
+  async function patchConfig(patch: Record<string, unknown>) {
+    const res = await fetch("/api/event/config", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ open: !eventOpen }),
+      body: JSON.stringify(patch),
     });
-    setEventOpen(prev => !prev);
+    const json = await res.json();
+    return json;
+  }
+
+  async function handleToggleOpen() {
+    if (!cfg) return;
+    setToggling(true);
+    await patchConfig({ open: !cfg.open });
+    await load(true);
     setToggling(false);
+  }
+
+  async function handleSaveSettings() {
+    setSettingsSaving(true);
+    setSettingsSaved(false);
+    await patchConfig({
+      teamA: settingsDraft.teamA,
+      teamB: settingsDraft.teamB,
+      title: settingsDraft.title,
+      description: settingsDraft.description,
+      matchDate: settingsDraft.matchDate,
+    });
+    await load(true);
+    setSettingsSaving(false);
+    setSettingsSaved(true);
+  }
+
+  async function handleSaveCloseAt() {
+    setCloseAtSaving(true);
+    await patchConfig({ closeAt: closeAtDraft ? new Date(closeAtDraft).toISOString() : null });
+    await load(true);
+    setCloseAtSaving(false);
+  }
+
+  async function handleChangeMode(mode: ParticipationMode) {
+    setModeSaving(true);
+    await patchConfig({ participationMode: mode });
+    await load(true);
+    setModeSaving(false);
+  }
+
+  async function handleSnapshot() {
+    setSnapshotting(true);
+    await fetch("/api/event/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "snapshot_previous" }),
+    });
+    await load(true);
+    setSnapshotting(false);
+  }
+
+  async function handleSaveResult() {
+    setResultSaving(true);
+    setResultSaved(false);
+    await patchConfig({
+      answerA: resultDraft.answerA === "" ? null : Number(resultDraft.answerA),
+      answerB: resultDraft.answerB === "" ? null : Number(resultDraft.answerB),
+      resultPublished: resultDraft.resultPublished,
+      resultRevealAt: resultDraft.resultRevealAt ? new Date(resultDraft.resultRevealAt).toISOString() : null,
+    });
+    await load(true);
+    setResultSaving(false);
+    setResultSaved(true);
   }
 
   const corporations = useMemo(
@@ -133,6 +254,20 @@ export default function EventAdminPage() {
   const maxKorea  = Math.max(...koreaDistribution.map(d => d.count), 1);
   const maxMexico = Math.max(...mexicoDistribution.map(d => d.count), 1);
 
+  const inputCls = "h-9 px-3 rounded-lg text-sm focus:outline-none w-full";
+  const inputStyle = { border: `1px solid ${C.border}`, color: C.text1 };
+  const cardCls = "bg-white rounded-2xl p-6";
+  const cardStyle = { border: `1px solid ${C.border}` };
+  const labelCls = "block text-xs font-semibold mb-1.5";
+
+  if (!authChecked || !authorized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: C.bgPage, color: C.text4 }}>
+        확인 중...
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen" style={{ background: C.bgPage }}>
       <div className="max-w-5xl mx-auto px-4 py-8">
@@ -144,7 +279,7 @@ export default function EventAdminPage() {
               ⚽ 토토 이벤트 관리자
             </h1>
             <p className="text-sm mt-1" style={{ color: C.text3 }}>
-              한국 vs 멕시코 점수 예측 참여 현황
+              {cfg ? `${cfg.teamA} vs ${cfg.teamB}` : "한국 vs 멕시코"} 점수 예측 참여 현황
             </p>
             {lastUpdated && (
               <p className="text-xs mt-1" style={{ color: C.text4 }}>
@@ -153,16 +288,9 @@ export default function EventAdminPage() {
             )}
           </div>
           <div className="flex items-center gap-3">
-            <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${eventOpen ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
-              {eventOpen ? "이벤트 진행 중" : "이벤트 마감"}
+            <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${cfg?.effectiveOpen ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
+              {cfg?.effectiveOpen ? "이벤트 진행 중" : "이벤트 마감"}
             </span>
-            <button
-              onClick={handleToggle}
-              disabled={toggling}
-              className="px-4 py-2 rounded-xl text-sm font-bold text-white transition-opacity disabled:opacity-50"
-              style={{ background: eventOpen ? "#dc2626" : C.brand }}>
-              {toggling ? "처리 중..." : eventOpen ? "이벤트 마감" : "이벤트 재개"}
-            </button>
             <button
               onClick={() => load()}
               className="px-4 py-2 rounded-xl text-sm font-bold"
@@ -179,10 +307,176 @@ export default function EventAdminPage() {
           </div>
         )}
 
-        {loading ? (
+        {loading || !cfg ? (
           <div className="text-center py-20" style={{ color: C.text4 }}>불러오는 중...</div>
         ) : (
           <>
+            {/* 마감 제어 */}
+            <div className={`${cardCls} mb-6`} style={cardStyle}>
+              <div className="flex items-center justify-between mb-4">
+                <span className="font-bold text-sm" style={{ color: C.text1 }}>마감 제어</span>
+                <button
+                  role="switch"
+                  aria-checked={cfg.open}
+                  onClick={handleToggleOpen}
+                  disabled={toggling}
+                  className="relative w-14 h-7 rounded-full transition-colors disabled:opacity-50"
+                  style={{ background: cfg.open ? C.brand : "#d1d5db" }}>
+                  <span
+                    className="absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white transition-transform shadow"
+                    style={{ transform: cfg.open ? "translateX(28px)" : "translateX(0)" }}
+                  />
+                </button>
+              </div>
+              <label className={labelCls} style={{ color: C.text2 }}>예약 자동 마감 (비워두면 사용 안 함)</label>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="datetime-local"
+                  value={closeAtDraft}
+                  onChange={e => setCloseAtDraft(e.target.value)}
+                  className={inputCls} style={{ ...inputStyle, width: 220 }}
+                />
+                <button
+                  onClick={handleSaveCloseAt}
+                  disabled={closeAtSaving}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-white disabled:opacity-50"
+                  style={{ background: C.brand }}>
+                  {closeAtSaving ? "저장 중..." : "저장"}
+                </button>
+                <span className="text-xs" style={{ color: C.text4 }}>
+                  이 시각이 지나면 토글이 켜져 있어도 자동으로 마감됩니다.
+                </span>
+              </div>
+            </div>
+
+            {/* 이벤트 설정 */}
+            <div className={`${cardCls} mb-6`} style={cardStyle}>
+              <span className="font-bold text-sm" style={{ color: C.text1 }}>이벤트 설정</span>
+              <div className="grid grid-cols-2 gap-4 mt-4">
+                <div>
+                  <label className={labelCls} style={{ color: C.text2 }}>팀 A 국가명</label>
+                  <input className={inputCls} style={inputStyle} value={settingsDraft.teamA}
+                    onChange={e => setSettingsDraft(d => ({ ...d, teamA: e.target.value }))} />
+                </div>
+                <div>
+                  <label className={labelCls} style={{ color: C.text2 }}>팀 B 국가명</label>
+                  <input className={inputCls} style={inputStyle} value={settingsDraft.teamB}
+                    onChange={e => setSettingsDraft(d => ({ ...d, teamB: e.target.value }))} />
+                </div>
+                <div className="col-span-2">
+                  <label className={labelCls} style={{ color: C.text2 }}>제목</label>
+                  <input className={inputCls} style={inputStyle} value={settingsDraft.title}
+                    onChange={e => setSettingsDraft(d => ({ ...d, title: e.target.value }))} />
+                </div>
+                <div className="col-span-2">
+                  <label className={labelCls} style={{ color: C.text2 }}>설명 멘트</label>
+                  <input className={inputCls} style={inputStyle} value={settingsDraft.description}
+                    onChange={e => setSettingsDraft(d => ({ ...d, description: e.target.value }))} />
+                </div>
+                <div>
+                  <label className={labelCls} style={{ color: C.text2 }}>경기일 (표시용)</label>
+                  <input className={inputCls} style={inputStyle} value={settingsDraft.matchDate}
+                    placeholder="예: 6월 17일"
+                    onChange={e => setSettingsDraft(d => ({ ...d, matchDate: e.target.value }))} />
+                </div>
+              </div>
+              <button
+                onClick={handleSaveSettings}
+                disabled={settingsSaving}
+                className="mt-4 px-4 py-2 rounded-xl text-sm font-bold text-white disabled:opacity-50"
+                style={{ background: C.brand }}>
+                {settingsSaving ? "저장 중..." : settingsSaved ? "저장됨 ✓" : "설정 저장"}
+              </button>
+            </div>
+
+            {/* 참여 제한 */}
+            <div className={`${cardCls} mb-6`} style={cardStyle}>
+              <span className="font-bold text-sm" style={{ color: C.text1 }}>참여 제한</span>
+              <div className="flex flex-wrap items-center gap-2 mt-4">
+                {([
+                  { v: "all", label: "전체 허용" },
+                  { v: "employee_list", label: "직원 명단만" },
+                  { v: "previous", label: "이전 참여자만" },
+                ] as { v: ParticipationMode; label: string }[]).map(opt => (
+                  <button
+                    key={opt.v}
+                    onClick={() => handleChangeMode(opt.v)}
+                    disabled={modeSaving}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-50"
+                    style={{
+                      background: cfg.participationMode === opt.v ? C.brand : C.soft,
+                      color: cfg.participationMode === opt.v ? "#fff" : C.brand,
+                      border: `1px solid ${C.border}`,
+                    }}>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-3 mt-4">
+                <button
+                  onClick={handleSnapshot}
+                  disabled={snapshotting}
+                  className="px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-50"
+                  style={{ background: C.soft, color: C.brand, border: `1px solid ${C.border}` }}>
+                  {snapshotting ? "저장 중..." : "현재 참여자 → 이전 참여자 명단 저장"}
+                </button>
+                <span className="text-xs" style={{ color: C.text4 }}>
+                  현재 저장된 이전 참여자: {cfg.previousParticipantsCount}명
+                </span>
+              </div>
+            </div>
+
+            {/* 결과 관리 */}
+            <div className={`${cardCls} mb-8`} style={cardStyle}>
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-sm" style={{ color: C.text1 }}>결과 관리</span>
+                <a href="/event/result" target="_blank" className="text-xs font-semibold" style={{ color: C.brand }}>
+                  결과 페이지 열기 →
+                </a>
+              </div>
+              <div className="grid grid-cols-2 gap-4 mt-4">
+                <div>
+                  <label className={labelCls} style={{ color: C.text2 }}>정답 — {settingsDraft.teamA || "팀 A"}</label>
+                  <input type="number" className={inputCls} style={inputStyle} value={resultDraft.answerA}
+                    onChange={e => setResultDraft(d => ({ ...d, answerA: e.target.value }))} />
+                </div>
+                <div>
+                  <label className={labelCls} style={{ color: C.text2 }}>정답 — {settingsDraft.teamB || "팀 B"}</label>
+                  <input type="number" className={inputCls} style={inputStyle} value={resultDraft.answerB}
+                    onChange={e => setResultDraft(d => ({ ...d, answerB: e.target.value }))} />
+                </div>
+                <div className="col-span-2">
+                  <label className={labelCls} style={{ color: C.text2 }}>결과 공개 예약시간 (비워두면 토글로만 제어)</label>
+                  <input type="datetime-local" className={inputCls} style={{ ...inputStyle, width: 220 }}
+                    value={resultDraft.resultRevealAt}
+                    onChange={e => setResultDraft(d => ({ ...d, resultRevealAt: e.target.value }))} />
+                </div>
+              </div>
+              <div className="flex items-center gap-3 mt-4">
+                <button
+                  role="switch"
+                  aria-checked={resultDraft.resultPublished}
+                  onClick={() => setResultDraft(d => ({ ...d, resultPublished: !d.resultPublished }))}
+                  className="relative w-14 h-7 rounded-full transition-colors"
+                  style={{ background: resultDraft.resultPublished ? C.brand : "#d1d5db" }}>
+                  <span
+                    className="absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white transition-transform shadow"
+                    style={{ transform: resultDraft.resultPublished ? "translateX(28px)" : "translateX(0)" }}
+                  />
+                </button>
+                <span className="text-xs font-semibold" style={{ color: C.text2 }}>
+                  {resultDraft.resultPublished ? "결과 공개 켜짐" : "결과 공개 꺼짐"}
+                </span>
+                <button
+                  onClick={handleSaveResult}
+                  disabled={resultSaving}
+                  className="ml-auto px-4 py-2 rounded-xl text-sm font-bold text-white disabled:opacity-50"
+                  style={{ background: C.brand }}>
+                  {resultSaving ? "저장 중..." : resultSaved ? "저장됨 ✓" : "결과 설정 저장"}
+                </button>
+              </div>
+            </div>
+
             {/* 요약 카드 */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
               <div className="bg-white rounded-2xl p-5" style={{ border: `1px solid ${C.border}` }}>
@@ -199,11 +493,11 @@ export default function EventAdminPage() {
 
             {/* 점수 분포 */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
-              {/* 한국 점수 분포 */}
+              {/* 팀 A 점수 분포 */}
               <div className="bg-white rounded-2xl p-6" style={{ border: `1px solid ${C.border}` }}>
                 <div className="flex items-center gap-2 mb-5">
                   <span className="text-lg">🇰🇷</span>
-                  <span className="font-bold text-sm" style={{ color: C.text1 }}>한국 점수 분포</span>
+                  <span className="font-bold text-sm" style={{ color: C.text1 }}>{cfg.teamA} 점수 분포</span>
                 </div>
                 {koreaDistribution.length === 0 ? (
                   <div className="text-sm text-center py-4" style={{ color: C.text4 }}>데이터 없음</div>
@@ -229,11 +523,11 @@ export default function EventAdminPage() {
                 )}
               </div>
 
-              {/* 멕시코 점수 분포 */}
+              {/* 팀 B 점수 분포 */}
               <div className="bg-white rounded-2xl p-6" style={{ border: `1px solid ${C.border}` }}>
                 <div className="flex items-center gap-2 mb-5">
                   <span className="text-lg">🇲🇽</span>
-                  <span className="font-bold text-sm" style={{ color: C.text1 }}>멕시코 점수 분포</span>
+                  <span className="font-bold text-sm" style={{ color: C.text1 }}>{cfg.teamB} 점수 분포</span>
                 </div>
                 {mexicoDistribution.length === 0 ? (
                   <div className="text-sm text-center py-4" style={{ color: C.text4 }}>데이터 없음</div>

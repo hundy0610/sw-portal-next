@@ -20,13 +20,31 @@ type Step = "verify" | "predict" | "done";
 const DEFAULT_CORPS = ["대웅", "대웅제약", "엠서클", "힐리언스", "IdsTrust", "기타"];
 const DEFAULT_DEPTS = ["재경팀", "인사팀", "페이롤", "마케팅", "자산관리파트", "회계팀", "기타"];
 
+interface EventPublicConfig {
+  teamA: string;
+  teamB: string;
+  title: string;
+  description: string;
+  matchDate: string;
+  open: boolean;
+}
+
+const DEFAULT_CONFIG: EventPublicConfig = {
+  teamA: "한국",
+  teamB: "멕시코",
+  title: "한국 vs 멕시코 토토",
+  description: "정확한 점수를 맞추면 좋은 일이 생깁니다!",
+  matchDate: "",
+  open: true,
+};
+
 export default function EventPage() {
   const [step, setStep]             = useState<Step>("verify");
   const [corporations, setCorporations] = useState<string[]>(DEFAULT_CORPS);
   const [departments, setDepartments]   = useState<Record<string, string[]>>(
     Object.fromEntries(DEFAULT_CORPS.map(c => [c, DEFAULT_DEPTS]))
   );
-  const [eventOpen, setEventOpen]   = useState(true);
+  const [cfg, setCfg] = useState<EventPublicConfig>(DEFAULT_CONFIG);
 
   const [corporation, setCorporation] = useState("");
   const [department, setDepartment]   = useState("");
@@ -50,9 +68,10 @@ export default function EventPage() {
         // 노션 DB가 비어있으면 하드코딩 기본값 유지
       })
       .catch(() => { /* 기본값 유지 */ });
-    fetch("/api/event/toggle")
+    fetch("/api/event/config", { cache: "no-store" })
       .then(r => r.json())
-      .then(d => setEventOpen(d.open ?? true));
+      .then(d => setCfg(prev => ({ ...prev, ...d })))
+      .catch(() => { /* 기본값 유지 */ });
   }, []);
 
   const availableDepts = corporation ? (departments[corporation] ?? []) : [];
@@ -75,16 +94,8 @@ export default function EventPage() {
         }),
       });
       const json = await res.json();
-      if (res.status === 409) {
-        setVerifyError("이미 참여하셨습니다.");
-        return;
-      }
-      if (res.status === 403 && json.error?.includes("마감")) {
-        setVerifyError("이벤트가 마감되었습니다.");
-        return;
-      }
-      if (res.status === 403) {
-        setVerifyError("등록된 직원 정보와 일치하지 않습니다.");
+      if (!res.ok) {
+        setVerifyError(json.error ?? "확인 중 오류가 발생했습니다.");
         return;
       }
       setStep("predict");
@@ -130,15 +141,15 @@ export default function EventPage() {
         <div className="text-center mb-8">
           <div className="text-5xl mb-3">⚽</div>
           <h1 className="text-2xl font-extrabold mb-1" style={{ color: C.text1 }}>
-            한국 vs 멕시코 토토
+            {cfg.title}
           </h1>
           <p className="text-sm" style={{ color: C.text3 }}>
-            6월 17일 한국 vs 멕시코 정확한 점수를 맞추면 좋은 일이 생깁니다!
+            {cfg.matchDate && `${cfg.matchDate} `}{cfg.description}
           </p>
         </div>
 
         {/* 이벤트 마감 배너 */}
-        {!eventOpen && (
+        {!cfg.open && (
           <div className="mb-6 p-4 rounded-2xl text-center font-bold"
             style={{ background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca" }}>
             이벤트가 마감되었습니다.
@@ -211,7 +222,7 @@ export default function EventPage() {
 
             <button
               onClick={handleVerify}
-              disabled={verifying || !eventOpen}
+              disabled={verifying || !cfg.open}
               className="w-full h-12 rounded-xl font-bold text-sm text-white transition-opacity disabled:opacity-50"
               style={{ background: C.brand }}>
               {verifying ? "확인 중..." : "확인"}
@@ -233,11 +244,11 @@ export default function EventPage() {
             </p>
 
             <div className="grid grid-cols-2 gap-4 mb-6">
-              {/* 한국 */}
+              {/* 팀 A */}
               <div className="p-5 rounded-2xl text-center"
                 style={{ background: "#eff6ff", border: "1px solid #bfdbfe" }}>
                 <div className="text-2xl mb-1">🇰🇷</div>
-                <div className="font-bold text-sm mb-3" style={{ color: "#1e40af" }}>한국</div>
+                <div className="font-bold text-sm mb-3" style={{ color: "#1e40af" }}>{cfg.teamA}</div>
                 <input
                   type="number" min={0} max={20}
                   value={koreaScore}
@@ -248,11 +259,11 @@ export default function EventPage() {
                 />
               </div>
 
-              {/* 멕시코 */}
+              {/* 팀 B */}
               <div className="p-5 rounded-2xl text-center"
                 style={{ background: "#fefce8", border: "1px solid #fde047" }}>
                 <div className="text-2xl mb-1">🇲🇽</div>
-                <div className="font-bold text-sm mb-3" style={{ color: "#78350f" }}>멕시코</div>
+                <div className="font-bold text-sm mb-3" style={{ color: "#78350f" }}>{cfg.teamB}</div>
                 <input
                   type="number" min={0} max={20}
                   value={mexicoScore}
@@ -302,12 +313,12 @@ export default function EventPage() {
             <div className="flex justify-center gap-6 mb-6">
               <div className="text-center">
                 <div className="text-3xl font-black" style={{ color: "#1e40af" }}>{koreaScore}</div>
-                <div className="text-xs mt-1" style={{ color: C.text4 }}>🇰🇷 한국</div>
+                <div className="text-xs mt-1" style={{ color: C.text4 }}>🇰🇷 {cfg.teamA}</div>
               </div>
               <div className="text-3xl font-black self-center" style={{ color: C.text3 }}>:</div>
               <div className="text-center">
                 <div className="text-3xl font-black" style={{ color: "#78350f" }}>{mexicoScore}</div>
-                <div className="text-xs mt-1" style={{ color: C.text4 }}>🇲🇽 멕시코</div>
+                <div className="text-xs mt-1" style={{ color: C.text4 }}>🇲🇽 {cfg.teamB}</div>
               </div>
             </div>
             <p className="text-xs" style={{ color: C.text4 }}>
