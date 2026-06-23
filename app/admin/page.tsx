@@ -25,6 +25,7 @@ const WorkFeedbackPanel      = dynamic(() => import("@/components/admin/WorkFeed
 const AutomationPanel        = dynamic(() => import("@/components/admin/AutomationPanel"),        { ssr: false });
 const BugReportPanel         = dynamic(() => import("@/components/admin/BugReportPanel"),         { ssr: false });
 const WorkTrackerPanel        = dynamic(() => import("@/components/admin/WorkTrackerPanel"),       { ssr: false });
+const MeetingRentalPanel      = dynamic(() => import("@/components/admin/MeetingRentalPanel"),      { ssr: false });
 
 // ── 세션 타입 ──────────────────────────────────────────────────
 interface SessionInfo {
@@ -35,10 +36,10 @@ interface SessionInfo {
   mustChangePassword?: boolean;
 }
 
-type PageId = "home" | "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "rental-hw" | "accounts" | "assetmap" | "helpdesk" | "contracts" | "repair" | "hw-repair" | "exchange-return" | "work-feedback" | "automation" | "worktracker";
+type PageId = "home" | "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "rental-hw" | "accounts" | "assetmap" | "helpdesk" | "contracts" | "repair" | "hw-repair" | "exchange-return" | "work-feedback" | "automation" | "worktracker" | "meeting-rental";
 
 // 슈퍼어드민 전용 페이지 (company 계정은 접근 불가)
-const SUPER_ONLY_PAGES = new Set<PageId>(["credentials", "swdb", "accounts", "contracts", "rental-hw", "hw-repair", "exchange-return", "work-feedback", "worktracker"]);
+const SUPER_ONLY_PAGES = new Set<PageId>(["credentials", "swdb", "accounts", "contracts", "rental-hw", "hw-repair", "exchange-return", "work-feedback", "worktracker", "meeting-rental"]);
 
 // ── 메뉴 정의 ──────────────────────────────────────────────────
 type MenuItem = { id: PageId; icon: string; label: string; desc: string };
@@ -58,6 +59,7 @@ const SUPER_GROUPS: MenuGroup[] = [
       { id: "hw",              icon: "💻", label: "노트북/데스크탑 자산관리", desc: "NT/DT 재고 · 반납 관리"     },
       { id: "hw-repair",       icon: "🛠️", label: "수리/과실청구 트래커",     desc: "외부 수리 · 과실 청구 관리" },
       { id: "rental-hw",       icon: "📦", label: "임대노트북 현황 관리",     desc: "임시 PC 대여 · 반납 관리"   },
+      { id: "meeting-rental",  icon: "📡", label: "회의실 장비 대여 관리",   desc: "신청 티켓 · 장비 현황 통합 관리" },
       { id: "assetmap",        icon: "🖥️", label: "스마트오피스 모니터 관리", desc: "인터랙티브 자산 맵"         },
     ],
   },
@@ -221,6 +223,7 @@ export default function AdminPage() {
       case "report":      return <ReportPanel company={company} />;
       case "hw":          return <HwPanel company={company} initialStats={hwStatsPrefetch} isSuperAdmin={isSuper} />;
       case "rental-hw":   return canAccess("rental-hw") ? <RentalHwPanel /> : <AccessDenied />;
+      case "meeting-rental": return canAccess("meeting-rental") ? <MeetingRentalPanel /> : <AccessDenied />;
       case "assetmap":    return <AssetMapPanel session={session} />;
       case "helpdesk":    return <HelpDeskPanel company={isSuper ? "" : company} />;
       case "repair":      return <RepairPanel company={company} />;

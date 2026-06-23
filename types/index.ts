@@ -212,6 +212,42 @@ export interface ExchangeReturnRecord {
 }
 
 // ────────────────────────────────────────────────────────────
+// 회의실 무선 장비 대여신청 (신청 티켓)
+// ────────────────────────────────────────────────────────────
+export interface MeetingRentalTicket {
+  id: string;
+  requester: string;       // 신청자 (title)
+  company: string;         // 법인명 (select)
+  department: string;      // 부서 (rich_text)
+  email: string;           // 신청자 이메일 (email)
+  startAt: string;         // 신청기간 시작 (date.start)
+  endAt: string;           // 신청기간 종료 (date.end)
+  status: "시작 전" | "진행 중" | "완료";  // 상태 (status)
+  assignee: string;        // 담당자 이름 (people)
+  assigneeId: string;      // 담당자 Notion user ID
+  createdAt: string;       // 제출 시간 (created_time)
+  notionUrl: string;
+}
+
+// ────────────────────────────────────────────────────────────
+// 회의실 무선 장비 현황 (장비 인벤토리)
+// ────────────────────────────────────────────────────────────
+export interface MeetingEquipment {
+  id: string;
+  notionUrl: string;
+  name: string;            // 장비명 (title)
+  company: string;         // 법인 (select)
+  department: string;      // 부서 (rich_text)
+  inUse: boolean;          // 대여중 (checkbox)
+  status: string;          // 상태 (formula)
+  currentUser: string;     // 현재사용자 (rich_text)
+  userEmail: string;       // 사용자 이메일 (email)
+  startDate: string;       // 대여시작일 (date)
+  returnDue: string;       // 반납예정일 (date)
+  note: string;            // 비고 (rich_text)
+}
+
+// ────────────────────────────────────────────────────────────
 // API 응답 래퍼
 // ────────────────────────────────────────────────────────────
 export interface ApiResponse<T> {
