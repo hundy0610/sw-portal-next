@@ -973,14 +973,10 @@ function ReturnRegModal({
       }
 
       const userName = (searchResult.matchedRecord?.user || searchResult.hwUser || "").trim();
-      if (searchResult.matchedRecord?.type === "퇴사반납" && userName) {
-        setRecoverUser(userName);
-        setSwReturnDate(returnDate);
-        setStep("sw-recover");
-        loadSwList(userName);
-      } else {
-        onClose();
-      }
+      setRecoverUser(userName);
+      setSwReturnDate(returnDate);
+      setStep("sw-recover");
+      if (userName) loadSwList(userName);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -1185,9 +1181,7 @@ function ReturnRegModal({
                   {selectedStatus === "수리" && (
                     <li>수리/과실청구 트래커 → <strong>수리접수</strong> · <strong>과실없음</strong>으로 자동 등록</li>
                   )}
-                  {searchResult.matchedRecord?.type === "퇴사반납" && (
-                    <li>확정 후 → 해당 사용자의 <strong>SW 라이선스 회수</strong> 단계로 이동</li>
-                  )}
+                  <li>확정 후 → <strong>SW 라이선스 회수</strong> 단계로 이동</li>
                 </ul>
               </div>
               {error && <p className="text-xs text-red-600">⚠️ {error}</p>}
@@ -1204,12 +1198,14 @@ function ReturnRegModal({
           </>
         )}
 
-        {/* ── Step 3: 퇴사반납 SW 라이선스 회수 ── */}
+        {/* ── Step 3: SW 라이선스 회수 ── */}
         {step === "sw-recover" && (
           <>
             <div className="px-6 py-5 space-y-4">
               <div className="bg-blue-50 rounded-xl p-3 text-xs text-blue-700">
-                <strong>{recoverUser}</strong> 님 명의의 상용 라이선스 검색 결과입니다. 회수할 항목을 선택하세요.
+                {recoverUser
+                  ? <><strong>{recoverUser}</strong> 님 명의의 상용 라이선스 검색 결과입니다. 회수할 항목을 선택하세요.</>
+                  : "사용자명을 확인할 수 없어 SW 라이선스를 검색하지 못했습니다."}
               </div>
               <div>
                 <label className="text-xs text-gray-500 font-medium block mb-1.5">회수일자</label>
