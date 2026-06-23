@@ -883,7 +883,7 @@ function ReturnRegModal({
     try {
       const res = await fetch("/api/sw-records").then(r => safeJson(r));
       const all: SwDbRecord[] = res.data ?? [];
-      setSwList(all.filter(r => r.user.trim() === userName.trim()));
+      setSwList(all.filter(r => (r.user || "").trim() === userName.trim()));
     } catch (e) {
       setSwError(String(e));
     } finally {
