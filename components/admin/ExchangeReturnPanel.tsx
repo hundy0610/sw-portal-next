@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import type { ExchangeReturnRecord } from "@/types";
+import type { ExchangeReturnRecord, SwDbRecord } from "@/types";
 import type { HwRecord } from "@/lib/hw";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import { LabelPrintTab, PrintQueueSection } from "@/components/admin/LabelPrintTab";
@@ -799,9 +799,11 @@ function ReturnRegModal({
   onClose: () => void;
   onUpdated: (id: string, fields: Partial<ExchangeReturnRecord>) => void;
 }) {
-  const [step, setStep] = useState<"search" | "asset-info" | "confirm">("search");
+  const [step, setStep] = useState<"search" | "asset-list" | "asset-info" | "confirm" | "sw-recover">("search");
   const [assetInput, setAssetInput] = useState("");
   const [searching, setSearching] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [hwResults, setHwResults] = useState<any[]>([]);
   const [searchResult, setSearchResult] = useState<{
     matchedRecord: ExchangeReturnRecord | null;
     hwPageId: string | null;
@@ -819,39 +821,96 @@ function ReturnRegModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // ── 퇴사반납 시 SW 라이선스 회수 ──
+  const [recoverUser, setRecoverUser] = useState("");
+  const [swList, setSwList] = useState<SwDbRecord[]>([]);
+  const [swSelected, setSwSelected] = useState<Set<string>>(new Set());
+  const [swReturnDate, setSwReturnDate] = useState(new Date().toISOString().slice(0, 10));
+  const [swLoading, setSwLoading] = useState(false);
+  const [swSaving, setSwSaving] = useState(false);
+  const [swError, setSwError] = useState<string | null>(null);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const selectHwAsset = (found: any | null) => {
+    const q = assetInput.trim();
+    const matchedRecord = records.find(r =>
+      r.stage === "반납요청" && (r.assetId === (found?.assetNo ?? q) || r.newAssetId === (found?.assetNo ?? q))
+    ) ?? null;
+
+    setSearchResult({
+      matchedRecord,
+      hwPageId: found?.id ?? null,
+      hwAssetNo: found?.assetNo ?? null,
+      hwModel: found?.model ?? null,
+      hwSerial: found?.serial ?? null,
+      hwStatus: found?.status ?? null,
+      hwReturnDue: found?.returnDue ?? null,
+      hwCompany: found?.company ?? null,
+      hwDept: found?.dept ?? null,
+      hwUser: found?.user ?? null,
+    });
+    setStep("asset-info");
+  };
+
   const handleSearch = async () => {
     const q = assetInput.trim();
     if (!q) return;
     setSearching(true);
     setError(null);
     setSearchResult(null);
+    setHwResults([]);
     try {
-      const matchedRecord = records.find(r =>
-        r.stage === "반납요청" && (r.assetId === q || r.newAssetId === q)
-      ) ?? null;
-
       const res = await fetch(`/api/hw?search=${encodeURIComponent(q)}`).then(r => safeJson(r));
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const hwRecs: any[] = res.records ?? [];
-      const found = hwRecs.find(r => r.assetNo === q) ?? (hwRecs.length === 1 ? hwRecs[0] : null);
 
-      setSearchResult({
-        matchedRecord,
-        hwPageId: found?.id ?? null,
-        hwAssetNo: found?.assetNo ?? null,
-        hwModel: found?.model ?? null,
-        hwSerial: found?.serial ?? null,
-        hwStatus: found?.status ?? null,
-        hwReturnDue: found?.returnDue ?? null,
-        hwCompany: found?.company ?? null,
-        hwDept: found?.dept ?? null,
-        hwUser: found?.user ?? null,
-      });
-      setStep("asset-info");
+      if (hwRecs.length > 1) {
+        setHwResults(hwRecs);
+        setStep("asset-list");
+      } else {
+        selectHwAsset(hwRecs[0] ?? null);
+      }
     } catch (e) {
       setError(String(e));
     } finally {
       setSearching(false);
+    }
+  };
+
+  const loadSwList = async (userName: string) => {
+    setSwLoading(true);
+    setSwError(null);
+    try {
+      const res = await fetch("/api/sw-records").then(r => safeJson(r));
+      const all: SwDbRecord[] = res.data ?? [];
+      setSwList(all.filter(r => r.user.trim() === userName.trim()));
+    } catch (e) {
+      setSwError(String(e));
+    } finally {
+      setSwLoading(false);
+    }
+  };
+
+  const handleSwRecover = async () => {
+    if (swSelected.size === 0) return;
+    setSwSaving(true);
+    setSwError(null);
+    try {
+      await Promise.all(
+        [...swSelected].map(id =>
+          fetch("/api/sw/update", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id, fields: { status: "재고", returnDate: swReturnDate } }),
+          }).then(assertOk)
+        )
+      );
+      setSwSelected(new Set());
+      await loadSwList(recoverUser);
+    } catch (e) {
+      setSwError(String(e));
+    } finally {
+      setSwSaving(false);
     }
   };
 
@@ -912,9 +971,19 @@ function ReturnRegModal({
       if (searchResult.matchedRecord) {
         onUpdated(searchResult.matchedRecord.id, { stage: "반납완료", completedAt: returnDate });
       }
-      onClose();
+
+      const userName = (searchResult.matchedRecord?.user || searchResult.hwUser || "").trim();
+      if (searchResult.matchedRecord?.type === "퇴사반납" && userName) {
+        setRecoverUser(userName);
+        setSwReturnDate(returnDate);
+        setStep("sw-recover");
+        loadSwList(userName);
+      } else {
+        onClose();
+      }
     } catch (e) {
       setError(String(e));
+    } finally {
       setSaving(false);
     }
   };
@@ -928,7 +997,7 @@ function ReturnRegModal({
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
 
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="font-bold text-gray-900 text-base">반납 등록</h3>
+          <h3 className="font-bold text-gray-900 text-base">{step === "sw-recover" ? "SW 라이선스 회수" : "반납 등록"}</h3>
           <button onClick={onClose}
             className="text-gray-400 hover:text-gray-600 text-2xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">×</button>
         </div>
@@ -959,6 +1028,39 @@ function ReturnRegModal({
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
               <button onClick={onClose}
                 className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">취소</button>
+            </div>
+          </>
+        )}
+
+        {/* ── Step 1.5: 검색 결과 목록 ── */}
+        {step === "asset-list" && (
+          <>
+            <div className="overflow-y-auto" style={{ maxHeight: "60vh" }}>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50">
+                    <th className="text-left text-xs text-gray-400 font-medium px-4 py-2.5">자산번호</th>
+                    <th className="text-left text-xs text-gray-400 font-medium px-4 py-2.5">모델명</th>
+                    <th className="text-left text-xs text-gray-400 font-medium px-4 py-2.5">사용자</th>
+                    <th className="text-left text-xs text-gray-400 font-medium px-4 py-2.5">상태</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {hwResults.map(r => (
+                    <tr key={r.id} onClick={() => selectHwAsset(r)}
+                      className="border-b border-gray-50 hover:bg-blue-50 cursor-pointer transition-colors">
+                      <td className="px-4 py-2.5 font-mono text-xs text-gray-700">{r.assetNo || "—"}</td>
+                      <td className="px-4 py-2.5 text-xs text-gray-800">{r.model || "—"}</td>
+                      <td className="px-4 py-2.5 text-xs text-gray-600">{r.user || "—"}</td>
+                      <td className="px-4 py-2.5 text-xs text-gray-500">{r.status || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => { setStep("search"); setError(null); }}
+                className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">이전</button>
             </div>
           </>
         )}
@@ -1031,7 +1133,7 @@ function ReturnRegModal({
             </div>
 
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
-              <button onClick={() => { setStep("search"); setError(null); }}
+              <button onClick={() => { setStep(hwResults.length > 1 ? "asset-list" : "search"); setError(null); }}
                 className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">이전</button>
               <button onClick={() => setStep("confirm")} disabled={!canProceed}
                 className="text-sm px-5 py-2 rounded-lg bg-gray-900 text-white font-medium hover:bg-gray-700 disabled:opacity-40">
@@ -1083,6 +1185,9 @@ function ReturnRegModal({
                   {selectedStatus === "수리" && (
                     <li>수리/과실청구 트래커 → <strong>수리접수</strong> · <strong>과실없음</strong>으로 자동 등록</li>
                   )}
+                  {searchResult.matchedRecord?.type === "퇴사반납" && (
+                    <li>확정 후 → 해당 사용자의 <strong>SW 라이선스 회수</strong> 단계로 이동</li>
+                  )}
                 </ul>
               </div>
               {error && <p className="text-xs text-red-600">⚠️ {error}</p>}
@@ -1094,6 +1199,64 @@ function ReturnRegModal({
               <button onClick={handleExecute} disabled={saving}
                 className="text-sm px-5 py-2 rounded-lg bg-green-700 text-white font-medium hover:bg-green-800 disabled:opacity-40">
                 {saving ? "처리 중…" : "반납 확정"}
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ── Step 3: 퇴사반납 SW 라이선스 회수 ── */}
+        {step === "sw-recover" && (
+          <>
+            <div className="px-6 py-5 space-y-4">
+              <div className="bg-blue-50 rounded-xl p-3 text-xs text-blue-700">
+                <strong>{recoverUser}</strong> 님 명의의 상용 라이선스 검색 결과입니다. 회수할 항목을 선택하세요.
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 font-medium block mb-1.5">회수일자</label>
+                <input type="date" value={swReturnDate} onChange={e => setSwReturnDate(e.target.value)}
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-200 w-full" />
+              </div>
+
+              {swLoading ? (
+                <p className="text-center text-gray-400 py-8 text-sm">검색 중…</p>
+              ) : swList.length === 0 ? (
+                <p className="text-center text-gray-400 py-8 text-sm">검색된 SW 라이선스가 없습니다.</p>
+              ) : (
+                <div className="border border-gray-200 rounded-xl overflow-hidden max-h-72 overflow-y-auto">
+                  {swList.map(r => {
+                    const already = r.status === "재고";
+                    return (
+                      <label key={r.id}
+                        className={`flex items-center gap-3 px-4 py-2.5 border-b border-gray-50 last:border-0 ${already ? "opacity-40" : "hover:bg-blue-50 cursor-pointer"}`}>
+                        <input type="checkbox" disabled={already}
+                          checked={swSelected.has(r.id)}
+                          onChange={() => setSwSelected(prev => {
+                            const next = new Set(prev);
+                            if (next.has(r.id)) next.delete(r.id); else next.add(r.id);
+                            return next;
+                          })}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-gray-800 font-medium truncate">{r.swCategory} · {r.swDetail || "—"}</p>
+                          <p className="text-xs text-gray-400">{(r.version ?? []).join(", ") || "—"} · 현재 상태: {r.status || "—"}</p>
+                        </div>
+                        {already && <span className="text-[10px] text-gray-400 shrink-0">이미 재고</span>}
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+              {swError && <p className="text-xs text-red-600">⚠️ {swError}</p>}
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-2">
+              <button onClick={onClose}
+                className="text-sm px-4 py-2 rounded-lg border border-dashed border-gray-300 text-gray-500 hover:bg-gray-50">
+                해당하는 내용이 없습니다
+              </button>
+              <button onClick={handleSwRecover} disabled={swSaving || swSelected.size === 0}
+                className="text-sm px-5 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-40">
+                {swSaving ? "처리 중…" : "확인"}
               </button>
             </div>
           </>
