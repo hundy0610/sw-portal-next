@@ -301,12 +301,12 @@ function DeptDetail({
         </div>
       </button>
       {open && (() => {
-        // SW별 그룹핑
+        // SW별 그룹핑 (비용 내림차순)
         const swGroups = new Map<string, {
           swName: string; category: string; billing: string;
           users: string[]; count: number;
           totalKrw: number; totalUsd: number; totalConv: number;
-          shared: boolean; renewalDate: string;
+          shared: boolean;
         }>();
         for (const r of rows) {
           const key = `${r.swName}||${r.billingType||""}`;
@@ -325,91 +325,114 @@ function DeptDetail({
               totalKrw:  periodKrw(r.annualKrw, mode),
               totalUsd:  periodUsd(r.annualUsd, mode),
               totalConv: convertedKrw(r.annualKrw, r.annualUsd, rate, mode),
-              shared: isShared(r), renewalDate: r.renewalDate || "",
+              shared: isShared(r),
             });
           }
         }
         const swList = [...swGroups.values()].sort((a, b) => b.totalConv - a.totalConv);
+        const ownList    = swList.filter(g => !g.shared);
+        const sharedList = swList.filter(g =>  g.shared);
+
+        const TableSection = ({ list, isSharedSection }: { list: typeof swList; isSharedSection: boolean }) => (
+          <>
+            {list.map((g, i) => (
+              <tr key={`${g.swName}-${i}`}
+                className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
+                {/* SW명 + 카테고리 */}
+                <td className="px-4 py-2.5">
+                  <div className="font-semibold text-slate-800 text-xs leading-tight">{g.swName}</div>
+                  <div className="mt-0.5">
+                    <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-semibold ${CATEGORY_BADGE[g.category] || CATEGORY_BADGE["기타"]}`}>
+                      {g.category}
+                    </span>
+                  </div>
+                </td>
+                {/* 사용자 */}
+                <td className="px-3 py-2.5">
+                  <div className="flex flex-wrap gap-1 max-w-xs">
+                    {g.users.length > 0
+                      ? g.users.map(u => (
+                          <span key={u} className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded font-medium whitespace-nowrap">
+                            {u}
+                          </span>
+                        ))
+                      : <span className="text-slate-300 text-xs">—</span>
+                    }
+                  </div>
+                </td>
+                {/* 건수 */}
+                <td className="px-3 py-2.5 text-center">
+                  <span className="text-xs font-bold text-slate-600 bg-slate-100 rounded-full w-5 h-5 inline-flex items-center justify-center">
+                    {g.count}
+                  </span>
+                </td>
+                {/* 월 KRW */}
+                <td className="px-3 py-2.5 text-right font-mono text-xs text-slate-600">
+                  {g.totalKrw > 0 ? fmt(Math.round(g.totalKrw)) : <span className="text-slate-300">—</span>}
+                </td>
+                {/* 월 USD */}
+                <td className="px-3 py-2.5 text-right font-mono text-xs text-emerald-600">
+                  {g.totalUsd > 0 ? `$${g.totalUsd.toFixed(2)}` : <span className="text-slate-300">—</span>}
+                </td>
+                {/* 원화환산 */}
+                <td className="px-4 py-2.5 text-right">
+                  <span className={`text-xs font-bold ${isSharedSection ? "text-slate-400" : "text-blue-700"}`}>
+                    {g.totalConv > 0 ? fmt(Math.round(g.totalConv)) : "—"}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </>
+        );
+
         return (
-          <div className="border-t border-slate-100 bg-white">
+          <div className="border-t border-slate-200">
             <table className="w-full text-xs">
               <thead>
-                <tr className="bg-slate-100 border-b border-slate-200 text-slate-500">
-                  <th className="px-4 py-2 text-left font-semibold w-32">SW 명칭</th>
-                  <th className="px-3 py-2 text-left font-semibold hidden sm:table-cell w-16">카테고리</th>
-                  <th className="px-3 py-2 text-left font-semibold">사용자</th>
-                  <th className="px-3 py-2 text-center font-semibold w-10">건수</th>
-                  <th className="px-3 py-2 text-right font-semibold w-24 hidden sm:table-cell">월 KRW</th>
-                  <th className="px-3 py-2 text-right font-semibold w-20 hidden md:table-cell">월 USD</th>
-                  <th className="px-3 py-2 text-right font-semibold w-24">원화환산</th>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="px-4 py-2 text-left text-[10px] font-semibold text-slate-400 uppercase tracking-wide w-36">SW · 카테고리</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-400 uppercase tracking-wide">사용자</th>
+                  <th className="px-3 py-2 text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wide w-10">건</th>
+                  <th className="px-3 py-2 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wide w-24">월 KRW</th>
+                  <th className="px-3 py-2 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wide w-20">월 USD</th>
+                  <th className="px-4 py-2 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wide w-24">원화환산</th>
                 </tr>
               </thead>
               <tbody>
-                {swList.map((g, i) => (
-                  <tr key={i} className={`border-b border-slate-100 last:border-0 ${g.shared ? "bg-amber-50" : i % 2 === 0 ? "bg-white" : "bg-slate-50/50"}`}>
-                    {/* SW명 */}
-                    <td className="px-4 py-2 font-semibold text-slate-800">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span>{g.swName}</span>
-                        {g.shared && (
-                          <span className="text-[9px] font-bold bg-amber-100 text-amber-700 border border-amber-300 px-1 py-0.5 rounded">
-                            쉐어드청구
-                          </span>
-                        )}
-                      </div>
-                      {g.shared && (
-                        <div className="text-[9px] text-amber-600 mt-0.5">실부담 제외 항목</div>
-                      )}
-                    </td>
-                    {/* 카테고리 */}
-                    <td className="px-3 py-2 hidden sm:table-cell">
-                      <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${CATEGORY_BADGE[g.category] || CATEGORY_BADGE["기타"]}`}>
-                        {g.category}
-                      </span>
-                    </td>
-                    {/* 사용자 목록 */}
-                    <td className="px-3 py-2 text-slate-600">
-                      <div className="flex flex-wrap gap-1">
-                        {g.users.length > 0
-                          ? g.users.map(u => (
-                              <span key={u} className="inline-block bg-blue-50 text-blue-700 border border-blue-100 rounded px-1.5 py-0.5 text-[10px] font-medium">
-                                {u}
-                              </span>
-                            ))
-                          : <span className="text-slate-300">—</span>
-                        }
-                      </div>
-                    </td>
-                    {/* 건수 */}
-                    <td className="px-3 py-2 text-center">
-                      <span className="font-bold text-slate-700">{g.count}</span>
-                    </td>
-                    {/* 월 KRW */}
-                    <td className="px-3 py-2 text-right font-mono text-slate-700 hidden sm:table-cell">
-                      {g.totalKrw > 0 ? fmt(Math.round(g.totalKrw)) : <span className="text-slate-300">—</span>}
-                    </td>
-                    {/* 월 USD */}
-                    <td className="px-3 py-2 text-right font-mono text-emerald-700 hidden md:table-cell">
-                      {g.totalUsd > 0 ? `$${g.totalUsd.toFixed(2)}` : <span className="text-slate-300">—</span>}
-                    </td>
-                    {/* 원화환산 */}
-                    <td className={`px-3 py-2 text-right font-bold ${g.shared ? "text-amber-500 line-through" : "text-blue-700"}`}>
-                      {g.totalConv > 0 ? fmt(Math.round(g.totalConv)) : "—"}
-                    </td>
-                  </tr>
-                ))}
+                {/* 법인 부담 항목 */}
+                {ownList.length > 0 && <TableSection list={ownList} isSharedSection={false} />}
+
+                {/* 쉐어드 구분선 */}
+                {sharedList.length > 0 && (
+                  <>
+                    <tr>
+                      <td colSpan={6} className="px-4 py-1.5 bg-amber-50 border-y border-amber-200">
+                        <span className="text-[10px] font-semibold text-amber-700 flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block"/>
+                          외부 쉐어드 청구 항목 — 실부담 제외 · 합계에서 차감됨
+                        </span>
+                      </td>
+                    </tr>
+                    <TableSection list={sharedList} isSharedSection={true} />
+                  </>
+                )}
               </tbody>
+
+              {/* 소계 */}
               <tfoot>
-                <tr className="bg-blue-50 border-t-2 border-blue-200">
-                  <td colSpan={3} className="px-4 py-2 font-semibold text-slate-700 text-xs">
-                    {dept} 소계 · SW {swList.length}종 · {rows.length}건
-                    {dHas && <span className="ml-2 text-amber-600">※ 쉐어드 ₩{fmt(dShared)} 실부담 제외</span>}
+                <tr className="border-t-2 border-slate-200 bg-slate-50">
+                  <td colSpan={2} className="px-4 py-2">
+                    <span className="text-[10px] font-semibold text-slate-500">
+                      SW {swList.length}종 · {rows.length}건
+                    </span>
                   </td>
-                  <td className="px-3 py-2 text-center font-bold text-slate-600 text-xs">{rows.length}</td>
-                  <td className="px-3 py-2 text-right text-slate-400 text-xs hidden sm:table-cell">총 ₩{fmt(dTotal)}</td>
-                  <td className="hidden md:table-cell"/>
-                  <td className="px-3 py-2 text-right font-bold text-blue-800 text-xs">
-                    실부담 ₩{fmt(dNet)}
+                  <td className="px-3 py-2 text-center text-[10px] font-bold text-slate-500">{rows.length}</td>
+                  <td colSpan={2} className="px-3 py-2 text-right text-[10px] text-slate-400">
+                    {dHas && `쉐어드 ₩${fmt(dShared)} 제외`}
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    <div className="text-xs font-bold text-blue-800">₩{fmt(dNet)}</div>
+                    {dHas && <div className="text-[10px] text-slate-400">총 ₩{fmt(dTotal)}</div>}
                   </td>
                 </tr>
               </tfoot>
@@ -612,8 +635,10 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
   const printNow = () => window.print();
   const printYear  = new Date().getFullYear();
   const printMonth = new Date().getMonth() + 1;
+  // 인쇄: 현재 화면에서 선택된 법인만 출력 (전체 선택 시 모든 법인)
+  const printTargetCo = filterCompany || company || "";
   const { coMap: printCoMap, grandTotal: printGrand, sharedTotal: printShared, netTotal: printNet, hasShared: printHasShared } =
-    buildView(data.rows, rate, "monthly", "", "", "");
+    buildView(data.rows, rate, "monthly", printTargetCo, "", "");
 
   return (
     <>
@@ -727,12 +752,14 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
     {/* ════════════════════════════════
         인쇄 전용 뷰 (A4 세로, 화면에서는 숨김)
     ════════════════════════════════ */}
-    <div className="hidden print:block" style={{fontFamily:"'Apple SD Gothic Neo','Noto Sans KR',sans-serif",color:"#0f172a",fontSize:"8pt",lineHeight:1.4}}>
+    <div className="hidden print:block" style={{fontFamily:"'Apple SD Gothic Neo','Noto Sans KR',sans-serif",color:"#0f172a",fontSize:"7.5pt",lineHeight:1.35}}>
       <style>{`
-        @page { size: A4 portrait; margin: 9mm 8mm; }
+        @page { size: A4 portrait; margin: 8mm 7mm; }
         @media print {
           html,body { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
-          .pa { break-inside:avoid; } .pb { break-after:page; }
+          .pa { break-inside:avoid; }
+          .pb { break-after:page; }
+          table { table-layout:fixed; }
         }
       `}</style>
 
@@ -743,6 +770,7 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
         const coShared = coRows.filter(isShared).reduce((s,r) => s + convertedKrw(r.annualKrw, r.annualUsd, rate, "monthly"), 0);
         const coNet    = coTotal - coShared;
         const coHas    = coRows.some(isShared);
+        // 선택 법인이면 페이지 구분 없음, 전체 출력 시 법인별 페이지 구분
         const isLast   = coIdx === [...printCoMap.keys()].length - 1;
 
         // 부서별 데이터 (비용 내림차순)
@@ -767,181 +795,141 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
         return (
           <div key={co} className={isLast ? "pa" : "pa pb"}>
 
-            {/* ① 리포트 헤더 */}
-            <div className="pa" style={{borderBottom:"2px solid #1e3a8a",paddingBottom:"2.5mm",marginBottom:"3mm",display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
+            {/* ① 리포트 헤더 + 법인 요약 (한 줄로 압축) */}
+            <div className="pa" style={{marginBottom:"2.5mm",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:"2px solid #1e3a8a",paddingBottom:"2mm"}}>
               <div>
-                <div style={{fontSize:"12pt",fontWeight:800,color:"#1e3a8a"}}>구독 SW 월간 현황 리포트</div>
-                <div style={{fontSize:"8pt",color:"#475569",marginTop:"0.5mm"}}>법인별 구독 비용 현황 · IT 자산관리 파트</div>
+                <div style={{fontSize:"11pt",fontWeight:800,color:"#1e3a8a"}}>구독 SW 월간 현황 · {co}</div>
+                <div style={{fontSize:"7pt",color:"#64748b",marginTop:"0.5mm"}}>IT 자산관리 파트 · {coRows.length}건 구독 · {[...deptMap.keys()].length}개 부서</div>
               </div>
-              <div style={{textAlign:"right",fontSize:"8pt",color:"#475569"}}>
-                <div style={{fontWeight:700,color:"#1e3a8a",fontSize:"9pt"}}>{printYear}년 {printMonth}월 기준</div>
-                <div>환율 $1 = ₩{fmt(rate)}</div>
-              </div>
-            </div>
-
-            {/* ② 법인 요약 카드 */}
-            <div className="pa" style={{background:"#1e3a8a",color:"white",borderRadius:"2mm",padding:"3mm 4mm",marginBottom:"3mm",display:"grid",gridTemplateColumns:"1fr auto"}}>
-              <div>
-                <div style={{fontSize:"11pt",fontWeight:800}}>🏢 {co}</div>
-                <div style={{fontSize:"8pt",color:"#bfdbfe",marginTop:"0.5mm"}}>{coRows.length}건 구독 · {[...deptMap.keys()].length}개 부서</div>
-              </div>
-              <div style={{textAlign:"right",display:"flex",gap:"5mm",alignItems:"center"}}>
-                <div style={{textAlign:"center"}}>
-                  <div style={{fontSize:"7pt",color:"#93c5fd"}}>월 총비용</div>
-                  <div style={{fontSize:"12pt",fontWeight:800,color:"#fbbf24"}}>₩{fmt(coTotal)}</div>
+              <div style={{textAlign:"right",display:"flex",gap:"4mm",alignItems:"center"}}>
+                {coHas ? (
+                  <>
+                    <div style={{textAlign:"center"}}>
+                      <div style={{fontSize:"6.5pt",color:"#64748b"}}>월 총비용</div>
+                      <div style={{fontSize:"10pt",fontWeight:800,color:"#1e3a8a"}}>₩{fmt(coTotal)}</div>
+                    </div>
+                    <div style={{color:"#94a3b8"}}>—</div>
+                    <div style={{textAlign:"center"}}>
+                      <div style={{fontSize:"6.5pt",color:"#b45309"}}>쉐어드</div>
+                      <div style={{fontSize:"9pt",fontWeight:700,color:"#b45309"}}>₩{fmt(coShared)}</div>
+                    </div>
+                    <div style={{color:"#94a3b8"}}>=</div>
+                    <div style={{textAlign:"center",background:"#1e3a8a",color:"white",borderRadius:"1.5mm",padding:"1mm 3mm"}}>
+                      <div style={{fontSize:"6.5pt",color:"#bfdbfe"}}>실부담</div>
+                      <div style={{fontSize:"10pt",fontWeight:800}}>₩{fmt(coNet)}</div>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{textAlign:"center",background:"#1e3a8a",color:"white",borderRadius:"1.5mm",padding:"1mm 3mm"}}>
+                    <div style={{fontSize:"6.5pt",color:"#bfdbfe"}}>{printYear}년 {printMonth}월 기준</div>
+                    <div style={{fontSize:"10pt",fontWeight:800}}>₩{fmt(coTotal)}</div>
+                  </div>
+                )}
+                <div style={{fontSize:"6.5pt",color:"#94a3b8",textAlign:"right"}}>
+                  <div>{printYear}.{String(printMonth).padStart(2,"0")}</div>
+                  <div>$1=₩{fmt(rate)}</div>
                 </div>
-                {coHas && <>
-                  <div style={{color:"#60a5fa",fontSize:"12pt"}}>—</div>
-                  <div style={{textAlign:"center"}}>
-                    <div style={{fontSize:"7pt",color:"#93c5fd"}}>쉐어드</div>
-                    <div style={{fontSize:"10pt",fontWeight:700,color:"#fcd34d"}}>₩{fmt(coShared)}</div>
-                  </div>
-                  <div style={{color:"#60a5fa",fontSize:"12pt"}}>=</div>
-                  <div style={{textAlign:"center"}}>
-                    <div style={{fontSize:"7pt",color:"#93c5fd"}}>실부담</div>
-                    <div style={{fontSize:"12pt",fontWeight:800,color:"#86efac"}}>₩{fmt(coNet)}</div>
-                  </div>
-                </>}
               </div>
             </div>
 
-            {/* ③ 부서별 바 차트 */}
-            <div className="pa" style={{marginBottom:"3mm",padding:"2.5mm 3mm",background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:"2mm"}}>
-              <div style={{fontSize:"7.5pt",fontWeight:700,color:"#334155",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:"2mm"}}>부서별 월간 지출 현황</div>
-              {deptList.map(({dept, dTotal, dNet, dHas}) => {
-                const pct = (dTotal / maxDept * 100).toFixed(1);
-                return (
-                  <div key={dept} style={{display:"flex",alignItems:"center",gap:"2.5mm",marginBottom:"1.5mm"}}>
-                    <div style={{width:"22mm",textAlign:"right",fontSize:"7.5pt",fontWeight:600,color:"#334155",flexShrink:0}}>{dept}</div>
-                    <div style={{flex:1,height:"5mm",background:"#e2e8f0",borderRadius:"1mm",overflow:"hidden",position:"relative"}}>
-                      <div style={{height:"100%",background:"#1e40af",width:`${pct}%`,borderRadius:"1mm"}}/>
+            {/* ② 부서별 바 차트 (컴팩트) */}
+            <div className="pa" style={{marginBottom:"2mm",padding:"2mm 3mm",background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:"1.5mm"}}>
+              <div style={{fontSize:"7pt",fontWeight:700,color:"#475569",marginBottom:"1.5mm"}}>부서별 지출 현황</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(55mm,1fr))",gap:"1mm 3mm"}}>
+                {deptList.map(({dept, dTotal, dNet, dHas}) => {
+                  const pct = (dTotal / maxDept * 100).toFixed(1);
+                  return (
+                    <div key={dept} style={{display:"flex",alignItems:"center",gap:"1.5mm"}}>
+                      <div style={{width:"18mm",textAlign:"right",fontSize:"7pt",fontWeight:600,color:"#334155",flexShrink:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{dept}</div>
+                      <div style={{flex:1,height:"4mm",background:"#e2e8f0",borderRadius:"1mm",overflow:"hidden"}}>
+                        <div style={{height:"100%",background:"#1e40af",width:`${pct}%`}}/>
+                      </div>
+                      <div style={{width:"20mm",textAlign:"right",flexShrink:0}}>
+                        <span style={{fontSize:"7pt",fontWeight:700,color:dHas?"#b45309":"#1e3a8a"}}>₩{fmt(dHas?dNet:dTotal)}</span>
+                      </div>
                     </div>
-                    <div style={{width:"28mm",textAlign:"right",flexShrink:0}}>
-                      <span style={{fontSize:"8pt",fontWeight:700,color:"#1e3a8a"}}>₩{fmt(dTotal)}</span>
-                      {dHas && <div style={{fontSize:"6.5pt",color:"#b45309"}}>실부담 ₩{fmt(dNet)}</div>}
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
 
-            {/* ④ 부서별 SW 요약 테이블 */}
-            <div className="pa" style={{marginBottom:"3mm"}}>
-              <div style={{fontSize:"7.5pt",fontWeight:700,color:"#334155",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:"1.5mm",paddingBottom:"1mm",borderBottom:"1.5px solid #334155"}}>
-                부서별 SW 사용 현황 및 비용
+            {/* ③ 부서별 SW 요약 + 상세를 하나의 통합 테이블로 */}
+            <div className="pa">
+              <div style={{fontSize:"7pt",fontWeight:700,color:"#334155",marginBottom:"1.5mm",paddingBottom:"1mm",borderBottom:"1.5px solid #1e3a8a",display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
+                <span>사용자별 구독 현황 상세</span>
+                <span style={{fontSize:"6.5pt",color:"#64748b",fontWeight:400}}>* [쉐] 항목은 외부 청구분 — 실부담 합계에서 제외</span>
               </div>
-              <table style={{width:"100%",borderCollapse:"collapse",fontSize:"7.5pt"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:"6.5pt"}}>
                 <thead>
                   <tr style={{background:"#1e3a8a",color:"white"}}>
-                    <th style={{padding:"1.5mm 2mm",textAlign:"left",fontWeight:700,width:"17%"}}>부서</th>
-                    <th style={{padding:"1.5mm 2mm",textAlign:"left",fontWeight:700,width:"45%"}}>사용 SW 목록</th>
-                    <th style={{padding:"1.5mm 2mm",textAlign:"right",fontWeight:700,width:"19%"}}>총 비용</th>
-                    <th style={{padding:"1.5mm 2mm",textAlign:"right",fontWeight:700,width:"19%"}}>실부담 (쉐어드 제외)</th>
+                    <th style={{padding:"1.2mm 1.5mm",textAlign:"left",fontWeight:700,width:"13%"}}>부서</th>
+                    <th style={{padding:"1.2mm 1.5mm",textAlign:"left",fontWeight:700,width:"12%"}}>사용자</th>
+                    <th style={{padding:"1.2mm 1.5mm",textAlign:"left",fontWeight:700,width:"20%"}}>SW 명칭</th>
+                    <th style={{padding:"1.2mm 1.5mm",textAlign:"center",fontWeight:700,width:"8%"}}>카테고리</th>
+                    <th style={{padding:"1.2mm 1.5mm",textAlign:"right",fontWeight:700,width:"13%"}}>월 KRW</th>
+                    <th style={{padding:"1.2mm 1.5mm",textAlign:"right",fontWeight:700,width:"10%"}}>월 USD</th>
+                    <th style={{padding:"1.2mm 1.5mm",textAlign:"right",fontWeight:700,width:"13%"}}>원화환산</th>
+                    <th style={{padding:"1.2mm 1.5mm",textAlign:"center",fontWeight:700,width:"11%"}}>갱신일</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {deptList.map(({dept, dTotal, dNet, dHas, swList}, di) => (
-                    <tr key={dept} className="pa" style={{background:di%2===0?"#ffffff":"#f8fafc",borderBottom:"1px solid #e2e8f0"}}>
-                      <td style={{padding:"1.5mm 2mm",fontWeight:700,color:"#0f172a",verticalAlign:"top"}}>{dept}</td>
-                      <td style={{padding:"1.5mm 2mm",color:"#334155",verticalAlign:"top"}}>
-                        {swList.map((sw,si) => (
-                          <span key={si} style={{display:"inline-block",marginRight:"2mm",whiteSpace:"nowrap"}}>
-                            {sw.swName}
-                            <span style={{color:"#1e40af",fontWeight:700}}>({sw.count})</span>
-                            {sw.billing?.includes("쉐어드") && <span style={{color:"#b45309",fontSize:"6.5pt"}}>[쉐]</span>}
-                          </span>
-                        ))}
-                      </td>
-                      <td style={{padding:"1.5mm 2mm",textAlign:"right",fontWeight:600,color:"#1e3a8a",verticalAlign:"top"}}>₩{fmt(dTotal)}</td>
-                      <td style={{padding:"1.5mm 2mm",textAlign:"right",fontWeight:700,color:dHas?"#059669":"#1e3a8a",verticalAlign:"top"}}>
-                        ₩{fmt(dNet)}
-                        {dHas && <div style={{fontSize:"6.5pt",color:"#b45309",fontWeight:400}}>쉐어드 ₩{fmt(dTotal-dNet)} 제외</div>}
-                      </td>
-                    </tr>
-                  ))}
+                  {deptList.flatMap(({dept, dRows, dTotal, dNet, dHas}) => {
+                    const deptRows = dRows.map((r, ri) => {
+                      const mKrw = Math.round((r.annualKrw||0)/12);
+                      const mUsd = (r.annualUsd||0)/12;
+                      const conv = convertedKrw(r.annualKrw, r.annualUsd, rate, "monthly");
+                      const shared = isShared(r);
+                      return (
+                        <tr key={r.id} style={{background:shared?"#fffbeb":ri%2===0?"#ffffff":"#f8fafc",borderBottom:"1px solid #f1f5f9"}}>
+                          <td style={{padding:"1mm 1.5mm",color:"#334155",verticalAlign:"top",fontWeight:ri===0?700:400,borderLeft:ri===0?"3px solid #1e3a8a":"3px solid transparent"}}>
+                            {ri===0 ? dept : ""}
+                          </td>
+                          <td style={{padding:"1mm 1.5mm",color:"#475569",verticalAlign:"top"}}>{r.user||"—"}</td>
+                          <td style={{padding:"1mm 1.5mm",fontWeight:600,color:shared?"#92400e":"#0f172a",verticalAlign:"top"}}>
+                            {r.swName}{shared&&<span style={{fontSize:"6pt",marginLeft:"0.5mm"}}>[쉐]</span>}
+                          </td>
+                          <td style={{padding:"1mm 1.5mm",textAlign:"center",color:"#475569",verticalAlign:"top"}}>{r.category}</td>
+                          <td style={{padding:"1mm 1.5mm",textAlign:"right",color:"#334155",verticalAlign:"top"}}>{mKrw>0?fmt(mKrw):"—"}</td>
+                          <td style={{padding:"1mm 1.5mm",textAlign:"right",color:"#059669",verticalAlign:"top"}}>{mUsd>0?`$${mUsd.toFixed(2)}`:"—"}</td>
+                          <td style={{padding:"1mm 1.5mm",textAlign:"right",fontWeight:600,color:shared?"#92400e":"#1e3a8a",verticalAlign:"top"}}>{conv>0?fmt(conv):"—"}</td>
+                          <td style={{padding:"1mm 1.5mm",textAlign:"center",color:"#64748b",verticalAlign:"top"}}>{r.renewalDate?r.renewalDate.slice(0,7):"—"}</td>
+                        </tr>
+                      );
+                    });
+                    // 부서 소계
+                    deptRows.push(
+                      <tr key={`${dept}-sub`} style={{background:"#eff6ff",borderTop:"1px solid #bfdbfe",borderBottom:"1.5px solid #bfdbfe"}}>
+                        <td colSpan={6} style={{padding:"0.8mm 1.5mm",color:"#1e3a8a",fontSize:"6.5pt"}}>
+                          {dept} 소계 ({dRows.length}건){dHas&&<span style={{color:"#b45309",marginLeft:"2mm"}}>쉐어드 ₩{fmt(dTotal-dNet)} 외부 청구</span>}
+                        </td>
+                        <td style={{padding:"0.8mm 1.5mm",textAlign:"right",fontWeight:700,color:"#1e3a8a",fontSize:"6.5pt"}}>₩{fmt(dNet)}</td>
+                        <td/>
+                      </tr>
+                    );
+                    return deptRows;
+                  })}
                 </tbody>
                 <tfoot>
-                  <tr style={{background:"#dbeafe",borderTop:"1.5px solid #1e3a8a"}}>
-                    <td colSpan={2} style={{padding:"2mm",fontWeight:700,color:"#1e3a8a"}}>
-                      법인 합계 ({[...deptMap.keys()].length}개 부서 · {coRows.length}건)
+                  <tr style={{background:"#1e3a8a",color:"white"}}>
+                    <td colSpan={6} style={{padding:"1.5mm",fontWeight:700,fontSize:"7.5pt"}}>
+                      {co} 합계 · {[...deptMap.keys()].length}개 부서 · {coRows.length}건
+                      {coHas&&<span style={{color:"#fcd34d",marginLeft:"2mm",fontWeight:400,fontSize:"6.5pt"}}>쉐어드 ₩{fmt(coShared)} 외부 청구 제외</span>}
                     </td>
-                    <td style={{padding:"2mm",textAlign:"right",fontWeight:800,color:"#1e3a8a",fontSize:"9pt"}}>₩{fmt(coTotal)}</td>
-                    <td style={{padding:"2mm",textAlign:"right",fontWeight:800,color:"#059669",fontSize:"9pt"}}>₩{fmt(coNet)}</td>
+                    <td style={{padding:"1.5mm",textAlign:"right",fontWeight:800,fontSize:"8.5pt",color:"#fbbf24"}}>₩{fmt(coNet)}</td>
+                    <td/>
                   </tr>
                 </tfoot>
               </table>
             </div>
 
-            {/* ⑤ 사용자별 상세 내역 */}
-            <div className="pa">
-              <div style={{fontSize:"7.5pt",fontWeight:700,color:"#334155",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:"1.5mm",paddingBottom:"1mm",borderBottom:"1.5px solid #334155"}}>
-                상세 내역 — 부서별 사용자 · SW
-              </div>
-              <table style={{width:"100%",borderCollapse:"collapse",fontSize:"7pt"}}>
-                <thead>
-                  <tr style={{background:"#e8edf8",color:"#1e3a8a"}}>
-                    <th style={{padding:"1.2mm 1.8mm",textAlign:"left",fontWeight:700,width:"14%",borderBottom:"1px solid #bfdbfe"}}>부서</th>
-                    <th style={{padding:"1.2mm 1.8mm",textAlign:"left",fontWeight:700,width:"14%",borderBottom:"1px solid #bfdbfe"}}>사용자</th>
-                    <th style={{padding:"1.2mm 1.8mm",textAlign:"left",fontWeight:700,width:"22%",borderBottom:"1px solid #bfdbfe"}}>SW 명칭</th>
-                    <th style={{padding:"1.2mm 1.8mm",textAlign:"center",fontWeight:700,width:"8%",borderBottom:"1px solid #bfdbfe"}}>카테고리</th>
-                    <th style={{padding:"1.2mm 1.8mm",textAlign:"right",fontWeight:700,width:"11%",borderBottom:"1px solid #bfdbfe"}}>월 KRW</th>
-                    <th style={{padding:"1.2mm 1.8mm",textAlign:"right",fontWeight:700,width:"9%",borderBottom:"1px solid #bfdbfe"}}>월 USD</th>
-                    <th style={{padding:"1.2mm 1.8mm",textAlign:"right",fontWeight:700,width:"12%",borderBottom:"1px solid #bfdbfe"}}>원화환산</th>
-                    <th style={{padding:"1.2mm 1.8mm",textAlign:"center",fontWeight:700,width:"10%",borderBottom:"1px solid #bfdbfe"}}>갱신일</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {deptList.flatMap(({dept, dRows}, di) =>
-                    dRows.map((r, ri) => {
-                      const mKrw = Math.round((r.annualKrw||0)/12);
-                      const mUsd = (r.annualUsd||0)/12;
-                      const conv = convertedKrw(r.annualKrw, r.annualUsd, rate, "monthly");
-                      const shared = isShared(r);
-                      const isFirstInDept = ri === 0;
-                      return (
-                        <tr key={r.id} className="pa" style={{background:shared?"#fffbeb":ri%2===0?"#ffffff":"#f8fafc",borderBottom:"1px solid #f1f5f9"}}>
-                          <td style={{padding:"1mm 1.8mm",color:"#334155",verticalAlign:"top",fontWeight:isFirstInDept?700:400}}>
-                            {isFirstInDept ? dept : ""}
-                          </td>
-                          <td style={{padding:"1mm 1.8mm",color:"#475569",verticalAlign:"top"}}>{r.user||"—"}</td>
-                          <td style={{padding:"1mm 1.8mm",fontWeight:600,color:"#0f172a",verticalAlign:"top"}}>
-                            {r.swName}
-                            {shared && <span style={{marginLeft:"1mm",fontSize:"6.5pt",color:"#b45309",fontWeight:700}}>[쉐어드]</span>}
-                          </td>
-                          <td style={{padding:"1mm 1.8mm",textAlign:"center",color:"#475569",verticalAlign:"top"}}>{r.category}</td>
-                          <td style={{padding:"1mm 1.8mm",textAlign:"right",color:"#334155",verticalAlign:"top"}}>{mKrw>0?fmt(mKrw):"—"}</td>
-                          <td style={{padding:"1mm 1.8mm",textAlign:"right",color:"#059669",verticalAlign:"top"}}>{mUsd>0?`$${mUsd.toFixed(2)}`:"—"}</td>
-                          <td style={{padding:"1mm 1.8mm",textAlign:"right",fontWeight:600,color:"#1e3a8a",verticalAlign:"top"}}>{conv>0?fmt(conv):"—"}</td>
-                          <td style={{padding:"1mm 1.8mm",textAlign:"center",color:"#64748b",verticalAlign:"top"}}>{r.renewalDate?r.renewalDate.slice(0,10):"—"}</td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* 페이지 주석 */}
-            <div style={{marginTop:"2mm",fontSize:"6.5pt",color:"#94a3b8",display:"flex",justifyContent:"space-between",borderTop:"1px solid #e2e8f0",paddingTop:"1.5mm"}}>
-              <span>* 환율 $1=₩{fmt(rate)} (실시간) · 쉐어드[쉐]항목은 외부 청구분으로 실부담 제외</span>
+            {/* 주석 */}
+            <div style={{marginTop:"1.5mm",fontSize:"6pt",color:"#94a3b8",display:"flex",justifyContent:"space-between"}}>
+              <span>환율 $1=₩{fmt(rate)} (실시간 기준) · [쉐] 쉐어드청구 항목은 외부 청구분으로 실부담 제외</span>
               <span>IT 자산관리 포털 · {printYear}.{String(printMonth).padStart(2,"0")}</span>
             </div>
           </div>
         );
       })}
-
-      {/* 전체 합계 (법인 2개+ 일 때 마지막 페이지) */}
-      {[...printCoMap.keys()].length > 1 && (
-        <div className="pa pb" style={{marginTop:"4mm"}}>
-          <div style={{background:"#0f2240",color:"white",borderRadius:"2mm",padding:"3mm 4mm",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div style={{fontWeight:700,fontSize:"9.5pt"}}>전체 합계 · {[...printCoMap.keys()].length}개 법인 · {data.rows.length}건</div>
-            <div style={{textAlign:"right"}}>
-              <div style={{fontSize:"12pt",fontWeight:800,color:"#fbbf24"}}>₩{fmt(printGrand)}</div>
-              {printHasShared && <div style={{fontSize:"8pt",color:"#86efac"}}>실부담 ₩{fmt(printNet)}</div>}
-            </div>
-          </div>
-        </div>
-      )}
 
     </div>{/* /인쇄 전용 */}
     </>
