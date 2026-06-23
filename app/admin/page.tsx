@@ -59,7 +59,6 @@ const SUPER_GROUPS: MenuGroup[] = [
       { id: "hw",              icon: "💻", label: "노트북/데스크탑 자산관리", desc: "NT/DT 재고 · 반납 관리"     },
       { id: "hw-repair",       icon: "🛠️", label: "수리/과실청구 트래커",     desc: "외부 수리 · 과실 청구 관리" },
       { id: "rental-hw",       icon: "📦", label: "임대노트북 현황 관리",     desc: "임시 PC 대여 · 반납 관리"   },
-      { id: "meeting-rental",  icon: "📡", label: "회의실 장비 대여 관리",   desc: "신청 티켓 · 장비 현황 통합 관리" },
       { id: "assetmap",        icon: "🖥️", label: "스마트오피스 모니터 관리", desc: "인터랙티브 자산 맵"         },
     ],
   },
@@ -78,6 +77,7 @@ const SUPER_GROUPS: MenuGroup[] = [
     items: [
       { id: "helpdesk",   icon: "🎫", label: "문의 접수 현황",  desc: "유형·법인별 분석"       },
       { id: "repair",     icon: "🖥️", label: "모니터 수리 접수 내역",  desc: "모니터 수리 접수 · 처리" },
+      { id: "meeting-rental", icon: "📡", label: "회의실 장비 대여 관리", desc: "신청 티켓 · 장비 현황 통합 관리" },
       { id: "automation", icon: "⚙️", label: "자동화 과제 현황", desc: "업무 자동화 접수 관리"   },
     ],
   },
