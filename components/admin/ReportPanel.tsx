@@ -301,12 +301,12 @@ function DeptDetail({
         </div>
       </button>
       {open && (() => {
-        // SW별 그룹핑
+        // SW별 그룹핑 (비용 내림차순)
         const swGroups = new Map<string, {
           swName: string; category: string; billing: string;
           users: string[]; count: number;
           totalKrw: number; totalUsd: number; totalConv: number;
-          shared: boolean; renewalDate: string;
+          shared: boolean;
         }>();
         for (const r of rows) {
           const key = `${r.swName}||${r.billingType||""}`;
@@ -325,91 +325,114 @@ function DeptDetail({
               totalKrw:  periodKrw(r.annualKrw, mode),
               totalUsd:  periodUsd(r.annualUsd, mode),
               totalConv: convertedKrw(r.annualKrw, r.annualUsd, rate, mode),
-              shared: isShared(r), renewalDate: r.renewalDate || "",
+              shared: isShared(r),
             });
           }
         }
         const swList = [...swGroups.values()].sort((a, b) => b.totalConv - a.totalConv);
+        const ownList    = swList.filter(g => !g.shared);
+        const sharedList = swList.filter(g =>  g.shared);
+
+        const TableSection = ({ list, isSharedSection }: { list: typeof swList; isSharedSection: boolean }) => (
+          <>
+            {list.map((g, i) => (
+              <tr key={`${g.swName}-${i}`}
+                className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
+                {/* SW명 + 카테고리 */}
+                <td className="px-4 py-2.5">
+                  <div className="font-semibold text-slate-800 text-xs leading-tight">{g.swName}</div>
+                  <div className="mt-0.5">
+                    <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-semibold ${CATEGORY_BADGE[g.category] || CATEGORY_BADGE["기타"]}`}>
+                      {g.category}
+                    </span>
+                  </div>
+                </td>
+                {/* 사용자 */}
+                <td className="px-3 py-2.5">
+                  <div className="flex flex-wrap gap-1 max-w-xs">
+                    {g.users.length > 0
+                      ? g.users.map(u => (
+                          <span key={u} className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded font-medium whitespace-nowrap">
+                            {u}
+                          </span>
+                        ))
+                      : <span className="text-slate-300 text-xs">—</span>
+                    }
+                  </div>
+                </td>
+                {/* 건수 */}
+                <td className="px-3 py-2.5 text-center">
+                  <span className="text-xs font-bold text-slate-600 bg-slate-100 rounded-full w-5 h-5 inline-flex items-center justify-center">
+                    {g.count}
+                  </span>
+                </td>
+                {/* 월 KRW */}
+                <td className="px-3 py-2.5 text-right font-mono text-xs text-slate-600">
+                  {g.totalKrw > 0 ? fmt(Math.round(g.totalKrw)) : <span className="text-slate-300">—</span>}
+                </td>
+                {/* 월 USD */}
+                <td className="px-3 py-2.5 text-right font-mono text-xs text-emerald-600">
+                  {g.totalUsd > 0 ? `$${g.totalUsd.toFixed(2)}` : <span className="text-slate-300">—</span>}
+                </td>
+                {/* 원화환산 */}
+                <td className="px-4 py-2.5 text-right">
+                  <span className={`text-xs font-bold ${isSharedSection ? "text-slate-400" : "text-blue-700"}`}>
+                    {g.totalConv > 0 ? fmt(Math.round(g.totalConv)) : "—"}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </>
+        );
+
         return (
-          <div className="border-t border-slate-100 bg-white">
+          <div className="border-t border-slate-200">
             <table className="w-full text-xs">
               <thead>
-                <tr className="bg-slate-100 border-b border-slate-200 text-slate-500">
-                  <th className="px-4 py-2 text-left font-semibold w-32">SW 명칭</th>
-                  <th className="px-3 py-2 text-left font-semibold hidden sm:table-cell w-16">카테고리</th>
-                  <th className="px-3 py-2 text-left font-semibold">사용자</th>
-                  <th className="px-3 py-2 text-center font-semibold w-10">건수</th>
-                  <th className="px-3 py-2 text-right font-semibold w-24 hidden sm:table-cell">월 KRW</th>
-                  <th className="px-3 py-2 text-right font-semibold w-20 hidden md:table-cell">월 USD</th>
-                  <th className="px-3 py-2 text-right font-semibold w-24">원화환산</th>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="px-4 py-2 text-left text-[10px] font-semibold text-slate-400 uppercase tracking-wide w-36">SW · 카테고리</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-400 uppercase tracking-wide">사용자</th>
+                  <th className="px-3 py-2 text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wide w-10">건</th>
+                  <th className="px-3 py-2 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wide w-24">월 KRW</th>
+                  <th className="px-3 py-2 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wide w-20">월 USD</th>
+                  <th className="px-4 py-2 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wide w-24">원화환산</th>
                 </tr>
               </thead>
               <tbody>
-                {swList.map((g, i) => (
-                  <tr key={i} className={`border-b border-slate-100 last:border-0 ${g.shared ? "bg-amber-50" : i % 2 === 0 ? "bg-white" : "bg-slate-50/50"}`}>
-                    {/* SW명 */}
-                    <td className="px-4 py-2 font-semibold text-slate-800">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span>{g.swName}</span>
-                        {g.shared && (
-                          <span className="text-[9px] font-bold bg-amber-100 text-amber-700 border border-amber-300 px-1 py-0.5 rounded">
-                            쉐어드청구
-                          </span>
-                        )}
-                      </div>
-                      {g.shared && (
-                        <div className="text-[9px] text-amber-600 mt-0.5">실부담 제외 항목</div>
-                      )}
-                    </td>
-                    {/* 카테고리 */}
-                    <td className="px-3 py-2 hidden sm:table-cell">
-                      <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${CATEGORY_BADGE[g.category] || CATEGORY_BADGE["기타"]}`}>
-                        {g.category}
-                      </span>
-                    </td>
-                    {/* 사용자 목록 */}
-                    <td className="px-3 py-2 text-slate-600">
-                      <div className="flex flex-wrap gap-1">
-                        {g.users.length > 0
-                          ? g.users.map(u => (
-                              <span key={u} className="inline-block bg-blue-50 text-blue-700 border border-blue-100 rounded px-1.5 py-0.5 text-[10px] font-medium">
-                                {u}
-                              </span>
-                            ))
-                          : <span className="text-slate-300">—</span>
-                        }
-                      </div>
-                    </td>
-                    {/* 건수 */}
-                    <td className="px-3 py-2 text-center">
-                      <span className="font-bold text-slate-700">{g.count}</span>
-                    </td>
-                    {/* 월 KRW */}
-                    <td className="px-3 py-2 text-right font-mono text-slate-700 hidden sm:table-cell">
-                      {g.totalKrw > 0 ? fmt(Math.round(g.totalKrw)) : <span className="text-slate-300">—</span>}
-                    </td>
-                    {/* 월 USD */}
-                    <td className="px-3 py-2 text-right font-mono text-emerald-700 hidden md:table-cell">
-                      {g.totalUsd > 0 ? `$${g.totalUsd.toFixed(2)}` : <span className="text-slate-300">—</span>}
-                    </td>
-                    {/* 원화환산 */}
-                    <td className={`px-3 py-2 text-right font-bold ${g.shared ? "text-amber-500 line-through" : "text-blue-700"}`}>
-                      {g.totalConv > 0 ? fmt(Math.round(g.totalConv)) : "—"}
-                    </td>
-                  </tr>
-                ))}
+                {/* 법인 부담 항목 */}
+                {ownList.length > 0 && <TableSection list={ownList} isSharedSection={false} />}
+
+                {/* 쉐어드 구분선 */}
+                {sharedList.length > 0 && (
+                  <>
+                    <tr>
+                      <td colSpan={6} className="px-4 py-1.5 bg-amber-50 border-y border-amber-200">
+                        <span className="text-[10px] font-semibold text-amber-700 flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block"/>
+                          외부 쉐어드 청구 항목 — 실부담 제외 · 합계에서 차감됨
+                        </span>
+                      </td>
+                    </tr>
+                    <TableSection list={sharedList} isSharedSection={true} />
+                  </>
+                )}
               </tbody>
+
+              {/* 소계 */}
               <tfoot>
-                <tr className="bg-blue-50 border-t-2 border-blue-200">
-                  <td colSpan={3} className="px-4 py-2 font-semibold text-slate-700 text-xs">
-                    {dept} 소계 · SW {swList.length}종 · {rows.length}건
-                    {dHas && <span className="ml-2 text-amber-600">※ 쉐어드 ₩{fmt(dShared)} 실부담 제외</span>}
+                <tr className="border-t-2 border-slate-200 bg-slate-50">
+                  <td colSpan={2} className="px-4 py-2">
+                    <span className="text-[10px] font-semibold text-slate-500">
+                      SW {swList.length}종 · {rows.length}건
+                    </span>
                   </td>
-                  <td className="px-3 py-2 text-center font-bold text-slate-600 text-xs">{rows.length}</td>
-                  <td className="px-3 py-2 text-right text-slate-400 text-xs hidden sm:table-cell">총 ₩{fmt(dTotal)}</td>
-                  <td className="hidden md:table-cell"/>
-                  <td className="px-3 py-2 text-right font-bold text-blue-800 text-xs">
-                    실부담 ₩{fmt(dNet)}
+                  <td className="px-3 py-2 text-center text-[10px] font-bold text-slate-500">{rows.length}</td>
+                  <td colSpan={2} className="px-3 py-2 text-right text-[10px] text-slate-400">
+                    {dHas && `쉐어드 ₩${fmt(dShared)} 제외`}
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    <div className="text-xs font-bold text-blue-800">₩{fmt(dNet)}</div>
+                    {dHas && <div className="text-[10px] text-slate-400">총 ₩{fmt(dTotal)}</div>}
                   </td>
                 </tr>
               </tfoot>
