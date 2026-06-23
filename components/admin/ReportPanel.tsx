@@ -256,6 +256,166 @@ function DeptRowUnified({
   );
 }
 
+// ─── 부서 상세 행 (접기/펼치기) ──────────────────────────────────────────
+function DeptDetail({
+  dept, rows, dTotal, rate, mode, periodLabel,
+}: {
+  dept: string; rows: SubRow[]; dTotal: number;
+  rate: number; mode: PeriodMode; periodLabel: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const users = [...new Set(rows.map(r => r.user).filter(Boolean))];
+  const swSet = [...new Set(rows.map(r => r.swName))];
+  return (
+    <div className="border-b border-slate-100 last:border-0">
+      <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors text-left"
+        onClick={() => setOpen(o => !o)}>
+        <svg className={`w-3.5 h-3.5 text-slate-400 flex-shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
+          fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
+        </svg>
+        <span className="font-semibold text-slate-800 text-sm w-28 flex-shrink-0 truncate">{dept}</span>
+        <div className="flex flex-wrap gap-1 flex-1 min-w-0">
+          {swSet.slice(0,5).map(sw => (
+            <span key={sw} className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded border border-slate-200">{sw}</span>
+          ))}
+          {swSet.length > 5 && <span className="text-[10px] text-slate-400">+{swSet.length-5}개</span>}
+        </div>
+        <span className="text-xs text-slate-400 flex-shrink-0 hidden sm:block">{users.length}명</span>
+        <span className="text-sm font-bold text-blue-700 flex-shrink-0 ml-auto">
+          ₩{fmt(dTotal)}<span className="text-xs font-normal text-slate-400 ml-0.5">/{periodLabel}</span>
+        </span>
+      </button>
+      {open && (
+        <div className="bg-slate-50 border-t border-slate-100 px-4 py-3">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-slate-500 border-b border-slate-200">
+                <th className="pb-2 text-left font-semibold w-28">사용자</th>
+                <th className="pb-2 text-left font-semibold">SW 명칭</th>
+                <th className="pb-2 text-left font-semibold hidden sm:table-cell">카테고리</th>
+                <th className="pb-2 text-right font-semibold">월 KRW</th>
+                <th className="pb-2 text-right font-semibold hidden sm:table-cell">월 USD</th>
+                <th className="pb-2 text-right font-semibold">원화환산</th>
+                <th className="pb-2 text-center font-semibold hidden md:table-cell">갱신일</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(r => {
+                const mKrw = periodKrw(r.annualKrw, mode);
+                const mUsd = periodUsd(r.annualUsd, mode);
+                const conv = convertedKrw(r.annualKrw, r.annualUsd, rate, mode);
+                const shared = isShared(r);
+                return (
+                  <tr key={r.id} className={`border-b border-slate-100 last:border-0 ${shared?"bg-amber-50/40":""}`}>
+                    <td className="py-1.5 pr-3 text-slate-600 truncate max-w-[110px]">{r.user||"—"}</td>
+                    <td className="py-1.5 pr-3 font-medium text-slate-800">
+                      {r.swName}
+                      {shared && <span className="ml-1 text-[9px] bg-amber-100 text-amber-700 px-1 py-0.5 rounded font-bold">쉐어드</span>}
+                    </td>
+                    <td className="py-1.5 pr-3 text-slate-500 hidden sm:table-cell">{r.category}</td>
+                    <td className="py-1.5 pr-3 text-right text-slate-700 font-mono">{mKrw>0?fmt(mKrw):"—"}</td>
+                    <td className="py-1.5 pr-3 text-right text-emerald-700 font-mono hidden sm:table-cell">{mUsd>0?`$${mUsd.toFixed(2)}`:"—"}</td>
+                    <td className="py-1.5 pr-3 text-right font-semibold text-blue-700">{conv>0?fmt(conv):"—"}</td>
+                    <td className="py-1.5 text-center text-slate-400 hidden md:table-cell">{r.renewalDate?r.renewalDate.slice(0,10):"—"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="border-t border-slate-200 bg-slate-100/60">
+                <td colSpan={5} className="py-1.5 pr-3 text-slate-500 font-semibold">{dept} 소계 ({rows.length}건)</td>
+                <td className="py-1.5 text-right font-bold text-blue-800">₩{fmt(dTotal)}</td>
+                <td className="hidden md:table-cell"/>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── 법인 블록 (요약 + 바 차트 + 부서 상세) ──────────────────────────────
+function CompanyBlock({
+  co, coRows, coTotal, coShared, coNet, coHas,
+  deptList, maxDept, rate, mode, periodLabel,
+}: {
+  co: string; coRows: SubRow[];
+  coTotal: number; coShared: number; coNet: number; coHas: boolean;
+  deptList: { dept: string; rows: SubRow[]; dTotal: number; users: string[]; sws: string[] }[];
+  maxDept: number; rate: number; mode: PeriodMode; periodLabel: string;
+}) {
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm mb-4">
+      {/* 법인 헤더 */}
+      <div className="bg-slate-900 px-5 py-3.5 flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-white font-bold text-base">{co}</span>
+            <span className="text-slate-400 text-xs">{coRows.length}건 구독</span>
+          </div>
+          {coHas && (
+            <div className="text-xs text-slate-400 mt-0.5">
+              실부담 <span className="text-blue-300 font-semibold">₩{fmt(coNet)}</span>
+              <span className="ml-2 text-slate-500">· 쉐어드 ₩{fmt(coShared)} 제외</span>
+            </div>
+          )}
+        </div>
+        <div className="text-right">
+          <div className="text-xl font-bold text-blue-300">₩{fmt(coTotal)}</div>
+          <div className="text-xs text-slate-400">/ {periodLabel}</div>
+        </div>
+      </div>
+
+      {/* 부서별 바 차트 */}
+      <div className="px-5 py-4 border-b border-slate-100 bg-slate-50">
+        <div className="text-xs font-semibold text-slate-500 mb-3 uppercase tracking-wide">부서별 지출 현황</div>
+        <div className="flex flex-col gap-2">
+          {deptList.map(({ dept, dTotal, users, sws }) => {
+            const pct = maxDept > 0 ? (dTotal / maxDept * 100) : 0;
+            const isHigh = pct > 60;
+            return (
+              <div key={dept} className="flex items-center gap-3">
+                <div className="w-24 text-xs font-medium text-slate-700 text-right flex-shrink-0 truncate">{dept}</div>
+                <div className="flex-1 relative h-7 bg-slate-200 rounded-md overflow-hidden">
+                  <div className={`h-full rounded-md transition-all duration-500 ${isHigh?"bg-blue-700":"bg-blue-500"}`}
+                    style={{ width: `${pct}%` }} />
+                  <div className="absolute inset-0 flex items-center px-2">
+                    <span className={`text-[10px] font-semibold ${pct>25?"text-white":"text-slate-500"}`}>
+                      {users.length}명 · {sws.length}개 SW
+                    </span>
+                  </div>
+                </div>
+                <div className="w-28 text-right flex-shrink-0">
+                  <span className={`text-xs font-bold ${isHigh?"text-blue-700":"text-slate-700"}`}>₩{fmt(dTotal)}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="mt-3 pt-3 border-t border-slate-200 flex items-center justify-between">
+          <div className="flex items-center gap-4 text-xs text-slate-400">
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-blue-700 rounded inline-block"/>최고 지출</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-blue-500 rounded inline-block"/>일반</span>
+          </div>
+          <span className="text-xs text-slate-400">최대: {deptList[0]?.dept} ₩{fmt(deptList[0]?.dTotal||0)}</span>
+        </div>
+      </div>
+
+      {/* 부서 상세 */}
+      <div>
+        <div className="px-5 py-2 bg-white border-b border-slate-100 text-xs font-semibold text-slate-400 uppercase tracking-wide">
+          부서 상세 — 클릭하여 사용자·SW 내역 확인
+        </div>
+        {deptList.map(({ dept, rows, dTotal }) => (
+          <DeptDetail key={dept} dept={dept} rows={rows} dTotal={dTotal} rate={rate} mode={mode} periodLabel={periodLabel}/>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── 뷰 빌더 (법인 그룹핑) ───────────────────────────────────────────────
 function buildView(
   rows: SubRow[],
@@ -368,214 +528,106 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
     {/* ════════════════════════════════
         화면용 (인쇄 시 숨김)
     ════════════════════════════════ */}
-    <div className="space-y-6 print:hidden">
+    <div className="print:hidden">
 
-      {/* ── 상단 배너 ── */}
-      <div className="rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 p-6 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-bold text-amber-900">SW 구독 현황 리포트</h2>
-            <p className="text-sm text-amber-600 mt-0.5">법인·부서별 라이선스 및 구독 비용 현황</p>
+      {/* ── 헤더 ── */}
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <div>
+          <h2 className="text-base font-bold text-slate-900">구독 SW 현황 리포트</h2>
+          <p className="text-xs text-slate-400 mt-0.5">법인·부서별 구독 비용 현황</p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* 기간 토글 */}
+          <div className="inline-flex rounded-md border border-slate-200 overflow-hidden bg-white shadow-sm">
+            <button onClick={() => setMode("monthly")}
+              className={`px-3 py-1.5 text-xs font-semibold transition-colors ${mode==="monthly" ? "bg-blue-700 text-white" : "text-slate-500 hover:bg-slate-50"}`}>
+              월간
+            </button>
+            <button onClick={() => setMode("annual")}
+              className={`px-3 py-1.5 text-xs font-semibold transition-colors ${mode==="annual" ? "bg-blue-700 text-white" : "text-slate-500 hover:bg-slate-50"}`}>
+              연간
+            </button>
           </div>
-          <div className="flex items-center gap-3 flex-wrap">
-            {/* 기간 토글 */}
-            <div className="inline-flex rounded-lg border border-indigo-200 bg-white overflow-hidden shadow-sm">
-              <button
-                onClick={() => setMode("monthly")}
-                className={`px-4 py-2 text-sm font-semibold transition-colors ${
-                  mode === "monthly"
-                    ? "bg-indigo-600 text-white"
-                    : "text-indigo-500 hover:bg-indigo-50"
-                }`}
-              >
-                월간
+          {/* 법인 탭 (2개 이상일 때) */}
+          {!company && data.filters.companies.length > 1 && (
+            <div className="inline-flex rounded-md border border-slate-200 overflow-hidden bg-white shadow-sm">
+              <button onClick={() => setFilterCompany("")}
+                className={`px-3 py-1.5 text-xs font-semibold transition-colors ${filterCompany==="" ? "bg-slate-800 text-white" : "text-slate-500 hover:bg-slate-50"}`}>
+                전체
               </button>
-              <button
-                onClick={() => setMode("annual")}
-                className={`px-4 py-2 text-sm font-semibold transition-colors ${
-                  mode === "annual"
-                    ? "bg-indigo-600 text-white"
-                    : "text-indigo-500 hover:bg-indigo-50"
-                }`}
-              >
-                연간
-              </button>
+              {data.filters.companies.map(c => (
+                <button key={c} onClick={() => setFilterCompany(c)}
+                  className={`px-3 py-1.5 text-xs font-semibold transition-colors border-l border-slate-200 ${filterCompany===c ? "bg-slate-800 text-white" : "text-slate-500 hover:bg-slate-50"}`}>
+                  {c}
+                </button>
+              ))}
             </div>
-            {/* 환율 배지 */}
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-600">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"/>
-              $1 = ₩{fmt(rate)}
-            </span>
-            {/* 인쇄 버튼 */}
-            <button onClick={printNow} title="A4 월별 리포트 인쇄"
-              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 bg-slate-700 text-white text-sm font-semibold hover:bg-slate-800 transition-colors shadow-sm">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6v-8z"/>
-              </svg>
-              월별 리포트 인쇄
-            </button>
-            <button onClick={load} title="새로고침"
-              className="rounded-full p-2 bg-white border border-amber-200 text-amber-500 hover:bg-amber-50 transition-colors shadow-sm">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        {/* 합산 배너 */}
-        <div className="mt-4 flex flex-wrap gap-3 items-end">
-          <div>
-            <p className="text-xs text-amber-600 font-medium">{periodLabel} 원화환산 합계</p>
-            <p className="text-3xl font-extrabold text-amber-800">{fmt(grandTotal)}<span className="text-lg ml-1">원</span></p>
-          </div>
-          {hasShared && (
-            <>
-              <div className="pb-1 text-amber-400 font-bold text-lg">—</div>
-              <div>
-                <p className="text-xs text-orange-500 font-medium">쉐어드 청구분</p>
-                <p className="text-xl font-bold text-orange-600">{fmt(sharedTotal)}<span className="text-sm ml-1">원</span></p>
-              </div>
-              <div className="pb-1 text-amber-400 font-bold text-lg">=</div>
-              <div>
-                <p className="text-xs text-indigo-600 font-medium">법인 실부담</p>
-                <p className="text-2xl font-extrabold text-indigo-800">{fmt(netTotal)}<span className="text-base ml-1">원</span></p>
-              </div>
-            </>
           )}
+          {/* 환율 */}
+          <span className="text-xs text-slate-400 font-medium hidden sm:block">$1 = ₩{fmt(rate)}</span>
+          {/* 인쇄 */}
+          <button onClick={printNow}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-800 text-white text-xs font-semibold rounded-md hover:bg-slate-700 transition-colors">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6v-8z"/>
+            </svg>
+            인쇄
+          </button>
+          <button onClick={load} title="새로고침"
+            className="p-1.5 rounded-md border border-slate-200 text-slate-400 hover:bg-slate-50 transition-colors">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+          </button>
         </div>
       </div>
 
-      {/* ── KPI ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <KpiCard label="구독 SW 종류" value={`${new Set(filtered.map(r => r.category)).size}개`} sub="카테고리" />
-        <KpiCard label="총 라이선스" value={`${totalLicenses}개`} sub="사용 중" />
-        <KpiCard label={`${periodLabel} USD 합계`}
-          value={`$${filtered.reduce((s,r) => s + periodUsd(r.annualUsd, mode), 0).toFixed(0)}`}
-          sub={periodSuffix} />
-        <KpiCard label={`${periodLabel} KRW 합계`}
-          value={`₩${fmt(filtered.reduce((s,r) => s + periodKrw(r.annualKrw, mode), 0))}`}
-          sub={periodSuffix} />
-      </div>
+      {/* ── 법인별 대시보드 ── */}
+      {[...coMap.entries()].map(([co, deptMap]) => {
+        const coRows   = [...deptMap.values()].flat();
+        const coTotal  = coRows.reduce((s,r) => s + convertedKrw(r.annualKrw, r.annualUsd, rate, mode), 0);
+        const coShared = coRows.filter(isShared).reduce((s,r) => s + convertedKrw(r.annualKrw, r.annualUsd, rate, mode), 0);
+        const coNet    = coTotal - coShared;
+        const coHas    = coRows.some(isShared);
+        const periodLabel = mode === "monthly" ? "월" : "연";
 
-      {/* ── 필터 ── */}
-      <div className="flex flex-wrap gap-2">
-        {!company && (
-          <select value={filterCompany} onChange={e => setFilterCompany(e.target.value)}
-            className="rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-sm text-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-300">
-            <option value="">전체 법인</option>
-            {data.filters.companies.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        )}
-        <select value={filterDept} onChange={e => setFilterDept(e.target.value)}
-          className="rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-sm text-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-300">
-          <option value="">전체 부서</option>
-          {data.filters.departments.map(d => <option key={d} value={d}>{d}</option>)}
-        </select>
-        <select value={filterCat} onChange={e => setFilterCat(e.target.value)}
-          className="rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-sm text-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-300">
-          <option value="">전체 카테고리</option>
-          {data.filters.categories.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-        {((filterCompany && !company) || filterDept || filterCat) && (
-          <button onClick={() => { if (!company) setFilterCompany(""); setFilterDept(""); setFilterCat(""); }}
-            className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm text-indigo-500 hover:bg-indigo-100 transition-colors">
-            필터 초기화
-          </button>
-        )}
-      </div>
+        // 부서별 데이터 계산 (비용 내림차순)
+        const deptList = [...deptMap.entries()].map(([dept, rows]) => {
+          const dTotal = rows.reduce((s,r) => s + convertedKrw(r.annualKrw, r.annualUsd, rate, mode), 0);
+          const users  = [...new Set(rows.map(r => r.user).filter(Boolean))];
+          const sws    = [...new Set(rows.map(r => r.swName))];
+          return { dept, rows, dTotal, users, sws };
+        }).sort((a, b) => b.dTotal - a.dTotal);
 
-      {/* ── 통합 테이블 ── */}
-      <div className="rounded-xl border border-indigo-100 shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-indigo-50 border-b border-indigo-200">
-            <tr>
-              <th className="px-4 py-3 text-left text-xs font-bold text-indigo-600 uppercase tracking-wide w-44">부서</th>
-              <th className="px-4 py-3 text-left text-xs font-bold text-indigo-600 uppercase tracking-wide">구독 SW</th>
-              <th className="px-4 py-3 text-right text-xs font-bold text-indigo-600 uppercase tracking-wide w-52">
-                {periodLabel} 원화환산 합계
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {[...coMap.entries()].map(([co, deptMap]) => {
-              const coRows = [...deptMap.values()].flat();
-              const coTotal      = coRows.reduce((s, r) => s + convertedKrw(r.annualKrw, r.annualUsd, rate, mode), 0);
-              const coShared     = coRows.filter(isShared).reduce((s, r) => s + convertedKrw(r.annualKrw, r.annualUsd, rate, mode), 0);
-              const coNet        = coTotal - coShared;
-              const coHasShared  = coRows.some(isShared);
+        const maxDept = deptList[0]?.dTotal || 1;
 
-              return (
-                <Fragment key={co}>
-                  {/* 법인 헤더 */}
-                  <tr className="bg-indigo-900">
-                    <td colSpan={2} className="px-4 py-2.5 text-white font-bold text-sm">
-                      🏢 {co}
-                      <span className="ml-2 text-indigo-300 text-xs font-normal">{coRows.length}개 라이선스</span>
-                    </td>
-                    <td className="px-4 py-2.5 text-right">
-                      <span className="text-amber-300 font-bold">{fmt(coTotal)}원</span>
-                      {coHasShared && (
-                        <div className="text-[10px] text-orange-300 mt-0.5">
-                          법인 실부담 {fmt(coNet)}원
-                        </div>
-                      )}
-                    </td>
-                  </tr>
+        return (
+          <CompanyBlock
+            key={co}
+            co={co} coRows={coRows} coTotal={coTotal} coShared={coShared} coNet={coNet} coHas={coHas}
+            deptList={deptList} maxDept={maxDept} rate={rate} mode={mode} periodLabel={periodLabel}
+          />
+        );
+      })}
 
-                  {/* 부서 행들 */}
-                  {[...deptMap.entries()].map(([dept, deptRows]) => (
-                    <DeptRowUnified key={dept} dept={dept} rows={deptRows} rate={rate} mode={mode} />
-                  ))}
+      {/* ── 전체 합계 (법인 2개 이상일 때) ── */}
+      {coMap.size > 1 && (
+        <div className="flex items-center justify-between bg-slate-900 text-white rounded-xl px-5 py-3.5">
+          <span className="text-sm font-semibold text-slate-300">
+            전체 합계 · {coMap.size}개 법인 · {totalLicenses}건
+          </span>
+          <div className="text-right">
+            <div className="text-xl font-bold text-blue-300">₩{fmt(grandTotal)}<span className="text-sm ml-1">/{mode==="monthly"?"월":"년"}</span></div>
+            {hasShared && <div className="text-xs text-slate-400 mt-0.5">실부담 ₩{fmt(netTotal)}</div>}
+          </div>
+        </div>
+      )}
 
-                  {/* 법인 소계 */}
-                  <tr className="bg-indigo-100 border-t border-indigo-300">
-                    <td colSpan={2} className="px-4 py-2 text-indigo-700 font-semibold text-xs">
-                      {co} 소계 ({[...deptMap.keys()].length}개 부서)
-                    </td>
-                    <td className="px-4 py-2 text-right">
-                      <span className="text-indigo-800 font-bold">{fmt(coTotal)}원</span>
-                      {coHasShared && (
-                        <div className="text-[10px] text-orange-500 mt-0.5">
-                          쉐어드 {fmt(coShared)}원 | 실부담 {fmt(coNet)}원
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                </Fragment>
-              );
-            })}
-          </tbody>
-
-          {/* 전체 합계 */}
-          <tfoot>
-            <tr className="bg-indigo-900">
-              <td colSpan={2} className="px-4 py-3 text-white font-bold text-sm">
-                전체 합계
-                <span className="ml-2 text-indigo-300 text-xs font-normal">
-                  ({[...coMap.keys()].length}개 법인 · {totalLicenses}개 라이선스)
-                </span>
-              </td>
-              <td className="px-4 py-3 text-right">
-                <div className="text-amber-300 font-bold text-base">{fmt(grandTotal)}원</div>
-                {hasShared && (
-                  <div className="text-[11px] mt-1 space-y-0.5">
-                    <div className="text-orange-300">쉐어드 청구 {fmt(sharedTotal)}원</div>
-                    <div className="text-emerald-300 font-semibold">법인 실부담 {fmt(netTotal)}원</div>
-                  </div>
-                )}
-              </td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-
-      {/* 주석 */}
-      <p className="text-xs text-indigo-300 text-right">
-        * 원화환산 기준: $1 = ₩{fmt(rate)} (실시간 환율) · 데이터 출처: Notion SW DB
-        {hasShared && " · 쉐어드청구 항목은 법인 실부담에서 제외됩니다"}
+      <p className="text-xs text-slate-300 text-right">
+        * 환율 $1 = ₩{fmt(rate)} (실시간) · 쉐어드청구 항목은 실부담에서 제외
       </p>
     </div>{/* /화면용 */}
+
 
     {/* ════════════════════════════════
         인쇄 전용 뷰 (A4 세로, 화면에서는 숨김)
