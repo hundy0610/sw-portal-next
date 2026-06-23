@@ -525,7 +525,7 @@ function Step2({ userInfo, initialRecords, onComplete }: {
         ) : (
           <ul className="divide-y divide-gray-100">
             {records.map(r => {
-              const shared = r.billingType?.endsWith("쉐어드청구");
+              const shared = r.billingType?.includes("쉐어드");
               const cost   = fmtKrw(r.monthlyKrw) ?? fmtUsd(r.monthlyUsd);
               return (
                 <li key={r.id} className={`px-5 py-4 flex items-center gap-3 ${shared ? "bg-amber-50/40" : ""}`}>
@@ -649,7 +649,7 @@ function Step3({ userInfo, records, added, onReset }: {
     ...records.filter(r => r.status === "사용중"),
     ...added,
   ];
-  const isShared = (r: SwRecord) => !!r.billingType?.endsWith("쉐어드청구");
+  const isShared = (r: SwRecord) => !!r.billingType?.includes("쉐어드");
 
   const ownItems    = allActive.filter(r => !isShared(r));
   const sharedItems = allActive.filter(r =>  isShared(r));

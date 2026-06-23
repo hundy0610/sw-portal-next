@@ -43,6 +43,7 @@ function buildProperties(fields: FieldMap) {
     props[name] = val ? { date: { start: val } } : { date: null };
   };
 
+  if (fields.swCategory           !== undefined) sel("SW대분류",          String(fields.swCategory));
   if (fields.status              !== undefined) sel("사용/재고/만료/갱신필요/신규등록", String(fields.status));
   if (fields.company             !== undefined) sel("법인명",            String(fields.company));
   if (fields.licenseType         !== undefined) sel("영구 / 구독",       String(fields.licenseType));
