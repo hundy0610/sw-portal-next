@@ -34,6 +34,11 @@ export default function Home() {
             description={`${stocktakingInfo.시작날짜} ~ ${stocktakingInfo.끝날짜}`}
           />
         )}
+        <MenuButton
+          href="/request/meeting-rental"
+          title="회의실 무선 장비 대여신청"
+          description="회의실용 무선 장비 대여를 신청할 수 있어요."
+        />
       </div>
     </Container>
   );
