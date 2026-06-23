@@ -36,9 +36,10 @@ export async function GET(req: NextRequest) {
 
     if (!records) {
       // KV 미스
-      if (statuses.length > 0 || returnDue || assetNo) {
+      if (statuses.length > 0 || returnDue || assetNo || search) {
         // 필터가 있으면 Notion 직접 조회 (결과 수십~백 건 → 1~3 호출, 타임아웃 안전)
-        const filtered = await fetchHwFiltered({ statuses, returnDue, company, assetNo });
+        // search는 전부 정확한 자산번호 조회 용도로만 쓰이므로 assetNo와 동일하게 처리
+        const filtered = await fetchHwFiltered({ statuses, returnDue, company, assetNo: assetNo || search });
         return NextResponse.json({ ok: true, records: filtered });
       }
       // 전체 데이터 요청 — Vercel 10s 초과. GitHub Actions 트리거 (백그라운드)
