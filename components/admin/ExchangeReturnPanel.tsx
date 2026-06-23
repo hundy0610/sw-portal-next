@@ -7,6 +7,16 @@ import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import { LabelPrintTab, PrintQueueSection } from "@/components/admin/LabelPrintTab";
 import { safeJson } from "@/lib/fetch-json";
 
+// Promise.all로 동시 처리하는 Notion 쓰기 중 하나라도 실패하면 즉시 throw하여
+// 호출부의 try/catch가 잡도록 한다. 이걸 안 하면 실패해도 모르고 로컬 상태를
+// 낙관적으로 갱신해버려서, 30초 자동새로고침 때 실제(미반영) 값으로 되돌아가며
+// "입력했는데 사라졌다"처럼 보이는 문제가 생긴다.
+async function assertOk(res: Response) {
+  const json = await safeJson(res);
+  if (!json.ok) throw new Error(json.error || "저장에 실패했습니다.");
+  return json;
+}
+
 // ── 상수 ────────────────────────────────────────────────────
 const STAGES = ["교체요청", "요청기안", "기기준비", "기기준비완료", "사용자수령", "반납요청", "반납완료"] as const;
 type Stage = typeof STAGES[number];
@@ -227,6 +237,7 @@ function AssetPickerModal({
   const [memo, setMemo]                   = useState("");
   const [saving, setSaving]               = useState(false);
   const [newPurchasing, setNewPurchasing] = useState(false);
+  const [error, setError]                 = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/hw?company=${encodeURIComponent(company)}&status=재고`)
@@ -262,20 +273,23 @@ function AssetPickerModal({
   const confirm = async () => {
     if (!selected || !useDate) return;
     setSaving(true);
+    setError(null);
     try {
       await Promise.all([
         fetch("/api/exchange-return/update", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id: recordId, fields: { newAssetId: selected.assetNo, stage: "기기준비", useDate, ...(memo ? { note: memo } : {}) } }),
-        }),
+        }).then(assertOk),
         fetch("/api/hw/update", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id: selected.id, fields: { status: "출고준비중", user, dept: department, useDate } }),
-        }),
+        }).then(assertOk),
       ]);
       onPicked(selected.assetNo, { note: memo, useDate });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }
@@ -283,13 +297,16 @@ function AssetPickerModal({
 
   const handleNewPurchase = async () => {
     setNewPurchasing(true);
+    setError(null);
     try {
       await fetch("/api/exchange-return/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: recordId, fields: { newAssetId: "신규구매로안내됨" } }),
-      });
+      }).then(assertOk);
       onNewPurchase();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setNewPurchasing(false);
     }
@@ -356,6 +373,7 @@ function AssetPickerModal({
             </div>
             {!loading && (
               <div className="shrink-0 px-4 py-3 border-t border-dashed border-gray-200 bg-gray-50">
+                {error && <p className="text-xs text-red-600 mb-2">⚠️ {error}</p>}
                 <button onClick={handleNewPurchase} disabled={newPurchasing}
                   className="w-full text-xs text-gray-400 hover:text-amber-600 hover:bg-amber-50 border border-dashed border-gray-200 hover:border-amber-300 rounded-lg px-4 py-2.5 flex items-center justify-center gap-2 transition-colors disabled:opacity-40">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -481,6 +499,7 @@ function AssetPickerModal({
                 {memo && <li>메모 → <strong>{memo}</strong></li>}
               </ul>
             </div>
+            {error && <p className="text-xs text-red-600">⚠️ {error}</p>}
             <div className="flex gap-2 justify-end mt-1">
               <button onClick={() => setPhase(3)}
                 className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">
@@ -550,21 +569,21 @@ function ReceiptConfirmModal({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id: recordId, fields: stageFields }),
-        }),
+        }).then(assertOk),
       ];
       if (!isNewIssue && oldRecord) updates.push(
         fetch("/api/hw/update", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id: oldRecord.id, fields: { status: "반납예정", returnDue } }),
-        })
+        }).then(assertOk)
       );
       if (newRecord) updates.push(
         fetch("/api/hw/update", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id: newRecord.id, fields: { status: "사용중" } }),
-        })
+        }).then(assertOk)
       );
 
       await Promise.all(updates);
@@ -667,7 +686,7 @@ function ReturnCompleteModal({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id: recordId, fields: { stage: "반납완료", completedAt: returnDate } }),
-        }),
+        }).then(assertOk),
       ];
       if (assetPageId) updates.push(
         isRental
@@ -686,12 +705,12 @@ function ReturnCompleteModal({
                   dept: "",
                 },
               }),
-            })
+            }).then(assertOk)
           : fetch("/api/hw/update", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ id: assetPageId, fields: { status: selectedStatus, returnDate, returnDue: "" } }),
-            })
+            }).then(assertOk)
       );
 
       await Promise.all(updates);
@@ -852,7 +871,7 @@ function ReturnRegModal({
               id: searchResult.matchedRecord.id,
               fields: { stage: "반납완료", completedAt: returnDate },
             }),
-          })
+          }).then(assertOk)
         );
       }
 
@@ -862,7 +881,7 @@ function ReturnRegModal({
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ id: searchResult.hwPageId, fields: { status: selectedStatus, returnDate, returnDue: "" } }),
-          })
+          }).then(assertOk)
         );
       }
 
@@ -884,7 +903,7 @@ function ReturnRegModal({
               ...(department && { department }),
               ...(user       && { user }),
             }),
-          })
+          }).then(assertOk)
         );
       }
 
