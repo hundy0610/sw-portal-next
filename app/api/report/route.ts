@@ -33,9 +33,9 @@ export async function GET(req: Request) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // 구독 타입만, 만료/반납 제외
+    // 구독 타입만, 만료/반납 제외 (compact 데이터로 인해 필드가 undefined일 수 있으므로 optional chaining 처리)
     const subRecords = allRecords.filter(r => {
-      const isSub = r.licenseType.includes("구독");
+      const isSub = (r.licenseType ?? "").includes("구독");
       const notExpired = r.status !== "만료" && r.status !== "반납";
       const renewalOk = !r.renewalDate || new Date(r.renewalDate) >= today;
       return isSub && notExpired && renewalOk;
@@ -47,20 +47,20 @@ export async function GET(req: Request) {
       ? subRecords.filter(r => r.company === filterCompany)
       : subRecords;
 
-    const filterDepts = [...new Set(filteredRecords.map(r => r.department.trim()).filter(Boolean))].sort();
+    const filterDepts = [...new Set(filteredRecords.map(r => (r.department ?? "").trim()).filter(Boolean))].sort();
 
     const rows: SubRow[] = filteredRecords.map(r => ({
       id: r.id,
-      company: r.company,
-      department: r.department.trim(),
+      company: r.company ?? "",
+      department: (r.department ?? "").trim(),
       swName: r.swCategory || r.swDetail || "미입력",
-      category: r.workType || mapCategory(r.swCategory, r.swDetail),
-      licenseType: r.licenseType,
-      user: r.user,
-      renewalDate: r.renewalDate,
-      annualUsd: r.annualUsd > 0 ? r.annualUsd : (r.monthlyUsd ? r.monthlyUsd * 12 : 0),
-      annualKrw: r.annualKrw > 0 ? r.annualKrw : (r.monthlyKrw ? r.monthlyKrw * 12 : 0),
-      notionUrl: r.notionUrl,
+      category: r.workType || mapCategory(r.swCategory ?? "", r.swDetail ?? ""),
+      licenseType: r.licenseType ?? "",
+      user: r.user ?? "",
+      renewalDate: r.renewalDate ?? "",
+      annualUsd: (r.annualUsd ?? 0) > 0 ? (r.annualUsd ?? 0) : ((r.monthlyUsd ?? 0) * 12),
+      annualKrw: (r.annualKrw ?? 0) > 0 ? (r.annualKrw ?? 0) : ((r.monthlyKrw ?? 0) * 12),
+      notionUrl: r.notionUrl ?? "",
       billingType: r.billingType ?? "",
     }));
 
