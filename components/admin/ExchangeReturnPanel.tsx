@@ -829,6 +829,7 @@ function ReturnRegModal({
   const [swLoading, setSwLoading] = useState(false);
   const [swSaving, setSwSaving] = useState(false);
   const [swError, setSwError] = useState<string | null>(null);
+  const [swDetailRecord, setSwDetailRecord] = useState<SwDbRecord | null>(null);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const selectHwAsset = (found: any | null) => {
@@ -1222,8 +1223,8 @@ function ReturnRegModal({
                   {swList.map(r => {
                     const already = r.status === "재고";
                     return (
-                      <label key={r.id}
-                        className={`flex items-center gap-3 px-4 py-2.5 border-b border-gray-50 last:border-0 ${already ? "opacity-40" : "hover:bg-blue-50 cursor-pointer"}`}>
+                      <div key={r.id}
+                        className={`flex items-center gap-3 px-4 py-2.5 border-b border-gray-50 last:border-0 ${already ? "opacity-40" : "hover:bg-blue-50"}`}>
                         <input type="checkbox" disabled={already}
                           checked={swSelected.has(r.id)}
                           onChange={() => setSwSelected(prev => {
@@ -1232,12 +1233,13 @@ function ReturnRegModal({
                             return next;
                           })}
                         />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-gray-800 font-medium truncate">{r.swCategory} · {r.swDetail || "—"}</p>
+                        <button type="button" onClick={() => setSwDetailRecord(r)}
+                          className="flex-1 min-w-0 text-left">
+                          <p className="text-sm text-gray-800 font-medium truncate hover:underline">{r.swCategory} · {r.swDetail || "—"}</p>
                           <p className="text-xs text-gray-400">{(r.version ?? []).join(", ") || "—"} · 현재 상태: {r.status || "—"}</p>
-                        </div>
+                        </button>
                         {already && <span className="text-[10px] text-gray-400 shrink-0">이미 재고</span>}
-                      </label>
+                      </div>
                     );
                   })}
                 </div>
@@ -1256,6 +1258,83 @@ function ReturnRegModal({
               </button>
             </div>
           </>
+        )}
+      </div>
+
+      {swDetailRecord && (
+        <SwLicenseDetailModal record={swDetailRecord} onClose={() => setSwDetailRecord(null)} />
+      )}
+    </div>
+  );
+}
+
+// ── SW 라이선스 상세 모달 ──────────────────────────────────────
+function SwLicenseDetailModal({ record, onClose }: { record: SwDbRecord; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const R = ({ label, value }: { label: string; value: React.ReactNode }) => (
+    value ? (
+      <div className="flex items-start gap-3 py-2 border-b border-gray-50 last:border-0">
+        <span className="text-xs text-gray-400 w-24 shrink-0 pt-0.5">{label}</span>
+        <span className="text-sm text-gray-800 flex-1">{value}</span>
+      </div>
+    ) : null
+  );
+
+  const monthlyCost = [
+    record.monthlyKrw ? `${record.monthlyKrw.toLocaleString()}원` : "",
+    record.monthlyUsd ? `$${record.monthlyUsd}` : "",
+  ].filter(Boolean).join(" / ");
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40"
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
+        style={{ maxHeight: "85vh", overflowY: "auto" }}
+        onClick={e => e.stopPropagation()}>
+
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-gray-900 text-base">{record.swCategory} · {record.swDetail || "—"}</h3>
+            <p className="text-xs text-gray-400 mt-0.5">SW 라이선스 상세 정보</p>
+          </div>
+          <button onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 text-2xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">×</button>
+        </div>
+
+        <div className="px-6 py-4">
+          <R label="상태"       value={record.status} />
+          <R label="사용자"      value={record.user} />
+          <R label="법인"       value={record.company} />
+          <R label="부서"       value={record.department} />
+          <R label="버전"       value={(record.version ?? []).join(", ")} />
+          <R label="라이선스유형"  value={record.licenseType} />
+          <R label="계정유형"     value={record.accountType} />
+          <R label="SW사용직군"   value={record.workType} />
+          <R label="인증키/계정"  value={record.licenseKey} />
+          <R label="구매처"      value={record.vendor} />
+          <R label="결제방식"     value={record.billingType} />
+          <R label="구매일자"     value={record.purchaseDate ? fmtDateKo(record.purchaseDate) : null} />
+          <R label="갱신필요일"   value={record.renewalDate ? fmtDateKo(record.renewalDate) : null} />
+          <R label="회수일자"     value={record.returnDate ? fmtDateKo(record.returnDate) : null} />
+          <R label="월 비용"     value={monthlyCost} />
+        </div>
+
+        {!!record.notionUrl && (
+          <div className="px-6 py-3 border-t border-gray-100">
+            <a href={record.notionUrl} target="_blank" rel="noopener noreferrer"
+              className="text-sm text-blue-600 hover:underline flex items-center gap-1.5">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
+                <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+              </svg>
+              노션에서 보기
+            </a>
+          </div>
         )}
       </div>
     </div>
