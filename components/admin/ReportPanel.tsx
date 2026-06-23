@@ -258,9 +258,9 @@ function DeptRowUnified({
 
 // ─── 부서 상세 행 (접기/펼치기) ──────────────────────────────────────────
 function DeptDetail({
-  dept, rows, dTotal, rate, mode, periodLabel,
+  dept, rows, dTotal, dShared, dNet, dHas, rate, mode, periodLabel,
 }: {
-  dept: string; rows: SubRow[]; dTotal: number;
+  dept: string; rows: SubRow[]; dTotal: number; dShared: number; dNet: number; dHas: boolean;
   rate: number; mode: PeriodMode; periodLabel: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -282,9 +282,22 @@ function DeptDetail({
           {swSet.length > 5 && <span className="text-[10px] text-slate-400">+{swSet.length-5}개</span>}
         </div>
         <span className="text-xs text-slate-400 flex-shrink-0 hidden sm:block">{users.length}명</span>
-        <span className="text-sm font-bold text-blue-700 flex-shrink-0 ml-auto">
-          ₩{fmt(dTotal)}<span className="text-xs font-normal text-slate-400 ml-0.5">/{periodLabel}</span>
-        </span>
+        <div className="flex-shrink-0 ml-auto text-right">
+          {dHas ? (
+            <>
+              <div className="text-sm font-bold text-blue-700">
+                ₩{fmt(dNet)}<span className="text-xs font-normal text-slate-400 ml-0.5">/{periodLabel}</span>
+              </div>
+              <div className="text-[10px] text-amber-600 font-medium">
+                총 ₩{fmt(dTotal)} — 쉐어드 ₩{fmt(dShared)} 제외
+              </div>
+            </>
+          ) : (
+            <span className="text-sm font-bold text-blue-700">
+              ₩{fmt(dTotal)}<span className="text-xs font-normal text-slate-400 ml-0.5">/{periodLabel}</span>
+            </span>
+          )}
+        </div>
       </button>
       {open && (
         <div className="bg-slate-50 border-t border-slate-100 px-4 py-3">
@@ -323,9 +336,15 @@ function DeptDetail({
               })}
             </tbody>
             <tfoot>
-              <tr className="border-t border-slate-200 bg-slate-100/60">
-                <td colSpan={5} className="py-1.5 pr-3 text-slate-500 font-semibold">{dept} 소계 ({rows.length}건)</td>
-                <td className="py-1.5 text-right font-bold text-blue-800">₩{fmt(dTotal)}</td>
+              <tr className="border-t border-slate-200 bg-blue-50">
+                <td colSpan={4} className="py-1.5 pr-3 font-semibold text-slate-600">{dept} 소계 ({rows.length}건)</td>
+                <td colSpan={2} className="py-1.5 text-right text-xs text-slate-500">
+                  {dHas && <span className="text-amber-600">쉐어드 ₩{fmt(dShared)} 포함 · </span>}
+                  총 ₩{fmt(dTotal)}
+                </td>
+                <td className="py-1.5 text-right font-bold text-blue-800">
+                  실부담 ₩{fmt(dNet)}
+                </td>
                 <td className="hidden md:table-cell"/>
               </tr>
             </tfoot>
@@ -343,7 +362,7 @@ function CompanyBlock({
 }: {
   co: string; coRows: SubRow[];
   coTotal: number; coShared: number; coNet: number; coHas: boolean;
-  deptList: { dept: string; rows: SubRow[]; dTotal: number; users: string[]; sws: string[] }[];
+  deptList: { dept: string; rows: SubRow[]; dTotal: number; dShared: number; dNet: number; dHas: boolean; users: string[]; sws: string[] }[];
   maxDept: number; rate: number; mode: PeriodMode; periodLabel: string;
 }) {
   return (
@@ -372,7 +391,7 @@ function CompanyBlock({
       <div className="px-5 py-4 border-b border-slate-100 bg-slate-50">
         <div className="text-xs font-semibold text-slate-500 mb-3 uppercase tracking-wide">부서별 지출 현황</div>
         <div className="flex flex-col gap-2">
-          {deptList.map(({ dept, dTotal, users, sws }) => {
+          {deptList.map(({ dept, dTotal, dNet, dHas, users, sws }) => {
             const pct = maxDept > 0 ? (dTotal / maxDept * 100) : 0;
             const isHigh = pct > 60;
             return (
@@ -387,8 +406,13 @@ function CompanyBlock({
                     </span>
                   </div>
                 </div>
-                <div className="w-28 text-right flex-shrink-0">
+                <div className="w-36 text-right flex-shrink-0">
                   <span className={`text-xs font-bold ${isHigh?"text-blue-700":"text-slate-700"}`}>₩{fmt(dTotal)}</span>
+                  {dHas && (
+                    <div className="text-[10px] text-amber-600 font-semibold">
+                      실부담 ₩{fmt(dNet)}
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -408,8 +432,10 @@ function CompanyBlock({
         <div className="px-5 py-2 bg-white border-b border-slate-100 text-xs font-semibold text-slate-400 uppercase tracking-wide">
           부서 상세 — 클릭하여 사용자·SW 내역 확인
         </div>
-        {deptList.map(({ dept, rows, dTotal }) => (
-          <DeptDetail key={dept} dept={dept} rows={rows} dTotal={dTotal} rate={rate} mode={mode} periodLabel={periodLabel}/>
+        {deptList.map(({ dept, rows, dTotal, dShared, dNet, dHas }) => (
+          <DeptDetail key={dept} dept={dept} rows={rows}
+            dTotal={dTotal} dShared={dShared} dNet={dNet} dHas={dHas}
+            rate={rate} mode={mode} periodLabel={periodLabel}/>
         ))}
       </div>
     </div>
@@ -591,12 +617,15 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
         const coHas    = coRows.some(isShared);
         const periodLabel = mode === "monthly" ? "월" : "연";
 
-        // 부서별 데이터 계산 (비용 내림차순)
+        // 부서별 데이터 계산 (비용 내림차순) — 쉐어드 실부담 분리 포함
         const deptList = [...deptMap.entries()].map(([dept, rows]) => {
-          const dTotal = rows.reduce((s,r) => s + convertedKrw(r.annualKrw, r.annualUsd, rate, mode), 0);
-          const users  = [...new Set(rows.map(r => r.user).filter(Boolean))];
-          const sws    = [...new Set(rows.map(r => r.swName))];
-          return { dept, rows, dTotal, users, sws };
+          const dTotal  = rows.reduce((s,r) => s + convertedKrw(r.annualKrw, r.annualUsd, rate, mode), 0);
+          const dShared = rows.filter(isShared).reduce((s,r) => s + convertedKrw(r.annualKrw, r.annualUsd, rate, mode), 0);
+          const dNet    = dTotal - dShared;
+          const dHas    = rows.some(isShared);
+          const users   = [...new Set(rows.map(r => r.user).filter(Boolean))];
+          const sws     = [...new Set(rows.map(r => r.swName))];
+          return { dept, rows, dTotal, dShared, dNet, dHas, users, sws };
         }).sort((a, b) => b.dTotal - a.dTotal);
 
         const maxDept = deptList[0]?.dTotal || 1;
