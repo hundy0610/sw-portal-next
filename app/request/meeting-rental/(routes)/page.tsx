@@ -4,10 +4,12 @@ import { useAtom, useAtomValue } from "jotai";
 import {
   MeetingRentalForm법인명Atom,
   MeetingRentalForm부서Atom,
-  MeetingRentalForm시작일시Atom,
+  MeetingRentalForm시작시각Atom,
+  MeetingRentalForm시작일Atom,
   MeetingRentalForm신청자Atom,
   MeetingRentalForm이메일Atom,
-  MeetingRentalForm종료일시Atom,
+  MeetingRentalForm종료시각Atom,
+  MeetingRentalForm종료일Atom,
 } from "@/app/request/meeting-rental/(atoms)/useMeetingRentalFormStore";
 import { MeetingRentalOptions법인명Atom } from "@/app/request/meeting-rental/(atoms)/useMeetingRentalOptionsStore";
 import { useMeetingRentalForm } from "@/app/request/meeting-rental/(hooks)/useMeetingRentalForm";
@@ -19,6 +21,13 @@ import LoadingComponent from "@/shared/components/common/loadingComponent";
 import { FormField, FormFieldList, SelectOption, TextInput } from "@/shared/components/form/form-fields";
 import SubmitButton from "@/shared/components/form/submit-button";
 
+// 30분 단위 시각 목록: "00:00" ~ "23:30"
+const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
+  const hour = String(Math.floor(i / 2)).padStart(2, "0");
+  const minute = i % 2 === 0 ? "00" : "30";
+  return `${hour}:${minute}`;
+});
+
 export default function MeetingRental() {
   const { isLoading, error } = useMeetingRentalOptions();
   const { isSubmitting, error: submitError, handleSubmit } = useMeetingRentalForm();
@@ -29,8 +38,10 @@ export default function MeetingRental() {
   const [부서, set부서] = useAtom(MeetingRentalForm부서Atom);
   const [신청자, set신청자] = useAtom(MeetingRentalForm신청자Atom);
   const [이메일, set이메일] = useAtom(MeetingRentalForm이메일Atom);
-  const [시작일시, set시작일시] = useAtom(MeetingRentalForm시작일시Atom);
-  const [종료일시, set종료일시] = useAtom(MeetingRentalForm종료일시Atom);
+  const [시작일, set시작일] = useAtom(MeetingRentalForm시작일Atom);
+  const [시작시각, set시작시각] = useAtom(MeetingRentalForm시작시각Atom);
+  const [종료일, set종료일] = useAtom(MeetingRentalForm종료일Atom);
+  const [종료시각, set종료시각] = useAtom(MeetingRentalForm종료시각Atom);
 
   if (isLoading) {
     return <LoadingComponent />;
@@ -57,10 +68,16 @@ export default function MeetingRental() {
           <TextInput placeholder="ex. example@company.com" value={이메일} onChange={set이메일} required />
         </FormField>
         <FormField title="신청 기간" description="회의실 무선 장비를 대여할 날짜와 시간을 선택해 주세요." required>
-          <div className="flex w-full items-center gap-spacing-200">
-            <TextInput type="datetime-local" value={시작일시} onChange={set시작일시} required />
+          <div className="flex w-full flex-col gap-spacing-200">
+            <div className="flex w-full items-center gap-spacing-200">
+              <TextInput type="date" value={시작일} onChange={set시작일} required />
+              <SelectOption options={TIME_OPTIONS} value={시작시각} onChange={set시작시각} required />
+            </div>
             <span className="text-content-standard-secondary text-label">~</span>
-            <TextInput type="datetime-local" value={종료일시} onChange={set종료일시} required />
+            <div className="flex w-full items-center gap-spacing-200">
+              <TextInput type="date" value={종료일} onChange={set종료일} required />
+              <SelectOption options={TIME_OPTIONS} value={종료시각} onChange={set종료시각} required />
+            </div>
           </div>
         </FormField>
         {submitError && (

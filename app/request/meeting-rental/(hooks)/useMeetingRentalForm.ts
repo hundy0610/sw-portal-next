@@ -4,10 +4,12 @@ import { useRouter } from "next/navigation";
 import {
   MeetingRentalForm법인명Atom,
   MeetingRentalForm부서Atom,
-  MeetingRentalForm시작일시Atom,
+  MeetingRentalForm시작시각Atom,
+  MeetingRentalForm시작일Atom,
   MeetingRentalForm신청자Atom,
   MeetingRentalForm이메일Atom,
-  MeetingRentalForm종료일시Atom,
+  MeetingRentalForm종료시각Atom,
+  MeetingRentalForm종료일Atom,
 } from "@/app/request/meeting-rental/(atoms)/useMeetingRentalFormStore";
 import { safeJson } from "@/lib/fetch-json";
 
@@ -24,16 +26,20 @@ export const useMeetingRentalForm = (): UseMeetingRentalFormReturn => {
   const [부서, set부서] = useAtom(MeetingRentalForm부서Atom);
   const [신청자, set신청자] = useAtom(MeetingRentalForm신청자Atom);
   const [이메일, set이메일] = useAtom(MeetingRentalForm이메일Atom);
-  const [시작일시, set시작일시] = useAtom(MeetingRentalForm시작일시Atom);
-  const [종료일시, set종료일시] = useAtom(MeetingRentalForm종료일시Atom);
+  const [시작일, set시작일] = useAtom(MeetingRentalForm시작일Atom);
+  const [시작시각, set시작시각] = useAtom(MeetingRentalForm시작시각Atom);
+  const [종료일, set종료일] = useAtom(MeetingRentalForm종료일Atom);
+  const [종료시각, set종료시각] = useAtom(MeetingRentalForm종료시각Atom);
 
   const resetForm = () => {
     set법인명("");
     set부서("");
     set신청자("");
     set이메일("");
-    set시작일시("");
-    set종료일시("");
+    set시작일("");
+    set시작시각("");
+    set종료일("");
+    set종료시각("");
   };
 
   const { mutateAsync, isPending, error: mutationError } = useMutation({
@@ -43,8 +49,8 @@ export const useMeetingRentalForm = (): UseMeetingRentalFormReturn => {
       formData.append("부서", 부서);
       formData.append("신청자", 신청자);
       formData.append("이메일", 이메일);
-      formData.append("시작일시", 시작일시);
-      formData.append("종료일시", 종료일시);
+      formData.append("시작일시", 시작일 && 시작시각 ? `${시작일}T${시작시각}` : "");
+      formData.append("종료일시", 종료일 && 종료시각 ? `${종료일}T${종료시각}` : "");
 
       const response = await fetch("/api/request/meeting-rental", {
         method: "POST",
