@@ -299,58 +299,123 @@ function DeptDetail({
           )}
         </div>
       </button>
-      {open && (
-        <div className="bg-slate-50 border-t border-slate-100 px-4 py-3">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-slate-500 border-b border-slate-200">
-                <th className="pb-2 text-left font-semibold w-28">사용자</th>
-                <th className="pb-2 text-left font-semibold">SW 명칭</th>
-                <th className="pb-2 text-left font-semibold hidden sm:table-cell">카테고리</th>
-                <th className="pb-2 text-right font-semibold">월 KRW</th>
-                <th className="pb-2 text-right font-semibold hidden sm:table-cell">월 USD</th>
-                <th className="pb-2 text-right font-semibold">원화환산</th>
-                <th className="pb-2 text-center font-semibold hidden md:table-cell">갱신일</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(r => {
-                const mKrw = periodKrw(r.annualKrw, mode);
-                const mUsd = periodUsd(r.annualUsd, mode);
-                const conv = convertedKrw(r.annualKrw, r.annualUsd, rate, mode);
-                const shared = isShared(r);
-                return (
-                  <tr key={r.id} className={`border-b border-slate-100 last:border-0 ${shared?"bg-amber-50/40":""}`}>
-                    <td className="py-1.5 pr-3 text-slate-600 truncate max-w-[110px]">{r.user||"—"}</td>
-                    <td className="py-1.5 pr-3 font-medium text-slate-800">
-                      {r.swName}
-                      {shared && <span className="ml-1 text-[9px] bg-amber-100 text-amber-700 px-1 py-0.5 rounded font-bold">쉐어드</span>}
+      {open && (() => {
+        // SW별 그룹핑
+        const swGroups = new Map<string, {
+          swName: string; category: string; billing: string;
+          users: string[]; count: number;
+          totalKrw: number; totalUsd: number; totalConv: number;
+          shared: boolean; renewalDate: string;
+        }>();
+        for (const r of rows) {
+          const key = `${r.swName}||${r.billingType||""}`;
+          if (swGroups.has(key)) {
+            const g = swGroups.get(key)!;
+            g.count++;
+            g.totalKrw  += periodKrw(r.annualKrw, mode);
+            g.totalUsd  += periodUsd(r.annualUsd, mode);
+            g.totalConv += convertedKrw(r.annualKrw, r.annualUsd, rate, mode);
+            if (r.user && !g.users.includes(r.user)) g.users.push(r.user);
+          } else {
+            swGroups.set(key, {
+              swName: r.swName, category: r.category,
+              billing: r.billingType || "", users: r.user ? [r.user] : [],
+              count: 1,
+              totalKrw:  periodKrw(r.annualKrw, mode),
+              totalUsd:  periodUsd(r.annualUsd, mode),
+              totalConv: convertedKrw(r.annualKrw, r.annualUsd, rate, mode),
+              shared: isShared(r), renewalDate: r.renewalDate || "",
+            });
+          }
+        }
+        const swList = [...swGroups.values()].sort((a, b) => b.totalConv - a.totalConv);
+        return (
+          <div className="border-t border-slate-100 bg-white">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-slate-100 border-b border-slate-200 text-slate-500">
+                  <th className="px-4 py-2 text-left font-semibold w-32">SW 명칭</th>
+                  <th className="px-3 py-2 text-left font-semibold hidden sm:table-cell w-16">카테고리</th>
+                  <th className="px-3 py-2 text-left font-semibold">사용자</th>
+                  <th className="px-3 py-2 text-center font-semibold w-10">건수</th>
+                  <th className="px-3 py-2 text-right font-semibold w-24 hidden sm:table-cell">월 KRW</th>
+                  <th className="px-3 py-2 text-right font-semibold w-20 hidden md:table-cell">월 USD</th>
+                  <th className="px-3 py-2 text-right font-semibold w-24">원화환산</th>
+                </tr>
+              </thead>
+              <tbody>
+                {swList.map((g, i) => (
+                  <tr key={i} className={`border-b border-slate-100 last:border-0 ${g.shared ? "bg-amber-50" : i % 2 === 0 ? "bg-white" : "bg-slate-50/50"}`}>
+                    {/* SW명 */}
+                    <td className="px-4 py-2 font-semibold text-slate-800">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span>{g.swName}</span>
+                        {g.shared && (
+                          <span className="text-[9px] font-bold bg-amber-100 text-amber-700 border border-amber-300 px-1 py-0.5 rounded">
+                            쉐어드청구
+                          </span>
+                        )}
+                      </div>
+                      {g.shared && (
+                        <div className="text-[9px] text-amber-600 mt-0.5">실부담 제외 항목</div>
+                      )}
                     </td>
-                    <td className="py-1.5 pr-3 text-slate-500 hidden sm:table-cell">{r.category}</td>
-                    <td className="py-1.5 pr-3 text-right text-slate-700 font-mono">{mKrw>0?fmt(mKrw):"—"}</td>
-                    <td className="py-1.5 pr-3 text-right text-emerald-700 font-mono hidden sm:table-cell">{mUsd>0?`$${mUsd.toFixed(2)}`:"—"}</td>
-                    <td className="py-1.5 pr-3 text-right font-semibold text-blue-700">{conv>0?fmt(conv):"—"}</td>
-                    <td className="py-1.5 text-center text-slate-400 hidden md:table-cell">{r.renewalDate?r.renewalDate.slice(0,10):"—"}</td>
+                    {/* 카테고리 */}
+                    <td className="px-3 py-2 hidden sm:table-cell">
+                      <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${CATEGORY_BADGE[g.category] || CATEGORY_BADGE["기타"]}`}>
+                        {g.category}
+                      </span>
+                    </td>
+                    {/* 사용자 목록 */}
+                    <td className="px-3 py-2 text-slate-600">
+                      <div className="flex flex-wrap gap-1">
+                        {g.users.length > 0
+                          ? g.users.map(u => (
+                              <span key={u} className="inline-block bg-blue-50 text-blue-700 border border-blue-100 rounded px-1.5 py-0.5 text-[10px] font-medium">
+                                {u}
+                              </span>
+                            ))
+                          : <span className="text-slate-300">—</span>
+                        }
+                      </div>
+                    </td>
+                    {/* 건수 */}
+                    <td className="px-3 py-2 text-center">
+                      <span className="font-bold text-slate-700">{g.count}</span>
+                    </td>
+                    {/* 월 KRW */}
+                    <td className="px-3 py-2 text-right font-mono text-slate-700 hidden sm:table-cell">
+                      {g.totalKrw > 0 ? fmt(Math.round(g.totalKrw)) : <span className="text-slate-300">—</span>}
+                    </td>
+                    {/* 월 USD */}
+                    <td className="px-3 py-2 text-right font-mono text-emerald-700 hidden md:table-cell">
+                      {g.totalUsd > 0 ? `$${g.totalUsd.toFixed(2)}` : <span className="text-slate-300">—</span>}
+                    </td>
+                    {/* 원화환산 */}
+                    <td className={`px-3 py-2 text-right font-bold ${g.shared ? "text-amber-500 line-through" : "text-blue-700"}`}>
+                      {g.totalConv > 0 ? fmt(Math.round(g.totalConv)) : "—"}
+                    </td>
                   </tr>
-                );
-              })}
-            </tbody>
-            <tfoot>
-              <tr className="border-t border-slate-200 bg-blue-50">
-                <td colSpan={4} className="py-1.5 pr-3 font-semibold text-slate-600">{dept} 소계 ({rows.length}건)</td>
-                <td colSpan={2} className="py-1.5 text-right text-xs text-slate-500">
-                  {dHas && <span className="text-amber-600">쉐어드 ₩{fmt(dShared)} 포함 · </span>}
-                  총 ₩{fmt(dTotal)}
-                </td>
-                <td className="py-1.5 text-right font-bold text-blue-800">
-                  실부담 ₩{fmt(dNet)}
-                </td>
-                <td className="hidden md:table-cell"/>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      )}
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-blue-50 border-t-2 border-blue-200">
+                  <td colSpan={3} className="px-4 py-2 font-semibold text-slate-700 text-xs">
+                    {dept} 소계 · SW {swList.length}종 · {rows.length}건
+                    {dHas && <span className="ml-2 text-amber-600">※ 쉐어드 ₩{fmt(dShared)} 실부담 제외</span>}
+                  </td>
+                  <td className="px-3 py-2 text-center font-bold text-slate-600 text-xs">{rows.length}</td>
+                  <td className="px-3 py-2 text-right text-slate-400 text-xs hidden sm:table-cell">총 ₩{fmt(dTotal)}</td>
+                  <td className="hidden md:table-cell"/>
+                  <td className="px-3 py-2 text-right font-bold text-blue-800 text-xs">
+                    실부담 ₩{fmt(dNet)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        );
+      })()}
     </div>
   );
 }
