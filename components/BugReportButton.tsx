@@ -11,7 +11,6 @@ const PAGE_FEATURES: Record<string, string[]> = {
   "문의/FAQ":    ["문의 접수", "FAQ 조회", "피드백", "기타"],
   "자료실":      ["자료 검색", "다운로드", "카테고리", "기타"],
   "Admin":       ["대시보드", "자산관리", "계정관리", "티켓", "기타"],
-  "Automation":  ["자동화 작업", "기타"],
   "Declaration": ["신고서 작성", "기타"],
   "Manage":      ["공지관리", "교육관리", "자료관리", "SW DB", "기타"],
 };
@@ -22,7 +21,6 @@ const URL_TO_PAGE: Record<string, string> = {
   "/inquiry":     "문의/FAQ",
   "/resources":   "자료실",
   "/admin":       "Admin",
-  "/automation":  "Automation",
   "/declaration": "Declaration",
   "/manage":      "Manage",
 };
