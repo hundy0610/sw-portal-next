@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, Suspense } from "react";
+import { useEffect, useState, useCallback, useMemo, Suspense } from "react";
 import type { Notice, Course, Resource, ResourceCategory, SwVersion, SwDoc } from "@/types/portal";
 import type { AuditLog } from "@/lib/portal-store";
 import type { SwItem } from "@/types";
@@ -824,6 +824,9 @@ function SwResourcesPanel() {
   const [uploading,      setUploading]      = useState(false);
   const [lastCreatedDocId, setLastCreatedDocId] = useState<string | null>(null);
 
+  const [verSearch,    setVerSearch]    = useState("");
+  const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
+
   const BLANK_VER = { name: "", version: "", category: "", os: "", description: "", visible: true, order: 0 };
   const BLANK_DOC = { name: "", type: "설치파일", description: "", visible: true, order: 0, externalFileUrl: "" };
   const [verForm, setVerForm] = useState(BLANK_VER);
@@ -933,6 +936,28 @@ function SwResourcesPanel() {
   const grid2: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 };
   const notionUrl = (id: string) => `https://notion.so/${id.replace(/-/g, "")}`;
 
+  const verQuery = verSearch.trim().toLowerCase();
+  const filteredVersions = verQuery
+    ? versions.filter(v => `${v.name} ${v.version} ${v.category} ${v.os.join(" ")}`.toLowerCase().includes(verQuery))
+    : versions;
+  const groupedVersions = useMemo(() => {
+    const map = new Map<string, SwVersion[]>();
+    for (const v of filteredVersions) {
+      const cat = v.category || "기타";
+      if (!map.has(cat)) map.set(cat, []);
+      map.get(cat)!.push(v);
+    }
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0], "ko"));
+  }, [filteredVersions]);
+
+  function toggleCat(cat: string) {
+    setExpandedCats(prev => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat); else next.add(cat);
+      return next;
+    });
+  }
+
   return (
     <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 24, alignItems: "start" }}>
 
@@ -941,13 +966,16 @@ function SwResourcesPanel() {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
           <div>
             <h2 style={{ fontSize: 16, fontWeight: 800, color: C.text1, margin: "0 0 2px" }}>SW 버전</h2>
-            <p style={{ fontSize: 12, color: C.text3, margin: 0 }}>총 {versions.length}개</p>
+            <p style={{ fontSize: 12, color: C.text3, margin: 0 }}>총 {verQuery ? `${filteredVersions.length} / ${versions.length}` : versions.length}개</p>
           </div>
           <button onClick={() => { setAddingVer(true); setEditVer(null); setVerForm(BLANK_VER); }}
             style={{ padding: "7px 12px", borderRadius: 10, background: C.primary, color: "#fff", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
             + 추가
           </button>
         </div>
+
+        <input type="text" value={verSearch} onChange={e => setVerSearch(e.target.value)}
+          placeholder="SW명, 버전, 카테고리 검색..." style={{ ...iStyle, marginBottom: 12 }} />
 
         {(addingVer || editVer) && (
           <FormCard title={editVer ? "버전 수정" : "새 SW 버전"} onCancel={() => { setAddingVer(false); setEditVer(null); }} onSave={saveVer} saving={saving} disabled={!verForm.name.trim() || !verForm.version.trim()}>
@@ -973,26 +1001,45 @@ function SwResourcesPanel() {
           <div style={{ textAlign: "center", padding: 32, color: C.text4 }}>불러오는 중...</div>
         ) : versions.length === 0 ? (
           <div style={{ textAlign: "center", padding: 32, color: C.text4, fontSize: 13 }}>등록된 SW가 없습니다.</div>
+        ) : filteredVersions.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 32, color: C.text4, fontSize: 13 }}>검색 결과가 없습니다.</div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {versions.map(ver => (
-              <div key={ver.id} onClick={() => setSelVersion(selVersion?.id === ver.id ? null : ver)}
-                style={{ padding: "10px 14px", borderRadius: 12, border: `2px solid ${selVersion?.id === ver.id ? C.primary : C.border}`, background: selVersion?.id === ver.id ? C.primarySoft : "#fff", cursor: "pointer", transition: "all .15s" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 13, color: C.text1 }}>{ver.name}</div>
-                    <div style={{ fontSize: 11, color: C.text3 }}>v{ver.version} · {ver.category}</div>
-                    <div style={{ fontSize: 11, color: ver.visible ? "#16a34a" : C.text4, marginTop: 2 }}>{ver.visible ? "공개" : "숨김"}</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {groupedVersions.map(([cat, items]) => {
+              const expanded = !!verQuery || expandedCats.has(cat) || items.some(v => v.id === selVersion?.id);
+              return (
+                <div key={cat}>
+                  <div onClick={() => toggleCat(cat)}
+                    style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 10px", borderRadius: 8, cursor: "pointer", userSelect: "none" }}>
+                    <span style={{ fontSize: 11, color: C.text4, width: 12 }}>{expanded ? "▾" : "▸"}</span>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: C.text2 }}>{cat}</span>
+                    <span style={{ fontSize: 11, color: C.text4 }}>({items.length})</span>
                   </div>
-                  <div style={{ display: "flex", gap: 4 }} onClick={e => e.stopPropagation()}>
-                    <button onClick={() => { setEditVer(ver); setAddingVer(false); setVerForm({ name: ver.name, version: ver.version, category: ver.category, os: ver.os.join(", "), description: ver.description, visible: ver.visible, order: ver.order }); }}
-                      style={{ padding: "3px 8px", borderRadius: 6, border: "none", fontSize: 10, fontWeight: 700, cursor: "pointer", background: "#e0f2fe", color: "#0369a1" }}>수정</button>
-                    <button onClick={() => delVer(ver)}
-                      style={{ padding: "3px 8px", borderRadius: 6, border: "none", fontSize: 10, fontWeight: 700, cursor: "pointer", background: C.dangerSoft, color: C.danger }}>삭제</button>
-                  </div>
+                  {expanded && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingLeft: 8, marginBottom: 6 }}>
+                      {items.map(ver => (
+                        <div key={ver.id} onClick={() => setSelVersion(selVersion?.id === ver.id ? null : ver)}
+                          style={{ padding: "10px 14px", borderRadius: 12, border: `2px solid ${selVersion?.id === ver.id ? C.primary : C.border}`, background: selVersion?.id === ver.id ? C.primarySoft : "#fff", cursor: "pointer", transition: "all .15s" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
+                            <div>
+                              <div style={{ fontWeight: 700, fontSize: 13, color: C.text1 }}>{ver.name}</div>
+                              <div style={{ fontSize: 11, color: C.text3 }}>v{ver.version} · {ver.category}</div>
+                              <div style={{ fontSize: 11, color: ver.visible ? "#16a34a" : C.text4, marginTop: 2 }}>{ver.visible ? "공개" : "숨김"}</div>
+                            </div>
+                            <div style={{ display: "flex", gap: 4 }} onClick={e => e.stopPropagation()}>
+                              <button onClick={() => { setEditVer(ver); setAddingVer(false); setVerForm({ name: ver.name, version: ver.version, category: ver.category, os: ver.os.join(", "), description: ver.description, visible: ver.visible, order: ver.order }); }}
+                                style={{ padding: "3px 8px", borderRadius: 6, border: "none", fontSize: 10, fontWeight: 700, cursor: "pointer", background: "#e0f2fe", color: "#0369a1" }}>수정</button>
+                              <button onClick={() => delVer(ver)}
+                                style={{ padding: "3px 8px", borderRadius: 6, border: "none", fontSize: 10, fontWeight: 700, cursor: "pointer", background: C.dangerSoft, color: C.danger }}>삭제</button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
