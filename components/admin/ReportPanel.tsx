@@ -645,7 +645,23 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
     {/* ════════════════════════════════
         화면용 (인쇄 시 숨김)
     ════════════════════════════════ */}
-    <div className="print:hidden">
+    {/* ── 인쇄용 전역 CSS: 어드민 크롬 숨김 + A4 스케일 ── */}
+    <style>{`
+      @page { size: A4 portrait; margin: 8mm 7mm; }
+      @media print {
+        html, body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        /* 어드민 헤더·사이드바·인쇄전용 테이블 숨김 */
+        .admin-header, .sidenav, .report-print-only { display: none !important; }
+        /* 화면 뷰를 A4에 맞게 축소 (zoom은 레이아웃도 함께 줄임) */
+        .report-screen-view { zoom: 0.72; }
+        /* 제어 버튼만 숨김 (data-print-hide 속성) */
+        [data-print-hide] { display: none !important; }
+        /* hover 효과 제거 */
+        * { transition: none !important; }
+      }
+    `}</style>
+
+    <div className="report-screen-view print:block">
 
       {/* ── 헤더 ── */}
       <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
@@ -653,7 +669,7 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
           <h2 className="text-base font-bold text-slate-900">구독 SW 현황 리포트</h2>
           <p className="text-xs text-slate-400 mt-0.5">법인·부서별 구독 비용 현황</p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap" data-print-hide>
           {/* 기간 토글 */}
           <div className="inline-flex rounded-md border border-slate-200 overflow-hidden bg-white shadow-sm">
             <button onClick={() => setMode("monthly")}
@@ -752,7 +768,7 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
     {/* ════════════════════════════════
         인쇄 전용 뷰 (A4 세로, 화면에서는 숨김)
     ════════════════════════════════ */}
-    <div className="hidden print:block" style={{fontFamily:"'Apple SD Gothic Neo','Noto Sans KR',sans-serif",color:"#0f172a",fontSize:"7.5pt",lineHeight:1.35}}>
+    <div className="report-print-only hidden" style={{fontFamily:"'Apple SD Gothic Neo','Noto Sans KR',sans-serif",color:"#0f172a",fontSize:"7.5pt",lineHeight:1.35}}>
       <style>{`
         @page { size: A4 portrait; margin: 8mm 7mm; }
         @media print {
