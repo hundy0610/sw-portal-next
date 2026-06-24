@@ -23,6 +23,7 @@ export interface SwDbRecord {
   vendor: string;                         // 구매처
   usageCount: number;                     // 사용횟수
   certificate: string;                    // 증서 (file URL)
+  draftDocument: string;                  // 기안문서 (file URL)
   workType: string;                       // SW사용직군
   billingType?: string;                   // 결제방식 (대웅 등)
   lastModifiedBy?: string;                // 마지막수정자 (이름 + 아이디)

@@ -67,6 +67,12 @@ function buildProperties(fields: FieldMap) {
   if (fields.monthlyKrw          !== undefined) num("월 비용 (KRW)",      Number(fields.monthlyKrw ?? 0));
   if (fields.monthlyUsd          !== undefined) num("월 비용 (USD)",      Number(fields.monthlyUsd ?? 0));
 
+  const file = (name: string, uploadId: string) => {
+    props[name] = { files: [{ type: "file_upload", file_upload: { id: uploadId } }] };
+  };
+  if (fields.certificateFileUploadId !== undefined) file("증서",     String(fields.certificateFileUploadId));
+  if (fields.draftDocFileUploadId    !== undefined) file("기안문서", String(fields.draftDocFileUploadId));
+
   if (fields.lastModifiedBy !== undefined) txt("마지막수정자",   String(fields.lastModifiedBy));
   if (fields.lastModifiedAt !== undefined) txt("마지막수정일시", String(fields.lastModifiedAt));
 
