@@ -7,9 +7,14 @@ import { getSessionFromCookieHeader } from "@/lib/session";
 export const dynamic = "force-dynamic";
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
-function addOneMonth(dateStr: string): string {
+/** 갱신주기에 따라 날짜 연장: 월간 +1개월 / 연간 +1년 */
+function extendDate(dateStr: string, cycle: string): string {
   const d = new Date(dateStr);
-  d.setMonth(d.getMonth() + 1);
+  if (cycle === "연") {
+    d.setFullYear(d.getFullYear() + 1);
+  } else {
+    d.setMonth(d.getMonth() + 1);
+  }
   return d.toISOString().slice(0, 10);
 }
 
@@ -20,23 +25,22 @@ export async function POST(req: NextRequest) {
   try {
     const { ids, action } = await req.json() as { ids: string[]; action: "renew" | "expire" };
 
-    if (!Array.isArray(ids) || ids.length === 0) {
+    if (!Array.isArray(ids) || ids.length === 0)
       return NextResponse.json({ ok: false, error: "ids 필수" }, { status: 400 });
-    }
-    if (!["renew", "expire"].includes(action)) {
+    if (!["renew", "expire"].includes(action))
       return NextResponse.json({ ok: false, error: "action은 renew 또는 expire" }, { status: 400 });
-    }
 
     let success = 0, failed = 0;
 
     for (const id of ids) {
       try {
         if (action === "renew") {
-          // 현재 갱신일 조회 후 +1개월
+          // 현재 갱신일 + 갱신주기 조회
           const page = await notion.pages.retrieve({ page_id: id }) as any;
           const currentDate = page.properties["갱신필요일"]?.date?.start ?? "";
-          const base = currentDate || new Date().toISOString().slice(0, 10);
-          const newDate = addOneMonth(base);
+          const cycle       = page.properties["갱신주기"]?.select?.name ?? "월";
+          const base        = currentDate || new Date().toISOString().slice(0, 10);
+          const newDate     = extendDate(base, cycle);
 
           await notion.pages.update({
             page_id: id,
@@ -46,7 +50,7 @@ export async function POST(req: NextRequest) {
             } as Parameters<typeof notion.pages.update>[0]["properties"],
           });
         } else {
-          // expire: 상태 → 만료
+          // 갱신 거부 → 만료
           await notion.pages.update({
             page_id: id,
             properties: {
@@ -58,9 +62,8 @@ export async function POST(req: NextRequest) {
       } catch {
         failed++;
       }
-      if (ids.indexOf(id) < ids.length - 1) {
-        await new Promise(r => setTimeout(r, 350));
-      }
+      // Notion API rate limit
+      await new Promise(r => setTimeout(r, 350));
     }
 
     if (success > 0) {

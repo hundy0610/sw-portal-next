@@ -7,18 +7,21 @@ import { memDel } from "@/lib/mem-cache";
 export const dynamic = "force-dynamic";
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
+// 만료 처리 후 30일 경과 시 자동 삭제
+const DELETE_AFTER_DAYS = 30;
+
 export async function GET() {
   try {
     const data = await fetchSwDatabase();
 
-    const twoWeeksAgo = new Date();
-    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+    const threshold = new Date();
+    threshold.setDate(threshold.getDate() - DELETE_AFTER_DAYS);
 
-    // 만료 상태 + 최종수정일이 2주 이상 지난 레코드
+    // 만료 상태 + 최종수정일이 30일 이상 경과한 레코드
     const toDelete = data.filter(r => {
       if (r.status !== "만료") return false;
       if (!r.lastModifiedAt) return false;
-      return new Date(r.lastModifiedAt) < twoWeeksAgo;
+      return new Date(r.lastModifiedAt) < threshold;
     });
 
     let deleted = 0, errors = 0;
@@ -42,6 +45,7 @@ export async function GET() {
       checked: toDelete.length,
       deleted,
       errors,
+      threshold: threshold.toISOString().slice(0, 10),
       deletedAt: new Date().toISOString(),
     });
   } catch (e: any) {
