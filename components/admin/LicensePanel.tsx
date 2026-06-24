@@ -220,16 +220,34 @@ function isImageUrl(url: string) {
 }
 
 function FilePreview({ url, label }: { url: string; label: string }) {
+  const [open, setOpen] = useState(false);
   if (!url) return <span className="text-xs text-gray-300">없음</span>;
-  if (isImageUrl(url)) {
-    return (
-      <a href={url} target="_blank" rel="noopener noreferrer" className="inline-block">
-        <img src={url} alt={label} className="max-h-40 rounded-lg border border-gray-200 hover:opacity-90 transition-opacity" />
-      </a>
-    );
-  }
+  const isImage = isImageUrl(url);
   return (
-    <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">📄 {label} 열기</a>
+    <>
+      <button type="button" onClick={() => setOpen(true)} className="inline-block text-left">
+        {isImage ? (
+          <img src={url} alt={label} className="max-h-40 rounded-lg border border-gray-200 hover:opacity-90 transition-opacity" />
+        ) : (
+          <span className="text-blue-600 hover:underline text-sm">📄 {label} 보기</span>
+        )}
+      </button>
+      {open && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4" onClick={() => setOpen(false)}>
+          <div className="relative max-w-4xl max-h-[90vh] w-full" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-end gap-3 mb-2">
+              <a href={url} target="_blank" rel="noopener noreferrer" className="text-white/80 hover:text-white text-xs underline">새 탭에서 열기</a>
+              <button onClick={() => setOpen(false)} className="text-white/80 hover:text-white text-2xl leading-none">✕</button>
+            </div>
+            {isImage ? (
+              <img src={url} alt={label} className="max-w-full max-h-[80vh] mx-auto rounded-lg" />
+            ) : (
+              <iframe src={url} title={label} className="w-full h-[80vh] bg-white rounded-lg" />
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
