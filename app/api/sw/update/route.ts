@@ -60,6 +60,15 @@ function buildProperties(fields: FieldMap) {
 
   if (fields.billingType         !== undefined) sel("결재방식",           String(fields.billingType));
 
+  if (fields.version !== undefined) {
+    const arr = Array.isArray(fields.version)
+      ? (fields.version as string[])
+      : String(fields.version).split(",").map((v: string) => v.trim()).filter(Boolean);
+    props["version"] = arr.length > 0
+      ? { multi_select: arr.map((v: string) => ({ name: v })) }
+      : { multi_select: [] };
+  }
+
   if (fields.renewalDate         !== undefined) dt("갱신필요일",          String(fields.renewalDate ?? ""));
   if (fields.usageDate           !== undefined) dt("사용일자",            String(fields.usageDate ?? ""));
   if (fields.returnDate          !== undefined) dt("회수일자",            String(fields.returnDate ?? ""));
