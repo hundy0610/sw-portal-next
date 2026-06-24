@@ -218,18 +218,27 @@ function Pagination({ total, page, size, onChange }: {
 const SW_STATUS_OPTIONS = ["사용중","재고","갱신필요","만료","신규등록","반납예정","출고준비중","임시지급","미확인"];
 const SW_LICENSE_OPTIONS = ["영구","구독(업체)","구독(웹)"];
 
+type SwEditFields = Partial<SwDbRecord> & {
+  certificateFileUploadId?: string;
+  draftDocFileUploadId?: string;
+};
+
 function SwEditModal({
   record,
   onSave,
   onClose,
 }: {
   record: SwDbRecord;
-  onSave: (id: string, fields: Partial<SwDbRecord>) => Promise<void>;
+  onSave: (id: string, fields: SwEditFields) => Promise<void>;
   onClose: () => void;
 }) {
   const [form, setForm] = useState<Partial<SwDbRecord>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [certFile, setCertFile] = useState<File | null>(null);
+  const [draftFile, setDraftFile] = useState<File | null>(null);
+  const certFileRef = useRef<HTMLInputElement>(null);
+  const draftFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setForm({
@@ -253,10 +262,21 @@ function SwEditModal({
     setForm(prev => ({ ...prev, [key]: val }));
   }
 
+  async function uploadFile(file: File, label: string): Promise<string> {
+    const fd = new FormData();
+    fd.append("file", file);
+    const uploadRes = await fetch("/api/sw/cert-upload", { method: "POST", body: fd });
+    const uploadJson = await safeJson(uploadRes);
+    if (!uploadJson.ok) throw new Error(uploadJson.error ?? `${label} 업로드 실패`);
+    return uploadJson.fileUploadId;
+  }
+
   async function handleSave() {
     setSaving(true); setError("");
     try {
-      await onSave(record.id, form);
+      const certificateFileUploadId = certFile ? await uploadFile(certFile, "증서 파일") : undefined;
+      const draftDocFileUploadId = draftFile ? await uploadFile(draftFile, "기안문서") : undefined;
+      await onSave(record.id, { ...form, certificateFileUploadId, draftDocFileUploadId });
       onClose();
     } catch (e) {
       setError(String(e));
@@ -381,6 +401,60 @@ function SwEditModal({
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-semibold">USD</span>
               </div>
             </div>
+          </div>
+          {/* 증서 파일 */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">증서 파일</label>
+            <input ref={certFileRef} type="file" className="hidden"
+              accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
+              onChange={e => setCertFile(e.target.files?.[0] ?? null)} />
+            {certFile ? (
+              <div className="flex items-center gap-2 px-3 py-2 text-sm border border-blue-300 bg-blue-50 rounded-lg">
+                <span className="text-blue-600">📎</span>
+                <span className="flex-1 truncate text-blue-700 font-medium">{certFile.name}</span>
+                <button type="button" onClick={() => { setCertFile(null); if (certFileRef.current) certFileRef.current.value = ""; }}
+                  className="text-gray-400 hover:text-red-500 text-xs font-bold">✕</button>
+              </div>
+            ) : record.certificate ? (
+              <div className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg">
+                <a href={record.certificate} target="_blank" rel="noopener noreferrer"
+                  className="flex-1 truncate text-blue-600 hover:underline">📄 현재 파일 보기</a>
+                <button type="button" onClick={() => certFileRef.current?.click()}
+                  className="text-xs font-semibold text-gray-500 hover:text-blue-600 shrink-0">교체</button>
+              </div>
+            ) : (
+              <button type="button" onClick={() => certFileRef.current?.click()}
+                className="w-full px-3 py-2 text-sm border border-dashed border-gray-300 rounded-lg text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/30 transition-colors text-left">
+                📎 파일 선택 (PDF, 이미지)
+              </button>
+            )}
+          </div>
+          {/* 기안문서 */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">기안문서</label>
+            <input ref={draftFileRef} type="file" className="hidden"
+              accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
+              onChange={e => setDraftFile(e.target.files?.[0] ?? null)} />
+            {draftFile ? (
+              <div className="flex items-center gap-2 px-3 py-2 text-sm border border-blue-300 bg-blue-50 rounded-lg">
+                <span className="text-blue-600">📎</span>
+                <span className="flex-1 truncate text-blue-700 font-medium">{draftFile.name}</span>
+                <button type="button" onClick={() => { setDraftFile(null); if (draftFileRef.current) draftFileRef.current.value = ""; }}
+                  className="text-gray-400 hover:text-red-500 text-xs font-bold">✕</button>
+              </div>
+            ) : record.draftDocument ? (
+              <div className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg">
+                <a href={record.draftDocument} target="_blank" rel="noopener noreferrer"
+                  className="flex-1 truncate text-blue-600 hover:underline">📄 현재 파일 보기</a>
+                <button type="button" onClick={() => draftFileRef.current?.click()}
+                  className="text-xs font-semibold text-gray-500 hover:text-blue-600 shrink-0">교체</button>
+              </div>
+            ) : (
+              <button type="button" onClick={() => draftFileRef.current?.click()}
+                className="w-full px-3 py-2 text-sm border border-dashed border-gray-300 rounded-lg text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/30 transition-colors text-left">
+                📎 파일 선택 (PDF, 이미지)
+              </button>
+            )}
           </div>
           {error && <div className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</div>}
         </div>
@@ -769,10 +843,12 @@ function SwManualAdd({ onClose, onSuccess, swCategoryOptions, versionOptions, co
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [selectedVersions, setSelectedVersions] = useState<string[]>([]);
   const [certFile, setCertFile] = useState<File | null>(null);
+  const [draftFile, setDraftFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState("");
   const [error, setError] = useState("");
   const certFileRef = useRef<HTMLInputElement>(null);
+  const draftFileRef = useRef<HTMLInputElement>(null);
 
   function set(key: keyof typeof EMPTY_FORM, value: string | number) {
     setForm(prev => ({ ...prev, [key]: value }));
@@ -785,6 +861,7 @@ function SwManualAdd({ onClose, onSuccess, swCategoryOptions, versionOptions, co
     setSubmitting(true);
     try {
       let certificateFileUploadId: string | undefined;
+      let draftDocFileUploadId: string | undefined;
 
       if (certFile) {
         setSubmitStatus("증서 파일 업로드 중…");
@@ -796,11 +873,21 @@ function SwManualAdd({ onClose, onSuccess, swCategoryOptions, versionOptions, co
         certificateFileUploadId = uploadJson.fileUploadId;
       }
 
+      if (draftFile) {
+        setSubmitStatus("기안문서 업로드 중…");
+        const fd = new FormData();
+        fd.append("file", draftFile);
+        const uploadRes = await fetch("/api/sw/cert-upload", { method: "POST", body: fd });
+        const uploadJson = await safeJson(uploadRes);
+        if (!uploadJson.ok) throw new Error(uploadJson.error ?? "기안문서 업로드 실패");
+        draftDocFileUploadId = uploadJson.fileUploadId;
+      }
+
       setSubmitStatus("Notion에 등록 중…");
       const res = await fetch("/api/sw/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rows: [{ ...form, version: selectedVersions.join(","), certificateFileUploadId }] }),
+        body: JSON.stringify({ rows: [{ ...form, version: selectedVersions.join(","), certificateFileUploadId, draftDocFileUploadId }] }),
       });
       const json = await safeJson(res);
       if (!json.ok || json.failed > 0) throw new Error(json.results?.[0]?.error ?? "등록 실패");
@@ -931,6 +1018,28 @@ function SwManualAdd({ onClose, onSuccess, swCategoryOptions, versionOptions, co
                   </div>
                 ) : (
                   <button type="button" onClick={() => certFileRef.current?.click()}
+                    className="w-full px-3 py-2 text-sm border border-dashed border-gray-300 rounded-lg text-gray-400 hover:border-indigo-400 hover:text-indigo-500 hover:bg-indigo-50/30 transition-colors text-left">
+                    📎 파일 선택 (PDF, 이미지)
+                  </button>
+                )}
+              </Field>
+            </div>
+
+            {/* 기안문서 */}
+            <div className="col-span-2">
+              <Field label="기안문서 (선택)">
+                <input ref={draftFileRef} type="file" className="hidden"
+                  accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
+                  onChange={e => setDraftFile(e.target.files?.[0] ?? null)} />
+                {draftFile ? (
+                  <div className="flex items-center gap-2 px-3 py-2 text-sm border border-indigo-300 bg-indigo-50 rounded-lg">
+                    <span className="text-indigo-600">📎</span>
+                    <span className="flex-1 truncate text-indigo-700 font-medium">{draftFile.name}</span>
+                    <button type="button" onClick={() => { setDraftFile(null); if (draftFileRef.current) draftFileRef.current.value = ""; }}
+                      className="text-gray-400 hover:text-red-500 text-xs font-bold">✕</button>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => draftFileRef.current?.click()}
                     className="w-full px-3 py-2 text-sm border border-dashed border-gray-300 rounded-lg text-gray-400 hover:border-indigo-400 hover:text-indigo-500 hover:bg-indigo-50/30 transition-colors text-left">
                     📎 파일 선택 (PDF, 이미지)
                   </button>
@@ -1346,7 +1455,8 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
       });
   }, [company]);
 
-  const handleUpdate = useCallback(async (id: string, fields: Partial<SwDbRecord>) => {
+  const handleUpdate = useCallback(async (id: string, fields: Partial<SwDbRecord> & { certificateFileUploadId?: string; draftDocFileUploadId?: string }) => {
+    const { certificateFileUploadId, draftDocFileUploadId, ...recordFields } = fields;
     const res  = await fetch("/api/sw/update", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1354,7 +1464,7 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
     });
     const json = await safeJson(res);
     if (!json.ok) throw new Error(json.error ?? "Notion 업데이트 실패");
-    setRecords(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r));
+    setRecords(prev => prev.map(r => r.id === id ? { ...r, ...recordFields } : r));
   }, []);
 
   const handleDelete = useCallback(async (ids: string[]) => {

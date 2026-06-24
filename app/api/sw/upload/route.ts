@@ -32,6 +32,7 @@ export interface SwUploadRow {
   monthlyKrw:   number;   // 월비용(KRW)
   monthlyUsd:   number;   // 월비용(USD)
   certificateFileUploadId?: string; // 증서 파일 업로드 ID (선택)
+  draftDocFileUploadId?: string;    // 기안문서 파일 업로드 ID (선택)
 }
 
 // ISO 날짜 정규화 (YYYY-MM-DD / YYYY.MM.DD / Excel serial)
@@ -132,6 +133,12 @@ async function createSwPage(row: SwUploadRow, modifiedBy: string, modifiedAt: st
       ...(row.certificateFileUploadId ? {
         "증서": {
           files: [{ type: "file_upload", file_upload: { id: row.certificateFileUploadId } }],
+        },
+      } : {}),
+      // 기안문서 파일 ─────────────────
+      ...(row.draftDocFileUploadId ? {
+        "기안문서": {
+          files: [{ type: "file_upload", file_upload: { id: row.draftDocFileUploadId } }],
         },
       } : {}),
       // 마지막수정자/일시 (신규 등록 시점 = 최초 수정으로 기록)

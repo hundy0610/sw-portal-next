@@ -255,6 +255,7 @@ export async function fetchSwDatabase(): Promise<SwDbRecord[]> {
       vendor: getPropText(p, "구매처"),
       usageCount: getPropNumber(p, "사용횟수"),
       certificate: getPropFile(p, "증서"),
+      draftDocument: getPropFile(p, "기안문서"),
       workType: getPropSelect(p, "SW사용직군"),
       billingType: getPropSelect(p, "결재방식"),
       lastModifiedBy: getPropText(p, "마지막수정자"),
