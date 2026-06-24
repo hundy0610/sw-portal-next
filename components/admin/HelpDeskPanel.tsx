@@ -1290,6 +1290,8 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
   const [listFilter, setListFilter] = useState({
     status: "all", type: "all", company: "all", urgency: "all", assignee: "all", search: "",
   });
+  const [assetHistoryOpen, setAssetHistoryOpen] = useState<string | null>(null);
+  const assetHistoryRef = useRef<HTMLDivElement | null>(null);
 
   // 담당자 리스트 관리 상태
   const [storedAssignees,   setStoredAssignees]   = useState<{ id: string; name: string }[]>([]);
@@ -1478,6 +1480,17 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
     return () => clearInterval(id);
   }, [load]);
 
+  useEffect(() => {
+    if (!assetHistoryOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (assetHistoryRef.current && !assetHistoryRef.current.contains(e.target as Node)) {
+        setAssetHistoryOpen(null);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [assetHistoryOpen]);
+
   // 완료 티켓의 피드백 + 이메일 발송 여부를 단 1번의 배치 요청으로 로드 (N+1 → O(1))
   useEffect(() => {
     const completed = tickets.filter(t => t.status === "완료");
@@ -1541,6 +1554,18 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
       total: displayTickets.filter(t => t.company === company).length,
     })).sort((a, b) => b.total - a.total);
   }, [displayTickets, months]);
+
+  // ── 자산번호별 티켓 그룹핑 (반복 문의 감지) ─────────────
+  const assetTicketsMap = useMemo(() => {
+    const m = new Map<string, HelpDeskTicket[]>();
+    displayTickets.forEach(t => {
+      if (!t.assetNo) return;
+      const key = t.assetNo.toLowerCase();
+      if (!m.has(key)) m.set(key, []);
+      m.get(key)!.push(t);
+    });
+    return m;
+  }, [displayTickets]);
 
   // ── List filters ─────────────────────────────────────────
   const uniqueTypes     = [...new Set(displayTickets.map(t => t.inquiryType).filter(Boolean))].sort();
@@ -2317,14 +2342,76 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                       )}
                     </td>
                     <td className="text-sm font-mono">
-                      {t.assetNo ? (
-                        <button
-                          onClick={() => setModalAssetId(t.assetNo)}
-                          className="text-blue-600 hover:underline hover:text-blue-700 transition-colors"
-                        >
-                          {t.assetNo}
-                        </button>
-                      ) : (
+                      {t.assetNo ? (() => {
+                        const history = assetTicketsMap.get(t.assetNo.toLowerCase()) || [];
+                        const count = history.length;
+                        const isOpen = assetHistoryOpen === `${t.id}:${t.assetNo}`;
+                        return (
+                          <div className="relative flex items-center gap-1.5">
+                            <button
+                              onClick={() => setModalAssetId(t.assetNo)}
+                              className="text-blue-600 hover:underline hover:text-blue-700 transition-colors"
+                            >
+                              {t.assetNo}
+                            </button>
+                            {count >= 2 && (
+                              <button
+                                onClick={() => setAssetHistoryOpen(isOpen ? null : `${t.id}:${t.assetNo}`)}
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors whitespace-nowrap"
+                                title={`동일 자산 문의 ${count}건`}
+                              >
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                  <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/>
+                                  <polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/>
+                                </svg>
+                                {count}
+                              </button>
+                            )}
+                            {isOpen && (
+                              <div ref={assetHistoryRef}
+                                className="absolute top-full left-0 mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-xl p-0 min-w-[340px] max-h-[320px] overflow-auto"
+                                style={{ maxWidth: "420px" }}>
+                                <div className="sticky top-0 bg-gray-50 px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
+                                  <span className="text-xs font-bold text-gray-700">
+                                    자산 {t.assetNo} 문의 이력 ({count}건)
+                                  </span>
+                                  <button onClick={() => setAssetHistoryOpen(null)}
+                                    className="text-gray-400 hover:text-gray-600 transition-colors">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                                    </svg>
+                                  </button>
+                                </div>
+                                <div className="divide-y divide-gray-50">
+                                  {[...history].sort((a, b) => (b.submittedAt || "").localeCompare(a.submittedAt || "")).map(h => (
+                                    <button key={h.id}
+                                      onClick={() => { setAssetHistoryOpen(null); setFloatingTicket(h); }}
+                                      className={`w-full text-left px-4 py-2.5 hover:bg-violet-50/40 transition-colors ${h.id === t.id ? "bg-violet-50/60" : ""}`}>
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                                          style={{ background: STATUS[h.status]?.bg || "#F8FAFC", color: STATUS[h.status]?.text || "#64748B" }}>
+                                          {h.status}
+                                        </span>
+                                        <span className="text-[10px] font-semibold text-violet-700 bg-violet-50 px-1.5 py-0.5 rounded">
+                                          {h.inquiryType || "—"}
+                                        </span>
+                                        <span className="text-[10px] text-gray-400 ml-auto">{(h.submittedAt || "").slice(0, 10)}</span>
+                                      </div>
+                                      <p className="text-xs text-gray-700 truncate">{h.content || h.title || "—"}</p>
+                                      <div className="flex items-center gap-2 mt-1 text-[10px] text-gray-400">
+                                        <span>{h.requester || "—"}</span>
+                                        <span>·</span>
+                                        <span>{h.department || "—"}</span>
+                                        {h.assignee && <><span>·</span><span>담당: {h.assignee}</span></>}
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })() : (
                         <span className="text-gray-400">—</span>
                       )}
                     </td>
