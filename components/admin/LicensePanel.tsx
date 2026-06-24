@@ -219,17 +219,26 @@ function isImageUrl(url: string) {
   return /\.(png|jpe?g|gif|webp)(\?|$)/i.test(url);
 }
 
+function getFileNameFromUrl(url: string): string {
+  try {
+    const last = new URL(url).pathname.split("/").pop() || "";
+    return decodeURIComponent(last) || "파일";
+  } catch {
+    return "파일";
+  }
+}
+
 function FilePreview({ url, label }: { url: string; label: string }) {
   const [open, setOpen] = useState(false);
   if (!url) return <span className="text-xs text-gray-300">없음</span>;
   const isImage = isImageUrl(url);
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className="inline-block text-left">
+      <button type="button" onClick={() => setOpen(true)} className="inline-block text-left max-w-full">
         {isImage ? (
           <img src={url} alt={label} className="max-h-40 rounded-lg border border-gray-200 hover:opacity-90 transition-opacity" />
         ) : (
-          <span className="text-blue-600 hover:underline text-sm">📄 {label} 보기</span>
+          <span className="text-blue-600 hover:underline text-sm truncate block max-w-full">📄 {getFileNameFromUrl(url)}</span>
         )}
       </button>
       {open && (
