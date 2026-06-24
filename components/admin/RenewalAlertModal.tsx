@@ -15,7 +15,12 @@ interface ExpiringGroup {
 
 interface Props { company?: string; }
 
+// localStorage: "YYYY-MM-DD" 형식으로 저장 → 다음 날이 되면 다시 표시
 const DISMISS_KEY = "renewal-alert-dismissed";
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+}
 
 function daysUntil(dateStr: string) {
   const diff = new Date(dateStr).getTime() - new Date().setHours(0,0,0,0);
@@ -33,8 +38,11 @@ export default function RenewalAlertModal({ company = "" }: Props) {
   const annualGroups  = groups.filter(g => g.cycle === "연");
 
   const load = useCallback(async () => {
-    const dismissed = sessionStorage.getItem(DISMISS_KEY);
-    if (dismissed === new Date().toDateString()) return;
+    // 오늘 이미 "나중에"를 누른 경우 스킵 (내일 다시 표시)
+    if (typeof window !== "undefined") {
+      const dismissed = localStorage.getItem(DISMISS_KEY);
+      if (dismissed === todayStr()) return;
+    }
 
     const url = company
       ? `/api/sw/expiring?company=${encodeURIComponent(company)}`
@@ -51,7 +59,10 @@ export default function RenewalAlertModal({ company = "" }: Props) {
   useEffect(() => { load(); }, [load]);
 
   const dismiss = () => {
-    sessionStorage.setItem(DISMISS_KEY, new Date().toDateString());
+    // 오늘 날짜 저장 → 다음 날 자정이 지나면 다시 표시
+    if (typeof window !== "undefined") {
+      localStorage.setItem(DISMISS_KEY, todayStr());
+    }
     setOpen(false);
   };
 

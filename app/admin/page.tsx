@@ -218,7 +218,10 @@ export default function AdminPage() {
     switch (page) {
       case "home":        return <DashboardHome company={company} initialHwStats={hwStatsPrefetch} onNavigate={(p) => setPage(p as PageId)} />;
       case "overview":    return <OverviewPanel company={company} />;           // 슈퍼: company="" → 전체, 법인: company="OO" → 필터
-      case "license":     return <LicensePanel company={company} />;
+      case "license":     return <>
+        <RenewalAlertModal company={session?.company || ""} />
+        <LicensePanel company={company} />
+      </>;
       case "credentials": return canAccess("credentials") ? <CredentialsPanel /> : <AccessDenied />;
       case "swdb":        return canAccess("swdb")        ? <SwDbPanel />       : <AccessDenied />;
       case "report":      return <ReportPanel company={company} />;
@@ -257,9 +260,6 @@ export default function AdminPage() {
 
   return (
     <div className={`flex flex-col min-h-screen${darkMode ? " admin-dark" : ""}`}>
-      {/* ── 구독 갱신 알림 모달 (7일 이내 만료 예정 월간 구독 감지) ── */}
-      {session && <RenewalAlertModal company={session.company || ""} />}
-
       {/* ── 상단 헤더 ── */}
       <header className="admin-header bg-white border-b border-gray-200 h-[52px] flex items-center px-5 gap-3 sticky top-0 z-40">
         {/* 사이드바 토글 */}
