@@ -22,7 +22,6 @@ const RentalHwPanel     = dynamic(() => import("@/components/admin/RentalHwPanel
 const HwRepairPanel          = dynamic(() => import("@/components/admin/HwRepairPanel"),          { ssr: false });
 const ExchangeReturnPanel    = dynamic(() => import("@/components/admin/ExchangeReturnPanel"),    { ssr: false });
 const WorkFeedbackPanel      = dynamic(() => import("@/components/admin/WorkFeedbackPanel"),      { ssr: false });
-const AutomationPanel        = dynamic(() => import("@/components/admin/AutomationPanel"),        { ssr: false });
 const BugReportPanel         = dynamic(() => import("@/components/admin/BugReportPanel"),         { ssr: false });
 const WorkTrackerPanel        = dynamic(() => import("@/components/admin/WorkTrackerPanel"),       { ssr: false });
 const MeetingRentalPanel      = dynamic(() => import("@/components/admin/MeetingRentalPanel"),      { ssr: false });
@@ -36,7 +35,7 @@ interface SessionInfo {
   mustChangePassword?: boolean;
 }
 
-type PageId = "home" | "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "rental-hw" | "accounts" | "assetmap" | "helpdesk" | "contracts" | "repair" | "hw-repair" | "exchange-return" | "work-feedback" | "automation" | "worktracker" | "meeting-rental";
+type PageId = "home" | "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "rental-hw" | "accounts" | "assetmap" | "helpdesk" | "contracts" | "repair" | "hw-repair" | "exchange-return" | "work-feedback" | "worktracker" | "meeting-rental";
 
 // 슈퍼어드민 전용 페이지 (company 계정은 접근 불가)
 const SUPER_ONLY_PAGES = new Set<PageId>(["credentials", "swdb", "accounts", "contracts", "rental-hw", "hw-repair", "exchange-return", "work-feedback", "worktracker", "meeting-rental"]);
@@ -78,7 +77,6 @@ const SUPER_GROUPS: MenuGroup[] = [
       { id: "helpdesk",   icon: "🎫", label: "문의 접수 현황",  desc: "유형·법인별 분석"       },
       { id: "repair",     icon: "🖥️", label: "모니터 수리 접수 내역",  desc: "모니터 수리 접수 · 처리" },
       { id: "meeting-rental", icon: "📡", label: "회의실 장비 대여 관리", desc: "신청 티켓 · 장비 현황 통합 관리" },
-      { id: "automation", icon: "⚙️", label: "자동화 과제 현황", desc: "업무 자동화 접수 관리"   },
     ],
   },
   {
@@ -227,7 +225,6 @@ export default function AdminPage() {
       case "assetmap":    return <AssetMapPanel session={session} />;
       case "helpdesk":    return <HelpDeskPanel company={isSuper ? "" : company} />;
       case "repair":      return <RepairPanel company={company} />;
-      case "automation":  return <AutomationPanel />;
       case "hw-repair":        return canAccess("hw-repair")        ? <HwRepairPanel />        : <AccessDenied />;
       case "exchange-return":  return canAccess("exchange-return")  ? <ExchangeReturnPanel /> : <AccessDenied />;
       case "accounts":    return canAccess("accounts")    ? <AccountsPanel isSuperAdmin={session?.role === "super"} />   : <AccessDenied />;
