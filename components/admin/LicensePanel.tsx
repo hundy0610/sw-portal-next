@@ -214,6 +214,84 @@ function Pagination({ total, page, size, onChange }: {
   );
 }
 
+// ── SW 세부정보 보기 모달 (읽기 전용) ───────────────────────────────────
+function isImageUrl(url: string) {
+  return /\.(png|jpe?g|gif|webp)(\?|$)/i.test(url);
+}
+
+function FilePreview({ url, label }: { url: string; label: string }) {
+  if (!url) return <span className="text-xs text-gray-300">없음</span>;
+  if (isImageUrl(url)) {
+    return (
+      <a href={url} target="_blank" rel="noopener noreferrer" className="inline-block">
+        <img src={url} alt={label} className="max-h-40 rounded-lg border border-gray-200 hover:opacity-90 transition-opacity" />
+      </a>
+    );
+  }
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">📄 {label} 열기</a>
+  );
+}
+
+function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-3 py-2 border-b border-gray-50 last:border-0">
+      <div className="w-20 shrink-0 text-xs font-semibold text-gray-400 pt-0.5">{label}</div>
+      <div className="flex-1 text-sm text-gray-800 min-w-0">{children}</div>
+    </div>
+  );
+}
+
+function SwDetailModal({ record, onClose }: { record: SwDbRecord; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+      onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden"
+        onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-4 bg-gray-800 text-white flex items-start justify-between shrink-0">
+          <div>
+            <div className="font-bold text-base">{record.swCategory || "SW 세부정보"}</div>
+            {record.swDetail && <div className="text-xs opacity-80 mt-0.5">{record.swDetail}</div>}
+          </div>
+          <button onClick={onClose} className="text-white/70 hover:text-white text-2xl leading-none ml-4">✕</button>
+        </div>
+        <div className="overflow-y-auto flex-1 px-5 py-3">
+          <DetailRow label="상태"><StatusBadge status={record.status} /></DetailRow>
+          <DetailRow label="사용자">{record.user || "재고"}</DetailRow>
+          <DetailRow label="부서">{record.department || "—"}</DetailRow>
+          <DetailRow label="법인명">{record.company || "—"}</DetailRow>
+          <DetailRow label="유형"><TypeBadge type={record.licenseType} /></DetailRow>
+          <DetailRow label="버전">{(record.version ?? []).length > 0 ? record.version.join(", ") : "—"}</DetailRow>
+          <DetailRow label="인증키">{record.licenseKey ? <CopyButton text={record.licenseKey} label="키 복사" /> : "—"}</DetailRow>
+          <DetailRow label="사용일자">{fmtDate(record.usageDate)}</DetailRow>
+          <DetailRow label="갱신필요일">{fmtDate(record.renewalDate)}</DetailRow>
+          <DetailRow label="구매일자">{fmtDate(record.purchaseDate)}</DetailRow>
+          <DetailRow label="구매처">{record.vendor || "—"}</DetailRow>
+          <DetailRow label="결제방식">{record.billingType || "—"}</DetailRow>
+          <DetailRow label="월비용">
+            {record.monthlyKrw > 0 ? `${record.monthlyKrw.toLocaleString()}원` : "—"}
+            {" / "}
+            {record.monthlyUsd > 0 ? `$${record.monthlyUsd}` : "—"}
+          </DetailRow>
+          <DetailRow label="증서"><FilePreview url={record.certificate} label="증서" /></DetailRow>
+          <DetailRow label="기안문서"><FilePreview url={record.draftDocument} label="기안문서" /></DetailRow>
+          {record.notionUrl && (
+            <DetailRow label="노션">
+              <a href={record.notionUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline text-xs">노션에서 보기</a>
+            </DetailRow>
+          )}
+          {record.lastModifiedBy && (
+            <DetailRow label="최종수정">{record.lastModifiedBy} · {fmtDateTime(record.lastModifiedAt)}</DetailRow>
+          )}
+        </div>
+        <div className="px-5 py-4 border-t shrink-0">
+          <button onClick={onClose} className="w-full py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50">닫기</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── SW 인라인 편집 모달 ─────────────────────────────────────────────────
 const SW_STATUS_OPTIONS = ["사용중","재고","갱신필요","만료","신규등록","반납예정","출고준비중","임시지급","미확인"];
 const SW_LICENSE_OPTIONS = ["영구","구독(업체)","구독(웹)"];
@@ -417,8 +495,7 @@ function SwEditModal({
               </div>
             ) : record.certificate ? (
               <div className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg">
-                <a href={record.certificate} target="_blank" rel="noopener noreferrer"
-                  className="flex-1 truncate text-blue-600 hover:underline">📄 현재 파일 보기</a>
+                <div className="flex-1 min-w-0"><FilePreview url={record.certificate} label="증서" /></div>
                 <button type="button" onClick={() => certFileRef.current?.click()}
                   className="text-xs font-semibold text-gray-500 hover:text-blue-600 shrink-0">교체</button>
               </div>
@@ -444,8 +521,7 @@ function SwEditModal({
               </div>
             ) : record.draftDocument ? (
               <div className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg">
-                <a href={record.draftDocument} target="_blank" rel="noopener noreferrer"
-                  className="flex-1 truncate text-blue-600 hover:underline">📄 현재 파일 보기</a>
+                <div className="flex-1 min-w-0"><FilePreview url={record.draftDocument} label="기안문서" /></div>
                 <button type="button" onClick={() => draftFileRef.current?.click()}
                   className="text-xs font-semibold text-gray-500 hover:text-blue-600 shrink-0">교체</button>
               </div>
@@ -1422,6 +1498,7 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
   const [missingEnv, setMissingEnv] = useState<string | null>(null);
   const [detailView, setDetailView] = useState<"category" | "list">("list");
   const [editRecord, setEditRecord] = useState<SwDbRecord | null>(null);
+  const [detailRecord, setDetailRecord] = useState<SwDbRecord | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [showManualAdd, setShowManualAdd] = useState(false);
   const [lastSynced,  setLastSynced]  = useState<string>("");
@@ -1862,6 +1939,14 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
         />
       )}
 
+      {/* ── 세부정보 보기 모달 ── */}
+      {detailRecord && (
+        <SwDetailModal
+          record={detailRecord}
+          onClose={() => setDetailRecord(null)}
+        />
+      )}
+
       {/* ── 카테고리별 뷰 ── */}
       {detailView === "category" && <CategoryView records={filtered} onEdit={setEditRecord} />}
 
@@ -1942,7 +2027,10 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
                         />
                       </td>
                       <td className="px-3 py-3 whitespace-nowrap">
-                        <div className="font-semibold text-gray-900 text-xs">{r.swCategory || "—"}</div>
+                        <button onClick={() => setDetailRecord(r)}
+                          className="font-semibold text-gray-900 text-xs hover:text-blue-600 hover:underline text-left">
+                          {r.swCategory || "—"}
+                        </button>
                         {r.swDetail && <div className="text-xs text-gray-400">{r.swDetail}</div>}
                       </td>
                       <td className="px-3 py-3"><TypeBadge type={r.licenseType} /></td>
