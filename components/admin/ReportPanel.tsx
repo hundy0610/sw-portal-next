@@ -632,7 +632,38 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
   const periodSuffix = mode === "monthly" ? "/월" : "/년";
 
   // ─── 월별 인쇄 리포트용 데이터 (항상 monthly 모드, 필터 없음)
-  const printNow = () => window.print();
+  const printNow = () => {
+    // 인쇄 전: 어드민 크롬·제어버튼 숨기고 리포트만 표시
+    const header   = document.querySelector<HTMLElement>(".admin-header");
+    const sidenav  = document.querySelector<HTMLElement>(".sidenav");
+    const content  = document.querySelector<HTMLElement>(".report-screen-view");
+    const hideEls  = document.querySelectorAll<HTMLElement>("[data-print-hide]");
+
+    const prev = {
+      header:  header?.style.display,
+      sidenav: sidenav?.style.display,
+      zoom:    content?.style.zoom,
+      hides:   [...hideEls].map(el => el.style.display),
+    };
+
+    if (header)  { header.style.setProperty("display","none","important"); }
+    if (sidenav) { sidenav.style.setProperty("display","none","important"); }
+    if (content) { content.style.zoom = "0.72"; }
+    hideEls.forEach(el => el.style.setProperty("display","none","important"));
+
+    // 인쇄 후: 원상복구
+    const restore = () => {
+      if (header)  header.style.display  = prev.header  ?? "";
+      if (sidenav) sidenav.style.display = prev.sidenav ?? "";
+      if (content) content.style.zoom    = prev.zoom    ?? "";
+      hideEls.forEach((el, i) => { el.style.display = prev.hides[i] ?? ""; });
+    };
+
+    window.addEventListener("afterprint", restore, { once: true });
+    setTimeout(restore, 60_000); // fallback
+
+    window.print();
+  };
   const printYear  = new Date().getFullYear();
   const printMonth = new Date().getMonth() + 1;
   // 인쇄: 현재 화면에서 선택된 법인만 출력 (전체 선택 시 모든 법인)
@@ -645,19 +676,11 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
     {/* ════════════════════════════════
         화면용 (인쇄 시 숨김)
     ════════════════════════════════ */}
-    {/* ── 인쇄용 전역 CSS: 어드민 크롬 숨김 + A4 스케일 ── */}
+    {/* ── @page 설정만 CSS로, 나머지는 JS DOM 조작 ── */}
     <style>{`
       @page { size: A4 portrait; margin: 8mm 7mm; }
       @media print {
         html, body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        /* 어드민 헤더·사이드바·인쇄전용 테이블 숨김 */
-        .admin-header, .sidenav, .report-print-only { display: none !important; }
-        /* 화면 뷰를 A4에 맞게 축소 (zoom은 레이아웃도 함께 줄임) */
-        .report-screen-view { zoom: 0.72; }
-        /* 제어 버튼만 숨김 (data-print-hide 속성) */
-        [data-print-hide] { display: none !important; }
-        /* hover 효과 제거 */
-        * { transition: none !important; }
       }
     `}</style>
 
