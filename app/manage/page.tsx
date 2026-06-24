@@ -321,7 +321,10 @@ function ResourcesPanel() {
   const [adding,      setAdding]      = useState(false);
   const [saving,      setSaving]      = useState(false);
   const [detecting,   setDetecting]   = useState(false);
-  const [form, setForm] = useState({ title: "", category: "install" as ResourceCategory, fileUrl: "", fileType: "PDF", fileSize: "", description: "", updatedAt: "", order: 0, visible: true });
+  const [editing,     setEditing]     = useState<Resource | null>(null);
+
+  const BLANK_FORM = { title: "", category: "install" as ResourceCategory, fileUrl: "", fileType: "PDF", fileSize: "", description: "", updatedAt: "", order: 0, visible: true };
+  const [form, setForm] = useState(BLANK_FORM);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -329,7 +332,6 @@ function ResourcesPanel() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  // URL 입력 완료 시 파일 크기·형식 자동 감지
   async function handleUrlBlur() {
     const url = form.fileUrl.trim();
     if (!url.startsWith("http")) return;
@@ -346,12 +348,32 @@ function ResourcesPanel() {
     setDetecting(false);
   }
 
+  function startEdit(item: Resource) {
+    setEditing(item);
+    setAdding(false);
+    setForm({
+      title: item.title, category: item.category, fileUrl: item.fileUrl,
+      fileType: item.fileType, fileSize: item.fileSize, description: item.description,
+      updatedAt: item.updatedAt, order: item.order, visible: item.visible,
+    });
+  }
+
+  function cancelForm() {
+    setAdding(false); setEditing(null); setForm(BLANK_FORM);
+  }
+
   async function handleSave() {
     if (!form.title.trim()) return;
     setSaving(true);
-    await fetch("/api/resources", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, updatedAt: form.updatedAt || new Date().toISOString().slice(0, 10), order: form.order || items.length }) });
-    setSaving(false); setAdding(false);
-    setForm({ title: "", category: "install", fileUrl: "", fileType: "PDF", fileSize: "", description: "", updatedAt: "", order: 0, visible: true });
+    if (editing) {
+      await fetch("/api/resources", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ _action: "update", id: editing.id, data: { ...form, updatedAt: form.updatedAt || new Date().toISOString().slice(0, 10) } }) });
+    } else {
+      await fetch("/api/resources", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, updatedAt: form.updatedAt || new Date().toISOString().slice(0, 10), order: form.order || items.length }) });
+    }
+    setSaving(false);
+    cancelForm();
     load();
   }
 
@@ -369,81 +391,101 @@ function ResourcesPanel() {
   const CAT: Record<ResourceCategory, string> = { install: "설치가이드", policy: "정책문서", forms: "양식서식", other: "기타" };
   const FT: Record<string, { bg: string; color: string }> = { PDF: { bg: "#FEE2E2", color: "#B91C1C" }, XLSX: { bg: "#D1FAE5", color: "#065F46" }, DOCX: { bg: "#DBEAFE", color: "#1E40AF" }, ZIP: { bg: "#FEF3C7", color: "#92400E" }, EXE: { bg: "#F3E8FF", color: "#7C3AED" } };
 
+  const formOpen = adding || !!editing;
+
+  const resourceForm = (
+    <FormCard title={editing ? `수정: ${editing.title}` : "새 자료 등록"} onCancel={cancelForm} onSave={handleSave} saving={saving} disabled={!form.title.trim()}>
+      <Field label="파일명 *"><input style={iStyle} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="파일명" /></Field>
+      <Field label="설명"><input style={iStyle} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="파일 설명" /></Field>
+
+      <Field label="파일 URL (Notion 첨부파일 URL 또는 공유 링크)">
+        <div style={{ position: "relative" }}>
+          <input
+            style={{ ...iStyle, paddingRight: detecting ? 110 : undefined }}
+            value={form.fileUrl}
+            onChange={e => setForm(f => ({ ...f, fileUrl: e.target.value }))}
+            onBlur={handleUrlBlur}
+            placeholder="https://... (입력 후 포커스 이동 시 크기·형식 자동 입력)"
+          />
+          {detecting && (
+            <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 11, color: "#2563EB", fontWeight: 600 }}>
+              감지 중...
+            </span>
+          )}
+        </div>
+      </Field>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+        <Field label="분류">
+          <select style={iStyle} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value as ResourceCategory }))}>
+            <option value="install">설치가이드</option>
+            <option value="policy">정책문서</option>
+            <option value="forms">양식서식</option>
+            <option value="other">기타</option>
+          </select>
+        </Field>
+        <Field label="파일 형식">
+          <select style={iStyle} value={form.fileType} onChange={e => setForm(f => ({ ...f, fileType: e.target.value }))}>
+            <option>PDF</option>
+            <option>XLSX</option>
+            <option>DOCX</option>
+            <option>ZIP</option>
+            <option>EXE</option>
+            <option>PPT</option>
+            <option>PPTX</option>
+            <option>HWP</option>
+            <option>CSV</option>
+            <option value="other">기타</option>
+          </select>
+        </Field>
+        <Field label={`파일 크기${detecting ? " ⏳" : ""}`}>
+          <input
+            style={{ ...iStyle, background: detecting ? "#f8fafc" : "#fff" }}
+            value={form.fileSize}
+            onChange={e => setForm(f => ({ ...f, fileSize: e.target.value }))}
+            placeholder={detecting ? "감지 중..." : "자동 입력 또는 직접 입력"}
+            readOnly={detecting}
+          />
+        </Field>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <Field label="업데이트 날짜"><div style={{ display: "flex", alignItems: "center", gap: 4 }}><input type="date" style={{ ...iStyle, flex: 1, width: "auto" }} value={form.updatedAt} onChange={e => setForm(f => ({ ...f, updatedAt: e.target.value }))} />{form.updatedAt && <button type="button" onClick={() => setForm(f => ({ ...f, updatedAt: "" }))} style={{ color: "#9ca3af", fontSize: 18, lineHeight: 1, padding: "0 2px", background: "none", border: "none", cursor: "pointer", flexShrink: 0 }}>×</button>}</div></Field>
+        <Field label="순서"><input type="number" style={iStyle} value={form.order} onChange={e => setForm(f => ({ ...f, order: Number(e.target.value) }))} /></Field>
+      </div>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.text2, cursor: "pointer" }}><input type="checkbox" checked={form.visible} onChange={e => setForm(f => ({ ...f, visible: e.target.checked }))} /> 즉시 공개</label>
+    </FormCard>
+  );
+
   return (
     <div>
-      <SectionHeader title="자료실 관리" count={items.length} onAdd={() => setAdding(true)} />
-      {adding && (
-        <FormCard title="새 자료 등록" onCancel={() => setAdding(false)} onSave={handleSave} saving={saving} disabled={!form.title.trim()}>
-          <Field label="파일명 *"><input style={iStyle} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="파일명" /></Field>
-          <Field label="설명"><input style={iStyle} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="파일 설명" /></Field>
-
-          {/* URL 먼저 — 자동감지 후 아래 필드 채워짐 */}
-          <Field label="파일 URL (Notion 첨부파일 URL 또는 공유 링크)">
-            <div style={{ position: "relative" }}>
-              <input
-                style={{ ...iStyle, paddingRight: detecting ? 110 : undefined }}
-                value={form.fileUrl}
-                onChange={e => setForm(f => ({ ...f, fileUrl: e.target.value }))}
-                onBlur={handleUrlBlur}
-                placeholder="https://... (입력 후 포커스 이동 시 크기·형식 자동 입력)"
-              />
-              {detecting && (
-                <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 11, color: "#2563EB", fontWeight: 600 }}>
-                  감지 중...
-                </span>
-              )}
-            </div>
-          </Field>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-            <Field label="분류">
-              <select style={iStyle} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value as ResourceCategory }))}>
-                <option value="install">설치가이드</option>
-                <option value="policy">정책문서</option>
-                <option value="forms">양식서식</option>
-                <option value="other">기타</option>
-              </select>
-            </Field>
-            <Field label="파일 형식">
-              <select style={iStyle} value={form.fileType} onChange={e => setForm(f => ({ ...f, fileType: e.target.value }))}>
-                <option>PDF</option>
-                <option>XLSX</option>
-                <option>DOCX</option>
-                <option>ZIP</option>
-                <option>EXE</option>
-                <option>PPT</option>
-                <option>PPTX</option>
-                <option>HWP</option>
-                <option>CSV</option>
-                <option value="other">기타</option>
-              </select>
-            </Field>
-            <Field label={`파일 크기${detecting ? " ⏳" : ""}`}>
-              <input
-                style={{ ...iStyle, background: detecting ? "#f8fafc" : "#fff" }}
-                value={form.fileSize}
-                onChange={e => setForm(f => ({ ...f, fileSize: e.target.value }))}
-                placeholder={detecting ? "감지 중..." : "자동 입력 또는 직접 입력"}
-                readOnly={detecting}
-              />
-            </Field>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            <Field label="업데이트 날짜"><div style={{ display: "flex", alignItems: "center", gap: 4 }}><input type="date" style={{ ...iStyle, flex: 1, width: "auto" }} value={form.updatedAt} onChange={e => setForm(f => ({ ...f, updatedAt: e.target.value }))} />{form.updatedAt && <button type="button" onClick={() => setForm(f => ({ ...f, updatedAt: "" }))} style={{ color: "#9ca3af", fontSize: 18, lineHeight: 1, padding: "0 2px", background: "none", border: "none", cursor: "pointer", flexShrink: 0 }}>×</button>}</div></Field>
-            <Field label="순서"><input type="number" style={iStyle} value={form.order} onChange={e => setForm(f => ({ ...f, order: Number(e.target.value) }))} /></Field>
-          </div>
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.text2, cursor: "pointer" }}><input type="checkbox" checked={form.visible} onChange={e => setForm(f => ({ ...f, visible: e.target.checked }))} /> 즉시 공개</label>
-        </FormCard>
-      )}
+      <SectionHeader title="자료실 관리" count={items.length} onAdd={() => { setAdding(true); setEditing(null); setForm(BLANK_FORM); }} />
+      {formOpen && resourceForm}
       <ItemList loading={loading} empty="아직 등록된 자료가 없습니다.">
         {items.map(r => {
           const ft = FT[r.fileType] ?? { bg: C.bg, color: C.text3 };
           return (
-            <ItemRow key={r.id} visible={r.visible}
-              badge={{ text: r.fileType, bg: ft.bg, color: ft.color }}
-              title={r.title} sub={`${CAT[r.category]} · ${r.fileSize} · ${r.updatedAt}`}
-              onToggle={() => toggleVisible(r)} onDelete={() => del(r.id, r.title)} />
+            <div key={r.id} style={{ background: "#fff", borderRadius: 16, padding: 20, display: "flex", alignItems: "center", gap: 16, border: `1px solid ${C.border}`, opacity: r.visible ? 1 : 0.5 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: ft.bg, color: ft.color, flexShrink: 0 }}>{r.fileType}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: C.text1, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.title}</p>
+                <p style={{ fontSize: 11, color: C.text4, margin: "4px 0 0" }}>{CAT[r.category]} · {r.fileSize} · {r.updatedAt}</p>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                <button onClick={() => startEdit(r)}
+                  style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: "#e0f2fe", color: "#0369a1" }}>
+                  수정
+                </button>
+                <button onClick={() => toggleVisible(r)}
+                  style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: r.visible ? "#D1FAE5" : C.bg, color: r.visible ? "#065F46" : C.text3 }}>
+                  {r.visible ? "공개중" : "숨김"}
+                </button>
+                <button onClick={() => del(r.id, r.title)}
+                  style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: C.dangerSoft, color: C.danger }}>
+                  삭제
+                </button>
+              </div>
+            </div>
           );
         })}
       </ItemList>
@@ -780,7 +822,7 @@ function SwResourcesPanel() {
   const [editDoc,    setEditDoc]    = useState<SwDoc | null>(null);
   const [uploadFile,     setUploadFile]     = useState<File | null>(null);
   const [uploading,      setUploading]      = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [lastCreatedDocId, setLastCreatedDocId] = useState<string | null>(null);
 
   const BLANK_VER = { name: "", version: "", category: "", os: "", description: "", visible: true, order: 0 };
   const BLANK_DOC = { name: "", type: "설치파일", description: "", visible: true, order: 0, externalFileUrl: "" };
@@ -836,67 +878,42 @@ function SwResourcesPanel() {
 
       if (uploadFile) {
         setUploading(true);
-        setUploadProgress(0);
 
-        const CHUNK = 6 * 1024 * 1024; // 6 MB — Notion 최소 파트 크기 5 MiB 초과
-        const size  = uploadFile.size;
+        const fd = new FormData();
+        fd.append("file", uploadFile, uploadFile.name);
 
-        // Step 1: 업로드 세션 초기화
-        const numberOfParts = Math.ceil(size / CHUNK);
-        const initRes = await fetch("/api/sw-docs/upload", {
-          method:  "POST",
-          headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({ filename: uploadFile.name, contentType: uploadFile.type, size, numberOfParts }),
-        });
-        if (!initRes.ok) throw new Error(await initRes.text());
-        const { fileUploadId: uploadId, mode } = await initRes.json();
-        fileUploadId = uploadId;
-
-        const isMultiPart = mode === "multi_part";
-        let start = 0;
-        let partNumber = 1;
-
-        // Step 2: 청크 단위로 전송 (single_part는 1회, multi_part는 여러 번)
-        while (start < size) {
-          const end   = Math.min(start + CHUNK - 1, size - 1);
-          const chunk = uploadFile.slice(start, end + 1);
-
-          const fd = new FormData();
-          fd.append("file", chunk, uploadFile.name);
-          fd.append("fileUploadId", fileUploadId!);
-          fd.append("start",       String(start));
-          fd.append("end",         String(end));
-          fd.append("total",       String(size));
-          fd.append("multiPart",   isMultiPart ? "1" : "0");
-          fd.append("partNumber",  String(partNumber));
-
-          const partRes = await fetch("/api/sw-docs/upload", { method: "POST", body: fd });
-          if (!partRes.ok) throw new Error(await partRes.text());
-
-          start = end + 1;
-          partNumber += 1;
-          setUploadProgress(Math.round((start / size) * 100));
+        const res = await fetch("/api/sw-docs/upload", { method: "POST", body: fd });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({ error: res.statusText }));
+          throw new Error(errData.error || "업로드 실패");
         }
-
+        const data = await res.json();
+        fileUploadId = data.fileUploadId;
         setUploading(false);
-        setUploadProgress(100);
       }
 
       const externalFileUrl = docForm.externalFileUrl?.trim() || undefined;
 
+      let createdId: string | undefined;
       if (editDoc) {
         await fetch("/api/sw-docs", { method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ _action: "update", id: editDoc.id, data: { ...docForm, fileUploadId, externalFileUrl } }) });
       } else {
-        await fetch("/api/sw-docs", { method: "POST", headers: { "Content-Type": "application/json" },
+        const createRes = await fetch("/api/sw-docs", { method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ...docForm, versionId: selVersion.id, fileUploadId, externalFileUrl }) });
+        const createData = await createRes.json();
+        createdId = createData.id;
+      }
+
+      if (createdId && !fileUploadId && !externalFileUrl) {
+        setLastCreatedDocId(createdId);
       }
     } catch (e) {
       alert(`저장 실패: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setSaving(false); setUploading(false);
     }
-    setAddingDoc(false); setEditDoc(null); setDocForm(BLANK_DOC); setUploadFile(null); setUploadProgress(0);
+    setAddingDoc(false); setEditDoc(null); setDocForm(BLANK_DOC); setUploadFile(null);
     loadDocs(selVersion.id);
   }
 
@@ -994,9 +1011,7 @@ function SwResourcesPanel() {
                   {selVersion.name} v{selVersion.version} — 파일/문서
                 </h2>
                 <p style={{ fontSize: 12, color: C.text3, margin: 0 }}>
-                  총 {docs.length}개 · 실제 파일은&nbsp;
-                  <a href={notionUrl(selVersion.id)} target="_blank" rel="noopener noreferrer"
-                    style={{ color: C.primary }}>Notion에서 첨부</a>
+                  총 {docs.length}개 · 대용량 파일은 각 문서의 Notion 페이지에서 직접 첨부
                 </p>
               </div>
               <button onClick={() => { setAddingDoc(true); setEditDoc(null); setDocForm(BLANK_DOC); }}
@@ -1021,7 +1036,7 @@ function SwResourcesPanel() {
                 <Field label="설명 (크기, 비고 등)"><input style={iStyle} value={docForm.description} onChange={e => setDocForm(f => ({ ...f, description: e.target.value }))} placeholder="예: 약 850MB" /></Field>
 
                 {/* 파일 첨부 영역 */}
-                <div style={{ borderRadius: 12, border: `1px solid ${C.border}`, padding: 16, background: "#f8fafc", display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ borderRadius: 12, border: `1px solid ${C.border}`, padding: 16, background: "#f8fafc", display: "flex", flexDirection: "column", gap: 14 }}>
                   <p style={{ fontSize: 12, fontWeight: 700, color: C.text2, margin: 0 }}>파일 첨부</p>
 
                   {/* 현재 첨부 파일 표시 (수정 시) */}
@@ -1034,58 +1049,63 @@ function SwResourcesPanel() {
                     </div>
                   )}
 
-                  {/* 방법 1: 직접 업로드 (소용량, ~4MB) */}
+                  {/* A. 소용량 직접 업로드 (≤4MB) */}
                   <div>
-                    <p style={{ fontSize: 11, color: C.text4, margin: "0 0 6px" }}>방법 1 — 직접 업로드 (PDF, 문서 등 ~4MB 이하)</p>
-                    <label style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 10, border: `1px solid ${C.border}`, background: "#fff", cursor: "pointer", fontSize: 12, color: C.text2, fontWeight: 600 }}>
+                    <p style={{ fontSize: 11, color: C.text4, margin: "0 0 6px" }}>A. 직접 업로드 (PDF, 문서 등 4MB 이하)</p>
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 10, border: `1px solid ${C.border}`, background: docForm.externalFileUrl ? "#f1f5f9" : "#fff", cursor: docForm.externalFileUrl ? "not-allowed" : "pointer", fontSize: 12, color: C.text2, fontWeight: 600, opacity: docForm.externalFileUrl ? 0.5 : 1 }}>
                       📎 파일 선택
-                      <input type="file" style={{ display: "none" }} onChange={e => {
+                      <input type="file" style={{ display: "none" }} disabled={!!docForm.externalFileUrl} onChange={e => {
                         const f = e.target.files?.[0] ?? null;
                         if (!f) return;
                         const ext = f.name.split(".").pop()?.toLowerCase() ?? "";
                         const BLOCKED = ["exe", "pkg", "dmg", "msi", "bat", "sh", "app", "cmd", "com", "scr"];
                         if (BLOCKED.includes(ext)) {
-                          alert(`⚠️ .${ext} 파일은 Notion에 직접 업로드할 수 없습니다.\n\nZIP으로 압축한 후 업로드하거나, 아래 "외부 URL"을 사용하세요.`);
+                          alert(`실행파일(.${ext})은 직접 업로드할 수 없습니다.\n\nZIP으로 압축 후 업로드하거나, Notion에서 직접 첨부하세요.`);
                           e.target.value = ""; return;
                         }
-                        if (f.size > 100 * 1024 * 1024) {
-                          alert(`⚠️ 100MB를 초과하는 파일은 직접 업로드할 수 없습니다. (${(f.size / 1024 / 1024).toFixed(0)}MB)\n\n아래 Notion 링크에서 직접 첨부하거나, 외부 URL을 사용하세요.`);
+                        if (f.size > 4 * 1024 * 1024) {
+                          alert(`4MB를 초과하는 파일은 직접 업로드할 수 없습니다. (${(f.size / 1024 / 1024).toFixed(1)}MB)\n\n아래 "Notion에서 직접 첨부" 또는 "외부 URL"을 사용하세요.`);
                           e.target.value = ""; return;
                         }
                         setUploadFile(f);
-                        setUploadProgress(0);
                         setDocForm(form => ({ ...form, externalFileUrl: "" }));
                       }} />
                     </label>
                     {uploadFile && !uploading && (
                       <span style={{ marginLeft: 10, fontSize: 12, color: "#065F46", fontWeight: 600 }}>
                         {uploadFile.name} ({(uploadFile.size / 1024 / 1024).toFixed(1)} MB)
-                        <button type="button" onClick={() => { setUploadFile(null); setUploadProgress(0); }}
+                        <button type="button" onClick={() => setUploadFile(null)}
                           style={{ marginLeft: 6, color: C.danger, background: "none", border: "none", cursor: "pointer", fontSize: 14, lineHeight: 1 }}>×</button>
                       </span>
                     )}
                     {uploading && (
-                      <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: C.text3 }}>
-                          <span>Notion에 업로드 중... {uploadFile?.name}</span>
-                          <span style={{ fontWeight: 700, color: C.primary }}>{uploadProgress}%</span>
-                        </div>
-                        <div style={{ height: 6, borderRadius: 4, background: C.border, overflow: "hidden" }}>
-                          <div style={{ height: "100%", borderRadius: 4, background: C.primary, width: `${uploadProgress}%`, transition: "width 0.2s" }} />
-                        </div>
+                      <div style={{ marginTop: 8, fontSize: 11, color: C.primary, fontWeight: 600 }}>
+                        Notion에 업로드 중... {uploadFile?.name}
                       </div>
                     )}
-                    <p style={{ fontSize: 10, color: "#92400E", margin: "6px 0 0", background: "#FEF3C7", borderRadius: 6, padding: "4px 8px", display: "inline-block" }}>
-                      ⚠️ 100MB 초과 또는 .exe .pkg .dmg .msi .bat .app 등 실행파일은 업로드 불가 →{" "}
-                      <a href={selVersion ? notionUrl(selVersion.id) : "#"} target="_blank" rel="noopener noreferrer"
-                        style={{ color: "#92400E", fontWeight: 700 }}>Notion에서 직접 첨부</a>
-                      {" "}또는 외부 URL 사용
+                  </div>
+
+                  {/* B. Notion에서 직접 첨부 (대용량 권장) */}
+                  <div style={{ padding: "10px 14px", borderRadius: 10, background: "#EFF6FF", border: `1px solid #BFDBFE` }}>
+                    <p style={{ fontSize: 11, color: C.brand, margin: "0 0 4px", fontWeight: 700 }}>B. 대용량 파일 — Notion에서 직접 첨부 (권장)</p>
+                    <p style={{ fontSize: 11, color: C.text3, margin: 0 }}>
+                      먼저 이 폼을 저장하면, 목록에서 해당 문서의 Notion 페이지 링크가 표시됩니다.
+                      {editDoc && (
+                        <>
+                          {" "}→{" "}
+                          <a href={notionUrl(editDoc.id)} target="_blank" rel="noopener noreferrer"
+                            style={{ color: C.primary, fontWeight: 700 }}>이 문서의 Notion 페이지 열기 ↗</a>
+                        </>
+                      )}
+                    </p>
+                    <p style={{ fontSize: 10, color: C.text4, margin: "4px 0 0" }}>
+                      설치파일(.exe, .msi 등), 4MB 초과 파일은 Notion 페이지에서 "파일과 미디어" 속성에 직접 첨부하세요.
                     </p>
                   </div>
 
-                  {/* 방법 2: 외부 URL */}
+                  {/* C. 외부 URL */}
                   <div>
-                    <p style={{ fontSize: 11, color: C.text4, margin: "0 0 6px" }}>방법 2 — 외부 URL 붙여넣기 (대용량 설치파일, 사내 파일 서버 등)</p>
+                    <p style={{ fontSize: 11, color: C.text4, margin: "0 0 6px" }}>C. 외부 URL (사내 파일 서버, 대용량 다운로드 링크 등)</p>
                     <input
                       style={{ ...iStyle, background: uploadFile ? "#f1f5f9" : "#fff" }}
                       value={docForm.externalFileUrl}
@@ -1108,6 +1128,23 @@ function SwResourcesPanel() {
               </FormCard>
             )}
 
+            {/* 방금 파일 없이 생성된 문서 → Notion 첨부 안내 */}
+            {lastCreatedDocId && (
+              <div style={{ padding: "10px 16px", borderRadius: 12, background: "#EFF6FF", border: `1px solid #BFDBFE`, marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 12, color: C.brand }}>
+                  문서가 생성되었습니다. 파일을 첨부하려면 →
+                </span>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <a href={notionUrl(lastCreatedDocId)} target="_blank" rel="noopener noreferrer"
+                    style={{ padding: "5px 12px", borderRadius: 8, background: C.primary, color: "#fff", fontSize: 11, fontWeight: 700, textDecoration: "none" }}>
+                    Notion에서 파일 첨부 ↗
+                  </a>
+                  <button onClick={() => setLastCreatedDocId(null)}
+                    style={{ padding: "5px 8px", borderRadius: 8, background: "transparent", border: "none", color: C.text4, fontSize: 14, cursor: "pointer" }}>×</button>
+                </div>
+              </div>
+            )}
+
             {docs.length === 0 ? (
               <div style={{ textAlign: "center", padding: 48, color: C.text4, fontSize: 13, background: "#f8fafc", borderRadius: 16 }}>
                 등록된 파일이 없습니다.
@@ -1117,7 +1154,7 @@ function SwResourcesPanel() {
                 {docs.map(doc => (
                   <div key={doc.id} style={{ padding: "12px 16px", borderRadius: 12, border: `1px solid ${C.border}`, background: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                         <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 6, background: doc.type === "설치파일" ? "#FEF3C7" : "#EFF6FF", color: doc.type === "설치파일" ? "#92400E" : C.brand }}>
                           {doc.type}
                         </span>
@@ -1128,12 +1165,15 @@ function SwResourcesPanel() {
                             파일 ↗
                           </a>
                         ) : (
-                          <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "#FEF3C7", color: "#92400E", fontWeight: 700 }}>미첨부</span>
+                          <a href={notionUrl(doc.id)} target="_blank" rel="noopener noreferrer"
+                            style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "#FEF3C7", color: "#92400E", fontWeight: 700, textDecoration: "none" }}>
+                            미첨부 — Notion에서 첨부 ↗
+                          </a>
                         )}
                       </div>
                       {doc.description && <div style={{ fontSize: 11, color: C.text3, marginTop: 2 }}>{doc.description}</div>}
                     </div>
-                    <div style={{ display: "flex", gap: 4, shrink: 0 } as React.CSSProperties}>
+                    <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
                       <button onClick={() => { setEditDoc(doc); setAddingDoc(false); setUploadFile(null); setDocForm({ name: doc.name, type: doc.type, description: doc.description, visible: doc.visible, order: doc.order, externalFileUrl: "" }); }}
                         style={{ padding: "4px 10px", borderRadius: 6, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: "#e0f2fe", color: "#0369a1" }}>수정</button>
                       <button onClick={() => toggleDocVisible(doc)}
