@@ -26,6 +26,7 @@ const AutomationPanel        = dynamic(() => import("@/components/admin/Automati
 const BugReportPanel         = dynamic(() => import("@/components/admin/BugReportPanel"),         { ssr: false });
 const WorkTrackerPanel        = dynamic(() => import("@/components/admin/WorkTrackerPanel"),       { ssr: false });
 const MeetingRentalPanel      = dynamic(() => import("@/components/admin/MeetingRentalPanel"),      { ssr: false });
+const RenewalAlertModal       = dynamic(() => import("@/components/admin/RenewalAlertModal"),       { ssr: false });
 
 // ── 세션 타입 ──────────────────────────────────────────────────
 interface SessionInfo {
@@ -256,6 +257,9 @@ export default function AdminPage() {
 
   return (
     <div className={`flex flex-col min-h-screen${darkMode ? " admin-dark" : ""}`}>
+      {/* ── 구독 갱신 알림 모달 (7일 이내 만료 예정 월간 구독 감지) ── */}
+      {session && <RenewalAlertModal company={session.company || ""} />}
+
       {/* ── 상단 헤더 ── */}
       <header className="admin-header bg-white border-b border-gray-200 h-[52px] flex items-center px-5 gap-3 sticky top-0 z-40">
         {/* 사이드바 토글 */}

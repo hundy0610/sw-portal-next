@@ -1,0 +1,27 @@
+name: Cleanup Expired SW Records
+
+on:
+  schedule:
+    # 매일 오전 9시 (KST) = UTC 00:00
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 만료 SW 레코드 자동 삭제 (만료 후 14일 경과)
+        run: |
+          echo "🗑 만료 레코드 정리 시작: $(date)"
+          RESPONSE=$(curl -s -o response.txt -w "%{http_code}" \
+            -X GET "https://swportal.vercel.app/api/cron/cleanup-expired" \
+            --max-time 60)
+          echo "응답 코드: $RESPONSE"
+          cat response.txt 2>/dev/null | head -c 300 || true
+          if [ "$RESPONSE" = "200" ]; then
+            echo "✅ 정리 완료"
+          else
+            echo "⚠️ 응답 코드: $RESPONSE"
+            exit 0
+          fi
