@@ -485,7 +485,7 @@ function AuditPanel() {
     delete: { label: "삭제", bg: C.dangerSoft, color: C.danger },
   };
 
-  const TARGET_LABEL: Record<AuditLog["target"], string> = {
+  const TARGET_LABEL: Partial<Record<AuditLog["target"], string>> = {
     notices: "공지사항", courses: "교육과정", swdb: "SW 검색", swresources: "SW 자료실",
   };
 

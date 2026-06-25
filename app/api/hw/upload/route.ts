@@ -4,6 +4,7 @@ import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoint
 import { computeHwStats, type HwRecord } from "@/lib/hw";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { getSessionFromCookieHeader, resolveCurrentName, companyScope } from "@/lib/session";
+import { appendAdminAuditLog } from "@/lib/portal-store";
 import { errorMessage } from "@/lib/api-error";
 import type { RegistrationRecord } from "@/app/api/hw/registration-log/route";
 
@@ -208,7 +209,8 @@ export async function POST(req: NextRequest) {
     if (scope && rows.some(r => (r.company || "").trim() !== scope)) {
       return NextResponse.json({ ok: false, error: "본인 법인 데이터만 등록할 수 있습니다." }, { status: 403 });
     }
-    const modifiedBy = `${await resolveCurrentName(session)} (${session.userId})`;
+    const adminName = await resolveCurrentName(session);
+    const modifiedBy = `${adminName} (${session.userId})`;
     const modifiedAt = new Date().toISOString();
 
     const results: { index: number; user: string; assetNo: string; ok: boolean; error?: string; page?: PageObjectResponse }[] = [];
@@ -274,6 +276,13 @@ export async function POST(req: NextRequest) {
       } catch (e) {
         console.warn("[hw/upload] registration-log patch failed:", e);
       }
+
+      // 행별 기록 대신 일괄 등록 1건으로 요약 (감사 로그 500건 cap 보호)
+      await appendAdminAuditLog({
+        adminId: session.userId, adminName, action: "create", target: "hw",
+        itemTitle: `엑셀 일괄 등록 ${success}건`, detail: failed > 0 ? `실패 ${failed}건` : undefined,
+        timestamp: modifiedAt,
+      });
     }
 
     return NextResponse.json({ ok: true, success, failed, results: results.map(({ page: _p, ...r }) => r) });
