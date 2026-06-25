@@ -486,7 +486,7 @@ function AuditPanel() {
   };
 
   const TARGET_LABEL: Record<AuditLog["target"], string> = {
-    notices: "공지사항", courses: "교육과정", swdb: "SW 검색",
+    notices: "공지사항", courses: "교육과정", swdb: "SW 검색", swresources: "SW 자료실",
   };
 
   function formatTime(iso: string) {

@@ -20,7 +20,7 @@ export interface AuditLog {
   adminId: string;
   adminName: string;
   action: "create" | "update" | "delete";
-  target: "notices" | "courses" | "swdb";
+  target: "notices" | "courses" | "swdb" | "swresources";
   itemTitle: string;
   timestamp: string; // ISO
 }
