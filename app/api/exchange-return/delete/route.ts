@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deleteExchangeReturn } from "@/lib/exchange-return";
 import { memDel } from "@/lib/mem-cache";
+import { resolveAuditActor } from "@/lib/session";
+import { appendAdminAuditLog } from "@/lib/portal-store";
 import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +19,11 @@ export async function POST(req: NextRequest) {
 
     await deleteExchangeReturn(id);
     memDel("exchange-return:all");
+    const { adminId, adminName } = await resolveAuditActor(req.headers.get("cookie"));
+    await appendAdminAuditLog({
+      adminId, adminName, action: "delete", target: "exchangeReturn",
+      itemTitle: id, timestamp: new Date().toISOString(),
+    });
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[API /exchange-return/delete]", e);
