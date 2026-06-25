@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCourses, saveCourses, appendAuditLog } from "@/lib/portal-store";
+import { getCourses, saveCourses, appendAuditLog, summarizeChanges } from "@/lib/portal-store";
 import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
 import type { Course } from "@/types/portal";
 
@@ -41,10 +41,16 @@ export async function POST(req: NextRequest) {
   if (body._action === "update") {
     const target = all.find(c => c.id === body.id);
     await saveCourses(all.map(c => c.id === body.id ? { ...c, ...body.data } : c));
+    const detail = summarizeChanges(target, body.data, [
+      { key: "title",   label: "제목" },
+      { key: "visible", label: "공개 여부", format: v => (v ? "공개" : "숨김") },
+      { key: "category", label: "분류" },
+    ]);
     await appendAuditLog({
       adminId: session.userId, adminName,
       action: "update", target: "courses",
       itemTitle: body.data?.title ?? target?.title ?? body.id,
+      detail,
       timestamp: new Date().toISOString(),
     });
     return NextResponse.json({ ok: true });

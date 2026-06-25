@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchSwDocs, createSwDoc, updateSwDoc, archiveSwDoc } from "@/lib/notion";
-import { getSessionFromCookieHeader } from "@/lib/session";
+import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
+import { appendAuditLog, summarizeChanges } from "@/lib/portal-store";
 import { errorMessage } from "@/lib/api-error";
 
 function getSuperSession(req: NextRequest) {
@@ -23,23 +24,37 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!getSuperSession(req)) {
+  const session = getSuperSession(req);
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const body = await req.json();
+  const adminName = await resolveCurrentName(session);
 
   try {
     if (body._action === "delete") {
+      const all = await fetchSwDocs(undefined, false);
+      const target = all.find(d => d.id === body.id);
       await archiveSwDoc(body.id);
+      await appendAuditLog({ adminId: session.userId, adminName, action: "delete", target: "swresources", itemTitle: target?.name ?? body.id, timestamp: new Date().toISOString() });
       return NextResponse.json({ ok: true });
     }
     if (body._action === "update") {
+      const all = await fetchSwDocs(undefined, false);
+      const target = all.find(d => d.id === body.id);
       await updateSwDoc(body.id, body.data, {
         fileUploadId:    body.data.fileUploadId    ?? undefined,
         externalFileUrl: body.data.externalFileUrl ?? undefined,
         externalFileName: body.data.externalFileName ?? undefined,
         clearFile:       body.data.clearFile       ?? undefined,
       });
+      const detail = summarizeChanges(target, body.data, [
+        { key: "visible", label: "공개 여부", format: v => (v ? "공개" : "숨김") },
+        { key: "name",    label: "이름" },
+      ]);
+      const fileNote = (body.data.fileUploadId || body.data.externalFileUrl) ? "파일 첨부/변경" : undefined;
+      const fullDetail = [detail, fileNote].filter(Boolean).join(", ") || undefined;
+      await appendAuditLog({ adminId: session.userId, adminName, action: "update", target: "swresources", itemTitle: body.data?.name ?? target?.name ?? body.id, detail: fullDetail, timestamp: new Date().toISOString() });
       return NextResponse.json({ ok: true });
     }
     // create
@@ -55,6 +70,7 @@ export async function POST(req: NextRequest) {
       externalFileUrl:  body.externalFileUrl  ?? undefined,
       externalFileName: body.externalFileName ?? undefined,
     });
+    await appendAuditLog({ adminId: session.userId, adminName, action: "create", target: "swresources", itemTitle: body.name ?? "", timestamp: new Date().toISOString() });
     return NextResponse.json({ ok: true, id });
   } catch (e) {
     return NextResponse.json({ error: errorMessage(e) }, { status: 500 });

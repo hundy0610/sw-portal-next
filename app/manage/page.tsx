@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo, Suspense } from "react";
-import type { Notice, Course, Resource, ResourceCategory, SwVersion, SwDoc } from "@/types/portal";
+import type { Notice, Course, SwVersion, SwDoc } from "@/types/portal";
 import type { AuditLog } from "@/lib/portal-store";
 import type { SwItem } from "@/types";
-import BugReportPanel from "@/components/admin/BugReportPanel";
 import { safeJson } from "@/lib/fetch-json";
 
 /* ── 색상 토큰 ── */
@@ -22,7 +21,7 @@ const C = {
   dangerSoft:  "#FEE2E2",
 } as const;
 
-type ManageTab = "notices" | "courses" | "resources" | "swdb" | "audit" | "swresources" | "bugreport";
+type ManageTab = "notices" | "courses" | "swdb" | "audit" | "swresources";
 
 interface SessionInfo {
   name: string;
@@ -84,11 +83,9 @@ function ManageDashboard({ session }: { session: SessionInfo }) {
   const TABS: { id: ManageTab; label: string; icon: string }[] = [
     { id: "notices",     label: "공지사항",   icon: "🔔" },
     { id: "courses",     label: "교육과정",   icon: "🎓" },
-    { id: "resources",   label: "자료실",     icon: "📁" },
     { id: "swresources", label: "SW 자료실",  icon: "💿" },
     { id: "swdb",        label: "SW 검색",    icon: "🔍" },
     { id: "audit",       label: "감사 로그",  icon: "🕵️" },
-    { id: "bugreport",   label: "버그리포트", icon: "🐛" },
   ];
 
   async function handleLogout() {
@@ -134,11 +131,9 @@ function ManageDashboard({ session }: { session: SessionInfo }) {
       <main style={{ maxWidth: 1040, margin: "0 auto", padding: "32px 24px" }}>
         {tab === "notices"     && <NoticesPanel      />}
         {tab === "courses"     && <CoursesPanel      />}
-        {tab === "resources"   && <ResourcesPanel    />}
         {tab === "swresources" && <SwResourcesPanel  />}
         {tab === "swdb"        && <SwPanel           />}
         {tab === "audit"       && <AuditPanel        />}
-        {tab === "bugreport"   && <BugReportPanel    />}
       </main>
     </div>
   );
@@ -313,218 +308,28 @@ function CoursesPanel() {
 }
 
 /* ══════════════════════════════════════════════════════
-   자료실 패널
-══════════════════════════════════════════════════════ */
-function ResourcesPanel() {
-  const [items,       setItems]       = useState<Resource[]>([]);
-  const [loading,     setLoading]     = useState(true);
-  const [adding,      setAdding]      = useState(false);
-  const [saving,      setSaving]      = useState(false);
-  const [detecting,   setDetecting]   = useState(false);
-  const [editing,     setEditing]     = useState<Resource | null>(null);
-
-  const BLANK_FORM = { title: "", category: "install" as ResourceCategory, fileUrl: "", fileType: "PDF", fileSize: "", description: "", updatedAt: "", order: 0, visible: true };
-  const [form, setForm] = useState(BLANK_FORM);
-
-  const load = useCallback(() => {
-    setLoading(true);
-    fetch("/api/resources?all=1").then(r => safeJson(r)).then(res => setItems(res.data ?? [])).finally(() => setLoading(false));
-  }, []);
-  useEffect(() => { load(); }, [load]);
-
-  async function handleUrlBlur() {
-    const url = form.fileUrl.trim();
-    if (!url.startsWith("http")) return;
-    setDetecting(true);
-    try {
-      const res = await fetch(`/api/manage/file-info?url=${encodeURIComponent(url)}`);
-      const data = await safeJson(res);
-      setForm(f => ({
-        ...f,
-        fileSize: data.fileSize || f.fileSize,
-        fileType: data.fileType || f.fileType,
-      }));
-    } catch {/* 무시 */}
-    setDetecting(false);
-  }
-
-  function startEdit(item: Resource) {
-    setEditing(item);
-    setAdding(false);
-    setForm({
-      title: item.title, category: item.category, fileUrl: item.fileUrl,
-      fileType: item.fileType, fileSize: item.fileSize, description: item.description,
-      updatedAt: item.updatedAt, order: item.order, visible: item.visible,
-    });
-  }
-
-  function cancelForm() {
-    setAdding(false); setEditing(null); setForm(BLANK_FORM);
-  }
-
-  async function handleSave() {
-    if (!form.title.trim()) return;
-    setSaving(true);
-    if (editing) {
-      await fetch("/api/resources", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ _action: "update", id: editing.id, data: { ...form, updatedAt: form.updatedAt || new Date().toISOString().slice(0, 10) } }) });
-    } else {
-      await fetch("/api/resources", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, updatedAt: form.updatedAt || new Date().toISOString().slice(0, 10), order: form.order || items.length }) });
-    }
-    setSaving(false);
-    cancelForm();
-    load();
-  }
-
-  async function del(id: string, title: string) {
-    if (!confirm(`"${title}" 을(를) 삭제하시겠습니까?`)) return;
-    await fetch("/api/resources", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ _action: "delete", id }) });
-    load();
-  }
-
-  async function toggleVisible(item: Resource) {
-    await fetch("/api/resources", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ _action: "update", id: item.id, data: { visible: !item.visible } }) });
-    load();
-  }
-
-  const CAT: Record<ResourceCategory, string> = { install: "설치가이드", policy: "정책문서", forms: "양식서식", other: "기타" };
-  const FT: Record<string, { bg: string; color: string }> = { PDF: { bg: "#FEE2E2", color: "#B91C1C" }, XLSX: { bg: "#D1FAE5", color: "#065F46" }, DOCX: { bg: "#DBEAFE", color: "#1E40AF" }, ZIP: { bg: "#FEF3C7", color: "#92400E" }, EXE: { bg: "#F3E8FF", color: "#7C3AED" } };
-
-  const formOpen = adding || !!editing;
-
-  const resourceForm = (
-    <FormCard title={editing ? `수정: ${editing.title}` : "새 자료 등록"} onCancel={cancelForm} onSave={handleSave} saving={saving} disabled={!form.title.trim()}>
-      <Field label="파일명 *"><input style={iStyle} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="파일명" /></Field>
-      <Field label="설명"><input style={iStyle} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="파일 설명" /></Field>
-
-      <Field label="파일 URL (Notion 첨부파일 URL 또는 공유 링크)">
-        <div style={{ position: "relative" }}>
-          <input
-            style={{ ...iStyle, paddingRight: detecting ? 110 : undefined }}
-            value={form.fileUrl}
-            onChange={e => setForm(f => ({ ...f, fileUrl: e.target.value }))}
-            onBlur={handleUrlBlur}
-            placeholder="https://... (입력 후 포커스 이동 시 크기·형식 자동 입력)"
-          />
-          {detecting && (
-            <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 11, color: "#2563EB", fontWeight: 600 }}>
-              감지 중...
-            </span>
-          )}
-        </div>
-      </Field>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-        <Field label="분류">
-          <select style={iStyle} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value as ResourceCategory }))}>
-            <option value="install">설치가이드</option>
-            <option value="policy">정책문서</option>
-            <option value="forms">양식서식</option>
-            <option value="other">기타</option>
-          </select>
-        </Field>
-        <Field label="파일 형식">
-          <select style={iStyle} value={form.fileType} onChange={e => setForm(f => ({ ...f, fileType: e.target.value }))}>
-            <option>PDF</option>
-            <option>XLSX</option>
-            <option>DOCX</option>
-            <option>ZIP</option>
-            <option>EXE</option>
-            <option>PPT</option>
-            <option>PPTX</option>
-            <option>HWP</option>
-            <option>CSV</option>
-            <option value="other">기타</option>
-          </select>
-        </Field>
-        <Field label={`파일 크기${detecting ? " ⏳" : ""}`}>
-          <input
-            style={{ ...iStyle, background: detecting ? "#f8fafc" : "#fff" }}
-            value={form.fileSize}
-            onChange={e => setForm(f => ({ ...f, fileSize: e.target.value }))}
-            placeholder={detecting ? "감지 중..." : "자동 입력 또는 직접 입력"}
-            readOnly={detecting}
-          />
-        </Field>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-        <Field label="업데이트 날짜"><div style={{ display: "flex", alignItems: "center", gap: 4 }}><input type="date" style={{ ...iStyle, flex: 1, width: "auto" }} value={form.updatedAt} onChange={e => setForm(f => ({ ...f, updatedAt: e.target.value }))} />{form.updatedAt && <button type="button" onClick={() => setForm(f => ({ ...f, updatedAt: "" }))} style={{ color: "#9ca3af", fontSize: 18, lineHeight: 1, padding: "0 2px", background: "none", border: "none", cursor: "pointer", flexShrink: 0 }}>×</button>}</div></Field>
-        <Field label="순서"><input type="number" style={iStyle} value={form.order} onChange={e => setForm(f => ({ ...f, order: Number(e.target.value) }))} /></Field>
-      </div>
-      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.text2, cursor: "pointer" }}><input type="checkbox" checked={form.visible} onChange={e => setForm(f => ({ ...f, visible: e.target.checked }))} /> 즉시 공개</label>
-    </FormCard>
-  );
-
-  return (
-    <div>
-      <SectionHeader title="자료실 관리" count={items.length} onAdd={() => { setAdding(true); setEditing(null); setForm(BLANK_FORM); }} />
-      {formOpen && resourceForm}
-      <ItemList loading={loading} empty="아직 등록된 자료가 없습니다.">
-        {items.map(r => {
-          const ft = FT[r.fileType] ?? { bg: C.bg, color: C.text3 };
-          return (
-            <div key={r.id} style={{ background: "#fff", borderRadius: 16, padding: 20, display: "flex", alignItems: "center", gap: 16, border: `1px solid ${C.border}`, opacity: r.visible ? 1 : 0.5 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: ft.bg, color: ft.color, flexShrink: 0 }}>{r.fileType}</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 13, fontWeight: 700, color: C.text1, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.title}</p>
-                <p style={{ fontSize: 11, color: C.text4, margin: "4px 0 0" }}>{CAT[r.category]} · {r.fileSize} · {r.updatedAt}</p>
-              </div>
-              <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-                <button onClick={() => startEdit(r)}
-                  style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: "#e0f2fe", color: "#0369a1" }}>
-                  수정
-                </button>
-                <button onClick={() => toggleVisible(r)}
-                  style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: r.visible ? "#D1FAE5" : C.bg, color: r.visible ? "#065F46" : C.text3 }}>
-                  {r.visible ? "공개중" : "숨김"}
-                </button>
-                <button onClick={() => del(r.id, r.title)}
-                  style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: C.dangerSoft, color: C.danger }}>
-                  삭제
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </ItemList>
-    </div>
-  );
-}
-
-/* ══════════════════════════════════════════════════════
    SW 검색 패널
 ══════════════════════════════════════════════════════ */
 function SwPanel() {
   const [items,     setItems]     = useState<SwItem[]>([]);
-  const [resources, setResources] = useState<{ id: string; title: string }[]>([]);
   const [loading,   setLoading]   = useState(true);
   const [adding,    setAdding]    = useState(false);
   const [saving,    setSaving]    = useState(false);
   const [editing,   setEditing]   = useState<SwItem | null>(null);
   const [filter,    setFilter]    = useState<"all" | SwItem["status"]>("all");
 
-  const defaultForm = { name: "", vendor: "", category: "", status: "conditional" as SwItem["status"], description: "", alternatives: "", mandatory: false, officialUrl: "", resourceId: "" };
+  const defaultForm = { name: "", vendor: "", category: "", status: "conditional" as SwItem["status"], description: "", alternatives: "", mandatory: false, officialUrl: "" };
   const [form, setForm] = useState(defaultForm);
 
   const load = useCallback(() => {
     setLoading(true);
-    Promise.all([
-      fetch("/api/sw-db").then(r => safeJson(r)),
-      fetch("/api/resources?all=1").then(r => safeJson(r)),
-    ]).then(([sw, res]) => {
-      setItems(sw.data ?? []);
-      setResources((res.data ?? []).map((r: { id: string; title: string }) => ({ id: r.id, title: r.title })));
-    }).catch(() => {
-      setItems([]);
-    }).finally(() => setLoading(false));
+    fetch("/api/sw-db").then(r => safeJson(r)).then(res => setItems(res.data ?? [])).finally(() => setLoading(false));
   }, []);
   useEffect(() => { load(); }, [load]);
 
   function startAdd() { setForm(defaultForm); setEditing(null); setAdding(true); }
   function startEdit(item: SwItem) {
-    setForm({ name: item.name, vendor: item.vendor, category: item.category, status: item.status, description: item.description, alternatives: item.alternatives.join(", "), mandatory: item.mandatory, officialUrl: item.officialUrl ?? "", resourceId: item.resourceId ?? "" });
+    setForm({ name: item.name, vendor: item.vendor, category: item.category, status: item.status, description: item.description, alternatives: item.alternatives.join(", "), mandatory: item.mandatory, officialUrl: item.officialUrl ?? "" });
     setEditing(item);
     setAdding(true);
   }
@@ -533,7 +338,7 @@ function SwPanel() {
     if (!form.name.trim()) return;
     setSaving(true);
     try {
-      // officialUrl/resourceId를 빈 문자열 그대로 전송해야 기존 값이 올바르게 덮어씌워짐
+      // officialUrl을 빈 문자열 그대로 전송해야 기존 값이 올바르게 덮어씌워짐
       // (undefined로 변환하면 JSON에서 키가 제거되어 기존 값이 유지되는 버그 발생)
       const payload = {
         ...form,
@@ -619,12 +424,6 @@ function SwPanel() {
           <Field label="설명"><textarea style={{ ...iStyle, minHeight: 80, resize: "vertical" }} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="SW 설명 및 사용 조건" /></Field>
           <Field label="대체 SW (쉼표로 구분)"><input style={iStyle} value={form.alternatives} onChange={e => setForm(f => ({ ...f, alternatives: e.target.value }))} placeholder="예: Slack, Zoom, Google Meet" /></Field>
           <Field label="공식 다운로드 링크"><input style={iStyle} value={form.officialUrl} onChange={e => setForm(f => ({ ...f, officialUrl: e.target.value }))} placeholder="https://..." /></Field>
-          <Field label="자료실 설치파일 연동">
-            <select style={iStyle} value={form.resourceId} onChange={e => setForm(f => ({ ...f, resourceId: e.target.value }))}>
-              <option value="">연동 안 함</option>
-              {resources.map(r => <option key={r.id} value={r.id}>{r.title}</option>)}
-            </select>
-          </Field>
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.text2, cursor: "pointer" }}>
             <input type="checkbox" checked={form.mandatory} onChange={e => setForm(f => ({ ...f, mandatory: e.target.checked }))} /> 필수 설치 SW
           </label>
@@ -633,8 +432,7 @@ function SwPanel() {
 
       <ItemList loading={loading} empty="아직 등록된 SW가 없습니다.">
         {filtered.map(sw => {
-          const st = STATUS_STYLE[sw.status];
-          const linkedRes = resources.find(r => r.id === sw.resourceId);
+          const st = STATUS_STYLE[sw.status] ?? { text: sw.status, bg: C.bg, color: C.text3 };
           return (
             <div key={sw.id} style={{ background: "#fff", borderRadius: 16, padding: 20, display: "flex", alignItems: "center", gap: 16, border: `1px solid ${C.border}` }}>
               <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: st.bg, color: st.color, flexShrink: 0 }}>{st.text}</span>
@@ -647,7 +445,6 @@ function SwPanel() {
                   {sw.vendor}{sw.category ? ` · ${sw.category}` : ""}
                   {sw.alternatives.length ? ` · 대체: ${sw.alternatives.join(", ")}` : ""}
                   {sw.officialUrl ? " · 🔗 공식링크" : ""}
-                  {linkedRes ? ` · 📦 ${linkedRes.title}` : ""}
                 </p>
               </div>
               <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
@@ -689,7 +486,7 @@ function AuditPanel() {
   };
 
   const TARGET_LABEL: Record<AuditLog["target"], string> = {
-    notices: "공지사항", courses: "교육과정", resources: "자료실", swdb: "SW 검색",
+    notices: "공지사항", courses: "교육과정", swdb: "SW 검색", swresources: "SW 자료실",
   };
 
   function formatTime(iso: string) {
@@ -714,7 +511,7 @@ function AuditPanel() {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-                {["일시", "관리자", "액션", "대상", "항목"].map(h => (
+                {["일시", "관리자", "액션", "대상", "항목", "상세"].map(h => (
                   <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: 11, fontWeight: 700, color: C.text4, textTransform: "uppercase", letterSpacing: ".04em" }}>{h}</th>
                 ))}
               </tr>
@@ -733,7 +530,8 @@ function AuditPanel() {
                       <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: as.bg, color: as.color }}>{as.label}</span>
                     </td>
                     <td style={{ padding: "12px 16px", fontSize: 12, color: C.text3 }}>{TARGET_LABEL[log.target]}</td>
-                    <td style={{ padding: "12px 16px", fontSize: 13, color: C.text2, maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{log.itemTitle}</td>
+                    <td style={{ padding: "12px 16px", fontSize: 13, color: C.text2, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{log.itemTitle}</td>
+                    <td style={{ padding: "12px 16px", fontSize: 12, color: C.text3, maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{log.detail ?? "—"}</td>
                   </tr>
                 );
               })}

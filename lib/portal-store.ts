@@ -1,6 +1,6 @@
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { memGet, memSet } from "@/lib/mem-cache";
-import type { Notice, Course, Resource } from "@/types/portal";
+import type { Notice, Course } from "@/types/portal";
 import type { SwItem } from "@/types";
 import type { BugStage } from "@/types/bug-report";
 import { DEFAULT_BUG_STAGES } from "@/types/bug-report";
@@ -9,7 +9,6 @@ import { DEFAULT_WORK_STAGES } from "@/types/work-tracker";
 
 const KV_NOTICES    = "portal:notices";
 const KV_COURSES    = "portal:courses";
-const KV_RESOURCES  = "portal:resources";
 const KV_SWDB       = "portal:swdb";
 const KV_AUDIT      = "portal:audit_log";
 const KV_BUG_STAGES = "portal:bug_stages";
@@ -21,9 +20,30 @@ export interface AuditLog {
   adminId: string;
   adminName: string;
   action: "create" | "update" | "delete";
-  target: "notices" | "courses" | "resources" | "swdb";
+  target: "notices" | "courses" | "swdb" | "swresources";
   itemTitle: string;
+  detail?: string;
   timestamp: string; // ISO
+}
+
+// update 시 변경된 필드를 "필드명: 이전값 → 이후값" 형태로 요약 (지정한 필드만 비교)
+export function summarizeChanges<T>(
+  before: T | undefined,
+  after: Partial<T>,
+  fields: { key: keyof T; label: string; format?: (v: unknown) => string }[],
+): string | undefined {
+  if (!before) return undefined;
+  const fmtDefault = (v: unknown) => (v === undefined || v === null || v === "" ? "(없음)" : String(v));
+  const parts: string[] = [];
+  for (const f of fields) {
+    if (!(f.key in (after as object))) continue;
+    const oldV = before[f.key];
+    const newV = (after as T)[f.key];
+    if (JSON.stringify(oldV) === JSON.stringify(newV)) continue;
+    const fmt = f.format ?? fmtDefault;
+    parts.push(`${f.label}: ${fmt(oldV)} → ${fmt(newV)}`);
+  }
+  return parts.length ? parts.join(", ") : undefined;
 }
 
 export async function appendAuditLog(entry: Omit<AuditLog, "id">): Promise<void> {
@@ -81,22 +101,6 @@ export async function getCourses(onlyVisible = true): Promise<Course[]> {
 export async function saveCourses(courses: Course[]): Promise<void> {
   await kvSetPermanent(KV_COURSES, courses);
   memSet(KV_COURSES, courses, MEM_TTL);
-}
-
-// ─── Resources ──────────────────────────────────────────
-export async function getResources(onlyVisible = true): Promise<Resource[]> {
-  let data = memGet<Resource[]>(KV_RESOURCES);
-  if (!data) {
-    data = (await kvGet<Resource[]>(KV_RESOURCES)) ?? [];
-    memSet(KV_RESOURCES, data, MEM_TTL);
-  }
-  const list = onlyVisible ? data.filter(r => r.visible) : data;
-  return list.sort((a, b) => a.order - b.order);
-}
-
-export async function saveResources(resources: Resource[]): Promise<void> {
-  await kvSetPermanent(KV_RESOURCES, resources);
-  memSet(KV_RESOURCES, resources, MEM_TTL);
 }
 
 // ─── 버그리포트 칸반 단계 ──────────────────────────────────
