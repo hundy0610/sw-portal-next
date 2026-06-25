@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchSwVersions, createSwVersion, updateSwVersion, archiveSwVersion } from "@/lib/notion";
-import { getSessionFromCookieHeader } from "@/lib/session";
+import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
+import { appendAuditLog } from "@/lib/portal-store";
 import { errorMessage } from "@/lib/api-error";
 
 function getSuperSession(req: NextRequest) {
@@ -22,18 +23,25 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!getSuperSession(req)) {
+  const session = getSuperSession(req);
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const body = await req.json();
+  const adminName = await resolveCurrentName(session);
 
   try {
     if (body._action === "delete") {
+      const all = await fetchSwVersions(false);
+      const target = all.find(v => v.id === body.id);
       await archiveSwVersion(body.id);
+      await appendAuditLog({ adminId: session.userId, adminName, action: "delete", target: "swresources", itemTitle: target ? `${target.name} ${target.version}` : body.id, timestamp: new Date().toISOString() });
       return NextResponse.json({ ok: true });
     }
     if (body._action === "update") {
       await updateSwVersion(body.id, body.data);
+      const title = body.data?.name ? `${body.data.name} ${body.data.version ?? ""}`.trim() : body.id;
+      await appendAuditLog({ adminId: session.userId, adminName, action: "update", target: "swresources", itemTitle: title, timestamp: new Date().toISOString() });
       return NextResponse.json({ ok: true });
     }
     // create
@@ -46,6 +54,7 @@ export async function POST(req: NextRequest) {
       visible:     body.visible     ?? true,
       order:       body.order       ?? 0,
     });
+    await appendAuditLog({ adminId: session.userId, adminName, action: "create", target: "swresources", itemTitle: `${body.name ?? ""} ${body.version ?? ""}`.trim(), timestamp: new Date().toISOString() });
     return NextResponse.json({ ok: true, id });
   } catch (e) {
     return NextResponse.json({ error: errorMessage(e) }, { status: 500 });
