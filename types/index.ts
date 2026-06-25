@@ -48,7 +48,6 @@ export interface SwItem {
   mandatory: boolean;
   description: string;
   officialUrl?: string;   // 공식 다운로드/제품 페이지
-  resourceId?: string;    // 자료실 연동 (Resource.id)
   notionUrl?: string;
 }
 

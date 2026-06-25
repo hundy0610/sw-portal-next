@@ -61,7 +61,6 @@ export async function POST(req: NextRequest) {
     mandatory:    body.mandatory    ?? false,
     description:  body.description  ?? "",
     officialUrl:  body.officialUrl  || undefined,
-    resourceId:   body.resourceId   || undefined,
   };
   await saveSwItems([...items, newItem]);
   await appendAuditLog({ adminId: session.userId, adminName, action: "create", target: "swdb", itemTitle: newItem.name, timestamp: new Date().toISOString() });
