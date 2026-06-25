@@ -11,6 +11,7 @@ const KV_NOTICES    = "portal:notices";
 const KV_COURSES    = "portal:courses";
 const KV_SWDB       = "portal:swdb";
 const KV_AUDIT      = "portal:audit_log";
+const KV_ADMIN_AUDIT = "portal:admin_audit_log";
 const KV_BUG_STAGES = "portal:bug_stages";
 const KV_WORK_STAGES = "portal:work_stages";
 
@@ -20,7 +21,10 @@ export interface AuditLog {
   adminId: string;
   adminName: string;
   action: "create" | "update" | "delete";
-  target: "notices" | "courses" | "swdb" | "swresources";
+  target:
+    | "notices" | "courses" | "swdb" | "swresources"
+    | "exchangeReturn" | "hw" | "hwRepair" | "rentalHw" | "credentials"
+    | "repairTicket" | "meetingRental" | "meetingEquipment" | "contract" | "account";
   itemTitle: string;
   detail?: string;
   timestamp: string; // ISO
@@ -46,28 +50,31 @@ export function summarizeChanges<T>(
   return parts.length ? parts.join(", ") : undefined;
 }
 
-export async function appendAuditLog(entry: Omit<AuditLog, "id">): Promise<void> {
+export async function appendAuditLog(entry: Omit<AuditLog, "id">, key = KV_AUDIT): Promise<void> {
   if (!process.env.REDIS_URL) return;
   try {
-    const logs = (await kvGet<AuditLog[]>(KV_AUDIT)) ?? [];
+    const logs = (await kvGet<AuditLog[]>(key)) ?? [];
     const newLog: AuditLog = { id: `al_${Date.now()}`, ...entry };
     // 최대 500건 유지
     const trimmed = [newLog, ...logs].slice(0, 500);
-    await kvSetPermanent(KV_AUDIT, trimmed);
+    await kvSetPermanent(key, trimmed);
   } catch (e) {
     console.warn("[audit] log failed:", e);
   }
 }
 
-export async function getAuditLogs(limit = 100): Promise<AuditLog[]> {
+export async function getAuditLogs(limit = 100, key = KV_AUDIT): Promise<AuditLog[]> {
   if (!process.env.REDIS_URL) return [];
   try {
-    const logs = (await kvGet<AuditLog[]>(KV_AUDIT)) ?? [];
+    const logs = (await kvGet<AuditLog[]>(key)) ?? [];
     return logs.slice(0, limit);
   } catch {
     return [];
   }
 }
+
+export const appendAdminAuditLog = (entry: Omit<AuditLog, "id">) => appendAuditLog(entry, KV_ADMIN_AUDIT);
+export const getAdminAuditLogs = (limit = 100) => getAuditLogs(limit, KV_ADMIN_AUDIT);
 
 // 인메모리 캐시 TTL: 60초 (포털 콘텐츠는 자주 바뀌지 않음)
 const MEM_TTL = 60;

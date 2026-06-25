@@ -3,6 +3,8 @@ import { fetchContracts, createContract } from "@/lib/contract-notion";
 import { kvDel } from "@/lib/kv-store";
 import type { ContractStage } from "@/types/contract";
 import { errorMessage } from "@/lib/api-error";
+import { resolveAuditActor } from "@/lib/session";
+import { appendAdminAuditLog } from "@/lib/portal-store";
 
 // DELETE /api/contracts  — KV 캐시 강제 무효화
 export async function DELETE() {
@@ -56,6 +58,12 @@ export async function POST(req: NextRequest) {
       company, contactName, contactEmail,
       startDate, endDate, quantity, unitPrice, stage, notes,
       pdfBuffer, pdfFileName, pdfLink,
+    });
+
+    const { adminId, adminName } = await resolveAuditActor(req.headers.get("cookie"));
+    await appendAdminAuditLog({
+      adminId, adminName, action: "create", target: "contract",
+      itemTitle: company, timestamp: new Date().toISOString(),
     });
 
     return NextResponse.json({ ok: true, contract });

@@ -3,6 +3,7 @@ import { Client } from "@notionhq/client";
 import { updateExchangeReturn, type UpdateFields } from "@/lib/exchange-return";
 import { memGet, memDel } from "@/lib/mem-cache";
 import { getSessionFromCookieHeader, resolveCurrentName, companyScope } from "@/lib/session";
+import { appendAdminAuditLog } from "@/lib/portal-store";
 import { errorMessage } from "@/lib/api-error";
 import type { ExchangeReturnRecord } from "@/types";
 
@@ -45,13 +46,18 @@ export async function POST(req: NextRequest) {
     if (scope && (await getRecordCompany(id)) !== scope) {
       return NextResponse.json({ ok: false, error: "본인 법인 데이터만 수정할 수 있습니다." }, { status: 403 });
     }
+    const adminName = await resolveCurrentName(session);
     const fieldsWithModifier: UpdateFields = {
       ...fields,
-      lastModifiedBy: `${await resolveCurrentName(session)} (${session.userId})`,
+      lastModifiedBy: `${adminName} (${session.userId})`,
     };
 
     await updateExchangeReturn(id, fieldsWithModifier);
     memDel("exchange-return:all");
+    await appendAdminAuditLog({
+      adminId: session.userId, adminName, action: "update", target: "exchangeReturn",
+      itemTitle: fields.newAssetId ?? fields.user ?? id, timestamp: new Date().toISOString(),
+    });
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[API /exchange-return/update]", e);

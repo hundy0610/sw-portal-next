@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { updateContract, updateContractStage, deleteContract } from "@/lib/contract-notion";
 import type { ContractStage } from "@/types/contract";
 import { errorMessage } from "@/lib/api-error";
+import { resolveAuditActor } from "@/lib/session";
+import { appendAdminAuditLog } from "@/lib/portal-store";
 
 // PUT /api/contracts/[id]  (multipart/form-data)
 export async function PUT(
@@ -35,6 +37,11 @@ export async function PUT(
       pdfFileName,
       pdfLink,
     });
+    const { adminId, adminName } = await resolveAuditActor(req.headers.get("cookie"));
+    await appendAdminAuditLog({
+      adminId, adminName, action: "update", target: "contract",
+      itemTitle: (data.company as string) ?? params.id, timestamp: new Date().toISOString(),
+    });
     return NextResponse.json({ ok: true, contract });
   } catch (e) {
     console.error("[contracts PUT]", e);
@@ -51,6 +58,11 @@ export async function PATCH(
     const { stage } = (await req.json()) as { stage: ContractStage };
     if (!stage) return NextResponse.json({ ok: false, error: "stage 필드 필요" }, { status: 400 });
     await updateContractStage(params.id, stage);
+    const { adminId, adminName } = await resolveAuditActor(req.headers.get("cookie"));
+    await appendAdminAuditLog({
+      adminId, adminName, action: "update", target: "contract",
+      itemTitle: params.id, detail: `단계: → ${stage}`, timestamp: new Date().toISOString(),
+    });
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[contracts PATCH]", e);
@@ -60,11 +72,16 @@ export async function PATCH(
 
 // DELETE /api/contracts/[id]
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
     await deleteContract(params.id);
+    const { adminId, adminName } = await resolveAuditActor(req.headers.get("cookie"));
+    await appendAdminAuditLog({
+      adminId, adminName, action: "delete", target: "contract",
+      itemTitle: params.id, timestamp: new Date().toISOString(),
+    });
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[contracts DELETE]", e);

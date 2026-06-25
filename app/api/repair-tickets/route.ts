@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { fetchRepairTickets, createRepairTicket } from "@/lib/notion";
 import { getSessionFromCookieHeader, resolveCurrentName, companyScope } from "@/lib/session";
 import { createMailTransporter, buildMonitorRepairEmail } from "@/lib/mail";
+import { appendAdminAuditLog } from "@/lib/portal-store";
 import type { RepairTicket } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -53,6 +54,11 @@ export async function POST(req: NextRequest) {
       assetId,
       requester: requester || currentName,
       priority,
+    });
+
+    await appendAdminAuditLog({
+      adminId: session.userId, adminName: currentName, action: "create", target: "repairTicket",
+      itemTitle: title, timestamp: new Date().toISOString(),
     });
 
     // 총무 담당자에게 이메일 발송
