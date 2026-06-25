@@ -22,7 +22,28 @@ export interface AuditLog {
   action: "create" | "update" | "delete";
   target: "notices" | "courses" | "swdb" | "swresources";
   itemTitle: string;
+  detail?: string;
   timestamp: string; // ISO
+}
+
+// update 시 변경된 필드를 "필드명: 이전값 → 이후값" 형태로 요약 (지정한 필드만 비교)
+export function summarizeChanges<T>(
+  before: T | undefined,
+  after: Partial<T>,
+  fields: { key: keyof T; label: string; format?: (v: unknown) => string }[],
+): string | undefined {
+  if (!before) return undefined;
+  const fmtDefault = (v: unknown) => (v === undefined || v === null || v === "" ? "(없음)" : String(v));
+  const parts: string[] = [];
+  for (const f of fields) {
+    if (!(f.key in (after as object))) continue;
+    const oldV = before[f.key];
+    const newV = (after as T)[f.key];
+    if (JSON.stringify(oldV) === JSON.stringify(newV)) continue;
+    const fmt = f.format ?? fmtDefault;
+    parts.push(`${f.label}: ${fmt(oldV)} → ${fmt(newV)}`);
+  }
+  return parts.length ? parts.join(", ") : undefined;
 }
 
 export async function appendAuditLog(entry: Omit<AuditLog, "id">): Promise<void> {
