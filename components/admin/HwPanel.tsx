@@ -1996,6 +1996,393 @@ function DispatchHistoryTab() {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 등록 현황 탭 (엑셀 신규 등록 로그 — 월별/연단위 분석)
+// ─────────────────────────────────────────────────────────────────────────────
+interface RegistrationRecord {
+  id: string;
+  registeredAt: string;
+  assetNo: string; model: string; serial: string;
+  user: string; company: string; dept: string; maker: string;
+  price: number; purchaseDate: string; useDate: string;
+  registeredBy: string;
+}
+
+function RegistrationLogTab() {
+  const [log, setLog] = useState<RegistrationRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [yearFilter, setYearFilter] = useState(() => String(new Date().getFullYear()));
+
+  const load = useCallback(async () => {
+    setLoading(true); setError("");
+    try {
+      const res = await fetch("/api/hw/registration-log");
+      const json = await safeJson(res);
+      if (!json.ok) throw new Error(json.error);
+      setLog(json.log);
+    } catch (e) { setError(String(e)); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const years = useMemo(() => {
+    const ys = new Set<string>();
+    for (const r of log) ys.add(r.registeredAt.slice(0, 4));
+    ys.add(String(new Date().getFullYear()));
+    return [...ys].sort().reverse();
+  }, [log]);
+
+  const filtered = useMemo(() => log.filter(r => r.registeredAt.startsWith(yearFilter)), [log, yearFilter]);
+
+  const monthlyStats = useMemo(() => {
+    const result: { month: string; label: string; count: number; amount: number }[] = [];
+    for (let m = 1; m <= 12; m++) {
+      result.push({ month: `${yearFilter}-${String(m).padStart(2,"0")}`, label: `${m}월`, count: 0, amount: 0 });
+    }
+    for (const r of filtered) {
+      const idx = parseInt(r.registeredAt.slice(5, 7), 10) - 1;
+      if (idx >= 0 && idx < 12) { result[idx].count++; result[idx].amount += r.price || 0; }
+    }
+    return result;
+  }, [filtered, yearFilter]);
+
+  const companyStats = useMemo(() => {
+    const map: Record<string, { count: number; amount: number }> = {};
+    for (const r of filtered) {
+      const co = r.company || "미분류";
+      if (!map[co]) map[co] = { count: 0, amount: 0 };
+      map[co].count++; map[co].amount += r.price || 0;
+    }
+    return Object.entries(map).sort((a, b) => b[1].count - a[1].count);
+  }, [filtered]);
+
+  const deptStats = useMemo(() => {
+    const map: Record<string, { count: number; amount: number }> = {};
+    for (const r of filtered) {
+      const d = r.dept || "미분류";
+      if (!map[d]) map[d] = { count: 0, amount: 0 };
+      map[d].count++; map[d].amount += r.price || 0;
+    }
+    return Object.entries(map).sort((a, b) => b[1].count - a[1].count);
+  }, [filtered]);
+
+  const totalCount  = filtered.length;
+  const totalAmount = filtered.reduce((s, r) => s + (r.price || 0), 0);
+  const maxMonthly  = Math.max(...monthlyStats.map(m => m.count), 1);
+
+  const chartW = 560; const chartH = 160; const barArea = chartH - 10;
+  const slotW  = chartW / 12; const barW = Math.floor(slotW * 0.5);
+
+  const downloadReport = () => {
+    const html = generateRegistrationReportHTML({ year: yearFilter, records: filtered, monthlyStats, companyStats, deptStats });
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url  = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `HW등록현황_보고서_${yearFilter}.html`;
+    a.click(); URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* 헤더 / 필터 */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap items-center gap-3">
+        <div className="flex-1 min-w-[160px]">
+          <p className="text-sm font-bold text-gray-800">신규 등록 현황</p>
+          <p className="text-xs text-gray-400 mt-0.5">엑셀 신규 등록 로그 · 월별/연단위 분석</p>
+        </div>
+        <select value={yearFilter} onChange={e => setYearFilter(e.target.value)}
+          className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
+          {years.map(y => <option key={y} value={y}>{y}년</option>)}
+        </select>
+        <button onClick={downloadReport} disabled={loading || totalCount === 0}
+          className="px-4 py-2 rounded-lg bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600 disabled:opacity-50 transition-colors">
+          HTML 보고서 다운로드
+        </button>
+        <button onClick={load} disabled={loading}
+          className="px-4 py-2 rounded-lg bg-indigo-500 text-white text-sm font-semibold hover:bg-indigo-600 disabled:opacity-50 transition-colors">
+          {loading ? "불러오는 중…" : "새로고침"}
+        </button>
+      </div>
+
+      {error && <div className="px-4 py-3 bg-red-50 rounded-xl text-sm text-red-600">⚠️ {error}</div>}
+
+      {/* 요약 카드 */}
+      {!loading && (
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
+            <p className="text-xs font-semibold text-indigo-500">연간 등록</p>
+            <p className="text-2xl font-bold text-indigo-700 mt-1">{totalCount}<span className="text-sm font-normal ml-1">건</span></p>
+            <p className="text-xs text-indigo-400 mt-0.5">{yearFilter}년</p>
+          </div>
+          <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
+            <p className="text-xs font-semibold text-emerald-500">총 구매금액</p>
+            <p className="text-2xl font-bold text-emerald-700 mt-1">{fmtKrw(totalAmount)}</p>
+            <p className="text-xs text-emerald-400 mt-0.5">단가 합계</p>
+          </div>
+          <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
+            <p className="text-xs font-semibold text-amber-500">등록 법인</p>
+            <p className="text-2xl font-bold text-amber-700 mt-1">{companyStats.length}<span className="text-sm font-normal ml-1">개</span></p>
+            <p className="text-xs text-amber-400 mt-0.5">법인 수</p>
+          </div>
+        </div>
+      )}
+
+      {/* 월별 막대 차트 */}
+      {!loading && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <p className="text-sm font-bold text-gray-700 mb-4">{yearFilter}년 월별 등록 현황</p>
+          <div className="overflow-x-auto">
+            <svg width="100%" viewBox={`0 0 ${chartW} ${chartH + 28}`} style={{ minWidth: 360 }}>
+              {[0.25,0.5,0.75,1].map(f => {
+                const y = chartH - f * barArea;
+                return (
+                  <g key={f}>
+                    <line x1={0} y1={y} x2={chartW} y2={y} stroke="#f3f4f6" strokeWidth={1}/>
+                    <text x={2} y={y-2} fontSize={8} fill="#d1d5db">{Math.round(f*maxMonthly)}</text>
+                  </g>
+                );
+              })}
+              {monthlyStats.map((m, i) => {
+                const cx = slotW * i + slotW / 2;
+                const h  = maxMonthly > 0 ? (m.count / maxMonthly) * barArea : 0;
+                return (
+                  <g key={m.month}>
+                    <rect x={cx-barW/2} y={chartH-h} width={barW} height={h} fill="#6366f1" rx={2} opacity={0.85}/>
+                    <text x={cx} y={chartH+13} textAnchor="middle" fontSize={9} fill="#9ca3af">{m.label}</text>
+                    {m.count > 0 && (
+                      <text x={cx} y={chartH-h-3} textAnchor="middle" fontSize={9} fill="#374151" fontWeight="600">{m.count}</text>
+                    )}
+                  </g>
+                );
+              })}
+            </svg>
+          </div>
+        </div>
+      )}
+
+      {/* 월별 집계 테이블 */}
+      {!loading && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-100">
+            <p className="text-sm font-bold text-gray-700">월별 집계</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-gray-50 text-gray-500 font-semibold">
+                <tr>
+                  <th className="px-4 py-2.5 text-left">월</th>
+                  <th className="px-4 py-2.5 text-right">등록 건수</th>
+                  <th className="px-4 py-2.5 text-right">구매금액</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {monthlyStats.map(m => (
+                  <tr key={m.month} className={`hover:bg-gray-50 ${m.count===0?"opacity-40":""}`}>
+                    <td className="px-4 py-2.5 font-medium text-gray-800">{m.label}</td>
+                    <td className="px-4 py-2.5 text-right text-indigo-600 font-semibold">{m.count||"-"}</td>
+                    <td className="px-4 py-2.5 text-right text-gray-700">{fmtKrw(m.amount)}</td>
+                  </tr>
+                ))}
+                <tr className="bg-gray-50 font-bold border-t-2 border-gray-200">
+                  <td className="px-4 py-2.5 text-gray-700">합계</td>
+                  <td className="px-4 py-2.5 text-right text-indigo-700">{totalCount}</td>
+                  <td className="px-4 py-2.5 text-right text-gray-900">{fmtKrw(totalAmount)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 법인별 / 부서별 브레이크다운 */}
+      {!loading && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="px-5 py-3 border-b border-gray-100"><p className="text-sm font-bold text-gray-700">법인별 등록 현황</p></div>
+            <div className="overflow-x-auto max-h-80 overflow-y-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-gray-50 text-gray-500 font-semibold sticky top-0">
+                  <tr><th className="px-4 py-2.5 text-left">법인</th><th className="px-4 py-2.5 text-right">건수</th><th className="px-4 py-2.5 text-right">구매금액</th></tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {companyStats.map(([co, s]) => (
+                    <tr key={co} className="hover:bg-gray-50">
+                      <td className="px-4 py-2.5 font-medium text-gray-800">{co}</td>
+                      <td className="px-4 py-2.5 text-right text-indigo-600 font-semibold">{s.count}</td>
+                      <td className="px-4 py-2.5 text-right text-gray-700">{fmtKrw(s.amount)}</td>
+                    </tr>
+                  ))}
+                  {companyStats.length === 0 && <tr><td colSpan={3} className="px-4 py-6 text-center text-gray-300">데이터 없음</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="px-5 py-3 border-b border-gray-100"><p className="text-sm font-bold text-gray-700">부서별 등록 현황</p></div>
+            <div className="overflow-x-auto max-h-80 overflow-y-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-gray-50 text-gray-500 font-semibold sticky top-0">
+                  <tr><th className="px-4 py-2.5 text-left">부서</th><th className="px-4 py-2.5 text-right">건수</th><th className="px-4 py-2.5 text-right">구매금액</th></tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {deptStats.map(([d, s]) => (
+                    <tr key={d} className="hover:bg-gray-50">
+                      <td className="px-4 py-2.5 font-medium text-gray-800">{d}</td>
+                      <td className="px-4 py-2.5 text-right text-indigo-600 font-semibold">{s.count}</td>
+                      <td className="px-4 py-2.5 text-right text-gray-700">{fmtKrw(s.amount)}</td>
+                    </tr>
+                  ))}
+                  {deptStats.length === 0 && <tr><td colSpan={3} className="px-4 py-6 text-center text-gray-300">데이터 없음</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 등록 이력 상세 */}
+      {!loading && filtered.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+            <p className="text-sm font-bold text-gray-700">등록 이력</p>
+            <span className="text-xs text-gray-400">{filtered.length}건</span>
+          </div>
+          <div className="overflow-x-auto overflow-y-auto max-h-96">
+            <table className="w-full text-xs">
+              <thead className="bg-gray-50 text-gray-500 font-semibold sticky top-0">
+                <tr>{["등록일자","자산번호","사용자","법인","부서","모델명","구매금액","등록자"].map(h=>(
+                  <th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>
+                ))}</tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filtered.slice(0,300).map(r=>(
+                  <tr key={r.id} className="hover:bg-gray-50">
+                    <td className="px-3 py-2.5 whitespace-nowrap text-gray-500">{r.registeredAt.slice(0,10)}</td>
+                    <td className="px-3 py-2.5 font-mono whitespace-nowrap">{r.assetNo||"-"}</td>
+                    <td className="px-3 py-2.5 font-medium whitespace-nowrap">{r.user||"-"}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">{r.company||"-"}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">{r.dept||"-"}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap max-w-[130px] truncate">{r.model||"-"}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">{fmtKrw(r.price)}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap text-gray-500">{r.registeredBy||"-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {!loading && filtered.length === 0 && !error && (
+        <div className="py-16 text-center text-gray-300">
+          <p className="text-4xl mb-3">🆕</p>
+          <p className="text-sm">등록 이력이 없습니다</p>
+          <p className="text-xs mt-2 text-gray-300">엑셀로 신규 자산을 등록하면 자동으로 기록됩니다</p>
+        </div>
+      )}
+
+      {loading && <div className="py-16 text-center text-gray-300 text-sm">불러오는 중…</div>}
+    </div>
+  );
+}
+
+// 등록 현황 HTML 보고서 생성
+function generateRegistrationReportHTML(opts: {
+  year: string;
+  records: RegistrationRecord[];
+  monthlyStats: { label: string; count: number; amount: number }[];
+  companyStats: [string, { count: number; amount: number }][];
+  deptStats: [string, { count: number; amount: number }][];
+}): string {
+  const { year, records, monthlyStats, companyStats, deptStats } = opts;
+  const totalCount  = records.length;
+  const totalAmount = records.reduce((s, r) => s + (r.price || 0), 0);
+  const today = new Date().toLocaleDateString("ko-KR");
+  const maxMonthly = Math.max(...monthlyStats.map(m => m.count), 1);
+  const chartH = 120, chartW = 520, padX = 40, padY = 20;
+  const n = monthlyStats.length;
+  const xOf = (i: number) => padX + (i / Math.max(n - 1, 1)) * (chartW - padX * 2);
+  const yOf = (v: number) => padY + (chartH - padY * 2) * (1 - v / maxMonthly);
+  const linePoints = monthlyStats.map((m, i) => `${xOf(i)},${yOf(m.count)}`).join(" ");
+
+  const companyRows = companyStats.map(([co, s]) => `<tr><td>${co}</td><td style="text-align:right">${s.count}건</td><td style="text-align:right">${fmtKrw(s.amount)}</td></tr>`).join("");
+  const deptRows = deptStats.map(([d, s]) => `<tr><td>${d}</td><td style="text-align:right">${s.count}건</td><td style="text-align:right">${fmtKrw(s.amount)}</td></tr>`).join("");
+  const monthRows = monthlyStats.map(m => `<tr><td>${m.label}</td><td style="text-align:right">${m.count}건</td><td style="text-align:right">${fmtKrw(m.amount)}</td></tr>`).join("");
+
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HW 신규 등록 현황 보고서 · ${year}년</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; background: #F8FAFC; color: #1E293B; }
+  .page { max-width: 900px; margin: 0 auto; padding: 40px 32px; }
+  .cover { text-align: center; padding: 50px 0 30px; border-bottom: 2px solid #E2E8F0; margin-bottom: 28px; }
+  .cover h1 { font-size: 26px; font-weight: 800; }
+  .cover .meta { font-size: 13px; color: #64748B; margin-top: 6px; }
+  .cover .period { display: inline-block; background: #4F46E5; color: white; padding: 4px 16px; border-radius: 20px; font-size: 13px; font-weight: 700; margin-top: 10px; }
+  .section { margin-bottom: 28px; }
+  .section h2 { font-size: 15px; font-weight: 700; margin-bottom: 12px; color: #334155; }
+  .summary { display: flex; gap: 12px; }
+  .summary .card { flex: 1; background: white; border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px; }
+  .summary .card .label { font-size: 12px; color: #64748B; }
+  .summary .card .value { font-size: 22px; font-weight: 800; margin-top: 4px; }
+  table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; }
+  th, td { padding: 8px 12px; font-size: 13px; border-bottom: 1px solid #F1F5F9; text-align: left; }
+  th { background: #F8FAFC; color: #64748B; font-weight: 600; }
+  .footer { text-align: center; font-size: 12px; color: #94A3B8; margin-top: 40px; }
+  @media print { body { background: white; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="cover">
+    <h1>HW 신규 등록 현황 보고서</h1>
+    <p class="meta">생성일 ${today}</p>
+    <span class="period">${year}년</span>
+  </div>
+
+  <div class="section">
+    <div class="summary">
+      <div class="card"><p class="label">연간 등록</p><p class="value">${totalCount}건</p></div>
+      <div class="card"><p class="label">총 구매금액</p><p class="value">${fmtKrw(totalAmount)}</p></div>
+      <div class="card"><p class="label">등록 법인</p><p class="value">${companyStats.length}개</p></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>월별 등록 추이</h2>
+    <svg width="100%" viewBox="0 0 ${chartW} ${chartH}" style="background:white;border-radius:8px;border:1px solid #E2E8F0">
+      <polyline points="${linePoints}" fill="none" stroke="#4F46E5" stroke-width="2"/>
+      ${monthlyStats.map((m, i) => `<circle cx="${xOf(i)}" cy="${yOf(m.count)}" r="3" fill="#4F46E5"/><text x="${xOf(i)}" y="${chartH-4}" font-size="9" fill="#94A3B8" text-anchor="middle">${m.label}</text>`).join("")}
+    </svg>
+  </div>
+
+  <div class="section">
+    <h2>월별 집계</h2>
+    <table><thead><tr><th>월</th><th style="text-align:right">건수</th><th style="text-align:right">구매금액</th></tr></thead><tbody>${monthRows}</tbody></table>
+  </div>
+
+  <div class="section">
+    <h2>법인별 집계</h2>
+    <table><thead><tr><th>법인</th><th style="text-align:right">건수</th><th style="text-align:right">구매금액</th></tr></thead><tbody>${companyRows}</tbody></table>
+  </div>
+
+  <div class="section">
+    <h2>부서별 집계</h2>
+    <table><thead><tr><th>부서</th><th style="text-align:right">건수</th><th style="text-align:right">구매금액</th></tr></thead><tbody>${deptRows}</tbody></table>
+  </div>
+
+  <p class="footer">SW Portal · HW 자산관리</p>
+</div>
+</body>
+</html>`;
+}
+
 // 법인별 재고 탭 (INT-#### 자산번호 제외)
 function StockByCompanyTab({ records, loading }: { records: HwRecord[]; loading: boolean }) {
   const rows = useMemo(() => {
@@ -2037,7 +2424,7 @@ function StockByCompanyTab({ records, loading }: { records: HwRecord[]; loading:
 // ─────────────────────────────────────────────────────────────────────────────
 // 메인 HwPanel — 데이터 1회 fetch, 모든 탭에 props 전달
 // ─────────────────────────────────────────────────────────────────────────────
-type Tab = "dashboard"|"shipment"|"return"|"search"|"upload"|"dispatch"|"label"|"stock";
+type Tab = "dashboard"|"shipment"|"return"|"search"|"upload"|"dispatch"|"registration"|"label"|"stock";
 
 interface DispatchRecord {
   id: string;
@@ -2217,6 +2604,7 @@ export default function HwPanel({ company = "", initialStats, isSuperAdmin = fal
     { id: "search",    label: "자산 검색",   icon: "🔍" },
     { id: "upload",    label: "엑셀 등록",   icon: "📂" },
     { id: "dispatch",  label: "자산지급 현황",icon: "📋" },
+    { id: "registration", label: "등록 현황", icon: "🆕" },
     { id: "label",     label: "행낭 발송지", icon: "🏷️" },
     { id: "stock",     label: "법인별 재고", icon: "📦" },
   ];
@@ -2332,6 +2720,7 @@ export default function HwPanel({ company = "", initialStats, isSuperAdmin = fal
       {tab === "search"    && <SearchTab companyLock={company} onUpdate={handleUpdate} isSuperAdmin={isSuperAdmin} />}
       {tab === "upload"    && <ExcelUploadTab />}
       {tab === "dispatch"  && <DispatchHistoryTab />}
+      {tab === "registration" && <RegistrationLogTab />}
       {tab === "label"     && <LabelPrintTab records={records} recordsReady={recordsReady} onLoadRecords={loadAll} />}
       {tab === "stock"     && <StockByCompanyTab records={records} loading={recordsLoading} />}
     </div>

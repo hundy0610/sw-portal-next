@@ -5,6 +5,9 @@ import { computeHwStats, type HwRecord } from "@/lib/hw";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { getSessionFromCookieHeader, resolveCurrentName, companyScope } from "@/lib/session";
 import { errorMessage } from "@/lib/api-error";
+import type { RegistrationRecord } from "@/app/api/hw/registration-log/route";
+
+const REGISTRATION_LOG_KEY = "hw-registration-log";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
@@ -246,6 +249,30 @@ export async function POST(req: NextRequest) {
       } catch (e) {
         // KV 패치 실패는 치명적이지 않음 (warm-hw.yml 2시간마다 갱신)
         console.warn("[hw/upload] KV patch failed:", e);
+      }
+
+      // 신규 등록 로그 기록 (연단위 분석용 — 서버에서 직접 기록해 누락 방지)
+      try {
+        const successRows = results.filter(r => r.ok).map(r => rows[r.index]);
+        const newLogs: RegistrationRecord[] = successRows.map(row => ({
+          id: crypto.randomUUID(),
+          registeredAt: modifiedAt,
+          assetNo: row.assetNo || "",
+          model: row.model || "",
+          serial: row.serial || "",
+          user: row.user || "",
+          company: row.company || "",
+          dept: row.dept || "",
+          maker: row.maker || "",
+          price: row.price || 0,
+          purchaseDate: toIsoDate(row.purchaseDate as unknown as string | number) || "",
+          useDate: toIsoDate(row.useDate as unknown as string | number) || "",
+          registeredBy: modifiedBy,
+        }));
+        const existingLog = (await kvGet<RegistrationRecord[]>(REGISTRATION_LOG_KEY)) ?? [];
+        await kvSetPermanent(REGISTRATION_LOG_KEY, [...newLogs, ...existingLog]);
+      } catch (e) {
+        console.warn("[hw/upload] registration-log patch failed:", e);
       }
     }
 
