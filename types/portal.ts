@@ -23,22 +23,6 @@ export interface Course {
   createdAt: string;
 }
 
-export type ResourceCategory = "install" | "policy" | "forms" | "other";
-
-export interface Resource {
-  id: string;
-  title: string;
-  category: ResourceCategory;
-  fileUrl: string;
-  fileType: string;      // PDF, XLSX, DOCX …
-  fileSize: string;      // 예: "2.1 MB"
-  description: string;
-  updatedAt: string;     // YYYY-MM-DD
-  order: number;
-  visible: boolean;
-  createdAt: string;
-}
-
 export interface SwFile {
   id: string;
   name: string;
