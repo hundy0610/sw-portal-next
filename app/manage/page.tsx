@@ -633,7 +633,7 @@ function SwPanel() {
 
       <ItemList loading={loading} empty="아직 등록된 SW가 없습니다.">
         {filtered.map(sw => {
-          const st = STATUS_STYLE[sw.status];
+          const st = STATUS_STYLE[sw.status] ?? { text: sw.status, bg: C.bg, color: C.text3 };
           const linkedRes = resources.find(r => r.id === sw.resourceId);
           return (
             <div key={sw.id} style={{ background: "#fff", borderRadius: 16, padding: 20, display: "flex", alignItems: "center", gap: 16, border: `1px solid ${C.border}` }}>
