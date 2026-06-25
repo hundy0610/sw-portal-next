@@ -511,7 +511,7 @@ function AuditPanel() {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-                {["일시", "관리자", "액션", "대상", "항목"].map(h => (
+                {["일시", "관리자", "액션", "대상", "항목", "상세"].map(h => (
                   <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: 11, fontWeight: 700, color: C.text4, textTransform: "uppercase", letterSpacing: ".04em" }}>{h}</th>
                 ))}
               </tr>
@@ -530,7 +530,8 @@ function AuditPanel() {
                       <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: as.bg, color: as.color }}>{as.label}</span>
                     </td>
                     <td style={{ padding: "12px 16px", fontSize: 12, color: C.text3 }}>{TARGET_LABEL[log.target]}</td>
-                    <td style={{ padding: "12px 16px", fontSize: 13, color: C.text2, maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{log.itemTitle}</td>
+                    <td style={{ padding: "12px 16px", fontSize: 13, color: C.text2, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{log.itemTitle}</td>
+                    <td style={{ padding: "12px 16px", fontSize: 12, color: C.text3, maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{log.detail ?? "—"}</td>
                   </tr>
                 );
               })}

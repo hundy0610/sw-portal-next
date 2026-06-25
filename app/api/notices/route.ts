@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getNotices, saveNotices, appendAuditLog } from "@/lib/portal-store";
+import { getNotices, saveNotices, appendAuditLog, summarizeChanges } from "@/lib/portal-store";
 import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
 import type { Notice } from "@/types/portal";
 
@@ -41,10 +41,16 @@ export async function POST(req: NextRequest) {
   if (body._action === "update") {
     const target = all.find(n => n.id === body.id);
     await saveNotices(all.map(n => n.id === body.id ? { ...n, ...body.data } : n));
+    const detail = summarizeChanges(target, body.data, [
+      { key: "title",   label: "제목" },
+      { key: "visible", label: "공개 여부", format: v => (v ? "공개" : "숨김") },
+      { key: "urgent",  label: "긴급",     format: v => (v ? "긴급" : "일반") },
+    ]);
     await appendAuditLog({
       adminId: session.userId, adminName,
       action: "update", target: "notices",
       itemTitle: body.data?.title ?? target?.title ?? body.id,
+      detail,
       timestamp: new Date().toISOString(),
     });
     return NextResponse.json({ ok: true });

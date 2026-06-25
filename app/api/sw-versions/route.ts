@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchSwVersions, createSwVersion, updateSwVersion, archiveSwVersion } from "@/lib/notion";
 import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
-import { appendAuditLog } from "@/lib/portal-store";
+import { appendAuditLog, summarizeChanges } from "@/lib/portal-store";
 import { errorMessage } from "@/lib/api-error";
 
 function getSuperSession(req: NextRequest) {
@@ -39,9 +39,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
     if (body._action === "update") {
+      const all = await fetchSwVersions(false);
+      const target = all.find(v => v.id === body.id);
       await updateSwVersion(body.id, body.data);
-      const title = body.data?.name ? `${body.data.name} ${body.data.version ?? ""}`.trim() : body.id;
-      await appendAuditLog({ adminId: session.userId, adminName, action: "update", target: "swresources", itemTitle: title, timestamp: new Date().toISOString() });
+      const detail = summarizeChanges(target, body.data, [
+        { key: "visible", label: "공개 여부", format: v => (v ? "공개" : "숨김") },
+        { key: "name",    label: "이름" },
+        { key: "version", label: "버전" },
+      ]);
+      const title = body.data?.name ? `${body.data.name} ${body.data.version ?? ""}`.trim() : target ? `${target.name} ${target.version}` : body.id;
+      await appendAuditLog({ adminId: session.userId, adminName, action: "update", target: "swresources", itemTitle: title, detail, timestamp: new Date().toISOString() });
       return NextResponse.json({ ok: true });
     }
     // create
