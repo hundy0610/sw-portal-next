@@ -86,10 +86,10 @@ const SUPER_GROUPS: MenuGroup[] = [
     items: [
       { id: "accounts",      icon: "👤", label: "계정 권한 설정", desc: "담당자 계정 관리"    },
       { id: "contracts",     icon: "📋", label: "계약 관리",       desc: "PC/OA 유지보수 계약" },
-      { id: "audit",         icon: "🕵️", label: "감사 로그",       desc: "관리자 변경 이력"     },
       { id: "work-feedback", icon: "🌱", label: "업무 피드백",     desc: "연/월/주간 목표 관리" },
       { id: "bugreport",     icon: "🐛", label: "버그리포트",      desc: "버그 및 개선요청 관리" },
       { id: "worktracker",   icon: "🗂️", label: "작업 트래커",     desc: "개인 작업 칸반 관리"   },
+      { id: "audit",         icon: "🕵️", label: "감사 로그",       desc: "관리자 변경 이력"     },
     ],
   },
 ];
