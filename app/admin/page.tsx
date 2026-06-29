@@ -26,6 +26,7 @@ const BugReportPanel         = dynamic(() => import("@/components/admin/BugRepor
 const WorkTrackerPanel        = dynamic(() => import("@/components/admin/WorkTrackerPanel"),       { ssr: false });
 const MeetingRentalPanel      = dynamic(() => import("@/components/admin/MeetingRentalPanel"),      { ssr: false });
 const RenewalAlertModal       = dynamic(() => import("@/components/admin/RenewalAlertModal"),       { ssr: false });
+const NotificationBell        = dynamic(() => import("@/components/admin/NotificationBell"),        { ssr: false });
 const AuditLogPanel           = dynamic(() => import("@/components/admin/AuditLogPanel"),           { ssr: false });
 const SurveyDemandPanel       = dynamic(() => import("@/components/admin/SurveyDemandPanel"),       { ssr: false });
 
@@ -316,6 +317,9 @@ export default function AdminPage() {
             <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
             Notion 연동 중
           </div>
+
+          {/* 알림센터 (슈퍼어드민 전용) */}
+          {isSuper && <NotificationBell onNavigate={(p) => setPage(p as PageId)} />}
 
           {/* 다크모드 토글 */}
           <button
