@@ -27,6 +27,7 @@ const WorkTrackerPanel        = dynamic(() => import("@/components/admin/WorkTra
 const MeetingRentalPanel      = dynamic(() => import("@/components/admin/MeetingRentalPanel"),      { ssr: false });
 const RenewalAlertModal       = dynamic(() => import("@/components/admin/RenewalAlertModal"),       { ssr: false });
 const AuditLogPanel           = dynamic(() => import("@/components/admin/AuditLogPanel"),           { ssr: false });
+const SurveyDemandPanel       = dynamic(() => import("@/components/admin/SurveyDemandPanel"),       { ssr: false });
 
 // ── 세션 타입 ──────────────────────────────────────────────────
 interface SessionInfo {
@@ -37,7 +38,7 @@ interface SessionInfo {
   mustChangePassword?: boolean;
 }
 
-type PageId = "home" | "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "rental-hw" | "accounts" | "assetmap" | "helpdesk" | "contracts" | "repair" | "hw-repair" | "exchange-return" | "work-feedback" | "worktracker" | "meeting-rental" | "audit";
+type PageId = "home" | "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "rental-hw" | "accounts" | "assetmap" | "helpdesk" | "contracts" | "repair" | "hw-repair" | "exchange-return" | "work-feedback" | "worktracker" | "meeting-rental" | "audit" | "survey-demand";
 
 // 슈퍼어드민 전용 페이지 (company 계정은 접근 불가)
 const SUPER_ONLY_PAGES = new Set<PageId>(["credentials", "swdb", "accounts", "contracts", "rental-hw", "hw-repair", "exchange-return", "work-feedback", "worktracker", "meeting-rental", "audit"]);
@@ -90,6 +91,7 @@ const SUPER_GROUPS: MenuGroup[] = [
       { id: "bugreport",     icon: "🐛", label: "버그리포트",      desc: "버그 및 개선요청 관리" },
       { id: "worktracker",   icon: "🗂️", label: "작업 트래커",     desc: "개인 작업 칸반 관리"   },
       { id: "audit",         icon: "🕵️", label: "감사 로그",       desc: "관리자 변경 이력"     },
+      { id: "survey-demand", icon: "📝", label: "업무 툴 수요조사", desc: "번역 툴 수요 응답 관리" },
     ],
   },
 ];
@@ -236,6 +238,7 @@ export default function AdminPage() {
       case "accounts":    return canAccess("accounts")    ? <AccountsPanel isSuperAdmin={session?.role === "super"} />   : <AccessDenied />;
       case "contracts":     return canAccess("contracts")   ? <ContractPanel />   : <AccessDenied />;
       case "audit":         return canAccess("audit")       ? <AuditLogPanel />   : <AccessDenied />;
+      case "survey-demand": return <SurveyDemandPanel />;
       case "work-feedback": return canAccess("work-feedback") ? <WorkFeedbackPanel session={{ role: session.role, userId: session.userId, name: session.name }} /> : <AccessDenied />;
       case "bugreport":     return <BugReportPanel />;
       case "worktracker":   return canAccess("worktracker") ? <WorkTrackerPanel session={{ userId: session.userId, name: session.name }} /> : <AccessDenied />;
