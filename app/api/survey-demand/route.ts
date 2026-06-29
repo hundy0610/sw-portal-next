@@ -32,7 +32,6 @@ export async function POST(req: NextRequest) {
         "사용목적": { rich_text: [{ text: { content: purpose.trim() } }] },
         "사용주기": { rich_text: [{ text: { content: frequency.trim() } }] },
         "특이사항": { rich_text: [{ text: { content: (note ?? "").trim() } }] },
-        "상태": { select: { name: "접수" } },
         "제출일시": { date: { start: new Date().toISOString() } },
       } as Parameters<typeof notion.pages.create>[0]["properties"],
     });
@@ -80,7 +79,6 @@ export async function GET(req: NextRequest) {
       purpose:     getText(p.properties, "사용목적"),
       frequency:   getText(p.properties, "사용주기"),
       note:        getText(p.properties, "특이사항"),
-      status:      p.properties["상태"]?.select?.name ?? "접수",
       submittedAt: p.properties["제출일시"]?.date?.start ?? p.created_time,
       notionUrl:   p.url,
     }));
@@ -91,19 +89,15 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ── PATCH: 응답 상태 업데이트 (관리자) ────────────────────────────────
-export async function PATCH(req: NextRequest) {
+// ── DELETE: 응답 삭제 (관리자) ────────────────────────────────────────
+export async function DELETE(req: NextRequest) {
   const session = getSessionFromCookieHeader(req.headers.get("cookie"));
   if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
   try {
-    const { id, status } = await req.json();
-    await notion.pages.update({
-      page_id: id,
-      properties: {
-        "상태": { select: { name: status } },
-      } as Parameters<typeof notion.pages.update>[0]["properties"],
-    });
+    const { id } = await req.json();
+    if (!id) return NextResponse.json({ ok: false, error: "id 필수" }, { status: 400 });
+    await notion.pages.update({ page_id: id, archived: true });
     return NextResponse.json({ ok: true });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message }, { status: 500 });
