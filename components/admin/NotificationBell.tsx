@@ -28,24 +28,36 @@ const CATEGORY_ICON: Record<NotifCategory, string> = {
   "weekly-feedback": "🌱",
 };
 
-const SEVERITY_STYLE: Record<NotificationItem["severity"], { text: string; dot: string }> = {
-  urgent: { text: "text-red-600", dot: "bg-red-500" },
-  warn:   { text: "text-amber-700", dot: "bg-amber-500" },
-  info:   { text: "text-blue-600", dot: "bg-blue-500" },
+const SEVERITY_STYLE: Record<NotificationItem["severity"], { text: string; dot: string; border: string }> = {
+  urgent: { text: "text-red-600", dot: "bg-red-500", border: "border-l-red-500" },
+  warn:   { text: "text-amber-700", dot: "bg-amber-500", border: "border-l-amber-500" },
+  info:   { text: "text-blue-600", dot: "bg-blue-500", border: "border-l-blue-500" },
 };
 
 export default function NotificationBell({ onNavigate }: Props) {
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
+  const [toasts, setToasts] = useState<NotificationItem[]>([]);
   const rootRef = useRef<HTMLDivElement>(null);
+  const knownIdsRef = useRef<Set<string> | null>(null); // null = 첫 폴링 전 (기존 알림은 팝업 안 띄움)
 
   const load = useCallback(async () => {
     try {
       const json = await fetch("/api/notifications").then(r => safeJson(r));
       if (json.ok) {
-        setItems(json.notifications ?? []);
+        const next: NotificationItem[] = json.notifications ?? [];
+        setItems(next);
         setUnreadCount(json.unreadCount ?? 0);
+
+        // 이전 폴링 이후 새로 나타난 항목만 하단 팝업으로 표시
+        if (knownIdsRef.current) {
+          const newOnes = next.filter(n => !n.read && !knownIdsRef.current!.has(n.id));
+          if (newOnes.length > 0) {
+            setToasts(prev => [...prev, ...newOnes.filter(n => !prev.some(p => p.id === n.id))]);
+          }
+        }
+        knownIdsRef.current = new Set(next.map(n => n.id));
       }
     } catch { /* silent */ }
   }, []);
@@ -95,7 +107,18 @@ export default function NotificationBell({ onNavigate }: Props) {
     setOpen(false);
   };
 
+  const dismissToast = (id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  };
+
+  const handleToastClick = (item: NotificationItem) => {
+    onNavigate(item.page);
+    if (!item.read) markRead([item.id]);
+    dismissToast(item.id);
+  };
+
   return (
+    <>
     <div ref={rootRef} className="relative">
       <button
         onClick={() => setOpen(v => !v)}
@@ -150,5 +173,34 @@ export default function NotificationBell({ onNavigate }: Props) {
         </div>
       )}
     </div>
+
+    {/* 신규 알림 팝업 — 화면 하단, 직접 닫기 전까지 유지 */}
+    {toasts.length > 0 && (
+      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 w-80">
+        {toasts.map(item => {
+          const s = SEVERITY_STYLE[item.severity];
+          return (
+            <div
+              key={item.id}
+              className={`bg-white rounded-lg shadow-2xl border border-gray-100 border-l-4 ${s.border} flex gap-2.5 items-start p-3`}
+            >
+              <span className="text-base shrink-0 leading-none mt-0.5">{CATEGORY_ICON[item.category]}</span>
+              <button onClick={() => handleToastClick(item)} className="flex-1 min-w-0 text-left">
+                <span className="text-xs font-semibold text-gray-800 block truncate">{item.title}</span>
+                <span className={`text-xs mt-0.5 block ${s.text}`}>{item.description}</span>
+              </button>
+              <button
+                onClick={() => dismissToast(item.id)}
+                className="text-gray-300 hover:text-gray-500 text-sm leading-none shrink-0 px-0.5"
+                title="닫기"
+              >
+                ✕
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    )}
+    </>
   );
 }
