@@ -461,6 +461,7 @@ function Step2({ userInfo, initialRecords, onComplete }: {
   const [updating,   setUpdating]   = useState<Record<string, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const updateStatus = async (id: string, status: string) => {
     setUpdating(u => ({ ...u, [id]: true }));
@@ -555,7 +556,9 @@ function Step2({ userInfo, initialRecords, onComplete }: {
               return (
                 <li key={r.id} className={`px-5 py-4 flex items-center gap-3 ${shared ? "bg-amber-50/40" : ""}`}>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
+                    <button type="button"
+                      onClick={() => setExpandedId(id => id === r.id ? null : r.id)}
+                      className="flex items-center gap-2 flex-wrap text-left hover:opacity-70 transition-opacity">
                       <span className="font-semibold text-gray-900 text-sm">{r.swCategory}</span>
                       {r.swDetail && <span className="text-xs text-gray-400">{r.swDetail}</span>}
                       {r.version.length > 0 && (
@@ -563,7 +566,8 @@ function Step2({ userInfo, initialRecords, onComplete }: {
                           {r.version.join(" · ")}
                         </span>
                       )}
-                    </div>
+                      <span className="text-[10px] text-gray-300">{expandedId === r.id ? "▲" : "▼"}</span>
+                    </button>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[r.status] ?? "bg-gray-100 text-gray-600"}`}>
                         {r.status}
@@ -580,11 +584,17 @@ function Step2({ userInfo, initialRecords, onComplete }: {
                       {shared && cost && (
                         <span className="text-xs text-amber-500 font-medium line-through opacity-60">{cost}/월</span>
                       )}
-                      {r.notionUrl && (
-                        <a href={r.notionUrl} target="_blank" rel="noreferrer"
-                          className="text-xs text-amber-400 hover:text-amber-600 underline underline-offset-2">Notion ↗</a>
-                      )}
                     </div>
+                    {expandedId === r.id && (
+                      <div className="mt-2 pt-2 border-t border-gray-100 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                        {r.accountType  && <span><span className="text-gray-400">계정유형</span> · {r.accountType}</span>}
+                        {r.renewalCycle && <span><span className="text-gray-400">갱신주기</span> · {r.renewalCycle}</span>}
+                        {r.renewalDate  && <span><span className="text-gray-400">갱신필요일</span> · {r.renewalDate}</span>}
+                        {!r.accountType && !r.renewalCycle && !r.renewalDate && (
+                          <span className="text-gray-300">추가 정보가 없습니다</span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="flex flex-col sm:flex-row gap-1.5 shrink-0">
                     <button onClick={() => updateStatus(r.id, "사용중")} disabled={updating[r.id]}
