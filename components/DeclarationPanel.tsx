@@ -270,7 +270,7 @@ function Step1({ onNext }: { onNext: (info: UserInfo, records: SwRecord[]) => vo
           {loading ? "조회 중…" : "SW 현황 조회 →"}
         </button>
         <p className="mt-3 text-xs text-center text-gray-400">
-          이름은 Notion DB에 등록된 이름과 동일해야 합니다
+          이름은 메신저 상의 이름과 동일해야 합니다
         </p>
       </div>
     </div>
@@ -834,7 +834,7 @@ function ModeSelect({ onSelect }: { onSelect: (m: "personal" | "team") => void }
         <button onClick={() => onSelect("personal")}
           className="bg-white rounded-2xl border border-gray-200 shadow-sm p-7 text-left hover:border-amber-400 hover:shadow-lg hover:-translate-y-0.5 transition-all flex flex-col gap-4">
           <div className="w-14 h-14 rounded-xl bg-amber-500 flex items-center justify-center shrink-0">
-            <span className="text-white text-xl font-extrabold">1</span>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           </div>
           <div className="flex-1">
             <p className="font-bold text-gray-900 text-base">개인 실사</p>
@@ -845,7 +845,7 @@ function ModeSelect({ onSelect }: { onSelect: (m: "personal" | "team") => void }
         <button onClick={() => onSelect("team")}
           className="bg-white rounded-2xl border border-gray-200 shadow-sm p-7 text-left hover:border-amber-400 hover:shadow-lg hover:-translate-y-0.5 transition-all flex flex-col gap-4">
           <div className="w-14 h-14 rounded-xl bg-amber-500 flex items-center justify-center shrink-0">
-            <span className="text-white text-xl font-extrabold">T</span>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           </div>
           <div className="flex-1">
             <p className="font-bold text-gray-900 text-base">팀(부서) 실사</p>
