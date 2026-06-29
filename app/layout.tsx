@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import BugReportButton from "@/components/BugReportButton";
 
 const isTest = process.env.VERCEL_GIT_COMMIT_REF === "TEST";
 
@@ -29,7 +28,6 @@ export default function RootLayout({
       </head>
       <body>
         {children}
-        <BugReportButton />
       </body>
     </html>
   );

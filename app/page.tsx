@@ -3,10 +3,9 @@
 import { useEffect, useState, useMemo } from "react";
 import type { SwItem } from "@/types";
 import type { Notice, Course } from "@/types/portal";
-import DeclarationPanel from "@/components/DeclarationPanel";
 import { safeJson } from "@/lib/fetch-json";
 
-type Tab = "home" | "education" | "search" | "declaration";
+type Tab = "home" | "education" | "search";
 
 const INQUIRY_URL = "https://assetify-desk-main.vercel.app";
 
@@ -67,7 +66,7 @@ const NAV_ITEMS = [
   { id: "education"   as Tab, icon: "edu",    label: "교육 센터", short: "교육",  href: undefined },
   { id: "resources",          icon: "folder", label: "자료실",    short: "자료실", href: "/resources" },
   { id: "search"      as Tab, icon: "search", label: "SW 검색",   short: "SW",   href: undefined },
-  { id: "declaration" as Tab, icon: "clip",   label: "자산 실사",  short: "실사",  href: undefined },
+  { id: "declaration",        icon: "clip",   label: "자산 실사",  short: "실사",  href: "/declaration" },
 ] as const;
 
 /* ══════════════════════════════════════════════════════
@@ -131,10 +130,9 @@ export default function PortalPage() {
       {/* ── 메인 콘텐츠 ── */}
       <main className="flex-1 lg:ml-[240px] min-h-screen pb-20 lg:pb-10 pt-14 lg:pt-0">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
-          {tab === "home"        && <HomeTab onNavigate={setTab} />}
-          {tab === "education"   && <EducationTab />}
-          {tab === "search"      && <SearchTab />}
-          {tab === "declaration" && <DeclarationPanel />}
+          {tab === "home"      && <HomeTab onNavigate={setTab} />}
+          {tab === "education" && <EducationTab />}
+          {tab === "search"    && <SearchTab />}
         </div>
       </main>
 
@@ -183,7 +181,7 @@ function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
     { tab: "education",  icon: "edu",    title: "교육 센터", desc: "필수 이수 교육 및 SW 활용 자료",   bg: "#F3E8FF", color: "#7C3AED" },
     { tab: null,         href: "/resources", icon: "folder", title: "자료실", desc: "설치 가이드, 정책 지침, 양식 서식", bg: "#FEF3C7", color: "#D97706" },
     { tab: "search",     icon: "search", title: "SW 검색",   desc: "승인·금지 SW 여부 즉시 확인",      bg: "#FFFBEB", color: "#F59E0B" },
-    { tab: "declaration",icon: "clip",   title: "자산 실사", desc: "소프트웨어 자산 현황 신고하기",     bg: "#D1FAE5", color: "#059669" },
+    { tab: null,         href: "/declaration", icon: "clip", title: "자산 실사", desc: "소프트웨어 자산 현황 신고하기", bg: "#D1FAE5", color: "#059669" },
   ];
 
   return (

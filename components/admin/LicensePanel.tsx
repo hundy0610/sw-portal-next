@@ -6,6 +6,7 @@ import type { SwDbRecord } from "@/types";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import { scGet, scSet, scDel } from "@/lib/session-cache";
 import { safeJson } from "@/lib/fetch-json";
+import { downloadSwTemplate } from "@/lib/sw-template";
 
 const LC_KEY    = (co: string) => `lc:lp:swrec${co ? `:${co}` : ""}`;
 const LC_TTL_MS = 30 * 60 * 1000; // localStorage 30분
@@ -1247,39 +1248,7 @@ function SwExcelUpload({ onClose, onSuccess }: { onClose: () => void; onSuccess:
 
   // ── 양식 다운로드 ─────────────────────────────────────────────────────────
   function downloadTemplate() {
-    const headers = [
-      "사용자","SW대분류","SW소분류","버전(쉼표구분)","상태",
-      "법인명","라이선스유형","부서","사용일자","갱신필요일","구매일자",
-      "계정유형","갱신주기","인증키/인증계정","구매처","SW사용직군","결제방식",
-      "월비용KRW","월비용USD",
-    ];
-    const sample = [
-      "홍길동","MS Office","Office 365","2021,2024","사용중",
-      "대웅제약","영구","IT팀","2024-01-01","2025-12-31","2024-01-01",
-      "법인","연","XXXXX-XXXXX-XXXXX","MS Korea","사무직","법인카드",
-      0, 0,
-    ];
-    const note = [
-      "※ 사용자·SW대분류는 필수 입력",
-      "상태: 사용중/재고/갱신필요/만료/신규등록",
-      "라이선스유형: 영구/구독(업체)/구독(웹)",
-      "버전: 쉼표로 구분 (예: 2021,2024)",
-      "날짜: YYYY-MM-DD 형식",
-    ];
-
-    const ws = XLSX.utils.aoa_to_sheet([headers, sample]);
-
-    // 컬럼 너비 설정
-    ws["!cols"] = headers.map(() => ({ wch: 18 }));
-
-    // 안내 시트 추가
-    const noteWs = XLSX.utils.aoa_to_sheet(note.map(n => [n]));
-    noteWs["!cols"] = [{ wch: 60 }];
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "SW등록양식");
-    XLSX.utils.book_append_sheet(wb, noteWs, "입력안내");
-    XLSX.writeFile(wb, "SW자산_등록양식.xlsx");
+    downloadSwTemplate();
   }
 
   // ── 파일 파싱 ─────────────────────────────────────────────────────────────
