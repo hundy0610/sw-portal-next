@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
-import { decodeSession } from "@/lib/session";
+import { decodeSession, resolveCurrentName } from "@/lib/session";
 import { createMailTransporter, buildMonitorRepairEmail } from "@/lib/mail";
 import type { GmDetail } from "@/app/api/admin/accounts/route";
 
@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
     status: "pending",
     createdAt: new Date().toISOString(),
     createdBy: session.userId,
-    createdByName: session.name,
+    createdByName: await resolveCurrentName(session),
     note,
   };
 

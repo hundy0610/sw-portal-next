@@ -23,8 +23,11 @@ export interface SwDbRecord {
   vendor: string;                         // 구매처
   usageCount: number;                     // 사용횟수
   certificate: string;                    // 증서 (file URL)
+  draftDocument: string;                  // 기안문서 (file URL)
   workType: string;                       // SW사용직군
   billingType?: string;                   // 결제방식 (대웅 등)
+  lastModifiedBy?: string;                // 마지막수정자 (이름 + 아이디)
+  lastModifiedAt?: string;                // 마지막수정일시 (ISO)
   monthlyUsd: number;                     // 월 비용 (USD)
   monthlyKrw: number;                     // 월 비용 (KRW)
   annualUsd: number;                      // 연 비용 (USD) — formula 또는 monthlyUsd×12
@@ -45,7 +48,6 @@ export interface SwItem {
   mandatory: boolean;
   description: string;
   officialUrl?: string;   // 공식 다운로드/제품 페이지
-  resourceId?: string;    // 자료실 연동 (Resource.id)
   notionUrl?: string;
 }
 
@@ -127,20 +129,23 @@ export interface Ticket {
 export interface RepairTicket {
   id: string;
   ticketNumber: string;
-  title: string;           // 고장증상 (title)
+  title: string;           // 고장증상 (title) — 모니터 번호 식별용 (구 티켓은 증상 텍스트)
   faultTypes: string[];    // 고장 내역 (multi_select)
   status: "시작 전" | "진행 중" | "완료" | "이관" | "기타";
-  priority: string;        // 긴급도 (매우 급합니다. / 조금 급합니다. / 기다릴 수 있어요.)
+  priority: string;        // [deprecated] 긴급도 (select) — 구 티켓에만 값 존재
   company: string;         // 법인 (select)
   department: string;      // 부서 (rich_text)
-  location: string;        // 실제 근무 위치 (rich_text)
-  assetId: string;         // 자산번호 (rich_text)
+  location: string;        // [deprecated] 실제 근무 위치 (rich_text) — 구 티켓에만 값 존재
+  building: string;        // 건물명 (select)
+  floor: string;           // 층수 (rich_text)
+  assetId: string;         // 자산번호 (rich_text) — 모니터 번호
+  detail: string;          // 세부내역 (rich_text) — 고장 증상 상세
   requester: string;       // 문의자 (rich_text)
   assignee: string;        // 담당자 이름 (people)
   assigneeId: string;      // 담당자 Notion user ID
   repairDate: string;      // 수리 일정 (date)
   actionNote: string;      // 조치내용 (rich_text)
-  consentGiven: boolean;   // 수리 진행 동의서 (checkbox)
+  consentGiven: boolean;   // [deprecated] 수리 진행 동의서 (checkbox) — 구 티켓에만 값 존재
   createdAt: string;       // 문의 제출 시간 (created_time)
   notionUrl: string;
 }
@@ -166,6 +171,11 @@ export interface HwRepairRecord {
   assignee: string;        // 담당자 이름 (people)
   assigneeId: string;      // 담당자 Notion user ID
   note: string;            // 수리내용 (rich_text)
+  repairCost: number;      // 수리비용 (number)
+  assetStatus: string;     // 대분류 (select): 재고 | 사용중
+  address: string;         // 배송지 (select)
+  requesterEmail: string;  // 이메일 (email)
+  isClosed: boolean;       // 케이스 종료 여부 (checkbox)
   lastEditedAt: string;    // 최종 편집 일시 (last_edited_time)
   notionUrl: string;
 }
@@ -185,16 +195,56 @@ export interface ExchangeReturnRecord {
   user: string;
   stage: string;
   requestedAt: string;
+  useDate: string;
   returnDue: string;       // 반납예정일 (사용자수령일 + 7일 자동 또는 HW DB 값)
   completedAt: string;
   reason: string;
   assignee: string;
   assigneeId: string;
   note: string;
+  address: string;         // 배송지 (select)
+  requesterEmail: string;  // 기안자이메일 (email)
   autoSynced: boolean;     // HW DB sync로 자동 진행됐는지 표시
   isClosed: boolean;       // 케이스 종료 여부 (마지막 단계 통과 시 true)
   lastEditedAt: string;
+  lastModifiedBy: string;  // 마지막수정자 (이름 + 아이디)
   notionUrl: string;
+}
+
+// ────────────────────────────────────────────────────────────
+// 회의실 무선 장비 대여신청 (신청 티켓)
+// ────────────────────────────────────────────────────────────
+export interface MeetingRentalTicket {
+  id: string;
+  requester: string;       // 신청자 (title)
+  company: string;         // 법인명 (select)
+  department: string;      // 부서 (rich_text)
+  email: string;           // 신청자 이메일 (email)
+  startAt: string;         // 신청기간 시작 (date.start)
+  endAt: string;           // 신청기간 종료 (date.end)
+  status: "시작 전" | "진행 중" | "완료";  // 상태 (status)
+  assignee: string;        // 담당자 이름 (people)
+  assigneeId: string;      // 담당자 Notion user ID
+  createdAt: string;       // 제출 시간 (created_time)
+  notionUrl: string;
+}
+
+// ────────────────────────────────────────────────────────────
+// 회의실 무선 장비 현황 (장비 인벤토리)
+// ────────────────────────────────────────────────────────────
+export interface MeetingEquipment {
+  id: string;
+  notionUrl: string;
+  name: string;            // 장비명 (title)
+  company: string;         // 법인 (select)
+  department: string;      // 부서 (rich_text)
+  inUse: boolean;          // 대여중 (checkbox)
+  status: string;          // 상태 (formula)
+  currentUser: string;     // 현재사용자 (rich_text)
+  userEmail: string;       // 사용자 이메일 (email)
+  startDate: string;       // 대여시작일 (date)
+  returnDue: string;       // 반납예정일 (date)
+  note: string;            // 비고 (rich_text)
 }
 
 // ────────────────────────────────────────────────────────────

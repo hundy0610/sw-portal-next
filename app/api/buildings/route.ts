@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { kvGet, kvSetPermanent, kvDel } from "@/lib/kv-store";
+import { errorMessage } from "@/lib/api-error";
 
 const KV_KEY = "buildings:custom";
 
@@ -28,7 +29,7 @@ export async function GET() {
     if (!cfg.floorOverrides) cfg.floorOverrides = {};
     return NextResponse.json({ ok: true, ...cfg });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }
 
@@ -39,7 +40,7 @@ export async function POST(req: NextRequest) {
     await kvSetPermanent(KV_KEY, body);
     return NextResponse.json({ ok: true });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }
 
@@ -49,6 +50,6 @@ export async function DELETE() {
     await kvDel(KV_KEY);
     return NextResponse.json({ ok: true });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }

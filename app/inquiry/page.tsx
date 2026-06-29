@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { safeJson } from "@/lib/fetch-json";
 
 const COMPANIES = ["IDS", "IDS로지스틱스", "IDS물류", "기타"];
 const INQUIRY_TYPES = ["SW", "HW", "기타"];
@@ -41,7 +42,7 @@ export default function InquiryPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!res.ok) throw new Error(json.error || "등록 실패");
       setStatus("done");
     } catch (err) {

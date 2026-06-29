@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
-import { decodeSession } from "@/lib/session";
+import { decodeSession, resolveCurrentName } from "@/lib/session";
 import { createMailTransporter, buildMonitorCompleteEmail } from "@/lib/mail";
 import type { MonitorRequest } from "../route";
 
@@ -104,7 +104,7 @@ export async function PATCH(
 
   // 완료(done) 로 변경된 경우 슈퍼어드민에게 이메일 (비동기)
   if (status === "done" && prevStatus !== "done") {
-    notifySuperAdmins(requests[idx], session.name).catch(() => {});
+    resolveCurrentName(session).then(name => notifySuperAdmins(requests[idx], name)).catch(() => {});
   }
 
   return NextResponse.json({ ok: true, request: requests[idx] });

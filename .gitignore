@@ -1,4 +1,5 @@
 # 의존성
+node_modules
 node_modules/
 .pnp
 .pnp.js
@@ -32,7 +33,8 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
-.claude/
+.claude/*
+!.claude/commands/
 
 .vercel
 CLAUDE.md

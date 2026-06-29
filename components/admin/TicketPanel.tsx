@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { Ticket } from "@/types";
 import { Badge } from "@/components/ui/Badge";
 import { SyncBanner } from "@/components/ui/SyncBanner";
+import { safeJson } from "@/lib/fetch-json";
 
 export default function TicketPanel() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -14,7 +15,7 @@ export default function TicketPanel() {
   const load = () => {
     setLoading(true);
     fetch("/api/tickets")
-      .then((r) => r.json())
+      .then((r) => safeJson(r))
       .then((res) => {
         setTickets(res.data ?? []);
         setLastSynced(res.lastSynced ?? "");

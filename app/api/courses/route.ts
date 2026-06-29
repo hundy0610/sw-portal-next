@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCourses, saveCourses, appendAuditLog } from "@/lib/portal-store";
-import { getSessionFromCookieHeader } from "@/lib/session";
+import { getCourses, saveCourses, appendAuditLog, summarizeChanges } from "@/lib/portal-store";
+import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
 import type { Course } from "@/types/portal";
 
 function getSuperSession(req: NextRequest) {
@@ -24,12 +24,13 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const all = await getCourses(false);
+  const adminName = await resolveCurrentName(session);
 
   if (body._action === "delete") {
     const target = all.find(c => c.id === body.id);
     await saveCourses(all.filter(c => c.id !== body.id));
     await appendAuditLog({
-      adminId: session.userId, adminName: session.name,
+      adminId: session.userId, adminName,
       action: "delete", target: "courses",
       itemTitle: target?.title ?? body.id,
       timestamp: new Date().toISOString(),
@@ -40,10 +41,16 @@ export async function POST(req: NextRequest) {
   if (body._action === "update") {
     const target = all.find(c => c.id === body.id);
     await saveCourses(all.map(c => c.id === body.id ? { ...c, ...body.data } : c));
+    const detail = summarizeChanges(target, body.data, [
+      { key: "title",   label: "제목" },
+      { key: "visible", label: "공개 여부", format: v => (v ? "공개" : "숨김") },
+      { key: "category", label: "분류" },
+    ]);
     await appendAuditLog({
-      adminId: session.userId, adminName: session.name,
+      adminId: session.userId, adminName,
       action: "update", target: "courses",
       itemTitle: body.data?.title ?? target?.title ?? body.id,
+      detail,
       timestamp: new Date().toISOString(),
     });
     return NextResponse.json({ ok: true });
@@ -65,7 +72,7 @@ export async function POST(req: NextRequest) {
   };
   await saveCourses([...all, course]);
   await appendAuditLog({
-    adminId: session.userId, adminName: session.name,
+    adminId: session.userId, adminName,
     action: "create", target: "courses",
     itemTitle: course.title,
     timestamp: new Date().toISOString(),

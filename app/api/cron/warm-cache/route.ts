@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { fetchSwDb, fetchSwDatabase, fetchLicenseRecords, fetchSubscriptions, fetchTickets } from "@/lib/notion";
 import { kvSetPermanent } from "@/lib/kv-store";
+import { compactSwRecords } from "@/lib/sw-compact";
 
 /**
  * GET /api/cron/warm-cache
@@ -37,7 +38,7 @@ export async function GET() {
   // TTL 없이 영구 저장 — warm-cache 30분 주기로 덮어씌우므로 TTL 불필요
   // TTL이 있으면 warm-cache 실패 시 24h 후 데이터 소멸 문제 발생
   await Promise.allSettled([
-    sw.length            ? kvSetPermanent("sw:all",            sw)            : Promise.resolve(),
+    sw.length            ? kvSetPermanent("sw:all", compactSwRecords(sw))     : Promise.resolve(),
     swdb.length          ? kvSetPermanent("swdb:all",          swdb)          : Promise.resolve(),
     licenses.length      ? kvSetPermanent("licenses:all",      licenses)      : Promise.resolve(),
     subscriptions.length ? kvSetPermanent("subscriptions:all", subscriptions) : Promise.resolve(),

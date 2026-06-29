@@ -1,13 +1,19 @@
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { memGet, memSet } from "@/lib/mem-cache";
-import type { Notice, Course, Resource } from "@/types/portal";
+import type { Notice, Course } from "@/types/portal";
 import type { SwItem } from "@/types";
+import type { BugStage } from "@/types/bug-report";
+import { DEFAULT_BUG_STAGES } from "@/types/bug-report";
+import type { WorkStage } from "@/types/work-tracker";
+import { DEFAULT_WORK_STAGES } from "@/types/work-tracker";
 
-const KV_NOTICES   = "portal:notices";
-const KV_COURSES   = "portal:courses";
-const KV_RESOURCES = "portal:resources";
-const KV_SWDB      = "portal:swdb";
-const KV_AUDIT     = "portal:audit_log";
+const KV_NOTICES    = "portal:notices";
+const KV_COURSES    = "portal:courses";
+const KV_SWDB       = "portal:swdb";
+const KV_AUDIT      = "portal:audit_log";
+const KV_ADMIN_AUDIT = "portal:admin_audit_log";
+const KV_BUG_STAGES = "portal:bug_stages";
+const KV_WORK_STAGES = "portal:work_stages";
 
 // ─── Audit Log ──────────────────────────────────────────
 export interface AuditLog {
@@ -15,33 +21,60 @@ export interface AuditLog {
   adminId: string;
   adminName: string;
   action: "create" | "update" | "delete";
-  target: "notices" | "courses" | "resources" | "swdb";
+  target:
+    | "notices" | "courses" | "swdb" | "swresources"
+    | "exchangeReturn" | "hw" | "hwRepair" | "rentalHw" | "credentials"
+    | "repairTicket" | "meetingRental" | "meetingEquipment" | "contract" | "account";
   itemTitle: string;
+  detail?: string;
   timestamp: string; // ISO
 }
 
-export async function appendAuditLog(entry: Omit<AuditLog, "id">): Promise<void> {
+// update 시 변경된 필드를 "필드명: 이전값 → 이후값" 형태로 요약 (지정한 필드만 비교)
+export function summarizeChanges<T>(
+  before: T | undefined,
+  after: Partial<T>,
+  fields: { key: keyof T; label: string; format?: (v: unknown) => string }[],
+): string | undefined {
+  if (!before) return undefined;
+  const fmtDefault = (v: unknown) => (v === undefined || v === null || v === "" ? "(없음)" : String(v));
+  const parts: string[] = [];
+  for (const f of fields) {
+    if (!(f.key in (after as object))) continue;
+    const oldV = before[f.key];
+    const newV = (after as T)[f.key];
+    if (JSON.stringify(oldV) === JSON.stringify(newV)) continue;
+    const fmt = f.format ?? fmtDefault;
+    parts.push(`${f.label}: ${fmt(oldV)} → ${fmt(newV)}`);
+  }
+  return parts.length ? parts.join(", ") : undefined;
+}
+
+export async function appendAuditLog(entry: Omit<AuditLog, "id">, key = KV_AUDIT): Promise<void> {
   if (!process.env.REDIS_URL) return;
   try {
-    const logs = (await kvGet<AuditLog[]>(KV_AUDIT)) ?? [];
+    const logs = (await kvGet<AuditLog[]>(key)) ?? [];
     const newLog: AuditLog = { id: `al_${Date.now()}`, ...entry };
     // 최대 500건 유지
     const trimmed = [newLog, ...logs].slice(0, 500);
-    await kvSetPermanent(KV_AUDIT, trimmed);
+    await kvSetPermanent(key, trimmed);
   } catch (e) {
     console.warn("[audit] log failed:", e);
   }
 }
 
-export async function getAuditLogs(limit = 100): Promise<AuditLog[]> {
+export async function getAuditLogs(limit = 100, key = KV_AUDIT): Promise<AuditLog[]> {
   if (!process.env.REDIS_URL) return [];
   try {
-    const logs = (await kvGet<AuditLog[]>(KV_AUDIT)) ?? [];
+    const logs = (await kvGet<AuditLog[]>(key)) ?? [];
     return logs.slice(0, limit);
   } catch {
     return [];
   }
 }
+
+export const appendAdminAuditLog = (entry: Omit<AuditLog, "id">) => appendAuditLog(entry, KV_ADMIN_AUDIT);
+export const getAdminAuditLogs = (limit = 100) => getAuditLogs(limit, KV_ADMIN_AUDIT);
 
 // 인메모리 캐시 TTL: 60초 (포털 콘텐츠는 자주 바뀌지 않음)
 const MEM_TTL = 60;
@@ -77,20 +110,34 @@ export async function saveCourses(courses: Course[]): Promise<void> {
   memSet(KV_COURSES, courses, MEM_TTL);
 }
 
-// ─── Resources ──────────────────────────────────────────
-export async function getResources(onlyVisible = true): Promise<Resource[]> {
-  let data = memGet<Resource[]>(KV_RESOURCES);
+// ─── 버그리포트 칸반 단계 ──────────────────────────────────
+export async function getBugStages(): Promise<BugStage[]> {
+  let data = memGet<BugStage[]>(KV_BUG_STAGES);
   if (!data) {
-    data = (await kvGet<Resource[]>(KV_RESOURCES)) ?? [];
-    memSet(KV_RESOURCES, data, MEM_TTL);
+    data = (await kvGet<BugStage[]>(KV_BUG_STAGES)) ?? DEFAULT_BUG_STAGES;
+    memSet(KV_BUG_STAGES, data, MEM_TTL);
   }
-  const list = onlyVisible ? data.filter(r => r.visible) : data;
-  return list.sort((a, b) => a.order - b.order);
+  return data;
 }
 
-export async function saveResources(resources: Resource[]): Promise<void> {
-  await kvSetPermanent(KV_RESOURCES, resources);
-  memSet(KV_RESOURCES, resources, MEM_TTL);
+export async function saveBugStages(stages: BugStage[]): Promise<void> {
+  await kvSetPermanent(KV_BUG_STAGES, stages);
+  memSet(KV_BUG_STAGES, stages, MEM_TTL);
+}
+
+// ─── 작업 트래커 칸반 단계 ─────────────────────────────────
+export async function getWorkStages(): Promise<WorkStage[]> {
+  let data = memGet<WorkStage[]>(KV_WORK_STAGES);
+  if (!data) {
+    data = (await kvGet<WorkStage[]>(KV_WORK_STAGES)) ?? DEFAULT_WORK_STAGES;
+    memSet(KV_WORK_STAGES, data, MEM_TTL);
+  }
+  return data;
+}
+
+export async function saveWorkStages(stages: WorkStage[]): Promise<void> {
+  await kvSetPermanent(KV_WORK_STAGES, stages);
+  memSet(KV_WORK_STAGES, stages, MEM_TTL);
 }
 
 // ─── SW DB (화이트/블랙리스트) ───────────────────────────
@@ -106,4 +153,23 @@ export async function getSwItems(): Promise<SwItem[]> {
 export async function saveSwItems(items: SwItem[]): Promise<void> {
   await kvSetPermanent(KV_SWDB, items);
   memSet(KV_SWDB, items, MEM_TTL);
+}
+
+// ─── Event Status ────────────────────────────────────────
+const KV_EVENT_OPEN = "event:toto:open";
+
+export async function getEventOpen(): Promise<boolean> {
+  const cached = memGet<boolean>(KV_EVENT_OPEN);
+  if (cached !== null) return cached;
+  const kvValue = await kvGet<boolean>(KV_EVENT_OPEN);
+  if (kvValue !== null) {
+    memSet(KV_EVENT_OPEN, kvValue, MEM_TTL);
+    return kvValue;
+  }
+  return true; // default: open
+}
+
+export async function setEventOpen(open: boolean): Promise<void> {
+  memSet(KV_EVENT_OPEN, open, 3600 * 24 * 7);
+  await kvSetPermanent(KV_EVENT_OPEN, open);
 }

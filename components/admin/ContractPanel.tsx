@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import type { Contract, ContractStage } from "@/types/contract";
 import { CONTRACT_STAGES } from "@/types/contract";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
+import { safeJson } from "@/lib/fetch-json";
 
 const UNIT_PRICE_DEFAULT = 6000;
 const MAX_PDF_MB = 4; // Vercel 서버리스 request body 한도 4.5MB 이내로 여유 설정
@@ -172,7 +173,7 @@ export default function ContractPanel() {
     setLoading(true);
     try {
       const res  = await fetch("/api/contracts");
-      const data = await res.json();
+      const data = await safeJson(res);
       if (data.missingEnv) { setMissingEnv(data.missingEnv); return; }
       if (data.ok) setContracts(data.contracts ?? []);
       else showToast("데이터 로드 실패", "err");
@@ -258,7 +259,7 @@ export default function ContractPanel() {
       const url    = editTarget ? `/api/contracts/${editTarget.id}` : "/api/contracts";
       const method = editTarget ? "PUT" : "POST";
       const res    = await fetch(url, { method, body: fd });
-      const data   = await res.json();
+      const data   = await safeJson(res);
 
       if (data.ok) {
         showToast(editTarget ? "계약이 수정되었습니다" : "계약이 등록되었습니다", "ok");
@@ -278,7 +279,7 @@ export default function ContractPanel() {
   async function handleDelete(id: string) {
     try {
       const res  = await fetch(`/api/contracts/${id}`, { method: "DELETE" });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (data.ok) {
         showToast("계약이 삭제되었습니다", "ok");
         setDeleteId(null);
@@ -304,7 +305,7 @@ export default function ContractPanel() {
         body: JSON.stringify({ stage: newStage }),
       });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
+        const body = await safeJson(res);
         throw new Error(body.error ?? `HTTP ${res.status}`);
       }
     } catch (e) {

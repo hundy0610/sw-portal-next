@@ -2,6 +2,17 @@
 // 관리자 세션 유틸리티
 // ────────────────────────────────────────────────────────────
 
+import crypto from "crypto";
+import { kvGet } from "@/lib/kv-store";
+
+const ACCOUNTS_KEY = "sw:accounts";
+const SESSION_SECRET = process.env.SESSION_SECRET;
+
+function sign(payload: string): string {
+  if (!SESSION_SECRET) throw new Error("SESSION_SECRET env var is not set");
+  return crypto.createHmac("sha256", SESSION_SECRET).update(payload).digest("hex");
+}
+
 export interface AdminSession {
   notionPageId: string;      // Notion 계정 페이지 ID ("env-super" for ENV-based)
   userId: string;            // 로그인 아이디
@@ -14,12 +25,24 @@ export interface AdminSession {
 }
 
 export function encodeSession(session: AdminSession): string {
-  return Buffer.from(JSON.stringify(session)).toString("base64");
+  const payload = Buffer.from(JSON.stringify(session)).toString("base64");
+  return `${payload}.${sign(payload)}`;
 }
 
 export function decodeSession(token: string): AdminSession | null {
+  if (!SESSION_SECRET) return null;
   try {
-    const json = Buffer.from(token, "base64").toString("utf-8");
+    const dotIdx = token.lastIndexOf(".");
+    if (dotIdx === -1) return null;
+    const payload = token.slice(0, dotIdx);
+    const sig = token.slice(dotIdx + 1);
+
+    const expected = sign(payload);
+    const a = Buffer.from(sig, "hex");
+    const b = Buffer.from(expected, "hex");
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+
+    const json = Buffer.from(payload, "base64").toString("utf-8");
     const s = JSON.parse(json) as AdminSession;
     if (!s.userId || !s.role) return null;
     // backward compat: fill missing fields
@@ -31,6 +54,24 @@ export function decodeSession(token: string): AdminSession | null {
   }
 }
 
+// 쿠키의 이름은 로그인 시점 스냅샷이라 이후 계정관리에서 이름(닉네임)이
+// 바뀌어도 갱신되지 않는다. 기록/표시 직전에 최신 이름을 다시 조회한다.
+export async function resolveCurrentName(session: AdminSession): Promise<string> {
+  try {
+    const accounts = await kvGet<{ userId: string; name: string }[]>(ACCOUNTS_KEY);
+    const found = accounts?.find(a => a.userId === session.userId);
+    return found?.name ?? session.name;
+  } catch {
+    return session.name;
+  }
+}
+
+// super는 전체 법인 접근, 그 외(company/general)는 자기 법인으로 범위 제한
+// null = 제한 없음(super), string = 이 법인으로만 제한
+export function companyScope(session: AdminSession): string | null {
+  return session.role === "super" ? null : session.company;
+}
+
 export function getSessionFromCookieHeader(cookieHeader: string | null): AdminSession | null {
   if (!cookieHeader) return null;
 
@@ -39,23 +80,13 @@ export function getSessionFromCookieHeader(cookieHeader: string | null): AdminSe
     return decodeSession(decodeURIComponent(sessionMatch[1]));
   }
 
-  // 구버전 admin_key fallback
-  const keyMatch = cookieHeader.match(/admin_key=([^;]+)/);
-  if (keyMatch) {
-    const key = decodeURIComponent(keyMatch[1]);
-    const ADMIN_KEY = process.env.ADMIN_SECRET_KEY ?? "3589";
-    if (key === ADMIN_KEY) {
-      return {
-        notionPageId: "legacy",
-        userId: "admin",
-        name: "슈퍼 어드민",
-        email: "",
-        company: "",
-        department: "",
-        role: "super",
-      };
-    }
-  }
-
   return null;
+}
+
+// 로그인 검사가 없는 라우트에서도 감사 로그 주체를 안전하게 구해주는 헬퍼.
+// 세션이 없으면 차단하지 않고 "(미상)"으로 기록한다.
+export async function resolveAuditActor(cookieHeader: string | null): Promise<{ adminId: string; adminName: string }> {
+  const session = getSessionFromCookieHeader(cookieHeader);
+  if (!session) return { adminId: "unknown", adminName: "(미상)" };
+  return { adminId: session.userId, adminName: await resolveCurrentName(session) };
 }

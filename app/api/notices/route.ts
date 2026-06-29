@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getNotices, saveNotices, appendAuditLog } from "@/lib/portal-store";
-import { getSessionFromCookieHeader } from "@/lib/session";
+import { getNotices, saveNotices, appendAuditLog, summarizeChanges } from "@/lib/portal-store";
+import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
 import type { Notice } from "@/types/portal";
 
 function getSuperSession(req: NextRequest) {
@@ -24,12 +24,13 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const all = await getNotices(false);
+  const adminName = await resolveCurrentName(session);
 
   if (body._action === "delete") {
     const target = all.find(n => n.id === body.id);
     await saveNotices(all.filter(n => n.id !== body.id));
     await appendAuditLog({
-      adminId: session.userId, adminName: session.name,
+      adminId: session.userId, adminName,
       action: "delete", target: "notices",
       itemTitle: target?.title ?? body.id,
       timestamp: new Date().toISOString(),
@@ -40,10 +41,16 @@ export async function POST(req: NextRequest) {
   if (body._action === "update") {
     const target = all.find(n => n.id === body.id);
     await saveNotices(all.map(n => n.id === body.id ? { ...n, ...body.data } : n));
+    const detail = summarizeChanges(target, body.data, [
+      { key: "title",   label: "제목" },
+      { key: "visible", label: "공개 여부", format: v => (v ? "공개" : "숨김") },
+      { key: "urgent",  label: "긴급",     format: v => (v ? "긴급" : "일반") },
+    ]);
     await appendAuditLog({
-      adminId: session.userId, adminName: session.name,
+      adminId: session.userId, adminName,
       action: "update", target: "notices",
       itemTitle: body.data?.title ?? target?.title ?? body.id,
+      detail,
       timestamp: new Date().toISOString(),
     });
     return NextResponse.json({ ok: true });
@@ -62,7 +69,7 @@ export async function POST(req: NextRequest) {
   };
   await saveNotices([notice, ...all]);
   await appendAuditLog({
-    adminId: session.userId, adminName: session.name,
+    adminId: session.userId, adminName,
     action: "create", target: "notices",
     itemTitle: notice.title,
     timestamp: new Date().toISOString(),

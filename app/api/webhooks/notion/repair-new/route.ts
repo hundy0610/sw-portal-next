@@ -47,8 +47,10 @@ export async function POST(req: NextRequest) {
     const company      = getSelect("법인");
     const department   = getText("부서");
     const requester    = getText("문의자");
-    const workLocation = getText("실제 근무 위치");
-    const faultDesc    = getText("고장증상");
+    const building     = getSelect("건물명");
+    const floor        = getText("층수");
+    const workLocation = `${building} ${floor}`.trim();
+    const faultDesc    = getText("세부내역");
     const faultTypes   = getMultiSelect("고장 내역");
 
     const transporter = createMailTransporter();

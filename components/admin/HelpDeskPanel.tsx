@@ -5,6 +5,7 @@ import type { HelpDeskTicket } from "@/lib/notion";
 import type { FeedbackEntry } from "@/app/api/feedback/route";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import { AssetModalInner, HwRecord, HW_STATUSES } from "@/components/admin/AssetModal";
+import { safeJson } from "@/lib/fetch-json";
 
 // ── Color configs ────────────────────────────────────────────
 const URGENCY: Record<string, { bg: string; text: string; bar: string }> = {
@@ -168,7 +169,7 @@ function InlineStatusCell({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: ticket.id, fields: { status: newStatus } }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) { onUpdated(ticket.id, { status: newStatus }); setResult("done"); }
       else setResult("error");
     } catch { setResult("error"); }
@@ -219,12 +220,15 @@ function InlineAssigneeCell({
     setSaving(true); setResult("idle");
     try {
       const found = assigneeList.find(u => u.name === newName);
+      const updateFields: Record<string, string> = {};
+      if (newName === "") updateFields.assigneeId = "";
+      else if (found?.id) updateFields.assigneeId = found.id;
       const res = await fetch("/api/helpdesk/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: ticket.id, fields: { assigneeId: found?.id ?? "" } }),
+        body: JSON.stringify({ id: ticket.id, fields: updateFields }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) {
         onUpdated(ticket.id, { assignee: newName || undefined, assigneeId: found?.id ?? undefined });
         setResult("done");
@@ -416,7 +420,7 @@ function HelpDeskTicketFloating({
     if (!ticket.assetNo || assetState === "loading") return;
     setAssetState("loading");
     fetch(`/api/hw?search=${encodeURIComponent(ticket.assetNo)}`)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(json => {
         const match = (json.records as HwRecord[])?.find(
           r => r.assetNo.toLowerCase() === ticket.assetNo.toLowerCase()
@@ -436,7 +440,7 @@ function HelpDeskTicketFloating({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: assetData.id, fields: { status: assetStatus } }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) {
         setAssetData(prev => prev ? { ...prev, status: assetStatus } : prev); setAssetSaveResult("done");
         if (assetStatus === "교체요청" && assetData) {
@@ -464,7 +468,7 @@ function HelpDeskTicketFloating({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: ticket.id, fields: { actionNote: value } }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) {
         setNoteValue(value);
         setNoteSaveResult("done");
@@ -483,7 +487,7 @@ function HelpDeskTicketFloating({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: ticket.id, fields: { actionCategory: selectedCategories } }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) {
         setCategorySaveResult("done");
         onUpdated?.(ticket.id, { actionCategory: selectedCategories });
@@ -500,7 +504,7 @@ function HelpDeskTicketFloating({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: ticket.id, fields: { actionMethod: method } }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) {
         setMethodSaveResult("done");
         onUpdated?.(ticket.id, { actionMethod: method });
@@ -515,6 +519,7 @@ function HelpDeskTicketFloating({
     try {
       const found = assigneeList.find(u => u.name === selectedAssignee);
       const noteText = textareaRef.current?.value ?? noteValue;
+      const assigneeIdField = selectedAssignee === "" ? "" : (found?.id || undefined);
       const res = await fetch("/api/helpdesk/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -522,14 +527,14 @@ function HelpDeskTicketFloating({
           id: ticket.id,
           fields: {
             status: selectedStatus,
-            assigneeId: found?.id ?? "",
+            assigneeId: assigneeIdField,
             actionCategory: selectedCategories,
             actionMethod: selectedMethod,
             actionNote: noteText,
           },
         }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) {
         setNoteValue(noteText);
         setAllSaveResult("done");
@@ -549,14 +554,15 @@ function HelpDeskTicketFloating({
         fields.status = selectedStatus;
       } else {
         const found = assigneeList.find(u => u.name === selectedAssignee);
-        fields.assigneeId = found?.id ?? "";
+        if (selectedAssignee === "") fields.assigneeId = "";
+        else if (found?.id) fields.assigneeId = found.id;
       }
       const res = await fetch("/api/helpdesk/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: ticket.id, fields }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) {
         setSaveResult(prev => ({ ...prev, [field]: "done" }));
         if (field === "status")   onUpdated?.(ticket.id, { status: selectedStatus });
@@ -1258,9 +1264,10 @@ function generateReportHTML(opts: {
 // ── Main Panel ───────────────────────────────────────────────
 type Tab = "overview" | "type" | "company" | "list" | "status_list" | "report" | "assignee" | "analysis";
 
-export default function HelpDeskPanel({ company: companyFilter = "" }: { company?: string }) {
+export default function HelpDeskPanel({ company: companyFilter = "", typeFilter = "" }: { company?: string; typeFilter?: string }) {
   const [tickets,    setTickets]    = useState<HelpDeskTicket[]>([]);
   const [loading,    setLoading]    = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error,      setError]      = useState<string | null>(null);
   const [missingEnv, setMissingEnv] = useState<string | null>(null);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
@@ -1281,19 +1288,32 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
   const [notifyMsg,       setNotifyMsg]       = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
   const [listFilter, setListFilter] = useState({
-    status: "all", type: "all", company: "all", urgency: "all", search: "",
+    status: "all", type: "all", company: "all", urgency: "all", assignee: "all", search: "",
   });
+  const [assetHistoryOpen, setAssetHistoryOpen] = useState<string | null>(null);
+  const assetHistoryRef = useRef<HTMLDivElement | null>(null);
+
+  // 담당자 리스트 관리 상태
+  const [storedAssignees,   setStoredAssignees]   = useState<{ id: string; name: string }[]>([]);
+  const [assigneeListOpen,  setAssigneeListOpen]  = useState(false);
+  const [assigneeInput,     setAssigneeInput]     = useState("");
+  const [assigneeSaving,    setAssigneeSaving]    = useState(false);
+  const [assigneeMsg,       setAssigneeMsg]       = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
   const assigneeList = useMemo(() => {
-    const seen = new Map<string, string>();
-    tickets.forEach(t => {
-      if (t.assignee) seen.set(t.assigneeId || `name:${t.assignee}`, t.assignee);
-    });
     const EXCLUDED = ["이상목", "조성빈"];
-    return [...seen.entries()].map(([id, name]) => ({ id: id.startsWith("name:") ? "" : id, name }))
+    const map = new Map<string, string>();
+    // 저장된 담당자 리스트 (최우선)
+    storedAssignees.forEach(u => map.set(u.id || `name:${u.name}`, u.name));
+    // 기존 티켓에서 추출한 담당자 (UUID 있는 경우만)
+    tickets.forEach(t => {
+      if (t.assignee && t.assigneeId && !map.has(t.assigneeId)) map.set(t.assigneeId, t.assignee);
+    });
+    return [...map.entries()]
+      .map(([id, name]) => ({ id: id.startsWith("name:") ? "" : id, name }))
       .filter(({ name }) => !EXCLUDED.includes(name))
       .sort((a, b) => a.name.localeCompare(b.name, "ko"));
-  }, [tickets]);
+  }, [tickets, storedAssignees]);
 
   const uniqueStatuses = useMemo(() => {
     const fromData = [...new Set(tickets.map(t => t.status).filter(Boolean))].sort();
@@ -1328,7 +1348,7 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
         assignee:       ticket.assignee   || "담당자",
       }),
     })
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(json => {
         if (json.ok || json.skipped)
           setEmailSentIds(prev => new Set([...prev, ticket.id]));
@@ -1338,11 +1358,12 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
 
   const load = useCallback((force = false) => {
     if (!force) { setLoading(true); setError(null); }
+    if (force) setRefreshing(true);
     fetch(`/api/helpdesk${force ? "?refresh=1" : ""}`)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(res => {
         if (res.missingEnv) { setMissingEnv(res.missingEnv); return; }
-        if (res.error) { setError(res.error); return; }
+        if (res.error) { if (!force) setError(res.error); return; }
         const newTickets: HelpDeskTicket[] = res.data ?? [];
 
         // 첫 로드가 아닐 때만 상태 변화 감지 → 자동 이메일
@@ -1366,16 +1387,24 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
         setLastSynced(res.lastSynced ?? null);
       })
       .catch(e => { if (!force) setError(e.message); })
-      .finally(() => { if (!force) setLoading(false); });
+      .finally(() => { if (!force) setLoading(false); else setRefreshing(false); });
   }, [autoSendEmail]);
 
   // 초기 로드
   useEffect(() => { load(); }, [load]);
 
+  // 저장된 담당자 목록 로드
+  useEffect(() => {
+    fetch("/api/helpdesk/assignees")
+      .then(r => safeJson(r))
+      .then(res => { if (res.ok) setStoredAssignees(res.assignees ?? []); })
+      .catch(() => {});
+  }, []);
+
   // 알림 이메일 목록 로드
   useEffect(() => {
     fetch("/api/helpdesk/notify-emails")
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(res => { if (res.ok) setNotifyEmails(res.emails); })
       .catch(() => {});
   }, []);
@@ -1400,7 +1429,7 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ emails: notifyEmails }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) setNotifyMsg({ type: "ok", text: "저장되었습니다." });
       else setNotifyMsg({ type: "err", text: json.error || "저장 실패" });
     } catch {
@@ -1411,11 +1440,56 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
     }
   };
 
+  // 담당자 리스트 핸들러
+  const handleAssigneeAdd = () => {
+    const name = assigneeInput.trim();
+    if (!name) return;
+    if (storedAssignees.some(a => a.name === name)) { setAssigneeInput(""); return; }
+    // 현재 티켓 데이터에서 UUID 조회
+    const fromTicket = tickets.find(t => t.assignee === name && t.assigneeId);
+    setStoredAssignees(prev => [...prev, { id: fromTicket?.assigneeId ?? "", name }]);
+    setAssigneeInput("");
+  };
+
+  const handleAssigneeRemove = (name: string) => {
+    setStoredAssignees(prev => prev.filter(a => a.name !== name));
+  };
+
+  const handleAssigneeSave = async () => {
+    setAssigneeSaving(true); setAssigneeMsg(null);
+    try {
+      const res = await fetch("/api/helpdesk/assignees", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignees: storedAssignees }),
+      });
+      const json = await safeJson(res);
+      if (json.ok) setAssigneeMsg({ type: "ok", text: "저장되었습니다." });
+      else setAssigneeMsg({ type: "err", text: json.error || "저장 실패" });
+    } catch {
+      setAssigneeMsg({ type: "err", text: "저장 실패" });
+    } finally {
+      setAssigneeSaving(false);
+      setTimeout(() => setAssigneeMsg(null), 3000);
+    }
+  };
+
   // 30초마다 자동 새로고침 (Notion 최신 데이터 반영)
   useEffect(() => {
     const id = setInterval(() => load(true), 30_000);
     return () => clearInterval(id);
   }, [load]);
+
+  useEffect(() => {
+    if (!assetHistoryOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (assetHistoryRef.current && !assetHistoryRef.current.contains(e.target as Node)) {
+        setAssetHistoryOpen(null);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [assetHistoryOpen]);
 
   // 완료 티켓의 피드백 + 이메일 발송 여부를 단 1번의 배치 요청으로 로드 (N+1 → O(1))
   useEffect(() => {
@@ -1423,7 +1497,7 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
     if (completed.length === 0) return;
     const ids = completed.map(t => t.id).join(",");
     fetch(`/api/helpdesk/ticket-status?ids=${ids}`)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(res => {
         if (res.feedbacks)  setFeedbacks(res.feedbacks);
         if (res.emailSent)  setEmailSentIds(new Set(Object.keys(res.emailSent)));
@@ -1433,10 +1507,11 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
 
   const months = useMemo(() => last6Months(), []);
 
-  const displayTickets = useMemo(() =>
-    companyFilter ? tickets.filter(t => t.company === companyFilter) : tickets,
-    [tickets, companyFilter]
-  );
+  const displayTickets = useMemo(() => {
+    let result = companyFilter ? tickets.filter(t => t.company === companyFilter) : tickets;
+    if (typeFilter) result = result.filter(t => t.inquiryType === typeFilter);
+    return result;
+  }, [tickets, companyFilter, typeFilter]);
 
   // ── Analytics ────────────────────────────────────────────
   const total      = displayTickets.length;
@@ -1466,12 +1541,6 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
     return [...m.entries()].sort((a, b) => b[1] - a[1]);
   }, [displayTickets]);
 
-  const byUrgency = useMemo(() => {
-    const order = ["매우 급합니다", "조금 급합니다", "기다릴 수 있어요"];
-    const m = new Map<string, number>();
-    displayTickets.forEach(t => { if (t.urgency) m.set(t.urgency, (m.get(t.urgency) ?? 0) + 1); });
-    return order.filter(u => m.has(u)).map(u => [u, m.get(u)!] as [string, number]);
-  }, [displayTickets]);
 
   const monthlyTotal = useMemo(() =>
     months.map(m => ({ month: m, count: displayTickets.filter(t => (t.submittedAt || "").startsWith(m)).length })),
@@ -1486,6 +1555,18 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
     })).sort((a, b) => b.total - a.total);
   }, [displayTickets, months]);
 
+  // ── 자산번호별 티켓 그룹핑 (반복 문의 감지) ─────────────
+  const assetTicketsMap = useMemo(() => {
+    const m = new Map<string, HelpDeskTicket[]>();
+    displayTickets.forEach(t => {
+      if (!t.assetNo) return;
+      const key = t.assetNo.toLowerCase();
+      if (!m.has(key)) m.set(key, []);
+      m.get(key)!.push(t);
+    });
+    return m;
+  }, [displayTickets]);
+
   // ── List filters ─────────────────────────────────────────
   const uniqueTypes     = [...new Set(displayTickets.map(t => t.inquiryType).filter(Boolean))].sort();
   const uniqueCompanies = [...new Set(displayTickets.map(t => t.company).filter(Boolean))].sort();
@@ -1496,6 +1577,7 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
     if (listFilter.type    !== "all" && t.inquiryType !== listFilter.type)    return false;
     if (listFilter.company !== "all" && t.company     !== listFilter.company) return false;
     if (listFilter.urgency !== "all" && t.urgency     !== listFilter.urgency) return false;
+    if (listFilter.assignee !== "all" && t.assignee   !== listFilter.assignee) return false;
     if (listFilter.search) {
       const q = listFilter.search.toLowerCase();
       return (t.content || t.title || "").toLowerCase().includes(q)
@@ -1530,7 +1612,7 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
           assignee: ticket.assignee || "담당자",
         }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (res.ok || data.skipped) {
         setEmailSentIds(prev => new Set([...prev, ticket.id]));
       }
@@ -1589,9 +1671,10 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
             )}
           </p>
         </div>
-        <button onClick={() => load(true)}
-          className="text-xs font-medium px-3 py-1.5 rounded border bg-white text-gray-600 border-gray-300 hover:border-gray-400 flex items-center gap-1 transition-colors">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <button onClick={() => load(true)} disabled={refreshing}
+          className="text-xs font-medium px-3 py-1.5 rounded border bg-white text-gray-600 border-gray-300 hover:border-gray-400 flex items-center gap-1 transition-colors disabled:opacity-50">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            className={refreshing ? "animate-spin" : ""}>
             <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
           </svg>
           새로고침
@@ -1680,6 +1763,93 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
         )}
       </div>
 
+      {/* ── 담당자 리스트 관리 ── */}
+      <div className="mb-5 border border-gray-200 rounded-xl overflow-hidden">
+        <button
+          onClick={() => setAssigneeListOpen(o => !o)}
+          className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-sm font-semibold text-gray-700">
+          <span className="flex items-center gap-2">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2.5">
+              <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+            </svg>
+            담당자 리스트 관리
+            <span className="text-xs font-normal text-gray-400">({storedAssignees.length}명)</span>
+          </span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+            style={{ transform: assigneeListOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>
+            <path d="M6 9l6 6 6-6"/>
+          </svg>
+        </button>
+
+        {assigneeListOpen && (
+          <div className="px-4 py-4 bg-white space-y-3">
+            <p className="text-xs text-gray-500">
+              담당자 드롭다운에 표시될 인원을 관리합니다.
+              Notion DB에 있는 사람 이름을 그대로 입력하세요.
+            </p>
+
+            {/* 추가 입력 */}
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  list="assignee-suggestions"
+                  value={assigneeInput}
+                  onChange={e => setAssigneeInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleAssigneeAdd(); } }}
+                  placeholder="담당자 이름 입력 또는 목록에서 선택"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 transition"
+                />
+                <datalist id="assignee-suggestions">
+                  {tickets
+                    .filter(t => t.assignee && !storedAssignees.some(a => a.name === t.assignee))
+                    .reduce<string[]>((acc, t) => acc.includes(t.assignee!) ? acc : [...acc, t.assignee!], [])
+                    .sort((a, b) => a.localeCompare(b, "ko"))
+                    .map(name => <option key={name} value={name} />)}
+                </datalist>
+              </div>
+              <button
+                onClick={handleAssigneeAdd}
+                disabled={!assigneeInput.trim()}
+                className="px-3 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors">
+                추가
+              </button>
+            </div>
+
+            {/* 담당자 목록 */}
+            {storedAssignees.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {storedAssignees.map(a => (
+                  <span key={a.name} className="flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-200 rounded-full text-xs text-blue-700 font-medium">
+                    {a.name}
+                    {!a.id && <span className="text-[9px] text-gray-400 font-normal">(ID 없음)</span>}
+                    <button onClick={() => handleAssigneeRemove(a.name)}
+                      className="text-blue-400 hover:text-blue-700 transition-colors leading-none">×</button>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 text-center py-2">등록된 담당자가 없습니다</p>
+            )}
+
+            {/* 저장 버튼 */}
+            <div className="flex items-center justify-end gap-3">
+              {assigneeMsg && (
+                <span className={`text-xs font-medium ${assigneeMsg.type === "ok" ? "text-green-600" : "text-red-500"}`}>
+                  {assigneeMsg.text}
+                </span>
+              )}
+              <button
+                onClick={handleAssigneeSave}
+                disabled={assigneeSaving}
+                className="px-4 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                {assigneeSaving ? "저장 중..." : "저장"}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* ── Summary Cards ── */}
       <div className="grid grid-cols-5 gap-3 mb-6">
         <StatCard label="전체 접수"  value={total}                                                    color="#1E40AF" />
@@ -1723,13 +1893,31 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
 
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-white border border-gray-200 rounded-xl p-5">
-              <h3 className="text-sm font-bold text-gray-800 mb-4">긴급도 분포</h3>
-              <div className="space-y-3">
-                {byUrgency.map(([urgency, count]) => (
-                  <HBar key={urgency} label={urgency} count={count} total={total}
-                    color={URGENCY[urgency]?.bar ?? "#94A3B8"} />
-                ))}
-                {byUrgency.length === 0 && <p className="text-xs text-gray-300 text-center py-4">데이터 없음</p>}
+              <h3 className="text-sm font-bold text-gray-800 mb-4">
+                미완료된 건
+                <span className="text-xs font-normal text-gray-400 ml-1">최신 5건</span>
+              </h3>
+              <div className="space-y-1">
+                {displayTickets
+                  .filter(t => t.status !== "완료")
+                  .sort((a, b) => (b.submittedAt || "").localeCompare(a.submittedAt || ""))
+                  .slice(0, 5)
+                  .map(t => (
+                    <div key={t.id} className="flex items-start gap-2 py-2 border-b border-gray-50 last:border-0">
+                      <StatusBadge status={t.status} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-gray-800 truncate">
+                          {t.content || t.title || "(내용 없음)"}
+                        </p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">
+                          {[t.company, t.requester, t.submittedAt?.slice(0, 10)].filter(Boolean).join(" · ")}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                {displayTickets.filter(t => t.status !== "완료").length === 0 && (
+                  <p className="text-xs text-gray-300 text-center py-4">미완료 건 없음</p>
+                )}
               </div>
             </div>
 
@@ -1945,6 +2133,7 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
               { key: "type",    opts: ["all",...uniqueTypes],       label: "유형" },
               { key: "company", opts: ["all",...uniqueCompanies],   label: "법인" },
               { key: "urgency", opts: ["all",...uniqueUrgencies],   label: "긴급도" },
+              { key: "assignee", opts: ["all",...assigneeList.map(a => a.name)], label: "담당자" },
             ] as { key: string; opts: string[]; label: string }[]).map(({ key, opts, label }) => (
               <select key={key}
                 value={(listFilter as Record<string, string>)[key]}
@@ -2073,6 +2262,7 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
               { key: "type",    opts: ["all",...uniqueTypes],       label: "전체 유형" },
               { key: "company", opts: ["all",...uniqueCompanies],   label: "전체 법인" },
               { key: "urgency", opts: ["all",...uniqueUrgencies],   label: "전체 긴급도" },
+              { key: "assignee", opts: ["all",...assigneeList.map(a => a.name)], label: "전체 담당자" },
             ] as { key: string; opts: string[]; label: string }[]).map(({ key, opts, label }) => (
               <select key={key}
                 value={(listFilter as Record<string, string>)[key]}
@@ -2082,18 +2272,19 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
                 {opts.filter(o => o !== "all").map(o => <option key={o} value={o}>{o}</option>)}
               </select>
             ))}
-            {(listFilter.status !== "all" || listFilter.type !== "all" || listFilter.company !== "all" || listFilter.urgency !== "all" || listFilter.search) && (
+            {(listFilter.status !== "all" || listFilter.type !== "all" || listFilter.company !== "all" || listFilter.urgency !== "all" || listFilter.assignee !== "all" || listFilter.search) && (
               <button
-                onClick={() => setListFilter({ status: "all", type: "all", company: "all", urgency: "all", search: "" })}
+                onClick={() => setListFilter({ status: "all", type: "all", company: "all", urgency: "all", assignee: "all", search: "" })}
                 className="text-xs text-gray-400 hover:text-gray-600 underline"
               >
                 초기화
               </button>
             )}
             <span className="text-xs text-gray-400 ml-auto">{filteredList.length}건</span>
-            <button onClick={() => load(true)}
-              className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:text-gray-800 transition-colors">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <button onClick={() => load(true)} disabled={refreshing}
+              className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:text-gray-800 transition-colors disabled:opacity-50">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                className={refreshing ? "animate-spin" : ""}>
                 <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
               </svg>
               새로고침
@@ -2151,14 +2342,76 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
                       )}
                     </td>
                     <td className="text-sm font-mono">
-                      {t.assetNo ? (
-                        <button
-                          onClick={() => setModalAssetId(t.assetNo)}
-                          className="text-blue-600 hover:underline hover:text-blue-700 transition-colors"
-                        >
-                          {t.assetNo}
-                        </button>
-                      ) : (
+                      {t.assetNo ? (() => {
+                        const history = assetTicketsMap.get(t.assetNo.toLowerCase()) || [];
+                        const count = history.length;
+                        const isOpen = assetHistoryOpen === `${t.id}:${t.assetNo}`;
+                        return (
+                          <div className="relative flex items-center gap-1.5">
+                            <button
+                              onClick={() => setModalAssetId(t.assetNo)}
+                              className="text-blue-600 hover:underline hover:text-blue-700 transition-colors"
+                            >
+                              {t.assetNo}
+                            </button>
+                            {count >= 2 && (
+                              <button
+                                onClick={() => setAssetHistoryOpen(isOpen ? null : `${t.id}:${t.assetNo}`)}
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors whitespace-nowrap"
+                                title={`동일 자산 문의 ${count}건`}
+                              >
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                  <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/>
+                                  <polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/>
+                                </svg>
+                                {count}
+                              </button>
+                            )}
+                            {isOpen && (
+                              <div ref={assetHistoryRef}
+                                className="absolute top-full left-0 mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-xl p-0 min-w-[340px] max-h-[320px] overflow-auto"
+                                style={{ maxWidth: "420px" }}>
+                                <div className="sticky top-0 bg-gray-50 px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
+                                  <span className="text-xs font-bold text-gray-700">
+                                    자산 {t.assetNo} 문의 이력 ({count}건)
+                                  </span>
+                                  <button onClick={() => setAssetHistoryOpen(null)}
+                                    className="text-gray-400 hover:text-gray-600 transition-colors">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                                    </svg>
+                                  </button>
+                                </div>
+                                <div className="divide-y divide-gray-50">
+                                  {[...history].sort((a, b) => (b.submittedAt || "").localeCompare(a.submittedAt || "")).map(h => (
+                                    <button key={h.id}
+                                      onClick={() => { setAssetHistoryOpen(null); setFloatingTicket(h); }}
+                                      className={`w-full text-left px-4 py-2.5 hover:bg-violet-50/40 transition-colors ${h.id === t.id ? "bg-violet-50/60" : ""}`}>
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                                          style={{ background: STATUS[h.status]?.bg || "#F8FAFC", color: STATUS[h.status]?.text || "#64748B" }}>
+                                          {h.status}
+                                        </span>
+                                        <span className="text-[10px] font-semibold text-violet-700 bg-violet-50 px-1.5 py-0.5 rounded">
+                                          {h.inquiryType || "—"}
+                                        </span>
+                                        <span className="text-[10px] text-gray-400 ml-auto">{(h.submittedAt || "").slice(0, 10)}</span>
+                                      </div>
+                                      <p className="text-xs text-gray-700 truncate">{h.content || h.title || "—"}</p>
+                                      <div className="flex items-center gap-2 mt-1 text-[10px] text-gray-400">
+                                        <span>{h.requester || "—"}</span>
+                                        <span>·</span>
+                                        <span>{h.department || "—"}</span>
+                                        {h.assignee && <><span>·</span><span>담당: {h.assignee}</span></>}
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })() : (
                         <span className="text-gray-400">—</span>
                       )}
                     </td>
@@ -2223,13 +2476,15 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
         // 전체 배정 티켓 (처리 통계용)
         const assignedTickets = displayTickets.filter(t => t.assignee);
 
-        // 담당자 목록 (배정 티켓 기준으로 확대)
-        const assigneeNames = [...new Set(assignedTickets.map(t => t.assignee))].sort();
+        // 담당자 목록: 저장된 리스트 우선, 없으면 티켓 기반 전체
+        const assigneeNames = storedAssignees.length > 0
+          ? storedAssignees.map(a => a.name)
+          : [...new Set(assignedTickets.map(t => t.assignee))].sort() as string[];
 
         if (assigneeNames.length === 0) return (
           <div className="bg-white border border-gray-200 rounded-xl p-10 text-center text-gray-400 text-sm">
             배정된 담당자가 없습니다.<br />
-            <span className="text-xs text-gray-300 mt-1 block">Notion에서 티켓에 담당자를 지정해주세요.</span>
+            <span className="text-xs text-gray-300 mt-1 block">담당자 리스트 관리에서 인원을 추가해주세요.</span>
           </div>
         );
 
@@ -2269,16 +2524,21 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
             const mRatings = myRated
               .filter(t => (t.lastEditedAt || "").startsWith(m))
               .map(t => feedbacks[t.id].rating);
+            const mDoneCount = myDone
+              .filter(t => (t.lastEditedAt || "").startsWith(m))
+              .length;
             return {
               month: m,
               avg: mRatings.length > 0
                 ? (mRatings.reduce((s, r) => s + r, 0) / mRatings.length)
                 : null,
               count: mRatings.length,
+              doneCount: mDoneCount,
             };
           });
 
-          return { name, totalAvg, yearAvg, monthlyAvg, totalCount: ratings.length, allCount, doneCount, completionRate, avgDays };
+          const yearDoneCount = myDone.filter(t => new Date(t.lastEditedAt).getFullYear() === thisYear).length;
+          return { name, totalAvg, yearAvg, monthlyAvg, totalCount: ratings.length, yearCount: yearRatings.length, yearDoneCount, allCount, doneCount, completionRate, avgDays };
         }).sort((a, b) => b.allCount - a.allCount);
 
         const fmtAvg = (v: number | null) =>
@@ -2422,7 +2682,7 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
                     </tr>
                   </thead>
                   <tbody>
-                    {assigneeStats.map(({ name, monthlyAvg, yearAvg, totalAvg }) => (
+                    {assigneeStats.map(({ name, monthlyAvg, yearAvg, totalAvg, yearCount, yearDoneCount, totalCount, doneCount }) => (
                       <tr key={name} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                         <td className="py-3 pr-6 font-semibold text-gray-700 whitespace-nowrap flex items-center gap-2">
                           <span className="w-6 h-6 rounded-full bg-violet-100 inline-flex items-center justify-center text-[10px] font-bold text-violet-600 flex-shrink-0">
@@ -2430,27 +2690,36 @@ export default function HelpDeskPanel({ company: companyFilter = "" }: { company
                           </span>
                           {name}
                         </td>
-                        {monthlyAvg.map(({ month, avg, count }) => (
+                        {monthlyAvg.map(({ month, avg, count, doneCount: mDone }) => (
                           <td key={month} className="text-center py-3 px-4">
-                            {avg !== null ? (
+                            {avg !== null || mDone > 0 ? (
                               <div className="flex flex-col items-center gap-0.5">
                                 <span className="font-bold text-[13px]" style={{ color: ratingColor(avg) }}>
-                                  {avg.toFixed(1)}
+                                  {avg !== null ? avg.toFixed(1) : "—"}
                                 </span>
-                                <span className="text-[9px] text-gray-300">{count}건</span>
+                                <span className="text-[9px] text-gray-400">{mDone}건 / 응답 {count}건</span>
+                                <span className="text-[9px] text-gray-400">응답률 {mDone > 0 ? Math.round((count / mDone) * 100) : 0}%</span>
                               </div>
                             ) : <span className="text-gray-200">—</span>}
                           </td>
                         ))}
                         <td className="text-center py-3 px-4">
-                          <span className="font-bold text-[13px]" style={{ color: ratingColor(yearAvg) }}>
-                            {fmtAvg(yearAvg)}
-                          </span>
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className="font-bold text-[13px]" style={{ color: ratingColor(yearAvg) }}>
+                              {fmtAvg(yearAvg)}
+                            </span>
+                            <span className="text-[9px] text-gray-400">{yearDoneCount}건 / 응답 {yearCount}건</span>
+                            <span className="text-[9px] text-gray-400">응답률 {yearDoneCount > 0 ? Math.round((yearCount / yearDoneCount) * 100) : 0}%</span>
+                          </div>
                         </td>
                         <td className="text-center py-3 px-4">
-                          <span className="font-extrabold text-[14px]" style={{ color: ratingColor(totalAvg) }}>
-                            {fmtAvg(totalAvg)}
-                          </span>
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className="font-extrabold text-[14px]" style={{ color: ratingColor(totalAvg) }}>
+                              {fmtAvg(totalAvg)}
+                            </span>
+                            <span className="text-[9px] text-gray-400">{doneCount}건 / 응답 {totalCount}건</span>
+                            <span className="text-[9px] text-gray-400">응답률 {doneCount > 0 ? Math.round((totalCount / doneCount) * 100) : 0}%</span>
+                          </div>
                         </td>
                       </tr>
                     ))}

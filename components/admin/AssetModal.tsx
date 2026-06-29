@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { safeJson } from "@/lib/fetch-json";
 
 export interface HwRecord {
   id: string; notionUrl: string;
@@ -41,7 +42,7 @@ export function AssetModalInner({ assetId, onClose }: { assetId: string; onClose
   useEffect(() => {
     const slowTimer = setTimeout(() => setSlow(true), 8000);
     fetch(`/api/hw?search=${encodeURIComponent(assetId)}`)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(json => {
         const match = (json.records as HwRecord[])?.find(
           r => r.assetNo.toLowerCase() === assetId.toLowerCase()
@@ -63,7 +64,7 @@ export function AssetModalInner({ assetId, onClose }: { assetId: string; onClose
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: record.id, fields: { status: selectedStatus } }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) {
         setRecord(prev => prev ? { ...prev, status: selectedStatus } : prev);
         setSaveResult("done");

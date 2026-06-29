@@ -1,9 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { decodeSession } from "@/lib/session";
+import { decodeSession, resolveCurrentName, type AdminSession } from "@/lib/session";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { hashPassword } from "@/lib/crypto";
 import { createMailTransporter, buildWelcomeEmail } from "@/lib/mail";
+import { appendAdminAuditLog, summarizeChanges } from "@/lib/portal-store";
 import crypto from "crypto";
+import { errorMessage } from "@/lib/api-error";
 
 // 임시 비밀번호 생성 (혼동하기 쉬운 문자 제외)
 function generateTempPassword(): string {
@@ -36,11 +38,11 @@ export interface GmDetail {
   name: string;
 }
 
-function requireSuper(request: NextRequest) {
+function requireSuper(request: NextRequest): AdminSession | null {
   const token = request.cookies.get("admin_session")?.value;
-  if (!token) return false;
+  if (!token) return null;
   const session = decodeSession(token);
-  return session?.role === "super";
+  return session?.role === "super" ? session : null;
 }
 
 function hasKv(): boolean {
@@ -100,7 +102,8 @@ export async function GET(request: NextRequest) {
 
 // ── POST — 계정 생성 (비밀번호 없음, mustChangePassword=true) ─
 export async function POST(request: NextRequest) {
-  if (!requireSuper(request)) {
+  const session = requireSuper(request);
+  if (!session) {
     return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 });
   }
 
@@ -144,6 +147,11 @@ export async function POST(request: NextRequest) {
     await saveAccounts(accounts);
     await syncGmLists(accounts);
 
+    await appendAdminAuditLog({
+      adminId: session.userId, adminName: await resolveCurrentName(session), action: "create", target: "account",
+      itemTitle: `${name} (${userId})`, timestamp: new Date().toISOString(),
+    });
+
     // 임시 비밀번호 이메일 발송
     const transporter = createMailTransporter();
     if (transporter) {
@@ -159,13 +167,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, account: safe });
   } catch (e) {
     console.error("[accounts POST]", e);
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }
 
 // ── PATCH — 계정 수정 / 임시 비밀번호 재발송 ─────────────────
 export async function PATCH(request: NextRequest) {
-  if (!requireSuper(request)) {
+  const session = requireSuper(request);
+  if (!session) {
     return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 });
   }
 
@@ -201,6 +210,11 @@ export async function PATCH(request: NextRequest) {
         }).catch(e => console.error("[accounts] resend temp mail error:", e));
       }
 
+      await appendAdminAuditLog({
+        adminId: session.userId, adminName: await resolveCurrentName(session), action: "update", target: "account",
+        itemTitle: `${acc.name} (${acc.userId})`, detail: "임시 비밀번호 재발급", timestamp: new Date().toISOString(),
+      });
+
       return NextResponse.json({ ok: true });
     }
 
@@ -231,17 +245,30 @@ export async function PATCH(request: NextRequest) {
       await syncGmLists(accounts);
     }
 
+    const ROLE_LABEL: Record<Account["role"], string> = { super: "슈퍼어드민", company: "법인 담당자", general: "총무관리자" };
+    const detail = summarizeChanges(prev, updated, [
+      { key: "role",       label: "권한", format: v => ROLE_LABEL[v as Account["role"]] ?? String(v) },
+      { key: "active",     label: "활성", format: v => (v ? "활성" : "비활성") },
+      { key: "company",    label: "법인" },
+      { key: "department", label: "부서" },
+    ]);
+    await appendAdminAuditLog({
+      adminId: session.userId, adminName: await resolveCurrentName(session), action: "update", target: "account",
+      itemTitle: `${updated.name} (${updated.userId})`, detail, timestamp: new Date().toISOString(),
+    });
+
     const { password: _pw, ...safe } = updated;
     return NextResponse.json({ ok: true, account: safe });
   } catch (e) {
     console.error("[accounts PATCH]", e);
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }
 
 // ── DELETE — 계정 비활성화 또는 영구 삭제 ────────────────────
 export async function DELETE(request: NextRequest) {
-  if (!requireSuper(request)) {
+  const session = requireSuper(request);
+  if (!session) {
     return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 });
   }
 
@@ -255,6 +282,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "계정을 찾을 수 없습니다" }, { status: 404 });
     }
 
+    const target = accounts[idx];
     if (permanent) {
       // 영구 삭제
       accounts.splice(idx, 1);
@@ -266,9 +294,16 @@ export async function DELETE(request: NextRequest) {
     await saveAccounts(accounts);
     await syncGmLists(accounts);
 
+    await appendAdminAuditLog({
+      adminId: session.userId, adminName: await resolveCurrentName(session),
+      action: permanent ? "delete" : "update", target: "account",
+      itemTitle: `${target.name} (${target.userId})`, detail: permanent ? "영구 삭제" : "비활성화",
+      timestamp: new Date().toISOString(),
+    });
+
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[accounts DELETE]", e);
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }

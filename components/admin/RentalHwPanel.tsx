@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import type { RentalRecord } from "@/lib/rental-hw";
+import { AssetModalInner } from "@/components/admin/AssetModal";
+import { safeJson } from "@/lib/fetch-json";
 
 const COMPANIES = [
   "대웅","대웅제약","대웅바이오","대웅개발","대웅펫",
@@ -45,79 +47,6 @@ function useCopy() {
     });
   }
   return { copiedId, copy };
-}
-
-// ── HW 자산 조회 모달 ─────────────────────────────────────────────────────────
-interface HwRecord { id: string; assetNo: string; user: string; model: string; serial: string; maker: string; cpu: string; ram: string; company: string; dept: string; location: string; status: string; returnDue: string; purchaseDate: string; note: string; notionUrl: string; }
-
-function HwLookupModal({ assetNoOld, onClose }: { assetNoOld: string; onClose: () => void }) {
-  const [data,    setData]    = useState<HwRecord | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState("");
-
-  useEffect(() => {
-    fetch(`/api/hw?search=${encodeURIComponent(assetNoOld)}`)
-      .then(r => r.json())
-      .then(res => {
-        const match = (res.data ?? []).find((r: HwRecord) =>
-          r.assetNo?.toLowerCase() === assetNoOld.toLowerCase()
-        );
-        if (match) setData(match);
-        else setError("해당 자산번호를 NT/DT DB에서 찾을 수 없습니다.");
-      })
-      .catch(() => setError("데이터 조회 실패"))
-      .finally(() => setLoading(false));
-  }, [assetNoOld]);
-
-  const row = (label: string, value: string | number | undefined) =>
-    value ? (
-      <div key={label} className="flex gap-2 py-1.5 border-b border-gray-50 last:border-0">
-        <span className="text-xs text-gray-400 w-24 shrink-0">{label}</span>
-        <span className="text-xs text-gray-800 font-medium break-all">{value}</span>
-      </div>
-    ) : null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
-        <div className="px-5 py-4 bg-gray-800 text-white flex items-start justify-between shrink-0">
-          <div>
-            <div className="font-bold text-base">NT/DT 자산 조회</div>
-            <div className="text-xs opacity-70 mt-0.5">기존번호: {assetNoOld}</div>
-          </div>
-          <button onClick={onClose} className="text-white/60 hover:text-white text-2xl leading-none ml-4">✕</button>
-        </div>
-        <div className="px-5 py-4">
-          {loading && <div className="text-center py-6 text-gray-400 text-sm">조회 중…</div>}
-          {error   && <div className="text-center py-6 text-red-500 text-sm">{error}</div>}
-          {data && (
-            <div>
-              {row("자산번호",  data.assetNo)}
-              {row("사용자",    data.user)}
-              {row("모델",      data.model)}
-              {row("제조사",    data.maker)}
-              {row("시리얼",    data.serial)}
-              {row("CPU",       data.cpu)}
-              {row("RAM",       data.ram)}
-              {row("법인",      data.company)}
-              {row("부서",      data.dept)}
-              {row("위치",      data.location)}
-              {row("상태",      data.status)}
-              {row("구매일자",  data.purchaseDate)}
-              {row("반납예정",  data.returnDue)}
-              {row("비고",      data.note)}
-              {data.notionUrl && (
-                <a href={data.notionUrl} target="_blank" rel="noopener noreferrer"
-                  className="mt-3 flex items-center gap-1.5 text-xs text-blue-500 hover:underline">
-                  Notion에서 보기 →
-                </a>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
 }
 
 // ── 상태 변경 팝오버 ──────────────────────────────────────────────────────────
@@ -402,7 +331,7 @@ export default function RentalHwPanel() {
     setLoading(true);
     try {
       const res  = await fetch(`/api/rental-hw${refresh ? "?refresh=1" : ""}`);
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.missingEnv) { setMissingEnv(json.missingEnv); return; }
       setRecords(json.data ?? []);
     } finally { setLoading(false); }
@@ -413,14 +342,14 @@ export default function RentalHwPanel() {
 
   const handleCreate = useCallback(async (fields: Record<string, string>) => {
     const res  = await fetch("/api/rental-hw/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(fields) });
-    const json = await res.json();
+    const json = await safeJson(res);
     if (!json.ok) throw new Error(json.error ?? "등록 실패");
     setRecords(prev => [json.data, ...prev]);
   }, []);
 
   const handleUpdate = useCallback(async (id: string, fields: object) => {
     const res  = await fetch("/api/rental-hw/update", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, fields }) });
-    const json = await res.json();
+    const json = await safeJson(res);
     if (!json.ok) throw new Error(json.error ?? "수정 실패");
     await load(true);
   }, [load]);
@@ -618,7 +547,7 @@ export default function RentalHwPanel() {
 
       {createOpen    && <CreateModal onSave={handleCreate} onClose={() => setCreateOpen(false)} />}
       {editRecord    && <EditModal   record={editRecord}   onSave={handleUpdate} onClose={() => setEditRecord(null)} />}
-      {hwLookup      && <HwLookupModal assetNoOld={hwLookup} onClose={() => setHwLookup(null)} />}
+      {hwLookup      && <AssetModalInner assetId={hwLookup} onClose={() => setHwLookup(null)} />}
       {statusPopover && <StatusPopover record={statusPopover} onSave={handleUpdate} onClose={() => setStatusPopover(null)} />}
     </div>
   );

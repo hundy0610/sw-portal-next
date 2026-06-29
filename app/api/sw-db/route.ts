@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSwItems, saveSwItems, appendAuditLog } from "@/lib/portal-store";
-import { getSessionFromCookieHeader } from "@/lib/session";
+import { getSwItems, saveSwItems, appendAuditLog, summarizeChanges } from "@/lib/portal-store";
+import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
 import type { SwItem } from "@/types";
+import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,7 @@ export async function GET() {
     return NextResponse.json({ data, lastSynced: new Date().toISOString() });
   } catch (error) {
     console.error("[API /sw-db]", error);
-    return NextResponse.json({ data: [], error: String(error) }, { status: 500 });
+    return NextResponse.json({ data: [], error: errorMessage(error) }, { status: 500 });
   }
 }
 
@@ -29,13 +30,14 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const items = await getSwItems();
+  const adminName = await resolveCurrentName(session);
 
   // 삭제
   if (body._action === "delete") {
     const target = items.find(i => i.id === body.id);
     const updated = items.filter(i => i.id !== body.id);
     await saveSwItems(updated);
-    await appendAuditLog({ adminId: session.userId, adminName: session.name, action: "delete", target: "swdb", itemTitle: target?.name ?? body.id, timestamp: new Date().toISOString() });
+    await appendAuditLog({ adminId: session.userId, adminName, action: "delete", target: "swdb", itemTitle: target?.name ?? body.id, timestamp: new Date().toISOString() });
     return NextResponse.json({ ok: true });
   }
 
@@ -44,7 +46,13 @@ export async function POST(req: NextRequest) {
     const updated = items.map(i => i.id === body.id ? { ...i, ...body.data } : i);
     await saveSwItems(updated);
     const target = items.find(i => i.id === body.id);
-    await appendAuditLog({ adminId: session.userId, adminName: session.name, action: "update", target: "swdb", itemTitle: target?.name ?? body.id, timestamp: new Date().toISOString() });
+    const STATUS_LABEL: Record<string, string> = { approved: "승인", banned: "금지", conditional: "조건부" };
+    const detail = summarizeChanges(target, body.data, [
+      { key: "status",    label: "상태", format: v => STATUS_LABEL[String(v)] ?? String(v) },
+      { key: "mandatory", label: "필수 설치", format: v => (v ? "필수" : "선택") },
+      { key: "name",      label: "이름" },
+    ]);
+    await appendAuditLog({ adminId: session.userId, adminName, action: "update", target: "swdb", itemTitle: target?.name ?? body.id, detail, timestamp: new Date().toISOString() });
     return NextResponse.json({ ok: true });
   }
 
@@ -59,9 +67,8 @@ export async function POST(req: NextRequest) {
     mandatory:    body.mandatory    ?? false,
     description:  body.description  ?? "",
     officialUrl:  body.officialUrl  || undefined,
-    resourceId:   body.resourceId   || undefined,
   };
   await saveSwItems([...items, newItem]);
-  await appendAuditLog({ adminId: session.userId, adminName: session.name, action: "create", target: "swdb", itemTitle: newItem.name, timestamp: new Date().toISOString() });
+  await appendAuditLog({ adminId: session.userId, adminName, action: "create", target: "swdb", itemTitle: newItem.name, timestamp: new Date().toISOString() });
   return NextResponse.json({ ok: true, id: newItem.id });
 }

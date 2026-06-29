@@ -2,6 +2,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import type { HwStats } from "@/lib/hw";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
+import { LabelPrintTab } from "@/components/admin/LabelPrintTab";
+import { safeJson } from "@/lib/fetch-json";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 타입
@@ -14,8 +16,9 @@ interface HwRecord {
   status: string;
   returnDue: string; returnDate: string;
   purchaseDate: string; useDate: string;
-  price: number; note: string; docNo: string;
+  price: number; residualValue: number; note: string; docNo: string;
   verified: boolean; duplicated: boolean;
+  lastModifiedBy: string; lastModifiedAt: string;
 }
 
 // 탭 공통 props (중앙 데이터 전달)
@@ -36,6 +39,14 @@ const COMPANIES = [
   "에이하나","다나아데이터","클리슈어리서치","유와이즈원","DNC",
   "석천나눔재단","HR코리아","힐코","블루넷",
 ];
+
+// 자산번호 자동 채번용 법인 코드 (형식: YY+법인코드-MM+일련번호, 예: 2601-06101)
+const COMPANY_ASSET_CODES: Record<string,string> = {
+  "대웅제약":"01", "대웅":"02", "대웅개발":"03", "대웅바이오":"04", "엠서클":"05",
+  "시지바이오":"06", "디엔코스메틱스":"07", "대웅펫":"08", "IdsTrust":"09", "유와이즈원":"10",
+  "페이지원":"11", "시지메드텍":"12", "클리슈어리서치":"13", "디엔컴퍼니":"15", "더편한샵":"16",
+  "한올바이오파마":"17", "다나아데이터":"18", "애디테라":"20", "HR코리아":"21",
+};
 
 const STATUSES = [
   "사용중","재고","교체요청","반납예정","출고준비중","출고준비완료",
@@ -84,6 +95,12 @@ function dDay(dateStr: string): { label: string; cls: string } {
   return              { label: `D-${diff}`,               cls: "text-gray-500" };
 }
 function fmtDate(s: string) { return s ? s.slice(0, 10) : "-"; }
+function fmtDateTime(iso: string) {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 function fmtKrw(n: number)  { return n > 0 ? `₩${n.toLocaleString("ko-KR")}` : "-"; }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -278,7 +295,7 @@ function DashboardTab({ stats, loading, onRefresh }: { stats: HwStats | null; lo
 // ─────────────────────────────────────────────────────────────────────────────
 // 출고 현황 탭
 // ─────────────────────────────────────────────────────────────────────────────
-function ShipmentTab({ onUpdate, companyLock = "" }: { onUpdate: (id: string, fields: Partial<HwRecord>) => Promise<void>; companyLock?: string }) {
+function ShipmentTab({ onUpdate, companyLock = "", isSuperAdmin = false }: { onUpdate: (id: string, fields: Partial<HwRecord>) => Promise<void>; companyLock?: string; isSuperAdmin?: boolean }) {
   const [company,      setCompany]      = useState(companyLock);
   const [records,      setRecords]      = useState<HwRecord[]>([]);
   const [loading,      setLoading]      = useState(true);
@@ -291,7 +308,7 @@ function ShipmentTab({ onUpdate, companyLock = "" }: { onUpdate: (id: string, fi
       const p = new URLSearchParams({ statuses: "출고준비중,출고준비완료" });
       if (company) p.set("company", company);
       const res  = await fetch(`/api/hw?${p}`);
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) throw new Error(json.error);
       setRecords(json.records ?? []);
     } catch { /* silent */ }
@@ -322,7 +339,7 @@ function ShipmentTab({ onUpdate, companyLock = "" }: { onUpdate: (id: string, fi
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead className="bg-gray-50 text-gray-500 font-semibold">
-              <tr>{["자산번호","사용자","법인명","부서","모델명","상태","사용일자","위치",""].map(h=><th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}</tr>
+              <tr>{["자산번호","사용자","법인명","부서","모델명","상태","사용일자","위치","","최종수정"].map(h=><th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}</tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {items.map(r => (
@@ -340,6 +357,14 @@ function ShipmentTab({ onUpdate, companyLock = "" }: { onUpdate: (id: string, fi
                   <td className="px-3 py-2.5 flex items-center gap-2">
                     {r.notionUrl && <a href={r.notionUrl} target="_blank" rel="noreferrer" className="text-amber-400 hover:text-amber-600 underline underline-offset-2">Notion ↗</a>}
                     <button onClick={() => setEditRecord(r)} className="px-2 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-600 hover:bg-amber-100 transition-colors">수정</button>
+                  </td>
+                  <td className="px-3 py-2.5 whitespace-nowrap">
+                    {r.lastModifiedBy ? (
+                      <div className="text-[11px]">
+                        <div className="text-gray-700 font-medium">{r.lastModifiedBy}</div>
+                        <div className="text-gray-400">{fmtDateTime(r.lastModifiedAt ?? "")}</div>
+                      </div>
+                    ) : <span className="text-gray-300">-</span>}
                   </td>
                 </tr>
               ))}
@@ -386,7 +411,7 @@ function ShipmentTab({ onUpdate, companyLock = "" }: { onUpdate: (id: string, fi
           <SectionTable title="✅ 출고준비완료" items={sortedReady} headerCls="bg-amber-50 text-amber-700" />
         </>
       )}
-      {detailRecord && <AssetDetailModal record={detailRecord} onSave={onUpdate} onClose={() => setDetailRecord(null)} />}
+      {detailRecord && <AssetDetailModal record={detailRecord} onSave={onUpdate} onClose={() => setDetailRecord(null)} isSuperAdmin={isSuperAdmin} />}
       {editRecord && (
         <EditModal
           record={editRecord}
@@ -420,8 +445,8 @@ function EditModal({ record, fields, onSave, onClose }: EditModalProps) {
   useEffect(() => {
     const init: Partial<HwRecord> = {};
     fields.forEach(f => {
-      const val = (record as Record<string, unknown>)[f];
-      (init as Record<string, unknown>)[f] = val ?? (f === "verified" ? false : "");
+      const val = (record as unknown as Record<string, unknown>)[f];
+      (init as unknown as Record<string, unknown>)[f] = val ?? (f === "verified" ? false : "");
     });
     setForm(init);
   }, [record, fields]);
@@ -565,40 +590,101 @@ function EditModal({ record, fields, onSave, onClose }: EditModalProps) {
 // ─────────────────────────────────────────────────────────────────────────────
 // 자산 상세 모달
 // ─────────────────────────────────────────────────────────────────────────────
-function AssetDetailModal({ record, onSave, onClose }: {
+function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false }: {
   record: HwRecord;
   onSave: (id: string, fields: Partial<HwRecord>) => Promise<void>;
   onClose: () => void;
+  isSuperAdmin?: boolean;
 }) {
-  const [status,  setStatus]  = useState(record.status);
-  const [saving,  setSaving]  = useState(false);
-  const [saved,   setSaved]   = useState(false);
-  const [error,   setError]   = useState("");
+  const [form, setForm] = useState({
+    status: record.status,
+    user: record.user,
+    company: record.company,
+    dept: record.dept,
+    location: record.location,
+    useDate: record.useDate,
+    returnDate: record.returnDate,
+    returnDue: record.returnDue,
+    note: record.note,
+  });
+  const [saving, setSaving] = useState(false);
+  const [saved,  setSaved]  = useState(false);
+  const [error,  setError]  = useState("");
 
-  async function handleStatusSave() {
-    if (status === record.status) return;
+  // 민감 정보 (자산번호·시리얼) — 슈퍼어드민 전용
+  const [sensitiveForm, setSensitiveForm] = useState({ assetNo: record.assetNo, serial: record.serial });
+  const [sensitiveUnlocked, setSensitiveUnlocked] = useState(false);
+  const [showPwInput, setShowPwInput]   = useState(false);
+  const [pwValue,     setPwValue]       = useState("");
+  const [pwError,     setPwError]       = useState("");
+  const [pwVerifying, setPwVerifying]   = useState(false);
+
+  const setField = (k: keyof typeof form, v: string) => setForm(prev => ({ ...prev, [k]: v }));
+
+  const recAsMap = record as unknown as Record<string, unknown>;
+  const isDirty = (Object.keys(form) as (keyof typeof form)[]).some(
+    k => form[k] !== recAsMap[k]
+  ) || (sensitiveUnlocked && (
+    sensitiveForm.assetNo !== record.assetNo || sensitiveForm.serial !== record.serial
+  ));
+
+  async function handleVerifyPassword() {
+    if (!pwValue) return;
+    setPwVerifying(true); setPwError("");
+    try {
+      const res  = await fetch("/api/admin/auth/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: pwValue }),
+      });
+      const json = await safeJson(res);
+      if (json.ok) {
+        setSensitiveUnlocked(true);
+        setShowPwInput(false);
+        setPwValue("");
+      } else {
+        setPwError(json.error ?? "비밀번호가 올바르지 않습니다");
+      }
+    } catch {
+      setPwError("서버 오류가 발생했습니다");
+    } finally {
+      setPwVerifying(false);
+    }
+  }
+
+  async function handleSave() {
+    if (!isDirty) return;
     setSaving(true); setError("");
     try {
-      await onSave(record.id, { status });
+      const changed: Partial<HwRecord> = {};
+      (Object.keys(form) as (keyof typeof form)[]).forEach(k => {
+        if (form[k] !== recAsMap[k])
+          (changed as unknown as Record<string, unknown>)[k] = form[k];
+      });
+      if (sensitiveUnlocked) {
+        if (sensitiveForm.assetNo !== record.assetNo) changed.assetNo = sensitiveForm.assetNo;
+        if (sensitiveForm.serial  !== record.serial)  changed.serial  = sensitiveForm.serial;
+      }
+      await onSave(record.id, changed);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (e) { setError(String(e)); }
     finally { setSaving(false); }
   }
 
-  const Row = ({ label, value }: { label: string; value?: string | number }) => {
+  const InfoRow = ({ label, value }: { label: string; value?: string | number }) => {
     if (!value && value !== 0) return null;
     return (
-      <div className="flex gap-2 py-2 border-b border-gray-50 last:border-0">
-        <span className="text-xs text-gray-400 w-24 shrink-0">{label}</span>
-        <span className="text-xs text-gray-800 font-medium break-all">{String(value)}</span>
+      <div className="flex gap-2 py-1.5 border-b border-gray-50 last:border-0">
+        <span className="text-xs text-gray-400 w-20 shrink-0">{label}</span>
+        <span className="text-xs text-gray-700 font-medium break-all">{String(value)}</span>
       </div>
     );
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
         {/* 헤더 */}
         <div className="px-5 py-4 bg-amber-600 text-white flex items-start justify-between shrink-0">
           <div>
@@ -608,50 +694,176 @@ function AssetDetailModal({ record, onSave, onClose }: {
           <div className="flex items-center gap-3 ml-4">
             {record.notionUrl && (
               <a href={record.notionUrl} target="_blank" rel="noreferrer"
-                className="text-xs text-amber-200 hover:text-white underline underline-offset-2">
-                Notion ↗
-              </a>
+                className="text-xs text-amber-200 hover:text-white underline underline-offset-2">Notion ↗</a>
             )}
             <button onClick={onClose} className="text-white/70 hover:text-white text-2xl leading-none">✕</button>
           </div>
         </div>
 
-        {/* 상태 변경 */}
-        <div className="px-5 py-3 bg-amber-50 border-b border-amber-100 flex items-center gap-2 shrink-0">
-          <span className="text-xs font-semibold text-gray-500 shrink-0">상태 변경</span>
-          <select value={status} onChange={e => setStatus(e.target.value)}
-            className="flex-1 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white">
-            {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <button onClick={handleStatusSave} disabled={saving || status === record.status}
-            className="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 disabled:opacity-40 transition-colors shrink-0">
+        {/* 스크롤 영역 */}
+        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
+          {/* 수정 폼 */}
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">상태</label>
+              <select value={form.status} onChange={e => setField("status", e.target.value)}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300">
+                {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">사용자</label>
+                <input value={form.user} onChange={e => setField("user", e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">부서</label>
+                <input value={form.dept} onChange={e => setField("dept", e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">법인명</label>
+                <select value={form.company} onChange={e => setField("company", e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300">
+                  <option value="">— 선택 —</option>
+                  {COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">위치</label>
+                <input value={form.location} onChange={e => setField("location", e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">사용일자</label>
+                <input type="date" value={form.useDate} onChange={e => setField("useDate", e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">반납일자</label>
+                <input type="date" value={form.returnDate} onChange={e => setField("returnDate", e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">반납예정일</label>
+                <input type="date" value={form.returnDue} onChange={e => setField("returnDue", e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">비고</label>
+              <textarea value={form.note} onChange={e => setField("note", e.target.value)} rows={2}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 resize-none" />
+            </div>
+          </div>
+
+          {/* 슈퍼어드민 전용: 자산번호·시리얼 변경 */}
+          {isSuperAdmin && (
+            <div className="border border-red-100 rounded-xl p-3 bg-red-50/50">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] font-semibold text-red-500 uppercase tracking-wider">
+                  🔒 민감 정보 {sensitiveUnlocked ? "(잠금 해제됨)" : ""}
+                </p>
+                {!sensitiveUnlocked && !showPwInput && (
+                  <button
+                    onClick={() => setShowPwInput(true)}
+                    className="text-[11px] px-2.5 py-1 rounded-lg bg-red-100 text-red-600 hover:bg-red-200 font-semibold transition-colors">
+                    잠금 해제
+                  </button>
+                )}
+                {sensitiveUnlocked && (
+                  <button
+                    onClick={() => { setSensitiveUnlocked(false); setSensitiveForm({ assetNo: record.assetNo, serial: record.serial }); }}
+                    className="text-[11px] px-2.5 py-1 rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 font-semibold transition-colors">
+                    다시 잠금
+                  </button>
+                )}
+              </div>
+
+              {/* 비밀번호 확인 입력 */}
+              {showPwInput && !sensitiveUnlocked && (
+                <div className="mb-3 space-y-2">
+                  <p className="text-xs text-red-600">자산번호·시리얼 변경은 본인 비밀번호 확인이 필요합니다.</p>
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      value={pwValue}
+                      onChange={e => setPwValue(e.target.value)}
+                      onKeyDown={e => e.key === "Enter" && handleVerifyPassword()}
+                      placeholder="비밀번호 입력"
+                      className="flex-1 rounded-lg border border-red-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-300"
+                    />
+                    <button
+                      onClick={handleVerifyPassword}
+                      disabled={pwVerifying || !pwValue}
+                      className="px-3 py-1.5 rounded-lg bg-red-500 text-white text-xs font-semibold hover:bg-red-600 disabled:opacity-40 transition-colors">
+                      {pwVerifying ? "확인 중…" : "확인"}
+                    </button>
+                    <button
+                      onClick={() => { setShowPwInput(false); setPwValue(""); setPwError(""); }}
+                      className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 text-xs font-semibold hover:bg-gray-200 transition-colors">
+                      취소
+                    </button>
+                  </div>
+                  {pwError && <p className="text-xs text-red-600">⚠ {pwError}</p>}
+                </div>
+              )}
+
+              {/* 편집 가능 필드 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">자산번호</label>
+                  {sensitiveUnlocked ? (
+                    <input
+                      value={sensitiveForm.assetNo}
+                      onChange={e => setSensitiveForm(p => ({ ...p, assetNo: e.target.value }))}
+                      className="w-full rounded-lg border border-red-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-300"
+                    />
+                  ) : (
+                    <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm font-mono text-gray-400">{record.assetNo || "—"}</div>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">시리얼 넘버</label>
+                  {sensitiveUnlocked ? (
+                    <input
+                      value={sensitiveForm.serial}
+                      onChange={e => setSensitiveForm(p => ({ ...p, serial: e.target.value }))}
+                      className="w-full rounded-lg border border-red-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-300"
+                    />
+                  ) : (
+                    <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm font-mono text-gray-400">{record.serial || "—"}</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 읽기 전용 자산 정보 */}
+          <div className="border-t border-gray-100 pt-3">
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">자산 정보</p>
+            <InfoRow label="제조사"   value={record.maker} />
+            <InfoRow label="모델"     value={record.model} />
+            {!isSuperAdmin && <InfoRow label="시리얼" value={record.serial} />}
+            <InfoRow label="CPU"      value={record.cpu} />
+            <InfoRow label="RAM"      value={record.ram} />
+            <InfoRow label="구매일자" value={record.purchaseDate ? fmtDate(record.purchaseDate) : undefined} />
+            <InfoRow label="단가"     value={record.price > 0 ? fmtKrw(record.price) : undefined} />
+            <InfoRow label="잔존가치" value={record.residualValue > 0 ? fmtKrw(record.residualValue) : undefined} />
+            <InfoRow label="문서번호" value={record.docNo} />
+            {record.verified && <InfoRow label="실사확인" value="완료" />}
+          </div>
+        </div>
+
+        {/* 저장 버튼 */}
+        <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex items-center justify-between shrink-0">
+          <span className="text-xs text-red-600">{error ? `⚠️ ${error}` : ""}</span>
+          <button onClick={handleSave} disabled={saving || !isDirty}
+            className="px-4 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 disabled:opacity-40 transition-colors">
             {saving ? "저장 중…" : saved ? "✓ 저장됨" : "저장"}
           </button>
         </div>
-
-        {/* 상세 정보 */}
-        <div className="overflow-y-auto flex-1 px-5 py-3">
-          <Row label="현재 상태"  value={record.status} />
-          <Row label="사용자"     value={record.user} />
-          <Row label="법인"       value={record.company} />
-          <Row label="부서"       value={record.dept} />
-          <Row label="위치"       value={record.location} />
-          <Row label="제조사"     value={record.maker} />
-          <Row label="모델"       value={record.model} />
-          <Row label="시리얼"     value={record.serial} />
-          <Row label="CPU"        value={record.cpu} />
-          <Row label="RAM"        value={record.ram} />
-          <Row label="구매일자"   value={record.purchaseDate ? fmtDate(record.purchaseDate) : undefined} />
-          <Row label="사용일자"   value={record.useDate     ? fmtDate(record.useDate)     : undefined} />
-          <Row label="반납예정일" value={record.returnDue   ? fmtDate(record.returnDue)   : undefined} />
-          <Row label="반납일자"   value={record.returnDate  ? fmtDate(record.returnDate)  : undefined} />
-          <Row label="단가"       value={record.price > 0   ? fmtKrw(record.price)        : undefined} />
-          <Row label="문서번호"   value={record.docNo} />
-          {record.verified && <Row label="실사확인" value="완료" />}
-          <Row label="비고"       value={record.note} />
-        </div>
-
-        {error && <div className="px-5 pb-3 text-xs text-red-600">⚠️ {error}</div>}
       </div>
     </div>
   );
@@ -660,7 +872,7 @@ function AssetDetailModal({ record, onSave, onClose }: {
 // ─────────────────────────────────────────────────────────────────────────────
 // 반납 대상자 탭
 // ─────────────────────────────────────────────────────────────────────────────
-function ReturnTab({ onUpdate, companyLock = "" }: { onUpdate: (id: string, fields: Partial<HwRecord>) => Promise<void>; companyLock?: string }) {
+function ReturnTab({ onUpdate, companyLock = "", isSuperAdmin = false }: { onUpdate: (id: string, fields: Partial<HwRecord>) => Promise<void>; companyLock?: string; isSuperAdmin?: boolean }) {
   const [company,      setCompany]      = useState(companyLock);
   const [allRecords,   setAllRecords]   = useState<HwRecord[]>([]);
   const [loading,      setLoading]      = useState(true);
@@ -674,7 +886,7 @@ function ReturnTab({ onUpdate, companyLock = "" }: { onUpdate: (id: string, fiel
       const p = new URLSearchParams({ returnDue: "1" });
       if (company) p.set("company", company);
       const res  = await fetch(`/api/hw?${p}`);
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) throw new Error(json.error);
       setAllRecords(json.records ?? []);
     } catch { /* silent */ }
@@ -773,7 +985,7 @@ function ReturnTab({ onUpdate, companyLock = "" }: { onUpdate: (id: string, fiel
           <TableSection title="◽ D-30 초과"                   items={later}  cls="bg-gray-50 text-gray-700" />
         </>
       )}
-      {detailRecord && <AssetDetailModal record={detailRecord} onSave={onUpdate} onClose={() => setDetailRecord(null)} />}
+      {detailRecord && <AssetDetailModal record={detailRecord} onSave={onUpdate} onClose={() => setDetailRecord(null)} isSuperAdmin={isSuperAdmin} />}
       {editRecord && (
         <EditModal
           record={editRecord}
@@ -789,17 +1001,52 @@ function ReturnTab({ onUpdate, companyLock = "" }: { onUpdate: (id: string, fiel
 // ─────────────────────────────────────────────────────────────────────────────
 // 자산 검색 탭 (자체 on-demand fetch)
 // ─────────────────────────────────────────────────────────────────────────────
-function SearchTab({ companyLock = "", onUpdate }: { companyLock?: string; onUpdate?: (id: string, fields: Partial<HwRecord>) => Promise<void> }) {
+function SearchTab({ companyLock = "", onUpdate, isSuperAdmin = false }: { companyLock?: string; onUpdate?: (id: string, fields: Partial<HwRecord>) => Promise<void>; isSuperAdmin?: boolean }) {
   const [records,     setRecords]     = useState<HwRecord[]>([]);
   const [loading,     setLoading]     = useState(false);
   const [error,       setError]       = useState("");
   const [search,      setSearch]      = useState("");
   const [company,     setCompany]     = useState(companyLock);
-  const [editRecord,   setEditRecord]   = useState<HwRecord | null>(null);
-  const [detailRecord, setDetailRecord] = useState<HwRecord | null>(null);
+  const [editRecord,    setEditRecord]    = useState<HwRecord | null>(null);
+  const [detailRecord,  setDetailRecord]  = useState<HwRecord | null>(null);
+  const [statusPickerId, setStatusPickerId] = useState<string | null>(null);
+  const [statusPickerVal, setStatusPickerVal] = useState("");
   const [status,   setStatus]   = useState("");
   const [location, setLocation] = useState("");
   const [searched, setSearched] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = useCallback(async () => {
+    if (records.length === 0) return;
+    setExporting(true);
+    try {
+      const XLSX = await import("xlsx");
+      const rows = records.map(r => ({
+        "자산번호":  r.assetNo        || "",
+        "사용자":    r.user           || "",
+        "법인명":    r.company        || "",
+        "부서":      r.dept           || "",
+        "모델명":    r.model          || "",
+        "제조사":    r.maker          || "",
+        "CPU":       r.cpu            || "",
+        "RAM":       r.ram            || "",
+        "시리얼":    r.serial         || "",
+        "구매일자":  r.purchaseDate   || "",
+        "사용일자":  r.useDate        || "",
+        "단가(원)":  r.price > 0 ? r.price : "",
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws["!cols"] = Object.keys(rows[0]).map(key => ({
+        wch: Math.max(key.length, ...rows.map(r => String(r[key as keyof typeof r] ?? "").length)) + 2,
+      }));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "HW자산");
+      const now = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(wb, `HW자산_${companyLock || "전체"}_${now}.xlsx`);
+    } finally {
+      setExporting(false);
+    }
+  }, [records, companyLock]);
 
   const load = useCallback(async () => {
     setLoading(true); setError(""); setSearched(true);
@@ -810,7 +1057,7 @@ function SearchTab({ companyLock = "", onUpdate }: { companyLock?: string; onUpd
       if (status)   q.set("status",   status);
       if (location) q.set("location", location);
       const res  = await fetch(`/api/hw?${q}`);
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) throw new Error(json.error);
       setRecords(json.records);
     } catch (e) { setError(String(e)); }
@@ -870,7 +1117,18 @@ function SearchTab({ companyLock = "", onUpdate }: { companyLock?: string; onUpd
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
             <span className="text-sm font-semibold text-gray-700">검색 결과</span>
-            <span className="text-xs text-gray-400">{records.length}건</span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-gray-400">{records.length}건</span>
+              <button
+                onClick={handleExport}
+                disabled={exporting || records.length === 0}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+              >
+                {exporting ? (
+                  <><svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>생성 중…</>
+                ) : <>📥 엑셀 다운로드</>}
+              </button>
+            </div>
           </div>
           {records.length === 0 ? (
             <div className="py-12 text-center text-gray-400 text-sm">조회된 자산이 없습니다</div>
@@ -878,31 +1136,55 @@ function SearchTab({ companyLock = "", onUpdate }: { companyLock?: string; onUpd
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead className="bg-gray-50 text-gray-500 font-semibold">
-                  <tr>{["자산번호","사용자","법인명","부서","모델명","제조사","상태","사용일자","반납예정일","단가","실사",""].map(h=><th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}</tr>
+                  <tr>{["상태","자산번호","사용자","법인명","부서","모델명","제조사","사용일자","반납일자","반납예정일","잔존가치","단가","최종수정"].map(h=><th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}</tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {records.map(r => (
                     <tr key={r.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        {statusPickerId === r.id ? (
+                          <div className="flex items-center gap-1">
+                            <select value={statusPickerVal} onChange={e => setStatusPickerVal(e.target.value)} autoFocus
+                              className="rounded border border-amber-300 px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400">
+                              {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                            <button onClick={async () => {
+                              if (onUpdate && statusPickerVal !== r.status) {
+                                await onUpdate(r.id, { status: statusPickerVal });
+                                setRecords(prev => prev.map(x => x.id === r.id ? { ...x, status: statusPickerVal } : x));
+                              }
+                              setStatusPickerId(null);
+                            }} className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-600 text-white hover:bg-amber-700">확인</button>
+                            <button onClick={() => setStatusPickerId(null)} className="text-[11px] text-gray-400 hover:text-gray-600 leading-none">✕</button>
+                          </div>
+                        ) : (
+                          <span
+                            onClick={() => { setStatusPickerId(r.id); setStatusPickerVal(r.status); }}
+                            className={`px-2 py-0.5 rounded-full text-[11px] font-medium cursor-pointer hover:ring-2 hover:ring-amber-300 hover:ring-offset-1 ${STATUS_COLOR[r.status]??"bg-gray-100 text-gray-600"}`}>
+                            {r.status||"-"}
+                          </span>
+                        )}
+                      </td>
                       <td className="px-3 py-2.5 font-mono whitespace-nowrap cursor-pointer text-amber-600 hover:underline" onClick={() => setDetailRecord(r)}>{r.assetNo||"-"}</td>
                       <td className="px-3 py-2.5 font-medium text-gray-900 whitespace-nowrap">{r.user||"-"}</td>
                       <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{r.company||"-"}</td>
                       <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.dept||"-"}</td>
                       <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap max-w-[140px] truncate">{r.model||"-"}</td>
                       <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.maker||"-"}</td>
-                      <td className="px-3 py-2.5 whitespace-nowrap">
-                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${STATUS_COLOR[r.status]??"bg-gray-100 text-gray-600"}`}>{r.status||"-"}</span>
-                      </td>
                       <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{fmtDate(r.useDate)}</td>
+                      <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{fmtDate(r.returnDate)}</td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         {r.returnDue ? <span className="flex items-center gap-1.5"><span className="text-gray-600">{fmtDate(r.returnDue)}</span><span className={`text-[11px] ${dDay(r.returnDue).cls}`}>{dDay(r.returnDue).label}</span></span> : "-"}
                       </td>
+                      <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.residualValue > 0 ? fmtKrw(r.residualValue) : "-"}</td>
                       <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{fmtKrw(r.price)}</td>
-                      <td className="px-3 py-2.5 whitespace-nowrap text-center">
-                        {r.verified ? <span className="text-green-600 font-bold">✓</span> : <span className="text-gray-300">−</span>}
-                      </td>
-                      <td className="px-3 py-2.5 flex items-center gap-2">
-                        {r.notionUrl && <a href={r.notionUrl} target="_blank" rel="noreferrer" className="text-amber-400 hover:text-amber-600 underline underline-offset-2">Notion ↗</a>}
-                        {onUpdate && <button onClick={() => setEditRecord(r)} className="px-2 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-600 hover:bg-amber-100 transition-colors">수정</button>}
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        {r.lastModifiedBy ? (
+                          <div className="text-[11px]">
+                            <div className="text-gray-700 font-medium">{r.lastModifiedBy}</div>
+                            <div className="text-gray-400">{fmtDateTime(r.lastModifiedAt ?? "")}</div>
+                          </div>
+                        ) : <span className="text-gray-300">-</span>}
                       </td>
                     </tr>
                   ))}
@@ -925,6 +1207,7 @@ function SearchTab({ companyLock = "", onUpdate }: { companyLock?: string; onUpd
             setRecords(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r));
           }}
           onClose={() => setDetailRecord(null)}
+          isSuperAdmin={isSuperAdmin}
         />
       )}
       {editRecord && onUpdate && (
@@ -981,6 +1264,7 @@ function buildColIndex(headers:string[]):Partial<Record<keyof ExcelRow,number>>{
 }
 type UploadResult={index:number;user:string;assetNo:string;ok:boolean;error?:string};
 interface DupItem{excelRow:ExcelRow;matchedBy:"serial"|"assetNo";existingUser:string;existingModel:string;existingStatus:string;existingNotionUrl:string;}
+interface SyncMatch{erId:string;erType:string;erCompany:string;erUser:string;erDept:string;erAssetId:string;newAssetNo:string;confirmed:boolean;confirming:boolean;error:string;}
 
 function DuplicateModal({dups,cleanCount,onSkipDups,onUploadAll,onCancel}:{
   dups:DupItem[];cleanCount:number;onSkipDups:()=>void;onUploadAll:()=>void;onCancel:()=>void;
@@ -1045,9 +1329,13 @@ function ExcelUploadTab(){
   const [showDupModal,setShowDupModal]=useState(false);
   const [dupItems,setDupItems]=useState<DupItem[]>([]);
   const [cleanRows,setCleanRows]=useState<ExcelRow[]>([]);
+  const [syncWarn,setSyncWarn]=useState("");
+  const [syncMatches,setSyncMatches]=useState<SyncMatch[]>([]);
+  const [syncChecked,setSyncChecked]=useState(false);
+  const [expandedSyncIdx,setExpandedSyncIdx]=useState<number|null>(null);
 
   const handleFile=async(file:File)=>{
-    setPErr("");setRows([]);setResults(null);setSummary(null);
+    setPErr("");setRows([]);setResults(null);setSummary(null);setSyncWarn("");
     setShowDupModal(false);setDupItems([]);setCleanRows([]);setFile(file.name);
     try{
       const XLSX=await import("xlsx");
@@ -1082,7 +1370,7 @@ function ExcelUploadTab(){
   const handleCheckAndUpload=async()=>{
     setChecking(true);setPErr("");
     try{
-      const res=await fetch("/api/hw");const json=await res.json();
+      const res=await fetch("/api/hw");const json=await safeJson(res);
       if(!json.ok) throw new Error(json.error);
       const notionRecords:HwRecord[]=json.records;
       const serialSet=new Map<string,HwRecord>();
@@ -1110,23 +1398,87 @@ function ExcelUploadTab(){
       const convertedRows=targetRows.map(r=>({...r,purchaseDate:excelDateToStr(r.purchaseDate as string|number),useDate:excelDateToStr(r.useDate as string|number)}));
       const res=await fetch("/api/hw/upload",{method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({rows:convertedRows})});
-      const json=await res.json();clearInterval(timer);setProgress(100);
+      const json=await safeJson(res);clearInterval(timer);setProgress(100);
       if(!json.ok) throw new Error(json.error);
       setResults(json.results);setSummary({success:json.success,failed:json.failed});
       // 신규 지급 이력 기록 (성공 건만)
       const successSet=new Set<number>((json.results as UploadResult[]).filter((r:UploadResult)=>r.ok).map((r:UploadResult)=>r.index));
-      if(successSet.size>0){
+      const successRows=convertedRows.filter((_,i)=>successSet.has(i));
+      if(successRows.length>0){
         const now=new Date().toISOString();
-        const events=convertedRows.filter((_,i)=>successSet.has(i)).map(r=>({
+        const events=successRows.map(r=>({
           id:crypto.randomUUID(),dispatchedAt:now,type:"신규" as const,
           assetNo:r.assetNo||"",model:r.model||"",serial:r.serial||"",
           user:r.user||"",company:r.company||"",dept:r.dept||"",useDate:r.useDate||"",
         }));
         fetch("/api/hw/dispatch-history",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(events)}).catch(console.error);
+
+        // 자산흐름관리 연동 대상 수집 (자동 실행 없이 리스트만)
+        try {
+          const erJson=await fetch("/api/exchange-return").then(r=>safeJson(r));
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const candidates=(erJson.data??[]).filter((r:any)=>
+            (r.type==="신규지급"||r.type==="교체") &&
+            (r.newAssetId??"").trim()==="신규구매로안내됨" &&
+            !r.isClosed &&
+            r.stage!=="사용자수령"&&r.stage!=="반납요청"&&r.stage!=="반납완료"
+          );
+          const matches:SyncMatch[]=[];
+          for(const row of successRows){
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const matched=candidates.filter((r:any)=>(r.company??"").trim()===(row.company??"").trim()&&(r.user??"").trim()===(row.user??"").trim());
+            for(const rec of matched){
+              matches.push({
+                erId:rec.id, erType:rec.type, erCompany:rec.company, erUser:rec.user,
+                erDept:rec.department??rec.dept??"", erAssetId:rec.assetId??"",
+                newAssetNo:row.assetNo, confirmed:false, confirming:false, error:"",
+              });
+            }
+          }
+          setSyncMatches(matches);
+          setSyncChecked(true);
+        } catch(e){
+          console.warn("[ExcelUpload] 자산흐름관리 연동 대상 조회 실패:",e);
+          setSyncWarn("자산흐름관리 연동 대상 조회 중 오류가 발생했습니다. 수동으로 확인해주세요.");
+          setSyncChecked(true);
+        }
       }
     }catch(e){setPErr(String(e));}finally{setUploading(false);}
   };
-  const reset=()=>{setRows([]);setFile("");setPErr("");setResults(null);setSummary(null);setProgress(0);setShowDupModal(false);setDupItems([]);setCleanRows([]);if(fileRef.current)fileRef.current.value="";};
+  const confirmSync=async(idx:number)=>{
+    const m=syncMatches[idx];
+    if(!m||m.confirmed||m.confirming) return;
+    setSyncMatches(prev=>prev.map((x,i)=>i===idx?{...x,confirming:true,error:""}:x));
+    try{
+      const defaultDue=new Date(Date.now()+7*86400000).toISOString().slice(0,10);
+      const updates:Promise<unknown>[]=[
+        fetch("/api/exchange-return/update",{method:"POST",headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({id:m.erId,fields:{stage:"사용자수령",newAssetId:m.newAssetNo,...(m.erType==="교체"?{returnDue:defaultDue}:{})}}),
+        }).then(async res=>{const j=await safeJson(res);if(!j.ok) throw new Error(j.error||`HTTP ${res.status}`);}),
+      ];
+      if(m.newAssetNo){
+        updates.push(fetch(`/api/hw?search=${encodeURIComponent(m.newAssetNo)}`).then(r=>safeJson(r)).then(d=>{
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const found=(d.records??[]).find((r:any)=>r.assetNo===m.newAssetNo)??(d.records?.length===1?d.records[0]:null);
+          if(found) return fetch("/api/hw/update",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:found.id,fields:{status:"사용중"}})});
+        }));
+      }
+      if(m.erType==="교체"&&m.erAssetId){
+        updates.push(fetch(`/api/hw?search=${encodeURIComponent(m.erAssetId)}`).then(r=>safeJson(r)).then(d=>{
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const found=(d.records??[]).find((r:any)=>r.assetNo===m.erAssetId)??(d.records?.length===1?d.records[0]:null);
+          if(found) return fetch("/api/hw/update",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:found.id,fields:{status:"반납예정",returnDue:defaultDue}})});
+        }));
+      }
+      await Promise.all(updates);
+      setSyncMatches(prev=>prev.map((x,i)=>i===idx?{...x,confirmed:true,confirming:false}:x));
+      setExpandedSyncIdx(null);
+    }catch(e){
+      setSyncMatches(prev=>prev.map((x,i)=>i===idx?{...x,confirming:false,error:String(e)}:x));
+    }
+  };
+
+  const reset=()=>{setRows([]);setFile("");setPErr("");setResults(null);setSummary(null);setProgress(0);setSyncWarn("");setSyncMatches([]);setSyncChecked(false);setExpandedSyncIdx(null);setShowDupModal(false);setDupItems([]);setCleanRows([]);if(fileRef.current)fileRef.current.value="";};
 
   return(
     <div className="space-y-4">
@@ -1215,6 +1567,15 @@ function ExcelUploadTab(){
             <p className={`text-base font-bold mb-1 ${summary.failed===0?"text-green-800":"text-yellow-800"}`}>{summary.failed===0?"✅ 전체 등록 완료!":"⚠️ 등록 완료 (일부 실패)"}</p>
             <p className="text-sm text-gray-700">성공 <span className="font-bold text-green-700">{summary.success}</span>건 · 실패 <span className="font-bold text-red-600">{summary.failed}</span>건</p>
           </div>
+          {syncWarn&&(
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+              <span className="text-lg shrink-0">⚠️</span>
+              <div>
+                <p className="text-sm font-semibold text-amber-800">자산흐름관리 연동 실패</p>
+                <p className="text-xs text-amber-700 mt-0.5">{syncWarn}</p>
+              </div>
+            </div>
+          )}
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="px-5 py-3 border-b border-gray-100"><p className="text-sm font-semibold text-gray-700">등록 상세 결과</p></div>
             <div className="overflow-x-auto max-h-72">
@@ -1236,611 +1597,162 @@ function ExcelUploadTab(){
               </table>
             </div>
           </div>
+          {syncChecked&&(
+            <div className="bg-white rounded-xl border border-blue-200 overflow-hidden">
+              <div className="px-5 py-3 border-b border-blue-100 bg-blue-50 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-blue-800">자산흐름관리 연동 필요 항목</p>
+                  <p className="text-xs text-blue-600 mt-0.5">신규 등록 자산과 법인·사용자가 일치하는 신규구매 대기 항목입니다.</p>
+                </div>
+                <span className="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-1 rounded-full">{syncMatches.filter(m=>!m.confirmed).length}건 대기</span>
+              </div>
+              {syncMatches.length===0?(
+                <div className="px-5 py-6 text-center text-sm text-gray-400">연동 필요 항목 없음</div>
+              ):(
+              <div className="divide-y divide-gray-100">
+                {syncMatches.map((m,i)=>(
+                  <div key={i} className={`transition-colors ${m.confirmed?"bg-green-50/50":""}`}>
+                    <button type="button" onClick={()=>setExpandedSyncIdx(expandedSyncIdx===i?null:i)}
+                      className="w-full px-5 py-3 flex items-center justify-between hover:bg-gray-50 text-left">
+                      <div className="flex items-center gap-3">
+                        {m.confirmed
+                          ? <span className="text-xs font-semibold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">완료</span>
+                          : <span className="text-xs font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">{m.erType}</span>
+                        }
+                        <span className="text-sm font-medium text-gray-800">{m.erUser}</span>
+                        <span className="text-xs text-gray-400">{m.erCompany} · {m.erDept}</span>
+                      </div>
+                      <span className="text-gray-400 text-xs">{expandedSyncIdx===i?"▲":"▼"}</span>
+                    </button>
+                    {expandedSyncIdx===i&&(
+                      <div className="px-5 pb-4 space-y-3">
+                        <div className="bg-gray-50 rounded-xl p-4 text-xs space-y-2">
+                          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
+                            <div><span className="text-gray-400">유형</span><span className="ml-2 font-medium text-gray-800">{m.erType}</span></div>
+                            <div><span className="text-gray-400">사용자</span><span className="ml-2 font-medium text-gray-800">{m.erUser}</span></div>
+                            <div><span className="text-gray-400">법인</span><span className="ml-2 font-medium text-gray-800">{m.erCompany}</span></div>
+                            <div><span className="text-gray-400">부서</span><span className="ml-2 font-medium text-gray-800">{m.erDept||"-"}</span></div>
+                            {m.erAssetId&&<div><span className="text-gray-400">기존 자산번호</span><span className="ml-2 font-mono font-medium text-gray-800">{m.erAssetId}</span></div>}
+                            <div><span className="text-gray-400">신규 자산번호</span><span className="ml-2 font-mono font-medium text-blue-700">{m.newAssetNo||"-"}</span></div>
+                          </div>
+                          <div className="border-t border-gray-200 pt-2 mt-1">
+                            <p className="text-gray-500 font-medium mb-1">확인 시 자동 처리:</p>
+                            <ul className="space-y-0.5 text-gray-600">
+                              <li>· 트래커 단계 → <strong>사용자수령</strong> · 교체 자산번호 → <strong>{m.newAssetNo}</strong></li>
+                              <li>· 신규 자산 HW 상태 → <strong>사용중</strong></li>
+                              {m.erType==="교체"&&m.erAssetId&&<li>· 기존 자산 <strong className="font-mono">{m.erAssetId}</strong> → <strong>반납예정</strong> (반납예정일 +7일)</li>}
+                            </ul>
+                          </div>
+                        </div>
+                        {m.error&&<p className="text-xs text-red-600">⚠️ {m.error}</p>}
+                        {!m.confirmed&&(
+                          <button onClick={()=>confirmSync(i)} disabled={m.confirming}
+                            className="w-full py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-40">
+                            {m.confirming?"처리 중…":"확인 · 사용자수령 처리"}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              )}
+            </div>
+          )}
           <button onClick={reset} className="w-full py-2.5 rounded-xl border border-gray-300 text-gray-600 text-sm hover:bg-gray-50">새 파일 업로드</button>
         </div>
       )}
+      <NextAssetNoPanel/>
     </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 행낭 발송지 출력 탭
-// ─────────────────────────────────────────────────────────────────────────────
-interface LabelEntry {
-  id: string;
-  recipientOrg: string;
-  recipientName: string;
-  user: string;
-  assetNo: string;
-  shipType: string;
-}
-
-interface PrintHistoryRecord {
-  id: string;
-  printedAt: string;   // ISO timestamp (most important)
-  senderInfo: string;
-  labels: LabelEntry[];
-}
-
-function LabelPrintTab({
-  records,
-  recordsReady,
-  onLoadRecords,
-}: {
-  records: HwRecord[];
-  recordsReady: boolean;
-  onLoadRecords: () => void;
-}) {
-  const [senderInfo, setSenderInfo] = useState("idsTrust 자산관리파트 백승윤");
-  const [labels, setLabels] = useState<LabelEntry[]>([
-    { id: "1", recipientOrg: "", recipientName: "", user: "", assetNo: "", shipType: "신규지급" },
-  ]);
-  const [showPicker, setShowPicker] = useState(false);
-  const [pickerTarget, setPickerTarget] = useState<string>("");
-  const [pickerSearch, setPickerSearch] = useState("");
-
-  // 출력 이력
-  const [history, setHistory]               = useState<PrintHistoryRecord[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [showHistory, setShowHistory]       = useState(false);
-  const [historySearch, setHistorySearch]   = useState("");
-  const [showCleanup, setShowCleanup]       = useState(false);
-  const [cleanupBusy, setCleanupBusy]       = useState(false);
-
-  useEffect(() => {
-    if (!recordsReady) onLoadRecords();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // 이력 로드
-  useEffect(() => {
-    setHistoryLoading(true);
-    fetch("/api/label-history")
-      .then(r => r.json())
-      .then(j => {
-        if (j.ok) {
-          const data: PrintHistoryRecord[] = j.history ?? [];
-          setHistory(data);
-          if (data.length >= 190) setShowCleanup(true);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setHistoryLoading(false));
-  }, []);
-
-  // 출력 이력 → 라벨별 플랫 행 변환 (각 라벨이 테이블 한 행)
-  const historyRows = useMemo(() => {
-    const rows: {
-      historyId: string; printedAt: string; senderInfo: string;
-      labelIndex: number; recipientOrg: string; recipientName: string;
-      user: string; assetNo: string; shipType: string;
-    }[] = [];
-    history.forEach(h => {
-      h.labels.forEach((l, i) => {
-        rows.push({
-          historyId: h.id, printedAt: h.printedAt, senderInfo: h.senderInfo,
-          labelIndex: i + 1,
-          recipientOrg: l.recipientOrg, recipientName: l.recipientName,
-          user: l.user, assetNo: l.assetNo, shipType: l.shipType,
+// ── 자산번호 복사 버튼 ───────────────────────────────────────────
+function CopyAssetNo({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      className="font-mono font-semibold text-teal-700 hover:text-teal-900 transition-colors"
+      onClick={() => {
+        navigator.clipboard.writeText(value).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
         });
-      });
-    });
-    return rows;
-  }, [history]);
+      }}
+      title="클릭하여 복사"
+    >
+      {copied ? "✓ 복사됨" : value}
+    </button>
+  );
+}
 
-  // 키워드 필터
-  const filteredRows = useMemo(() => {
-    const q = historySearch.trim().toLowerCase();
-    if (!q) return historyRows;
-    return historyRows.filter(r =>
-      r.printedAt.includes(q) ||
-      r.senderInfo.toLowerCase().includes(q) ||
-      r.recipientOrg.toLowerCase().includes(q) ||
-      r.recipientName.toLowerCase().includes(q) ||
-      r.user.toLowerCase().includes(q) ||
-      r.assetNo.toLowerCase().includes(q) ||
-      r.shipType.toLowerCase().includes(q)
-    );
-  }, [historyRows, historySearch]);
+// ─────────────────────────────────────────────────────────────────────────────
+// 법인별 다음 자산번호 추천 (형식: YY+법인코드-MM+일련번호, 예: 2601-06101)
+// ─────────────────────────────────────────────────────────────────────────────
+function NextAssetNoPanel(){
+  const [records,setRecords]=useState<HwRecord[]|null>(null);
+  const [loading,setLoading]=useState(true);
+  const [error,setError]=useState("");
 
-  const filteredRecords = useMemo(() => {
-    if (!pickerSearch.trim()) return records.slice(0, 50);
-    const q = pickerSearch.toLowerCase();
-    return records
-      .filter(r =>
-        (r.user || "").toLowerCase().includes(q) ||
-        (r.assetNo || "").toLowerCase().includes(q) ||
-        (r.company || "").toLowerCase().includes(q) ||
-        (r.dept || "").toLowerCase().includes(q)
-      )
-      .slice(0, 40);
-  }, [records, pickerSearch]);
+  useEffect(()=>{
+    (async()=>{
+      try{
+        const res=await fetch("/api/hw");
+        const json=await safeJson(res);
+        if(!json.ok) throw new Error(json.error);
+        setRecords(json.records);
+      }catch(e){setError(String(e));}
+      finally{setLoading(false);}
+    })();
+  },[]);
 
-  function updateLabel(id: string, field: keyof LabelEntry, val: string) {
-    setLabels(prev => prev.map(l => l.id === id ? { ...l, [field]: val } : l));
-  }
+  const now=new Date();
+  const yy=String(now.getFullYear()).slice(-2);
+  const mm=String(now.getMonth()+1).padStart(2,"0");
+  const companies=COMPANIES.filter(c=>COMPANY_ASSET_CODES[c]);
 
-  function addLabel() {
-    setLabels(prev => [...prev, {
-      id: Date.now().toString(),
-      recipientOrg: "", recipientName: "", user: "", assetNo: "", shipType: "신규지급",
-    }]);
-  }
-
-  function removeLabel(id: string) {
-    if (labels.length <= 1) return;
-    setLabels(prev => prev.filter(l => l.id !== id));
-  }
-
-  function pickRecord(r: HwRecord) {
-    setLabels(prev => prev.map(l => l.id === pickerTarget ? {
-      ...l,
-      recipientOrg: r.company || "",
-      recipientName: r.user || "",
-      user: r.user || "",
-      assetNo: r.assetNo || "",
-    } : l));
-    setShowPicker(false);
-    setPickerTarget("");
-    setPickerSearch("");
-  }
-
-  async function printLabels() {
-    const warnBar = `<div class="warning">♦파손주의♦&nbsp;&nbsp;&nbsp;♦상하주의♦&nbsp;&nbsp;&nbsp;♦취급주의♦</div>`;
-    const labelHtml = labels.map((label, idx) => `
-<div class="label">
-  ${warnBar}
-  <div class="body">
-    <div class="from-to">
-      <div>발신 : ${label.recipientOrg ? senderInfo : senderInfo}</div>
-      <div>수신 : ${label.recipientOrg || "&nbsp;"}</div>
-    </div>
-    <div class="to-name">${label.recipientName || "&nbsp;"} 님 앞</div>
-    <div class="ship-box">[ ${label.shipType} - 0 실사용자 : ${label.user || "&nbsp;"} 님 ]</div>
-    <div class="contents">내용 : ${label.assetNo || "&nbsp;"}</div>
-  </div>
-  ${warnBar}
-  <div class="page-num">${idx + 1} 페이지</div>
-  ${warnBar}
-</div>`).join("\n");
-
-    const html = `<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8">
-<style>
-  @page { size: A4 portrait; margin: 0; }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Malgun Gothic', '맑은 고딕', AppleGothic, sans-serif; width: 210mm; }
-  .label {
-    width: 210mm;
-    height: 148.5mm;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    border-bottom: 2px dashed #aaa;
-    page-break-inside: avoid;
-  }
-  .label:last-child { border-bottom: none; }
-  .warning {
-    background: #cc0000;
-    color: white;
-    font-size: 19pt;
-    font-weight: 900;
-    text-align: center;
-    padding: 5.5mm 0;
-    letter-spacing: 5px;
-    flex-shrink: 0;
-  }
-  .body {
-    flex: 1;
-    padding: 5mm 18mm;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-around;
-  }
-  .from-to { font-size: 13pt; line-height: 2; }
-  .to-name {
-    font-size: 26pt;
-    font-weight: 900;
-    text-align: center;
-  }
-  .ship-box {
-    border: 2.5px solid #222;
-    text-align: center;
-    padding: 2.5mm 0;
-    font-size: 12pt;
-    font-weight: bold;
-  }
-  .contents { font-size: 16pt; font-weight: bold; }
-  .page-num {
-    text-align: center;
-    font-size: 15pt;
-    color: #999;
-    font-weight: bold;
-    padding: 1.5mm 0;
-    flex-shrink: 0;
-  }
-</style>
-</head>
-<body>
-${labelHtml}
-<script>window.onload=function(){window.print();}<\/script>
-</body>
-</html>`;
-
-    const w = window.open("", "_blank", "width=900,height=750");
-    if (w) { w.document.write(html); w.document.close(); }
-
-    // 출력 이력 저장
-    const record: PrintHistoryRecord = {
-      id: Date.now().toString(),
-      printedAt: new Date().toISOString(),
-      senderInfo,
-      labels: labels.map(l => ({ ...l })),
-    };
-    try {
-      const res = await fetch("/api/label-history", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(record),
-      });
-      if (res.ok) setHistory(prev => [record, ...prev]);
-    } catch {
-      // 저장 실패해도 출력은 완료됨 — 조용히 무시
-    }
-  }
-
-  async function deleteHistory(id: string) {
-    try {
-      await fetch(`/api/label-history?id=${encodeURIComponent(id)}`, { method: "DELETE" });
-      setHistory(prev => prev.filter(h => h.id !== id));
-    } catch { /* silent */ }
-  }
-
-  async function cleanupHistory(keepLast: number | "all") {
-    setCleanupBusy(true);
-    try {
-      const url = keepLast === "all"
-        ? "/api/label-history"
-        : `/api/label-history?keepLast=${keepLast}`;
-      await fetch(url, { method: "DELETE" });
-      if (keepLast === "all") {
-        setHistory([]);
-      } else {
-        setHistory(prev => prev.slice(0, keepLast));
+  const recommendations=useMemo(()=>{
+    if(!records) return null;
+    const map:Record<string,string>={};
+    for(const c of companies){
+      const code=COMPANY_ASSET_CODES[c];
+      const prefix=`${yy}${code}-${mm}`;
+      const re=new RegExp(`^${prefix}(\\d{3})$`);
+      let maxSeq=100;
+      for(const r of records){
+        const m=re.exec((r.assetNo||"").trim());
+        if(m){const seq=parseInt(m[1],10); if(seq>=100&&seq>maxSeq) maxSeq=seq;}
       }
-      setShowCleanup(false);
-    } catch { /* silent */ }
-    finally { setCleanupBusy(false); }
-  }
-
-  function formatDate(iso: string) {
-    const d = new Date(iso);
-    const pad = (n: number) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  }
+      const next=maxSeq+1;
+      map[c]=`${prefix}${String(next).padStart(3,"0")}`;
+    }
+    return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[records,yy,mm]);
 
   return (
-    <div className="space-y-4">
-      {/* 발신자 정보 */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <h3 className="text-sm font-bold text-gray-700 mb-3">📮 발신자 정보</h3>
-        <div>
-          <label className="text-xs text-gray-500 font-semibold block mb-1">발신 (회사/부서/이름)</label>
-          <input
-            value={senderInfo}
-            onChange={e => setSenderInfo(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-            placeholder="예: idsTrust 자산관리파트 홍길동"
-          />
-        </div>
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="px-5 py-3 border-b border-gray-100">
+        <p className="text-sm font-semibold text-gray-700">🔢 법인별 다음 자산번호 추천 ({yy}년 {mm}월)</p>
+        <p className="text-xs text-gray-400 mt-0.5">형식: 연도(YY) + 법인코드 - 월(MM) + 일련번호(101~). 같은 연/월/법인에 등록된 최대 번호 +1로 계산됩니다.</p>
       </div>
-
-      {/* 라벨 목록 */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-gray-700">🏷️ 발송 라벨 ({labels.length}장)</h3>
-          <button
-            onClick={addLabel}
-            className="text-xs font-semibold text-amber-600 border border-amber-200 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg transition-colors"
-          >
-            + 라벨 추가
-          </button>
-        </div>
-
-        {labels.map((label, idx) => (
-          <div key={label.id} className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-gray-400">{idx + 1}번 라벨</span>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => { setPickerTarget(label.id); setPickerSearch(""); setShowPicker(true); }}
-                  className="text-xs text-amber-600 border border-blue-200 bg-amber-50 hover:bg-amber-100 px-2.5 py-1 rounded-lg font-semibold transition-colors"
-                >
-                  📋 자산에서 불러오기
-                </button>
-                {labels.length > 1 && (
-                  <button onClick={() => removeLabel(label.id)} className="text-xs text-red-400 hover:text-red-600">✕</button>
-                )}
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-gray-500 font-semibold block mb-1">수신 (회사/부서)</label>
-                <input value={label.recipientOrg} onChange={e => updateLabel(label.id, "recipientOrg", e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                  placeholder="예: 시지바이오 인체품질팀" />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 font-semibold block mb-1">수신자 이름</label>
-                <input value={label.recipientName} onChange={e => updateLabel(label.id, "recipientName", e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                  placeholder="예: 임진규" />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 font-semibold block mb-1">실사용자</label>
-                <input value={label.user} onChange={e => updateLabel(label.id, "user", e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                  placeholder="예: 임진규" />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 font-semibold block mb-1">내용 (자산번호)</label>
-                <input value={label.assetNo} onChange={e => updateLabel(label.id, "assetNo", e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                  placeholder="예: 04-N3439" />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 font-semibold block mb-1">지급 유형</label>
-                <select value={label.shipType} onChange={e => updateLabel(label.id, "shipType", e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
-                  <option>신규지급</option>
-                  <option>반납</option>
-                  <option>교환</option>
-                  <option>수리</option>
-                  <option>대여</option>
-                </select>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* 출력 버튼 */}
-      <button
-        onClick={printLabels}
-        className="w-full py-3 rounded-xl bg-amber-600 text-white text-sm font-bold hover:bg-amber-700 transition-colors shadow-sm"
-      >
-        🖨️ 행낭 발송지 출력 ({labels.length}장) — A4 1매에 2장
-      </button>
-
-      {/* ── 190건 경고 팝업 ── */}
-      {showCleanup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
-            <div className="flex items-center gap-3">
-              <span className="text-3xl">⚠️</span>
-              <div>
-                <div className="font-bold text-gray-800 text-base">출력 이력이 {history.length}건에 달했습니다</div>
-                <div className="text-xs text-gray-500 mt-0.5">최대 200건까지 저장됩니다. 오래된 이력을 정리해 주세요.</div>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <button
-                disabled={cleanupBusy}
-                onClick={() => cleanupHistory(100)}
-                className="w-full py-2.5 rounded-xl bg-amber-600 text-white text-sm font-bold hover:bg-amber-700 transition-colors disabled:opacity-50"
-              >
-                최근 100건만 남기기 ({Math.max(0, history.length - 100)}건 삭제)
-              </button>
-              <button
-                disabled={cleanupBusy}
-                onClick={() => cleanupHistory(50)}
-                className="w-full py-2.5 rounded-xl bg-amber-500 text-white text-sm font-bold hover:bg-amber-600 transition-colors disabled:opacity-50"
-              >
-                최근 50건만 남기기 ({Math.max(0, history.length - 50)}건 삭제)
-              </button>
-              <button
-                disabled={cleanupBusy}
-                onClick={() => cleanupHistory("all")}
-                className="w-full py-2.5 rounded-xl border border-red-300 text-red-500 text-sm font-bold hover:bg-red-50 transition-colors disabled:opacity-50"
-              >
-                전체 삭제
-              </button>
-            </div>
-            <button
-              onClick={() => setShowCleanup(false)}
-              className="w-full py-2 text-xs text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              나중에 정리하기
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── 출력 이력 ── */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-
-        {/* 헤더 */}
-        <button
-          onClick={() => setShowHistory(v => !v)}
-          className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
-        >
-          <span className="text-sm font-bold text-gray-700 flex items-center gap-2">
-            📋 출력 이력
-            {historyRows.length > 0 && (
-              <span className="text-xs font-semibold bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full">
-                {historyRows.length}행
-              </span>
-            )}
-            {history.length >= 190 && (
-              <span
-                onClick={e => { e.stopPropagation(); setShowCleanup(true); }}
-                className="text-xs font-bold bg-red-100 text-red-500 px-2 py-0.5 rounded-full cursor-pointer hover:bg-red-200 transition-colors"
-              >
-                ⚠️ 정리 필요
-              </span>
-            )}
-          </span>
-          <span className="text-gray-400 text-xs">{showHistory ? "▲ 접기" : "▼ 펼치기"}</span>
-        </button>
-
-        {showHistory && (
-          <div className="border-t border-gray-100">
-
-            {/* 검색 입력 */}
-            <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
-              <span className="text-gray-400 text-sm">🔍</span>
-              <input
-                value={historySearch}
-                onChange={e => setHistorySearch(e.target.value)}
-                placeholder="날짜, 발신, 수신처, 수신자, 자산번호 등으로 검색..."
-                className="flex-1 text-sm focus:outline-none text-gray-700 placeholder-gray-300"
-              />
-              {historySearch && (
-                <button onClick={() => setHistorySearch("")} className="text-gray-300 hover:text-gray-500 text-xs">
-                  ✕
-                </button>
-              )}
-              <span className="text-xs text-gray-400 whitespace-nowrap">
-                {filteredRows.length}건{historySearch && ` / ${historyRows.length}건`}
-              </span>
-            </div>
-
-            {/* 테이블 */}
-            {historyLoading ? (
-              <div className="text-center py-8 text-sm text-gray-400 animate-pulse">이력 불러오는 중…</div>
-            ) : historyRows.length === 0 ? (
-              <div className="text-center py-8 text-sm text-gray-400">출력 이력이 없습니다</div>
-            ) : filteredRows.length === 0 ? (
-              <div className="text-center py-8 text-sm text-gray-400">
-                <div className="text-2xl mb-2">😕</div>
-                &apos;{historySearch}&apos; 에 해당하는 이력이 없습니다
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs border-collapse min-w-[780px]">
-                  <thead>
-                    <tr className="bg-gray-50 border-b border-gray-200">
-                      {["출력일시", "발신", "수신(회사/부서)", "수신자 이름", "실사용자", "자산번호", "지급유형", ""].map(h => (
-                        <th key={h} className="px-3 py-2.5 text-left font-semibold text-gray-500 whitespace-nowrap">
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredRows.map((row, idx) => {
-                      // 같은 출력건(historyId)의 첫 번째 행이면 날짜·발신·삭제버튼 표시
-                      const isFirstOfGroup =
-                        idx === 0 || filteredRows[idx - 1].historyId !== row.historyId;
-                      const groupRowCount = filteredRows.filter(r => r.historyId === row.historyId).length;
-
-                      return (
-                        <tr
-                          key={`${row.historyId}-${row.labelIndex}`}
-                          className={`border-b border-gray-50 hover:bg-amber-50/30 transition-colors ${
-                            isFirstOfGroup && idx !== 0 ? "border-t-2 border-t-gray-200" : ""
-                          }`}
-                        >
-                          {/* 출력일시 — 같은 그룹 첫 행에만 표시 */}
-                          <td className="px-3 py-2.5 whitespace-nowrap align-top">
-                            {isFirstOfGroup ? (
-                              <div>
-                                <span className="font-bold text-amber-600">{formatDate(row.printedAt)}</span>
-                                {groupRowCount > 1 && (
-                                  <span className="ml-1 text-[10px] text-gray-400">({groupRowCount}장)</span>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-gray-200">│</span>
-                            )}
-                          </td>
-                          {/* 발신 — 같은 그룹 첫 행에만 표시 */}
-                          <td className="px-3 py-2.5 align-top max-w-[120px]">
-                            {isFirstOfGroup ? (
-                              <span className="text-gray-600 line-clamp-2">{row.senderInfo || "—"}</span>
-                            ) : null}
-                          </td>
-                          {/* 라벨 항목들 */}
-                          <td className="px-3 py-2.5 text-gray-700 font-medium">{row.recipientOrg || <span className="text-gray-300">—</span>}</td>
-                          <td className="px-3 py-2.5 text-gray-700 font-medium">{row.recipientName || <span className="text-gray-300">—</span>}</td>
-                          <td className="px-3 py-2.5 text-gray-700">{row.user || <span className="text-gray-300">—</span>}</td>
-                          <td className="px-3 py-2.5 font-mono text-gray-700">{row.assetNo || <span className="text-gray-300">—</span>}</td>
-                          <td className="px-3 py-2.5">
-                            <span className="bg-amber-50 text-amber-600 px-2 py-0.5 rounded-md font-semibold whitespace-nowrap">
-                              {row.shipType}
-                            </span>
-                          </td>
-                          {/* 삭제 — 같은 그룹 첫 행에만 표시 */}
-                          <td className="px-2 py-2.5 text-right align-top">
-                            {isFirstOfGroup && (
-                              <button
-                                onClick={() => deleteHistory(row.historyId)}
-                                className="text-gray-300 hover:text-red-400 transition-colors px-1"
-                                title="이 출력건 삭제"
-                              >
-                                ✕
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-          </div>
-        )}
-      </div>
-
-      {/* 자산 검색 피커 모달 */}
-      {showPicker && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
-          onClick={() => setShowPicker(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[70vh] flex flex-col"
-            onClick={e => e.stopPropagation()}>
-            <div className="px-5 py-4 border-b flex items-center justify-between shrink-0">
-              <div>
-                <div className="font-bold text-gray-800 text-sm">HW 자산에서 불러오기</div>
-                <div className="text-xs text-gray-400 mt-0.5">선택하면 수신자 정보가 자동 입력됩니다</div>
-              </div>
-              <button onClick={() => setShowPicker(false)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
-            </div>
-            <div className="p-4 border-b shrink-0">
-              <input
-                value={pickerSearch}
-                onChange={e => setPickerSearch(e.target.value)}
-                autoFocus
-                placeholder="사용자명, 자산번호, 법인명으로 검색..."
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-              />
-              {!recordsReady && (
-                <div className="text-xs text-gray-400 mt-2 text-center animate-pulse">자산 데이터 불러오는 중…</div>
-              )}
-            </div>
-            <div className="overflow-y-auto flex-1">
-              {filteredRecords.map(r => (
-                <button key={r.id} onClick={() => pickRecord(r)}
-                  className="w-full text-left px-5 py-3 hover:bg-amber-50 border-b border-gray-50 last:border-0 transition-colors">
-                  <div className="text-sm font-semibold text-gray-800">{r.user || "사용자 없음"}</div>
-                  <div className="text-xs text-gray-400 mt-0.5 flex gap-2">
-                    {r.assetNo && <span className="font-mono">{r.assetNo}</span>}
-                    {r.company && <span>{r.company}</span>}
-                    {r.dept && <span>· {r.dept}</span>}
-                    {r.model && <span className="text-gray-300">· {r.model}</span>}
-                  </div>
-                </button>
+      {loading&&<div className="px-5 py-4 text-sm text-gray-400">불러오는 중…</div>}
+      {error&&<div className="px-5 py-4 text-sm text-red-500">{error}</div>}
+      {recommendations&&(
+        <div className="overflow-x-auto max-h-72">
+          <table className="w-full text-xs">
+            <thead className="bg-gray-50 text-gray-500 font-semibold sticky top-0">
+              <tr><th className="px-3 py-2 text-left">법인</th><th className="px-3 py-2 text-left">추천 자산번호</th></tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {companies.map(c=>(
+                <tr key={c} className="hover:bg-gray-50">
+                  <td className="px-3 py-2 text-gray-700">{c}</td>
+                  <td className="px-3 py-2"><CopyAssetNo value={recommendations[c]}/></td>
+                </tr>
               ))}
-              {recordsReady && filteredRecords.length === 0 && (
-                <div className="text-center py-8 text-gray-400 text-sm">
-                  {pickerSearch ? "검색 결과 없음" : "자산 없음"}
-                </div>
-              )}
-            </div>
-          </div>
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -1861,7 +1773,7 @@ function DispatchHistoryTab() {
     setLoading(true); setError("");
     try {
       const res = await fetch("/api/hw/dispatch-history");
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) throw new Error(json.error);
       setHistory(json.history);
     } catch (e) { setError(String(e)); }
@@ -2085,9 +1997,434 @@ function DispatchHistoryTab() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 등록 현황 탭 (엑셀 신규 등록 로그 — 월별/연단위 분석)
+// ─────────────────────────────────────────────────────────────────────────────
+interface RegistrationRecord {
+  id: string;
+  registeredAt: string;
+  assetNo: string; model: string; serial: string;
+  user: string; company: string; dept: string; maker: string;
+  price: number; purchaseDate: string; useDate: string;
+  registeredBy: string;
+}
+
+function RegistrationLogTab() {
+  const [log, setLog] = useState<RegistrationRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [yearFilter, setYearFilter] = useState(() => String(new Date().getFullYear()));
+
+  const load = useCallback(async () => {
+    setLoading(true); setError("");
+    try {
+      const res = await fetch("/api/hw/registration-log");
+      const json = await safeJson(res);
+      if (!json.ok) throw new Error(json.error);
+      setLog(json.log);
+    } catch (e) { setError(String(e)); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const years = useMemo(() => {
+    const ys = new Set<string>();
+    for (const r of log) ys.add(r.registeredAt.slice(0, 4));
+    ys.add(String(new Date().getFullYear()));
+    return [...ys].sort().reverse();
+  }, [log]);
+
+  const filtered = useMemo(() => log.filter(r => r.registeredAt.startsWith(yearFilter)), [log, yearFilter]);
+
+  const monthlyStats = useMemo(() => {
+    const result: { month: string; label: string; count: number; amount: number }[] = [];
+    for (let m = 1; m <= 12; m++) {
+      result.push({ month: `${yearFilter}-${String(m).padStart(2,"0")}`, label: `${m}월`, count: 0, amount: 0 });
+    }
+    for (const r of filtered) {
+      const idx = parseInt(r.registeredAt.slice(5, 7), 10) - 1;
+      if (idx >= 0 && idx < 12) { result[idx].count++; result[idx].amount += r.price || 0; }
+    }
+    return result;
+  }, [filtered, yearFilter]);
+
+  const companyStats = useMemo(() => {
+    const map: Record<string, { count: number; amount: number }> = {};
+    for (const r of filtered) {
+      const co = r.company || "미분류";
+      if (!map[co]) map[co] = { count: 0, amount: 0 };
+      map[co].count++; map[co].amount += r.price || 0;
+    }
+    return Object.entries(map).sort((a, b) => b[1].count - a[1].count);
+  }, [filtered]);
+
+  const deptStats = useMemo(() => {
+    const map: Record<string, { count: number; amount: number }> = {};
+    for (const r of filtered) {
+      const d = r.dept || "미분류";
+      if (!map[d]) map[d] = { count: 0, amount: 0 };
+      map[d].count++; map[d].amount += r.price || 0;
+    }
+    return Object.entries(map).sort((a, b) => b[1].count - a[1].count);
+  }, [filtered]);
+
+  const totalCount  = filtered.length;
+  const totalAmount = filtered.reduce((s, r) => s + (r.price || 0), 0);
+  const maxMonthly  = Math.max(...monthlyStats.map(m => m.count), 1);
+
+  const chartW = 560; const chartH = 160; const barArea = chartH - 10;
+  const slotW  = chartW / 12; const barW = Math.floor(slotW * 0.5);
+
+  const downloadReport = () => {
+    const html = generateRegistrationReportHTML({ year: yearFilter, records: filtered, monthlyStats, companyStats, deptStats });
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url  = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `HW등록현황_보고서_${yearFilter}.html`;
+    a.click(); URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* 헤더 / 필터 */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap items-center gap-3">
+        <div className="flex-1 min-w-[160px]">
+          <p className="text-sm font-bold text-gray-800">신규 등록 현황</p>
+          <p className="text-xs text-gray-400 mt-0.5">엑셀 신규 등록 로그 · 월별/연단위 분석</p>
+        </div>
+        <select value={yearFilter} onChange={e => setYearFilter(e.target.value)}
+          className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
+          {years.map(y => <option key={y} value={y}>{y}년</option>)}
+        </select>
+        <button onClick={downloadReport} disabled={loading || totalCount === 0}
+          className="px-4 py-2 rounded-lg bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600 disabled:opacity-50 transition-colors">
+          HTML 보고서 다운로드
+        </button>
+        <button onClick={load} disabled={loading}
+          className="px-4 py-2 rounded-lg bg-indigo-500 text-white text-sm font-semibold hover:bg-indigo-600 disabled:opacity-50 transition-colors">
+          {loading ? "불러오는 중…" : "새로고침"}
+        </button>
+      </div>
+
+      {error && <div className="px-4 py-3 bg-red-50 rounded-xl text-sm text-red-600">⚠️ {error}</div>}
+
+      {/* 요약 카드 */}
+      {!loading && (
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
+            <p className="text-xs font-semibold text-indigo-500">연간 등록</p>
+            <p className="text-2xl font-bold text-indigo-700 mt-1">{totalCount}<span className="text-sm font-normal ml-1">건</span></p>
+            <p className="text-xs text-indigo-400 mt-0.5">{yearFilter}년</p>
+          </div>
+          <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
+            <p className="text-xs font-semibold text-emerald-500">총 구매금액</p>
+            <p className="text-2xl font-bold text-emerald-700 mt-1">{fmtKrw(totalAmount)}</p>
+            <p className="text-xs text-emerald-400 mt-0.5">단가 합계</p>
+          </div>
+          <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
+            <p className="text-xs font-semibold text-amber-500">등록 법인</p>
+            <p className="text-2xl font-bold text-amber-700 mt-1">{companyStats.length}<span className="text-sm font-normal ml-1">개</span></p>
+            <p className="text-xs text-amber-400 mt-0.5">법인 수</p>
+          </div>
+        </div>
+      )}
+
+      {/* 월별 막대 차트 */}
+      {!loading && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <p className="text-sm font-bold text-gray-700 mb-4">{yearFilter}년 월별 등록 현황</p>
+          <div className="overflow-x-auto">
+            <svg width="100%" viewBox={`0 0 ${chartW} ${chartH + 28}`} style={{ minWidth: 360 }}>
+              {[0.25,0.5,0.75,1].map(f => {
+                const y = chartH - f * barArea;
+                return (
+                  <g key={f}>
+                    <line x1={0} y1={y} x2={chartW} y2={y} stroke="#f3f4f6" strokeWidth={1}/>
+                    <text x={2} y={y-2} fontSize={8} fill="#d1d5db">{Math.round(f*maxMonthly)}</text>
+                  </g>
+                );
+              })}
+              {monthlyStats.map((m, i) => {
+                const cx = slotW * i + slotW / 2;
+                const h  = maxMonthly > 0 ? (m.count / maxMonthly) * barArea : 0;
+                return (
+                  <g key={m.month}>
+                    <rect x={cx-barW/2} y={chartH-h} width={barW} height={h} fill="#6366f1" rx={2} opacity={0.85}/>
+                    <text x={cx} y={chartH+13} textAnchor="middle" fontSize={9} fill="#9ca3af">{m.label}</text>
+                    {m.count > 0 && (
+                      <text x={cx} y={chartH-h-3} textAnchor="middle" fontSize={9} fill="#374151" fontWeight="600">{m.count}</text>
+                    )}
+                  </g>
+                );
+              })}
+            </svg>
+          </div>
+        </div>
+      )}
+
+      {/* 월별 집계 테이블 */}
+      {!loading && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-100">
+            <p className="text-sm font-bold text-gray-700">월별 집계</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-gray-50 text-gray-500 font-semibold">
+                <tr>
+                  <th className="px-4 py-2.5 text-left">월</th>
+                  <th className="px-4 py-2.5 text-right">등록 건수</th>
+                  <th className="px-4 py-2.5 text-right">구매금액</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {monthlyStats.map(m => (
+                  <tr key={m.month} className={`hover:bg-gray-50 ${m.count===0?"opacity-40":""}`}>
+                    <td className="px-4 py-2.5 font-medium text-gray-800">{m.label}</td>
+                    <td className="px-4 py-2.5 text-right text-indigo-600 font-semibold">{m.count||"-"}</td>
+                    <td className="px-4 py-2.5 text-right text-gray-700">{fmtKrw(m.amount)}</td>
+                  </tr>
+                ))}
+                <tr className="bg-gray-50 font-bold border-t-2 border-gray-200">
+                  <td className="px-4 py-2.5 text-gray-700">합계</td>
+                  <td className="px-4 py-2.5 text-right text-indigo-700">{totalCount}</td>
+                  <td className="px-4 py-2.5 text-right text-gray-900">{fmtKrw(totalAmount)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 법인별 / 부서별 브레이크다운 */}
+      {!loading && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="px-5 py-3 border-b border-gray-100"><p className="text-sm font-bold text-gray-700">법인별 등록 현황</p></div>
+            <div className="overflow-x-auto max-h-80 overflow-y-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-gray-50 text-gray-500 font-semibold sticky top-0">
+                  <tr><th className="px-4 py-2.5 text-left">법인</th><th className="px-4 py-2.5 text-right">건수</th><th className="px-4 py-2.5 text-right">구매금액</th></tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {companyStats.map(([co, s]) => (
+                    <tr key={co} className="hover:bg-gray-50">
+                      <td className="px-4 py-2.5 font-medium text-gray-800">{co}</td>
+                      <td className="px-4 py-2.5 text-right text-indigo-600 font-semibold">{s.count}</td>
+                      <td className="px-4 py-2.5 text-right text-gray-700">{fmtKrw(s.amount)}</td>
+                    </tr>
+                  ))}
+                  {companyStats.length === 0 && <tr><td colSpan={3} className="px-4 py-6 text-center text-gray-300">데이터 없음</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="px-5 py-3 border-b border-gray-100"><p className="text-sm font-bold text-gray-700">부서별 등록 현황</p></div>
+            <div className="overflow-x-auto max-h-80 overflow-y-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-gray-50 text-gray-500 font-semibold sticky top-0">
+                  <tr><th className="px-4 py-2.5 text-left">부서</th><th className="px-4 py-2.5 text-right">건수</th><th className="px-4 py-2.5 text-right">구매금액</th></tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {deptStats.map(([d, s]) => (
+                    <tr key={d} className="hover:bg-gray-50">
+                      <td className="px-4 py-2.5 font-medium text-gray-800">{d}</td>
+                      <td className="px-4 py-2.5 text-right text-indigo-600 font-semibold">{s.count}</td>
+                      <td className="px-4 py-2.5 text-right text-gray-700">{fmtKrw(s.amount)}</td>
+                    </tr>
+                  ))}
+                  {deptStats.length === 0 && <tr><td colSpan={3} className="px-4 py-6 text-center text-gray-300">데이터 없음</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 등록 이력 상세 */}
+      {!loading && filtered.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+            <p className="text-sm font-bold text-gray-700">등록 이력</p>
+            <span className="text-xs text-gray-400">{filtered.length}건</span>
+          </div>
+          <div className="overflow-x-auto overflow-y-auto max-h-96">
+            <table className="w-full text-xs">
+              <thead className="bg-gray-50 text-gray-500 font-semibold sticky top-0">
+                <tr>{["등록일자","자산번호","사용자","법인","부서","모델명","구매금액","등록자"].map(h=>(
+                  <th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>
+                ))}</tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filtered.slice(0,300).map(r=>(
+                  <tr key={r.id} className="hover:bg-gray-50">
+                    <td className="px-3 py-2.5 whitespace-nowrap text-gray-500">{r.registeredAt.slice(0,10)}</td>
+                    <td className="px-3 py-2.5 font-mono whitespace-nowrap">{r.assetNo||"-"}</td>
+                    <td className="px-3 py-2.5 font-medium whitespace-nowrap">{r.user||"-"}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">{r.company||"-"}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">{r.dept||"-"}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap max-w-[130px] truncate">{r.model||"-"}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">{fmtKrw(r.price)}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap text-gray-500">{r.registeredBy||"-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {!loading && filtered.length === 0 && !error && (
+        <div className="py-16 text-center text-gray-300">
+          <p className="text-4xl mb-3">🆕</p>
+          <p className="text-sm">등록 이력이 없습니다</p>
+          <p className="text-xs mt-2 text-gray-300">엑셀로 신규 자산을 등록하면 자동으로 기록됩니다</p>
+        </div>
+      )}
+
+      {loading && <div className="py-16 text-center text-gray-300 text-sm">불러오는 중…</div>}
+    </div>
+  );
+}
+
+// 등록 현황 HTML 보고서 생성
+function generateRegistrationReportHTML(opts: {
+  year: string;
+  records: RegistrationRecord[];
+  monthlyStats: { label: string; count: number; amount: number }[];
+  companyStats: [string, { count: number; amount: number }][];
+  deptStats: [string, { count: number; amount: number }][];
+}): string {
+  const { year, records, monthlyStats, companyStats, deptStats } = opts;
+  const totalCount  = records.length;
+  const totalAmount = records.reduce((s, r) => s + (r.price || 0), 0);
+  const today = new Date().toLocaleDateString("ko-KR");
+  const maxMonthly = Math.max(...monthlyStats.map(m => m.count), 1);
+  const chartH = 120, chartW = 520, padX = 40, padY = 20;
+  const n = monthlyStats.length;
+  const xOf = (i: number) => padX + (i / Math.max(n - 1, 1)) * (chartW - padX * 2);
+  const yOf = (v: number) => padY + (chartH - padY * 2) * (1 - v / maxMonthly);
+  const linePoints = monthlyStats.map((m, i) => `${xOf(i)},${yOf(m.count)}`).join(" ");
+
+  const companyRows = companyStats.map(([co, s]) => `<tr><td>${co}</td><td style="text-align:right">${s.count}건</td><td style="text-align:right">${fmtKrw(s.amount)}</td></tr>`).join("");
+  const deptRows = deptStats.map(([d, s]) => `<tr><td>${d}</td><td style="text-align:right">${s.count}건</td><td style="text-align:right">${fmtKrw(s.amount)}</td></tr>`).join("");
+  const monthRows = monthlyStats.map(m => `<tr><td>${m.label}</td><td style="text-align:right">${m.count}건</td><td style="text-align:right">${fmtKrw(m.amount)}</td></tr>`).join("");
+
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HW 신규 등록 현황 보고서 · ${year}년</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; background: #F8FAFC; color: #1E293B; }
+  .page { max-width: 900px; margin: 0 auto; padding: 40px 32px; }
+  .cover { text-align: center; padding: 50px 0 30px; border-bottom: 2px solid #E2E8F0; margin-bottom: 28px; }
+  .cover h1 { font-size: 26px; font-weight: 800; }
+  .cover .meta { font-size: 13px; color: #64748B; margin-top: 6px; }
+  .cover .period { display: inline-block; background: #4F46E5; color: white; padding: 4px 16px; border-radius: 20px; font-size: 13px; font-weight: 700; margin-top: 10px; }
+  .section { margin-bottom: 28px; }
+  .section h2 { font-size: 15px; font-weight: 700; margin-bottom: 12px; color: #334155; }
+  .summary { display: flex; gap: 12px; }
+  .summary .card { flex: 1; background: white; border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px; }
+  .summary .card .label { font-size: 12px; color: #64748B; }
+  .summary .card .value { font-size: 22px; font-weight: 800; margin-top: 4px; }
+  table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; }
+  th, td { padding: 8px 12px; font-size: 13px; border-bottom: 1px solid #F1F5F9; text-align: left; }
+  th { background: #F8FAFC; color: #64748B; font-weight: 600; }
+  .footer { text-align: center; font-size: 12px; color: #94A3B8; margin-top: 40px; }
+  @media print { body { background: white; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="cover">
+    <h1>HW 신규 등록 현황 보고서</h1>
+    <p class="meta">생성일 ${today}</p>
+    <span class="period">${year}년</span>
+  </div>
+
+  <div class="section">
+    <div class="summary">
+      <div class="card"><p class="label">연간 등록</p><p class="value">${totalCount}건</p></div>
+      <div class="card"><p class="label">총 구매금액</p><p class="value">${fmtKrw(totalAmount)}</p></div>
+      <div class="card"><p class="label">등록 법인</p><p class="value">${companyStats.length}개</p></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>월별 등록 추이</h2>
+    <svg width="100%" viewBox="0 0 ${chartW} ${chartH}" style="background:white;border-radius:8px;border:1px solid #E2E8F0">
+      <polyline points="${linePoints}" fill="none" stroke="#4F46E5" stroke-width="2"/>
+      ${monthlyStats.map((m, i) => `<circle cx="${xOf(i)}" cy="${yOf(m.count)}" r="3" fill="#4F46E5"/><text x="${xOf(i)}" y="${chartH-4}" font-size="9" fill="#94A3B8" text-anchor="middle">${m.label}</text>`).join("")}
+    </svg>
+  </div>
+
+  <div class="section">
+    <h2>월별 집계</h2>
+    <table><thead><tr><th>월</th><th style="text-align:right">건수</th><th style="text-align:right">구매금액</th></tr></thead><tbody>${monthRows}</tbody></table>
+  </div>
+
+  <div class="section">
+    <h2>법인별 집계</h2>
+    <table><thead><tr><th>법인</th><th style="text-align:right">건수</th><th style="text-align:right">구매금액</th></tr></thead><tbody>${companyRows}</tbody></table>
+  </div>
+
+  <div class="section">
+    <h2>부서별 집계</h2>
+    <table><thead><tr><th>부서</th><th style="text-align:right">건수</th><th style="text-align:right">구매금액</th></tr></thead><tbody>${deptRows}</tbody></table>
+  </div>
+
+  <p class="footer">SW Portal · HW 자산관리</p>
+</div>
+</body>
+</html>`;
+}
+
+// 법인별 재고 탭 (INT-#### 자산번호 제외)
+function StockByCompanyTab({ records, loading }: { records: HwRecord[]; loading: boolean }) {
+  const rows = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const r of records) {
+      if (r.status !== "재고") continue;
+      if (/^INT-\d+$/i.test(r.assetNo ?? "")) continue;
+      const co = r.company || "미분류";
+      map[co] = (map[co] || 0) + 1;
+    }
+    return Object.entries(map).sort((a, b) => b[1] - a[1]);
+  }, [records]);
+
+  const total = rows.reduce((s: number, [, n]: [string, number]) => s + n, 0);
+
+  if (loading) return <div className="py-20 text-center text-gray-400 text-sm">불러오는 중…</div>;
+  if (!records.length) return <div className="py-20 text-center text-gray-300 text-sm"><p className="text-4xl mb-3">📦</p><p>데이터를 불러오는 중입니다</p></div>;
+
+  return (
+    <div className="p-6">
+      <div className="flex items-center gap-2 mb-5">
+        <p className="text-sm font-semibold text-gray-700">법인별 재고 현황</p>
+        <span className="text-xs text-gray-400">(INT-#### 제외)</span>
+        <span className="ml-auto text-xs font-semibold text-purple-700 bg-purple-50 border border-purple-100 rounded-full px-3 py-0.5">합계 {total}개</span>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+        {rows.map(([company, count]: [string, number]) => (
+          <div key={company} className="rounded-xl border border-purple-100 bg-purple-50 p-4 flex flex-col gap-1">
+            <p className="text-2xl font-bold text-purple-700 leading-tight">{count}</p>
+            <p className="text-xs font-semibold text-purple-900 leading-snug">{company}</p>
+            <p className="text-[11px] text-purple-400">{total ? Math.round(count / total * 100) : 0}%</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 메인 HwPanel — 데이터 1회 fetch, 모든 탭에 props 전달
 // ─────────────────────────────────────────────────────────────────────────────
-type Tab = "dashboard"|"shipment"|"return"|"search"|"upload"|"dispatch"|"label";
+type Tab = "dashboard"|"shipment"|"return"|"search"|"upload"|"dispatch"|"registration"|"label"|"stock";
 
 interface DispatchRecord {
   id: string;
@@ -2102,7 +2439,7 @@ interface DispatchRecord {
   useDate: string;
 }
 
-export default function HwPanel({ company = "", initialStats }: { company?: string; initialStats?: HwStats | null }) {
+export default function HwPanel({ company = "", initialStats, isSuperAdmin = false }: { company?: string; initialStats?: HwStats | null; isSuperAdmin?: boolean }) {
   const [tab, setTab] = useState<Tab>("dashboard");
 
   // ── 대시보드 전용 경량 통계 (즉시 로드) ──────────────────────────────────
@@ -2125,7 +2462,7 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
     try {
       const statsUrl = company ? `/api/hw/stats?company=${encodeURIComponent(company)}` : "/api/hw/stats";
       const res  = await fetch(statsUrl);
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.missingEnv) { setMissingEnv(json.missingEnv); return; }
       if (!json.ok) throw new Error(json.error);
       if (json.stats) {
@@ -2135,7 +2472,7 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
         setTimeout(async () => {
           try {
             const r2 = await fetch(statsUrl);
-            const j2 = await r2.json();
+            const j2 = await safeJson(r2);
             if (j2.ok && j2.stats) setStats(j2.stats);
           } catch { /* 재시도 실패 무시 */ }
         }, 45_000);
@@ -2152,8 +2489,13 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
     try {
       const url  = company ? `/api/hw?company=${encodeURIComponent(company)}` : "/api/hw";
       const res  = await fetch(url);
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) throw new Error(json.error);
+      if (json.warming) {
+        // 캐시 워밍 중 — recordsReady를 true로 설정하지 않아 재시도 가능
+        setRecordsError("HW 데이터 캐시를 갱신하는 중입니다. 잠시 후 새로고침 버튼을 눌러주세요.");
+        return;
+      }
       setRecords(json.records);
       setRecordsReady(true);
     } catch (e) { setRecordsError(String(e)); }
@@ -2167,7 +2509,7 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
     try {
       const statsUrl = company ? `/api/hw/stats?company=${encodeURIComponent(company)}` : "/api/hw/stats";
       const res  = await fetch(statsUrl);
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) throw new Error(json.error);
       setStats(json.stats);
     } catch (e) { setStatsError(String(e)); }
@@ -2179,8 +2521,12 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
     try {
       const url  = company ? `/api/hw?company=${encodeURIComponent(company)}` : "/api/hw";
       const res  = await fetch(url);
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) throw new Error(json.error);
+      if (json.warming) {
+        setRecordsError("HW 데이터 캐시를 갱신하는 중입니다. 잠시 후 다시 시도해주세요.");
+        return;
+      }
       setRecords(json.records);
       setRecordsReady(true);
     } catch (e) { setRecordsError(String(e)); }
@@ -2192,9 +2538,9 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
     if (!initialStats) loadStats();
   }, [initialStats, loadStats]);
 
-  // 라벨 탭만 전체 레코드 lazy load (shipment/return은 자체 fetch)
+  // 라벨/재고 탭 전체 레코드 lazy load (shipment/return은 자체 fetch)
   useEffect(() => {
-    if (tab === "label") loadAll();
+    if (tab === "label" || tab === "stock") loadAll();
   }, [tab, loadAll]);
 
   // Notion 실시간 업데이트 — 저장 후 로컬 상태도 즉시 반영
@@ -2206,7 +2552,7 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, fields: effectiveFields }),
     });
-    const json = await res.json();
+    const json = await safeJson(res);
     if (!json.ok) throw new Error(json.error ?? "Notion 업데이트 실패");
     // 교체요청 전환 시 교체/반납 트래커 자동 등록
     if (fields.status === "교체요청") {
@@ -2258,12 +2604,14 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
     { id: "search",    label: "자산 검색",   icon: "🔍" },
     { id: "upload",    label: "엑셀 등록",   icon: "📂" },
     { id: "dispatch",  label: "자산지급 현황",icon: "📋" },
+    { id: "registration", label: "등록 현황", icon: "🆕" },
     { id: "label",     label: "행낭 발송지", icon: "🏷️" },
+    { id: "stock",     label: "법인별 재고", icon: "📦" },
   ];
 
   const recordsTabProps: TabProps = { records, loading: recordsLoading, onRefresh: handleRefreshAll, onUpdate: handleUpdate };
   // shipment/return은 자체 fetch → 공유 records 불필요
-  const isRecordsTab = tab === "label";
+  const isRecordsTab = tab === "label" || tab === "stock";
 
   // ── Notion 동기화 (GitHub Actions 즉시 트리거) ─────────────────────────────
   const [syncing,     setSyncing]     = useState(false);
@@ -2273,7 +2621,7 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
     setSyncing(true); setSyncDone(false); setSyncError("");
     try {
       const res  = await fetch("/api/hw/sync", { method: "POST" });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) throw new Error(json.error);
       setSyncDone(true);
       setTimeout(() => setSyncDone(false), 5000);
@@ -2367,12 +2715,14 @@ export default function HwPanel({ company = "", initialStats }: { company?: stri
       </div>
 
       {tab === "dashboard" && <DashboardTab  stats={stats} loading={statsLoading} onRefresh={handleRefreshStats} />}
-      {tab === "shipment"  && <ShipmentTab onUpdate={handleUpdate} companyLock={company} />}
-      {tab === "return"    && <ReturnTab   onUpdate={handleUpdate} companyLock={company} />}
-      {tab === "search"    && <SearchTab companyLock={company} onUpdate={handleUpdate} />}
+      {tab === "shipment"  && <ShipmentTab onUpdate={handleUpdate} companyLock={company} isSuperAdmin={isSuperAdmin} />}
+      {tab === "return"    && <ReturnTab   onUpdate={handleUpdate} companyLock={company} isSuperAdmin={isSuperAdmin} />}
+      {tab === "search"    && <SearchTab companyLock={company} onUpdate={handleUpdate} isSuperAdmin={isSuperAdmin} />}
       {tab === "upload"    && <ExcelUploadTab />}
       {tab === "dispatch"  && <DispatchHistoryTab />}
+      {tab === "registration" && <RegistrationLogTab />}
       {tab === "label"     && <LabelPrintTab records={records} recordsReady={recordsReady} onLoadRecords={loadAll} />}
+      {tab === "stock"     && <StockByCompanyTab records={records} loading={recordsLoading} />}
     </div>
   );
 }

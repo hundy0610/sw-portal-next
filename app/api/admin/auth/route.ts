@@ -1,12 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { encodeSession, decodeSession, type AdminSession } from "@/lib/session";
+import { encodeSession, decodeSession, resolveCurrentName, type AdminSession } from "@/lib/session";
 import { verifyPassword } from "@/lib/crypto";
 import { kvGet } from "@/lib/kv-store";
 import type { Account } from "@/app/api/admin/accounts/route";
 
 const ACCOUNTS_KEY   = "sw:accounts";
 const SUPER_ADMIN_ID = process.env.SUPER_ADMIN_ID ?? "admin";
-const SUPER_ADMIN_PW = process.env.SUPER_ADMIN_PW ?? "3589";
+const SUPER_ADMIN_PW = process.env.SUPER_ADMIN_PW;
 
 async function lookupAccount(userId: string, password: string): Promise<AdminSession | null> {
   try {
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     let session: AdminSession | null = null;
 
     // 1. ENV 슈퍼어드민 (평문 비교 유지)
-    if (userId === SUPER_ADMIN_ID && password === SUPER_ADMIN_PW) {
+    if (SUPER_ADMIN_PW && userId === SUPER_ADMIN_ID && password === SUPER_ADMIN_PW) {
       session = {
         notionPageId: "env-super",
         userId:       SUPER_ADMIN_ID,
@@ -111,26 +111,10 @@ export async function GET(request: NextRequest) {
         ok:                 true,
         role:               session.role,
         company:            session.company,
-        name:               session.name,
+        name:               await resolveCurrentName(session),
         email:              session.email,
         userId:             session.userId,
         mustChangePassword: session.mustChangePassword ?? false,
-      });
-    }
-  }
-
-  // 구버전 admin_key 쿠키 fallback
-  const key = request.cookies.get("admin_key")?.value;
-  if (key) {
-    const ADMIN_KEY = process.env.ADMIN_SECRET_KEY ?? "3589";
-    if (key === ADMIN_KEY) {
-      return NextResponse.json({
-        ok:      true,
-        role:    "super",
-        company: "",
-        name:    "슈퍼 어드민",
-        email:   "",
-        userId:  "admin",
       });
     }
   }

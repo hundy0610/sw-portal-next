@@ -3,16 +3,23 @@ import { mapCategory } from "@/lib/reportTypes";
 import type { SubRow, DeptSummary, ReportData } from "@/lib/reportTypes";
 import { kvGet, kvSet } from "@/lib/kv-store";
 import type { SwDbRecord } from "@/types";
+import { errorMessage } from "@/lib/api-error";
+import { getSessionFromCookieHeader, companyScope } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   for (const v of ["NOTION_TOKEN", "NOTION_DB_SW_UNIFIED"]) {
-    if (!process.env[v]) return NextResponse.json({ missingEnv: v, error: `환경변수 ${v} 가 설정되지 않았습니다.` }, { status: 503 });
+    if (!process.env[v]) return Response.json({ missingEnv: v, error: `환경변수 ${v} 가 설정되지 않았습니다.` }, { status: 503 });
   }
+  const session = getSessionFromCookieHeader(req.headers.get("cookie"));
+  if (!session) {
+    return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+  const scope = companyScope(session);
   try {
     const { searchParams } = new URL(req.url);
-    const filterCompany = searchParams.get("company")?.trim() || "";
+    const filterCompany = scope ?? (searchParams.get("company")?.trim() || "");
 
     // ✅ KV에서 즉시 읽기 (sw:all 키 공유 - sw-records API와 동일 데이터)
     let allRecords = await kvGet<SwDbRecord[]>("sw:all");
@@ -26,9 +33,9 @@ export async function GET(req: Request) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // 구독 타입만, 만료/반납 제외
+    // 구독 타입만, 만료/반납 제외 (compact 데이터로 인해 필드가 undefined일 수 있으므로 optional chaining 처리)
     const subRecords = allRecords.filter(r => {
-      const isSub = r.licenseType.includes("구독");
+      const isSub = (r.licenseType ?? "").includes("구독");
       const notExpired = r.status !== "만료" && r.status !== "반납";
       const renewalOk = !r.renewalDate || new Date(r.renewalDate) >= today;
       return isSub && notExpired && renewalOk;
@@ -40,20 +47,20 @@ export async function GET(req: Request) {
       ? subRecords.filter(r => r.company === filterCompany)
       : subRecords;
 
-    const filterDepts = [...new Set(filteredRecords.map(r => r.department.trim()).filter(Boolean))].sort();
+    const filterDepts = [...new Set(filteredRecords.map(r => (r.department ?? "").trim()).filter(Boolean))].sort();
 
     const rows: SubRow[] = filteredRecords.map(r => ({
       id: r.id,
-      company: r.company,
-      department: r.department.trim(),
+      company: r.company ?? "",
+      department: (r.department ?? "").trim(),
       swName: r.swCategory || r.swDetail || "미입력",
-      category: r.workType || mapCategory(r.swCategory, r.swDetail),
-      licenseType: r.licenseType,
-      user: r.user,
-      renewalDate: r.renewalDate,
-      annualUsd: r.annualUsd > 0 ? r.annualUsd : (r.monthlyUsd ? r.monthlyUsd * 12 : 0),
-      annualKrw: r.annualKrw > 0 ? r.annualKrw : (r.monthlyKrw ? r.monthlyKrw * 12 : 0),
-      notionUrl: r.notionUrl,
+      category: r.workType || mapCategory(r.swCategory ?? "", r.swDetail ?? ""),
+      licenseType: r.licenseType ?? "",
+      user: r.user ?? "",
+      renewalDate: r.renewalDate ?? "",
+      annualUsd: (r.annualUsd ?? 0) > 0 ? (r.annualUsd ?? 0) : ((r.monthlyUsd ?? 0) * 12),
+      annualKrw: (r.annualKrw ?? 0) > 0 ? (r.annualKrw ?? 0) : ((r.monthlyKrw ?? 0) * 12),
+      notionUrl: r.notionUrl ?? "",
       billingType: r.billingType ?? "",
     }));
 
@@ -119,10 +126,8 @@ export async function GET(req: Request) {
       generatedAt: new Date().toISOString(),
     };
 
-    return Response.json({ ok: true, data }, {
-      headers: { "Cache-Control": "s-maxage=60, stale-while-revalidate=30" },
-    });
+    return Response.json({ ok: true, data });
   } catch (e: unknown) {
-    return Response.json({ ok: false, error: String(e) }, { status: 500 });
+    return Response.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }

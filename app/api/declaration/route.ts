@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { Client } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
+import { errorMessage } from "@/lib/api-error";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
@@ -32,26 +33,42 @@ function dt(p: Props, k: string): string {
 
 // ─── GET /api/declaration?name=...&company=... ────────────────────────────────
 // 이름 + 법인명 기준으로 기존 등록 SW 조회
+// scope=team인 경우 법인명 + 부서 기준으로 전체 조회
 export async function GET(req: NextRequest) {
   try {
-    const sp      = new URL(req.url).searchParams;
-    const name    = sp.get("name")?.trim()    ?? "";
-    const company = sp.get("company")?.trim() ?? "";
-
-    if (!name || !company)
-      return Response.json({ ok: false, error: "이름과 법인명을 입력해주세요." }, { status: 400 });
+    const sp         = new URL(req.url).searchParams;
+    const scope       = sp.get("scope")?.trim() ?? "";
+    const name        = sp.get("name")?.trim()    ?? "";
+    const company     = sp.get("company")?.trim() ?? "";
+    const department  = sp.get("department")?.trim() ?? "";
 
     const dbId = process.env.NOTION_DB_SW_UNIFIED;
     if (!dbId) throw new Error("NOTION_DB_SW_UNIFIED 환경변수가 없습니다.");
 
-    const res = await notion.databases.query({
-      database_id: dbId,
-      filter: {
+    let filter;
+    if (scope === "team") {
+      if (!company || !department)
+        return Response.json({ ok: false, error: "법인명과 부서를 입력해주세요." }, { status: 400 });
+      filter = {
+        and: [
+          { property: "법인명", select: { equals: company } },
+          { property: "부서",   rich_text: { contains: department } },
+        ],
+      };
+    } else {
+      if (!name || !company)
+        return Response.json({ ok: false, error: "이름과 법인명을 입력해주세요." }, { status: 400 });
+      filter = {
         and: [
           { property: "법인명", select: { equals: company } },
           { property: "사용자", title:  { contains: name  } },
         ],
-      },
+      };
+    }
+
+    const res = await notion.databases.query({
+      database_id: dbId,
+      filter,
       page_size: 100,
     });
 
@@ -82,13 +99,49 @@ export async function GET(req: NextRequest) {
 
     return Response.json({ ok: true, records });
   } catch (e) {
-    return Response.json({ ok: false, error: String(e) }, { status: 500 });
+    return Response.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }
 
+// ─── 신규 등록 레코드 → Notion 페이지 생성 ────────────────────────────────────
+interface DeclarationCreateRecord {
+  user: string; company: string; department: string;
+  swCategory: string; swDetail?: string;
+  licenseType: string; workType: string; billingType: string;
+  accountType?: string; renewalCycle?: string;
+  version?: string[];
+  monthlyKrw?: number; monthlyUsd?: number;
+  licenseKey?: string;
+}
+
+async function createDeclarationPage(dbId: string, r: DeclarationCreateRecord) {
+  type NotionProps = Parameters<typeof notion.pages.create>[0]["properties"];
+  const props: NotionProps = {
+    "사용자": { title: [{ text: { content: r.user } }] },
+    "법인명": { select: { name: r.company } },
+    "부서":   { rich_text: [{ text: { content: r.department } }] },
+    "사용/재고/만료/갱신필요/신규등록": { select: { name: "신규등록" } },
+  };
+
+  if (r.swCategory)       props["SW대분류"]          = { select: { name: r.swCategory } };
+  if (r.swDetail)         props["SW소분류"]          = { rich_text: [{ text: { content: r.swDetail } }] };
+  if (r.licenseType)      props["영구 / 구독"]       = { select: { name: r.licenseType } };
+  if (r.workType)         props["SW사용직군"]        = { select: { name: r.workType } };
+  if (r.billingType)      props["결재방식"]           = { select: { name: r.billingType } };
+  if (r.accountType)      props["계정유형"]           = { select: { name: r.accountType } };
+  if (r.renewalCycle)     props["갱신주기"]           = { select: { name: r.renewalCycle } };
+  if (r.version?.length)  props["version"]           = { multi_select: r.version.map(v => ({ name: v })) };
+  if ((r.monthlyKrw ?? 0) > 0) props["월 비용 (KRW)"] = { number: r.monthlyKrw! };
+  if ((r.monthlyUsd ?? 0) > 0) props["월 비용 (USD)"] = { number: r.monthlyUsd! };
+  if (r.licenseKey)       props["인증키 / 인증계정"] = { rich_text: [{ text: { content: r.licenseKey } }] };
+
+  return notion.pages.create({ parent: { database_id: dbId }, properties: props });
+}
+
 // ─── POST /api/declaration ────────────────────────────────────────────────────
-// type:"update" → 기존 레코드 상태 변경
-// type:"create" → 신규 SW 신고 (Notion에 신규등록 상태로 생성)
+// type:"update"     → 기존 레코드 상태 변경
+// type:"create"     → 신규 SW 신고 (Notion에 신규등록 상태로 생성)
+// type:"createMany" → 신규 SW 일괄 신고 (개인 플로우, 다건 한번에 등록)
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -109,46 +162,28 @@ export async function POST(req: Request) {
 
     // ── 신규 등록 ──────────────────────────────────────────────────────────────
     if (body.type === "create") {
-      const r = body.record as {
-        user: string; company: string; department: string;
-        swCategory: string; swDetail?: string;
-        licenseType: string; workType: string; billingType: string;
-        accountType?: string; renewalCycle?: string;
-        version?: string[];
-        monthlyKrw?: number; monthlyUsd?: number;
-        licenseKey?: string;
-      };
-
-      type NotionProps = Parameters<typeof notion.pages.create>[0]["properties"];
-      const props: NotionProps = {
-        "사용자": { title: [{ text: { content: r.user } }] },
-        "법인명": { select: { name: r.company } },
-        "부서":   { rich_text: [{ text: { content: r.department } }] },
-        "사용/재고/만료/갱신필요/신규등록": { select: { name: "신규등록" } },
-      };
-
-      if (r.swCategory)       props["SW대분류"]          = { select: { name: r.swCategory } };
-      if (r.swDetail)         props["SW소분류"]          = { rich_text: [{ text: { content: r.swDetail } }] };
-      if (r.licenseType)      props["영구 / 구독"]       = { select: { name: r.licenseType } };
-      if (r.workType)         props["SW사용직군"]        = { select: { name: r.workType } };
-      if (r.billingType)      props["결재방식"]           = { select: { name: r.billingType } };
-      if (r.accountType)      props["계정유형"]           = { select: { name: r.accountType } };
-      if (r.renewalCycle)     props["갱신주기"]           = { select: { name: r.renewalCycle } };
-      if (r.version?.length)  props["version"]           = { multi_select: r.version.map(v => ({ name: v })) };
-      if ((r.monthlyKrw ?? 0) > 0) props["월 비용 (KRW)"] = { number: r.monthlyKrw! };
-      if ((r.monthlyUsd ?? 0) > 0) props["월 비용 (USD)"] = { number: r.monthlyUsd! };
-      if (r.licenseKey)       props["인증키 / 인증계정"] = { rich_text: [{ text: { content: r.licenseKey } }] };
-
-      const page = await notion.pages.create({
-        parent: { database_id: dbId },
-        properties: props,
-      });
-
+      const page = await createDeclarationPage(dbId, body.record as DeclarationCreateRecord);
       return Response.json({ ok: true, id: page.id });
+    }
+
+    // ── 신규 일괄 등록 ──────────────────────────────────────────────────────────
+    if (body.type === "createMany") {
+      const records = body.records as DeclarationCreateRecord[];
+      if (!Array.isArray(records) || records.length === 0)
+        return Response.json({ ok: false, error: "등록할 항목이 없습니다." }, { status: 400 });
+
+      const ids: string[] = [];
+      for (let i = 0; i < records.length; i++) {
+        const page = await createDeclarationPage(dbId, records[i]);
+        ids.push(page.id);
+        // Notion API rate limit 방지 (3 req/sec)
+        if (i < records.length - 1) await new Promise(res => setTimeout(res, 350));
+      }
+      return Response.json({ ok: true, ids });
     }
 
     return Response.json({ ok: false, error: "Invalid type" }, { status: 400 });
   } catch (e) {
-    return Response.json({ ok: false, error: String(e) }, { status: 500 });
+    return Response.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
+import { safeJson } from "@/lib/fetch-json";
 
 // 서버사이드 렌더링 없이 클라이언트에서만 로드
 const DashboardHome     = dynamic(() => import("@/components/admin/DashboardHome"),     { ssr: false });
@@ -20,6 +21,14 @@ const RepairPanel       = dynamic(() => import("@/components/admin/RepairPanel")
 const RentalHwPanel     = dynamic(() => import("@/components/admin/RentalHwPanel"),     { ssr: false });
 const HwRepairPanel          = dynamic(() => import("@/components/admin/HwRepairPanel"),          { ssr: false });
 const ExchangeReturnPanel    = dynamic(() => import("@/components/admin/ExchangeReturnPanel"),    { ssr: false });
+const WorkFeedbackPanel      = dynamic(() => import("@/components/admin/WorkFeedbackPanel"),      { ssr: false });
+const BugReportPanel         = dynamic(() => import("@/components/admin/BugReportPanel"),         { ssr: false });
+const WorkTrackerPanel        = dynamic(() => import("@/components/admin/WorkTrackerPanel"),       { ssr: false });
+const MeetingRentalPanel      = dynamic(() => import("@/components/admin/MeetingRentalPanel"),      { ssr: false });
+const RenewalAlertModal       = dynamic(() => import("@/components/admin/RenewalAlertModal"),       { ssr: false });
+const NotificationBell        = dynamic(() => import("@/components/admin/NotificationBell"),        { ssr: false });
+const AuditLogPanel           = dynamic(() => import("@/components/admin/AuditLogPanel"),           { ssr: false });
+const SurveyDemandPanel       = dynamic(() => import("@/components/admin/SurveyDemandPanel"),       { ssr: false });
 
 // ── 세션 타입 ──────────────────────────────────────────────────
 interface SessionInfo {
@@ -30,10 +39,10 @@ interface SessionInfo {
   mustChangePassword?: boolean;
 }
 
-type PageId = "home" | "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "rental-hw" | "accounts" | "assetmap" | "helpdesk" | "contracts" | "repair" | "hw-repair" | "exchange-return";
+type PageId = "home" | "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "rental-hw" | "accounts" | "assetmap" | "helpdesk" | "contracts" | "repair" | "hw-repair" | "exchange-return" | "work-feedback" | "worktracker" | "meeting-rental" | "audit" | "survey-demand";
 
 // 슈퍼어드민 전용 페이지 (company 계정은 접근 불가)
-const SUPER_ONLY_PAGES = new Set<PageId>(["credentials", "swdb", "accounts", "contracts", "rental-hw", "hw-repair", "exchange-return"]);
+const SUPER_ONLY_PAGES = new Set<PageId>(["credentials", "swdb", "accounts", "contracts", "rental-hw", "hw-repair", "exchange-return", "work-feedback", "worktracker", "meeting-rental", "audit"]);
 
 // ── 메뉴 정의 ──────────────────────────────────────────────────
 type MenuItem = { id: PageId; icon: string; label: string; desc: string };
@@ -69,15 +78,21 @@ const SUPER_GROUPS: MenuGroup[] = [
   {
     label: "사용자 지원",
     items: [
-      { id: "helpdesk", icon: "🎫", label: "문의 접수 현황", desc: "유형·법인별 분석"       },
-      { id: "repair",   icon: "🔧", label: "수리 접수 현황", desc: "기기 수리 접수 · 처리" },
+      { id: "helpdesk",   icon: "🎫", label: "문의 접수 현황",  desc: "유형·법인별 분석"       },
+      { id: "repair",     icon: "🖥️", label: "모니터 수리 접수 내역",  desc: "모니터 수리 접수 · 처리" },
+      { id: "meeting-rental", icon: "📡", label: "회의실 장비 대여 관리", desc: "신청 티켓 · 장비 현황 통합 관리" },
     ],
   },
   {
     label: "관리",
     items: [
-      { id: "accounts",  icon: "👤", label: "계정 권한 설정", desc: "담당자 계정 관리"    },
-      { id: "contracts", icon: "📋", label: "계약 관리",       desc: "PC/OA 유지보수 계약" },
+      { id: "accounts",      icon: "👤", label: "계정 권한 설정", desc: "담당자 계정 관리"    },
+      { id: "contracts",     icon: "📋", label: "계약 관리",       desc: "PC/OA 유지보수 계약" },
+      { id: "work-feedback", icon: "🌱", label: "업무 피드백",     desc: "연/월/주간 목표 관리" },
+      { id: "bugreport",     icon: "🐛", label: "버그리포트",      desc: "버그 및 개선요청 관리" },
+      { id: "worktracker",   icon: "🗂️", label: "작업 트래커",     desc: "개인 작업 칸반 관리"   },
+      { id: "audit",         icon: "🕵️", label: "감사 로그",       desc: "관리자 변경 이력"     },
+      { id: "survey-demand", icon: "📝", label: "업무 툴 수요조사", desc: "번역 툴 수요 응답 관리" },
     ],
   },
 ];
@@ -116,7 +131,7 @@ export default function AdminPage() {
   // ── 세션 조회 ──────────────────────────────────────────────
   useEffect(() => {
     fetch("/api/admin/auth")
-      .then(r => r.ok ? r.json() : null)
+      .then(r => safeJson(r))
       .then(data => {
         if (!data?.ok) {
           router.replace("/admin/login");
@@ -142,7 +157,7 @@ export default function AdminPage() {
           const companyParam = s.role === "company" && s.company ? `?company=${encodeURIComponent(s.company)}` : "";
           // stats 먼저 (법인 담당자면 법인 필터 적용)
           fetch(`/api/hw/stats${companyParam}`)
-            .then(r => r.json())
+            .then(r => safeJson(r))
             .then(d => { if (d.ok && d.stats) setHwStatsPrefetch(d.stats); })
             .catch(() => {});
           // hw:all 별도 prefetch — stats KV 히트 시 hw:all은 안 채워지므로 병렬 요청
@@ -160,7 +175,7 @@ export default function AdminPage() {
 
     function fetchPending() {
       fetch("/api/monitor-requests")
-        .then(r => r.json())
+        .then(r => safeJson(r))
         .then(data => {
           if (data.ok && Array.isArray(data.requests)) {
             const cnt = data.requests.filter((r: { status: string }) => r.status === "pending").length;
@@ -206,19 +221,28 @@ export default function AdminPage() {
     switch (page) {
       case "home":        return <DashboardHome company={company} initialHwStats={hwStatsPrefetch} onNavigate={(p) => setPage(p as PageId)} />;
       case "overview":    return <OverviewPanel company={company} />;           // 슈퍼: company="" → 전체, 법인: company="OO" → 필터
-      case "license":     return <LicensePanel company={company} />;
+      case "license":     return <>
+        <RenewalAlertModal company={session?.company || ""} />
+        <LicensePanel company={company} />
+      </>;
       case "credentials": return canAccess("credentials") ? <CredentialsPanel /> : <AccessDenied />;
       case "swdb":        return canAccess("swdb")        ? <SwDbPanel />       : <AccessDenied />;
       case "report":      return <ReportPanel company={company} />;
-      case "hw":          return <HwPanel company={company} initialStats={hwStatsPrefetch} />;
+      case "hw":          return <HwPanel company={company} initialStats={hwStatsPrefetch} isSuperAdmin={isSuper} />;
       case "rental-hw":   return canAccess("rental-hw") ? <RentalHwPanel /> : <AccessDenied />;
+      case "meeting-rental": return canAccess("meeting-rental") ? <MeetingRentalPanel /> : <AccessDenied />;
       case "assetmap":    return <AssetMapPanel session={session} />;
       case "helpdesk":    return <HelpDeskPanel company={isSuper ? "" : company} />;
       case "repair":      return <RepairPanel company={company} />;
       case "hw-repair":        return canAccess("hw-repair")        ? <HwRepairPanel />        : <AccessDenied />;
       case "exchange-return":  return canAccess("exchange-return")  ? <ExchangeReturnPanel /> : <AccessDenied />;
       case "accounts":    return canAccess("accounts")    ? <AccountsPanel isSuperAdmin={session?.role === "super"} />   : <AccessDenied />;
-      case "contracts":   return canAccess("contracts")   ? <ContractPanel />   : <AccessDenied />;
+      case "contracts":     return canAccess("contracts")   ? <ContractPanel />   : <AccessDenied />;
+      case "audit":         return canAccess("audit")       ? <AuditLogPanel />   : <AccessDenied />;
+      case "survey-demand": return <SurveyDemandPanel />;
+      case "work-feedback": return canAccess("work-feedback") ? <WorkFeedbackPanel session={{ role: session.role, userId: session.userId, name: session.name }} /> : <AccessDenied />;
+      case "bugreport":     return <BugReportPanel />;
+      case "worktracker":   return canAccess("worktracker") ? <WorkTrackerPanel session={{ userId: session.userId, name: session.name }} /> : <AccessDenied />;
       default:            return null;
     }
   }
@@ -293,6 +317,9 @@ export default function AdminPage() {
             <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
             Notion 연동 중
           </div>
+
+          {/* 알림센터 (슈퍼어드민 전용) */}
+          {isSuper && <NotificationBell onNavigate={(p) => setPage(p as PageId)} />}
 
           {/* 다크모드 토글 */}
           <button

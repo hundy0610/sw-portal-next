@@ -54,8 +54,20 @@ const pplFirstId = (p: Props, k: string): string => {
   return v.people[0]?.id || "";
 };
 
+const email = (p: Props, k: string): string => {
+  const v = p[k];
+  if (!v) return "";
+  if (v.type === "email") return v.email || "";
+  if (v.type === "rich_text") return v.rich_text.map(t => t.plain_text).join("");
+  return "";
+};
+
 function mapPage(page: PageObjectResponse): ExchangeReturnRecord {
   const p = page.properties;
+  const stage      = sel(p, "현재단계");
+  const completedAt = dt(p, "완료일");
+  // 기존 버그로 인해 사용일자가 완료일로 잘못 저장된 레코드의 fallback 처리
+  const useDate    = dt(p, "사용일자") || (stage !== "반납완료" ? completedAt : "");
   return {
     id:           page.id,
     type:         sel(p, "유형"),
@@ -64,18 +76,22 @@ function mapPage(page: PageObjectResponse): ExchangeReturnRecord {
     company:      sel(p, "법인"),
     department:   txt(p, "부서"),
     user:         txt(p, "사용자"),
-    stage:        sel(p, "현재단계"),
+    stage,
     requestedAt:  dt(p,  "신청일"),
+    useDate,
     returnDue:    dt(p,  "반납예정일"),
-    completedAt:  dt(p,  "완료일"),
+    completedAt,
     reason:       txt(p, "신청사유"),
     assignee:     ppl(p, "담당자"),
     assigneeId:   pplFirstId(p, "담당자"),
     note:         txt(p, "비고"),
-    autoSynced:   chk(p, "자동동기화"),
-    isClosed:     chk(p, "케이스종료"),
-    lastEditedAt: page.last_edited_time,
-    notionUrl:    page.url,
+    address:          sel(p, "배송지"),
+    requesterEmail:   email(p, "기안자이메일"),
+    autoSynced:      chk(p, "자동동기화"),
+    isClosed:        chk(p, "케이스종료"),
+    lastEditedAt:    page.last_edited_time,
+    lastModifiedBy:  txt(p, "마지막수정자"),
+    notionUrl:       page.url,
   };
 }
 
@@ -116,8 +132,11 @@ export interface CreateFields {
   reason?: string;
   assigneeId?: string;
   note?: string;
+  address?: string;
+  requesterEmail?: string;
   autoSynced?: boolean;
   isClosed?: boolean;
+  lastModifiedBy?: string;
 }
 
 export async function createExchangeReturn(fields: CreateFields): Promise<ExchangeReturnRecord> {
@@ -139,10 +158,13 @@ export async function createExchangeReturn(fields: CreateFields): Promise<Exchan
   if (fields.requestedAt) props["신청일"]        = { date: { start: fields.requestedAt } };
   if (fields.returnDue)   props["반납예정일"]    = { date: { start: fields.returnDue } };
   if (fields.completedAt) props["완료일"]        = { date: { start: fields.completedAt } };
-  if (fields.reason)      props["신청사유"]      = { rich_text: [{ text: { content: fields.reason } }] };
-  if (fields.assigneeId)  props["담당자"]        = { people: [{ object: "user", id: fields.assigneeId }] };
-  if (fields.note)        props["비고"]          = { rich_text: [{ text: { content: fields.note } }] };
-  if (fields.autoSynced)  props["자동동기화"]    = { checkbox: true };
+  if (fields.reason)         props["신청사유"]      = { rich_text: [{ text: { content: fields.reason } }] };
+  if (fields.address)        props["배송지"]        = { select: { name: fields.address } };
+  if (fields.assigneeId)     props["담당자"]        = { people: [{ object: "user", id: fields.assigneeId }] };
+  if (fields.note)           props["비고"]          = { rich_text: [{ text: { content: fields.note } }] };
+  if (fields.requesterEmail) props["기안자이메일"]  = { email: fields.requesterEmail };
+  if (fields.autoSynced)     props["자동동기화"]    = { checkbox: true };
+  if (fields.lastModifiedBy) props["마지막수정자"]  = { rich_text: [{ text: { content: fields.lastModifiedBy } }] };
 
   const page = await notion.pages.create({ parent: { database_id: dbId }, properties: props });
   return mapPage(page as PageObjectResponse);
@@ -156,13 +178,17 @@ export interface UpdateFields {
   user?: string;
   stage?: string;
   requestedAt?: string;
+  useDate?: string | null;
   returnDue?: string | null;
   completedAt?: string | null;
   reason?: string;
   assigneeId?: string;
   note?: string;
+  address?: string;
+  requesterEmail?: string;
   autoSynced?: boolean;
   isClosed?: boolean;
+  lastModifiedBy?: string;
 }
 
 export async function updateExchangeReturn(id: string, fields: UpdateFields): Promise<void> {
@@ -175,6 +201,7 @@ export async function updateExchangeReturn(id: string, fields: UpdateFields): Pr
   if (fields.user        !== undefined) props["사용자"]       = { rich_text: [{ text: { content: fields.user } }] };
   if (fields.stage       !== undefined) props["현재단계"]     = { select: fields.stage ? { name: fields.stage } : null };
   if (fields.requestedAt !== undefined) props["신청일"]       = { date: fields.requestedAt ? { start: fields.requestedAt } : null };
+  if (fields.useDate     !== undefined) props["사용일자"]     = { date: fields.useDate ? { start: fields.useDate } : null };
   if (fields.returnDue   !== undefined) props["반납예정일"]   = { date: fields.returnDue ? { start: fields.returnDue } : null };
   if (fields.completedAt !== undefined) props["완료일"]       = { date: fields.completedAt ? { start: fields.completedAt } : null };
   if (fields.reason      !== undefined) props["신청사유"]     = { rich_text: [{ text: { content: fields.reason } }] };
@@ -182,8 +209,11 @@ export async function updateExchangeReturn(id: string, fields: UpdateFields): Pr
     ? { people: [{ object: "user", id: fields.assigneeId }] }
     : { people: [] };
   if (fields.note        !== undefined) props["비고"]         = { rich_text: [{ text: { content: fields.note } }] };
-  if (fields.autoSynced  !== undefined) props["자동동기화"]   = { checkbox: fields.autoSynced };
-  if (fields.isClosed    !== undefined) props["케이스종료"]   = { checkbox: fields.isClosed };
+  if (fields.address         !== undefined) props["배송지"]       = { select: fields.address ? { name: fields.address } : null };
+  if (fields.requesterEmail  !== undefined) props["기안자이메일"] = { email: fields.requesterEmail || null };
+  if (fields.autoSynced      !== undefined) props["자동동기화"]   = { checkbox: fields.autoSynced };
+  if (fields.isClosed        !== undefined) props["케이스종료"]   = { checkbox: fields.isClosed };
+  if (fields.lastModifiedBy  !== undefined) props["마지막수정자"] = { rich_text: [{ text: { content: fields.lastModifiedBy } }] };
 
   if (Object.keys(props).length === 0) return;
 
@@ -224,6 +254,38 @@ export async function autoCompleteReturnsByAssetId(assetId: string): Promise<num
     })
   ));
   return pending.length;
+}
+
+// HW 자산의 사용일자가 변경될 때 호출 — 연결된 진행 중(미종료) 자산 흐름 레코드의 사용일자 동기화
+export async function autoSyncUseDateByAssetId(assetId: string, useDate: string): Promise<number> {
+  if (!assetId) return 0;
+  const dbId = getDbId();
+
+  const res = await notion.databases.query({
+    database_id: dbId,
+    filter: {
+      and: [
+        { property: "케이스종료", checkbox: { equals: false } },
+        { or: [
+          { property: "자산번호",     title:     { equals: assetId } },
+          { property: "교체 자산번호", rich_text: { equals: assetId } },
+        ] },
+      ],
+    },
+  });
+
+  const targets = res.results as PageObjectResponse[];
+  if (targets.length === 0) return 0;
+
+  await Promise.all(targets.map(p =>
+    notion.pages.update({
+      page_id: p.id,
+      properties: {
+        "사용일자": { date: useDate ? { start: useDate } : null },
+      } as Parameters<typeof notion.pages.update>[0]["properties"],
+    })
+  ));
+  return targets.length;
 }
 
 

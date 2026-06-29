@@ -1,5 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useState, useMemo, useRef } from "react";
+import { safeJson } from "@/lib/fetch-json";
+import { downloadSwTemplate } from "@/lib/sw-template";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Notion 스키마 기반 실제 선택지
@@ -75,6 +77,13 @@ interface NewSwForm {
   swCategory: string; swDetail: string; licenseType: string;
   workType: string; billingType: string; billingCompany: string; accountType: string;
   renewalCycle: string; version: string[]; customVersion: string;
+  monthlyKrw: number; monthlyUsd: number; licenseKey: string;
+}
+// 아직 Notion에 등록되지 않고 로컬에 대기 중인 신규 SW 항목 (실사 완료 시 일괄 등록)
+interface PendingSwRecord {
+  swCategory: string; swDetail: string; version: string[];
+  licenseType: string; workType: string;
+  billingType: string; accountType: string; renewalCycle: string;
   monthlyKrw: number; monthlyUsd: number; licenseKey: string;
 }
 
@@ -225,7 +234,7 @@ function Step1({ onNext }: { onNext: (info: UserInfo, records: SwRecord[]) => vo
     setLoading(true); setError("");
     try {
       const res  = await fetch(`/api/declaration?name=${encodeURIComponent(name.trim())}&company=${encodeURIComponent(company)}`);
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) throw new Error(json.error);
       onNext({ company, department: dept.trim(), name: name.trim() }, json.records);
     } catch (e) {
@@ -273,12 +282,11 @@ function Step1({ onNext }: { onNext: (info: UserInfo, records: SwRecord[]) => vo
 // ─────────────────────────────────────────────────────────────────────────────
 function AddSwForm({ userInfo, onAdd, onCancel }: {
   userInfo: UserInfo;
-  onAdd: (rec: SwRecord) => void;
+  onAdd: (rec: PendingSwRecord) => void;
   onCancel: () => void;
 }) {
-  const [form,    setForm]    = useState<NewSwForm>({ ...EMPTY_FORM, billingCompany: userInfo.company });
-  const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState("");
+  const [form,  setForm]  = useState<NewSwForm>({ ...EMPTY_FORM, billingCompany: userInfo.company });
+  const [error, setError] = useState("");
 
   const isSub = form.licenseType.startsWith("구독");
   const set   = <K extends keyof NewSwForm>(k: K, v: NewSwForm[K]) => setForm(f => ({ ...f, [k]: v }));
@@ -309,47 +317,23 @@ function AddSwForm({ userInfo, onAdd, onCancel }: {
     return [...new Set([...form.version, ...extras])];
   };
 
-  const submit = async () => {
+  // Notion에는 바로 등록하지 않고, 부모(Step2)의 대기 목록에만 담아둔다.
+  // 실제 등록은 "실사 완료" 클릭 시 대기 목록 전체를 한번에 처리한다.
+  const submit = () => {
     if (!form.swCategory || !form.licenseType || !form.workType || !form.billingType) {
       setError("SW대분류 · 라이선스유형 · 사용직군 · 결재방식은 필수입니다."); return;
     }
     if (form.billingType === "쉐어드 청구" && !form.billingCompany) {
       setError("쉐어드 청구 법인을 선택해주세요."); return;
     }
-    setLoading(true); setError("");
-    const finalVersions   = getFinalVersions();
-    const finalBillingType = getFinalBillingType();
-    try {
-      const res  = await fetch("/api/declaration", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "create",
-          record: {
-            ...form,
-            billingType: finalBillingType,
-            version: finalVersions,
-            user:       userInfo.name,
-            company:    userInfo.company,
-            department: userInfo.department,
-          },
-        }),
-      });
-      const json = await res.json();
-      if (!json.ok) throw new Error(json.error);
-      onAdd({
-        id: json.id ?? `tmp-${Date.now()}`, notionUrl: "", user: userInfo.name,
-        swCategory: form.swCategory, swDetail: form.swDetail, version: finalVersions,
-        status: "신규등록", licenseType: form.licenseType, workType: form.workType,
-        billingType: finalBillingType, accountType: form.accountType,
-        renewalCycle: form.renewalCycle, monthlyKrw: form.monthlyKrw,
-        monthlyUsd: form.monthlyUsd, licenseKey: form.licenseKey, renewalDate: "",
-      });
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setLoading(false);
-    }
+    setError("");
+    onAdd({
+      swCategory: form.swCategory, swDetail: form.swDetail, version: getFinalVersions(),
+      licenseType: form.licenseType, workType: form.workType,
+      billingType: getFinalBillingType(), accountType: form.accountType,
+      renewalCycle: form.renewalCycle, monthlyKrw: form.monthlyKrw,
+      monthlyUsd: form.monthlyUsd, licenseKey: form.licenseKey,
+    });
   };
 
   return (
@@ -450,9 +434,9 @@ function AddSwForm({ userInfo, onAdd, onCancel }: {
       {error && <div className="mt-3 px-3 py-2 bg-red-50 rounded-lg text-sm text-red-600">{error}</div>}
 
       <div className="flex gap-3 mt-5">
-        <button onClick={submit} disabled={loading}
-          className="flex-1 py-2 rounded-lg bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 disabled:opacity-50 transition-colors">
-          {loading ? "등록 중…" : "✓ Notion에 등록"}
+        <button onClick={submit}
+          className="flex-1 py-2 rounded-lg bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 transition-colors">
+          목록에 추가
         </button>
         <button onClick={onCancel}
           className="px-4 py-2 rounded-lg border border-gray-300 text-gray-600 text-sm hover:bg-gray-50 transition-colors">
@@ -471,10 +455,18 @@ function Step2({ userInfo, initialRecords, onComplete }: {
   initialRecords: SwRecord[];
   onComplete: (records: SwRecord[], added: SwRecord[]) => void;
 }) {
-  const [records,  setRecords]  = useState<SwRecord[]>(initialRecords);
-  const [added,    setAdded]    = useState<SwRecord[]>([]);
-  const [showForm, setShowForm] = useState(false);
-  const [updating, setUpdating] = useState<Record<string, boolean>>({});
+  const [records,    setRecords]    = useState<SwRecord[]>(initialRecords);
+  const [pending,    setPending]    = useState<PendingSwRecord[]>([]);
+  const [openForms,  setOpenForms]  = useState<number[]>([]);
+  const [updating,   setUpdating]   = useState<Record<string, boolean>>({});
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const nextFormId = useRef(0);
+
+  // "+ 새 SW 추가" 클릭 시마다 폼을 추가로 펼친다 (여러 건을 동시에 작성 가능)
+  const openNewForm  = () => { nextFormId.current += 1; setOpenForms(f => [...f, nextFormId.current]); };
+  const closeForm    = (formId: number) => setOpenForms(f => f.filter(id => id !== formId));
 
   const updateStatus = async (id: string, status: string) => {
     setUpdating(u => ({ ...u, [id]: true }));
@@ -487,6 +479,46 @@ function Step2({ userInfo, initialRecords, onComplete }: {
       setRecords(rs => rs.map(r => r.id === id ? { ...r, status } : r));
     } finally {
       setUpdating(u => ({ ...u, [id]: false }));
+    }
+  };
+
+  const removePending = (idx: number) => setPending(p => p.filter((_, i) => i !== idx));
+
+  // 대기 중인 신규 SW를 한번에 Notion에 등록한 뒤 다음 단계로 진행한다.
+  const handleComplete = async () => {
+    if (pending.length === 0) {
+      onComplete(records, []);
+      return;
+    }
+    setSubmitting(true); setSubmitError("");
+    try {
+      const res = await fetch("/api/declaration", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "createMany",
+          records: pending.map(p => ({
+            ...p,
+            user: userInfo.name, company: userInfo.company, department: userInfo.department,
+          })),
+        }),
+      });
+      const json = await safeJson(res);
+      if (!json.ok) throw new Error(json.error);
+      const added: SwRecord[] = pending.map((p, i) => ({
+        id: json.ids[i], notionUrl: `https://www.notion.so/${json.ids[i].replace(/-/g, "")}`,
+        user: userInfo.name,
+        swCategory: p.swCategory, swDetail: p.swDetail, version: p.version,
+        status: "신규등록", licenseType: p.licenseType, workType: p.workType,
+        billingType: p.billingType, accountType: p.accountType,
+        renewalCycle: p.renewalCycle, monthlyKrw: p.monthlyKrw,
+        monthlyUsd: p.monthlyUsd, licenseKey: p.licenseKey, renewalDate: "",
+      }));
+      onComplete(records, added);
+    } catch (e) {
+      setSubmitError(String(e));
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -524,12 +556,14 @@ function Step2({ userInfo, initialRecords, onComplete }: {
         ) : (
           <ul className="divide-y divide-gray-100">
             {records.map(r => {
-              const shared = r.billingType?.endsWith("쉐어드청구");
+              const shared = r.billingType?.includes("쉐어드");
               const cost   = fmtKrw(r.monthlyKrw) ?? fmtUsd(r.monthlyUsd);
               return (
                 <li key={r.id} className={`px-5 py-4 flex items-center gap-3 ${shared ? "bg-amber-50/40" : ""}`}>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
+                    <button type="button"
+                      onClick={() => setExpandedId(id => id === r.id ? null : r.id)}
+                      className="flex items-center gap-2 flex-wrap text-left hover:opacity-70 transition-opacity">
                       <span className="font-semibold text-gray-900 text-sm">{r.swCategory}</span>
                       {r.swDetail && <span className="text-xs text-gray-400">{r.swDetail}</span>}
                       {r.version.length > 0 && (
@@ -537,7 +571,8 @@ function Step2({ userInfo, initialRecords, onComplete }: {
                           {r.version.join(" · ")}
                         </span>
                       )}
-                    </div>
+                      <span className="text-[10px] text-gray-300">{expandedId === r.id ? "▲" : "▼"}</span>
+                    </button>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[r.status] ?? "bg-gray-100 text-gray-600"}`}>
                         {r.status}
@@ -554,11 +589,17 @@ function Step2({ userInfo, initialRecords, onComplete }: {
                       {shared && cost && (
                         <span className="text-xs text-amber-500 font-medium line-through opacity-60">{cost}/월</span>
                       )}
-                      {r.notionUrl && (
-                        <a href={r.notionUrl} target="_blank" rel="noreferrer"
-                          className="text-xs text-amber-400 hover:text-amber-600 underline underline-offset-2">Notion ↗</a>
-                      )}
                     </div>
+                    {expandedId === r.id && (
+                      <div className="mt-2 pt-2 border-t border-gray-100 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                        {r.accountType  && <span><span className="text-gray-400">계정유형</span> · {r.accountType}</span>}
+                        {r.renewalCycle && <span><span className="text-gray-400">갱신주기</span> · {r.renewalCycle}</span>}
+                        {r.renewalDate  && <span><span className="text-gray-400">갱신필요일</span> · {r.renewalDate}</span>}
+                        {!r.accountType && !r.renewalCycle && !r.renewalDate && (
+                          <span className="text-gray-300">추가 정보가 없습니다</span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="flex flex-col sm:flex-row gap-1.5 shrink-0">
                     <button onClick={() => updateStatus(r.id, "사용중")} disabled={updating[r.id]}
@@ -589,44 +630,50 @@ function Step2({ userInfo, initialRecords, onComplete }: {
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
           <h3 className="font-bold text-gray-900 text-sm">미등록 SW 추가 신고</h3>
-          <p className="text-xs text-gray-500 mt-0.5">위 목록에 없는 SW를 추가해주세요</p>
+          <p className="text-xs text-gray-500 mt-0.5">위 목록에 없는 SW를 추가해주세요 (실사 완료 시 한번에 등록됩니다)</p>
         </div>
         <div className="p-5">
-          {added.length > 0 && (
+          {pending.length > 0 && (
             <div className="mb-3 space-y-2">
-              {added.map((r, i) => (
-                <div key={i} className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-lg px-4 py-2.5">
-                  <span className="text-green-500 font-bold text-sm">✓</span>
+              {pending.map((r, i) => (
+                <div key={i} className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
+                  <span className="text-amber-500 font-bold text-sm">＋</span>
                   <div className="flex-1">
-                    <span className="font-semibold text-green-800 text-sm">{r.swCategory}</span>
-                    {r.swDetail    && <span className="text-green-600 text-xs ml-1.5">{r.swDetail}</span>}
-                    {r.licenseType && <span className="text-xs text-green-500 ml-1.5">· {r.licenseType}</span>}
+                    <span className="font-semibold text-amber-800 text-sm">{r.swCategory}</span>
+                    {r.swDetail    && <span className="text-amber-600 text-xs ml-1.5">{r.swDetail}</span>}
+                    {r.licenseType && <span className="text-xs text-amber-500 ml-1.5">· {r.licenseType}</span>}
                   </div>
-                  <span className="text-xs text-green-500 font-medium">Notion 등록 완료</span>
+                  <button onClick={() => removePending(i)}
+                    className="text-xs text-gray-400 hover:text-red-500 font-medium">삭제</button>
                 </div>
               ))}
             </div>
           )}
 
-          {showForm ? (
-            <AddSwForm
-              userInfo={userInfo}
-              onAdd={rec => { setAdded(a => [...a, rec]); setShowForm(false); }}
-              onCancel={() => setShowForm(false)}
-            />
-          ) : (
-            <button onClick={() => setShowForm(true)}
-              className="w-full py-3 rounded-xl border-2 border-dashed border-amber-300 text-amber-500 text-sm font-semibold hover:bg-amber-50 transition-colors">
-              + 새 SW 추가
-            </button>
+          {openForms.length > 0 && (
+            <div className="space-y-3 mb-3">
+              {openForms.map(formId => (
+                <AddSwForm key={formId}
+                  userInfo={userInfo}
+                  onAdd={rec => { setPending(p => [...p, rec]); closeForm(formId); }}
+                  onCancel={() => closeForm(formId)}
+                />
+              ))}
+            </div>
           )}
+
+          <button onClick={openNewForm}
+            className="w-full py-3 rounded-xl border-2 border-dashed border-amber-300 text-amber-500 text-sm font-semibold hover:bg-amber-50 transition-colors">
+            + 새 SW 추가
+          </button>
         </div>
       </div>
 
-      <button onClick={() => onComplete(records, added)}
-        className="w-full py-3.5 rounded-2xl bg-amber-500 text-white font-bold text-sm hover:bg-amber-600 transition-colors shadow-md">
-        ✓ 실사 완료
+      <button onClick={handleComplete} disabled={submitting}
+        className="w-full py-3.5 rounded-2xl bg-amber-500 text-white font-bold text-sm hover:bg-amber-600 disabled:opacity-50 transition-colors shadow-md">
+        {submitting ? "등록 중…" : "✓ 실사 완료"}
       </button>
+      {submitError && <div className="px-3 py-2 bg-red-50 rounded-lg text-sm text-red-600">{submitError}</div>}
       <p className="text-xs text-center text-gray-400">완료 후에는 수정이 어렵습니다. 신고 내역을 다시 한번 확인해주세요.</p>
     </div>
   );
@@ -648,7 +695,7 @@ function Step3({ userInfo, records, added, onReset }: {
     ...records.filter(r => r.status === "사용중"),
     ...added,
   ];
-  const isShared = (r: SwRecord) => !!r.billingType?.endsWith("쉐어드청구");
+  const isShared = (r: SwRecord) => !!r.billingType?.includes("쉐어드");
 
   const ownItems    = allActive.filter(r => !isShared(r));
   const sharedItems = allActive.filter(r =>  isShared(r));
@@ -774,6 +821,244 @@ function Step3({ userInfo, records, added, onReset }: {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 모드 선택 — 개인 / 팀
+// ─────────────────────────────────────────────────────────────────────────────
+function ModeSelect({ onSelect }: { onSelect: (m: "personal" | "team") => void }) {
+  return (
+    <div className="max-w-md mx-auto space-y-3">
+      <p className="text-center text-sm text-gray-500 mb-2">실사 방식을 선택해주세요</p>
+      <button onClick={() => onSelect("personal")}
+        className="w-full bg-white rounded-2xl border border-gray-200 shadow-sm p-6 text-left hover:border-amber-300 hover:shadow-md transition-all flex items-center gap-4">
+        <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center shrink-0 text-2xl">🙋</div>
+        <div>
+          <p className="font-bold text-gray-900 text-sm">개인으로 실사</p>
+          <p className="text-xs text-gray-500 mt-0.5">본인 명의로 등록된 SW를 직접 확인하고 신고합니다</p>
+        </div>
+      </button>
+      <button onClick={() => onSelect("team")}
+        className="w-full bg-white rounded-2xl border border-gray-200 shadow-sm p-6 text-left hover:border-amber-300 hover:shadow-md transition-all flex items-center gap-4">
+        <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center shrink-0 text-2xl">👥</div>
+        <div>
+          <p className="font-bold text-gray-900 text-sm">팀(부서)으로 실사</p>
+          <p className="text-xs text-gray-500 mt-0.5">법인 + 부서 기준으로 소속 팀원 전체 현황을 한번에 확인합니다</p>
+        </div>
+      </button>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 팀 플로우 — 법인+부서 조회 → 전체 표시 → 일괄 확인 / 엑셀 양식 다운로드
+// ─────────────────────────────────────────────────────────────────────────────
+function TeamFlow({ onBack }: { onBack: () => void }) {
+  const [company,    setCompany]    = useState("");
+  const [dept,       setDept]       = useState("");
+  const [loading,    setLoading]    = useState(false);
+  const [error,      setError]      = useState("");
+  const [records,    setRecords]    = useState<SwRecord[] | null>(null);
+  const [confirmed,  setConfirmed]  = useState(false);
+  const [downloaded, setDownloaded] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [mismatchMode, setMismatchMode] = useState(false);
+  const [mismatched,   setMismatched]   = useState<Set<string>>(new Set());
+
+  const toggleMismatch = (id: string) => setMismatched(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+
+  const lookup = async () => {
+    if (!company || !dept.trim()) { setError("법인명과 부서를 입력해주세요."); return; }
+    setLoading(true); setError("");
+    try {
+      const res  = await fetch(`/api/declaration?scope=team&company=${encodeURIComponent(company)}&department=${encodeURIComponent(dept.trim())}`);
+      const json = await safeJson(res);
+      if (!json.ok) throw new Error(json.error);
+      setRecords(json.records);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, SwRecord[]>();
+    for (const r of records ?? []) {
+      if (!map.has(r.user)) map.set(r.user, []);
+      map.get(r.user)!.push(r);
+    }
+    return Array.from(map.entries());
+  }, [records]);
+
+  if (confirmed) {
+    return (
+      <div className="max-w-md mx-auto">
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8 text-center">
+          <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+            <span className="text-3xl">✅</span>
+          </div>
+          <h2 className="text-xl font-bold text-gray-900">실사 완료!</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            <span className="font-semibold text-gray-700">{company} · {dept}</span> 부서의 SW 자산 현황 확인이 완료되었습니다
+          </p>
+          <p className="text-xs text-gray-400 mt-3">총 {records?.length ?? 0}건 확인</p>
+          <button onClick={onBack}
+            className="mt-5 text-xs text-amber-500 hover:text-amber-700 underline underline-offset-2">
+            처음으로
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (records === null) {
+    return (
+      <div className="max-w-md mx-auto">
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center shrink-0">
+              <span className="text-xl">👥</span>
+            </div>
+            <div>
+              <h2 className="font-bold text-gray-900 text-base">팀(부서) 확인</h2>
+              <p className="text-xs text-gray-500 mt-0.5">법인명 + 부서로 등록된 팀 전체 SW를 조회합니다</p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <Sel label="법인명" required value={company} options={COMPANIES} onChange={setCompany} />
+            <Inp label="부서" required value={dept} onChange={setDept} placeholder="예: 포털팀" />
+          </div>
+
+          {error && <div className="mt-3 px-3 py-2 bg-red-50 rounded-lg text-sm text-red-600">{error}</div>}
+
+          <button onClick={lookup} disabled={loading}
+            className="mt-6 w-full py-2.5 rounded-xl bg-amber-500 text-white font-semibold text-sm hover:bg-amber-600 disabled:opacity-50 transition-colors">
+            {loading ? "조회 중…" : "SW 현황 조회 →"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-4">
+      {/* 팀 배너 */}
+      <div className="bg-amber-500 text-white rounded-2xl p-4 flex items-center gap-4">
+        <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-xl shrink-0">👥</div>
+        <div className="flex-1">
+          <p className="font-bold text-sm">{company} · {dept}</p>
+          <p className="text-xs opacity-80">조회된 팀원 {grouped.length}명</p>
+        </div>
+        <div className="text-right">
+          <p className="text-xs opacity-70">등록 SW</p>
+          <p className="font-bold text-lg">{records.length}개</p>
+        </div>
+      </div>
+
+      {/* 팀 SW 목록 */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h3 className="font-bold text-gray-900 text-sm">팀 SW 현황 조회 결과</h3>
+          <p className="text-xs text-gray-500 mt-0.5">전체 내용을 확인해주세요</p>
+        </div>
+
+        {records.length === 0 ? (
+          <div className="py-10 text-center">
+            <p className="text-gray-400 text-sm">조회된 SW가 없습니다</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {grouped.map(([user, items]) => (
+              <div key={user} className="px-5 py-4">
+                <p className="text-xs font-bold text-gray-400 mb-2">👤 {user}</p>
+                <ul className="space-y-2">
+                  {items.map(r => {
+                    const cost = r.monthlyKrw > 0 ? `₩${r.monthlyKrw.toLocaleString("ko-KR")}` : (r.monthlyUsd > 0 ? `$${r.monthlyUsd}` : null);
+                    const isMismatched = mismatched.has(r.id);
+                    return (
+                      <li key={r.id}
+                        className={isMismatched ? "bg-red-50 border border-red-200 rounded-lg px-2 py-1.5 -mx-2" : ""}>
+                        <div className="flex items-start gap-2">
+                          {mismatchMode && (
+                            <input type="checkbox" checked={isMismatched} onChange={() => toggleMismatch(r.id)}
+                              className="mt-1.5 accent-red-500 shrink-0" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <button type="button"
+                              onClick={() => setExpandedId(id => id === r.id ? null : r.id)}
+                              className="w-full flex items-center gap-2 flex-wrap text-sm text-left hover:opacity-70 transition-opacity">
+                              <span className="font-semibold text-gray-800">{r.swCategory}</span>
+                              {r.swDetail && <span className="text-xs text-gray-400">{r.swDetail}</span>}
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[r.status] ?? "bg-gray-100 text-gray-600"}`}>
+                                {r.status}
+                              </span>
+                              {cost && <span className="text-xs text-amber-600 font-medium ml-auto">{cost}/월</span>}
+                              <span className="text-[10px] text-gray-300">{expandedId === r.id ? "▲" : "▼"}</span>
+                            </button>
+                            {expandedId === r.id && (
+                              <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                                {r.licenseType  && <span><span className="text-gray-400">라이선스</span> · {r.licenseType}</span>}
+                                {r.accountType  && <span><span className="text-gray-400">계정유형</span> · {r.accountType}</span>}
+                                {r.renewalCycle && <span><span className="text-gray-400">갱신주기</span> · {r.renewalCycle}</span>}
+                                {r.renewalDate  && <span><span className="text-gray-400">갱신필요일</span> · {r.renewalDate}</span>}
+                                {!r.licenseType && !r.accountType && !r.renewalCycle && !r.renewalDate && (
+                                  <span className="text-gray-300">추가 정보가 없습니다</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 확인 / 엑셀 양식 */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-3">
+        <p className="text-sm font-bold text-gray-900">위 내용이 모두 맞나요?</p>
+        <button onClick={() => setConfirmed(true)}
+          className="w-full py-3 rounded-xl bg-amber-500 text-white font-bold text-sm hover:bg-amber-600 transition-colors">
+          ✓ 모두 맞습니다 — 확인 완료
+        </button>
+        <button onClick={() => setMismatchMode(m => !m)}
+          className="w-full py-2.5 rounded-xl border border-gray-300 text-gray-600 text-sm font-semibold hover:bg-gray-50 transition-colors">
+          {mismatchMode ? "체크 종료" : "여기서 맞지 않는 내용이 있습니까?"}
+        </button>
+        {mismatchMode && (
+          <div className="px-3 py-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600">
+            위 목록에서 실제와 다른 항목을 체크해주세요{mismatched.size > 0 && ` (${mismatched.size}건 선택됨)`}.
+            누락건에 대해서는 엑셀 등록 양식을 작성하여 자산관리파트로 공유해주시기 바랍니다.
+          </div>
+        )}
+        <div className="pt-2 border-t border-gray-100">
+          <p className="text-xs text-gray-500 mb-2">추가로 등록할 SW가 있다면 양식을 다운로드해 작성 후 IT 자산관리파트로 전달해주세요.</p>
+          <button onClick={() => { downloadSwTemplate({ company, department: dept }); setDownloaded(true); }}
+            className="w-full py-2.5 rounded-xl border border-amber-300 text-amber-600 text-sm font-semibold hover:bg-amber-50 transition-colors">
+            ⬇️ 엑셀 등록양식 다운로드
+          </button>
+          {downloaded && (
+            <p className="text-xs text-green-600 mt-2">다운로드되었습니다. 작성 후 IT 자산관리파트로 전달해주세요.</p>
+          )}
+        </div>
+      </div>
+
+      <button onClick={() => { setRecords(null); setConfirmed(false); setDownloaded(false); }}
+        className="w-full text-xs text-center text-gray-400 hover:text-gray-600 underline underline-offset-2">
+        다시 조회하기
+      </button>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 스텝 인디케이터
 // ─────────────────────────────────────────────────────────────────────────────
 const STEPS = ["본인 확인", "SW 현황 확인", "완료"];
@@ -806,12 +1091,13 @@ function StepBar({ current }: { current: number }) {
 // 메인 Export
 // ─────────────────────────────────────────────────────────────────────────────
 export default function DeclarationPanel() {
+  const [mode,    setMode]     = useState<"personal" | "team" | null>(null);
   const [step,    setStep]     = useState(1);
   const [info,    setInfo]     = useState<UserInfo | null>(null);
   const [existing,setExisting] = useState<SwRecord[]>([]);
   const [final,   setFinal]    = useState<{ records: SwRecord[]; added: SwRecord[] } | null>(null);
 
-  const reset = () => { setStep(1); setInfo(null); setExisting([]); setFinal(null); };
+  const reset = () => { setMode(null); setStep(1); setInfo(null); setExisting([]); setFinal(null); };
 
   return (
     <div>
@@ -829,21 +1115,36 @@ export default function DeclarationPanel() {
         </div>
       </div>
 
-      <StepBar current={step} />
+      {mode === null && <ModeSelect onSelect={setMode} />}
 
-      {step === 1 && (
-        <Step1 onNext={(userInfo, records) => {
-          setInfo(userInfo); setExisting(records); setStep(2);
-        }} />
+      {mode !== null && (
+        <button onClick={reset}
+          className="mb-4 text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2">
+          ← 처음으로 (개인/팀 다시 선택)
+        </button>
       )}
-      {step === 2 && info && (
-        <Step2 userInfo={info} initialRecords={existing}
-          onComplete={(records, added) => { setFinal({ records, added }); setStep(3); }}
-        />
+
+      {mode === "personal" && (
+        <>
+          <StepBar current={step} />
+
+          {step === 1 && (
+            <Step1 onNext={(userInfo, records) => {
+              setInfo(userInfo); setExisting(records); setStep(2);
+            }} />
+          )}
+          {step === 2 && info && (
+            <Step2 userInfo={info} initialRecords={existing}
+              onComplete={(records, added) => { setFinal({ records, added }); setStep(3); }}
+            />
+          )}
+          {step === 3 && info && final && (
+            <Step3 userInfo={info} records={final.records} added={final.added} onReset={reset} />
+          )}
+        </>
       )}
-      {step === 3 && info && final && (
-        <Step3 userInfo={info} records={final.records} added={final.added} onReset={reset} />
-      )}
+
+      {mode === "team" && <TeamFlow onBack={reset} />}
     </div>
   );
 }

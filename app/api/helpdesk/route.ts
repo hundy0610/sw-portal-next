@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { fetchHelpDeskTickets } from "@/lib/notion";
 import { kvGet, kvSet } from "@/lib/kv-store";
 import type { HelpDeskTicket } from "@/lib/notion";
+import { getSessionFromCookieHeader, companyScope } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -12,9 +13,15 @@ export async function GET(req: Request) {
   for (const v of ["NOTION_TOKEN", "NOTION_DB_HELPDESK"]) {
     if (!process.env[v]) return NextResponse.json({ missingEnv: v, error: `환경변수 ${v} 가 설정되지 않았습니다.` }, { status: 503 });
   }
+  const session = getSessionFromCookieHeader(req.headers.get("cookie"));
+  if (!session) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+  const scope = companyScope(session);
+
   const { searchParams } = new URL(req.url);
   const refresh = searchParams.get("refresh") === "1";
-  const company = searchParams.get("company")?.trim() || "";
+  const company = scope ?? (searchParams.get("company")?.trim() || "");
 
   const applyFilter = (data: HelpDeskTicket[]) =>
     company ? data.filter(t => t.company === company) : data;

@@ -3,7 +3,12 @@ import { Client } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
 import { computeHwStats, type HwRecord } from "@/lib/hw";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
-import { memDel } from "@/lib/mem-cache";
+import { getSessionFromCookieHeader, resolveCurrentName, companyScope } from "@/lib/session";
+import { appendAdminAuditLog } from "@/lib/portal-store";
+import { errorMessage } from "@/lib/api-error";
+import type { RegistrationRecord } from "@/app/api/hw/registration-log/route";
+
+const REGISTRATION_LOG_KEY = "hw-registration-log";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
@@ -102,10 +107,12 @@ function pageToHwRecord(page: PageObjectResponse): HwRecord {
     docNo:         txt("결재문서번호"),
     verified:   p["실사확인"]?.type === "checkbox" ? p["실사확인"].checkbox : false,
     duplicated: p["중복"]?.type     === "checkbox" ? p["중복"].checkbox    : false,
+    lastModifiedBy: txt("마지막수정자"),
+    lastModifiedAt: txt("마지막수정일시"),
   };
 }
 
-async function createHwPage(row: ExcelRow) {
+async function createHwPage(row: ExcelRow, modifiedBy: string, modifiedAt: string) {
   const purchaseDate = toIsoDate(row.purchaseDate as unknown as string | number);
   const useDate      = toIsoDate(row.useDate      as unknown as string | number);
 
@@ -172,6 +179,13 @@ async function createHwPage(row: ExcelRow) {
       ...(useDate ? {
         "사용일자": { date: { start: useDate } },
       } : {}),
+      // 마지막수정자/일시 (신규 등록 시점 = 최초 수정으로 기록)
+      "마지막수정자": {
+        rich_text: [{ text: { content: modifiedBy } }],
+      },
+      "마지막수정일시": {
+        rich_text: [{ text: { content: modifiedAt } }],
+      },
     },
   });
 }
@@ -187,15 +201,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "한 번에 최대 100개까지 등록할 수 있습니다." }, { status: 400 });
     }
 
+    const session = getSessionFromCookieHeader(req.headers.get("cookie"));
+    if (!session) {
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
+    const scope = companyScope(session);
+    if (scope && rows.some(r => (r.company || "").trim() !== scope)) {
+      return NextResponse.json({ ok: false, error: "본인 법인 데이터만 등록할 수 있습니다." }, { status: 403 });
+    }
+    const adminName = await resolveCurrentName(session);
+    const modifiedBy = `${adminName} (${session.userId})`;
+    const modifiedAt = new Date().toISOString();
+
     const results: { index: number; user: string; assetNo: string; ok: boolean; error?: string; page?: PageObjectResponse }[] = [];
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       try {
-        const page = await createHwPage(row) as PageObjectResponse;
+        const page = await createHwPage(row, modifiedBy, modifiedAt) as PageObjectResponse;
         results.push({ index: i, user: row.user, assetNo: row.assetNo, ok: true, page });
       } catch (e) {
-        results.push({ index: i, user: row.user, assetNo: row.assetNo, ok: false, error: String(e) });
+        results.push({ index: i, user: row.user, assetNo: row.assetNo, ok: false, error: errorMessage(e) });
       }
       // Rate limit 방지 (Notion API: 3 req/sec)
       if (i < rows.length - 1) await new Promise(r => setTimeout(r, 350));
@@ -220,18 +246,48 @@ export async function POST(req: NextRequest) {
             kvSetPermanent("hw:all",   merged),
             kvSetPermanent("hw:stats", stats),
           ]);
-          memDel("hw:all", "hw:stats");
         }
         // KV 미스 시 — 다음 warm-hw.yml 실행 때 자연히 반영
       } catch (e) {
         // KV 패치 실패는 치명적이지 않음 (warm-hw.yml 2시간마다 갱신)
         console.warn("[hw/upload] KV patch failed:", e);
       }
+
+      // 신규 등록 로그 기록 (연단위 분석용 — 서버에서 직접 기록해 누락 방지)
+      try {
+        const successRows = results.filter(r => r.ok).map(r => rows[r.index]);
+        const newLogs: RegistrationRecord[] = successRows.map(row => ({
+          id: crypto.randomUUID(),
+          registeredAt: modifiedAt,
+          assetNo: row.assetNo || "",
+          model: row.model || "",
+          serial: row.serial || "",
+          user: row.user || "",
+          company: row.company || "",
+          dept: row.dept || "",
+          maker: row.maker || "",
+          price: row.price || 0,
+          purchaseDate: toIsoDate(row.purchaseDate as unknown as string | number) || "",
+          useDate: toIsoDate(row.useDate as unknown as string | number) || "",
+          registeredBy: modifiedBy,
+        }));
+        const existingLog = (await kvGet<RegistrationRecord[]>(REGISTRATION_LOG_KEY)) ?? [];
+        await kvSetPermanent(REGISTRATION_LOG_KEY, [...newLogs, ...existingLog]);
+      } catch (e) {
+        console.warn("[hw/upload] registration-log patch failed:", e);
+      }
+
+      // 행별 기록 대신 일괄 등록 1건으로 요약 (감사 로그 500건 cap 보호)
+      await appendAdminAuditLog({
+        adminId: session.userId, adminName, action: "create", target: "hw",
+        itemTitle: `엑셀 일괄 등록 ${success}건`, detail: failed > 0 ? `실패 ${failed}건` : undefined,
+        timestamp: modifiedAt,
+      });
     }
 
     return NextResponse.json({ ok: true, success, failed, results: results.map(({ page: _p, ...r }) => r) });
   } catch (e) {
     console.error("[API /hw/upload]", e);
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }

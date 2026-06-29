@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
+import { resolveAuditActor } from "@/lib/session";
+import { appendAdminAuditLog } from "@/lib/portal-store";
+import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +23,11 @@ export async function POST(req: NextRequest) {
         faultType?: string;
         assigneeId?: string;
         note?: string;
+        repairCost?: number;
+        assetStatus?: string;
+        address?: string;
+        requesterEmail?: string;
+        isClosed?: boolean;
       };
     };
 
@@ -59,6 +67,21 @@ export async function POST(req: NextRequest) {
     if (fields.note !== undefined) {
       properties["수리내용"] = { rich_text: [{ text: { content: fields.note } }] };
     }
+    if (fields.repairCost !== undefined) {
+      properties["수리비용"] = { number: fields.repairCost || null };
+    }
+    if (fields.assetStatus !== undefined) {
+      properties["대분류"] = { select: fields.assetStatus ? { name: fields.assetStatus } : null };
+    }
+    if (fields.address !== undefined) {
+      properties["배송지"] = { select: fields.address ? { name: fields.address } : null };
+    }
+    if (fields.requesterEmail !== undefined) {
+      properties["기안자이메일"] = fields.requesterEmail ? { email: fields.requesterEmail } : null;
+    }
+    if (fields.isClosed !== undefined) {
+      properties["케이스종료"] = { checkbox: fields.isClosed };
+    }
 
     if (Object.keys(properties).length === 0) {
       return NextResponse.json({ ok: false, error: "업데이트할 필드 없음" }, { status: 400 });
@@ -69,9 +92,15 @@ export async function POST(req: NextRequest) {
       properties: properties as Parameters<typeof notion.pages.update>[0]["properties"],
     });
 
+    const { adminId, adminName } = await resolveAuditActor(req.headers.get("cookie"));
+    await appendAdminAuditLog({
+      adminId, adminName, action: "update", target: "hwRepair",
+      itemTitle: fields.user ?? id, timestamp: new Date().toISOString(),
+    });
+
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[API /hw-repair/update]", e);
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }

@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import type { HwStats, HwRecord } from "@/lib/hw";
-import type { HelpDeskTicket } from "@/lib/notion";
-import type { RepairTicket } from "@/types";
+import { useEffect, useState, useMemo } from "react";
+import type { HwStats } from "@/lib/hw";
+import type { ExchangeReturnRecord } from "@/types";
 import { scGet, scSet } from "@/lib/session-cache";
+import { safeJson } from "@/lib/fetch-json";
 
 interface Props {
   company: string;
@@ -12,7 +12,7 @@ interface Props {
   onNavigate: (page: string) => void;
 }
 
-// ── Donut Chart ──────────────────────────────────────────────
+// ── Donut Chart (기존 그대로) ─────────────────────────────────
 interface DonutSeg { label: string; value: number; color: string }
 
 function DonutChart({ data, title }: { data: DonutSeg[]; title: string }) {
@@ -85,80 +85,327 @@ function DonutChart({ data, title }: { data: DonutSeg[]; title: string }) {
   );
 }
 
-// ── 상수 ─────────────────────────────────────────────────────
+// ── 색상 상수 ─────────────────────────────────────────────────
 const SW_STATUS_COLORS: Record<string, string> = {
   "사용중": "#3B82F6", "신규등록": "#8B5CF6", "재고": "#10B981",
   "출고준비중": "#06B6D4", "갱신필요": "#F97316", "반납예정": "#EAB308",
   "만료": "#9CA3AF", "미확인": "#D1D5DB",
 };
-
 const HW_STATUS_COLORS: Record<string, string> = {
-  "사용중":     "#3B82F6",
-  "재고":       "#10B981",
-  "출고준비중": "#06B6D4",
-  "출고준비완료":"#0EA5E9",
-  "수리":       "#F97316",
-  "렌탈":       "#8B5CF6",
-  "임시지급":   "#EAB308",
-  "반납예정":   "#EC4899",
-  "미분류":     "#D1D5DB",
+  "사용중": "#3B82F6", "재고": "#10B981", "출고준비중": "#06B6D4",
+  "출고준비완료": "#0EA5E9", "수리": "#F97316", "렌탈": "#8B5CF6",
+  "임시지급": "#EAB308", "반납예정": "#EC4899", "미분류": "#D1D5DB",
 };
-
-// 차트에서 제외할 상태 (미분류·미확인만 숨김)
-const HW_HIDDEN_STATUSES = new Set(["미확인", "미분류"]);
-
+const HW_HIDDEN = new Set(["미확인", "미분류"]);
 const PALETTE = [
   "#6366f1","#f59e0b","#10b981","#ef4444","#3b82f6","#8b5cf6",
   "#ec4899","#14b8a6","#f97316","#84cc16","#06b6d4","#a855f7",
   "#64748b","#e11d48","#059669","#d97706",
 ];
 
-const HELPDESK_STATUS: Record<string, { bg: string; text: string }> = {
-  "시작 전": { bg: "#F8FAFC", text: "#64748B" },
-  "진행 중": { bg: "#EFF6FF", text: "#1D4ED8" },
-  "완료":    { bg: "#F0FDF4", text: "#059669" },
+const STAGE_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
+  "교체요청":     { bg: "#F8FAFC", text: "#64748B", dot: "#94A3B8" },
+  "요청기안":     { bg: "#EFF6FF", text: "#1D4ED8", dot: "#3B82F6" },
+  "기기준비":     { bg: "#F5F3FF", text: "#6D28D9", dot: "#8B5CF6" },
+  "기기준비완료": { bg: "#ECFDF5", text: "#065F46", dot: "#10B981" },
+  "사용자수령":   { bg: "#FFF7ED", text: "#C2410C", dot: "#F97316" },
+  "반납요청":     { bg: "#FEFCE8", text: "#A16207", dot: "#EAB308" },
+  "반납완료":     { bg: "#F0FDF4", text: "#15803D", dot: "#22C55E" },
 };
-
-const REPAIR_STATUS: Record<string, { bg: string; text: string }> = {
-  "시작 전": { bg: "#F8FAFC", text: "#64748B" },
-  "진행 중": { bg: "#FFF7ED", text: "#C2410C" },
-  "완료":    { bg: "#F0FDF4", text: "#059669" },
-  "이관":    { bg: "#EFF6FF", text: "#1D4ED8" },
-  "기타":    { bg: "#FAF5FF", text: "#7E22CE" },
+const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
+  "교체":     { bg: "#EFF6FF", text: "#1D4ED8" },
+  "퇴사반납": { bg: "#FEF2F2", text: "#B91C1C" },
+  "신규지급": { bg: "#F0FDF4", text: "#15803D" },
 };
+const ALL_STAGES = ["교체요청","요청기안","기기준비","기기준비완료","사용자수령","반납요청"] as const;
 
-const SHIP_NEXT_STATUSES = ["사용중", "재고", "출고준비중", "출고준비완료"];
-
-function StatusBadge({ status, map }: { status: string; map: Record<string, { bg: string; text: string }> }) {
-  const c = map[status] ?? { bg: "#F1F5F9", text: "#64748B" };
-  return (
-    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap shrink-0"
-      style={{ background: c.bg, color: c.text }}>
-      {status || "—"}
-    </span>
-  );
-}
-
-function fmtDate(iso: string): string {
+function fmtDateTime(iso: string) {
   if (!iso) return "—";
   const d = new Date(iso);
-  return `${d.getMonth() + 1}/${d.getDate()}`;
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function agingDays(requestedAt: string, completedAt: string, stage: string) {
+  if (!requestedAt) return 0;
+  const start = new Date(requestedAt);
+  const end = stage === "반납완료" && completedAt ? new Date(completedAt) : new Date();
+  return Math.floor((end.getTime() - start.getTime()) / 86_400_000);
 }
 
 function LoadingBox() {
   return <div className="h-32 flex items-center justify-center text-xs text-gray-400">불러오는 중...</div>;
 }
 
-// ── sessionStorage 키 ────────────────────────────────────────
-const SC_SW    = (co: string) => `sc:dash:sw${co ? `:${co}` : ""}`;
-const SC_HD    = (co: string) => `sc:dash:hd${co ? `:${co}` : ""}`;
-const SC_RP    = (co: string) => `sc:dash:rp${co ? `:${co}` : ""}`;
-const SC_SHIP  = (co: string) => `sc:dash:ship${co ? `:${co}` : ""}`;
+// ── sessionStorage 캐시 키 ────────────────────────────────────
+const SC_SW = (co: string) => `sc:dash:sw${co ? `:${co}` : ""}`;
+const TTL = 5 * 60 * 1000;
 
-// TTL 상수 (ms)
-const TTL_DATA    = 5 * 60 * 1000;  // 5분 — SW/HW 데이터
-const TTL_TICKETS = 3 * 60 * 1000;  // 3분 — 티켓 목록
+// ── 메인 컴포넌트 ─────────────────────────────────────────────
+export default function DashboardHome({ company, initialHwStats, onNavigate }: Props) {
+  const isFiltered = !!company;
 
+  // ── SW 현황
+  const [swLoading, setSwLoading] = useState(true);
+  const [swSegs,    setSwSegs]    = useState<DonutSeg[]>([]);
+
+  // ── HW 현황
+  const [hwStats,   setHwStats]   = useState<HwStats | null>(initialHwStats);
+  const [hwLoading, setHwLoading] = useState(!initialHwStats);
+
+  // ── 자산흐름
+  const [erLoading, setErLoading] = useState(true);
+  const [erRecords, setErRecords] = useState<ExchangeReturnRecord[]>([]);
+  const [erStage,   setErStage]   = useState("기기준비");
+  const [erSearch,  setErSearch]  = useState("");
+
+  // ── 캐시 관리
+  const [clearing, setClearing] = useState(false);
+  const [clearMsg, setClearMsg] = useState<string | null>(null);
+
+  // SW 데이터
+  useEffect(() => {
+    const url = isFiltered ? `/api/sw-records?company=${encodeURIComponent(company)}` : "/api/sw-records";
+    const key = SC_SW(company);
+    const cached = scGet<{ status?: string }[]>(key);
+    if (cached) {
+      setSwSegs(buildSwSegs(cached));
+      setSwLoading(false);
+      fetch(url).then(r => safeJson(r)).then(d => {
+        const recs = d.data ?? [];
+        setSwSegs(buildSwSegs(recs));
+        scSet(key, recs, TTL);
+      }).catch(() => {});
+      return;
+    }
+    fetch(url).then(r => safeJson(r)).then(d => {
+      const recs: { status?: string }[] = d.data ?? [];
+      setSwSegs(buildSwSegs(recs));
+      scSet(key, recs, TTL);
+    }).finally(() => setSwLoading(false));
+  }, [company, isFiltered]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // HW 통계
+  useEffect(() => {
+    if (hwStats) { setHwLoading(false); return; }
+    let retry: ReturnType<typeof setTimeout> | null = null;
+    async function load(isRetry = false) {
+      try {
+        const d = await fetch("/api/hw/stats").then(r => safeJson(r));
+        if (d.ok && d.stats) { setHwStats(d.stats); setHwLoading(false); }
+        else if (d.warming && !isRetry) { retry = setTimeout(() => load(true), 45_000); }
+        else { setHwLoading(false); }
+      } catch { setHwLoading(false); }
+    }
+    load();
+    return () => { if (retry) clearTimeout(retry); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 자산흐름 데이터
+  useEffect(() => {
+    fetch("/api/exchange-return")
+      .then(r => safeJson(r))
+      .then(d => setErRecords(Array.isArray(d.data) ? d.data : []))
+      .catch(() => {})
+      .finally(() => setErLoading(false));
+  }, []);
+
+  // HW 도넛 세그
+  const hwSegs: DonutSeg[] = hwStats
+    ? Object.entries(hwStats.byStatus)
+        .filter(([l, v]) => v > 0 && !HW_HIDDEN.has(l))
+        .sort((a, b) => b[1] - a[1])
+        .map(([label, value], i) => ({ label, value, color: HW_STATUS_COLORS[label] ?? PALETTE[i % PALETTE.length] }))
+    : [];
+
+  // 단계별 카운트 (진행 중 기준)
+  const stageCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    erRecords
+      .filter(r => !r.isClosed && r.stage !== "반납완료")
+      .forEach(r => { counts[r.stage] = (counts[r.stage] ?? 0) + 1; });
+    return counts;
+  }, [erRecords]);
+
+  // 필터링된 자산흐름 목록
+  const erFiltered = useMemo(() => {
+    return erRecords.filter(r => {
+      if (erStage !== "전체" && r.stage !== erStage) return false;
+      if (erSearch) {
+        const q = erSearch.toLowerCase();
+        return [r.user, r.assetId, r.newAssetId, r.company, r.department, r.assignee]
+          .some(v => v?.toLowerCase().includes(q));
+      }
+      return true;
+    });
+  }, [erRecords, erStage, erSearch]);
+
+  async function clearCache(target: "hw" | "sw" | "all") {
+    setClearing(true); setClearMsg(null);
+    try {
+      const calls: Promise<Response>[] = [];
+      if (target !== "sw") calls.push(fetch("/api/hw/cache-clear", { method: "POST" }));
+      if (target !== "hw") calls.push(fetch("/api/sw-records/cache-clear", { method: "POST" }));
+      await Promise.all(calls);
+      setClearMsg(`✅ ${target === "hw" ? "HW" : target === "sw" ? "SW" : "전체"} 캐시 초기화 완료`);
+    } catch { setClearMsg("⚠️ 초기화 중 오류 발생"); }
+    finally { setClearing(false); setTimeout(() => setClearMsg(null), 4000); }
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      {/* 페이지 타이틀 */}
+      <div>
+        <h1 className="text-xl font-extrabold text-gray-900">대시보드</h1>
+        <p className="text-sm text-gray-400 mt-0.5">{isFiltered ? `${company} 현황 요약` : "전사 현황 요약"}</p>
+      </div>
+
+      {/* ── ① HW 자산현황 | SW 자산현황 ─────────────────────────── */}
+      <div className="grid grid-cols-2 gap-5">
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-sm font-bold text-gray-700">하드웨어 현황</span>
+            <button onClick={() => onNavigate("hw")} className="text-xs text-blue-500 hover:text-blue-700">전체 보기 →</button>
+          </div>
+          {hwLoading ? <LoadingBox /> : <DonutChart data={hwSegs} title="상태" />}
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-sm font-bold text-gray-700">SW 라이선스 현황</span>
+            <button onClick={() => onNavigate("overview")} className="text-xs text-blue-500 hover:text-blue-700">전체 보기 →</button>
+          </div>
+          {swLoading ? <LoadingBox /> : <DonutChart data={swSegs} title="전체" />}
+        </div>
+      </div>
+
+      {/* ── ② 자산 흐름 관리 ─────────────────────────────────────── */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        {/* 헤더 */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-gray-700">자산 흐름 관리</span>
+            <span className="text-xs text-gray-400">
+              진행 중 <strong className="text-gray-700">{Object.values(stageCounts).reduce((a, b) => a + b, 0)}</strong>건
+            </span>
+          </div>
+          <button onClick={() => onNavigate("exchange-return")} className="text-xs text-blue-500 hover:text-blue-700">
+            전체 보기 →
+          </button>
+        </div>
+
+        {/* 단계 탭 */}
+        <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-100 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+          <button
+            onClick={() => setErStage("전체")}
+            className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors
+              ${erStage === "전체" ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+          >
+            전체
+          </button>
+          {ALL_STAGES.map(stage => {
+            const cnt = stageCounts[stage] ?? 0;
+            if (cnt === 0) return null;
+            const c = STAGE_COLORS[stage];
+            const active = erStage === stage;
+            return (
+              <button key={stage} onClick={() => setErStage(stage)}
+                className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all"
+                style={{
+                  background: active ? c.dot : c.bg,
+                  color: active ? "#fff" : c.text,
+                  borderColor: c.dot + "55",
+                }}>
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: active ? "#ffffffaa" : c.dot }} />
+                {stage} {cnt}
+              </button>
+            );
+          })}
+          <input
+            type="text" value={erSearch} onChange={e => setErSearch(e.target.value)}
+            placeholder="이름·자산번호·법인 검색..."
+            className="ml-auto flex-shrink-0 w-52 border border-gray-200 rounded-full px-3 py-1.5 text-xs focus:outline-none focus:border-blue-400"
+          />
+        </div>
+
+        {/* 테이블 */}
+        {erLoading ? <LoadingBox /> : erFiltered.length === 0 ? (
+          <div className="py-10 text-center text-xs text-gray-400">조건에 맞는 항목이 없습니다</div>
+        ) : (
+          <>
+            {/* 컬럼 헤더 */}
+            <div className="grid px-5 py-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide bg-gray-50 border-b border-gray-100"
+              style={{ gridTemplateColumns: "130px 64px 108px 108px 88px 80px 90px 1fr 100px 90px" }}>
+              <span>진행 단계</span><span>유형</span>
+              <span>자산번호(현)</span><span>자산번호(신)</span>
+              <span>법인</span><span>부서</span><span>사용자</span>
+              <span>메모</span><span>최종수정</span><span>사용일자</span>
+            </div>
+            {/* 행 목록 */}
+            <div className="max-h-[480px] overflow-y-auto divide-y divide-gray-50">
+              {erFiltered.map(r => {
+                const aging = agingDays(r.requestedAt, r.completedAt, r.stage);
+                const sc = STAGE_COLORS[r.stage] ?? { bg: "#F1F5F9", text: "#64748B", dot: "#94A3B8" };
+                const tc = TYPE_COLORS[r.type]  ?? { bg: "#F1F5F9", text: "#64748B" };
+                return (
+                  <div key={r.id}
+                    className="grid items-center px-5 py-2.5 hover:bg-gray-50 transition-colors"
+                    style={{ gridTemplateColumns: "130px 64px 108px 108px 88px 80px 90px 1fr 100px 90px" }}>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap shrink-0"
+                        style={{ background: sc.bg, color: sc.text }}>{r.stage}</span>
+                      <span className="text-[10px] font-semibold shrink-0"
+                        style={{ color: aging >= 7 ? "#DC2626" : aging >= 3 ? "#D97706" : "#9CA3AF" }}>
+                        D+{aging}
+                      </span>
+                    </div>
+                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold w-fit whitespace-nowrap"
+                      style={{ background: tc.bg, color: tc.text }}>{r.type || "—"}</span>
+                    <span className="text-[11px] text-blue-600 font-medium truncate pr-2">{r.assetId || "—"}</span>
+                    <span className="text-[11px] text-blue-600 font-medium truncate pr-2">{r.newAssetId || "—"}</span>
+                    <span className="text-[11px] text-gray-600 truncate pr-1">{r.company || "—"}</span>
+                    <span className="text-[11px] text-gray-600 truncate pr-1">{r.department || "—"}</span>
+                    <span className="text-[11px] text-gray-800 font-medium truncate pr-1">{r.user || "—"}</span>
+                    <span className="text-[11px] text-gray-400 truncate pr-2">{r.note || "—"}</span>
+                    <div className="text-[10px] pr-1">
+                      {r.lastModifiedBy ? (
+                        <>
+                          <div className="text-gray-700 font-medium truncate">{r.lastModifiedBy}</div>
+                          <div className="text-gray-400">{fmtDateTime(r.lastEditedAt)}</div>
+                        </>
+                      ) : <span className="text-gray-300">—</span>}
+                    </div>
+                    <span className="text-[11px] text-gray-400">{r.useDate ? r.useDate.slice(0, 10) : "—"}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="px-5 py-2 text-right text-xs text-gray-400 border-t border-gray-100">
+              {erFiltered.length}건 표시 / 전체 {erRecords.length}건
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* ── 캐시 관리 ─────────────────────────────────────────────── */}
+      <div className="border-t border-gray-100 pt-4">
+        <p className="text-xs text-gray-400 font-medium mb-2">캐시 관리</p>
+        <div className="flex flex-wrap gap-2">
+          {(["hw","sw","all"] as const).map(t => (
+            <button key={t} onClick={() => clearCache(t)} disabled={clearing}
+              className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-500 hover:border-red-300 hover:text-red-600 hover:bg-red-50 disabled:opacity-40 transition-colors flex items-center gap-1.5">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>
+              </svg>
+              {clearing ? "초기화 중…" : t === "hw" ? "HW DB 초기화" : t === "sw" ? "SW DB 초기화" : "전체 초기화"}
+            </button>
+          ))}
+        </div>
+        {clearMsg && <p className="mt-2 text-[11px] text-gray-500">{clearMsg}</p>}
+      </div>
+    </div>
+  );
+}
+
+// ── 헬퍼 ─────────────────────────────────────────────────────
 function buildSwSegs(recs: { status?: string }[]): DonutSeg[] {
   const counts: Record<string, number> = {};
   for (const r of recs) {
@@ -171,565 +418,4 @@ function buildSwSegs(recs: { status?: string }[]): DonutSeg[] {
       label, value,
       color: SW_STATUS_COLORS[label] ?? PALETTE[i % PALETTE.length],
     }));
-}
-
-// ── 메인 컴포넌트 ─────────────────────────────────────────────
-export default function DashboardHome({ company, initialHwStats, onNavigate }: Props) {
-  const isFiltered = !!company;
-
-  const [swLoading,  setSwLoading]  = useState(true);
-  const [swSegs,     setSwSegs]     = useState<DonutSeg[]>([]);
-
-  const [hwStats,    setHwStats]    = useState<HwStats | null>(initialHwStats);
-  const [hwLoading,  setHwLoading]  = useState(!initialHwStats);
-
-  const [hdLoading,  setHdLoading]  = useState(true);
-  const [hdTickets,  setHdTickets]  = useState<HelpDeskTicket[]>([]);
-
-  const [rpLoading,  setRpLoading]  = useState(true);
-  const [rpTickets,  setRpTickets]  = useState<RepairTicket[]>([]);
-
-  const [shipLoading,  setShipLoading]  = useState(true);
-  const [shipRecords,  setShipRecords]  = useState<HwRecord[]>([]);
-  const [openStatusId, setOpenStatusId] = useState<string | null>(null);
-  const [updatingId,   setUpdatingId]   = useState<string | null>(null);
-  const [detailRecord, setDetailRecord] = useState<HwRecord | null>(null);
-
-  const [clearing, setClearing] = useState(false);
-  const [clearMsg, setClearMsg] = useState<string | null>(null);
-
-  // 로딩 시간 (ms)
-  const [loadTimes, setLoadTimes] = useState<Record<string, number>>({});
-  const setTime = (key: string, ms: number) =>
-    setLoadTimes(prev => ({ ...prev, [key]: ms }));
-
-  // ── SW 라이선스 현황 ─────────────────────────────────────────
-  useEffect(() => {
-    const url = isFiltered
-      ? `/api/sw-records?company=${encodeURIComponent(company)}`
-      : "/api/sw-records";
-    const cacheKey = SC_SW(company);
-
-    // sessionStorage hit → 즉시 렌더, 백그라운드 재검증
-    const cached = scGet<{ status?: string }[]>(cacheKey);
-    if (cached) {
-      setSwSegs(buildSwSegs(cached));
-      setSwLoading(false);
-      setTime("SW 라이선스", 0);
-      fetch(url).then(r => r.json()).then(d => {
-        const recs = d.data ?? [];
-        setSwSegs(buildSwSegs(recs));
-        scSet(cacheKey, recs, TTL_DATA);
-      }).catch(() => {/* 백그라운드 실패 무시 */});
-      return;
-    }
-
-    const t0 = performance.now();
-    fetch(url)
-      .then(r => r.json())
-      .then(d => {
-        setTime("SW 라이선스", Math.round(performance.now() - t0));
-        const recs: { status?: string }[] = d.data ?? [];
-        setSwSegs(buildSwSegs(recs));
-        scSet(cacheKey, recs, TTL_DATA);
-      })
-      .finally(() => setSwLoading(false));
-  }, [company, isFiltered]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── HW 현황 (상태별) ─────────────────────────────────────────
-  useEffect(() => {
-    if (hwStats) { setHwLoading(false); setTime("HW 현황", 0); return; }
-
-    let retryTimer: ReturnType<typeof setTimeout> | null = null;
-
-    async function fetchStats(isRetry = false) {
-      const t0 = performance.now();
-      try {
-        const d = await fetch("/api/hw/stats").then(r => r.json());
-        if (!isRetry) setTime("HW 현황", Math.round(performance.now() - t0));
-        if (d.ok && d.stats) {
-          setHwStats(d.stats);
-          setHwLoading(false);
-        } else if (d.warming && !isRetry) {
-          // warm 진행 중 → 45초 후 재시도 (warm-hw 잡은 약 1분 소요)
-          retryTimer = setTimeout(() => fetchStats(true), 45_000);
-        } else {
-          setHwLoading(false);
-        }
-      } catch {
-        setHwLoading(false);
-      }
-    }
-
-    fetchStats();
-    return () => { if (retryTimer) clearTimeout(retryTimer); };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── 최근 문의 접수 ────────────────────────────────────────────
-  useEffect(() => {
-    const url = isFiltered
-      ? `/api/helpdesk?company=${encodeURIComponent(company)}`
-      : "/api/helpdesk";
-    const cacheKey = SC_HD(company);
-
-    const cached = scGet<HelpDeskTicket[]>(cacheKey);
-    if (cached) {
-      setHdTickets(cached);
-      setHdLoading(false);
-      setTime("문의 접수", 0);
-      fetch(url).then(r => r.json()).then(d => {
-        const tickets: HelpDeskTicket[] = (d.data ?? [])
-          .sort((a: HelpDeskTicket, b: HelpDeskTicket) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
-          .slice(0, 7);
-        setHdTickets(tickets);
-        scSet(cacheKey, tickets, TTL_TICKETS);
-      }).catch(() => {});
-      return;
-    }
-
-    const t0 = performance.now();
-    fetch(url)
-      .then(r => r.json())
-      .then(d => {
-        setTime("문의 접수", Math.round(performance.now() - t0));
-        const tickets: HelpDeskTicket[] = (d.data ?? [])
-          .sort((a: HelpDeskTicket, b: HelpDeskTicket) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
-          .slice(0, 7);
-        setHdTickets(tickets);
-        scSet(cacheKey, tickets, TTL_TICKETS);
-      })
-      .finally(() => setHdLoading(false));
-  }, [company, isFiltered]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── 최근 수리 접수 ────────────────────────────────────────────
-  useEffect(() => {
-    const url = isFiltered
-      ? `/api/repair-tickets?company=${encodeURIComponent(company)}`
-      : "/api/repair-tickets";
-    const cacheKey = SC_RP(company);
-
-    const cached = scGet<RepairTicket[]>(cacheKey);
-    if (cached) {
-      setRpTickets(cached);
-      setRpLoading(false);
-      setTime("수리 접수", 0);
-      fetch(url).then(r => r.json()).then(d => {
-        const tickets: RepairTicket[] = (d.data ?? [])
-          .sort((a: RepairTicket, b: RepairTicket) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-          .slice(0, 7);
-        setRpTickets(tickets);
-        scSet(cacheKey, tickets, TTL_TICKETS);
-      }).catch(() => {});
-      return;
-    }
-
-    const t0 = performance.now();
-    fetch(url)
-      .then(r => r.json())
-      .then(d => {
-        setTime("수리 접수", Math.round(performance.now() - t0));
-        const tickets: RepairTicket[] = (d.data ?? [])
-          .sort((a: RepairTicket, b: RepairTicket) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-          .slice(0, 7);
-        setRpTickets(tickets);
-        scSet(cacheKey, tickets, TTL_TICKETS);
-      })
-      .finally(() => setRpLoading(false));
-  }, [company, isFiltered]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── 출고준비 현황 ─────────────────────────────────────────────
-  // statuses 복수 파라미터 사용 → KV miss 시 Notion 직접 fallback 작동
-  useEffect(() => {
-    const co = isFiltered ? `&company=${encodeURIComponent(company)}` : "";
-    const shipUrl = `/api/hw?statuses=${encodeURIComponent("출고준비중,출고준비완료")}${co}`;
-    const cacheKey = SC_SHIP(company);
-
-    const cached = scGet<HwRecord[]>(cacheKey);
-    if (cached) {
-      setShipRecords(cached);
-      setShipLoading(false);
-      setTime("출고준비", 0);
-      fetch(shipUrl).then(r => r.json()).then(d => {
-        const all: HwRecord[] = (d.records ?? []).sort((a: HwRecord, b: HwRecord) =>
-          (a.useDate || "").localeCompare(b.useDate || ""));
-        setShipRecords(all);
-        scSet(cacheKey, all, TTL_TICKETS);
-      }).catch(() => {});
-      return;
-    }
-
-    const t0 = performance.now();
-    fetch(shipUrl)
-      .then(r => r.json())
-      .then(d => {
-        setTime("출고준비", Math.round(performance.now() - t0));
-        const all: HwRecord[] = (d.records ?? []).sort((a: HwRecord, b: HwRecord) =>
-          (a.useDate || "").localeCompare(b.useDate || ""));
-        setShipRecords(all);
-        scSet(cacheKey, all, TTL_TICKETS);
-      })
-      .finally(() => setShipLoading(false));
-  }, [company, isFiltered]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function clearCache(target: "hw" | "sw" | "all") {
-    setClearing(true);
-    setClearMsg(null);
-    try {
-      const calls = [];
-      if (target === "hw" || target === "all") calls.push(fetch("/api/hw/cache-clear", { method: "POST" }));
-      if (target === "sw" || target === "all") calls.push(fetch("/api/sw-records/cache-clear", { method: "POST" }));
-      await Promise.all(calls);
-      // sessionStorage도 함께 초기화
-      if (target === "sw" || target === "all") scDel_prefix("sc:dash:sw");
-      if (target === "hw" || target === "all") {
-        scDel_prefix("sc:dash:ship");
-        scDel_prefix("sc:dash:hd");
-        scDel_prefix("sc:dash:rp");
-      }
-      const label = target === "hw" ? "HW DB" : target === "sw" ? "SW DB" : "전체";
-      setClearMsg(`✅ ${label} 캐시 초기화 완료. 다음 조회 시 Notion에서 새로 불러옵니다.`);
-    } catch {
-      setClearMsg("⚠️ 초기화 중 오류가 발생했습니다.");
-    } finally {
-      setClearing(false);
-      setTimeout(() => setClearMsg(null), 5000);
-    }
-  }
-
-  function scDel_prefix(prefix: string) {
-    if (typeof window === "undefined") return;
-    try {
-      const keys: string[] = [];
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const k = sessionStorage.key(i);
-        if (k && k.startsWith(prefix)) keys.push(k);
-      }
-      keys.forEach(k => sessionStorage.removeItem(k));
-    } catch {}
-  }
-
-  async function updateShipStatus(id: string, status: string) {
-    setUpdatingId(id);
-    try {
-      await fetch("/api/hw/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, fields: { status } }),
-      });
-      if (status === "출고준비중" || status === "출고준비완료") {
-        setShipRecords(prev => prev.map(r => r.id === id ? { ...r, status } : r));
-      } else {
-        setShipRecords(prev => prev.filter(r => r.id !== id));
-      }
-      // sessionStorage의 출고준비 캐시 무효화 (상태 변경됨)
-      scDel_prefix("sc:dash:ship");
-    } finally {
-      setUpdatingId(null);
-      setOpenStatusId(null);
-    }
-  }
-
-  // 상태별 도넛 (미확인/미분류 제외)
-  const hwSegs: DonutSeg[] = hwStats
-    ? Object.entries(hwStats.byStatus)
-        .filter(([label, v]) => v > 0 && !HW_HIDDEN_STATUSES.has(label))
-        .sort((a, b) => b[1] - a[1])
-        .map(([label, value], i) => ({
-          label,
-          value,
-          color: HW_STATUS_COLORS[label] ?? PALETTE[i % PALETTE.length],
-        }))
-    : [];
-
-  return (
-    <div className="flex flex-col gap-6">
-      {/* 헤더 */}
-      <div>
-        <h1 className="text-xl font-extrabold text-gray-900">대시보드</h1>
-        <p className="text-sm text-gray-400 mt-0.5">
-          {isFiltered ? `${company} 현황 요약` : "전사 현황 요약"}
-        </p>
-      </div>
-
-      {/* 차트 행 */}
-      <div className="grid grid-cols-2 gap-5">
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-sm font-bold text-gray-700">SW 라이선스 현황</span>
-            <button
-              onClick={() => onNavigate("overview")}
-              className="text-xs text-blue-500 hover:text-blue-700 transition-colors"
-            >
-              전체 보기 →
-            </button>
-          </div>
-          {swLoading ? <LoadingBox /> : <DonutChart data={swSegs} title="전체" />}
-        </div>
-
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-sm font-bold text-gray-700">하드웨어 현황</span>
-            <button
-              onClick={() => onNavigate("hw")}
-              className="text-xs text-blue-500 hover:text-blue-700 transition-colors"
-            >
-              전체 보기 →
-            </button>
-          </div>
-          {hwLoading ? <LoadingBox /> : <DonutChart data={hwSegs} title="상태" />}
-        </div>
-      </div>
-
-      {/* 리스트 행 */}
-      <div className="grid grid-cols-2 gap-5">
-        {/* 문의 접수 */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-sm font-bold text-gray-700">최근 문의 접수</span>
-            <button
-              onClick={() => onNavigate("helpdesk")}
-              className="text-xs text-blue-500 hover:text-blue-700 transition-colors"
-            >
-              전체 보기 →
-            </button>
-          </div>
-          {hdLoading ? (
-            <LoadingBox />
-          ) : hdTickets.length === 0 ? (
-            <div className="text-xs text-gray-400 py-6 text-center">접수 내역 없음</div>
-          ) : (
-            <div className="flex flex-col">
-              {hdTickets.map(t => (
-                <div key={t.id} className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-gray-50 transition-colors">
-                  <span className="text-[11px] text-gray-400 w-8 shrink-0">{fmtDate(t.submittedAt)}</span>
-                  <StatusBadge status={t.status} map={HELPDESK_STATUS} />
-                  <span className="text-xs text-gray-700 flex-1 truncate min-w-0">{t.content || t.title || "—"}</span>
-                  <span className="text-[11px] text-gray-400 shrink-0 max-w-[56px] truncate">{t.company}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* 수리 접수 */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-sm font-bold text-gray-700">최근 수리 접수</span>
-            <button
-              onClick={() => onNavigate("repair")}
-              className="text-xs text-blue-500 hover:text-blue-700 transition-colors"
-            >
-              전체 보기 →
-            </button>
-          </div>
-          {rpLoading ? (
-            <LoadingBox />
-          ) : rpTickets.length === 0 ? (
-            <div className="text-xs text-gray-400 py-6 text-center">접수 내역 없음</div>
-          ) : (
-            <div className="flex flex-col">
-              {rpTickets.map(t => (
-                <div key={t.id} className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-gray-50 transition-colors">
-                  <span className="text-[11px] text-gray-400 w-8 shrink-0">{fmtDate(t.createdAt)}</span>
-                  <StatusBadge status={t.status} map={REPAIR_STATUS} />
-                  <span className="text-xs text-gray-700 flex-1 truncate min-w-0">{t.title || "—"}</span>
-                  <span className="text-[11px] text-gray-400 shrink-0 max-w-[56px] truncate">{t.company}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* 출고준비 현황 */}
-      <div className="grid grid-cols-2 gap-5">
-        {(["출고준비중", "출고준비완료"] as const).map(targetStatus => {
-          const list = shipRecords.filter(r => r.status === targetStatus);
-          const isReady = targetStatus === "출고준비완료";
-          return (
-            <div key={targetStatus} className="bg-white rounded-xl border border-gray-200 p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-gray-700">{targetStatus}</span>
-                  {!shipLoading && (
-                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${isReady ? "bg-amber-50 text-amber-600" : "bg-orange-50 text-orange-600"}`}>
-                      {list.length}
-                    </span>
-                  )}
-                </div>
-                <button onClick={() => onNavigate("hw")} className="text-xs text-blue-500 hover:text-blue-700 transition-colors">
-                  전체 보기 →
-                </button>
-              </div>
-              {shipLoading ? (
-                <LoadingBox />
-              ) : list.length === 0 ? (
-                <div className="text-xs text-gray-400 py-6 text-center">항목 없음</div>
-              ) : (
-                <div>
-                  {/* 헤더 */}
-                  <div className="grid text-[10px] text-gray-400 font-medium px-2 pb-1 border-b border-gray-100"
-                    style={{ gridTemplateColumns: "80px 90px 72px 64px 64px 64px 1fr 72px" }}>
-                    <span>상태</span><span>자산번호</span><span>법인</span>
-                    <span>부서</span><span>이름</span><span>위치</span>
-                    <span>모델명</span><span>사용일자</span>
-                  </div>
-                  {/* 행 */}
-                  {list.map(r => (
-                    <div key={r.id} className="relative grid items-center px-2 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
-                      style={{ gridTemplateColumns: "80px 90px 72px 64px 64px 64px 1fr 72px" }}>
-                      {/* 상태 뱃지 — 클릭 시 상태 변경 */}
-                      <div className="relative">
-                        <button
-                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap cursor-pointer
-                            ${isReady ? "bg-amber-50 text-amber-600 hover:bg-amber-100" : "bg-orange-50 text-orange-600 hover:bg-orange-100"}`}
-                          onClick={() => setOpenStatusId(openStatusId === r.id ? null : r.id)}
-                        >
-                          {updatingId === r.id ? "저장 중..." : r.status}
-                        </button>
-                        {openStatusId === r.id && (
-                          <>
-                            <div className="fixed inset-0 z-10" onClick={() => setOpenStatusId(null)} />
-                            <div
-                              className="absolute left-0 bottom-7 z-20 bg-white border border-gray-200 rounded-lg shadow-lg p-1 flex flex-col gap-0.5 min-w-[120px]"
-                              onClick={e => e.stopPropagation()}
-                            >
-                              {SHIP_NEXT_STATUSES.map(s => (
-                                <button
-                                  key={s}
-                                  disabled={updatingId === r.id}
-                                  className={`text-xs px-3 py-1.5 rounded text-left whitespace-nowrap transition-colors
-                                    ${r.status === s ? "font-bold text-blue-600 bg-blue-50" : "text-gray-700 hover:bg-gray-100"}
-                                    ${updatingId === r.id ? "opacity-50 cursor-not-allowed" : ""}`}
-                                  onClick={() => updateShipStatus(r.id, s)}
-                                >
-                                  {s}
-                                </button>
-                              ))}
-                            </div>
-                          </>
-                        )}
-                      </div>
-                      <button
-                        className="text-[11px] text-blue-600 hover:underline font-medium text-left truncate pr-1"
-                        onClick={() => setDetailRecord(r)}
-                      >
-                        {r.assetNo || "—"}
-                      </button>
-                      <span className="text-[11px] text-gray-500 truncate pr-1">{r.company || "—"}</span>
-                      <span className="text-[11px] text-gray-500 truncate pr-1">{r.dept || "—"}</span>
-                      <span className="text-[11px] text-gray-500 truncate pr-1">{r.user || "—"}</span>
-                      <span className="text-[11px] text-gray-500 truncate pr-1">{r.location || "—"}</span>
-                      <span className="text-[11px] text-gray-700 truncate pr-1">{r.model || "—"}</span>
-                      <span className="text-[11px] text-gray-400 truncate">{r.useDate ? r.useDate.slice(0, 10) : "—"}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* 세부정보 모달 */}
-      {detailRecord && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-          onClick={() => setDetailRecord(null)}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-2xl w-[520px] max-h-[80vh] overflow-y-auto p-6"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <h2 className="text-base font-extrabold text-gray-900">{detailRecord.assetNo || "자산번호 없음"}</h2>
-                <p className="text-xs text-gray-400 mt-0.5">{detailRecord.status}</p>
-              </div>
-              <button onClick={() => setDetailRecord(null)} className="text-gray-400 hover:text-gray-700 text-xl leading-none">×</button>
-            </div>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-              {([
-                ["모델명",      detailRecord.model],
-                ["법인",        detailRecord.company],
-                ["부서",        detailRecord.dept],
-                ["이름",        detailRecord.user],
-                ["위치",        detailRecord.location],
-                ["사용일자",    detailRecord.useDate],
-                ["구매일자",    detailRecord.purchaseDate],
-                ["반납일자",    detailRecord.returnDate],
-                ["시리얼번호",  detailRecord.serial],
-                ["제조사",      detailRecord.maker],
-                ["CPU",         detailRecord.cpu],
-                ["RAM",         detailRecord.ram],
-                ["결재문서번호", detailRecord.docNo],
-                ["단가",        detailRecord.price ? detailRecord.price.toLocaleString() + "원" : ""],
-                ["잔존가치",    detailRecord.residualValue ? detailRecord.residualValue.toLocaleString() + "원" : ""],
-                ["기타",        detailRecord.note],
-              ] as [string, string][]).map(([label, val]) => val ? (
-                <div key={label}>
-                  <div className="text-[10px] text-gray-400 font-medium">{label}</div>
-                  <div className="text-xs text-gray-800 mt-0.5 break-all">{val}</div>
-                </div>
-              ) : null)}
-            </div>
-            {detailRecord.notionUrl && (
-              <a
-                href={detailRecord.notionUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-5 flex items-center gap-1 text-xs text-blue-500 hover:underline"
-              >
-                Notion에서 열기 →
-              </a>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* 로딩 시간 표시 */}
-      {Object.keys(loadTimes).length > 0 && (
-        <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-1 px-1">
-          <span className="text-xs text-gray-400 font-medium">초기 로딩 시간</span>
-          {["SW 라이선스", "HW 현황", "문의 접수", "수리 접수", "출고준비"].map(key => {
-            const ms = loadTimes[key];
-            if (ms === undefined) return null;
-            const color = ms === 0 ? "text-blue-500"
-                        : ms < 500  ? "text-green-600"
-                        : ms < 1500 ? "text-yellow-600"
-                        : "text-red-500";
-            return (
-              <span key={key} className="flex items-center gap-1 text-xs">
-                <span className="text-gray-400">{key}</span>
-                <span className={`font-semibold ${color}`}>
-                  {ms === 0 ? "캐시" : ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`}
-                </span>
-              </span>
-            );
-          })}
-        </div>
-      )}
-
-      {/* 캐시 관리 */}
-      <div className="mt-2 pt-5 border-t border-gray-100">
-        <p className="text-xs text-gray-400 font-medium mb-2.5">캐시 관리</p>
-        <div className="flex flex-wrap items-center gap-2">
-          {([
-            { label: "HW DB 초기화", target: "hw" as const },
-            { label: "SW DB 초기화", target: "sw" as const },
-            { label: "전체 초기화",  target: "all" as const },
-          ]).map(({ label, target }) => (
-            <button key={target} onClick={() => clearCache(target)} disabled={clearing}
-              className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-500 hover:border-red-300 hover:text-red-600 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>
-              </svg>
-              {clearing ? "초기화 중…" : label}
-            </button>
-          ))}
-        </div>
-        {clearMsg && <p className="mt-2 text-[11px] text-gray-500">{clearMsg}</p>}
-      </div>
-    </div>
-  );
 }

@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import type { RepairTicket } from "@/types";
 import { AssetModalInner, HwRecord, HW_STATUSES } from "@/components/admin/AssetModal";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
+import { safeJson } from "@/lib/fetch-json";
 
 // ── Color configs ────────────────────────────────────────────
 const PRIORITY_COLORS: Record<string, { bg: string; text: string; bar: string }> = {
@@ -180,7 +181,7 @@ function InlineStatusCell({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: ticket.id, fields: { status: newStatus } }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) { onUpdated(ticket.id, { status: newStatus }); setResult("done"); }
       else setResult("error");
     } catch { setResult("error"); }
@@ -232,7 +233,7 @@ function InlineAssigneeCell({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: ticket.id, fields: { assigneeId: found?.id ?? "" } }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) {
         onUpdated(ticket.id, { assignee: newName || undefined, assigneeId: found?.id ?? undefined });
         setResult("done");
@@ -308,7 +309,7 @@ function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
     if (!ticket.assetId || assetState === "loading") return;
     setAssetState("loading");
     fetch(`/api/hw?search=${encodeURIComponent(ticket.assetId)}`)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(json => {
         const match = (json.records as HwRecord[])?.find(
           r => r.assetNo.toLowerCase() === ticket.assetId.toLowerCase()
@@ -328,7 +329,7 @@ function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: assetData.id, fields: { status: assetStatus } }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) {
         setAssetData(prev => prev ? { ...prev, status: assetStatus } : prev); setAssetSaveResult("done");
         if (assetStatus === "교체요청" && assetData) {
@@ -356,7 +357,7 @@ function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: ticket.id, fields: { actionNote: value } }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) {
         setNoteValue(value);
         setNoteSaveResult("done");
@@ -382,7 +383,7 @@ function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: ticket.id, fields }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) {
         setSaveResult(prev => ({ ...prev, [field]: "done" }));
         if (field === "status")   onUpdated?.(ticket.id, { status: selectedStatus as RepairTicket["status"] });
@@ -417,9 +418,9 @@ function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2 flex-wrap">
               <span className="text-xs text-gray-400 font-mono">#{ticket.ticketNumber || "—"}</span>
-              <PriorityBadge priority={ticket.priority} />
+              {ticket.priority && <PriorityBadge priority={ticket.priority} />}
             </div>
-            <h2 className="text-lg font-bold text-gray-900 leading-snug">{ticket.title || "—"}</h2>
+            <h2 className="text-lg font-bold text-gray-900 leading-snug">{ticket.detail || ticket.title || "—"}</h2>
           </div>
           <button onClick={onClose}
             className="text-gray-400 hover:text-gray-600 text-2xl leading-none w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 shrink-0">
@@ -484,11 +485,18 @@ function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
           </DetailRow>
 
           {ticket.department && <DetailRow label="부서"><span>{ticket.department}</span></DetailRow>}
-          {ticket.location   && <DetailRow label="위치"><span>{ticket.location}</span></DetailRow>}
 
-          {/* 자산번호 — 클릭 시 자산 상세 */}
+          {(ticket.building || ticket.floor) ? (
+            <DetailRow label="위치"><span>{[ticket.building, ticket.floor].filter(Boolean).join(" ")}</span></DetailRow>
+          ) : ticket.location ? (
+            <DetailRow label="위치"><span>{ticket.location}</span></DetailRow>
+          ) : null}
+
+          {ticket.detail && <DetailRow label="세부내역"><span className="whitespace-pre-wrap">{ticket.detail}</span></DetailRow>}
+
+          {/* 모니터 번호 — 클릭 시 자산 상세 */}
           {ticket.assetId && (
-            <DetailRow label="자산번호">
+            <DetailRow label="모니터 번호">
               <div>
                 <button
                   onClick={loadAsset}
@@ -658,12 +666,11 @@ function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
 
           {ticket.repairDate && <DetailRow label="수리일정"><span>{ticket.repairDate}</span></DetailRow>}
 
-          <DetailRow label="동의서">
-            {ticket.consentGiven
-              ? <span className="text-green-600 font-medium">완료</span>
-              : <span className="text-gray-400">미완료</span>
-            }
-          </DetailRow>
+          {ticket.consentGiven && (
+            <DetailRow label="동의서">
+              <span className="text-green-600 font-medium">완료</span>
+            </DetailRow>
+          )}
         </div>
 
         {/* Footer */}
@@ -688,6 +695,7 @@ function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
 export default function RepairPanel({ company = "" }: { company?: string }) {
   const [tickets,    setTickets]    = useState<RepairTicket[]>([]);
   const [loading,    setLoading]    = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error,      setError]      = useState<string | null>(null);
   const [missingEnv, setMissingEnv] = useState<string | null>(null);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
@@ -696,15 +704,69 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
   const [floatingTicket, setFloatingTicket] = useState<{ ticket: RepairTicket; rect: DOMRect } | null>(null);
   const [copiedRequesterId, setCopiedRequesterId] = useState<string | null>(null);
 
-  // 실제 티켓 데이터에서 담당자 목록 추출 (중복 제거)
+  // 담당자 리스트 관리 상태
+  const [storedAssignees,  setStoredAssignees]  = useState<{ id: string; name: string }[]>([]);
+  const [assigneeListOpen, setAssigneeListOpen] = useState(false);
+  const [assigneeInput,    setAssigneeInput]    = useState("");
+  const [assigneeSaving,   setAssigneeSaving]   = useState(false);
+  const [assigneeMsg,      setAssigneeMsg]      = useState<{ type: "ok" | "err"; text: string } | null>(null);
+
   const assigneeList = useMemo(() => {
-    const seen = new Map<string, string>();
-    tickets.forEach(t => { if (t.assigneeId && t.assignee) seen.set(t.assigneeId, t.assignee); });
     const EXCLUDED = ["이상목", "조성빈"];
-    return [...seen.entries()].map(([id, name]) => ({ id, name }))
+    const map = new Map<string, string>();
+    // 저장된 담당자 리스트 (최우선)
+    storedAssignees.forEach(u => map.set(u.id || `name:${u.name}`, u.name));
+    // 기존 티켓에서 추출한 담당자 (UUID 있는 경우만)
+    tickets.forEach(t => {
+      if (t.assignee && t.assigneeId && !map.has(t.assigneeId)) map.set(t.assigneeId, t.assignee);
+    });
+    return [...map.entries()]
+      .map(([id, name]) => ({ id: id.startsWith("name:") ? "" : id, name }))
       .filter(({ name }) => !EXCLUDED.includes(name))
       .sort((a, b) => a.name.localeCompare(b.name, "ko"));
-  }, [tickets]);
+  }, [tickets, storedAssignees]);
+
+  // 담당자 리스트 로드
+  useEffect(() => {
+    fetch("/api/repair-tickets/assignees")
+      .then(r => safeJson(r))
+      .then(res => { if (res.ok) setStoredAssignees(res.assignees ?? []); })
+      .catch(() => {});
+  }, []);
+
+  // 담당자 리스트 핸들러
+  const handleAssigneeAdd = () => {
+    const name = assigneeInput.trim();
+    if (!name) return;
+    if (storedAssignees.some(a => a.name === name)) { setAssigneeInput(""); return; }
+    // 현재 티켓 데이터에서 UUID 조회
+    const fromTicket = tickets.find(t => t.assignee === name && t.assigneeId);
+    setStoredAssignees(prev => [...prev, { id: fromTicket?.assigneeId ?? "", name }]);
+    setAssigneeInput("");
+  };
+
+  const handleAssigneeRemove = (name: string) => {
+    setStoredAssignees(prev => prev.filter(a => a.name !== name));
+  };
+
+  const handleAssigneeSave = async () => {
+    setAssigneeSaving(true); setAssigneeMsg(null);
+    try {
+      const res = await fetch("/api/repair-tickets/assignees", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignees: storedAssignees }),
+      });
+      const json = await safeJson(res);
+      if (json.ok) setAssigneeMsg({ type: "ok", text: "저장되었습니다." });
+      else setAssigneeMsg({ type: "err", text: json.error || "저장 실패" });
+    } catch {
+      setAssigneeMsg({ type: "err", text: "저장 실패" });
+    } finally {
+      setAssigneeSaving(false);
+      setTimeout(() => setAssigneeMsg(null), 3000);
+    }
+  };
 
   const handleTicketUpdated = useCallback((id: string, fields: Partial<RepairTicket>) => {
     setTickets(prev => prev.map(t => t.id === id ? { ...t, ...fields } : t));
@@ -722,20 +784,21 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
 
   const load = useCallback((force = false) => {
     if (!force) { setLoading(true); setError(null); }
+    if (force) setRefreshing(true);
     const params = new URLSearchParams();
     if (force) params.set("refresh", "1");
     if (company) params.set("company", company);
     const qs = params.toString();
     fetch(`/api/repair-tickets${qs ? `?${qs}` : ""}`)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(res => {
         if (res.missingEnv) { setMissingEnv(res.missingEnv); return; }
-        if (res.error) { setError(res.error); return; }
+        if (res.error) { if (!force) setError(res.error); return; }
         setTickets(res.data ?? []);
         setLastSynced(res.lastSynced ?? null);
       })
       .catch(e => { if (!force) setError(e.message); })
-      .finally(() => { if (!force) setLoading(false); });
+      .finally(() => { if (!force) setLoading(false); else setRefreshing(false); });
   }, [company]);
 
   useEffect(() => { load(); }, [load]);
@@ -797,7 +860,8 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
     if (listFilter.fault   !== "all" && !t.faultTypes.includes(listFilter.fault)) return false;
     if (listFilter.search) {
       const q = listFilter.search.toLowerCase();
-      return (t.title || "").toLowerCase().includes(q)
+      return (t.detail || "").toLowerCase().includes(q)
+        || (t.title || "").toLowerCase().includes(q)
         || (t.requester || "").toLowerCase().includes(q)
         || (t.assetId || "").toLowerCase().includes(q)
         || (t.ticketNumber || "").toLowerCase().includes(q);
@@ -825,9 +889,9 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
       {/* ── Header ── */}
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <div>
-          <h2 className="text-xl font-bold text-gray-900 mb-0.5">수리 접수 현황</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-0.5">모니터 수리 접수 내역</h2>
           <p className="text-sm text-gray-500">
-            IT 기기 수리 접수 및 처리 현황 · 전체 {total}건
+            모니터 수리 접수 및 처리 현황 · 전체 {total}건
             {lastSynced && (
               <span className="ml-2 text-gray-300 text-[10px]">
                 {new Date(lastSynced).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 동기화
@@ -835,9 +899,10 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
             )}
           </p>
         </div>
-        <button onClick={() => load(true)}
-          className="text-xs font-medium px-3 py-1.5 rounded border bg-white text-gray-600 border-gray-300 hover:border-gray-400 flex items-center gap-1 transition-colors">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <button onClick={() => load(true)} disabled={refreshing}
+          className="text-xs font-medium px-3 py-1.5 rounded border bg-white text-gray-600 border-gray-300 hover:border-gray-400 flex items-center gap-1 transition-colors disabled:opacity-50">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            className={refreshing ? "animate-spin" : ""}>
             <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
           </svg>
           새로고침
@@ -850,6 +915,93 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
           ⚠️ {error}
         </div>
       )}
+
+      {/* ── 담당자 리스트 관리 ── */}
+      <div className="mb-5 border border-gray-200 rounded-xl overflow-hidden">
+        <button
+          onClick={() => setAssigneeListOpen(o => !o)}
+          className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-sm font-semibold text-gray-700">
+          <span className="flex items-center gap-2">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2.5">
+              <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+            </svg>
+            담당자 리스트 관리
+            <span className="text-xs font-normal text-gray-400">({storedAssignees.length}명)</span>
+          </span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+            style={{ transform: assigneeListOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>
+            <path d="M6 9l6 6 6-6"/>
+          </svg>
+        </button>
+
+        {assigneeListOpen && (
+          <div className="px-4 py-4 bg-white space-y-3">
+            <p className="text-xs text-gray-500">
+              담당자 드롭다운에 표시될 인원을 관리합니다.
+              Notion DB에 있는 사람 이름을 그대로 입력하세요.
+            </p>
+
+            {/* 추가 입력 */}
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  list="repair-assignee-suggestions"
+                  value={assigneeInput}
+                  onChange={e => setAssigneeInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleAssigneeAdd(); } }}
+                  placeholder="담당자 이름 입력 또는 목록에서 선택"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 transition"
+                />
+                <datalist id="repair-assignee-suggestions">
+                  {tickets
+                    .filter(t => t.assignee && !storedAssignees.some(a => a.name === t.assignee))
+                    .reduce<string[]>((acc, t) => acc.includes(t.assignee!) ? acc : [...acc, t.assignee!], [])
+                    .sort((a, b) => a.localeCompare(b, "ko"))
+                    .map(name => <option key={name} value={name} />)}
+                </datalist>
+              </div>
+              <button
+                onClick={handleAssigneeAdd}
+                disabled={!assigneeInput.trim()}
+                className="px-3 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors">
+                추가
+              </button>
+            </div>
+
+            {/* 담당자 목록 */}
+            {storedAssignees.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {storedAssignees.map(a => (
+                  <span key={a.name} className="flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-200 rounded-full text-xs text-blue-700 font-medium">
+                    {a.name}
+                    {!a.id && <span className="text-[9px] text-gray-400 font-normal">(ID 없음)</span>}
+                    <button onClick={() => handleAssigneeRemove(a.name)}
+                      className="text-blue-400 hover:text-blue-700 transition-colors leading-none">×</button>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 text-center py-2">등록된 담당자가 없습니다</p>
+            )}
+
+            {/* 저장 버튼 */}
+            <div className="flex items-center justify-end gap-3">
+              {assigneeMsg && (
+                <span className={`text-xs font-medium ${assigneeMsg.type === "ok" ? "text-green-600" : "text-red-500"}`}>
+                  {assigneeMsg.text}
+                </span>
+              )}
+              <button
+                onClick={handleAssigneeSave}
+                disabled={assigneeSaving}
+                className="px-4 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                {assigneeSaving ? "저장 중..." : "저장"}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* ── Summary Cards ── */}
       <div className="grid grid-cols-5 gap-3 mb-6">
@@ -911,7 +1063,7 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
                   <div key={t.id} className="flex items-start gap-2 py-2 border-b border-gray-50 last:border-0">
                     <StatusBadge status={t.status} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-gray-800 truncate">{t.title || "—"}</p>
+                      <p className="text-xs font-medium text-gray-800 truncate">{t.detail || t.title || "—"}</p>
                       <p className="text-[10px] text-gray-400 mt-0.5">
                         {[t.company, t.requester, (t.createdAt || "").slice(0, 10)].filter(Boolean).join(" · ")}
                       </p>
@@ -1276,7 +1428,7 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
           <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-wrap gap-3 items-center">
             <input
               type="text"
-              placeholder="티켓번호 / 증상 / 문의자 / 자산번호 검색..."
+              placeholder="티켓번호 / 증상 / 문의자 / 모니터 번호 검색..."
               value={listFilter.search}
               onChange={e => setListFilter(f => ({ ...f, search: e.target.value }))}
               className="flex-1 min-w-48 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-orange-200"
@@ -1333,14 +1485,14 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
             <table className="data-table">
               <thead>
                 <tr>
-                  {["티켓", "상태", "법인", "자산번호", "문의자", "고장유형", "고장증상", "담당자", "동의서", "노션"].map(h => (
+                  {["티켓", "상태", "법인", "모니터 번호", "문의자", "고장유형", "고장증상", "담당자"].map(h => (
                     <th key={h}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {filteredList.length === 0 ? (
-                  <tr><td colSpan={12} className="text-center text-gray-400 py-10">데이터 없음</td></tr>
+                  <tr><td colSpan={8} className="text-center text-gray-400 py-10">데이터 없음</td></tr>
                 ) : filteredList.map(t => (
                   <tr key={t.id}>
                     <td className="text-xs text-gray-400 font-mono">{t.ticketNumber || "—"}</td>
@@ -1395,31 +1547,13 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
                         onClick={e => { e.stopPropagation(); setFloatingTicket({ ticket: t, rect: (e.currentTarget as HTMLElement).getBoundingClientRect() }); }}
                         className="text-left w-full hover:text-orange-600 transition-colors"
                       >
-                        <div className="truncate underline decoration-dotted underline-offset-2" title={t.title}>{t.title}</div>
+                        <div className="truncate underline decoration-dotted underline-offset-2" title={t.detail || t.title}>{t.detail || t.title}</div>
                         {t.actionNote && (
                           <div className="text-xs text-gray-400 truncate mt-0.5" title={t.actionNote}>{t.actionNote}</div>
                         )}
                       </button>
                     </td>
                     <td><InlineAssigneeCell ticket={t} assigneeList={assigneeList} onUpdated={handleTicketUpdated} /></td>
-                    <td>
-                      {t.consentGiven
-                        ? <span className="text-green-600 text-xs font-medium">✓</span>
-                        : <span className="text-gray-300 text-xs">—</span>
-                      }
-                    </td>
-                    <td>
-                      {t.notionUrl && (
-                        <a href={t.notionUrl} target="_blank" rel="noopener noreferrer"
-                          className="text-blue-600 text-xs flex items-center gap-1 hover:underline">
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
-                            <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-                          </svg>
-                          보기
-                        </a>
-                      )}
-                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import type { HwRepairRecord } from "@/types";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
+import { safeJson } from "@/lib/fetch-json";
 
 // ── 상수 ────────────────────────────────────────────────────
 const STAGES = ["수리접수", "수리센터입고", "수리완료", "수리동의서수령", "기기발송", "세금계산서기안", "법인청구요청", "사용자과실분청구", "완료"] as const;
@@ -10,7 +11,7 @@ type Stage = typeof STAGES[number];
 
 const FAULT_TYPES = ["사용자과실", "과실없음", "기타"] as const;
 
-const COMPANIES = ["대웅", "대웅제약", "대웅바이오", "대웅개발", "대웅펫", "시지바이오", "클리슈어리서치", "IDS", "유와이즈원", "페이지원", "엠서클"];
+const COMPANIES = ["대웅제약", "대웅바이오", "대웅", "대웅개발", "대웅이엔지", "대웅펫", "한올바이오파마", "시지바이오", "시지메드텍", "IdsTrust", "디엔컴퍼니", "디엔코스메틱스", "더편한샵", "페이지원", "엠서클", "애디테라", "노바메디텍", "에이하나", "다나아데이터", "클리슈어리서치", "유와이즈원", "DNC", "석천나눔재단", "HR코리아", "힐코", "블루넷"];
 
 const STAGE_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
   "수리접수":         { bg: "#F8FAFC", text: "#64748B", dot: "#94A3B8" },
@@ -251,7 +252,7 @@ function FileCell({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pageId, fieldName: notionField, remainingUrls }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) onUploaded(remainingUrls);
     } finally {
       setDeletingIdx(null);
@@ -280,7 +281,7 @@ function FileCell({
       } finally {
         clearTimeout(tid);
       }
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok && json.urls) {
         onUploaded(json.urls);
       } else {
@@ -357,12 +358,32 @@ function FileCell({
   );
 }
 
+// ── 상세 모달 헬퍼 컴포넌트 (모달 밖에 정의해야 리렌더 시 재생성 방지) ──
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-4 py-3 border-b border-gray-50 last:border-0">
+      <span className="text-xs text-gray-400 w-24 shrink-0 pt-0.5">{label}</span>
+      <div className="flex-1 text-sm text-gray-800">{children}</div>
+    </div>
+  );
+}
+
+function SaveRow({ label, field, saved, children }: { label: string; field: string; saved: Record<string, boolean>; children: React.ReactNode }) {
+  return (
+    <Row label={label}>
+      <div className="flex items-center gap-2 flex-wrap">
+        {children}
+        {saved[field] && <span className="text-xs text-green-600">✓ 변경됨</span>}
+      </div>
+    </Row>
+  );
+}
+
 // ── 상세 모달 ─────────────────────────────────────────────────
 function DetailModal({
-  record, assigneeList, onClose, onUpdated, onPreview,
+  record, onClose, onUpdated, onPreview,
 }: {
   record: HwRepairRecord;
-  assigneeList: { id: string; name: string }[];
   onClose: () => void;
   onUpdated: (id: string, fields: Partial<HwRepairRecord>) => void;
   onPreview: (url: string, name: string) => void;
@@ -374,7 +395,10 @@ function DetailModal({
   const [department, setDepartment] = useState(record.department ?? "");
   const [user, setUser] = useState(record.user ?? "");
   const [vendor, setVendor] = useState(record.vendor ?? "");
-  const [assigneeName, setAssigneeName] = useState(record.assignee ?? "");
+  const [repairCost, setRepairCost] = useState(record.repairCost ? String(record.repairCost) : "");
+  const [assetStatus, setAssetStatus] = useState(record.assetStatus || "사용중");
+  const [address, setAddress] = useState(record.address || "본사");
+  const [requesterEmail, setRequesterEmail] = useState(record.requesterEmail ?? "");
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<Record<string, boolean>>({});
 
@@ -392,7 +416,7 @@ function DetailModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: record.id, fields: value }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (json.ok) {
         onUpdated(record.id, value as Partial<HwRepairRecord>);
         setSaved(p => ({ ...p, [field]: true }));
@@ -404,22 +428,6 @@ function DetailModal({
   };
 
   const days = agingDays(record.receivedAt, record.completedAt, record.stage);
-
-  const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div className="flex items-start gap-4 py-3 border-b border-gray-50 last:border-0">
-      <span className="text-xs text-gray-400 w-24 shrink-0 pt-0.5">{label}</span>
-      <div className="flex-1 text-sm text-gray-800">{children}</div>
-    </div>
-  );
-
-  const SaveRow = ({ label, field, children }: { label: string; field: string; children: React.ReactNode }) => (
-    <Row label={label}>
-      <div className="flex items-center gap-2 flex-wrap">
-        {children}
-        {saved[field] && <span className="text-xs text-green-600">✓ 변경됨</span>}
-      </div>
-    </Row>
-  );
 
   const selectCls = "text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-blue-200";
   const saveBtnCls = (field: string, cur: string, orig: string) =>
@@ -454,7 +462,7 @@ function DetailModal({
 
         <div className="px-7 py-1">
           {/* 현재 단계 */}
-          <SaveRow label="현재 단계" field="stage">
+          <SaveRow label="현재 단계" field="stage" saved={saved}>
             <select value={stage} onChange={e => setStage(e.target.value)} className={selectCls}>
               {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
@@ -464,7 +472,7 @@ function DetailModal({
           </SaveRow>
 
           {/* 법인 */}
-          <SaveRow label="법인" field="company">
+          <SaveRow label="법인" field="company" saved={saved}>
             <select value={company} onChange={e => setCompany(e.target.value)} className={selectCls}>
               <option value="">—</option>
               {COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
@@ -475,7 +483,7 @@ function DetailModal({
           </SaveRow>
 
           {/* 부서 */}
-          <SaveRow label="부서" field="department">
+          <SaveRow label="부서" field="department" saved={saved}>
             <input value={department} onChange={e => setDepartment(e.target.value)} className={selectCls + " w-32"} placeholder="부서명" />
             <button onClick={() => save("department", { department })} disabled={saving === "department" || department === record.department} className={saveBtnCls("department", department, record.department)}>
               {saving === "department" ? "저장 중…" : "저장"}
@@ -483,7 +491,7 @@ function DetailModal({
           </SaveRow>
 
           {/* 사용자 */}
-          <SaveRow label="사용자" field="user">
+          <SaveRow label="사용자" field="user" saved={saved}>
             <input value={user} onChange={e => setUser(e.target.value)} className={selectCls + " w-32"} placeholder="이름" />
             <button onClick={() => save("user", { user })} disabled={saving === "user" || user === record.user} className={saveBtnCls("user", user, record.user)}>
               {saving === "user" ? "저장 중…" : "저장"}
@@ -494,7 +502,7 @@ function DetailModal({
           <Row label="접수일">{fmtDateKo(record.receivedAt)}</Row>
 
           {/* 과실 여부 */}
-          <SaveRow label="과실 여부" field="faultType">
+          <SaveRow label="과실 여부" field="faultType" saved={saved}>
             <select value={faultType} onChange={e => setFaultType(e.target.value)} className={selectCls}>
               <option value="">—</option>
               {FAULT_TYPES.map(f => <option key={f} value={f}>{f}</option>)}
@@ -505,22 +513,39 @@ function DetailModal({
           </SaveRow>
 
           {/* 수리 업체 */}
-          <SaveRow label="수리 업체" field="vendor">
+          <SaveRow label="수리 업체" field="vendor" saved={saved}>
             <input value={vendor} onChange={e => setVendor(e.target.value)} className={selectCls + " w-40"} placeholder="업체명" />
             <button onClick={() => save("vendor", { vendor })} disabled={saving === "vendor" || vendor === record.vendor} className={saveBtnCls("vendor", vendor, record.vendor)}>
               {saving === "vendor" ? "저장 중…" : "저장"}
             </button>
           </SaveRow>
 
-          {/* 담당자 */}
-          <SaveRow label="담당자" field="assignee">
-            <select value={assigneeName} onChange={e => setAssigneeName(e.target.value)} className={selectCls}>
-              <option value="">미배정</option>
-              {assigneeList.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+          {/* 대분류 */}
+          <SaveRow label="대분류" field="assetStatus" saved={saved}>
+            <select value={assetStatus} onChange={e => setAssetStatus(e.target.value)} className={selectCls}>
+              <option value="사용중">사용중</option>
+              <option value="재고">재고</option>
             </select>
-            <button onClick={() => { const found = assigneeList.find(u => u.name === assigneeName); save("assignee", { assigneeId: found?.id ?? "" }); }}
-              disabled={saving === "assignee" || assigneeName === (record.assignee ?? "")} className={saveBtnCls("assignee", assigneeName, record.assignee ?? "")}>
-              {saving === "assignee" ? "저장 중…" : "저장"}
+            <button onClick={() => save("assetStatus", { assetStatus })} disabled={saving === "assetStatus" || assetStatus === (record.assetStatus || "사용중")} className={saveBtnCls("assetStatus", assetStatus, record.assetStatus || "사용중")}>
+              {saving === "assetStatus" ? "저장 중…" : "저장"}
+            </button>
+          </SaveRow>
+
+          {/* 배송지 */}
+          <SaveRow label="배송지" field="address" saved={saved}>
+            <select value={address} onChange={e => setAddress(e.target.value)} className={selectCls}>
+              {DELIVERY_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
+            </select>
+            <button onClick={() => save("address", { address })} disabled={saving === "address" || address === (record.address || "본사")} className={saveBtnCls("address", address, record.address || "본사")}>
+              {saving === "address" ? "저장 중…" : "저장"}
+            </button>
+          </SaveRow>
+
+          {/* 이메일 */}
+          <SaveRow label="이메일" field="requesterEmail" saved={saved}>
+            <input type="email" value={requesterEmail} onChange={e => setRequesterEmail(e.target.value)} className={selectCls + " w-52"} placeholder="example@company.com" />
+            <button onClick={() => save("requesterEmail", { requesterEmail })} disabled={saving === "requesterEmail" || requesterEmail === (record.requesterEmail ?? "")} className={saveBtnCls("requesterEmail", requesterEmail, record.requesterEmail ?? "")}>
+              {saving === "requesterEmail" ? "저장 중…" : "저장"}
             </button>
           </SaveRow>
 
@@ -540,10 +565,35 @@ function DetailModal({
             </div>
           </Row>
 
+          {/* 수리비용 */}
+          <SaveRow label="수리비용" field="repairCost" saved={saved}>
+            <div className="flex items-center gap-1">
+              <input
+                type="number"
+                min={0}
+                value={repairCost}
+                onChange={e => setRepairCost(e.target.value)}
+                className={selectCls + " w-36"}
+                placeholder="0"
+              />
+              <span className="text-sm text-gray-500">원</span>
+            </div>
+            {repairCost && Number(repairCost) > 0 && (
+              <span className="text-xs text-gray-400">{Number(repairCost).toLocaleString("ko-KR")}원</span>
+            )}
+            <button
+              onClick={() => save("repairCost", { repairCost: Number(repairCost) || 0 })}
+              disabled={saving === "repairCost" || Number(repairCost) === (record.repairCost ?? 0)}
+              className={saveBtnCls("repairCost", repairCost, String(record.repairCost ?? 0))}
+            >
+              {saving === "repairCost" ? "저장 중…" : "저장"}
+            </button>
+          </SaveRow>
+
           {/* 파일 필드 */}
           {(["receiptUrl", "consentUrl", "taxInvoiceUrl", "approvalUrl"] as const).map(key => {
             const labels: Record<string, string> = {
-              receiptUrl: "영수증", consentUrl: "진행동의서", taxInvoiceUrl: "세금계산서결재", approvalUrl: "내부결재내용",
+              receiptUrl: "점검확인서", consentUrl: "진행동의서", taxInvoiceUrl: "세금계산서결재", approvalUrl: "내부결재내용",
             };
             return (
               <Row key={key} label={labels[key]}>
@@ -589,106 +639,6 @@ function DetailModal({
   );
 }
 
-// ── 담당자 인라인 드롭다운 셀 ─────────────────────────────────
-function AssigneeCell({
-  recordId, assigneeId, assigneeName, allUsers, onUpdated,
-}: {
-  recordId: string;
-  assigneeId: string;
-  assigneeName: string;
-  allUsers: { id: string; name: string }[];
-  onUpdated: (id: string, fields: Partial<HwRepairRecord>) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
-  const ref = useRef<HTMLDivElement>(null);
-  const btnRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
-
-  const handleOpen = () => {
-    if (btnRef.current) {
-      const rect = btnRef.current.getBoundingClientRect();
-      setDropdownPos({ top: rect.bottom + 4, left: rect.left });
-    }
-    setOpen(o => !o);
-  };
-
-  const select = async (user: { id: string; name: string } | null) => {
-    setOpen(false);
-    setSaving(true);
-    try {
-      const res = await fetch("/api/hw-repair/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: recordId, fields: { assigneeId: user?.id ?? "" } }),
-      });
-      const json = await res.json();
-      if (json.ok) onUpdated(recordId, { assigneeId: user?.id ?? "", assignee: user?.name ?? "" });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div ref={ref}>
-      <button
-        ref={btnRef}
-        onClick={handleOpen}
-        disabled={saving}
-        className="flex items-center gap-1 text-xs text-gray-700 hover:text-blue-600 hover:underline transition-colors disabled:opacity-40 whitespace-nowrap"
-      >
-        {saving ? (
-          <svg className="animate-spin w-3 h-3 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity="0.25"/><path d="M21 12a9 9 0 00-9-9"/>
-          </svg>
-        ) : assigneeName ? (
-          assigneeName
-        ) : (
-          <span className="text-gray-300">미배정</span>
-        )}
-        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-300 shrink-0">
-          <path d="M6 9l6 6 6-6"/>
-        </svg>
-      </button>
-
-      {open && (
-        <div
-          className="fixed z-[200] bg-white border border-gray-200 rounded-xl shadow-xl py-1 min-w-[140px] max-h-52 overflow-y-auto"
-          style={{ top: dropdownPos.top, left: dropdownPos.left }}
-        >
-          <button
-            onClick={() => select(null)}
-            className="w-full text-left px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50"
-          >
-            미배정
-          </button>
-          {allUsers.length === 0 && (
-            <p className="px-3 py-2 text-xs text-gray-400">사용자 없음</p>
-          )}
-          {allUsers.map(u => (
-            <button
-              key={u.id}
-              onClick={() => select(u)}
-              className={`w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 hover:text-blue-700 transition-colors ${u.id === assigneeId ? "font-bold text-blue-600" : "text-gray-700"}`}
-            >
-              {u.name}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── 자산 정보 모달 ────────────────────────────────────────────
 type HwAsset = {
   id: string; notionUrl: string;
@@ -715,7 +665,7 @@ function AssetDetailModal({ assetId, onClose }: { assetId: string; onClose: () =
     setLoading(true);
     setError(null);
     fetch(`/api/hw?search=${encodeURIComponent(assetId)}`)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(data => {
         const records: HwAsset[] = data.records ?? data.data ?? [];
         const found = records.find(r => r.assetNo === assetId) ?? records[0] ?? null;
@@ -783,14 +733,22 @@ function AssetDetailModal({ assetId, onClose }: { assetId: string; onClose: () =
 type CreateForm = {
   assetId: string; stage: string; company: string; department: string;
   user: string; vendor: string; receivedAt: string; faultType: string; note: string;
+  assetStatus: string; address: string; requesterEmail: string;
 };
 
 const EMPTY_FORM: CreateForm = {
   assetId: "", stage: "수리접수", company: "", department: "", user: "",
   vendor: "", receivedAt: "", faultType: "", note: "",
+  assetStatus: "사용중", address: "본사", requesterEmail: "",
 };
 
 const VENDORS = ["삼성공식수리(출장)", "다정씨엔씨", "기타"];
+
+const DELIVERY_LOCATIONS = [
+  "본사", "용인(연구소)", "향남", "마곡", "바이오센터", "바이오3공장",
+  "안성공장", "성수", "유로프라자", "오송", "세파센터", "S캠퍼스",
+  "선택시티", "한올(대전공장)", "기타",
+] as const;
 
 function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [form, setForm] = useState<CreateForm>(EMPTY_FORM);
@@ -806,7 +764,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       setAutoFilling(true);
       try {
         const res = await fetch(`/api/hw?search=${encodeURIComponent(id)}`);
-        const data = await res.json();
+        const data = await safeJson(res);
         const records: { assetNo: string; user: string; dept: string; company: string }[] = data.records ?? [];
         const found = records.find(r => r.assetNo === id) ?? (records.length === 1 ? records[0] : null);
         if (found) {
@@ -845,7 +803,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) { setErr(json.error ?? "등록 실패"); return; }
       onCreated();
       onClose();
@@ -939,6 +897,30 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
               onChange={set("note")} style={{ resize: "vertical" }} />
           </div>
 
+          <div>
+            <label className={labelCls}>대분류</label>
+            <select className={inputCls} value={form.assetStatus} onChange={set("assetStatus")}>
+              <option value="사용중">사용중</option>
+              <option value="재고">재고</option>
+            </select>
+          </div>
+
+          {form.assetStatus === "사용중" && (
+            <>
+              <div>
+                <label className={labelCls}>이메일</label>
+                <input type="email" className={inputCls} placeholder="example@company.com"
+                  value={form.requesterEmail} onChange={set("requesterEmail")} />
+              </div>
+              <div>
+                <label className={labelCls}>배송지</label>
+                <select className={inputCls} value={form.address} onChange={set("address")}>
+                  {DELIVERY_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+              </div>
+            </>
+          )}
+
           {err && <p className="text-xs text-red-600">{err}</p>}
         </div>
 
@@ -961,6 +943,7 @@ export default function HwRepairPanel() {
   const [error, setError] = useState<string | null>(null);
   const [missingEnv, setMissingEnv] = useState<string | null>(null);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
+  const [caseTab, setCaseTab] = useState<"open" | "closed">("open");
   const [stageFilter, setStageFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<HwRepairRecord | null>(null);
@@ -969,32 +952,26 @@ export default function HwRepairPanel() {
   const [createOpen, setCreateOpen] = useState(false);
   const [advancingId, setAdvancingId] = useState<string | null>(null);
   const [blockMsg, setBlockMsg] = useState<{ id: string; msg: string } | null>(null);
-  const [allUsers, setAllUsers] = useState<{ id: string; name: string }[]>([]);
-
-  const assigneeList = useMemo(() => {
-    const seen = new Map<string, string>();
-    records.forEach(r => { if (r.assigneeId && r.assignee) seen.set(r.assigneeId, r.assignee); });
-    return [...seen.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, "ko"));
-  }, [records]);
-
-  const STATIC_USERS = [
-    { id: "335d872b-594c-811b-8c49-000297d936e0", name: "이동경" },
-    { id: "a4a74b12-760f-46d4-bb10-2a1dcc1317ab", name: "자산관리파트_권정훈" },
-  ];
-
-  // API 결과 + 기존 레코드 + 고정 담당자 병합
-  const mergedUsers = useMemo(() => {
-    const map = new Map<string, string>();
-    allUsers.forEach(u => map.set(u.id, u.name));
-    assigneeList.forEach(u => map.set(u.id, u.name));
-    STATIC_USERS.forEach(u => { if (!map.has(u.id)) map.set(u.id, u.name); });
-    return [...map.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, "ko"));
-  }, [allUsers, assigneeList]);
 
   const handleUpdated = useCallback((id: string, fields: Partial<HwRepairRecord>) => {
     setRecords(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r));
     setSelected(prev => prev?.id === id ? { ...prev, ...fields } : prev);
   }, []);
+
+  const handleToggleClose = useCallback(async (r: HwRepairRecord) => {
+    setAdvancingId(r.id);
+    try {
+      const res = await fetch("/api/hw-repair/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: r.id, fields: { isClosed: !r.isClosed } }),
+      });
+      const json = await safeJson(res);
+      if (json.ok) handleUpdated(r.id, { isClosed: !r.isClosed });
+    } finally {
+      setAdvancingId(null);
+    }
+  }, [handleUpdated]);
 
   const handleAdvanceStage = useCallback(async (r: HwRepairRecord) => {
     const idx = STAGES.indexOf(r.stage as typeof STAGES[number]);
@@ -1015,8 +992,47 @@ export default function HwRepairPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: r.id, fields: { stage: nextStage } }),
       });
-      const json = await res.json();
-      if (json.ok) handleUpdated(r.id, { stage: nextStage });
+      const json = await safeJson(res);
+      if (!json.ok) return;
+      handleUpdated(r.id, { stage: nextStage });
+
+      if (nextStage === "수리완료") {
+        const today = new Date().toISOString().slice(0, 10);
+
+        if (r.assetStatus === "사용중") {
+          // 사용중 → 자산흐름관리에 수리 케이스 자동 등록
+          fetch("/api/exchange-return/create", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: "수리",
+              assetId: r.assetId,
+              company: r.company,
+              department: r.department,
+              user: r.user,
+              stage: "기기준비완료",
+              requestedAt: today,
+              address: r.address || undefined,
+              requesterEmail: r.requesterEmail || undefined,
+            }),
+          }).catch(console.error);
+        } else if (r.assetStatus === "재고") {
+          // 재고 → HW DB 자산 상태를 재고로, 반납일자를 오늘로 변경
+          fetch(`/api/hw?search=${encodeURIComponent(r.assetId)}`)
+            .then(d => safeJson(d))
+            .then(data => {
+              const recs: { id: string; assetNo: string }[] = data.records ?? [];
+              const found = recs.find(rec => rec.assetNo === r.assetId) ?? (recs.length === 1 ? recs[0] : null);
+              if (found) {
+                fetch("/api/hw/update", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ id: found.id, fields: { status: "재고", returnDate: today } }),
+                }).catch(console.error);
+              }
+            }).catch(console.error);
+        }
+      }
     } finally {
       setAdvancingId(null);
     }
@@ -1025,7 +1041,7 @@ export default function HwRepairPanel() {
   const load = useCallback((force = false) => {
     if (!force) { setLoading(true); setError(null); }
     fetch(`/api/hw-repair${force ? "?refresh=1" : ""}`)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(res => {
         if (res.missingEnv) { setMissingEnv(res.missingEnv); return; }
         if (res.error) { setError(res.error); return; }
@@ -1038,26 +1054,25 @@ export default function HwRepairPanel() {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    fetch("/api/hw-repair/assignees")
-      .then(r => r.json())
-      .then(res => { if (res.ok) setAllUsers(res.users); });
-  }, []);
-  useEffect(() => {
     const id = setInterval(() => load(true), 30_000);
     return () => clearInterval(id);
   }, [load]);
 
-  const total = records.length;
-  const inProgress = records.filter(r => r.stage !== "완료").length;
-  const completed = records.filter(r => r.stage === "완료").length;
-  const userFault = records.filter(r => r.faultType === "사용자과실").length;
+  const openRecords   = useMemo(() => records.filter(r => !r.isClosed), [records]);
+  const closedRecords = useMemo(() => records.filter(r =>  r.isClosed), [records]);
+  const tabRecords    = caseTab === "open" ? openRecords : closedRecords;
+
+  const total      = tabRecords.length;
+  const inProgress = tabRecords.filter(r => r.stage !== "완료").length;
+  const completed  = tabRecords.filter(r => r.stage === "완료").length;
+  const userFault  = tabRecords.filter(r => r.faultType === "사용자과실").length;
 
   const stageCounts = useMemo(() =>
-    Object.fromEntries(STAGES.map(s => [s, records.filter(r => r.stage === s).length])),
-    [records]
+    Object.fromEntries(STAGES.map(s => [s, tabRecords.filter(r => r.stage === s).length])),
+    [tabRecords]
   );
 
-  const filtered = useMemo(() => records.filter(r => {
+  const filtered = useMemo(() => tabRecords.filter(r => {
     if (stageFilter !== "all" && r.stage !== stageFilter) return false;
     if (search) {
       const q = search.toLowerCase();
@@ -1065,7 +1080,7 @@ export default function HwRepairPanel() {
         .some(v => (v || "").toLowerCase().includes(q));
     }
     return true;
-  }), [records, stageFilter, search]);
+  }), [tabRecords, stageFilter, search]);
 
   if (missingEnv) return <EnvVarMissing varName={missingEnv} />;
   if (loading) {
@@ -1117,6 +1132,22 @@ export default function HwRepairPanel() {
         <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">⚠️ {error}</div>
       )}
 
+      {/* 열린/닫힌 케이스 탭 */}
+      <div className="flex items-center gap-1 mb-5 p-1 bg-gray-100 rounded-xl w-fit">
+        <button onClick={() => { setCaseTab("open"); setStageFilter("all"); }}
+          className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${caseTab === "open" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
+          <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+          Open Cases
+          <span className="text-xs font-normal text-gray-400 ml-0.5">{openRecords.length}</span>
+        </button>
+        <button onClick={() => { setCaseTab("closed"); setStageFilter("all"); }}
+          className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${caseTab === "closed" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
+          <span className="w-2 h-2 rounded-full bg-gray-400 inline-block" />
+          Closed Cases
+          <span className="text-xs font-normal text-gray-400 ml-0.5">{closedRecords.length}</span>
+        </button>
+      </div>
+
       {/* 요약 카드 */}
       <div className="grid grid-cols-4 gap-3 mb-6">
         {[
@@ -1132,8 +1163,8 @@ export default function HwRepairPanel() {
         ))}
       </div>
 
-      {/* 단계 필터 탭 */}
-      <div className="flex flex-wrap gap-1.5 mb-4">
+      {/* 단계 필터 탭 — 닫힌 케이스는 모두 "완료"이므로 숨김 */}
+      {caseTab === "open" && <div className="flex flex-wrap gap-1.5 mb-4">
         <button onClick={() => setStageFilter("all")}
           className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${stageFilter === "all" ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
           전체 {total}
@@ -1150,7 +1181,7 @@ export default function HwRepairPanel() {
             </button>
           );
         })}
-      </div>
+      </div>}
 
       {/* 검색 */}
       <div className="mb-4 flex items-center gap-2">
@@ -1167,7 +1198,7 @@ export default function HwRepairPanel() {
         <table className="data-table">
           <thead>
             <tr>
-              {["진행단계", "자산번호", "법인", "부서", "사용자", "접수일", "과실여부", "수리업체", "담당자", "수리내용", "영수증", "진행동의서", "세금계산서결재", "내부결재내용"].map(h => (
+              {["진행단계", "자산번호", "대분류", "법인", "부서", "사용자", "접수일", "과실여부", "수리비용", "수리내용", "점검확인서", "진행동의서", "세금계산서결재", "내부결재내용"].map(h => (
                 <th key={h}>{h}</th>
               ))}
             </tr>
@@ -1206,6 +1237,14 @@ export default function HwRepairPanel() {
                             )}
                           </button>
                         )}
+                        <button
+                          onClick={() => handleToggleClose(r)}
+                          disabled={advancingId === r.id}
+                          title={r.isClosed ? "케이스 다시 열기" : "케이스 닫기"}
+                          className={`text-[10px] font-semibold px-1.5 py-0.5 rounded transition-colors disabled:opacity-40 ${r.isClosed ? "bg-emerald-50 text-emerald-600 hover:bg-emerald-100" : "bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-red-500"}`}
+                        >
+                          {r.isClosed ? "열기" : "닫기"}
+                        </button>
                       </div>
                       {blockMsg?.id === r.id && (
                         <p className="text-[10px] text-red-500 leading-tight max-w-[160px]">{blockMsg.msg}</p>
@@ -1218,6 +1257,15 @@ export default function HwRepairPanel() {
                       {r.assetId || "—"}
                     </button>
                   </td>
+                  {/* 대분류 */}
+                  <td>
+                    {r.assetStatus ? (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap"
+                        style={r.assetStatus === "재고" ? { background: "#F0FDF4", color: "#15803D" } : { background: "#EFF6FF", color: "#1D4ED8" }}>
+                        {r.assetStatus}
+                      </span>
+                    ) : <span className="text-xs text-gray-300">—</span>}
+                  </td>
                   {/* 법인 */}
                   <td className="text-xs text-gray-600">{r.company || "—"}</td>
                   {/* 부서 */}
@@ -1228,17 +1276,9 @@ export default function HwRepairPanel() {
                   <td className="text-xs text-gray-500">{fmtDate(r.receivedAt)}</td>
                   {/* 과실여부 */}
                   <td><FaultBadge fault={r.faultType} /></td>
-                  {/* 수리업체 */}
-                  <td className="text-xs text-gray-600">{r.vendor || "—"}</td>
-                  {/* 담당자 */}
-                  <td>
-                    <AssigneeCell
-                      recordId={r.id}
-                      assigneeId={r.assigneeId}
-                      assigneeName={r.assignee}
-                      allUsers={mergedUsers}
-                      onUpdated={handleUpdated}
-                    />
+                  {/* 수리비용 */}
+                  <td className="text-xs text-gray-700 font-medium">
+                    {r.repairCost ? `${r.repairCost.toLocaleString("ko-KR")}원` : "—"}
                   </td>
                   {/* 수리내용 */}
                   <td className="max-w-[120px]">
@@ -1247,7 +1287,7 @@ export default function HwRepairPanel() {
                   {/* 파일 4개 */}
                   {(["receiptUrl", "consentUrl", "taxInvoiceUrl", "approvalUrl"] as const).map(key => {
                     const labels: Record<string, string> = {
-                      receiptUrl: "영수증", consentUrl: "진행동의서", taxInvoiceUrl: "세금계산서결재", approvalUrl: "내부결재내용",
+                      receiptUrl: "점검확인서", consentUrl: "진행동의서", taxInvoiceUrl: "세금계산서결재", approvalUrl: "내부결재내용",
                     };
                     return (
                       <td key={key}>
@@ -1273,7 +1313,6 @@ export default function HwRepairPanel() {
       {selected && (
         <DetailModal
           record={selected}
-          assigneeList={assigneeList}
           onClose={() => setSelected(null)}
           onUpdated={handleUpdated}
           onPreview={(url, name) => setPreview({ url, name })}

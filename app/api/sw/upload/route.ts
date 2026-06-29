@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
+import { getSessionFromCookieHeader, resolveCurrentName, companyScope } from "@/lib/session";
+import { memDel } from "@/lib/mem-cache";
+import { kvDel } from "@/lib/kv-store";
+import { errorMessage } from "@/lib/api-error";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
@@ -27,6 +31,8 @@ export interface SwUploadRow {
   billingType:  string;   // 결제방식
   monthlyKrw:   number;   // 월비용(KRW)
   monthlyUsd:   number;   // 월비용(USD)
+  certificateFileUploadId?: string; // 증서 파일 업로드 ID (선택)
+  draftDocFileUploadId?: string;    // 기안문서 파일 업로드 ID (선택)
 }
 
 // ISO 날짜 정규화 (YYYY-MM-DD / YYYY.MM.DD / Excel serial)
@@ -44,7 +50,7 @@ function toIsoDate(val: string | number | undefined): string | null {
   return null;
 }
 
-async function createSwPage(row: SwUploadRow) {
+async function createSwPage(row: SwUploadRow, modifiedBy: string, modifiedAt: string) {
   const usageDate    = toIsoDate(row.usageDate);
   const renewalDate  = toIsoDate(row.renewalDate);
   const purchaseDate = toIsoDate(row.purchaseDate);
@@ -123,6 +129,25 @@ async function createSwPage(row: SwUploadRow) {
       ...(row.monthlyUsd > 0 ? {
         "월 비용 (USD)": { number: row.monthlyUsd },
       } : {}),
+      // 증서 파일 ─────────────────
+      ...(row.certificateFileUploadId ? {
+        "증서": {
+          files: [{ type: "file_upload", file_upload: { id: row.certificateFileUploadId } }],
+        },
+      } : {}),
+      // 기안문서 파일 ─────────────────
+      ...(row.draftDocFileUploadId ? {
+        "기안문서": {
+          files: [{ type: "file_upload", file_upload: { id: row.draftDocFileUploadId } }],
+        },
+      } : {}),
+      // 마지막수정자/일시 (신규 등록 시점 = 최초 수정으로 기록)
+      "마지막수정자": {
+        rich_text: [{ text: { content: modifiedBy } }],
+      },
+      "마지막수정일시": {
+        rich_text: [{ text: { content: modifiedAt } }],
+      },
     },
   });
 }
@@ -142,15 +167,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "한 번에 최대 200개까지 등록할 수 있습니다." }, { status: 400 });
     }
 
+    const session = getSessionFromCookieHeader(req.headers.get("cookie"));
+    if (!session) {
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
+    const scope = companyScope(session);
+    if (scope && rows.some(r => (r.company || "").trim() !== scope)) {
+      return NextResponse.json({ ok: false, error: "본인 법인 데이터만 등록할 수 있습니다." }, { status: 403 });
+    }
+    const modifiedBy = `${await resolveCurrentName(session)} (${session.userId})`;
+    const modifiedAt = new Date().toISOString();
+
     const results: { index: number; user: string; sw: string; ok: boolean; error?: string }[] = [];
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       try {
-        await createSwPage(row);
+        await createSwPage(row, modifiedBy, modifiedAt);
         results.push({ index: i, user: row.user, sw: row.swCategory, ok: true });
       } catch (e) {
-        results.push({ index: i, user: row.user, sw: row.swCategory, ok: false, error: String(e) });
+        results.push({ index: i, user: row.user, sw: row.swCategory, ok: false, error: errorMessage(e) });
       }
       // Notion API rate limit 방지 (3 req/sec)
       if (i < rows.length - 1) await new Promise(r => setTimeout(r, 350));
@@ -159,9 +195,14 @@ export async function POST(req: NextRequest) {
     const success = results.filter(r => r.ok).length;
     const failed  = results.filter(r => !r.ok).length;
 
+    if (success > 0) {
+      memDel("sw:all");
+      await kvDel("sw:all");
+    }
+
     return NextResponse.json({ ok: true, success, failed, results });
   } catch (e) {
     console.error("[API /sw/upload]", e);
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }

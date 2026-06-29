@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { safeJson } from "@/lib/fetch-json";
 
 // ── 타입 ────────────────────────────────────────────────────────────────────
 interface Account {
@@ -208,7 +209,7 @@ export default function AccountsPanel({ isSuperAdmin = true }: { isSuperAdmin?: 
     setLoading(true); setError("");
     try {
       const res = await fetch("/api/admin/accounts");
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) throw new Error(json.error || "불러오기 실패");
       setAccounts(json.accounts);
     } catch (e) {
@@ -291,7 +292,7 @@ export default function AccountsPanel({ isSuperAdmin = true }: { isSuperAdmin?: 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: acc.id, resendTemp: true }),
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!json.ok) throw new Error(json.error || "실패");
       alert(`✅ ${acc.email}로 임시 비밀번호를 발송했습니다.`);
       load();

@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createExchangeReturn, type CreateFields } from "@/lib/exchange-return";
 import { memGet, memDel } from "@/lib/mem-cache";
+import { getSessionFromCookieHeader, resolveCurrentName, companyScope } from "@/lib/session";
+import { appendAdminAuditLog } from "@/lib/portal-store";
 import type { ExchangeReturnRecord } from "@/types";
+import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
 
@@ -22,8 +25,9 @@ export async function POST(req: NextRequest) {
     }
 
     // 같은 자산번호의 미완료 교체/퇴사반납 이력이 이미 있으면 중복 등록 방지
+    // 신규지급은 assetId가 항상 "" 이므로 newAssetId로 비교
     const cached = memGet<ExchangeReturnRecord[]>("exchange-return:all");
-    if (cached) {
+    if (cached && body.type !== "신규지급") {
       const dup = cached.find(r =>
         r.type === body.type &&
         r.assetId === body.assetId.trim() &&
@@ -32,11 +36,26 @@ export async function POST(req: NextRequest) {
       if (dup) return NextResponse.json({ ok: true, skipped: true, existingId: dup.id });
     }
 
-    const record = await createExchangeReturn(body);
+    const session = getSessionFromCookieHeader(req.headers.get("cookie"));
+    if (!session) {
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
+    const scope = companyScope(session);
+    if (scope && (body.company || "").trim() !== scope) {
+      return NextResponse.json({ ok: false, error: "본인 법인 데이터만 등록할 수 있습니다." }, { status: 403 });
+    }
+    const adminName = await resolveCurrentName(session);
+    const lastModifiedBy = `${adminName} (${session.userId})`;
+
+    const record = await createExchangeReturn({ ...body, lastModifiedBy });
     memDel("exchange-return:all");
+    await appendAdminAuditLog({
+      adminId: session.userId, adminName, action: "create", target: "exchangeReturn",
+      itemTitle: body.assetId?.trim() || body.type, timestamp: new Date().toISOString(),
+    });
     return NextResponse.json({ ok: true, record });
   } catch (e) {
     console.error("[API /exchange-return/create]", e);
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
 }

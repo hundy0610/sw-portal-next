@@ -5,6 +5,7 @@ import { decodeSession } from "@/lib/session";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import type { Account, GmDetail } from "@/app/api/admin/accounts/route";
 import crypto from "crypto";
+import { errorMessage } from "@/lib/api-error";
 
 const ACCOUNTS_KEY   = "sw:accounts";
 const GM_KEY         = "sw:general-managers";
@@ -125,6 +126,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (e) {
     console.error("[migrate-accounts]", e);
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    return NextResponse.json({ error: errorMessage(e) }, { status: 500 });
   }
 }
