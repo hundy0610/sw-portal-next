@@ -13,23 +13,27 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { company, department, name, email, purpose, frequency, note } = await req.json();
+    const { company, department, name, email, purpose, language, frequency, note } = await req.json();
 
-    if (!name?.trim())       return NextResponse.json({ ok: false, error: "성함을 입력해 주세요." }, { status: 400 });
-    if (!company?.trim())    return NextResponse.json({ ok: false, error: "소속 법인을 입력해 주세요." }, { status: 400 });
-    if (!department?.trim()) return NextResponse.json({ ok: false, error: "부서명을 입력해 주세요." }, { status: 400 });
-    if (!email?.trim())      return NextResponse.json({ ok: false, error: "이메일 주소를 입력해 주세요." }, { status: 400 });
-    if (!purpose?.trim())    return NextResponse.json({ ok: false, error: "사용 목적을 입력해 주세요." }, { status: 400 });
-    if (!frequency?.trim())  return NextResponse.json({ ok: false, error: "사용 주기를 입력해 주세요." }, { status: 400 });
+    if (!name?.trim())              return NextResponse.json({ ok: false, error: "성함을 입력해 주세요." }, { status: 400 });
+    if (!company?.trim())           return NextResponse.json({ ok: false, error: "소속 법인을 입력해 주세요." }, { status: 400 });
+    if (!department?.trim())        return NextResponse.json({ ok: false, error: "부서명을 입력해 주세요." }, { status: 400 });
+    if (!email?.trim())             return NextResponse.json({ ok: false, error: "이메일 주소를 입력해 주세요." }, { status: 400 });
+    if (!Array.isArray(purpose) || purpose.length === 0)
+      return NextResponse.json({ ok: false, error: "사용 목적을 하나 이상 선택해 주세요." }, { status: 400 });
+    if (!Array.isArray(language) || language.length === 0)
+      return NextResponse.json({ ok: false, error: "주요 언어를 하나 이상 선택해 주세요." }, { status: 400 });
+    if (!frequency?.trim())         return NextResponse.json({ ok: false, error: "사용 주기를 선택해 주세요." }, { status: 400 });
 
     await notion.pages.create({
       parent: { database_id: DB_ID },
       properties: {
-        "성함": { title: [{ text: { content: name.trim() } }] },
+        "성함":    { title: [{ text: { content: name.trim() } }] },
         "소속법인": { rich_text: [{ text: { content: company.trim() } }] },
-        "부서명": { rich_text: [{ text: { content: department.trim() } }] },
-        "이메일": { email: email.trim() },
-        "사용목적": { rich_text: [{ text: { content: purpose.trim() } }] },
+        "부서명":  { rich_text: [{ text: { content: department.trim() } }] },
+        "이메일":  { email: email.trim() },
+        "사용목적": { multi_select: (purpose as string[]).map(p => ({ name: p })) },
+        "주요언어": { multi_select: (language as string[]).map(l => ({ name: l })) },
         "사용주기": { rich_text: [{ text: { content: frequency.trim() } }] },
         "특이사항": { rich_text: [{ text: { content: (note ?? "").trim() } }] },
         "제출일시": { date: { start: new Date().toISOString() } },
@@ -76,7 +80,8 @@ export async function GET(req: NextRequest) {
       company:     getText(p.properties, "소속법인"),
       department:  getText(p.properties, "부서명"),
       email:       p.properties["이메일"]?.email ?? "",
-      purpose:     getText(p.properties, "사용목적"),
+      purpose:     (p.properties["사용목적"]?.multi_select ?? []).map((s: any) => s.name).join(", "),
+      language:    (p.properties["주요언어"]?.multi_select  ?? []).map((s: any) => s.name).join(", "),
       frequency:   getText(p.properties, "사용주기"),
       note:        getText(p.properties, "특이사항"),
       submittedAt: p.properties["제출일시"]?.date?.start ?? p.created_time,
