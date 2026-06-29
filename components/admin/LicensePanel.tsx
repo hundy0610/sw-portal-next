@@ -229,30 +229,34 @@ function getFileNameFromUrl(url: string): string {
   }
 }
 
-function FilePreview({ url, label }: { url: string; label: string }) {
+// Notion file 속성 URL은 발급 후 1시간이면 만료된다(캐시된 record.certificate 등이
+// 그 예). 미리보기/다운로드 시점에 항상 최신 URL을 재발급하는 /api/sw/[id]/file을
+// 거치고, cachedUrl은 이미지 여부 판별·파일명 표시용으로만 사용한다.
+function FilePreview({ recordId, prop, cachedUrl, label }: { recordId: string; prop: "certificate" | "draft"; cachedUrl: string; label: string }) {
   const [open, setOpen] = useState(false);
-  if (!url) return <span className="text-xs text-gray-300">없음</span>;
-  const isImage = isImageUrl(url);
+  if (!cachedUrl) return <span className="text-xs text-gray-300">없음</span>;
+  const liveUrl = `/api/sw/${recordId}/file?prop=${prop}`;
+  const isImage = isImageUrl(cachedUrl);
   return (
     <>
       <button type="button" onClick={() => setOpen(true)} className="inline-block text-left max-w-full">
         {isImage ? (
-          <img src={url} alt={label} className="max-h-40 rounded-lg border border-gray-200 hover:opacity-90 transition-opacity" />
+          <img src={liveUrl} alt={label} className="max-h-40 rounded-lg border border-gray-200 hover:opacity-90 transition-opacity" />
         ) : (
-          <span className="text-blue-600 hover:underline text-sm truncate block max-w-full">📄 {getFileNameFromUrl(url)}</span>
+          <span className="text-blue-600 hover:underline text-sm truncate block max-w-full">📄 {getFileNameFromUrl(cachedUrl)}</span>
         )}
       </button>
       {open && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4" onClick={() => setOpen(false)}>
           <div className="relative max-w-4xl max-h-[90vh] w-full" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-end gap-3 mb-2">
-              <a href={url} target="_blank" rel="noopener noreferrer" className="text-white/80 hover:text-white text-xs underline">새 탭에서 열기</a>
+              <a href={liveUrl} target="_blank" rel="noopener noreferrer" className="text-white/80 hover:text-white text-xs underline">새 탭에서 열기</a>
               <button onClick={() => setOpen(false)} className="text-white/80 hover:text-white text-2xl leading-none">✕</button>
             </div>
             {isImage ? (
-              <img src={url} alt={label} className="max-w-full max-h-[80vh] mx-auto rounded-lg" />
+              <img src={liveUrl} alt={label} className="max-w-full max-h-[80vh] mx-auto rounded-lg" />
             ) : (
-              <iframe src={url} title={label} className="w-full h-[80vh] bg-white rounded-lg" />
+              <iframe src={liveUrl} title={label} className="w-full h-[80vh] bg-white rounded-lg" />
             )}
           </div>
         </div>
@@ -301,8 +305,8 @@ function SwDetailModal({ record, onClose }: { record: SwDbRecord; onClose: () =>
             {" / "}
             {record.monthlyUsd > 0 ? `$${record.monthlyUsd}` : "—"}
           </DetailRow>
-          <DetailRow label="증서"><FilePreview url={record.certificate} label="증서" /></DetailRow>
-          <DetailRow label="기안문서"><FilePreview url={record.draftDocument} label="기안문서" /></DetailRow>
+          <DetailRow label="증서"><FilePreview recordId={record.id} prop="certificate" cachedUrl={record.certificate} label="증서" /></DetailRow>
+          <DetailRow label="기안문서"><FilePreview recordId={record.id} prop="draft" cachedUrl={record.draftDocument} label="기안문서" /></DetailRow>
           {record.notionUrl && (
             <DetailRow label="노션">
               <a href={record.notionUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline text-xs">노션에서 보기</a>
@@ -523,7 +527,7 @@ function SwEditModal({
               </div>
             ) : record.certificate ? (
               <div className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg">
-                <div className="flex-1 min-w-0"><FilePreview url={record.certificate} label="증서" /></div>
+                <div className="flex-1 min-w-0"><FilePreview recordId={record.id} prop="certificate" cachedUrl={record.certificate} label="증서" /></div>
                 <button type="button" onClick={() => certFileRef.current?.click()}
                   className="text-xs font-semibold text-gray-500 hover:text-blue-600 shrink-0">교체</button>
               </div>
@@ -549,7 +553,7 @@ function SwEditModal({
               </div>
             ) : record.draftDocument ? (
               <div className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg">
-                <div className="flex-1 min-w-0"><FilePreview url={record.draftDocument} label="기안문서" /></div>
+                <div className="flex-1 min-w-0"><FilePreview recordId={record.id} prop="draft" cachedUrl={record.draftDocument} label="기안문서" /></div>
                 <button type="button" onClick={() => draftFileRef.current?.click()}
                   className="text-xs font-semibold text-gray-500 hover:text-blue-600 shrink-0">교체</button>
               </div>
