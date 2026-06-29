@@ -245,7 +245,7 @@ function Step1({ onNext }: { onNext: (info: UserInfo, records: SwRecord[]) => vo
   };
 
   return (
-    <div className="max-w-lg mx-auto">
+    <div className="max-w-2xl mx-auto">
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-9 h-9 rounded-lg bg-amber-500 flex items-center justify-center shrink-0">
@@ -526,7 +526,7 @@ function Step2({ userInfo, initialRecords, onComplete }: {
   const fmtUsd = (n: number) => n > 0 ? `$${n}` : null;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-3">
+    <div className="mx-auto space-y-3">
 
       {/* 사용자 배너 */}
       <div className="bg-amber-500 text-white rounded-2xl p-3.5 flex items-center gap-3">
@@ -724,7 +724,7 @@ function Step3({ userInfo, records, added, onReset }: {
   });
 
   return (
-    <div className="max-w-lg mx-auto space-y-3">
+    <div className="max-w-2xl mx-auto space-y-3">
       <div className="bg-white rounded-2xl border border-gray-200 shadow-md p-6 text-center">
         <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-3">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
@@ -828,7 +828,7 @@ function Step3({ userInfo, records, added, onReset }: {
 // ─────────────────────────────────────────────────────────────────────────────
 function ModeSelect({ onSelect }: { onSelect: (m: "personal" | "team") => void }) {
   return (
-    <div className="max-w-lg mx-auto">
+    <div className="max-w-2xl mx-auto">
       <p className="text-center text-sm text-gray-500 mb-3">실사 방식을 선택해주세요</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <button onClick={() => onSelect("personal")}
@@ -957,7 +957,7 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
 
   if (confirmed) {
     return (
-      <div className="max-w-lg mx-auto">
+      <div className="max-w-2xl mx-auto">
         <div className="bg-white rounded-2xl border border-gray-200 shadow-md p-6 text-center">
           <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-3">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
@@ -978,7 +978,7 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
 
   if (records === null) {
     return (
-      <div className="max-w-lg mx-auto">
+      <div className="max-w-2xl mx-auto">
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-9 h-9 rounded-lg bg-amber-500 flex items-center justify-center shrink-0">
@@ -1007,7 +1007,7 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-3">
+    <div className="mx-auto space-y-3">
       {/* 팀 배너 */}
       <div className="bg-amber-500 text-white rounded-2xl p-3.5 flex items-center gap-3">
         <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0">
