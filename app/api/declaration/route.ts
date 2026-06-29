@@ -112,6 +112,9 @@ interface DeclarationCreateRecord {
   version?: string[];
   monthlyKrw?: number; monthlyUsd?: number;
   licenseKey?: string;
+  // 팀 엑셀 업로드에서만 채워지는 선택 필드 (양식의 추가 컬럼)
+  status?: string; vendor?: string;
+  usageDate?: string; renewalDate?: string; purchaseDate?: string;
 }
 
 async function createDeclarationPage(dbId: string, r: DeclarationCreateRecord) {
@@ -120,7 +123,7 @@ async function createDeclarationPage(dbId: string, r: DeclarationCreateRecord) {
     "사용자": { title: [{ text: { content: r.user } }] },
     "법인명": { select: { name: r.company } },
     "부서":   { rich_text: [{ text: { content: r.department } }] },
-    "사용/재고/만료/갱신필요/신규등록": { select: { name: "신규등록" } },
+    "사용/재고/만료/갱신필요/신규등록": { select: { name: r.status || "신규등록" } },
   };
 
   if (r.swCategory)       props["SW대분류"]          = { select: { name: r.swCategory } };
@@ -134,6 +137,10 @@ async function createDeclarationPage(dbId: string, r: DeclarationCreateRecord) {
   if ((r.monthlyKrw ?? 0) > 0) props["월 비용 (KRW)"] = { number: r.monthlyKrw! };
   if ((r.monthlyUsd ?? 0) > 0) props["월 비용 (USD)"] = { number: r.monthlyUsd! };
   if (r.licenseKey)       props["인증키 / 인증계정"] = { rich_text: [{ text: { content: r.licenseKey } }] };
+  if (r.vendor)           props["구매처"]             = { rich_text: [{ text: { content: r.vendor } }] };
+  if (r.usageDate)        props["사용일자"]           = { date: { start: r.usageDate } };
+  if (r.renewalDate)      props["갱신필요일"]         = { date: { start: r.renewalDate } };
+  if (r.purchaseDate)     props["구매일자"]           = { date: { start: r.purchaseDate } };
 
   return notion.pages.create({ parent: { database_id: dbId }, properties: props });
 }

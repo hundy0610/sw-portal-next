@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import * as XLSX from "xlsx";
 import type { SwDbRecord } from "@/types";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import { scGet, scSet, scDel } from "@/lib/session-cache";
 import { safeJson } from "@/lib/fetch-json";
-import { downloadSwTemplate } from "@/lib/sw-template";
+import { downloadSwTemplate, parseSwExcelFile, type SwExcelRow } from "@/lib/sw-template";
 
 const LC_KEY    = (co: string) => `lc:lp:swrec${co ? `:${co}` : ""}`;
 const LC_TTL_MS = 30 * 60 * 1000; // localStorage 30분
@@ -1183,66 +1182,11 @@ function SwManualAdd({ onClose, onSuccess, swCategoryOptions, versionOptions, co
 // SW 엑셀 업로드 컴포넌트
 // ─────────────────────────────────────────────────────────────────────────────
 
-// 엑셀 헤더 ↔ SwUploadRow 키 매핑 (다양한 표기 허용)
-const SW_COL_MAP: { key: string; aliases: string[] }[] = [
-  { key: "user",         aliases: ["사용자","user"] },
-  { key: "swCategory",   aliases: ["sw대분류","sw분류","swcategory","대분류"] },
-  { key: "swDetail",     aliases: ["sw소분류","소분류","swdetail","에디션","버전명"] },
-  { key: "version",      aliases: ["버전","version","ver","버전(쉼표구분)","버전(대표버전구성)"] },
-  { key: "status",       aliases: ["상태","status"] },
-  { key: "company",      aliases: ["법인명","법인","company"] },
-  { key: "licenseType",  aliases: ["라이선스유형","영구/구독","licensetype","유형","라이선스"] },
-  { key: "department",   aliases: ["부서","department","dept"] },
-  { key: "usageDate",    aliases: ["사용일자","사용날짜","usagedate","use_date"] },
-  { key: "renewalDate",  aliases: ["갱신필요일","갱신일","renewaldate","renewal_date"] },
-  { key: "purchaseDate", aliases: ["구매일자","구매날짜","purchasedate","purchase_date"] },
-  { key: "accountType",  aliases: ["계정유형","accounttype","계정"] },
-  { key: "renewalCycle", aliases: ["갱신주기","renewalcycle","주기"] },
-  { key: "licenseKey",   aliases: ["인증키/인증계정","인증키","인증계정","licensekey","key","license_key"] },
-  { key: "vendor",       aliases: ["구매처","vendor","공급사"] },
-  { key: "workType",     aliases: ["sw사용직군","직군","worktype","work_type"] },
-  { key: "billingType",  aliases: ["결제방식","결재방식","billingtype","billing"] },
-  { key: "monthlyKrw",   aliases: ["월비용krw","월비용(krw)","월비용_krw","krw","월금액(krw)"] },
-  { key: "monthlyUsd",   aliases: ["월비용usd","월비용(usd)","월비용_usd","usd","월금액(usd)"] },
-];
-
-// 엑셀 날짜 시리얼 → YYYY-MM-DD 문자열
-function excelDateToStr(val: string | number): string {
-  if (typeof val === "number") {
-    return new Date((val - 25569) * 86400 * 1000).toISOString().slice(0, 10);
-  }
-  return String(val ?? "").trim();
-}
-
-// 헤더 행으로부터 컬럼 인덱스 맵 생성
-function buildSwColIndex(headers: string[]): Record<string, number> {
-  const idx: Record<string, number> = {};
-  headers.forEach((h, i) => {
-    const norm = h.toLowerCase().replace(/\s+/g, "");
-    for (const { key, aliases } of SW_COL_MAP) {
-      if (aliases.some(a => a.replace(/\s+/g, "") === norm)) {
-        idx[key] = i;
-        break;
-      }
-    }
-  });
-  return idx;
-}
-
-interface SwUploadRowClient {
-  user: string; swCategory: string; swDetail: string; version: string;
-  status: string; company: string; licenseType: string; department: string;
-  usageDate: string; renewalDate: string; purchaseDate: string;
-  accountType: string; renewalCycle: string; licenseKey: string;
-  vendor: string; workType: string; billingType: string;
-  monthlyKrw: number; monthlyUsd: number;
-}
-
 type UploadResult = { index: number; user: string; sw: string; ok: boolean; error?: string };
 
 function SwExcelUpload({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
   const fileRef  = useRef<HTMLInputElement>(null);
-  const [rows,      setRows]      = useState<SwUploadRowClient[]>([]);
+  const [rows,      setRows]      = useState<SwExcelRow[]>([]);
   const [fileName,  setFileName]  = useState("");
   const [parseErr,  setParseErr]  = useState("");
   const [uploading, setUploading] = useState(false);
@@ -1259,53 +1203,7 @@ function SwExcelUpload({ onClose, onSuccess }: { onClose: () => void; onSuccess:
   async function handleFile(file: File) {
     setParseErr(""); setRows([]); setResults(null); setSummary(null);
     try {
-      const buf  = await file.arrayBuffer();
-      const wb   = XLSX.read(buf, { type: "array" });
-      const ws   = wb.Sheets[wb.SheetNames[0]];
-      const raw  = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: "" }) as unknown[][];
-      if (raw.length < 2) throw new Error("데이터 행이 없습니다 (헤더 + 최소 1행 필요)");
-
-      const headers  = (raw[0] as unknown[]).map(h => String(h ?? ""));
-      const colIdx   = buildSwColIndex(headers);
-      const parsed: SwUploadRowClient[] = [];
-
-      for (let i = 1; i < raw.length; i++) {
-        const r = raw[i] as unknown[];
-        const user = String(r[colIdx["user"] ?? -1] ?? "").trim();
-        if (!user) continue; // 빈 행 스킵
-
-        const get = (key: string) => String(r[colIdx[key] ?? -1] ?? "").trim();
-        const getNum = (key: string) => {
-          const v = r[colIdx[key] ?? -1];
-          return typeof v === "number" ? v : parseFloat(String(v ?? "0")) || 0;
-        };
-
-        parsed.push({
-          user,
-          swCategory:   get("swCategory"),
-          swDetail:     get("swDetail"),
-          version:      get("version"),
-          status:       get("status") || "신규등록",
-          company:      get("company"),
-          licenseType:  get("licenseType"),
-          department:   get("department"),
-          usageDate:    excelDateToStr(r[colIdx["usageDate"] ?? -1] as string | number),
-          renewalDate:  excelDateToStr(r[colIdx["renewalDate"] ?? -1] as string | number),
-          purchaseDate: excelDateToStr(r[colIdx["purchaseDate"] ?? -1] as string | number),
-          accountType:  get("accountType"),
-          renewalCycle: get("renewalCycle"),
-          licenseKey:   get("licenseKey"),
-          vendor:       get("vendor"),
-          workType:     get("workType"),
-          billingType:  get("billingType"),
-          monthlyKrw:   getNum("monthlyKrw"),
-          monthlyUsd:   getNum("monthlyUsd"),
-        });
-      }
-
-      if (parsed.length === 0) throw new Error("유효한 데이터 행이 없습니다. '사용자' 컬럼을 확인해 주세요.");
-      if (parsed.length > 200) throw new Error("한 번에 최대 200건까지 업로드 가능합니다.");
-
+      const parsed = await parseSwExcelFile(file);
       setRows(parsed);
       setFileName(file.name);
     } catch (e) {

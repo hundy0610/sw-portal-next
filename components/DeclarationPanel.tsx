@@ -1,7 +1,7 @@
 "use client";
 import { useState, useMemo, useRef } from "react";
 import { safeJson } from "@/lib/fetch-json";
-import { downloadSwTemplate } from "@/lib/sw-template";
+import { downloadSwTemplate, parseSwExcelFile, type SwExcelRow } from "@/lib/sw-template";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Notion 스키마 기반 실제 선택지
@@ -862,6 +862,58 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
   const [mismatchMode, setMismatchMode] = useState(false);
   const [mismatched,   setMismatched]   = useState<Set<string>>(new Set());
 
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploadRows,   setUploadRows]   = useState<SwExcelRow[] | null>(null);
+  const [uploadFile,   setUploadFile]   = useState("");
+  const [uploadErr,    setUploadErr]    = useState("");
+  const [uploading,    setUploading]    = useState(false);
+  const [uploadResult, setUploadResult] = useState<number | null>(null);
+
+  const handleUploadFile = async (file: File) => {
+    setUploadErr(""); setUploadRows(null); setUploadResult(null);
+    try {
+      const parsed = await parseSwExcelFile(file);
+      setUploadRows(parsed);
+      setUploadFile(file.name);
+    } catch (e) {
+      setUploadErr(String(e));
+    }
+  };
+
+  const submitUpload = async () => {
+    if (!uploadRows) return;
+    setUploading(true); setUploadErr("");
+    try {
+      const res = await fetch("/api/declaration", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "createMany",
+          records: uploadRows.map(r => ({
+            user: r.user,
+            company: r.company || company,
+            department: r.department || dept,
+            swCategory: r.swCategory, swDetail: r.swDetail,
+            licenseType: r.licenseType, workType: r.workType, billingType: r.billingType,
+            accountType: r.accountType, renewalCycle: r.renewalCycle,
+            version: r.version ? r.version.split(",").map(v => v.trim()).filter(Boolean) : [],
+            monthlyKrw: r.monthlyKrw, monthlyUsd: r.monthlyUsd, licenseKey: r.licenseKey,
+            status: r.status, vendor: r.vendor,
+            usageDate: r.usageDate, renewalDate: r.renewalDate, purchaseDate: r.purchaseDate,
+          })),
+        }),
+      });
+      const json = await safeJson(res);
+      if (!json.ok) throw new Error(json.error);
+      setUploadResult(uploadRows.length);
+      setUploadRows(null);
+    } catch (e) {
+      setUploadErr(String(e));
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const toggleMismatch = (id: string) => setMismatched(prev => {
     const next = new Set(prev);
     if (next.has(id)) next.delete(id); else next.add(id);
@@ -1038,14 +1090,49 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
             누락건에 대해서는 엑셀 등록 양식을 작성하여 자산관리파트로 공유해주시기 바랍니다.
           </div>
         )}
-        <div className="pt-2 border-t border-gray-100">
-          <p className="text-xs text-gray-500 mb-2">추가로 등록할 SW가 있다면 양식을 다운로드해 작성 후 IT 자산관리파트로 전달해주세요.</p>
+        <div className="pt-2 border-t border-gray-100 space-y-2">
+          <p className="text-xs text-gray-500">추가로 등록할 SW가 있다면 양식을 다운로드해 작성한 뒤, 바로 업로드하거나 IT 자산관리파트로 전달해주세요.</p>
           <button onClick={() => { downloadSwTemplate({ company, department: dept }); setDownloaded(true); }}
             className="w-full py-2.5 rounded-xl border border-amber-300 text-amber-600 text-sm font-semibold hover:bg-amber-50 transition-colors">
             ⬇️ 엑셀 등록양식 다운로드
           </button>
           {downloaded && (
-            <p className="text-xs text-green-600 mt-2">다운로드되었습니다. 작성 후 IT 자산관리파트로 전달해주세요.</p>
+            <p className="text-xs text-green-600">다운로드되었습니다. 작성 후 아래에서 바로 업로드할 수 있습니다.</p>
+          )}
+
+          <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadFile(f); }} />
+          <button onClick={() => fileRef.current?.click()}
+            className="w-full py-2.5 rounded-xl border border-amber-300 text-amber-600 text-sm font-semibold hover:bg-amber-50 transition-colors">
+            📤 작성한 엑셀 파일 업로드
+          </button>
+
+          {uploadErr && <div className="px-3 py-2 bg-red-50 rounded-lg text-xs text-red-600">{uploadErr}</div>}
+
+          {uploadRows && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
+              <p className="text-xs font-semibold text-amber-800">📄 {uploadFile} — {uploadRows.length}건 파싱됨</p>
+              <ul className="text-xs text-amber-700 space-y-0.5 max-h-28 overflow-y-auto">
+                {uploadRows.slice(0, 10).map((r, i) => (
+                  <li key={i}>{r.user} · {r.swCategory}{r.swDetail && ` (${r.swDetail})`}</li>
+                ))}
+                {uploadRows.length > 10 && <li className="text-amber-500">… 외 {uploadRows.length - 10}건</li>}
+              </ul>
+              <div className="flex gap-2">
+                <button onClick={submitUpload} disabled={uploading}
+                  className="flex-1 py-2 rounded-lg bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 disabled:opacity-50 transition-colors">
+                  {uploading ? "등록 중…" : `${uploadRows.length}건 일괄 등록`}
+                </button>
+                <button onClick={() => { setUploadRows(null); setUploadFile(""); }}
+                  className="px-3 py-2 rounded-lg border border-gray-300 text-gray-600 text-xs hover:bg-gray-50 transition-colors">
+                  취소
+                </button>
+              </div>
+            </div>
+          )}
+
+          {uploadResult !== null && (
+            <p className="text-xs text-green-600">✅ {uploadResult}건 등록 완료되었습니다.</p>
           )}
         </div>
       </div>
