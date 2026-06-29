@@ -232,7 +232,7 @@ export default function AdminPage() {
       case "rental-hw":   return canAccess("rental-hw") ? <RentalHwPanel /> : <AccessDenied />;
       case "meeting-rental": return canAccess("meeting-rental") ? <MeetingRentalPanel /> : <AccessDenied />;
       case "assetmap":    return <AssetMapPanel session={session} />;
-      case "helpdesk":    return <HelpDeskPanel company={isSuper ? "" : company} />;
+      case "helpdesk":    return <HelpDeskPanel company={isSuper ? "" : company} currentUserName={session?.name ?? ""} />;
       case "repair":      return <RepairPanel company={company} />;
       case "hw-repair":        return canAccess("hw-repair")        ? <HwRepairPanel />        : <AccessDenied />;
       case "exchange-return":  return canAccess("exchange-return")  ? <ExchangeReturnPanel /> : <AccessDenied />;
