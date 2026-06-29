@@ -470,7 +470,7 @@ function HelpDeskTicketFloating({
     finally { setAllSaving(false); }
   };
 
-  const canComplete = selectedCategories.length > 0 || selectedMethod !== "" || (textareaRef.current?.value ?? noteValue) !== "";
+  const canComplete = selectedCategories.length > 0 && selectedMethod !== "" && (textareaRef.current?.value ?? noteValue) !== "";
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -927,7 +927,7 @@ function HelpDeskTicketFloating({
                         </button>
                       </div>
                       {!canComplete && (
-                        <p className="text-xs text-amber-600">조치분류, 조치방법, 조치내용 중 하나 이상 입력해주세요.</p>
+                        <p className="text-xs text-amber-600">조치분류, 조치방법, 조치내용을 모두 입력해주세요.</p>
                       )}
                       {allSaveResult === "error" && <p className="text-xs text-red-500">완료 처리 실패</p>}
                     </div>
