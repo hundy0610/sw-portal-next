@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { safeJson } from "@/lib/fetch-json";
 import { downloadSwTemplate } from "@/lib/sw-template";
 
@@ -436,7 +436,7 @@ function AddSwForm({ userInfo, onAdd, onCancel }: {
       <div className="flex gap-3 mt-5">
         <button onClick={submit}
           className="flex-1 py-2 rounded-lg bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 transition-colors">
-          + 목록에 추가
+          목록에 추가
         </button>
         <button onClick={onCancel}
           className="px-4 py-2 rounded-lg border border-gray-300 text-gray-600 text-sm hover:bg-gray-50 transition-colors">
@@ -457,11 +457,16 @@ function Step2({ userInfo, initialRecords, onComplete }: {
 }) {
   const [records,    setRecords]    = useState<SwRecord[]>(initialRecords);
   const [pending,    setPending]    = useState<PendingSwRecord[]>([]);
-  const [showForm,   setShowForm]   = useState(false);
+  const [openForms,  setOpenForms]  = useState<number[]>([]);
   const [updating,   setUpdating]   = useState<Record<string, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const nextFormId = useRef(0);
+
+  // "+ 새 SW 추가" 클릭 시마다 폼을 추가로 펼친다 (여러 건을 동시에 작성 가능)
+  const openNewForm  = () => { nextFormId.current += 1; setOpenForms(f => [...f, nextFormId.current]); };
+  const closeForm    = (formId: number) => setOpenForms(f => f.filter(id => id !== formId));
 
   const updateStatus = async (id: string, status: string) => {
     setUpdating(u => ({ ...u, [id]: true }));
@@ -645,18 +650,22 @@ function Step2({ userInfo, initialRecords, onComplete }: {
             </div>
           )}
 
-          {showForm ? (
-            <AddSwForm
-              userInfo={userInfo}
-              onAdd={rec => { setPending(p => [...p, rec]); setShowForm(false); }}
-              onCancel={() => setShowForm(false)}
-            />
-          ) : (
-            <button onClick={() => setShowForm(true)}
-              className="w-full py-3 rounded-xl border-2 border-dashed border-amber-300 text-amber-500 text-sm font-semibold hover:bg-amber-50 transition-colors">
-              + 새 SW 추가
-            </button>
+          {openForms.length > 0 && (
+            <div className="space-y-3 mb-3">
+              {openForms.map(formId => (
+                <AddSwForm key={formId}
+                  userInfo={userInfo}
+                  onAdd={rec => { setPending(p => [...p, rec]); closeForm(formId); }}
+                  onCancel={() => closeForm(formId)}
+                />
+              ))}
+            </div>
           )}
+
+          <button onClick={openNewForm}
+            className="w-full py-3 rounded-xl border-2 border-dashed border-amber-300 text-amber-500 text-sm font-semibold hover:bg-amber-50 transition-colors">
+            + 새 SW 추가
+          </button>
         </div>
       </div>
 
@@ -849,6 +858,7 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
   const [records,    setRecords]    = useState<SwRecord[] | null>(null);
   const [confirmed,  setConfirmed]  = useState(false);
   const [downloaded, setDownloaded] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const lookup = async () => {
     if (!company || !dept.trim()) { setError("법인명과 부서를 입력해주세요."); return; }
@@ -960,13 +970,29 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
                   {items.map(r => {
                     const cost = r.monthlyKrw > 0 ? `₩${r.monthlyKrw.toLocaleString("ko-KR")}` : (r.monthlyUsd > 0 ? `$${r.monthlyUsd}` : null);
                     return (
-                      <li key={r.id} className="flex items-center gap-2 flex-wrap text-sm">
-                        <span className="font-semibold text-gray-800">{r.swCategory}</span>
-                        {r.swDetail && <span className="text-xs text-gray-400">{r.swDetail}</span>}
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[r.status] ?? "bg-gray-100 text-gray-600"}`}>
-                          {r.status}
-                        </span>
-                        {cost && <span className="text-xs text-amber-600 font-medium ml-auto">{cost}/월</span>}
+                      <li key={r.id}>
+                        <button type="button"
+                          onClick={() => setExpandedId(id => id === r.id ? null : r.id)}
+                          className="w-full flex items-center gap-2 flex-wrap text-sm text-left hover:opacity-70 transition-opacity">
+                          <span className="font-semibold text-gray-800">{r.swCategory}</span>
+                          {r.swDetail && <span className="text-xs text-gray-400">{r.swDetail}</span>}
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[r.status] ?? "bg-gray-100 text-gray-600"}`}>
+                            {r.status}
+                          </span>
+                          {cost && <span className="text-xs text-amber-600 font-medium ml-auto">{cost}/월</span>}
+                          <span className="text-[10px] text-gray-300">{expandedId === r.id ? "▲" : "▼"}</span>
+                        </button>
+                        {expandedId === r.id && (
+                          <div className="mt-1.5 pl-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                            {r.licenseType  && <span><span className="text-gray-400">라이선스</span> · {r.licenseType}</span>}
+                            {r.accountType  && <span><span className="text-gray-400">계정유형</span> · {r.accountType}</span>}
+                            {r.renewalCycle && <span><span className="text-gray-400">갱신주기</span> · {r.renewalCycle}</span>}
+                            {r.renewalDate  && <span><span className="text-gray-400">갱신필요일</span> · {r.renewalDate}</span>}
+                            {!r.licenseType && !r.accountType && !r.renewalCycle && !r.renewalDate && (
+                              <span className="text-gray-300">추가 정보가 없습니다</span>
+                            )}
+                          </div>
+                        )}
                       </li>
                     );
                   })}
