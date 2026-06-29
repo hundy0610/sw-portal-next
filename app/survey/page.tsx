@@ -234,10 +234,6 @@ export default function SurveyPage() {
 
       {/* ── 헤더 ── */}
       <div className="w-full px-4 pt-8 pb-4 text-center">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold mb-3"
-          style={{ background: C.primarySoft, color: C.brand }}>
-          📋 IdsTrust IT 자산관리파트
-        </div>
         <h1 className="font-extrabold mb-2" style={{ color: C.text1, fontSize: "clamp(1.25rem, 4vw, 1.75rem)" }}>
           실시간 번역 툴 사용 수요 조사
         </h1>
