@@ -859,6 +859,14 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
   const [confirmed,  setConfirmed]  = useState(false);
   const [downloaded, setDownloaded] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [mismatchMode, setMismatchMode] = useState(false);
+  const [mismatched,   setMismatched]   = useState<Set<string>>(new Set());
+
+  const toggleMismatch = (id: string) => setMismatched(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
 
   const lookup = async () => {
     if (!company || !dept.trim()) { setError("법인명과 부서를 입력해주세요."); return; }
@@ -969,30 +977,40 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
                 <ul className="space-y-2">
                   {items.map(r => {
                     const cost = r.monthlyKrw > 0 ? `₩${r.monthlyKrw.toLocaleString("ko-KR")}` : (r.monthlyUsd > 0 ? `$${r.monthlyUsd}` : null);
+                    const isMismatched = mismatched.has(r.id);
                     return (
-                      <li key={r.id}>
-                        <button type="button"
-                          onClick={() => setExpandedId(id => id === r.id ? null : r.id)}
-                          className="w-full flex items-center gap-2 flex-wrap text-sm text-left hover:opacity-70 transition-opacity">
-                          <span className="font-semibold text-gray-800">{r.swCategory}</span>
-                          {r.swDetail && <span className="text-xs text-gray-400">{r.swDetail}</span>}
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[r.status] ?? "bg-gray-100 text-gray-600"}`}>
-                            {r.status}
-                          </span>
-                          {cost && <span className="text-xs text-amber-600 font-medium ml-auto">{cost}/월</span>}
-                          <span className="text-[10px] text-gray-300">{expandedId === r.id ? "▲" : "▼"}</span>
-                        </button>
-                        {expandedId === r.id && (
-                          <div className="mt-1.5 pl-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
-                            {r.licenseType  && <span><span className="text-gray-400">라이선스</span> · {r.licenseType}</span>}
-                            {r.accountType  && <span><span className="text-gray-400">계정유형</span> · {r.accountType}</span>}
-                            {r.renewalCycle && <span><span className="text-gray-400">갱신주기</span> · {r.renewalCycle}</span>}
-                            {r.renewalDate  && <span><span className="text-gray-400">갱신필요일</span> · {r.renewalDate}</span>}
-                            {!r.licenseType && !r.accountType && !r.renewalCycle && !r.renewalDate && (
-                              <span className="text-gray-300">추가 정보가 없습니다</span>
+                      <li key={r.id}
+                        className={isMismatched ? "bg-red-50 border border-red-200 rounded-lg px-2 py-1.5 -mx-2" : ""}>
+                        <div className="flex items-start gap-2">
+                          {mismatchMode && (
+                            <input type="checkbox" checked={isMismatched} onChange={() => toggleMismatch(r.id)}
+                              className="mt-1.5 accent-red-500 shrink-0" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <button type="button"
+                              onClick={() => setExpandedId(id => id === r.id ? null : r.id)}
+                              className="w-full flex items-center gap-2 flex-wrap text-sm text-left hover:opacity-70 transition-opacity">
+                              <span className="font-semibold text-gray-800">{r.swCategory}</span>
+                              {r.swDetail && <span className="text-xs text-gray-400">{r.swDetail}</span>}
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[r.status] ?? "bg-gray-100 text-gray-600"}`}>
+                                {r.status}
+                              </span>
+                              {cost && <span className="text-xs text-amber-600 font-medium ml-auto">{cost}/월</span>}
+                              <span className="text-[10px] text-gray-300">{expandedId === r.id ? "▲" : "▼"}</span>
+                            </button>
+                            {expandedId === r.id && (
+                              <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                                {r.licenseType  && <span><span className="text-gray-400">라이선스</span> · {r.licenseType}</span>}
+                                {r.accountType  && <span><span className="text-gray-400">계정유형</span> · {r.accountType}</span>}
+                                {r.renewalCycle && <span><span className="text-gray-400">갱신주기</span> · {r.renewalCycle}</span>}
+                                {r.renewalDate  && <span><span className="text-gray-400">갱신필요일</span> · {r.renewalDate}</span>}
+                                {!r.licenseType && !r.accountType && !r.renewalCycle && !r.renewalDate && (
+                                  <span className="text-gray-300">추가 정보가 없습니다</span>
+                                )}
+                              </div>
                             )}
                           </div>
-                        )}
+                        </div>
                       </li>
                     );
                   })}
@@ -1010,6 +1028,16 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
           className="w-full py-3 rounded-xl bg-amber-500 text-white font-bold text-sm hover:bg-amber-600 transition-colors">
           ✓ 모두 맞습니다 — 확인 완료
         </button>
+        <button onClick={() => setMismatchMode(m => !m)}
+          className="w-full py-2.5 rounded-xl border border-gray-300 text-gray-600 text-sm font-semibold hover:bg-gray-50 transition-colors">
+          {mismatchMode ? "체크 종료" : "여기서 맞지 않는 내용이 있습니까?"}
+        </button>
+        {mismatchMode && (
+          <div className="px-3 py-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600">
+            위 목록에서 실제와 다른 항목을 체크해주세요{mismatched.size > 0 && ` (${mismatched.size}건 선택됨)`}.
+            누락건에 대해서는 엑셀 등록 양식을 작성하여 자산관리파트로 공유해주시기 바랍니다.
+          </div>
+        )}
         <div className="pt-2 border-t border-gray-100">
           <p className="text-xs text-gray-500 mb-2">추가로 등록할 SW가 있다면 양식을 다운로드해 작성 후 IT 자산관리파트로 전달해주세요.</p>
           <button onClick={() => { downloadSwTemplate({ company, department: dept }); setDownloaded(true); }}
