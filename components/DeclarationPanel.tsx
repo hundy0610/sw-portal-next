@@ -249,7 +249,7 @@ function Step1({ onNext }: { onNext: (info: UserInfo, records: SwRecord[]) => vo
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center shrink-0">
-            <span className="text-xl">🔍</span>
+            <span className="text-white text-xs font-extrabold">SW</span>
           </div>
           <div>
             <h2 className="font-bold text-gray-900 text-base">본인 확인</h2>
@@ -637,7 +637,7 @@ function Step2({ userInfo, initialRecords, onComplete }: {
             <div className="mb-3 space-y-2">
               {pending.map((r, i) => (
                 <div key={i} className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
-                  <span className="text-amber-500 font-bold text-sm">＋</span>
+                  <span className="w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">{i + 1}</span>
                   <div className="flex-1">
                     <span className="font-semibold text-amber-800 text-sm">{r.swCategory}</span>
                     {r.swDetail    && <span className="text-amber-600 text-xs ml-1.5">{r.swDetail}</span>}
@@ -669,12 +669,15 @@ function Step2({ userInfo, initialRecords, onComplete }: {
         </div>
       </div>
 
-      <button onClick={handleComplete} disabled={submitting}
-        className="w-full py-3.5 rounded-2xl bg-amber-500 text-white font-bold text-sm hover:bg-amber-600 disabled:opacity-50 transition-colors shadow-md">
-        {submitting ? "등록 중…" : "✓ 실사 완료"}
-      </button>
-      {submitError && <div className="px-3 py-2 bg-red-50 rounded-lg text-sm text-red-600">{submitError}</div>}
-      <p className="text-xs text-center text-gray-400">완료 후에는 수정이 어렵습니다. 신고 내역을 다시 한번 확인해주세요.</p>
+      {/* 하단 고정 바 */}
+      <div className="sticky bottom-0 -mx-4 sm:-mx-6 px-4 sm:px-6 py-4 bg-white/95 backdrop-blur border-t border-gray-200">
+        {submitError && <div className="mb-2 px-3 py-2 bg-red-50 rounded-lg text-sm text-red-600">{submitError}</div>}
+        <button onClick={handleComplete} disabled={submitting}
+          className="w-full py-3.5 rounded-2xl bg-amber-500 text-white font-bold text-sm hover:bg-amber-600 disabled:opacity-50 transition-colors shadow-md">
+          {submitting ? "등록 중…" : "✓ 실사 완료"}
+        </button>
+        <p className="mt-1.5 text-xs text-center text-gray-400">완료 후에는 수정이 어렵습니다.</p>
+      </div>
     </div>
   );
 }
@@ -722,9 +725,9 @@ function Step3({ userInfo, records, added, onReset }: {
 
   return (
     <div className="max-w-md mx-auto space-y-4">
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8 text-center">
-        <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
-          <span className="text-3xl">✅</span>
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-md p-8 text-center">
+        <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
         </div>
         <h2 className="text-xl font-bold text-gray-900">실사 완료!</h2>
         <p className="text-sm text-gray-500 mt-1">
@@ -812,7 +815,7 @@ function Step3({ userInfo, records, added, onReset }: {
         {onReset && (
           <button onClick={onReset}
             className="mt-4 text-xs text-amber-500 hover:text-amber-700 underline underline-offset-2">
-            다른 사람으로 다시 시작
+            처음으로 돌아가기
           </button>
         )}
       </div>
@@ -825,24 +828,32 @@ function Step3({ userInfo, records, added, onReset }: {
 // ─────────────────────────────────────────────────────────────────────────────
 function ModeSelect({ onSelect }: { onSelect: (m: "personal" | "team") => void }) {
   return (
-    <div className="max-w-md mx-auto space-y-3">
-      <p className="text-center text-sm text-gray-500 mb-2">실사 방식을 선택해주세요</p>
-      <button onClick={() => onSelect("personal")}
-        className="w-full bg-white rounded-2xl border border-gray-200 shadow-sm p-6 text-left hover:border-amber-300 hover:shadow-md transition-all flex items-center gap-4">
-        <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center shrink-0 text-2xl">🙋</div>
-        <div>
-          <p className="font-bold text-gray-900 text-sm">개인으로 실사</p>
-          <p className="text-xs text-gray-500 mt-0.5">본인 명의로 등록된 SW를 직접 확인하고 신고합니다</p>
-        </div>
-      </button>
-      <button onClick={() => onSelect("team")}
-        className="w-full bg-white rounded-2xl border border-gray-200 shadow-sm p-6 text-left hover:border-amber-300 hover:shadow-md transition-all flex items-center gap-4">
-        <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center shrink-0 text-2xl">👥</div>
-        <div>
-          <p className="font-bold text-gray-900 text-sm">팀(부서)으로 실사</p>
-          <p className="text-xs text-gray-500 mt-0.5">법인 + 부서 기준으로 소속 팀원 전체 현황을 한번에 확인합니다</p>
-        </div>
-      </button>
+    <div className="max-w-lg mx-auto">
+      <p className="text-center text-sm text-gray-500 mb-4">실사 방식을 선택해주세요</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <button onClick={() => onSelect("personal")}
+          className="bg-white rounded-2xl border border-gray-200 shadow-sm p-7 text-left hover:border-amber-400 hover:shadow-lg hover:-translate-y-0.5 transition-all flex flex-col gap-4">
+          <div className="w-14 h-14 rounded-xl bg-amber-500 flex items-center justify-center shrink-0">
+            <span className="text-white text-xl font-extrabold">1</span>
+          </div>
+          <div className="flex-1">
+            <p className="font-bold text-gray-900 text-base">개인 실사</p>
+            <p className="text-sm text-gray-500 mt-1 leading-relaxed">본인 명의로 등록된 SW를 직접 확인하고 신고합니다</p>
+          </div>
+          <span className="text-amber-500 text-xs font-semibold">시작하기 →</span>
+        </button>
+        <button onClick={() => onSelect("team")}
+          className="bg-white rounded-2xl border border-gray-200 shadow-sm p-7 text-left hover:border-amber-400 hover:shadow-lg hover:-translate-y-0.5 transition-all flex flex-col gap-4">
+          <div className="w-14 h-14 rounded-xl bg-amber-500 flex items-center justify-center shrink-0">
+            <span className="text-white text-xl font-extrabold">T</span>
+          </div>
+          <div className="flex-1">
+            <p className="font-bold text-gray-900 text-base">팀(부서) 실사</p>
+            <p className="text-sm text-gray-500 mt-1 leading-relaxed">법인 + 부서 기준으로 소속 팀원 전체 현황을 한번에 확인합니다</p>
+          </div>
+          <span className="text-amber-500 text-xs font-semibold">시작하기 →</span>
+        </button>
+      </div>
     </div>
   );
 }
@@ -947,9 +958,9 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
   if (confirmed) {
     return (
       <div className="max-w-md mx-auto">
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8 text-center">
-          <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
-            <span className="text-3xl">✅</span>
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-md p-8 text-center">
+          <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
           </div>
           <h2 className="text-xl font-bold text-gray-900">실사 완료!</h2>
           <p className="text-sm text-gray-500 mt-1">
@@ -958,7 +969,7 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
           <p className="text-xs text-gray-400 mt-3">총 {records?.length ?? 0}건 확인</p>
           <button onClick={onBack}
             className="mt-5 text-xs text-amber-500 hover:text-amber-700 underline underline-offset-2">
-            처음으로
+            처음으로 돌아가기
           </button>
         </div>
       </div>
@@ -971,7 +982,7 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center shrink-0">
-              <span className="text-xl">👥</span>
+              <span className="text-white text-xs font-extrabold">T</span>
             </div>
             <div>
               <h2 className="font-bold text-gray-900 text-base">팀(부서) 확인</h2>
@@ -999,15 +1010,17 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
     <div className="max-w-3xl mx-auto space-y-4">
       {/* 팀 배너 */}
       <div className="bg-amber-500 text-white rounded-2xl p-4 flex items-center gap-4">
-        <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-xl shrink-0">👥</div>
+        <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+          <span className="text-sm font-extrabold">T</span>
+        </div>
         <div className="flex-1">
           <p className="font-bold text-sm">{company} · {dept}</p>
-          <p className="text-xs opacity-80">조회된 팀원 {grouped.length}명</p>
+          <p className="text-xs opacity-80">팀원 {grouped.length}명 · SW {records.length}개</p>
         </div>
-        <div className="text-right">
-          <p className="text-xs opacity-70">등록 SW</p>
-          <p className="font-bold text-lg">{records.length}개</p>
-        </div>
+        <button onClick={() => { setRecords(null); setConfirmed(false); setDownloaded(false); setMismatchMode(false); setMismatched(new Set()); setUploadRows(null); setUploadResult(null); }}
+          className="text-xs bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg font-semibold transition-colors shrink-0">
+          다시 조회
+        </button>
       </div>
 
       {/* 팀 SW 목록 */}
@@ -1073,16 +1086,16 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
         )}
       </div>
 
-      {/* 확인 / 엑셀 양식 */}
+      {/* 카드 1: 현황 확인 */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-3">
-        <p className="text-sm font-bold text-gray-900">위 내용이 모두 맞나요?</p>
+        <h4 className="text-sm font-bold text-gray-900">현황 확인</h4>
         <button onClick={() => setConfirmed(true)}
           className="w-full py-3 rounded-xl bg-amber-500 text-white font-bold text-sm hover:bg-amber-600 transition-colors">
           ✓ 모두 맞습니다 — 확인 완료
         </button>
         <button onClick={() => setMismatchMode(m => !m)}
           className="w-full py-2.5 rounded-xl border border-gray-300 text-gray-600 text-sm font-semibold hover:bg-gray-50 transition-colors">
-          {mismatchMode ? "체크 종료" : "여기서 맞지 않는 내용이 있습니까?"}
+          {mismatchMode ? "체크 종료" : "맞지 않는 내용이 있습니까?"}
         </button>
         {mismatchMode && (
           <div className="px-3 py-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600">
@@ -1090,57 +1103,53 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
             누락건에 대해서는 엑셀 등록 양식을 작성하여 자산관리파트로 공유해주시기 바랍니다.
           </div>
         )}
-        <div className="pt-2 border-t border-gray-100 space-y-2">
-          <p className="text-xs text-gray-500">추가로 등록할 SW가 있다면 양식을 다운로드해 작성한 뒤, 바로 업로드하거나 IT 자산관리파트로 전달해주세요.</p>
-          <button onClick={() => { downloadSwTemplate({ company, department: dept }); setDownloaded(true); }}
-            className="w-full py-2.5 rounded-xl border border-amber-300 text-amber-600 text-sm font-semibold hover:bg-amber-50 transition-colors">
-            ⬇️ 엑셀 등록양식 다운로드
-          </button>
-          {downloaded && (
-            <p className="text-xs text-green-600">다운로드되었습니다. 작성 후 아래에서 바로 업로드할 수 있습니다.</p>
-          )}
+      </div>
 
+      {/* 카드 2: 추가 등록 (엑셀) */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-3">
+        <h4 className="text-sm font-bold text-gray-900">추가 등록</h4>
+        <p className="text-xs text-gray-500">등록되지 않은 SW가 있다면 양식을 다운로드해 작성 후 업로드하세요.</p>
+        <div className="flex gap-2">
+          <button onClick={() => { downloadSwTemplate({ company, department: dept }); setDownloaded(true); }}
+            className="flex-1 py-2.5 rounded-xl border border-amber-300 text-amber-600 text-sm font-semibold hover:bg-amber-50 transition-colors">
+            ⬇️ 양식 다운로드
+          </button>
           <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadFile(f); }} />
           <button onClick={() => fileRef.current?.click()}
-            className="w-full py-2.5 rounded-xl border border-amber-300 text-amber-600 text-sm font-semibold hover:bg-amber-50 transition-colors">
-            📤 작성한 엑셀 파일 업로드
+            className="flex-1 py-2.5 rounded-xl border border-amber-300 text-amber-600 text-sm font-semibold hover:bg-amber-50 transition-colors">
+            📤 파일 업로드
           </button>
-
-          {uploadErr && <div className="px-3 py-2 bg-red-50 rounded-lg text-xs text-red-600">{uploadErr}</div>}
-
-          {uploadRows && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
-              <p className="text-xs font-semibold text-amber-800">📄 {uploadFile} — {uploadRows.length}건 파싱됨</p>
-              <ul className="text-xs text-amber-700 space-y-0.5 max-h-28 overflow-y-auto">
-                {uploadRows.slice(0, 10).map((r, i) => (
-                  <li key={i}>{r.user} · {r.swCategory}{r.swDetail && ` (${r.swDetail})`}</li>
-                ))}
-                {uploadRows.length > 10 && <li className="text-amber-500">… 외 {uploadRows.length - 10}건</li>}
-              </ul>
-              <div className="flex gap-2">
-                <button onClick={submitUpload} disabled={uploading}
-                  className="flex-1 py-2 rounded-lg bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 disabled:opacity-50 transition-colors">
-                  {uploading ? "등록 중…" : `${uploadRows.length}건 일괄 등록`}
-                </button>
-                <button onClick={() => { setUploadRows(null); setUploadFile(""); }}
-                  className="px-3 py-2 rounded-lg border border-gray-300 text-gray-600 text-xs hover:bg-gray-50 transition-colors">
-                  취소
-                </button>
-              </div>
-            </div>
-          )}
-
-          {uploadResult !== null && (
-            <p className="text-xs text-green-600">✅ {uploadResult}건 등록 완료되었습니다.</p>
-          )}
         </div>
+        {downloaded && (
+          <p className="text-xs text-green-600">양식이 다운로드되었습니다.</p>
+        )}
+        {uploadErr && <div className="px-3 py-2 bg-red-50 rounded-lg text-xs text-red-600">{uploadErr}</div>}
+        {uploadRows && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
+            <p className="text-xs font-semibold text-amber-800">📄 {uploadFile} — {uploadRows.length}건</p>
+            <ul className="text-xs text-amber-700 space-y-0.5 max-h-28 overflow-y-auto">
+              {uploadRows.slice(0, 10).map((r, i) => (
+                <li key={i}>{r.user} · {r.swCategory}{r.swDetail && ` (${r.swDetail})`}</li>
+              ))}
+              {uploadRows.length > 10 && <li className="text-amber-500">… 외 {uploadRows.length - 10}건</li>}
+            </ul>
+            <div className="flex gap-2">
+              <button onClick={submitUpload} disabled={uploading}
+                className="flex-1 py-2 rounded-lg bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 disabled:opacity-50 transition-colors">
+                {uploading ? "등록 중…" : `${uploadRows.length}건 일괄 등록`}
+              </button>
+              <button onClick={() => { setUploadRows(null); setUploadFile(""); }}
+                className="px-3 py-2 rounded-lg border border-gray-300 text-gray-600 text-xs hover:bg-gray-50 transition-colors">
+                취소
+              </button>
+            </div>
+          </div>
+        )}
+        {uploadResult !== null && (
+          <p className="text-xs text-green-600">✅ {uploadResult}건 등록 완료되었습니다.</p>
+        )}
       </div>
-
-      <button onClick={() => { setRecords(null); setConfirmed(false); setDownloaded(false); }}
-        className="w-full text-xs text-center text-gray-400 hover:text-gray-600 underline underline-offset-2">
-        다시 조회하기
-      </button>
     </div>
   );
 }
@@ -1155,7 +1164,7 @@ function StepBar({ current }: { current: number }) {
     <div className="flex items-center gap-1 mb-6">
       {STEPS.map((label, i) => (
         <div key={i} className="flex items-center gap-1.5">
-          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
             current > i + 1 ? "bg-green-500 text-white"
             : current === i + 1 ? "bg-amber-500 text-white"
             : "bg-gray-200 text-gray-400"
@@ -1166,7 +1175,7 @@ function StepBar({ current }: { current: number }) {
             {label}
           </span>
           {i < STEPS.length - 1 && (
-            <div className={`w-8 h-px mx-1 ${current > i + 1 ? "bg-green-300" : "bg-gray-200"}`} />
+            <div className={`w-10 h-px mx-1 ${current > i + 1 ? "bg-green-300" : "bg-gray-200"}`} />
           )}
         </div>
       ))}
@@ -1188,28 +1197,24 @@ export default function DeclarationPanel() {
 
   return (
     <div>
-      <div className="rounded-2xl bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 p-5 mb-6 flex items-start gap-4">
-        <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center shrink-0 mt-0.5">
-          <span className="text-white text-lg">📋</span>
+      {/* 상단 인포 바 */}
+      <div className="flex items-center gap-2.5 rounded-xl bg-amber-50 border border-amber-200 px-4 py-2.5 mb-5">
+        {mode !== null && (
+          <button onClick={reset}
+            className="text-amber-400 hover:text-amber-600 transition-colors shrink-0 -ml-0.5">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+        )}
+        <div className="w-7 h-7 rounded-lg bg-amber-500 flex items-center justify-center shrink-0">
+          <span className="text-white text-xs font-extrabold">SW</span>
         </div>
-        <div>
-          <h2 className="font-bold text-amber-900 text-base">온라인 SW 자산 실사</h2>
-          <p className="text-sm text-amber-700 mt-0.5 leading-relaxed">
-            본인이 사용 중인 SW 현황을 확인하고, 미등록 SW를 신고해주세요.
-            <br />
-            <span className="text-xs text-amber-500">신고 내용은 Notion DB에 즉시 반영되며, IT팀에서 검토합니다.</span>
-          </p>
-        </div>
+        <span className="font-bold text-amber-900 text-sm">SW 자산 실사</span>
+        {mode !== null && (
+          <span className="text-xs text-amber-500 ml-auto">{mode === "personal" ? "개인" : "팀(부서)"}</span>
+        )}
       </div>
 
       {mode === null && <ModeSelect onSelect={setMode} />}
-
-      {mode !== null && (
-        <button onClick={reset}
-          className="mb-4 text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2">
-          ← 처음으로 (개인/팀 다시 선택)
-        </button>
-      )}
 
       {mode === "personal" && (
         <>
