@@ -252,7 +252,7 @@ function Step1({ onNext }: { onNext: (info: UserInfo, records: SwRecord[]) => vo
             <span className="text-white text-xs font-extrabold">SW</span>
           </div>
           <div>
-            <h2 className="font-bold text-gray-900 text-sm">본인 확인</h2>
+            <h2 className="font-bold text-gray-900 text-base">본인 확인</h2>
             <p className="text-xs text-gray-500 mt-0.5">법인명 + 이름으로 등록된 SW를 조회합니다</p>
           </div>
         </div>
@@ -266,7 +266,7 @@ function Step1({ onNext }: { onNext: (info: UserInfo, records: SwRecord[]) => vo
         {error && <div className="mt-3 px-3 py-2 bg-red-50 rounded-lg text-sm text-red-600">{error}</div>}
 
         <button onClick={submit} disabled={loading}
-          className="mt-6 w-full py-2.5 rounded-xl bg-amber-500 text-white font-semibold text-sm hover:bg-amber-600 disabled:opacity-50 transition-colors">
+          className="mt-6 w-full py-2.5 rounded-xl bg-amber-500 text-white font-semibold text-base hover:bg-amber-600 disabled:opacity-50 transition-colors">
           {loading ? "조회 중…" : "SW 현황 조회 →"}
         </button>
         <p className="mt-3 text-xs text-center text-gray-400">
@@ -544,7 +544,7 @@ function Step2({ userInfo, initialRecords, onComplete }: {
       {/* 기존 SW 목록 */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
-          <h3 className="font-bold text-gray-900 text-sm">등록된 SW 현황 확인</h3>
+          <h3 className="font-bold text-gray-900 text-base">등록된 SW 현황 확인</h3>
           <p className="text-xs text-gray-500 mt-0.5">각 항목의 현재 사용 여부를 선택해주세요</p>
         </div>
 
@@ -564,7 +564,7 @@ function Step2({ userInfo, initialRecords, onComplete }: {
                     <button type="button"
                       onClick={() => setExpandedId(id => id === r.id ? null : r.id)}
                       className="flex items-center gap-2 flex-wrap text-left hover:opacity-70 transition-opacity">
-                      <span className="font-semibold text-gray-900 text-sm">{r.swCategory}</span>
+                      <span className="font-semibold text-gray-900 text-base">{r.swCategory}</span>
                       {r.swDetail && <span className="text-xs text-gray-400">{r.swDetail}</span>}
                       {r.version.length > 0 && (
                         <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
@@ -629,7 +629,7 @@ function Step2({ userInfo, initialRecords, onComplete }: {
       {/* 미등록 SW 신고 */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
-          <h3 className="font-bold text-gray-900 text-sm">미등록 SW 추가 신고</h3>
+          <h3 className="font-bold text-gray-900 text-base">미등록 SW 추가 신고</h3>
           <p className="text-xs text-gray-500 mt-0.5">위 목록에 없는 SW를 추가해주세요 (실사 완료 시 한번에 등록됩니다)</p>
         </div>
         <div className="p-5">
@@ -673,7 +673,7 @@ function Step2({ userInfo, initialRecords, onComplete }: {
       <div className="sticky bottom-0 -mx-4 sm:-mx-6 px-4 sm:px-6 py-4 bg-white/95 backdrop-blur border-t border-gray-200">
         {submitError && <div className="mb-2 px-3 py-2 bg-red-50 rounded-lg text-sm text-red-600">{submitError}</div>}
         <button onClick={handleComplete} disabled={submitting}
-          className="w-full py-3.5 rounded-2xl bg-amber-500 text-white font-bold text-sm hover:bg-amber-600 disabled:opacity-50 transition-colors shadow-md">
+          className="w-full py-3.5 rounded-2xl bg-amber-500 text-white font-bold text-base hover:bg-amber-600 disabled:opacity-50 transition-colors shadow-md">
           {submitting ? "등록 중…" : "✓ 실사 완료"}
         </button>
         <p className="mt-1.5 text-xs text-center text-gray-400">완료 후에는 수정이 어렵습니다.</p>
@@ -837,7 +837,7 @@ function ModeSelect({ onSelect }: { onSelect: (m: "personal" | "team") => void }
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           </div>
           <div className="flex-1">
-            <p className="font-bold text-gray-900 text-base">개인 실사</p>
+            <p className="font-bold text-gray-900 text-lg">개인 실사</p>
             <p className="text-sm text-gray-500 mt-1 leading-relaxed">본인 명의로 등록된 SW를 직접 확인하고 신고합니다</p>
           </div>
           <span className="text-amber-500 text-xs font-semibold">시작하기 →</span>
@@ -848,7 +848,7 @@ function ModeSelect({ onSelect }: { onSelect: (m: "personal" | "team") => void }
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           </div>
           <div className="flex-1">
-            <p className="font-bold text-gray-900 text-base">팀(부서) 실사</p>
+            <p className="font-bold text-gray-900 text-lg">팀(부서) 실사</p>
             <p className="text-sm text-gray-500 mt-1 leading-relaxed">법인 + 부서 기준으로 소속 팀원 전체 현황을 한번에 확인합니다</p>
           </div>
           <span className="text-amber-500 text-xs font-semibold">시작하기 →</span>
@@ -985,7 +985,7 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
               <span className="text-white text-xs font-extrabold">T</span>
             </div>
             <div>
-              <h2 className="font-bold text-gray-900 text-sm">팀(부서) 확인</h2>
+              <h2 className="font-bold text-gray-900 text-base">팀(부서) 확인</h2>
               <p className="text-xs text-gray-500 mt-0.5">법인명 + 부서로 등록된 팀 전체 SW를 조회합니다</p>
             </div>
           </div>
@@ -998,7 +998,7 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
           {error && <div className="mt-3 px-3 py-2 bg-red-50 rounded-lg text-sm text-red-600">{error}</div>}
 
           <button onClick={lookup} disabled={loading}
-            className="mt-6 w-full py-2.5 rounded-xl bg-amber-500 text-white font-semibold text-sm hover:bg-amber-600 disabled:opacity-50 transition-colors">
+            className="mt-6 w-full py-2.5 rounded-xl bg-amber-500 text-white font-semibold text-base hover:bg-amber-600 disabled:opacity-50 transition-colors">
             {loading ? "조회 중…" : "SW 현황 조회 →"}
           </button>
         </div>
@@ -1026,7 +1026,7 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
       {/* 팀 SW 목록 */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
-          <h3 className="font-bold text-gray-900 text-sm">팀 SW 현황 조회 결과</h3>
+          <h3 className="font-bold text-gray-900 text-base">팀 SW 현황 조회 결과</h3>
           <p className="text-xs text-gray-500 mt-0.5">전체 내용을 확인해주세요</p>
         </div>
 
@@ -1055,7 +1055,7 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
                             <button type="button"
                               onClick={() => setExpandedId(id => id === r.id ? null : r.id)}
                               className="w-full flex items-center gap-2 flex-wrap text-sm text-left hover:opacity-70 transition-opacity">
-                              <span className="font-semibold text-gray-800">{r.swCategory}</span>
+                              <span className="font-semibold text-gray-800 text-base">{r.swCategory}</span>
                               {r.swDetail && <span className="text-xs text-gray-400">{r.swDetail}</span>}
                               <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[r.status] ?? "bg-gray-100 text-gray-600"}`}>
                                 {r.status}
@@ -1088,9 +1088,9 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
 
       {/* 카드 1: 현황 확인 */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-3">
-        <h4 className="text-sm font-bold text-gray-900">현황 확인</h4>
+        <h4 className="text-base font-bold text-gray-900">현황 확인</h4>
         <button onClick={() => setConfirmed(true)}
-          className="w-full py-3 rounded-xl bg-amber-500 text-white font-bold text-sm hover:bg-amber-600 transition-colors">
+          className="w-full py-3 rounded-xl bg-amber-500 text-white font-bold text-base hover:bg-amber-600 transition-colors">
           ✓ 모두 맞습니다 — 확인 완료
         </button>
         <button onClick={() => setMismatchMode(m => !m)}
@@ -1107,7 +1107,7 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
 
       {/* 카드 2: 추가 등록 (엑셀) */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-3">
-        <h4 className="text-sm font-bold text-gray-900">추가 등록</h4>
+        <h4 className="text-base font-bold text-gray-900">추가 등록</h4>
         <p className="text-xs text-gray-500">등록되지 않은 SW가 있다면 양식을 다운로드해 작성 후 업로드하세요.</p>
         <div className="flex gap-2">
           <button onClick={() => { downloadSwTemplate({ company, department: dept }); setDownloaded(true); }}
@@ -1208,7 +1208,7 @@ export default function DeclarationPanel() {
         <div className="w-7 h-7 rounded-lg bg-amber-500 flex items-center justify-center shrink-0">
           <span className="text-white text-xs font-extrabold">SW</span>
         </div>
-        <span className="font-bold text-amber-900 text-sm">SW 자산 실사</span>
+        <span className="font-bold text-amber-900 text-base">SW 자산 실사</span>
         {mode !== null && (
           <span className="text-xs text-amber-500 ml-auto">{mode === "personal" ? "개인" : "팀(부서)"}</span>
         )}
