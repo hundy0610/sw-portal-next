@@ -8,6 +8,7 @@ interface SurveyResponse {
   name: string;
   company: string;
   department: string;
+  email: string;
   purpose: string;
   frequency: string;
   note: string;
@@ -209,7 +210,10 @@ export default function SurveyDemandPanel() {
                     <div className="font-semibold text-gray-900 text-xs">{r.company}</div>
                     <div className="text-xs text-gray-400">{r.department}</div>
                   </td>
-                  <td className="px-4 py-3 font-medium text-gray-900 text-xs">{r.name}</td>
+                  <td className="px-4 py-3">
+                    <div className="font-medium text-gray-900 text-xs">{r.name}</div>
+                    {r.email && <div className="text-[10px] text-gray-400 mt-0.5">{r.email}</div>}
+                  </td>
                   <td className="px-4 py-3 text-xs text-gray-600 max-w-[140px] truncate">{r.frequency}</td>
                   <td className="px-4 py-3"><StatusBadge status={r.status} /></td>
                   <td className="px-4 py-3">
@@ -243,6 +247,7 @@ export default function SurveyDemandPanel() {
             <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
               {[
                 { label: "소속 정보",  value: `${selected.company} / ${selected.department} / ${selected.name}` },
+                { label: "이메일",    value: selected.email || "—" },
                 { label: "사용 목적",  value: selected.purpose },
                 { label: "사용 주기",  value: selected.frequency },
                 { label: "특이 사항",  value: selected.note || "—" },

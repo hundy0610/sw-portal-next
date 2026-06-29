@@ -18,7 +18,7 @@ const FREQUENCY_OPTIONS = [
 
 export default function SurveyDemandPage() {
   const [form, setForm] = useState({
-    company: "", department: "", name: "",
+    company: "", department: "", name: "", email: "",
     purpose: "", frequency: "", frequencyOther: "", note: "",
   });
   const [submitting, setSubmitting] = useState(false);
@@ -43,6 +43,7 @@ export default function SurveyDemandPage() {
           company:    form.company,
           department: form.department,
           name:       form.name,
+          email:      form.email,
           purpose:    form.purpose,
           frequency:  finalFrequency,
           note:       form.note,
@@ -152,10 +153,25 @@ export default function SurveyDemandPage() {
             </div>
           </section>
 
-          {/* ④ 사용 목적 */}
+          {/* ④ 이메일 */}
           <section>
             <div className="flex items-center gap-2 mb-3">
               <span className="w-7 h-7 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center shrink-0">4</span>
+              <h2 className="text-base font-bold text-gray-900">이메일 주소<span className="text-red-500 ml-0.5">*</span></h2>
+            </div>
+            <p className="text-xs text-gray-400 mb-2.5 ml-9">결과 안내 및 계정 배분 시 연락드릴 이메일을 입력해 주세요.</p>
+            <input
+              type="email"
+              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 transition-colors bg-white placeholder:text-gray-400"
+              placeholder="예) yourname@company.com"
+              value={form.email}
+              onChange={e => set("email", e.target.value)} />
+          </section>
+
+          {/* ⑤ 사용 목적 */}
+          <section>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="w-7 h-7 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center shrink-0">5</span>
               <h2 className="text-base font-bold text-gray-900">사용 목적<span className="text-red-500 ml-0.5">*</span></h2>
             </div>
             <p className="text-xs text-gray-400 mb-2.5 ml-9">어떤 용도로 번역 툴을 사용하실 예정인지 구체적으로 작성해 주세요.</p>
@@ -166,10 +182,10 @@ export default function SurveyDemandPage() {
               onChange={e => set("purpose", e.target.value)} />
           </section>
 
-          {/* ⑤ 사용 주기 */}
+          {/* ⑥ 사용 주기 */}
           <section>
             <div className="flex items-center gap-2 mb-4">
-              <span className="w-7 h-7 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center shrink-0">5</span>
+              <span className="w-7 h-7 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center shrink-0">6</span>
               <h2 className="text-base font-bold text-gray-900">사용 주기<span className="text-red-500 ml-0.5">*</span></h2>
             </div>
             <div className="space-y-2.5">
@@ -203,10 +219,10 @@ export default function SurveyDemandPage() {
             </div>
           </section>
 
-          {/* ⑥ 특이 사항 */}
+          {/* ⑦ 특이 사항 */}
           <section>
             <div className="flex items-center gap-2 mb-3">
-              <span className="w-7 h-7 rounded-full bg-gray-300 text-white text-xs font-bold flex items-center justify-center shrink-0">6</span>
+              <span className="w-7 h-7 rounded-full bg-gray-300 text-white text-xs font-bold flex items-center justify-center shrink-0">7</span>
               <h2 className="text-base font-bold text-gray-900">
                 특이 사항
                 <span className="ml-2 text-xs font-normal text-gray-400">(선택)</span>
