@@ -46,6 +46,19 @@ function processingDays(submittedAt: string, lastEditedAt: string): number {
   return Math.max(0, Math.round(diff / 86400000));
 }
 
+function formatDateTime(iso: string): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  const Y = d.getFullYear();
+  const M = String(d.getMonth() + 1).padStart(2, "0");
+  const D = String(d.getDate()).padStart(2, "0");
+  const h = String(d.getHours()).padStart(2, "0");
+  const m = String(d.getMinutes()).padStart(2, "0");
+  const s = String(d.getSeconds()).padStart(2, "0");
+  return `${Y}-${M}-${D} ${h}:${m}:${s}`;
+}
+
 // ── 문의 내용 기반 세부 분류기 ────────────────────────────────
 interface SubCategory {
   id: string;
@@ -262,16 +275,6 @@ function InlineAssigneeCell({
   );
 }
 
-// ── Shared row layout ────────────────────────────────────────
-function DR({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-start gap-4 py-3 border-b border-gray-50 last:border-0">
-      <span className="text-xs text-gray-400 w-20 shrink-0 pt-0.5">{label}</span>
-      <div className="flex-1 text-sm text-gray-800">{children}</div>
-    </div>
-  );
-}
-
 // ── Action Category Tree ─────────────────────────────────────
 const ACTION_TREE = [
   { label: "하드웨어", children: ["단순 점검", "청소 및 정비", "부품 교체", "외부업체 수리", "자산 교체(노후화)", "자산 교체(고장 및 파손)", "기타"] },
@@ -372,12 +375,14 @@ function HelpDeskTicketFloating({
   statuses,
   onClose,
   onUpdated,
+  currentUserName = "",
 }: {
   ticket: HelpDeskTicket;
   assigneeList: { id: string; name: string }[];
   statuses: string[];
   onClose: () => void;
   onUpdated?: (id: string, fields: Partial<HelpDeskTicket>) => void;
+  currentUserName?: string;
 }) {
   const [selectedStatus,   setSelectedStatus]   = useState(ticket.status);
   const [selectedAssignee, setSelectedAssignee] = useState(ticket.assignee ?? "");
@@ -402,6 +407,70 @@ function HelpDeskTicketFloating({
   const [assetStatus,     setAssetStatus]     = useState("");
   const [assetSaving,     setAssetSaving]     = useState(false);
   const [assetSaveResult, setAssetSaveResult] = useState<"idle" | "done" | "error">("idle");
+
+  // 워크플로우 UI 상태
+  const [showOtherAssignee, setShowOtherAssignee] = useState(false);
+  const [showCompleteForm,  setShowCompleteForm]  = useState(false);
+  const [assignSaving,      setAssignSaving]      = useState(false);
+
+  // "내가 담당" 매칭
+  const myAssignee = assigneeList.find(u => u.name === currentUserName);
+
+  // 담당자 배정 + 진행 중 전환 통합 함수
+  const assignAndStart = async (assigneeName: string) => {
+    const found = assigneeList.find(u => u.name === assigneeName);
+    if (!found?.id) return;
+    setAssignSaving(true);
+    try {
+      const res = await fetch("/api/helpdesk/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: ticket.id, fields: { status: "진행 중", assigneeId: found.id } }),
+      });
+      const json = await safeJson(res);
+      if (json.ok) {
+        setSelectedStatus("진행 중");
+        setSelectedAssignee(assigneeName);
+        setShowOtherAssignee(false);
+        onUpdated?.(ticket.id, { status: "진행 중", assignee: assigneeName, assigneeId: found.id });
+      }
+    } catch { /* silent */ }
+    finally { setAssignSaving(false); }
+  };
+
+  // 완료 처리 통합 함수
+  const completeTicket = async () => {
+    setAllSaving(true); setAllSaveResult("idle");
+    try {
+      const found = assigneeList.find(u => u.name === selectedAssignee);
+      const noteText = textareaRef.current?.value ?? noteValue;
+      const res = await fetch("/api/helpdesk/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: ticket.id,
+          fields: {
+            status: "완료",
+            assigneeId: found?.id || undefined,
+            actionCategory: selectedCategories,
+            actionMethod: selectedMethod,
+            actionNote: noteText,
+          },
+        }),
+      });
+      const json = await safeJson(res);
+      if (json.ok) {
+        setNoteValue(noteText);
+        setSelectedStatus("완료");
+        setShowCompleteForm(false);
+        setAllSaveResult("done");
+        onUpdated?.(ticket.id, { status: "완료", assignee: selectedAssignee, actionCategory: selectedCategories, actionMethod: selectedMethod, actionNote: noteText });
+      } else setAllSaveResult("error");
+    } catch { setAllSaveResult("error"); }
+    finally { setAllSaving(false); }
+  };
+
+  const canComplete = selectedCategories.length > 0 || selectedMethod !== "" || (textareaRef.current?.value ?? noteValue) !== "";
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -581,276 +650,404 @@ function HelpDeskTicketFloating({
       onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 flex flex-col"
-        style={{ maxHeight: "88vh" }}
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl mx-4 flex flex-col"
+        style={{ maxHeight: "90vh" }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-7 py-5 border-b border-gray-100 flex items-start justify-between gap-4 flex-shrink-0">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-2 flex-wrap">
-              {ticket.inquiryType && (
-                <span className="text-[11px] font-semibold text-violet-700 bg-violet-50 px-2 py-0.5 rounded">
-                  {ticket.inquiryType}
-                </span>
-              )}
-              {ticket.urgency && <UrgencyBadge urgency={ticket.urgency} />}
-            </div>
-            <h2 className="text-lg font-bold text-gray-900 leading-snug">
-              {ticket.content || ticket.title || "—"}
-            </h2>
-          </div>
+        <div className="px-7 py-4 border-b border-gray-100 flex items-center justify-between gap-4 flex-shrink-0">
+          <h2 className="text-lg font-bold text-gray-900">문의 처리</h2>
           <button onClick={onClose}
             className="text-gray-400 hover:text-gray-600 text-2xl leading-none w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 shrink-0">
             ×
           </button>
         </div>
 
-        {/* Body */}
-        <div className="px-7 py-1 overflow-y-auto flex-1">
-          {/* 상태 변경 */}
-          <DR label="상태">
-            <div className="flex items-center gap-2">
-              <select
-                value={selectedStatus}
-                onChange={e => { setSelectedStatus(e.target.value); setSaveResult(p => ({ ...p, status: undefined as unknown as "done" })); }}
-                className="text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-violet-200"
-              >
-                {allStatuses.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-              <button
-                onClick={() => saveField("status")}
-                disabled={saving === "status" || selectedStatus === ticket.status}
-                className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                {saving === "status" ? "저장 중…" : "저장"}
-              </button>
-              {saveResult.status === "done"  && <span className="text-xs text-green-600">✓ 변경됨</span>}
-              {saveResult.status === "error" && <span className="text-xs text-red-500">실패</span>}
-            </div>
-          </DR>
-
-          {/* 문의자 */}
-          <DR label="문의자">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={copyRequester}
-                className="text-sm text-gray-800 hover:text-blue-600 transition-colors flex items-center gap-1.5 group"
-                title="클릭하여 복사"
-              >
-                {ticket.requester || "—"}
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                  className="opacity-30 group-hover:opacity-70">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
-                </svg>
-              </button>
-              {copied && <span className="text-xs text-green-600 font-medium">복사됨!</span>}
-              {ticket.company && <span className="text-gray-400 text-xs">· {ticket.company}</span>}
-            </div>
-          </DR>
-
-          {ticket.department && <DR label="부서"><span>{ticket.department}</span></DR>}
-          {ticket.assetNo && (
-            <DR label="자산번호">
-              <div>
-                <button
-                  onClick={loadAsset}
-                  className="font-mono text-blue-600 hover:underline hover:text-blue-700 transition-colors text-sm"
-                >
-                  {ticket.assetNo}
-                </button>
-                {assetState === "loading" && (
-                  <div className="mt-3 flex items-center gap-2 text-xs text-gray-400">
-                    <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity="0.25"/><path d="M21 12a9 9 0 00-9-9"/>
-                    </svg>
-                    불러오는 중...
+        {/* Body: 좌/우 분할 */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 min-h-0">
+            {/* ── 좌측: 정보 영역 ── */}
+            <div className="px-7 py-5 md:border-r border-gray-100 space-y-5">
+              {/* 1행: 법인 · 부서 · 문의자 · 자산번호 */}
+              <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                <div>
+                  <span className="text-[11px] text-gray-400 block mb-0.5">법인</span>
+                  <span className="text-sm font-medium text-gray-800">{ticket.company || "—"}</span>
+                </div>
+                <div>
+                  <span className="text-[11px] text-gray-400 block mb-0.5">부서</span>
+                  <span className="text-sm font-medium text-gray-800">{ticket.department || "—"}</span>
+                </div>
+                <div>
+                  <span className="text-[11px] text-gray-400 block mb-0.5">문의자</span>
+                  <div className="flex items-center gap-1.5">
+                    <button onClick={copyRequester}
+                      className="text-sm font-medium text-gray-800 hover:text-blue-600 transition-colors flex items-center gap-1 group" title="클릭하여 복사">
+                      {ticket.requester || "—"}
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                        className="opacity-30 group-hover:opacity-70">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                        <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                      </svg>
+                    </button>
+                    {copied && <span className="text-[10px] text-green-600">복사됨</span>}
                   </div>
-                )}
-                {assetState === "notfound" && <p className="mt-2 text-xs text-gray-400">트래커 DB에서 찾을 수 없습니다.</p>}
-                {assetState === "error"    && <p className="mt-2 text-xs text-red-400">조회 중 오류가 발생했습니다.</p>}
-                {assetState === "found" && assetData && (
-                  <div className="mt-3 bg-gray-50 rounded-xl p-4 space-y-2 text-sm">
-                    {([ ["사용자", assetData.user], ["모델명", assetData.model], ["시리얼", assetData.serial],
-                        ["제조사", assetData.maker], ["CPU", assetData.cpu], ["RAM", assetData.ram],
-                        ["법인", assetData.company], ["부서", assetData.dept],
-                    ] as [string, string][]).map(([label, value]) => value ? (
-                      <div key={label} className="flex gap-3">
-                        <span className="text-xs text-gray-400 w-16 shrink-0">{label}</span>
-                        <span className="text-gray-700">{value}</span>
-                      </div>
-                    ) : null)}
-                    {assetData.price > 0 && (
-                      <div className="flex gap-3">
-                        <span className="text-xs text-gray-400 w-16 shrink-0">단가</span>
-                        <span className="text-gray-700">{assetData.price.toLocaleString()}원</span>
-                      </div>
-                    )}
-                    {assetData.residualValue > 0 && (
-                      <div className="flex gap-3">
-                        <span className="text-xs text-gray-400 w-16 shrink-0">잔존가치</span>
-                        <span className="text-gray-700 font-medium">{assetData.residualValue.toLocaleString()}원</span>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-2 pt-1">
-                      <span className="text-xs text-gray-400 w-16 shrink-0">상태</span>
-                      <select
-                        value={assetStatus}
-                        onChange={e => { setAssetStatus(e.target.value); setAssetSaveResult("idle"); }}
-                        className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none"
-                      >
-                        {HW_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                      <button
-                        onClick={saveAssetStatus}
-                        disabled={assetSaving || assetStatus === assetData.status}
-                        className="text-xs px-2.5 py-1 rounded-lg bg-gray-700 text-white font-medium hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        {assetSaving ? "저장 중…" : "저장"}
-                      </button>
-                      {assetSaveResult === "done"  && <span className="text-xs text-green-600">✓</span>}
-                      {assetSaveResult === "error" && <span className="text-xs text-red-500">실패</span>}
-                    </div>
-                    {assetData.notionUrl && (
-                      <a href={assetData.notionUrl} target="_blank" rel="noopener noreferrer"
-                        className="text-xs text-blue-600 hover:underline flex items-center gap-1 pt-1">
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
-                          <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-                        </svg>
-                        노션에서 보기
-                      </a>
-                    )}
-                  </div>
-                )}
-              </div>
-            </DR>
-          )}
-
-          {/* 담당자 변경 */}
-          <DR label="담당자">
-            <div className="flex items-center gap-2 flex-wrap">
-              <select
-                value={selectedAssignee}
-                onChange={e => { setSelectedAssignee(e.target.value); setSaveResult(p => ({ ...p, assignee: undefined as unknown as "done" })); }}
-                className="text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-violet-200"
-              >
-                <option value="">미배정</option>
-                {ticket.assignee && !assigneeList.find(u => u.name === ticket.assignee) && (
-                  <option value={ticket.assignee}>{ticket.assignee}</option>
-                )}
-                {assigneeList.map(u => <option key={u.id || u.name} value={u.name}>{u.name}</option>)}
-              </select>
-              <button
-                onClick={() => saveField("assignee")}
-                disabled={saving === "assignee" || selectedAssignee === (ticket.assignee ?? "")}
-                className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                {saving === "assignee" ? "저장 중…" : "저장"}
-              </button>
-              {saveResult.assignee === "done"  && <span className="text-xs text-green-600">✓ 변경됨</span>}
-              {saveResult.assignee === "error" && <span className="text-xs text-red-500">실패</span>}
-            </div>
-          </DR>
-
-          {/* 조치분류 */}
-          <DR label="조치분류">
-            <div className="flex flex-col gap-2">
-              <ActionCategoryTree
-                selected={selectedCategories}
-                onChange={v => { setSelectedCategories(v); setCategorySaveResult("idle"); }}
-              />
-              <div className="flex items-center gap-2 pt-1">
-                <button onClick={saveCategory} disabled={categorySaving}
-                  className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                  {categorySaving ? "저장 중…" : "저장"}
-                </button>
-                {categorySaveResult === "done"  && <span className="text-xs text-green-600">✓ 변경됨</span>}
-                {categorySaveResult === "error" && <span className="text-xs text-red-500">실패</span>}
-              </div>
-            </div>
-          </DR>
-
-          {/* 조치방법 */}
-          <DR label="조치방법">
-            <div className="flex flex-wrap gap-2">
-              {(["원격", "방문", "메신저/메일", "기타"] as const).map(m => (
-                <button key={m} type="button" disabled={methodSaving}
-                  onClick={() => { const next = selectedMethod === m ? "" : m; setSelectedMethod(next); saveMethod(next); }}
-                  className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors disabled:opacity-50 ${
-                    selectedMethod === m
-                      ? "bg-violet-600 border-violet-600 text-white"
-                      : "bg-white border-gray-200 text-gray-600 hover:border-violet-300 hover:text-violet-600"
-                  }`}>
-                  {m}
-                </button>
-              ))}
-              {methodSaving && <svg className="animate-spin w-3.5 h-3.5 text-gray-400 self-center" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity="0.25"/><path d="M21 12a9 9 0 00-9-9"/></svg>}
-              {methodSaveResult === "done"  && <span className="text-xs text-green-600 self-center">✓</span>}
-              {methodSaveResult === "error" && <span className="text-xs text-red-500 self-center">실패</span>}
-            </div>
-          </DR>
-
-          {/* 조치내용 */}
-          <DR label="조치내용">
-            {editingNote ? (
-              <div className="flex flex-col gap-2">
-                <textarea
-                  ref={textareaRef}
-                  defaultValue={noteValue}
-                  rows={4}
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-violet-200 resize-none"
-                  placeholder="조치 내역을 입력하세요"
-                  autoFocus
-                />
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={saveNote}
-                    disabled={noteSaving}
-                    className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {noteSaving ? "저장 중…" : "저장"}
-                  </button>
-                  <button
-                    onClick={() => { setEditingNote(false); setNoteSaveResult("idle"); }}
-                    className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
-                  >
-                    취소
-                  </button>
-                  {noteSaveResult === "error" && <span className="text-xs text-red-500">저장 실패</span>}
+                </div>
+                <div>
+                  <span className="text-[11px] text-gray-400 block mb-0.5">자산번호</span>
+                  {ticket.assetNo ? (
+                    <button onClick={loadAsset}
+                      className="text-sm font-mono text-blue-600 hover:underline hover:text-blue-700 transition-colors">
+                      {ticket.assetNo}
+                    </button>
+                  ) : (
+                    <span className="text-sm text-gray-400">—</span>
+                  )}
                 </div>
               </div>
-            ) : (
-              <div
-                onClick={() => { setEditingNote(true); setNoteSaveResult("idle"); }}
-                className="group cursor-pointer rounded-lg px-3 py-2 -mx-3 hover:bg-gray-50 transition-colors min-h-[2.5rem] flex items-start gap-2"
-              >
-                <p className="leading-relaxed text-gray-700 flex-1 whitespace-pre-wrap">
-                  {noteValue || <span className="text-gray-400 italic">클릭하여 조치 내역 입력</span>}
-                </p>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                  className="shrink-0 mt-0.5 opacity-0 group-hover:opacity-40 transition-opacity">
-                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                </svg>
-                {noteSaveResult === "done" && <span className="text-xs text-green-600 shrink-0">✓ 저장됨</span>}
-              </div>
-            )}
-          </DR>
 
-          {ticket.submittedAt && (
-            <DR label="접수일"><span>{ticket.submittedAt.slice(0, 10)}</span></DR>
-          )}
+              {/* 자산 상세 (로드 시) */}
+              {assetState === "loading" && (
+                <div className="flex items-center gap-2 text-xs text-gray-400">
+                  <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity="0.25"/><path d="M21 12a9 9 0 00-9-9"/>
+                  </svg>
+                  자산 정보 불러오는 중...
+                </div>
+              )}
+              {assetState === "notfound" && <p className="text-xs text-gray-400">트래커 DB에서 찾을 수 없습니다.</p>}
+              {assetState === "error" && <p className="text-xs text-red-400">자산 조회 중 오류가 발생했습니다.</p>}
+              {assetState === "found" && assetData && (
+                <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-sm">
+                  {([["사용자", assetData.user], ["모델명", assetData.model], ["시리얼", assetData.serial],
+                      ["제조사", assetData.maker], ["CPU", assetData.cpu], ["RAM", assetData.ram],
+                  ] as [string, string][]).map(([label, value]) => value ? (
+                    <div key={label} className="flex gap-3">
+                      <span className="text-xs text-gray-400 w-14 shrink-0">{label}</span>
+                      <span className="text-gray-700">{value}</span>
+                    </div>
+                  ) : null)}
+                  <div className="flex items-center gap-2 pt-1">
+                    <span className="text-xs text-gray-400 w-14 shrink-0">상태</span>
+                    <select value={assetStatus} onChange={e => { setAssetStatus(e.target.value); setAssetSaveResult("idle"); }}
+                      className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none">
+                      {HW_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                    <button onClick={saveAssetStatus} disabled={assetSaving || assetStatus === assetData.status}
+                      className="text-xs px-2.5 py-1 rounded-lg bg-gray-700 text-white font-medium hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed">
+                      {assetSaving ? "저장 중…" : "저장"}
+                    </button>
+                    {assetSaveResult === "done" && <span className="text-xs text-green-600">✓</span>}
+                    {assetSaveResult === "error" && <span className="text-xs text-red-500">실패</span>}
+                  </div>
+                </div>
+              )}
+
+              {/* 2행: 유형 · 긴급도 · 상태 배지 + 접수일 */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {ticket.inquiryType && (
+                  <span className="text-[11px] font-semibold text-violet-700 bg-violet-50 px-2 py-0.5 rounded">
+                    {ticket.inquiryType}
+                  </span>
+                )}
+                {ticket.urgency && <UrgencyBadge urgency={ticket.urgency} />}
+                <StatusBadge status={selectedStatus} />
+                {ticket.submittedAt && (
+                  <span className="text-[11px] text-gray-400 ml-auto">{formatDateTime(ticket.submittedAt)}</span>
+                )}
+              </div>
+
+              {/* 하단: 문의 내용 */}
+              <div>
+                <span className="text-[11px] text-gray-400 block mb-1.5">문의 내용</span>
+                <div className="bg-gray-50 rounded-xl p-4 min-h-[120px] max-h-[300px] overflow-y-auto">
+                  <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
+                    {ticket.content || ticket.title || "—"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* ── 우측: 처리 워크플로우 ── */}
+            <div className="px-7 py-5 flex flex-col">
+              {/* ━━ 시작 전 ━━ */}
+              {selectedStatus === "시작 전" && (
+                <div className="flex-1 flex flex-col items-center justify-center gap-4">
+                  <p className="text-sm text-gray-500 mb-2">담당자를 배정하면 자동으로 <strong>진행 중</strong>으로 전환됩니다.</p>
+
+                  {/* 내가 담당 */}
+                  <button
+                    onClick={() => assignAndStart(currentUserName)}
+                    disabled={assignSaving || !myAssignee?.id}
+                    className="w-full max-w-xs py-4 rounded-xl bg-violet-600 text-white font-bold text-base hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                  >
+                    {assignSaving ? (
+                      <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity="0.25"/><path d="M21 12a9 9 0 00-9-9"/>
+                      </svg>
+                    ) : (
+                      <>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+                          <circle cx="12" cy="7" r="4"/>
+                        </svg>
+                        내가 담당
+                      </>
+                    )}
+                  </button>
+                  {!myAssignee?.id && currentUserName && (
+                    <p className="text-xs text-amber-600 text-center">담당자 목록에 본인({currentUserName})을 먼저 등록하세요.</p>
+                  )}
+
+                  {/* 다른 담당자 배정 */}
+                  {!showOtherAssignee ? (
+                    <button
+                      onClick={() => setShowOtherAssignee(true)}
+                      className="w-full max-w-xs py-3.5 rounded-xl border-2 border-gray-200 text-gray-700 font-semibold text-base hover:border-gray-300 hover:bg-gray-50 transition-colors"
+                    >
+                      다른 담당자 배정
+                    </button>
+                  ) : (
+                    <div className="w-full max-w-xs space-y-2">
+                      <select
+                        value={selectedAssignee}
+                        onChange={e => setSelectedAssignee(e.target.value)}
+                        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-violet-200"
+                      >
+                        <option value="">담당자 선택</option>
+                        {assigneeList.map(u => <option key={u.id || u.name} value={u.name}>{u.name}</option>)}
+                      </select>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => assignAndStart(selectedAssignee)}
+                          disabled={assignSaving || !selectedAssignee}
+                          className="flex-1 py-2 rounded-lg bg-gray-800 text-white text-sm font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {assignSaving ? "배정 중…" : "배정"}
+                        </button>
+                        <button
+                          onClick={() => setShowOtherAssignee(false)}
+                          className="px-4 py-2 rounded-lg border border-gray-200 text-gray-600 text-sm hover:bg-gray-50 transition-colors"
+                        >
+                          취소
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ━━ 진행 중 ━━ */}
+              {selectedStatus === "진행 중" && (
+                <div className="flex-1 flex flex-col gap-4">
+                  {/* 담당자 표시 */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-400">담당자</span>
+                    <span className="text-sm font-semibold text-gray-800">{selectedAssignee || "미배정"}</span>
+                    <select
+                      value={selectedAssignee}
+                      onChange={e => { setSelectedAssignee(e.target.value); setSaveResult(p => ({ ...p, assignee: undefined as unknown as "done" })); }}
+                      className="text-xs border border-gray-200 rounded-lg px-1.5 py-0.5 bg-white focus:outline-none ml-auto"
+                    >
+                      <option value="">미배정</option>
+                      {ticket.assignee && !assigneeList.find(u => u.name === ticket.assignee) && (
+                        <option value={ticket.assignee}>{ticket.assignee}</option>
+                      )}
+                      {assigneeList.map(u => <option key={u.id || u.name} value={u.name}>{u.name}</option>)}
+                    </select>
+                  </div>
+
+                  {!showCompleteForm ? (
+                    <div className="flex-1 flex items-center justify-center">
+                      <button
+                        onClick={() => setShowCompleteForm(true)}
+                        className="w-full max-w-xs py-4 rounded-xl bg-emerald-600 text-white font-bold text-base hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        완료 처리
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4 flex-1 overflow-y-auto">
+                      {/* 조치분류 */}
+                      <div>
+                        <span className="text-xs text-gray-500 font-semibold block mb-1.5">조치분류</span>
+                        <ActionCategoryTree
+                          selected={selectedCategories}
+                          onChange={v => { setSelectedCategories(v); setCategorySaveResult("idle"); }}
+                        />
+                      </div>
+
+                      {/* 조치방법 */}
+                      <div>
+                        <span className="text-xs text-gray-500 font-semibold block mb-1.5">조치방법</span>
+                        <div className="flex flex-wrap gap-2">
+                          {(["원격", "방문", "메신저/메일", "기타"] as const).map(m => (
+                            <button key={m} type="button"
+                              onClick={() => setSelectedMethod(selectedMethod === m ? "" : m)}
+                              className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
+                                selectedMethod === m
+                                  ? "bg-violet-600 border-violet-600 text-white"
+                                  : "bg-white border-gray-200 text-gray-600 hover:border-violet-300 hover:text-violet-600"
+                              }`}>
+                              {m}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* 조치내용 */}
+                      <div>
+                        <span className="text-xs text-gray-500 font-semibold block mb-1.5">조치내용</span>
+                        <textarea
+                          ref={textareaRef}
+                          defaultValue={noteValue}
+                          rows={4}
+                          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-violet-200 resize-none"
+                          placeholder="조치 내역을 입력하세요"
+                        />
+                      </div>
+
+                      {/* 완료 처리 버튼 */}
+                      <div className="flex items-center gap-2 pt-1">
+                        <button
+                          onClick={completeTicket}
+                          disabled={allSaving || !canComplete}
+                          className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {allSaving ? "처리 중…" : "완료 처리"}
+                        </button>
+                        <button
+                          onClick={() => setShowCompleteForm(false)}
+                          className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm hover:bg-gray-50 transition-colors"
+                        >
+                          취소
+                        </button>
+                      </div>
+                      {!canComplete && (
+                        <p className="text-xs text-amber-600">조치분류, 조치방법, 조치내용 중 하나 이상 입력해주세요.</p>
+                      )}
+                      {allSaveResult === "error" && <p className="text-xs text-red-500">완료 처리 실패</p>}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ━━ 완료 ━━ */}
+              {selectedStatus === "완료" && (
+                <div className="flex-1 space-y-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-sm font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full">완료</span>
+                    {selectedAssignee && (
+                      <span className="text-sm text-gray-600">담당: {selectedAssignee}</span>
+                    )}
+                  </div>
+                  {/* 조치분류 */}
+                  {selectedCategories.length > 0 && (
+                    <div>
+                      <span className="text-[11px] text-gray-400 block mb-1">조치분류</span>
+                      <div className="flex flex-wrap gap-1">
+                        {selectedCategories.map(c => (
+                          <span key={c} className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">{c}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* 조치방법 */}
+                  {selectedMethod && (
+                    <div>
+                      <span className="text-[11px] text-gray-400 block mb-1">조치방법</span>
+                      <span className="text-sm text-gray-700">{selectedMethod}</span>
+                    </div>
+                  )}
+                  {/* 조치내용 */}
+                  <div>
+                    <span className="text-[11px] text-gray-400 block mb-1">조치내용</span>
+                    {editingNote ? (
+                      <div className="space-y-2">
+                        <textarea
+                          ref={textareaRef}
+                          defaultValue={noteValue}
+                          rows={4}
+                          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-violet-200 resize-none"
+                          autoFocus
+                        />
+                        <div className="flex items-center gap-2">
+                          <button onClick={saveNote} disabled={noteSaving}
+                            className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                            {noteSaving ? "저장 중…" : "저장"}
+                          </button>
+                          <button onClick={() => { setEditingNote(false); setNoteSaveResult("idle"); }}
+                            className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
+                            취소
+                          </button>
+                          {noteSaveResult === "error" && <span className="text-xs text-red-500">실패</span>}
+                        </div>
+                      </div>
+                    ) : (
+                      <div onClick={() => { setEditingNote(true); setNoteSaveResult("idle"); }}
+                        className="group cursor-pointer rounded-lg px-3 py-2 hover:bg-gray-50 transition-colors min-h-[2.5rem] flex items-start gap-2 bg-gray-50">
+                        <p className="text-sm leading-relaxed text-gray-700 flex-1 whitespace-pre-wrap">
+                          {noteValue || <span className="text-gray-400 italic">클릭하여 편집</span>}
+                        </p>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                          className="shrink-0 mt-0.5 opacity-0 group-hover:opacity-40 transition-opacity">
+                          <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                          <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 시작 전 / 진행 중 / 완료 이외 상태 — 기본 편집 UI */}
+              {selectedStatus !== "시작 전" && selectedStatus !== "진행 중" && selectedStatus !== "완료" && (
+                <div className="flex-1 space-y-4">
+                  <div>
+                    <span className="text-xs text-gray-500 font-semibold block mb-1">상태</span>
+                    <div className="flex items-center gap-2">
+                      <select value={selectedStatus}
+                        onChange={e => { setSelectedStatus(e.target.value); setSaveResult(p => ({ ...p, status: undefined as unknown as "done" })); }}
+                        className="text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-violet-200">
+                        {allStatuses.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                      <button onClick={() => saveField("status")} disabled={saving === "status" || selectedStatus === ticket.status}
+                        className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                        {saving === "status" ? "저장 중…" : "저장"}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-xs text-gray-500 font-semibold block mb-1">담당자</span>
+                    <div className="flex items-center gap-2">
+                      <select value={selectedAssignee}
+                        onChange={e => { setSelectedAssignee(e.target.value); setSaveResult(p => ({ ...p, assignee: undefined as unknown as "done" })); }}
+                        className="text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-violet-200">
+                        <option value="">미배정</option>
+                        {assigneeList.map(u => <option key={u.id || u.name} value={u.name}>{u.name}</option>)}
+                      </select>
+                      <button onClick={() => saveField("assignee")} disabled={saving === "assignee" || selectedAssignee === (ticket.assignee ?? "")}
+                        className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                        {saving === "assignee" ? "저장 중…" : "저장"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Sticky Footer */}
-        <div className="px-7 py-4 border-t border-gray-100 flex items-center justify-between gap-3 flex-shrink-0">
-          <div>
+        {/* Footer */}
+        <div className="px-7 py-3 border-t border-gray-100 flex items-center justify-between gap-3 flex-shrink-0">
+          <div className="flex items-center gap-3">
             {ticket.notionUrl && (
               <a href={ticket.notionUrl} target="_blank" rel="noopener noreferrer"
-                className="text-sm text-blue-600 hover:underline flex items-center gap-1.5">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
                   <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
                 </svg>
@@ -858,18 +1055,10 @@ function HelpDeskTicketFloating({
               </a>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            {allSaveResult === "done"  && <span className="text-xs text-green-600">✓ 저장됨</span>}
-            {allSaveResult === "error" && <span className="text-xs text-red-500">저장 실패</span>}
-            <button onClick={onClose}
-              className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
-              닫기
-            </button>
-            <button onClick={saveAll} disabled={allSaving}
-              className="text-sm px-4 py-2 rounded-lg bg-gray-900 text-white font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-              {allSaving ? "저장 중…" : "전체 저장"}
-            </button>
-          </div>
+          <button onClick={onClose}
+            className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
+            닫기
+          </button>
         </div>
       </div>
     </div>
@@ -1264,7 +1453,7 @@ function generateReportHTML(opts: {
 // ── Main Panel ───────────────────────────────────────────────
 type Tab = "overview" | "type" | "company" | "list" | "status_list" | "report" | "assignee" | "analysis";
 
-export default function HelpDeskPanel({ company: companyFilter = "", typeFilter = "" }: { company?: string; typeFilter?: string }) {
+export default function HelpDeskPanel({ company: companyFilter = "", typeFilter = "", currentUserName = "" }: { company?: string; typeFilter?: string; currentUserName?: string }) {
   const [tickets,    setTickets]    = useState<HelpDeskTicket[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -2295,27 +2484,31 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
             <table className="data-table">
               <thead>
                 <tr>
-                  {["상태","유형","긴급도","법인","부서","문의자","자산번호","문의내용","접수일","담당자","노션"].map(h => (
+                  {["상태","유형","법인","부서","문의자","자산번호","문의내용","긴급도","담당자","접수일"].map(h => (
                     <th key={h}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {filteredList.length === 0 ? (
-                  <tr><td colSpan={11} className="text-center text-gray-400 py-10">데이터 없음</td></tr>
+                  <tr><td colSpan={10} className="text-center text-gray-400 py-10">데이터 없음</td></tr>
                 ) : filteredList.map(t => (
                   <tr key={t.id}>
+                    {/* 상태 */}
                     <td><InlineStatusCell ticket={t} statuses={uniqueStatuses} onUpdated={handleTicketUpdated} /></td>
+                    {/* 유형 */}
                     <td>
                       <span className="text-[10px] font-semibold text-violet-700 bg-violet-50 px-1.5 py-0.5 rounded whitespace-nowrap">
                         {t.inquiryType || "—"}
                       </span>
                     </td>
-                    <td><UrgencyBadge urgency={t.urgency} /></td>
+                    {/* 법인 */}
                     <td className="text-sm text-gray-600 whitespace-nowrap">{t.company || "—"}</td>
+                    {/* 부서 */}
                     <td className="text-sm text-gray-500 max-w-[7rem]">
                       <p className="truncate" title={t.department}>{t.department || "—"}</p>
                     </td>
+                    {/* 문의자 */}
                     <td>
                       {t.requester ? (
                         <button
@@ -2341,6 +2534,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                         <span className="text-sm text-gray-400">—</span>
                       )}
                     </td>
+                    {/* 자산번호 */}
                     <td className="text-sm font-mono">
                       {t.assetNo ? (() => {
                         const history = assetTicketsMap.get(t.assetNo.toLowerCase()) || [];
@@ -2415,6 +2609,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                         <span className="text-gray-400">—</span>
                       )}
                     </td>
+                    {/* 문의내용 */}
                     <td className="max-w-xs">
                       <button
                         onClick={e => { e.stopPropagation(); setFloatingTicket(t); }}
@@ -2428,21 +2623,13 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                         )}
                       </button>
                     </td>
-                    <td className="text-xs text-gray-400 whitespace-nowrap">
-                      {(t.submittedAt || "").slice(0, 10) || "—"}
-                    </td>
+                    {/* 긴급도 */}
+                    <td><UrgencyBadge urgency={t.urgency} /></td>
+                    {/* 담당자 */}
                     <td><InlineAssigneeCell ticket={t} assigneeList={assigneeList} onUpdated={handleTicketUpdated} /></td>
-                    <td>
-                      {t.notionUrl && (
-                        <a href={t.notionUrl} target="_blank" rel="noopener noreferrer"
-                          className="text-blue-600 text-xs flex items-center gap-1 hover:underline">
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
-                            <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-                          </svg>
-                          보기
-                        </a>
-                      )}
+                    {/* 접수일 (24시간제 HH:mm:ss) */}
+                    <td className="text-xs text-gray-400 whitespace-nowrap">
+                      {formatDateTime(t.submittedAt)}
                     </td>
                   </tr>
                 ))}
@@ -2462,6 +2649,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
           statuses={uniqueStatuses}
           onClose={() => setFloatingTicket(null)}
           onUpdated={handleTicketUpdated}
+          currentUserName={currentUserName}
         />
       )}
 
