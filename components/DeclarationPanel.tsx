@@ -245,19 +245,19 @@ function Step1({ onNext }: { onNext: (info: UserInfo, records: SwRecord[]) => vo
   };
 
   return (
-    <div className="max-w-md mx-auto">
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center shrink-0">
+    <div className="max-w-lg mx-auto">
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-9 h-9 rounded-lg bg-amber-500 flex items-center justify-center shrink-0">
             <span className="text-white text-xs font-extrabold">SW</span>
           </div>
           <div>
-            <h2 className="font-bold text-gray-900 text-base">본인 확인</h2>
+            <h2 className="font-bold text-gray-900 text-sm">본인 확인</h2>
             <p className="text-xs text-gray-500 mt-0.5">법인명 + 이름으로 등록된 SW를 조회합니다</p>
           </div>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-3">
           <Sel label="법인명" required value={company} options={COMPANIES} onChange={setCompany} />
           <Inp label="부서"   required value={dept}    onChange={setDept}    placeholder="예: 포털팀" />
           <Inp label="이름"   required value={name}    onChange={setName}    placeholder="예: 홍길동" />
@@ -526,10 +526,10 @@ function Step2({ userInfo, initialRecords, onComplete }: {
   const fmtUsd = (n: number) => n > 0 ? `$${n}` : null;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-4">
+    <div className="max-w-3xl mx-auto space-y-3">
 
       {/* 사용자 배너 */}
-      <div className="bg-amber-500 text-white rounded-2xl p-4 flex items-center gap-4">
+      <div className="bg-amber-500 text-white rounded-2xl p-3.5 flex items-center gap-3">
         <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-xl shrink-0">👤</div>
         <div className="flex-1">
           <p className="font-bold text-sm">{userInfo.name}</p>
@@ -724,12 +724,12 @@ function Step3({ userInfo, records, added, onReset }: {
   });
 
   return (
-    <div className="max-w-md mx-auto space-y-4">
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-md p-8 text-center">
-        <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+    <div className="max-w-lg mx-auto space-y-3">
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-md p-6 text-center">
+        <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-3">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
         </div>
-        <h2 className="text-xl font-bold text-gray-900">실사 완료!</h2>
+        <h2 className="text-lg font-bold text-gray-900">실사 완료!</h2>
         <p className="text-sm text-gray-500 mt-1">
           <span className="font-semibold text-gray-700">{userInfo.name}</span>님의 SW 자산 실사가 완료되었습니다
         </p>
@@ -829,11 +829,11 @@ function Step3({ userInfo, records, added, onReset }: {
 function ModeSelect({ onSelect }: { onSelect: (m: "personal" | "team") => void }) {
   return (
     <div className="max-w-lg mx-auto">
-      <p className="text-center text-sm text-gray-500 mb-4">실사 방식을 선택해주세요</p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <p className="text-center text-sm text-gray-500 mb-3">실사 방식을 선택해주세요</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <button onClick={() => onSelect("personal")}
-          className="bg-white rounded-2xl border border-gray-200 shadow-sm p-7 text-left hover:border-amber-400 hover:shadow-lg hover:-translate-y-0.5 transition-all flex flex-col gap-4">
-          <div className="w-14 h-14 rounded-xl bg-amber-500 flex items-center justify-center shrink-0">
+          className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 text-left hover:border-amber-400 hover:shadow-lg hover:-translate-y-0.5 transition-all flex flex-col gap-3">
+          <div className="w-12 h-12 rounded-xl bg-amber-500 flex items-center justify-center shrink-0">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           </div>
           <div className="flex-1">
@@ -843,8 +843,8 @@ function ModeSelect({ onSelect }: { onSelect: (m: "personal" | "team") => void }
           <span className="text-amber-500 text-xs font-semibold">시작하기 →</span>
         </button>
         <button onClick={() => onSelect("team")}
-          className="bg-white rounded-2xl border border-gray-200 shadow-sm p-7 text-left hover:border-amber-400 hover:shadow-lg hover:-translate-y-0.5 transition-all flex flex-col gap-4">
-          <div className="w-14 h-14 rounded-xl bg-amber-500 flex items-center justify-center shrink-0">
+          className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 text-left hover:border-amber-400 hover:shadow-lg hover:-translate-y-0.5 transition-all flex flex-col gap-3">
+          <div className="w-12 h-12 rounded-xl bg-amber-500 flex items-center justify-center shrink-0">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           </div>
           <div className="flex-1">
@@ -957,12 +957,12 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
 
   if (confirmed) {
     return (
-      <div className="max-w-md mx-auto">
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-md p-8 text-center">
-          <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+      <div className="max-w-lg mx-auto">
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-md p-6 text-center">
+          <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-3">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
           </div>
-          <h2 className="text-xl font-bold text-gray-900">실사 완료!</h2>
+          <h2 className="text-lg font-bold text-gray-900">실사 완료!</h2>
           <p className="text-sm text-gray-500 mt-1">
             <span className="font-semibold text-gray-700">{company} · {dept}</span> 부서의 SW 자산 현황 확인이 완료되었습니다
           </p>
@@ -978,14 +978,14 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
 
   if (records === null) {
     return (
-      <div className="max-w-md mx-auto">
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center shrink-0">
+      <div className="max-w-lg mx-auto">
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-9 h-9 rounded-lg bg-amber-500 flex items-center justify-center shrink-0">
               <span className="text-white text-xs font-extrabold">T</span>
             </div>
             <div>
-              <h2 className="font-bold text-gray-900 text-base">팀(부서) 확인</h2>
+              <h2 className="font-bold text-gray-900 text-sm">팀(부서) 확인</h2>
               <p className="text-xs text-gray-500 mt-0.5">법인명 + 부서로 등록된 팀 전체 SW를 조회합니다</p>
             </div>
           </div>
@@ -1007,9 +1007,9 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-4">
+    <div className="max-w-3xl mx-auto space-y-3">
       {/* 팀 배너 */}
-      <div className="bg-amber-500 text-white rounded-2xl p-4 flex items-center gap-4">
+      <div className="bg-amber-500 text-white rounded-2xl p-3.5 flex items-center gap-3">
         <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0">
           <span className="text-sm font-extrabold">T</span>
         </div>
@@ -1161,7 +1161,7 @@ const STEPS = ["본인 확인", "SW 현황 확인", "완료"];
 
 function StepBar({ current }: { current: number }) {
   return (
-    <div className="flex items-center gap-1 mb-6">
+    <div className="flex items-center gap-1 mb-4">
       {STEPS.map((label, i) => (
         <div key={i} className="flex items-center gap-1.5">
           <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
@@ -1198,7 +1198,7 @@ export default function DeclarationPanel() {
   return (
     <div>
       {/* 상단 인포 바 */}
-      <div className="flex items-center gap-2.5 rounded-xl bg-amber-50 border border-amber-200 px-4 py-2.5 mb-5">
+      <div className="flex items-center gap-2.5 rounded-xl bg-amber-50 border border-amber-200 px-4 py-2 mb-4">
         {mode !== null && (
           <button onClick={reset}
             className="text-amber-400 hover:text-amber-600 transition-colors shrink-0 -ml-0.5">
