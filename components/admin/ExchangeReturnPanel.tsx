@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import type { ExchangeReturnRecord, SwDbRecord } from "@/types";
 import type { HwRecord } from "@/lib/hw";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
+import { Tooltip } from "@/components/ui/Tooltip";
 import { LabelPrintTab, PrintQueueSection } from "@/components/admin/LabelPrintTab";
 import { safeJson } from "@/lib/fetch-json";
 
@@ -3954,7 +3955,9 @@ export default function ExchangeReturnPanel() {
                     }
                   </td>
                   {/* 메모 */}
-                  <td className="text-xs text-gray-500 max-w-[160px] truncate" title={r.note || ""}>{r.note || "—"}</td>
+                  <td className="text-xs text-gray-500 max-w-[160px] truncate">
+                    <Tooltip content={r.note || ""}>{r.note || "—"}</Tooltip>
+                  </td>
                   {/* 사용일자 */}
                   <td className="text-xs text-gray-500 whitespace-nowrap">{r.useDate ? fmtDate(r.useDate) : "—"}</td>
                   {/* 최종수정 */}
