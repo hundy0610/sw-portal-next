@@ -50,9 +50,9 @@ export default function NotificationBell({ onNavigate }: Props) {
         setItems(next);
         setUnreadCount(json.unreadCount ?? 0);
 
-        // 이전 폴링 이후 새로 나타난 항목만 하단 팝업으로 표시
+        // 이전 폴링 이후 새로 나타난 항목만 하단 팝업으로 표시 (SW 갱신임박은 건수가 많아 팝업 제외, 벨 드롭다운에서만 확인)
         if (knownIdsRef.current) {
-          const newOnes = next.filter(n => !n.read && !knownIdsRef.current!.has(n.id));
+          const newOnes = next.filter(n => !n.read && n.category !== "sw-expiry" && !knownIdsRef.current!.has(n.id));
           if (newOnes.length > 0) {
             setToasts(prev => [...prev, ...newOnes.filter(n => !prev.some(p => p.id === n.id))]);
           }
@@ -109,6 +109,10 @@ export default function NotificationBell({ onNavigate }: Props) {
 
   const dismissToast = (id: string) => {
     setToasts(prev => prev.filter(t => t.id !== id));
+  };
+
+  const dismissAllToasts = () => {
+    setToasts([]);
   };
 
   const handleToastClick = (item: NotificationItem) => {
@@ -177,6 +181,14 @@ export default function NotificationBell({ onNavigate }: Props) {
     {/* 신규 알림 팝업 — 화면 하단, 직접 닫기 전까지 유지 */}
     {toasts.length > 0 && (
       <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 w-80">
+        {toasts.length > 1 && (
+          <button
+            onClick={dismissAllToasts}
+            className="self-end px-2 py-1 text-xs text-gray-500 bg-white rounded-md shadow border border-gray-100 hover:bg-gray-50"
+          >
+            전체 닫기 ({toasts.length})
+          </button>
+        )}
         {toasts.map(item => {
           const s = SEVERITY_STYLE[item.severity];
           return (
