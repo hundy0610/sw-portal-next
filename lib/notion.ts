@@ -7,7 +7,7 @@ import type {
 } from "@notionhq/client/build/src/api-endpoints";
 import type { SwItem, SwDbRecord, Subscription, LicenseItem, LicenseRecord, Ticket, RepairTicket, HwRepairRecord } from "@/types";
 import type { SwCredential } from "@/components/admin/CredentialsPanel";
-import type { SwFile, SwVersion, SwDoc } from "@/types/portal";
+import type { SwFile, SwVersion, SwDoc, Manual } from "@/types/portal";
 import {
   isMock,
   mockSwItems, mockSwDatabase, mockSubscriptions, mockLicenses,
@@ -1360,6 +1360,109 @@ export async function updateSwDoc(
 }
 
 export async function archiveSwDoc(id: string): Promise<void> {
+  await notion.pages.update({ page_id: id, archived: true });
+}
+
+// ────────────────────────────────────────────────────────────
+// 매뉴얼 (HTML 직배포)
+// ────────────────────────────────────────────────────────────
+function mapManual(page: PageObjectResponse): Manual {
+  const p = page.properties;
+
+  let fileUrl: string | undefined;
+  let fileName: string | undefined;
+  const filesProp = p["파일과 미디어"] as any;
+  if (filesProp?.type === "files" && filesProp.files?.length > 0) {
+    const f = filesProp.files[0];
+    fileUrl  = f.type === "file" ? f.file?.url : f.external?.url;
+    fileName = f.name || undefined;
+  }
+
+  return {
+    id: page.id,
+    title: getPropText(p, "제목"),
+    slug: getPropText(p, "슬러그"),
+    category: getPropSelect(p, "카테고리"),
+    description: getPropText(p, "설명"),
+    visible: getPropCheckbox(p, "공개 여부"),
+    order: getPropNumber(p, "순서"),
+    fileUrl,
+    fileName,
+  };
+}
+
+export async function fetchManuals(onlyVisible = true): Promise<Manual[]> {
+  const dbId = process.env.NOTION_DB_MANUALS;
+  if (!dbId) return [];
+
+  const filter: QueryDatabaseParameters["filter"] | undefined = onlyVisible
+    ? { property: "공개 여부", checkbox: { equals: true } }
+    : undefined;
+
+  const pages = await queryAllPages(
+    dbId, filter,
+    [{ property: "순서", direction: "ascending" }]
+  );
+
+  return pages.map(mapManual);
+}
+
+// allowHidden: true면 비공개 매뉴얼도 조회 (관리자 미리보기용)
+export async function fetchManualBySlug(slug: string, allowHidden = false): Promise<Manual | null> {
+  const dbId = process.env.NOTION_DB_MANUALS;
+  if (!dbId) return null;
+
+  const filter: QueryDatabaseParameters["filter"] = allowHidden
+    ? { property: "슬러그", rich_text: { equals: slug } }
+    : { and: [
+        { property: "슬러그",   rich_text: { equals: slug } },
+        { property: "공개 여부", checkbox: { equals: true } },
+      ] };
+
+  const pages = await queryAllPages(dbId, filter);
+  return pages[0] ? mapManual(pages[0]) : null;
+}
+
+export async function createManual(
+  data: Omit<Manual, "id">,
+  opts?: { fileUploadId?: string }
+): Promise<string> {
+  const dbId = process.env.NOTION_DB_MANUALS;
+  if (!dbId) throw new Error("NOTION_DB_MANUALS not set");
+  const props: Record<string, unknown> = {
+    "제목":     { title:     [{ text: { content: data.title } }] },
+    "슬러그":   { rich_text: [{ text: { content: data.slug } }] },
+    "설명":     { rich_text: [{ text: { content: data.description } }] },
+    "공개 여부": { checkbox:  data.visible },
+    "순서":     { number:    data.order },
+  };
+  if (data.category) props["카테고리"] = { select: { name: data.category } };
+  if (opts?.fileUploadId) {
+    props["파일과 미디어"] = { files: [{ type: "file_upload", file_upload: { id: opts.fileUploadId } }] };
+  }
+  const res = await notion.pages.create({ parent: { database_id: dbId }, properties: props as Parameters<typeof notion.pages.create>[0]["properties"] });
+  return res.id;
+}
+
+export async function updateManual(
+  id: string,
+  data: Partial<Omit<Manual, "id">>,
+  opts?: { fileUploadId?: string }
+): Promise<void> {
+  const props: Record<string, unknown> = {};
+  if (data.title       !== undefined) props["제목"]     = { title:     [{ text: { content: data.title } }] };
+  if (data.slug        !== undefined) props["슬러그"]   = { rich_text: [{ text: { content: data.slug } }] };
+  if (data.category    !== undefined) props["카테고리"] = { select:    { name: data.category } };
+  if (data.description !== undefined) props["설명"]     = { rich_text: [{ text: { content: data.description } }] };
+  if (data.visible     !== undefined) props["공개 여부"] = { checkbox:  data.visible };
+  if (data.order       !== undefined) props["순서"]     = { number:    data.order };
+  if (opts?.fileUploadId) {
+    props["파일과 미디어"] = { files: [{ type: "file_upload", file_upload: { id: opts.fileUploadId } }] };
+  }
+  await notion.pages.update({ page_id: id, properties: props as Parameters<typeof notion.pages.update>[0]["properties"] });
+}
+
+export async function archiveManual(id: string): Promise<void> {
   await notion.pages.update({ page_id: id, archived: true });
 }
 

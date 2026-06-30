@@ -58,3 +58,15 @@ export interface SwDoc {
   fileUrl?: string;    // 첨부 파일 URL (Notion 서명 URL 또는 외부 URL)
   fileName?: string;   // 첨부 파일 원본명
 }
+
+export interface Manual {
+  id: string;
+  title: string;        // 제목
+  slug: string;         // 슬러그 (공개 링크 /manual/{slug})
+  category: string;     // 카테고리
+  description: string;  // 설명
+  visible: boolean;     // 공개 여부
+  order: number;        // 순서
+  fileUrl?: string;     // 첨부된 HTML 파일의 Notion 서명 URL
+  fileName?: string;    // 첨부 파일 원본명
+}

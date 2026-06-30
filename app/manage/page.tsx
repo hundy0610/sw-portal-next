@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo, Suspense } from "react";
-import type { Notice, Course, SwVersion, SwDoc } from "@/types/portal";
+import type { Notice, Course, SwVersion, SwDoc, Manual } from "@/types/portal";
 import type { AuditLog } from "@/lib/portal-store";
 import type { SwItem } from "@/types";
 import { safeJson } from "@/lib/fetch-json";
@@ -21,7 +21,7 @@ const C = {
   dangerSoft:  "#FEE2E2",
 } as const;
 
-type ManageTab = "notices" | "courses" | "swdb" | "audit" | "swresources";
+type ManageTab = "notices" | "courses" | "swdb" | "audit" | "swresources" | "manuals";
 
 interface SessionInfo {
   name: string;
@@ -85,6 +85,7 @@ function ManageDashboard({ session }: { session: SessionInfo }) {
     { id: "courses",     label: "교육과정",   icon: "🎓" },
     { id: "swresources", label: "SW 자료실",  icon: "💿" },
     { id: "swdb",        label: "SW 검색",    icon: "🔍" },
+    { id: "manuals",     label: "매뉴얼",     icon: "📘" },
     { id: "audit",       label: "감사 로그",  icon: "🕵️" },
   ];
 
@@ -133,6 +134,7 @@ function ManageDashboard({ session }: { session: SessionInfo }) {
         {tab === "courses"     && <CoursesPanel      />}
         {tab === "swresources" && <SwResourcesPanel  />}
         {tab === "swdb"        && <SwPanel           />}
+        {tab === "manuals"     && <ManualsPanel      />}
         {tab === "audit"       && <AuditPanel        />}
       </main>
     </div>
@@ -486,7 +488,7 @@ function AuditPanel() {
   };
 
   const TARGET_LABEL: Partial<Record<AuditLog["target"], string>> = {
-    notices: "공지사항", courses: "교육과정", swdb: "SW 검색", swresources: "SW 자료실",
+    notices: "공지사항", courses: "교육과정", swdb: "SW 검색", swresources: "SW 자료실", manuals: "매뉴얼",
   };
 
   function formatTime(iso: string) {
@@ -1035,6 +1037,197 @@ function SwResourcesPanel() {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════
+   매뉴얼 패널
+══════════════════════════════════════════════════════ */
+function ManualsPanel() {
+  const [items,      setItems]      = useState<Manual[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [saving,     setSaving]     = useState(false);
+  const [adding,     setAdding]     = useState(false);
+  const [editing,    setEditing]    = useState<Manual | null>(null);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploading,  setUploading]  = useState(false);
+
+  const BLANK = { title: "", slug: "", category: "", description: "", visible: true, order: 0 };
+  const [form, setForm] = useState(BLANK);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetch("/api/manuals?all=1").then(r => safeJson(r)).then(res => setItems(res.data ?? [])).finally(() => setLoading(false));
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  function startAdd() { setForm(BLANK); setEditing(null); setUploadFile(null); setAdding(true); }
+  function startEdit(item: Manual) {
+    setForm({ title: item.title, slug: item.slug, category: item.category, description: item.description, visible: item.visible, order: item.order });
+    setEditing(item); setUploadFile(null); setAdding(true);
+  }
+
+  async function handleSave() {
+    if (!form.title.trim() || !form.slug.trim()) return;
+    setSaving(true);
+    try {
+      let fileUploadId: string | undefined;
+      if (uploadFile) {
+        setUploading(true);
+        const fd = new FormData();
+        fd.append("file", uploadFile, uploadFile.name);
+        const res = await fetch("/api/manuals/upload", { method: "POST", body: fd });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({ error: res.statusText }));
+          throw new Error(errData.error || "업로드 실패");
+        }
+        const data = await res.json();
+        fileUploadId = data.fileUploadId;
+        setUploading(false);
+      }
+
+      const body = editing
+        ? { _action: "update", id: editing.id, data: { ...form, fileUploadId } }
+        : { ...form, fileUploadId };
+      const res = await fetch("/api/manuals", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(errData.error || "저장 실패");
+      }
+
+      setAdding(false); setEditing(null); setForm(BLANK); setUploadFile(null);
+      load();
+    } catch (e) {
+      alert(`저장 실패: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setSaving(false); setUploading(false);
+    }
+  }
+
+  async function del(item: Manual) {
+    if (!confirm(`"${item.title}" 을(를) 삭제하시겠습니까?`)) return;
+    await fetch("/api/manuals", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ _action: "delete", id: item.id }) });
+    load();
+  }
+
+  async function toggleVisible(item: Manual) {
+    await fetch("/api/manuals", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ _action: "update", id: item.id, data: { visible: !item.visible } }) });
+    load();
+  }
+
+  function copyLink(slug: string) {
+    const url = `${window.location.origin}/manual/${slug}`;
+    navigator.clipboard.writeText(url);
+    alert(`링크가 복사되었습니다.\n${url}`);
+  }
+
+  return (
+    <div>
+      <SectionHeader title="매뉴얼 관리" count={items.length} onAdd={startAdd} />
+
+      {(adding || editing) && (
+        <FormCard title={editing ? "매뉴얼 수정" : "새 매뉴얼"} onCancel={() => { setAdding(false); setEditing(null); setUploadFile(null); }} onSave={handleSave} saving={saving || uploading} disabled={!form.title.trim() || !form.slug.trim()}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Field label="제목 *"><input style={iStyle} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="예: 설치 가이드" /></Field>
+            <Field label="슬러그 (링크 주소) *">
+              <input style={iStyle} value={form.slug}
+                onChange={e => setForm(f => ({ ...f, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") }))}
+                placeholder="예: install-guide" />
+            </Field>
+          </div>
+          <p style={{ fontSize: 11, color: C.text4, margin: "-8px 0 0" }}>
+            링크: {typeof window !== "undefined" ? window.location.origin : ""}/manual/{form.slug || "..."}
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Field label="카테고리"><input style={iStyle} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} placeholder="예: 설치, 운영" /></Field>
+            <Field label="순서"><input type="number" style={iStyle} value={form.order} onChange={e => setForm(f => ({ ...f, order: +e.target.value }))} /></Field>
+          </div>
+          <Field label="설명 (관리자 목록용)"><input style={iStyle} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="간단한 설명" /></Field>
+
+          <div style={{ borderRadius: 12, border: `1px solid ${C.border}`, padding: 16, background: "#f8fafc", display: "flex", flexDirection: "column", gap: 10 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: C.text2, margin: 0 }}>HTML 파일 업로드 (4MB 이하)</p>
+
+            {editing?.fileUrl && !uploadFile && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: C.text3 }}>
+                <span style={{ padding: "2px 8px", borderRadius: 6, background: "#D1FAE5", color: "#065F46", fontWeight: 700, fontSize: 11 }}>현재 파일</span>
+                <span>{editing.fileName || editing.title}</span>
+                <a href={`/manual/${editing.slug}`} target="_blank" rel="noopener noreferrer" style={{ color: C.primary, fontSize: 11 }}>미리보기</a>
+              </div>
+            )}
+
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 10, border: `1px solid ${C.border}`, background: "#fff", cursor: "pointer", fontSize: 12, color: C.text2, fontWeight: 600, width: "fit-content" }}>
+              📎 HTML 파일 선택
+              <input type="file" accept=".html,.htm" style={{ display: "none" }} onChange={e => {
+                const f = e.target.files?.[0] ?? null;
+                if (!f) return;
+                const ext = f.name.split(".").pop()?.toLowerCase() ?? "";
+                if (ext !== "html" && ext !== "htm") {
+                  alert("HTML 파일(.html, .htm)만 업로드할 수 있습니다.");
+                  e.target.value = ""; return;
+                }
+                if (f.size > 4 * 1024 * 1024) {
+                  alert(`4MB를 초과하는 파일은 업로드할 수 없습니다. (${(f.size / 1024 / 1024).toFixed(1)}MB)`);
+                  e.target.value = ""; return;
+                }
+                setUploadFile(f);
+              }} />
+            </label>
+            {uploadFile && !uploading && (
+              <span style={{ fontSize: 12, color: "#065F46", fontWeight: 600 }}>
+                {uploadFile.name} ({(uploadFile.size / 1024 / 1024).toFixed(1)} MB)
+                <button type="button" onClick={() => setUploadFile(null)}
+                  style={{ marginLeft: 6, color: C.danger, background: "none", border: "none", cursor: "pointer", fontSize: 14, lineHeight: 1 }}>×</button>
+              </span>
+            )}
+            {uploading && <div style={{ fontSize: 11, color: C.primary, fontWeight: 600 }}>업로드 중... {uploadFile?.name}</div>}
+          </div>
+
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.text2, cursor: "pointer" }}>
+            <input type="checkbox" checked={form.visible} onChange={e => setForm(f => ({ ...f, visible: e.target.checked }))} /> 즉시 공개
+          </label>
+        </FormCard>
+      )}
+
+      <ItemList loading={loading} empty="아직 등록된 매뉴얼이 없습니다.">
+        {items.map(item => (
+          <div key={item.id} style={{ background: "#fff", borderRadius: 16, padding: 20, display: "flex", alignItems: "center", gap: 16, border: `1px solid ${C.border}`, opacity: item.visible ? 1 : 0.5 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                {item.category && (
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 6, background: C.primarySoft, color: C.primary }}>{item.category}</span>
+                )}
+                <span style={{ fontWeight: 700, fontSize: 13, color: C.text1 }}>{item.title}</span>
+                {!item.fileUrl && (
+                  <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "#FEF3C7", color: "#92400E", fontWeight: 700 }}>파일 미첨부</span>
+                )}
+              </div>
+              <p style={{ fontSize: 11, color: C.text4, margin: "4px 0 0", fontFamily: "monospace" }}>/manual/{item.slug}</p>
+              {item.description && <p style={{ fontSize: 11, color: C.text3, margin: "2px 0 0" }}>{item.description}</p>}
+            </div>
+            <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+              <button onClick={() => copyLink(item.slug)}
+                style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: "#f1f5f9", color: C.text2 }}>
+                링크 복사
+              </button>
+              <button onClick={() => startEdit(item)}
+                style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: "#e0f2fe", color: "#0369a1" }}>
+                수정
+              </button>
+              <button onClick={() => toggleVisible(item)}
+                style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: item.visible ? "#D1FAE5" : C.bg, color: item.visible ? "#065F46" : C.text3 }}>
+                {item.visible ? "공개중" : "숨김"}
+              </button>
+              <button onClick={() => del(item)}
+                style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: C.dangerSoft, color: C.danger }}>
+                삭제
+              </button>
+            </div>
+          </div>
+        ))}
+      </ItemList>
     </div>
   );
 }

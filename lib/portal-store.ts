@@ -22,7 +22,7 @@ export interface AuditLog {
   adminName: string;
   action: "create" | "update" | "delete";
   target:
-    | "notices" | "courses" | "swdb" | "swresources"
+    | "notices" | "courses" | "swdb" | "swresources" | "manuals"
     | "exchangeReturn" | "hw" | "hwRepair" | "rentalHw" | "credentials"
     | "repairTicket" | "meetingRental" | "meetingEquipment" | "contract" | "account";
   itemTitle: string;

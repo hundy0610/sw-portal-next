@@ -11,7 +11,7 @@ const ACTION_STYLE: Record<AuditLog["action"], { label: string; bg: string; text
 };
 
 const TARGET_LABEL: Record<AuditLog["target"], string> = {
-  notices: "공지사항", courses: "교육과정", swdb: "SW 검색", swresources: "SW 자료실",
+  notices: "공지사항", courses: "교육과정", swdb: "SW 검색", swresources: "SW 자료실", manuals: "매뉴얼",
   exchangeReturn: "자산 흐름", hw: "노트북/데스크탑", hwRepair: "수리/과실청구",
   rentalHw: "임대노트북", credentials: "계정 관리", repairTicket: "모니터 수리",
   meetingRental: "회의실 대여", meetingEquipment: "회의실 장비", contract: "계약",
