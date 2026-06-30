@@ -104,7 +104,7 @@ export default function DeclarationPage() {
           </div>
         </div>
 
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
+        <div className="max-w-5xl xl:max-w-6xl 2xl:max-w-7xl mx-auto px-4 sm:px-6 py-6">
           <DeclarationPanel />
         </div>
       </main>
