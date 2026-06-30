@@ -40,6 +40,17 @@ function parseReplies(reply: string): ParsedMessage[] {
   return reply.split("\n---\n").filter(s => s.trim()).map(parseMessage);
 }
 
+// ── 페이지별 기능 목록 (신규 리포트 작성 시 선택) ───────────
+const PAGE_FEATURES: Record<string, string[]> = {
+  "메인":        ["공지사항", "검색", "배너", "SW 현황", "기타"],
+  "SW 문서":     ["문서 목록", "버전 정보", "다운로드", "검색", "기타"],
+  "문의/FAQ":    ["문의 접수", "FAQ 조회", "피드백", "기타"],
+  "자료실":      ["자료 검색", "다운로드", "카테고리", "기타"],
+  "Admin":       ["대시보드", "자산관리", "계정관리", "티켓", "기타"],
+  "Declaration": ["신고서 작성", "기타"],
+  "Manage":      ["공지관리", "교육관리", "자료관리", "SW DB", "기타"],
+};
+
 // ── 하위 작업 추가 모달 ────────────────────────────────────
 const FIELD_LABEL_STYLE = { fontSize: 12, fontWeight: 700, color: "#475569", marginBottom: 6, display: "block" as const };
 const FIELD_INPUT_STYLE = { width: "100%", padding: "10px 12px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 13, color: "#0f172a", boxSizing: "border-box" as const, background: "#fff" };
@@ -84,6 +95,120 @@ function SubTaskFormModal({ title, form, setForm, onCancel, onSubmit, submitting
           <button onClick={onSubmit} disabled={!form.title.trim() || submitting}
             style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: !form.title.trim() || submitting ? "#E2E8F0" : "#2563EB", color: !form.title.trim() || submitting ? "#94a3b8" : "#fff", fontSize: 12, fontWeight: 700, cursor: !form.title.trim() || submitting ? "not-allowed" : "pointer" }}>
             {submitting ? "추가 중..." : "추가"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 신규 리포트 작성 모달 ──────────────────────────────────
+function ComposeReportModal({
+  type, setType, page, setPage, feature, setFeature, title, setTitle, content, setContent,
+  files, previews, fileInputRef, onFilesChange, onRemoveFile, onCancel, onSubmit, submitting,
+}: {
+  type: "버그" | "개선요청"; setType: (t: "버그" | "개선요청") => void;
+  page: string; setPage: (p: string) => void;
+  feature: string; setFeature: (f: string) => void;
+  title: string; setTitle: (t: string) => void;
+  content: string; setContent: (c: string) => void;
+  files: File[]; previews: string[];
+  fileInputRef: React.RefObject<HTMLInputElement>;
+  onFilesChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onRemoveFile: (idx: number) => void;
+  onCancel: () => void;
+  onSubmit: () => void;
+  submitting: boolean;
+}) {
+  return (
+    <div
+      onClick={e => { if (e.target === e.currentTarget) onCancel(); }}
+      style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+    >
+      <div style={{ background: "#fff", borderRadius: 18, width: "100%", maxWidth: 520, maxHeight: "90vh", overflowY: "auto" as const, boxShadow: "0 24px 70px rgba(0,0,0,.25)" }}>
+        <div style={{ padding: "18px 22px", borderBottom: "1px solid #F1F5F9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <h3 style={{ fontSize: 17, fontWeight: 800, color: "#0f172a", margin: 0 }}>새 버그 / 개선 리포트</h3>
+          <button onClick={onCancel} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#94a3b8", lineHeight: 1 }}>✕</button>
+        </div>
+        <div style={{ padding: 22, display: "flex", flexDirection: "column" as const, gap: 16 }}>
+          <div>
+            <label style={FIELD_LABEL_STYLE}>유형</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              {(["버그", "개선요청"] as const).map(t => (
+                <button key={t} onClick={() => setType(t)}
+                  style={{ flex: 1, padding: "8px 0", border: `1.5px solid ${type === t ? "#2563EB" : "#E2E8F0"}`, borderRadius: 8, background: type === t ? "#EFF6FF" : "#fff", color: type === t ? "#2563EB" : "#64748b", fontWeight: type === t ? 700 : 500, fontSize: 14, cursor: "pointer" }}>
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label style={FIELD_LABEL_STYLE}>페이지</label>
+            <select value={page} onChange={e => setPage(e.target.value)} style={FIELD_INPUT_STYLE}>
+              {Object.keys(PAGE_FEATURES).map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={FIELD_LABEL_STYLE}>기능</label>
+            <select value={feature} onChange={e => setFeature(e.target.value)} style={FIELD_INPUT_STYLE}>
+              {(PAGE_FEATURES[page] ?? ["기타"]).map(f => <option key={f} value={f}>{f}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={FIELD_LABEL_STYLE}>제목</label>
+            <input
+              type="text"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              placeholder={type === "버그" ? "발생한 버그를 한 줄로 요약해주세요." : "개선 요청 내용을 한 줄로 요약해주세요."}
+              style={FIELD_INPUT_STYLE}
+            />
+          </div>
+          <div>
+            <label style={FIELD_LABEL_STYLE}>내용</label>
+            <textarea
+              value={content}
+              onChange={e => setContent(e.target.value)}
+              placeholder={type === "버그" ? "어떤 오류가 발생했나요? 재현 방법도 알려주세요." : "어떤 부분을 개선하면 좋을까요?"}
+              rows={5}
+              style={{ ...FIELD_INPUT_STYLE, resize: "vertical" as const, fontFamily: "inherit" }}
+            />
+          </div>
+          <div>
+            <label style={FIELD_LABEL_STYLE}>첨부파일 <span style={{ color: "#94a3b8", fontWeight: 400 }}>(최대 5개)</span></label>
+            <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={onFilesChange} style={{ display: "none" }} />
+            {files.length < 5 && (
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                style={{ width: "100%", padding: 10, border: "1.5px dashed #CBD5E1", borderRadius: 8, background: "#F8FAFC", color: "#64748b", fontSize: 13, cursor: "pointer", textAlign: "center" as const }}
+              >
+                📎 클릭하여 이미지 추가 {files.length > 0 ? `(${files.length}/5)` : ""}
+              </button>
+            )}
+            {previews.length > 0 && (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, marginTop: 8 }}>
+                {previews.map((src, i) => (
+                  <div key={i} style={{ position: "relative", display: "inline-block" }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={src} alt={`preview-${i}`} style={{ width: 72, height: 72, objectFit: "cover" as const, borderRadius: 8, border: "1px solid #E2E8F0", display: "block" }} />
+                    <button
+                      onClick={() => onRemoveFile(i)}
+                      style={{ position: "absolute", top: 2, right: 2, background: "rgba(0,0,0,.55)", color: "#fff", border: "none", borderRadius: "50%", width: 18, height: 18, cursor: "pointer", fontSize: 10, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}
+                    >✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        <div style={{ padding: "14px 22px", borderTop: "1px solid #F1F5F9", display: "flex", gap: 8, justifyContent: "flex-end", background: "#FAFBFC" }}>
+          <button onClick={onCancel}
+            style={{ padding: "9px 18px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", color: "#64748b", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+            취소
+          </button>
+          <button onClick={onSubmit} disabled={!title.trim() || !content.trim() || submitting}
+            style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: !title.trim() || !content.trim() || submitting ? "#E2E8F0" : "#2563EB", color: !title.trim() || !content.trim() || submitting ? "#94a3b8" : "#fff", fontSize: 12, fontWeight: 700, cursor: !title.trim() || !content.trim() || submitting ? "not-allowed" : "pointer" }}>
+            {submitting ? "제출 중..." : "제출"}
           </button>
         </div>
       </div>
@@ -245,6 +370,18 @@ export default function BugReportPanel() {
   const [subTaskForm, setSubTaskForm]     = useState<{ title: string; content: string } | null>(null);
   const [creatingSubtask, setCreatingSubtask] = useState(false);
 
+  // ── 신규 리포트 작성 ──────────────────────────────────────
+  const [composeOpen, setComposeOpen]         = useState(false);
+  const [composeSubmitting, setComposeSubmitting] = useState(false);
+  const [composeType, setComposeType]         = useState<"버그" | "개선요청">("버그");
+  const [composePage, setComposePage]         = useState("Admin");
+  const [composeFeature, setComposeFeature]   = useState(PAGE_FEATURES["Admin"]?.[0] ?? "기타");
+  const [composeTitle, setComposeTitle]       = useState("");
+  const [composeContent, setComposeContent]   = useState("");
+  const [composeFiles, setComposeFiles]       = useState<File[]>([]);
+  const [composePreviews, setComposePreviews] = useState<string[]>([]);
+  const composeFileInputRef = useRef<HTMLInputElement>(null);
+
   const [modalTab, setModalTab]         = useState<"subtasks" | "reply">("subtasks");
   const [modalDragId, setModalDragId]   = useState<string | null>(null);
   const [modalDragOver, setModalDragOver] = useState<string | null>(null);
@@ -285,10 +422,8 @@ export default function BugReportPanel() {
   useEffect(() => { load(); }, []);
 
   useEffect(() => {
-    const handler = () => backgroundLoad();
-    window.addEventListener("bug-report-submitted", handler);
-    return () => window.removeEventListener("bug-report-submitted", handler);
-  }, []);
+    setComposeFeature(PAGE_FEATURES[composePage]?.[0] ?? "기타");
+  }, [composePage]);
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -307,6 +442,74 @@ export default function BugReportPanel() {
 
   function childrenOf(id: string) {
     return reports.filter(r => r.parentId === id);
+  }
+
+  function resetComposeForm() {
+    setComposeType("버그");
+    setComposePage("Admin");
+    setComposeFeature(PAGE_FEATURES["Admin"]?.[0] ?? "기타");
+    setComposeTitle("");
+    setComposeContent("");
+    setComposeFiles([]);
+    setComposePreviews([]);
+    if (composeFileInputRef.current) composeFileInputRef.current.value = "";
+  }
+
+  function handleComposeFilesChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const selected = Array.from(e.target.files ?? []);
+    setComposeFiles(prev => {
+      const merged = [...prev, ...selected].slice(0, 5); // 최대 5개
+      setComposePreviews(merged.map(f => URL.createObjectURL(f)));
+      return merged;
+    });
+    if (composeFileInputRef.current) composeFileInputRef.current.value = "";
+  }
+
+  function removeComposeFile(idx: number) {
+    setComposeFiles(prev => {
+      const next = prev.filter((_, i) => i !== idx);
+      setComposePreviews(next.map(f => URL.createObjectURL(f)));
+      return next;
+    });
+  }
+
+  async function uploadComposeFile(file: File): Promise<string> {
+    const initRes = await fetch("/api/bug-report/upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filename: file.name, contentType: file.type, size: file.size }),
+    });
+    const { fileUploadId } = await safeJson(initRes);
+    const fd = new FormData();
+    fd.append("file", file, file.name);
+    fd.append("fileUploadId", fileUploadId);
+    await fetch("/api/bug-report/upload", { method: "POST", body: fd });
+    return fileUploadId as string;
+  }
+
+  async function handleComposeSubmit() {
+    if (!composeTitle.trim() || !composeContent.trim() || composeSubmitting) return;
+    setComposeSubmitting(true);
+    try {
+      const fileUploadIds = composeFiles.length > 0
+        ? await Promise.all(composeFiles.map(uploadComposeFile))
+        : [];
+      await fetch("/api/bug-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          page: composePage, feature: composeFeature, type: composeType,
+          title: composeTitle.trim(), content: composeContent.trim(), fileUploadIds,
+        }),
+      });
+      setComposeOpen(false);
+      resetComposeForm();
+      backgroundLoad();
+    } catch {
+      alert("제출 중 오류가 발생했습니다.");
+    } finally {
+      setComposeSubmitting(false);
+    }
   }
 
   async function handleCreateSubtask() {
@@ -426,10 +629,16 @@ export default function BugReportPanel() {
           <h2 style={{ fontSize: 20, fontWeight: 800, color: "#0f172a", margin: "0 0 4px" }}>버그리포트</h2>
           <p style={{ fontSize: 13, color: "#64748b", margin: 0 }}>총 {filtered.length}건</p>
         </div>
-        <button onClick={load}
-          style={{ padding: "8px 14px", borderRadius: 8, background: "#EFF6FF", color: "#2563EB", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-          새로고침
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={() => { resetComposeForm(); setComposeOpen(true); }}
+            style={{ padding: "8px 14px", borderRadius: 8, background: "#1E3A8A", color: "#fff", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+            🐛 새 리포트
+          </button>
+          <button onClick={load}
+            style={{ padding: "8px 14px", borderRadius: 8, background: "#EFF6FF", color: "#2563EB", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+            새로고침
+          </button>
+        </div>
       </div>
 
       {/* 필터 */}
@@ -724,6 +933,24 @@ export default function BugReportPanel() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── 신규 리포트 작성 모달 ── */}
+      {composeOpen && (
+        <ComposeReportModal
+          type={composeType} setType={setComposeType}
+          page={composePage} setPage={setComposePage}
+          feature={composeFeature} setFeature={setComposeFeature}
+          title={composeTitle} setTitle={setComposeTitle}
+          content={composeContent} setContent={setComposeContent}
+          files={composeFiles} previews={composePreviews}
+          fileInputRef={composeFileInputRef}
+          onFilesChange={handleComposeFilesChange}
+          onRemoveFile={removeComposeFile}
+          onCancel={() => { setComposeOpen(false); resetComposeForm(); }}
+          onSubmit={handleComposeSubmit}
+          submitting={composeSubmitting}
+        />
       )}
 
       {/* ── 하위 작업 추가 모달 ── */}

@@ -26,6 +26,7 @@ const BugReportPanel         = dynamic(() => import("@/components/admin/BugRepor
 const WorkTrackerPanel        = dynamic(() => import("@/components/admin/WorkTrackerPanel"),       { ssr: false });
 const MeetingRentalPanel      = dynamic(() => import("@/components/admin/MeetingRentalPanel"),      { ssr: false });
 const RenewalAlertModal       = dynamic(() => import("@/components/admin/RenewalAlertModal"),       { ssr: false });
+const NotificationBell        = dynamic(() => import("@/components/admin/NotificationBell"),        { ssr: false });
 const AuditLogPanel           = dynamic(() => import("@/components/admin/AuditLogPanel"),           { ssr: false });
 const SurveyDemandPanel       = dynamic(() => import("@/components/admin/SurveyDemandPanel"),       { ssr: false });
 
@@ -231,7 +232,7 @@ export default function AdminPage() {
       case "rental-hw":   return canAccess("rental-hw") ? <RentalHwPanel /> : <AccessDenied />;
       case "meeting-rental": return canAccess("meeting-rental") ? <MeetingRentalPanel /> : <AccessDenied />;
       case "assetmap":    return <AssetMapPanel session={session} />;
-      case "helpdesk":    return <HelpDeskPanel company={isSuper ? "" : company} />;
+      case "helpdesk":    return <HelpDeskPanel company={isSuper ? "" : company} currentUserName={session?.name ?? ""} />;
       case "repair":      return <RepairPanel company={company} />;
       case "hw-repair":        return canAccess("hw-repair")        ? <HwRepairPanel />        : <AccessDenied />;
       case "exchange-return":  return canAccess("exchange-return")  ? <ExchangeReturnPanel /> : <AccessDenied />;
@@ -333,6 +334,9 @@ export default function AdminPage() {
               </span>
             )}
           </button>
+
+          {/* 알림센터 (슈퍼어드민 전용) */}
+          {isSuper && <NotificationBell onNavigate={(p) => setPage(p as PageId)} />}
 
           {/* 다크모드 토글 */}
           <button

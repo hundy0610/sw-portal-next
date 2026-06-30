@@ -46,7 +46,7 @@ const NAV = [
   { label: "교육 센터",  icon: "edu",    href: "/",           active: false, short: "교육"  },
   { label: "자료실",     icon: "folder", href: "/resources",  active: true,  short: "자료실" },
   { label: "SW 검색",   icon: "search", href: "/",           active: false, short: "SW"   },
-  { label: "자산 실사",  icon: "clip",   href: "/",           active: false, short: "실사"  },
+  { label: "자산 실사",  icon: "clip",   href: "/declaration", active: false, short: "실사"  },
 ];
 
 export default function ResourcesPage() {
