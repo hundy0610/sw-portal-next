@@ -230,11 +230,11 @@ export default function SurveyPage() {
   );
 
   return (
-    <div className="min-h-screen" style={{ background: C.bgPage }}>
+    <div className="min-h-screen flex flex-col justify-center" style={{ background: C.bgPage }}>
 
       {/* ── 헤더 ── */}
-      <div className="w-full px-4 pt-8 pb-4 text-center">
-        <h1 className="font-extrabold mb-2" style={{ color: C.text1, fontSize: "clamp(1.25rem, 4vw, 1.75rem)" }}>
+      <div className="w-full px-4 pt-6 pb-3 text-center">
+        <h1 className="font-extrabold mb-1" style={{ color: C.text1, fontSize: "clamp(1.15rem, 4vw, 1.6rem)" }}>
           실시간 번역 툴 사용 수요 조사
         </h1>
         <p className="text-sm leading-relaxed" style={{ color: C.text3 }}>
@@ -243,9 +243,9 @@ export default function SurveyPage() {
       </div>
 
       {/* ── 폼 ── */}
-      <div className="w-full px-3 sm:px-6 lg:px-8 pb-10">
+      <div className="w-full px-3 sm:px-6 lg:px-8 pb-6">
         <form onSubmit={submit}
-          className="w-full mx-auto rounded-2xl sm:rounded-3xl p-4 sm:p-6 lg:p-8"
+          className="w-full mx-auto rounded-2xl sm:rounded-3xl p-4 sm:p-5 lg:p-6"
           style={{
             maxWidth: 860,
             background: "#fff",
