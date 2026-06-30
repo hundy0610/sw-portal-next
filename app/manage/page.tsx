@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, Suspense } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo, Suspense } from "react";
+import QRCode from "qrcode";
 import type { Notice, Course, SwVersion, SwDoc, Manual } from "@/types/portal";
 import type { AuditLog } from "@/lib/portal-store";
 import type { SwItem } from "@/types";
@@ -1056,6 +1057,23 @@ function ManualsPanel() {
   const BLANK = { title: "", slug: "", category: "", description: "", visible: true, order: 0 };
   const [form, setForm] = useState(BLANK);
 
+  const [qrItem, setQrItem] = useState<Manual | null>(null);
+  const qrCanvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    if (!qrItem || !qrCanvasRef.current) return;
+    const url = `${window.location.origin}/manual/${qrItem.slug}`;
+    QRCode.toCanvas(qrCanvasRef.current, url, { width: 220, margin: 2 });
+  }, [qrItem]);
+
+  function downloadQrPng() {
+    if (!qrItem || !qrCanvasRef.current) return;
+    const link = document.createElement("a");
+    link.download = `${qrItem.title}-QR.png`;
+    link.href = qrCanvasRef.current.toDataURL("image/png");
+    link.click();
+  }
+
   const load = useCallback(() => {
     setLoading(true);
     fetch("/api/manuals?all=1").then(r => safeJson(r)).then(res => setItems(res.data ?? [])).finally(() => setLoading(false));
@@ -1212,6 +1230,10 @@ function ManualsPanel() {
                 style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: "#f1f5f9", color: C.text2 }}>
                 링크 복사
               </button>
+              <button onClick={() => setQrItem(item)}
+                style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: "#f1f5f9", color: C.text2 }}>
+                QR 코드
+              </button>
               <button onClick={() => startEdit(item)}
                 style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: "#e0f2fe", color: "#0369a1" }}>
                 수정
@@ -1228,6 +1250,25 @@ function ManualsPanel() {
           </div>
         ))}
       </ItemList>
+
+      {qrItem && (
+        <div onClick={() => setQrItem(null)}
+          style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.4)" }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ width: 300, background: "#fff", borderRadius: 16, padding: 24, display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+            <div style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: C.text1 }}>{qrItem.title}</span>
+              <button onClick={() => setQrItem(null)}
+                style={{ border: "none", background: "none", cursor: "pointer", fontSize: 16, color: C.text4, lineHeight: 1 }}>×</button>
+            </div>
+            <canvas ref={qrCanvasRef} />
+            <button onClick={downloadQrPng}
+              style={{ width: "100%", padding: "10px 0", borderRadius: 10, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", background: C.brand, color: "#fff" }}>
+              PNG로 다운로드
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
