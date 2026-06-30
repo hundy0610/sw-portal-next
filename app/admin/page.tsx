@@ -110,6 +110,9 @@ export default function AdminPage() {
   const [loading, setLoading]   = useState(true);
   const [page, setPage]         = useState<PageId>("home");
 
+  const [renewalAlertOpen,  setRenewalAlertOpen]  = useState(false);
+  const [renewalCount,      setRenewalCount]      = useState(0);
+
   const [darkMode,        setDarkMode]        = useState(() => {
     if (typeof window !== "undefined") return localStorage.getItem("admin-dark") === "1";
     return false;
@@ -220,10 +223,7 @@ export default function AdminPage() {
     switch (page) {
       case "home":        return <DashboardHome company={company} initialHwStats={hwStatsPrefetch} onNavigate={(p) => setPage(p as PageId)} />;
       case "overview":    return <OverviewPanel company={company} />;           // 슈퍼: company="" → 전체, 법인: company="OO" → 필터
-      case "license":     return <>
-        <RenewalAlertModal company={session?.company || ""} />
-        <LicensePanel company={company} />
-      </>;
+      case "license":     return <LicensePanel company={company} />;
       case "credentials": return canAccess("credentials") ? <CredentialsPanel /> : <AccessDenied />;
       case "swdb":        return canAccess("swdb")        ? <SwDbPanel />       : <AccessDenied />;
       case "report":      return <ReportPanel company={company} />;
@@ -316,6 +316,23 @@ export default function AdminPage() {
             <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
             Notion 연동 중
           </div>
+
+          {/* 갱신 알림 벨 */}
+          <button
+            onClick={() => setRenewalAlertOpen(true)}
+            className="relative flex items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-100 transition-colors text-gray-400 hover:text-amber-500"
+            title="구독 갱신 알림"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            {renewalCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] flex items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold px-0.5">
+                {renewalCount > 99 ? "99+" : renewalCount}
+              </span>
+            )}
+          </button>
 
           {/* 다크모드 토글 */}
           <button
@@ -483,6 +500,14 @@ export default function AdminPage() {
           <div className={page === "assetmap" ? "h-full" : "slide-in"}>{renderPanel()}</div>
         </main>
       </div>
+
+      {/* 전역 갱신 알림 모달 (헤더 벨 클릭 시 표시) */}
+      <RenewalAlertModal
+        company={session?.company || ""}
+        open={renewalAlertOpen}
+        onClose={() => setRenewalAlertOpen(false)}
+        onCountChange={setRenewalCount}
+      />
     </div>
   );
 }

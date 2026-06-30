@@ -13,13 +13,11 @@ interface ExpiringGroup {
   sw: string[];
 }
 
-interface Props { company?: string; }
-
-// localStorage: "YYYY-MM-DD" 형식으로 저장 → 다음 날이 되면 다시 표시
-const DISMISS_KEY = "renewal-alert-dismissed";
-
-function todayStr() {
-  return new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+interface Props {
+  company?: string;
+  open?: boolean;
+  onClose?: () => void;
+  onCountChange?: (n: number) => void;
 }
 
 function daysUntil(dateStr: string) {
@@ -27,43 +25,38 @@ function daysUntil(dateStr: string) {
   return Math.ceil(diff / 86400000);
 }
 
-export default function RenewalAlertModal({ company = "" }: Props) {
+export default function RenewalAlertModal({ company = "", open: openProp, onClose, onCountChange }: Props) {
   const [groups, setGroups] = useState<ExpiringGroup[]>([]);
-  const [open,   setOpen]   = useState(false);
   const [acting, setActing] = useState(false);
   const [result, setResult] = useState<{ msg: string; type: "ok" | "warn" } | null>(null);
+
+  const open = openProp ?? false;
 
   // 그룹을 월간/연간으로 분리
   const monthlyGroups = groups.filter(g => g.cycle === "월");
   const annualGroups  = groups.filter(g => g.cycle === "연");
 
   const load = useCallback(async () => {
-    // 오늘 이미 "나중에"를 누른 경우 스킵 (내일 다시 표시)
-    if (typeof window !== "undefined") {
-      const dismissed = localStorage.getItem(DISMISS_KEY);
-      if (dismissed === todayStr()) return;
-    }
-
     const url = company
       ? `/api/sw/expiring?company=${encodeURIComponent(company)}`
       : "/api/sw/expiring";
     try {
       const json = await fetch(url).then(r => safeJson(r));
-      if (json.ok && (json.groups ?? []).length > 0) {
-        setGroups(json.groups);
-        setOpen(true);
+      if (json.ok) {
+        const grps = json.groups ?? [];
+        setGroups(grps);
+        onCountChange?.(grps.reduce((s: number, g: ExpiringGroup) => s + g.count, 0));
       }
     } catch { /* silent */ }
-  }, [company]);
+  }, [company, onCountChange]);
 
   useEffect(() => { load(); }, [load]);
 
+  // 열릴 때마다 결과 초기화
+  useEffect(() => { if (open) setResult(null); }, [open]);
+
   const dismiss = () => {
-    // 오늘 날짜 저장 → 다음 날 자정이 지나면 다시 표시
-    if (typeof window !== "undefined") {
-      localStorage.setItem(DISMISS_KEY, todayStr());
-    }
-    setOpen(false);
+    onClose?.();
   };
 
   const handleAction = async (action: "renew" | "expire", targetGroups: ExpiringGroup[]) => {
