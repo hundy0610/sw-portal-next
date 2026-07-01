@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import * as XLSX from "xlsx";
 import type { PcScanRecord } from "@/lib/pc-scan";
 import { safeJson } from "@/lib/fetch-json";
@@ -121,6 +121,7 @@ export default function PcScanPanel() {
   const [error, setError]       = useState("");
   const [filters, setFilters]   = useState<Filters>(EMPTY);
   const [detail, setDetail]     = useState<PcScanRecord | null>(null);
+  const [zipping, setZipping]   = useState(false);
 
   useEffect(() => {
     fetch("/api/admin/pc-scan")
@@ -163,44 +164,57 @@ export default function PcScanPanel() {
   function downloadExcel() {
     const wb = XLSX.utils.book_new();
     const rows = filtered.map(r => ({
-      자산번호:    r.assetNo,
-      법인:        r.corp,
-      부서:        r.dept,
-      사용자:      r.userName,
-      모델:        r.model,
-      PC이름:      r.pcName,
-      CPU:         r.cpu,
-      RAM:         r.ram,
-      GPU:         r.gpu,
-      OS:          r.os,
-      시리얼넘버:  r.serial,
-      제조사:      r.manufacturer,
-      저장장치:    r.storage,
-      MAC:         r.mac,
-      수집일시:    r.collectedAt ? formatDate(r.collectedAt) : "",
-      마스터존재:  r.masterExists ? "✓" : "",
-      설치프로그램: r.programFileName,
-      설치프로그램URL: r.programFileUrl,
+      자산번호:        r.assetNo,
+      법인:            r.corp,
+      부서:            r.dept,
+      사용자:          r.userName,
+      모델:            r.model,
+      PC이름:          r.pcName,
+      CPU:             r.cpu,
+      RAM:             r.ram,
+      GPU:             r.gpu,
+      OS:              r.os,
+      시리얼넘버:      r.serial,
+      제조사:          r.manufacturer,
+      저장장치:        r.storage,
+      MAC:             r.mac,
+      수집일시:        r.collectedAt ? formatDate(r.collectedAt) : "",
+      마스터존재:      r.masterExists ? "✓" : "",
+      설치프로그램파일: r.programFileName,
     }));
-
     const ws = XLSX.utils.json_to_sheet(rows);
     XLSX.utils.book_append_sheet(wb, ws, "자산실사현황");
     XLSX.writeFile(wb, `자산실사현황_${new Date().toISOString().slice(0, 10)}.xlsx`);
-
-    // 설치프로그램 파일 순차 다운로드 (Excel 다운로드 후)
-    filtered
-      .filter(r => r.programFileUrl)
-      .forEach((r, i) => {
-        setTimeout(() => {
-          const a = document.createElement("a");
-          a.href = r.programFileUrl;
-          a.download = r.programFileName || "설치프로그램.xlsx";
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-        }, 400 + i * 500);
-      });
   }
+
+  const downloadZip = useCallback(async () => {
+    const ids = filtered.filter(r => r.programFileUrl).map(r => r.id);
+    if (ids.length === 0) return;
+    setZipping(true);
+    try {
+      const res = await fetch("/api/admin/pc-scan/zip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error ?? "ZIP 생성 실패");
+        return;
+      }
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `설치프로그램_${new Date().toISOString().slice(0, 10)}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("다운로드 중 오류가 발생했습니다.");
+    } finally {
+      setZipping(false);
+    }
+  }, [filtered]);
 
   const hasFilter = Object.values(filters).some(Boolean);
 
@@ -228,9 +242,18 @@ export default function PcScanPanel() {
           <button
             onClick={downloadExcel}
             disabled={filtered.length === 0}
+            className="px-4 py-1.5 text-xs font-medium bg-gray-700 hover:bg-gray-800 text-white rounded-lg disabled:opacity-40"
+          >
+            엑셀 다운로드 ({filtered.length}건)
+          </button>
+          <button
+            onClick={downloadZip}
+            disabled={filtered.filter(r => r.programFileUrl).length === 0 || zipping}
             className="px-4 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-40"
           >
-            엑셀 + 파일 다운로드 ({filtered.length}건)
+            {zipping
+              ? "ZIP 생성 중…"
+              : `설치프로그램 ZIP (${filtered.filter(r => r.programFileUrl).length}건)`}
           </button>
         </div>
       </div>
