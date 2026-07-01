@@ -230,6 +230,20 @@ export async function fetchHwFiltered({
   return records;
 }
 
+export async function findHwBySerial(serial: string): Promise<HwRecord | null> {
+  if (isMock()) {
+    return (mockHwRecords.find(r => r.serial === serial) as HwRecord) ?? null;
+  }
+  const res = await queryWithRetry({
+    database_id: DB_ID,
+    filter: { property: "시리얼 넘버", rich_text: { equals: serial } },
+    page_size: 1,
+  });
+  const page = res.results[0];
+  if (!page || page.object !== "page" || !("properties" in page)) return null;
+  return mapPage(page as PageObjectResponse);
+}
+
 export async function fetchAllHwRecords(): Promise<HwRecord[]> {
   if (isMock()) return mockHwRecords as HwRecord[];
   const records: HwRecord[] = [];
