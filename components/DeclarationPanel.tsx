@@ -828,30 +828,30 @@ function Step3({ userInfo, records, added, onReset }: {
 // ─────────────────────────────────────────────────────────────────────────────
 function ModeSelect({ onSelect }: { onSelect: (m: "personal" | "team") => void }) {
   return (
-    <div className="max-w-2xl mx-auto">
-      <p className="text-center text-sm text-gray-500 mb-3">실사 방식을 선택해주세요</p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div className="max-w-2xl xl:max-w-3xl 2xl:max-w-4xl mx-auto">
+      <p className="text-center text-sm xl:text-base text-gray-500 mb-3 xl:mb-5">실사 방식을 선택해주세요</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 xl:gap-5">
         <button onClick={() => onSelect("personal")}
-          className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 text-left hover:border-amber-400 hover:shadow-lg hover:-translate-y-0.5 transition-all flex flex-col gap-3">
-          <div className="w-12 h-12 rounded-xl bg-amber-500 flex items-center justify-center shrink-0">
+          className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 xl:p-7 text-left hover:border-amber-400 hover:shadow-lg hover:-translate-y-0.5 transition-all flex flex-col gap-3 xl:gap-4">
+          <div className="w-12 h-12 xl:w-14 xl:h-14 rounded-xl bg-amber-500 flex items-center justify-center shrink-0">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           </div>
           <div className="flex-1">
-            <p className="font-bold text-gray-900 text-lg">개인 실사</p>
-            <p className="text-sm text-gray-500 mt-1 leading-relaxed">본인 명의로 등록된 SW를 직접 확인하고 신고합니다</p>
+            <p className="font-bold text-gray-900 text-lg xl:text-xl">개인 실사</p>
+            <p className="text-sm xl:text-base text-gray-500 mt-1 leading-relaxed">본인 명의로 등록된 SW를 직접 확인하고 신고합니다</p>
           </div>
-          <span className="text-amber-500 text-xs font-semibold">시작하기 →</span>
+          <span className="text-amber-500 text-xs xl:text-sm font-semibold">시작하기 →</span>
         </button>
         <button onClick={() => onSelect("team")}
-          className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 text-left hover:border-amber-400 hover:shadow-lg hover:-translate-y-0.5 transition-all flex flex-col gap-3">
-          <div className="w-12 h-12 rounded-xl bg-amber-500 flex items-center justify-center shrink-0">
+          className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 xl:p-7 text-left hover:border-amber-400 hover:shadow-lg hover:-translate-y-0.5 transition-all flex flex-col gap-3 xl:gap-4">
+          <div className="w-12 h-12 xl:w-14 xl:h-14 rounded-xl bg-amber-500 flex items-center justify-center shrink-0">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           </div>
           <div className="flex-1">
-            <p className="font-bold text-gray-900 text-lg">팀(부서) 실사</p>
-            <p className="text-sm text-gray-500 mt-1 leading-relaxed">법인 + 부서 기준으로 소속 팀원 전체 현황을 한번에 확인합니다</p>
+            <p className="font-bold text-gray-900 text-lg xl:text-xl">팀(부서) 실사</p>
+            <p className="text-sm xl:text-base text-gray-500 mt-1 leading-relaxed">법인 + 부서 기준으로 소속 팀원 전체 현황을 한번에 확인합니다</p>
           </div>
-          <span className="text-amber-500 text-xs font-semibold">시작하기 →</span>
+          <span className="text-amber-500 text-xs xl:text-sm font-semibold">시작하기 →</span>
         </button>
       </div>
     </div>
