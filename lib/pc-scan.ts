@@ -117,6 +117,8 @@ export interface PcScanRecord {
   mac: string;
   collectedAt: string;
   masterExists: boolean;
+  programFileName: string;
+  programFileUrl: string;
   notionUrl: string;
 }
 
@@ -170,6 +172,13 @@ export async function fetchPcScans(): Promise<PcScanRecord[]> {
         mac:          rt("MAC"),
         collectedAt:  (p["수집일시"]?.type === "date" ? (p["수집일시"].date as { start?: string } | null)?.start : "") ?? "",
         masterExists: p["마스터존재"]?.type === "checkbox" ? (p["마스터존재"].checkbox as boolean) : false,
+        ...(() => {
+          const files = p["설치프로그램"]?.type === "files"
+            ? (p["설치프로그램"].files as { name?: string; type: string; file?: { url: string } }[])
+            : [];
+          const f = files[0];
+          return { programFileName: f?.name ?? "", programFileUrl: f?.file?.url ?? "" };
+        })(),
       });
     }
 
