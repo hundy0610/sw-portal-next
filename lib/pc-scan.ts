@@ -82,7 +82,7 @@ function buildProperties(
   addRt("모델명", data.model);
   addRt("부서", data.dept);
   addRt("사용자", data.userName);
-  if (data.macAddresses?.length) addRt("MAC 주소", data.macAddresses.join(", "));
+  if (data.macAddresses?.length) addRt("MAC", data.macAddresses.join(", "));
   addRt("CPU", data.cpu);
   addRt("RAM", data.ram);
   addRt("OS", data.os);
