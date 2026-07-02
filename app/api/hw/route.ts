@@ -66,12 +66,16 @@ export async function GET(req: NextRequest) {
     if (location)  filtered = filtered.filter(r => r.location.includes(location));
     if (returnDue) filtered = filtered.filter(r => !!r.returnDue);
     if (search) {
-      const q = search.toLowerCase();
+      // 쉼표로 구분된 여러 검색어를 OR 조건으로 처리 (예: "A001,김철수")
+      const terms = search.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
       filtered = filtered.filter(r =>
-        r.user.toLowerCase().includes(q)    ||
-        r.assetNo.toLowerCase().includes(q) ||
-        r.model.toLowerCase().includes(q)   ||
-        r.serial.toLowerCase().includes(q)
+        terms.some(q =>
+          r.user.toLowerCase().includes(q)    ||
+          r.assetNo.toLowerCase().includes(q) ||
+          r.model.toLowerCase().includes(q)   ||
+          r.serial.toLowerCase().includes(q)  ||
+          r.dept.toLowerCase().includes(q)
+        )
       );
     }
     if (returnDue) {
