@@ -2,8 +2,12 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import * as XLSX from "xlsx";
-import type { PcScanRecord } from "@/lib/pc-scan";
+import type { PcScanRecordWithMatch } from "@/lib/pc-scan";
 import { safeJson } from "@/lib/fetch-json";
+
+function hasMismatch(r: PcScanRecordWithMatch): boolean {
+  return !!r.mismatch && (r.mismatch.corp || r.mismatch.dept || r.mismatch.userName);
+}
 
 function formatDate(iso: string) {
   if (!iso) return "—";
@@ -14,7 +18,7 @@ function formatDate(iso: string) {
 }
 
 // ── 상세 팝업 ──────────────────────────────────────────────────
-function DetailModal({ record, onClose }: { record: PcScanRecord; onClose: () => void }) {
+function DetailModal({ record, onClose }: { record: PcScanRecordWithMatch; onClose: () => void }) {
   const fields: [string, string][] = [
     ["자산번호",  record.assetNo],
     ["PC이름",   record.pcName],
@@ -116,19 +120,26 @@ const INPUT_CLS = "w-full px-2 py-1 text-[11px] border border-gray-200 rounded f
 
 // ── 패널 본체 ──────────────────────────────────────────────────
 export default function PcScanPanel() {
-  const [records, setRecords]   = useState<PcScanRecord[]>([]);
+  const [records, setRecords]   = useState<PcScanRecordWithMatch[]>([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState("");
   const [filters, setFilters]   = useState<Filters>(EMPTY);
-  const [detail, setDetail]     = useState<PcScanRecord | null>(null);
+  const [detail, setDetail]     = useState<PcScanRecordWithMatch | null>(null);
   const [zipping, setZipping]   = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [syncing, setSyncing]   = useState(false);
+  const [warming, setWarming]   = useState(false);
 
   useEffect(() => {
     fetch("/api/admin/pc-scan")
       .then(r => safeJson(r))
       .then(res => {
-        if (res?.ok) setRecords(res.data ?? []);
-        else setError(res?.error ?? "불러오기 실패");
+        if (res?.ok) {
+          setRecords(res.data ?? []);
+          setWarming(!!res.masterCacheWarming);
+        } else {
+          setError(res?.error ?? "불러오기 실패");
+        }
       })
       .catch(() => setError("네트워크 오류"))
       .finally(() => setLoading(false));
@@ -216,6 +227,70 @@ export default function PcScanPanel() {
     }
   }, [filtered]);
 
+  const syncableFiltered = useMemo(() => filtered.filter(hasMismatch), [filtered]);
+
+  function toggleSelect(id: string) {
+    setSelected(s => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelected(s => {
+      const allSelected = syncableFiltered.length > 0 && syncableFiltered.every(r => s.has(r.id));
+      if (allSelected) return new Set();
+      return new Set(syncableFiltered.map(r => r.id));
+    });
+  }
+
+  const syncSelected = useCallback(async () => {
+    const targets = records.filter(r => selected.has(r.id) && r.masterId && r.mismatch);
+    if (targets.length === 0) return;
+    setSyncing(true);
+    try {
+      const results = await Promise.allSettled(targets.map(r => {
+        const fields: Record<string, string> = {};
+        if (r.mismatch!.corp)     fields.company = r.corp;
+        if (r.mismatch!.dept)     fields.dept    = r.dept;
+        if (r.mismatch!.userName) fields.user    = r.userName;
+        return fetch("/api/hw/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: r.masterId, fields }),
+        }).then(res => res.json());
+      }));
+
+      const succeededIds = new Set<string>();
+      let failCount = 0;
+      results.forEach((result, i) => {
+        if (result.status === "fulfilled" && result.value?.ok) {
+          succeededIds.add(targets[i].id);
+        } else {
+          failCount++;
+        }
+      });
+
+      setRecords(prev => prev.map(r =>
+        succeededIds.has(r.id)
+          ? { ...r, mismatch: { corp: false, dept: false, userName: false } }
+          : r
+      ));
+      setSelected(s => {
+        const next = new Set(s);
+        succeededIds.forEach(id => next.delete(id));
+        return next;
+      });
+
+      if (failCount > 0) alert(`${failCount}건 동기화 실패`);
+    } catch {
+      alert("동기화 중 오류가 발생했습니다.");
+    } finally {
+      setSyncing(false);
+    }
+  }, [records, selected]);
+
   const hasFilter = Object.values(filters).some(Boolean);
 
   return (
@@ -227,10 +302,22 @@ export default function PcScanPanel() {
         <div>
           <h2 className="text-xl font-bold text-gray-900 mb-0.5">자산 실사 현황</h2>
           <p className="text-sm text-gray-500">
-            전체 {records.length}대 · 필터 {filtered.length}대 표시
+            전체 {records.length}대 · 필터 {filtered.length}대 표시 · 마스터 불일치 {syncableFiltered.length}건
           </p>
+          {warming && (
+            <p className="text-xs text-amber-600 mt-1">마스터 데이터 캐시를 갱신하고 있습니다. 잠시 후 새로고침 해주세요.</p>
+          )}
         </div>
         <div className="flex items-center gap-2">
+          {selected.size > 0 && (
+            <button
+              onClick={syncSelected}
+              disabled={syncing}
+              className="px-4 py-1.5 text-xs font-medium bg-amber-600 hover:bg-amber-700 text-white rounded-lg disabled:opacity-40"
+            >
+              {syncing ? "동기화 중…" : `선택 동기화 (${selected.size})`}
+            </button>
+          )}
           {hasFilter && (
             <button
               onClick={() => setFilters(EMPTY)}
@@ -269,6 +356,13 @@ export default function PcScanPanel() {
             <thead>
               {/* 컬럼 헤더 */}
               <tr className="border-b border-gray-200 bg-gray-50 text-gray-500">
+                <th className="text-center px-3 py-2.5 font-semibold whitespace-nowrap">
+                  <input
+                    type="checkbox"
+                    checked={syncableFiltered.length > 0 && syncableFiltered.every(r => selected.has(r.id))}
+                    onChange={toggleSelectAll}
+                  />
+                </th>
                 {["자산번호","법인","부서","사용자","모델","PC이름","CPU","RAM","GPU","OS","설치프로그램","마스터"].map(h => (
                   <th key={h} className="text-left px-3 py-2.5 font-semibold whitespace-nowrap">{h}</th>
                 ))}
@@ -276,6 +370,7 @@ export default function PcScanPanel() {
 
               {/* 필터 행 */}
               <tr className="border-b border-gray-200 bg-gray-50/60">
+                <td className="px-2 py-1.5" />
                 <td className="px-2 py-1.5 min-w-[90px]">
                   <input className={INPUT_CLS} placeholder="검색" value={filters.assetNo} onChange={e => sf("assetNo", e.target.value)} />
                 </td>
@@ -329,12 +424,19 @@ export default function PcScanPanel() {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="text-center py-12 text-gray-400">
+                  <td colSpan={13} className="text-center py-12 text-gray-400">
                     {hasFilter ? "필터에 맞는 결과가 없습니다." : "수집된 데이터가 없습니다."}
                   </td>
                 </tr>
               ) : filtered.map(r => (
                 <tr key={r.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
+                  <td className="px-3 py-2.5 text-center">
+                    {hasMismatch(r) ? (
+                      <input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleSelect(r.id)} />
+                    ) : (
+                      <span className="text-gray-200">—</span>
+                    )}
+                  </td>
                   {/* 자산번호 — 클릭 시 상세 팝업 */}
                   <td className="px-3 py-2.5">
                     <button
@@ -372,9 +474,22 @@ export default function PcScanPanel() {
                     ) : <span className="text-gray-300">—</span>}
                   </td>
                   <td className="px-3 py-2.5 text-center">
-                    {r.masterExists
-                      ? <span className="text-emerald-600 font-bold text-sm">✓</span>
-                      : <span className="text-gray-300">—</span>}
+                    {!r.masterExists ? (
+                      <span className="text-gray-300">—</span>
+                    ) : hasMismatch(r) ? (
+                      <span
+                        className="text-amber-600 font-bold text-sm cursor-help"
+                        title={`불일치: ${[
+                          r.mismatch!.corp && "법인",
+                          r.mismatch!.dept && "부서",
+                          r.mismatch!.userName && "사용자",
+                        ].filter(Boolean).join(", ")}`}
+                      >
+                        ⚠
+                      </span>
+                    ) : (
+                      <span className="text-emerald-600 font-bold text-sm">✓</span>
+                    )}
                   </td>
                 </tr>
               ))}
