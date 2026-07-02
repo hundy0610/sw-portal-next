@@ -157,7 +157,7 @@ export default function ResourcesPage() {
             <Icon n="msg" s={15} /> IT 지원 문의하기
           </a>
           <a href="/admin"
-            className="mt-3 block text-center text-xs transition-opacity opacity-0 hover:opacity-100"
+            className="mt-3 block text-center text-xs hover:underline transition-colors"
             style={{ color: C.text4, textDecoration: "none" }}>관리자</a>
         </div>
       </aside>

@@ -64,7 +64,8 @@ function ManagePageInner() {
 
   if (checking) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: C.bg }}>
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: C.bg, gap: 10 }}>
+        <span className="animate-spin" style={{ width: 18, height: 18, borderRadius: "50%", border: `2px solid ${C.border}`, borderTopColor: C.primary, display: "inline-block" }} />
         <div style={{ color: C.text4, fontSize: 14 }}>인증 확인 중...</div>
       </div>
     );
@@ -99,8 +100,8 @@ function ManageDashboard({ session }: { session: SessionInfo }) {
     <div style={{ minHeight: "100vh", background: C.bg }}>
       {/* 헤더 */}
       <header style={{ background: "#fff", position: "sticky", top: 0, zIndex: 40, borderBottom: `1px solid ${C.border}` }}>
-        <div style={{ maxWidth: 1040, margin: "0 auto", padding: "14px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ maxWidth: 1120, margin: "0 auto", padding: "14px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
             <div style={{ width: 32, height: 32, borderRadius: 8, background: C.primary, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 900, fontSize: 11 }}>SW</div>
             <div>
               <span style={{ fontWeight: 800, fontSize: 13, color: C.text1 }}>포털 관리모드</span>
@@ -108,11 +109,12 @@ function ManageDashboard({ session }: { session: SessionInfo }) {
             </div>
           </div>
 
-          <div style={{ display: "flex", background: C.bg, padding: 6, borderRadius: 12, gap: 2 }}>
+          <div style={{ display: "flex", background: C.bg, padding: 6, borderRadius: 12, gap: 2, overflowX: "auto" }}>
             {TABS.map(t => (
               <button key={t.id} onClick={() => setTab(t.id)}
+                className="transition-colors"
                 style={{
-                  padding: "8px 14px", borderRadius: 8, border: "none", fontSize: 12, cursor: "pointer",
+                  padding: "8px 14px", borderRadius: 8, border: "none", fontSize: 12, cursor: "pointer", whiteSpace: "nowrap",
                   background: tab === t.id ? "#fff" : "transparent",
                   color:      tab === t.id ? C.brand  : C.text3,
                   fontWeight: tab === t.id ? 700 : 500,
@@ -124,13 +126,14 @@ function ManageDashboard({ session }: { session: SessionInfo }) {
           </div>
 
           <button onClick={handleLogout}
-            style={{ padding: "6px 14px", borderRadius: 8, background: C.dangerSoft, color: C.danger, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+            className="hover:brightness-95 transition-all"
+            style={{ padding: "6px 14px", borderRadius: 8, background: C.dangerSoft, color: C.danger, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
             로그아웃
           </button>
         </div>
       </header>
 
-      <main style={{ maxWidth: 1040, margin: "0 auto", padding: "32px 24px" }}>
+      <main style={{ maxWidth: 1120, margin: "0 auto", padding: "32px 24px" }}>
         {tab === "notices"     && <NoticesPanel      />}
         {tab === "courses"     && <CoursesPanel      />}
         {tab === "swresources" && <SwResourcesPanel  />}
@@ -145,14 +148,17 @@ function ManageDashboard({ session }: { session: SessionInfo }) {
 /* ── 공통 컴포넌트 ── */
 function SectionHeader({ title, count, onAdd }: { title: string; count: number; onAdd: () => void }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+    <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 24, paddingBottom: 20, borderBottom: `1px solid ${C.border}` }}>
       <div>
-        <h2 style={{ fontSize: 20, fontWeight: 800, color: C.text1, margin: "0 0 4px" }}>{title}</h2>
-        <p style={{ fontSize: 13, color: C.text3, margin: 0 }}>총 {count}건</p>
+        <h2 style={{ fontSize: 22, fontWeight: 800, color: C.text1, margin: "0 0 4px", letterSpacing: "-0.01em" }}>{title}</h2>
+        <p style={{ fontSize: 13, color: C.text3, margin: 0 }}>
+          총 <strong style={{ color: C.text2, fontWeight: 700 }}>{count}</strong>건
+        </p>
       </div>
       <button onClick={onAdd}
-        style={{ padding: "10px 16px", borderRadius: 12, background: C.primary, color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-        + 새로 추가
+        className="hover:brightness-105 transition-all"
+        style={{ padding: "10px 16px", borderRadius: 12, background: C.primary, color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ fontSize: 15, lineHeight: 1 }}>+</span> 새로 추가
       </button>
     </div>
   );
@@ -161,7 +167,7 @@ function SectionHeader({ title, count, onAdd }: { title: string; count: number; 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: C.text3, marginBottom: 6 }}>{label}</label>
+      <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: C.text3, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.03em" }}>{label}</label>
       {children}
     </div>
   );
@@ -437,7 +443,7 @@ function SwPanel() {
         {filtered.map(sw => {
           const st = STATUS_STYLE[sw.status] ?? { text: sw.status, bg: C.bg, color: C.text3 };
           return (
-            <div key={sw.id} style={{ background: "#fff", borderRadius: 16, padding: 20, display: "flex", alignItems: "center", gap: 16, border: `1px solid ${C.border}` }}>
+            <div key={sw.id} className="hover:shadow-sm transition-shadow" style={{ background: "#fff", borderRadius: 16, padding: 20, display: "flex", alignItems: "center", gap: 16, border: `1px solid ${C.border}` }}>
               <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: st.bg, color: st.color, flexShrink: 0 }}>{st.text}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 13, fontWeight: 700, color: C.text1, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -523,7 +529,7 @@ function AuditPanel() {
               {logs.map((log, i) => {
                 const as = ACTION_STYLE[log.action];
                 return (
-                  <tr key={log.id} style={{ borderBottom: i < logs.length - 1 ? `1px solid #f8fafc` : "none" }}>
+                  <tr key={log.id} className="hover:bg-slate-50 transition-colors" style={{ borderBottom: i < logs.length - 1 ? `1px solid #f8fafc` : "none" }}>
                     <td style={{ padding: "12px 16px", fontSize: 12, color: C.text3, whiteSpace: "nowrap" }}>{formatTime(log.timestamp)}</td>
                     <td style={{ padding: "12px 16px" }}>
                       <span style={{ fontSize: 12, fontWeight: 700, color: C.text1 }}>{log.adminName}</span>
@@ -554,15 +560,20 @@ function FormCard({ title, children, onCancel, onSave, saving, disabled }: {
   onCancel: () => void; onSave: () => void; saving: boolean; disabled: boolean;
 }) {
   return (
-    <div style={{ background: "#fff", borderRadius: 20, padding: 24, marginBottom: 24, border: `1px solid ${C.border}` }}>
-      <h3 style={{ fontSize: 13, fontWeight: 700, color: C.text1, margin: "0 0 16px" }}>{title}</h3>
+    <div style={{ background: "#fff", borderRadius: 20, padding: 24, marginBottom: 24, border: `1px solid ${C.border}`, borderLeft: `3px solid ${C.primary}` }}>
+      <h3 style={{ fontSize: 13, fontWeight: 700, color: C.text1, margin: "0 0 16px", display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.primary, display: "inline-block" }} />
+        {title}
+      </h3>
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>{children}</div>
       <div style={{ display: "flex", gap: 12, marginTop: 20 }}>
         <button onClick={onSave} disabled={saving || disabled}
-          style={{ padding: "10px 20px", borderRadius: 12, background: C.primary, color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: (saving || disabled) ? 0.5 : 1 }}>
+          className="hover:brightness-105 transition-all"
+          style={{ padding: "10px 20px", borderRadius: 12, background: C.primary, color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: (saving || disabled) ? "not-allowed" : "pointer", opacity: (saving || disabled) ? 0.5 : 1 }}>
           {saving ? "저장 중..." : "저장"}
         </button>
         <button onClick={onCancel}
+          className="hover:brightness-95 transition-all"
           style={{ padding: "10px 20px", borderRadius: 12, background: C.bg, color: C.text3, border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
           취소
         </button>
@@ -572,10 +583,18 @@ function FormCard({ title, children, onCancel, onSave, saving, disabled }: {
 }
 
 function ItemList({ loading, empty, children }: { loading: boolean; empty: string; children: React.ReactNode }) {
-  if (loading) return <div style={{ textAlign: "center", padding: 48, color: C.text4 }}>불러오는 중...</div>;
+  if (loading) return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 56, color: C.text4, fontSize: 13, gap: 10 }}>
+      <span className="animate-spin" style={{ width: 16, height: 16, borderRadius: "50%", border: `2px solid ${C.border}`, borderTopColor: C.primary, display: "inline-block" }} />
+      불러오는 중...
+    </div>
+  );
   const count = Array.isArray(children) ? children.length : (children ? 1 : 0);
   if (!count) return (
-    <div style={{ textAlign: "center", padding: 64, background: "#fff", borderRadius: 20, border: `1px solid ${C.border}`, color: C.text4, fontSize: 13 }}>{empty}</div>
+    <div style={{ textAlign: "center", padding: 64, background: "#fff", borderRadius: 20, border: `1px dashed ${C.border}` }}>
+      <div style={{ width: 40, height: 40, borderRadius: "50%", background: C.primarySoft, color: C.primary, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", fontSize: 18 }}>—</div>
+      <p style={{ color: C.text3, fontSize: 13, margin: 0 }}>{empty}</p>
+    </div>
   );
   return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>{children}</div>;
 }
@@ -587,7 +606,8 @@ function ItemRow({ visible, badge, title, sub, onToggle, onDelete }: {
   onToggle: () => void; onDelete: () => void;
 }) {
   return (
-    <div style={{ background: "#fff", borderRadius: 16, padding: 20, display: "flex", alignItems: "center", gap: 16, border: `1px solid ${C.border}`, opacity: visible ? 1 : 0.5 }}>
+    <div className="hover:shadow-sm transition-shadow"
+      style={{ background: "#fff", borderRadius: 16, padding: 20, display: "flex", alignItems: "center", gap: 16, border: `1px solid ${C.border}`, opacity: visible ? 1 : 0.55 }}>
       <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: badge.bg, color: badge.color, flexShrink: 0 }}>{badge.text}</span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ fontSize: 13, fontWeight: 700, color: C.text1, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</p>
@@ -595,10 +615,12 @@ function ItemRow({ visible, badge, title, sub, onToggle, onDelete }: {
       </div>
       <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
         <button onClick={onToggle}
+          className="hover:brightness-95 transition-all"
           style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: visible ? "#D1FAE5" : C.bg, color: visible ? "#065F46" : C.text3 }}>
           {visible ? "공개중" : "숨김"}
         </button>
         <button onClick={onDelete}
+          className="hover:brightness-95 transition-all"
           style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: C.dangerSoft, color: C.danger }}>
           삭제
         </button>

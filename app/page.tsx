@@ -113,9 +113,8 @@ export default function PortalPage() {
             style={{ borderRadius: 10, background: C.primary }}>
             <Icon n="msg" s={15} /> IT 지원 문의하기
           </a>
-          {/* N4: opacity-0으로 숨긴 관리자 링크 */}
           <a href="/admin"
-            className="mt-3 block text-center text-xs transition-opacity opacity-0 hover:opacity-100"
+            className="mt-3 block text-center text-xs hover:underline transition-colors"
             style={{ color: C.text4 }}>관리자</a>
         </div>
       </aside>
@@ -314,13 +313,20 @@ function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
             style={{ color: C.text1, fontFamily: "Manrope, sans-serif" }}>
             <Icon n="bell" s={15} /> 공지사항
           </div>
-          <span className="text-xs font-medium px-2 py-0.5 rounded-full"
-            style={{ background: C.bg, color: C.text3 }}>{notices.length}건</span>
+          {notices.length > 0 && (
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full"
+              style={{ background: C.bg, color: C.text3 }}>{notices.length}건</span>
+          )}
         </div>
         <div>
           {notices.length === 0 ? (
-            <div className="px-6 py-8 text-center text-sm" style={{ color: C.text4 }}>
-              등록된 공지사항이 없습니다.
+            <div className="px-6 py-10 text-center">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-2.5"
+                style={{ background: C.primarySoft, color: C.primary }}>
+                <Icon n="bell" s={16} />
+              </div>
+              <p className="text-sm font-medium" style={{ color: C.text3 }}>등록된 공지사항이 없습니다</p>
+              <p className="text-xs mt-0.5" style={{ color: C.text4 }}>새 소식이 있으면 이곳에 표시됩니다</p>
             </div>
           ) : notices.map(n => (
             <div key={n.id} className="flex items-center gap-3.5 px-6 py-3.5"
@@ -351,6 +357,50 @@ function courseBadge(deadline: string): { text: string; bg: string; color: strin
   if (diff <= 7) return { text: `D-${diff}`, bg: "#FECACA", color: "#B91C1C" };
   if (diff <= 30) return { text: `D-${diff}`, bg: "#FDE68A", color: "#B45309" };
   return { text: "진행중", bg: "#D1FAE5", color: "#065F46" };
+}
+
+/* "■" 구분 목록형 콘텐츠와 긴 평문을 모두 안전하게 표시 (긴 텍스트로 카드가 무너지는 문제 방지) */
+function CourseDescription({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const bulletItems = text.split("■").map(s => s.trim()).filter(Boolean);
+  const isBulletList = bulletItems.length > 1;
+
+  if (isBulletList) {
+    const shown = expanded ? bulletItems : bulletItems.slice(0, 3);
+    return (
+      <div className="flex-1 mb-4">
+        <ul className="space-y-1.5">
+          {shown.map((item, i) => (
+            <li key={i} className="flex gap-2 text-sm leading-relaxed" style={{ color: C.text3 }}>
+              <span className="shrink-0 mt-2 w-1 h-1 rounded-full" style={{ background: C.primary }} />
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+        {bulletItems.length > 3 && (
+          <button type="button" onClick={() => setExpanded(v => !v)}
+            className="text-xs font-semibold mt-2 hover:underline" style={{ color: C.primary }}>
+            {expanded ? "간략히 보기 ▲" : `${bulletItems.length - 3}개 항목 더 보기 ▼`}
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  const isLong = text.length > 140;
+  return (
+    <div className="flex-1 mb-4">
+      <p className={`text-sm leading-relaxed ${!expanded && isLong ? "line-clamp-4" : ""}`} style={{ color: C.text3 }}>
+        {text}
+      </p>
+      {isLong && (
+        <button type="button" onClick={() => setExpanded(v => !v)}
+          className="text-xs font-semibold mt-1.5 hover:underline" style={{ color: C.primary }}>
+          {expanded ? "간략히 보기 ▲" : "더 보기 ▼"}
+        </button>
+      )}
+    </div>
+  );
 }
 
 function EducationTab() {
@@ -403,10 +453,8 @@ function EducationTab() {
                   {/* 제목 */}
                   <h4 className="text-base font-bold leading-snug mb-3"
                     style={{ fontFamily: "Manrope, sans-serif", color: C.text1 }}>{c.title}</h4>
-                  {/* 설명 — 전체 표시 */}
-                  {c.description && (
-                    <p className="text-sm leading-relaxed flex-1 mb-4" style={{ color: C.text3 }}>{c.description}</p>
-                  )}
+                  {/* 설명 — 목록형/긴 텍스트 모두 안전하게 표시 */}
+                  {c.description && <CourseDescription text={c.description} />}
                   {/* 메타 태그 */}
                   <div className="flex items-center gap-2 flex-wrap mb-4">
                     {c.duration && (
@@ -486,9 +534,7 @@ function EducationTab() {
                 <div className="flex-1 min-w-0">
                   <h4 className="text-base font-bold leading-snug mb-2"
                     style={{ fontFamily: "Manrope, sans-serif", color: C.text1 }}>{p.title}</h4>
-                  {p.description && (
-                    <p className="text-sm leading-relaxed mb-4" style={{ color: C.text3 }}>{p.description}</p>
-                  )}
+                  {p.description && <CourseDescription text={p.description} />}
                   <div className="flex items-center gap-3 flex-wrap">
                     {p.duration && (
                       <span className="text-xs font-medium px-2.5 py-1 rounded-full"
@@ -627,9 +673,9 @@ function SearchTab() {
     <div className="fade-in">
       <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-6">
         <div>
-          <h2 className="text-4xl font-extrabold tracking-tight mb-2"
+          <h2 className="text-3xl font-extrabold tracking-tight mb-2"
             style={{ fontFamily: "Manrope, sans-serif", color: C.text1 }}>SW 검색</h2>
-          <p className="text-lg" style={{ color: C.text3 }}>
+          <p className="text-base" style={{ color: C.text3 }}>
             사내 승인된 SW와 사용이 금지된 SW 여부를 확인하세요.
           </p>
         </div>
