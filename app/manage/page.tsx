@@ -100,7 +100,7 @@ function ManageDashboard({ session }: { session: SessionInfo }) {
     <div style={{ minHeight: "100vh", background: C.bg }}>
       {/* 헤더 */}
       <header style={{ background: "#fff", position: "sticky", top: 0, zIndex: 40, borderBottom: `1px solid ${C.border}` }}>
-        <div style={{ maxWidth: 1120, margin: "0 auto", padding: "14px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+        <div style={{ maxWidth: 1280, margin: "0 auto", padding: "14px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
             <div style={{ width: 32, height: 32, borderRadius: 8, background: C.primary, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 900, fontSize: 11 }}>SW</div>
             <div>
@@ -133,7 +133,7 @@ function ManageDashboard({ session }: { session: SessionInfo }) {
         </div>
       </header>
 
-      <main style={{ maxWidth: 1120, margin: "0 auto", padding: "32px 24px" }}>
+      <main style={{ maxWidth: 1280, margin: "0 auto", padding: "32px 24px" }}>
         {tab === "notices"     && <NoticesPanel      />}
         {tab === "courses"     && <CoursesPanel      />}
         {tab === "swresources" && <SwResourcesPanel  />}

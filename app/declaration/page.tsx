@@ -4,14 +4,14 @@ import DeclarationPanel from "@/components/DeclarationPanel";
 
 const C = {
   brand:       "#D97706",
-  primary:     "#F59E0B",
-  primarySoft: "#FFFBEB",
-  text1:       "#1c1006",
-  text2:       "#44403c",
-  text3:       "#64748b",
-  text4:       "#94a3b8",
-  border:      "#fde68a",
-  bgPage:      "#fffdf8",
+  primary:     "#EA8C0E",
+  primarySoft: "#FEF3E2",
+  text1:       "#111827",
+  text2:       "#374151",
+  text3:       "#6B7280",
+  text4:       "#9CA3AF",
+  border:      "#E5E7EB",
+  bgPage:      "#FAFAFA",
 } as const;
 
 const INQUIRY_URL = "https://assetify-desk-main.vercel.app";

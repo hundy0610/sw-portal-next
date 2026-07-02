@@ -6,15 +6,15 @@ import { safeJson } from "@/lib/fetch-json";
 
 const C = {
   brand:       "#D97706",
-  primary:     "#F59E0B",
-  primarySoft: "#FFFBEB",
-  text1:       "#1c1006",
-  text2:       "#44403c",
-  text3:       "#64748b",
-  text4:       "#94a3b8",
-  border:      "#fde68a",
-  bg:          "#fef3d0",
-  bgPage:      "#fffdf8",
+  primary:     "#EA8C0E",
+  primarySoft: "#FEF3E2",
+  text1:       "#111827",
+  text2:       "#374151",
+  text3:       "#6B7280",
+  text4:       "#9CA3AF",
+  border:      "#E5E7EB",
+  bg:          "#F3F4F6",
+  bgPage:      "#FAFAFA",
 } as const;
 
 const INQUIRY_URL = "https://assetify-desk-main.vercel.app";
@@ -179,7 +179,7 @@ export default function ResourcesPage() {
             {/* 히어로 */}
             <div className="relative overflow-hidden"
               style={{ background: `linear-gradient(135deg, ${C.brand} 0%, ${C.primary} 100%)` }}>
-              <div className="max-w-4xl mx-auto px-6 py-12 relative z-10">
+              <div className="max-w-6xl mx-auto px-6 py-12 relative z-10">
                 <p className="text-xs font-bold uppercase tracking-widest mb-2"
                   style={{ color: "rgba(255,255,255,0.65)" }}>SW 자료 아카이브</p>
                 <h1 className="text-4xl font-extrabold text-white mb-2"
@@ -220,7 +220,7 @@ export default function ResourcesPage() {
             {/* 카테고리 필터 */}
             <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-sm"
               style={{ borderBottom: `1px solid ${C.border}` }}>
-              <div className="max-w-4xl mx-auto px-6">
+              <div className="max-w-6xl mx-auto px-6">
                 <div className="flex gap-2 py-3 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
                   {categories.map(cat => (
                     <button key={cat} onClick={() => setCatFilter(cat)}
@@ -237,13 +237,13 @@ export default function ResourcesPage() {
             </div>
 
             {/* SW 카드 그리드 */}
-            <div className="max-w-4xl mx-auto px-6 py-8">
+            <div className="max-w-6xl mx-auto px-6 py-8">
               {filteredSwNames.length === 0 ? (
                 <div className="text-center py-20 rounded-[20px]" style={{ background: C.bg, color: C.text4 }}>
                   {searchQ ? `"${searchQ}" 검색 결과가 없습니다.` : "등록된 SW가 없습니다."}
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
                   {filteredSwNames.map(name => {
                     const vers = swGroups.get(name)!;
                     const cat  = vers[0]?.category || "기타";
@@ -288,7 +288,7 @@ export default function ResourcesPage() {
 
         {/* ════ 레벨 2: 버전 목록 ════ */}
         {selectedSwName && !selectedVersion && (
-          <div className="max-w-4xl mx-auto px-6 py-8">
+          <div className="max-w-5xl mx-auto px-6 py-8">
             <nav className="flex items-center gap-1.5 text-sm mb-8" style={{ color: C.text3 }}>
               <button onClick={() => setSelectedSwName(null)} className="hover:underline">자료실</button>
               <Icon n="chevron" s={13} />
@@ -338,7 +338,7 @@ export default function ResourcesPage() {
 
         {/* ════ 레벨 3: 파일 상세 ════ */}
         {selectedVersion && (
-          <div className="max-w-4xl mx-auto px-6 py-8">
+          <div className="max-w-5xl mx-auto px-6 py-8">
             <nav className="flex items-center gap-1.5 text-sm mb-8" style={{ color: C.text3 }}>
               <button onClick={() => { setSelectedSwName(null); setSelectedVersion(null); }}
                 className="hover:underline">자료실</button>

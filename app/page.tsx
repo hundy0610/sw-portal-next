@@ -9,18 +9,18 @@ type Tab = "home" | "education" | "search";
 
 const INQUIRY_URL = "https://assetify-desk-main.vercel.app";
 
-/* ── 색상 토큰 (3종으로 통일) ── */
+/* ── 색상 토큰 — 브랜드 앰버(로고 컬러)는 액션 요소에만, 배경은 중립톤으로 ── */
 const C = {
   brand:       "#D97706",
-  primary:     "#F59E0B",
-  primarySoft: "#FFFBEB",
-  text1:       "#1c1006",
-  text2:       "#44403c",
-  text3:       "#64748b",
-  text4:       "#94a3b8",
-  border:      "#fde68a",
-  bg:          "#fef3d0",
-  bgPage:      "#fffdf8",
+  primary:     "#EA8C0E",
+  primarySoft: "#FEF3E2",
+  text1:       "#111827",
+  text2:       "#374151",
+  text3:       "#6B7280",
+  text4:       "#9CA3AF",
+  border:      "#E5E7EB",
+  bg:          "#F3F4F6",
+  bgPage:      "#FAFAFA",
 } as const;
 
 /* ── D-day 동적 계산 ── */
@@ -128,7 +128,7 @@ export default function PortalPage() {
 
       {/* ── 메인 콘텐츠 ── */}
       <main className="flex-1 lg:ml-[240px] min-h-screen pb-20 lg:pb-10 pt-14 lg:pt-0">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {tab === "home"      && <HomeTab onNavigate={setTab} />}
           {tab === "education" && <EducationTab />}
           {tab === "search"    && <SearchTab />}
@@ -184,9 +184,10 @@ function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
   ];
 
   return (
-    <div className="fade-in">
+    <div className="fade-in grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
+    <div className="xl:col-span-2">
       {/* 히어로 */}
-      <div className="rounded-[20px] text-white relative overflow-hidden mb-8 px-7 sm:px-9 py-7"
+      <div className="rounded-[20px] text-white relative overflow-hidden mb-6 px-7 sm:px-9 py-7"
         style={{ background: `linear-gradient(135deg, ${C.brand} 0%, ${C.primary} 60%, #FCD34D 100%)` }}>
         <div className="absolute rounded-full pointer-events-none opacity-5"
           style={{ width: 280, height: 280, top: -90, right: -60, background: "#fff" }} />
@@ -269,7 +270,7 @@ function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
       </div>
 
       {/* M5: 4개 균형 바로가기 */}
-      <div className="grid grid-cols-2 gap-4 mb-5">
+      <div className="grid grid-cols-2 gap-4 mb-6">
         {SHORTCUTS.map(s => {
           const cls = "bg-white text-left rounded-[20px] p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all";
           const style = { border: `1px solid ${C.border}` };
@@ -292,7 +293,7 @@ function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
 
       {/* M5: IT 지원 문의 — 별도 CTA 행 */}
       <a href={INQUIRY_URL} target="_blank" rel="noopener noreferrer"
-        className="flex items-center gap-4 bg-white rounded-[20px] px-6 py-5 mb-7 hover:shadow-md transition-all"
+        className="flex items-center gap-4 bg-white rounded-[20px] px-6 py-5 hover:shadow-md transition-all"
         style={{ border: `1px solid ${C.border}` }}>
         <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
           style={{ background: C.primarySoft, color: C.primary }}>
@@ -304,45 +305,48 @@ function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
         </div>
         <span style={{ color: C.text4 }}><Icon n="chevron" s={16} /></span>
       </a>
+    </div>
 
-      {/* 공지사항 */}
-      <div className="bg-white rounded-[20px] overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
-        <div className="px-6 py-4 flex items-center justify-between"
-          style={{ borderBottom: `1px solid ${C.border}` }}>
-          <div className="flex items-center gap-2 font-bold text-sm"
-            style={{ color: C.text1, fontFamily: "Manrope, sans-serif" }}>
-            <Icon n="bell" s={15} /> 공지사항
-          </div>
-          {notices.length > 0 && (
-            <span className="text-xs font-medium px-2 py-0.5 rounded-full"
-              style={{ background: C.bg, color: C.text3 }}>{notices.length}건</span>
-          )}
+    {/* 공지사항 — 오른쪽 사이드레일 (넓은 화면에서 sticky) */}
+    <div className="bg-white rounded-[20px] overflow-hidden xl:sticky xl:top-8" style={{ border: `1px solid ${C.border}` }}>
+      <div className="px-6 py-4 flex items-center justify-between"
+        style={{ borderBottom: `1px solid ${C.border}` }}>
+        <div className="flex items-center gap-2 font-bold text-sm"
+          style={{ color: C.text1, fontFamily: "Manrope, sans-serif" }}>
+          <Icon n="bell" s={15} /> 공지사항
         </div>
-        <div>
-          {notices.length === 0 ? (
-            <div className="px-6 py-10 text-center">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-2.5"
-                style={{ background: C.primarySoft, color: C.primary }}>
-                <Icon n="bell" s={16} />
-              </div>
-              <p className="text-sm font-medium" style={{ color: C.text3 }}>등록된 공지사항이 없습니다</p>
-              <p className="text-xs mt-0.5" style={{ color: C.text4 }}>새 소식이 있으면 이곳에 표시됩니다</p>
+        {notices.length > 0 && (
+          <span className="text-xs font-medium px-2 py-0.5 rounded-full"
+            style={{ background: C.bg, color: C.text3 }}>{notices.length}건</span>
+        )}
+      </div>
+      <div className="xl:max-h-[520px] xl:overflow-y-auto">
+        {notices.length === 0 ? (
+          <div className="px-6 py-10 text-center">
+            <div className="w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-2.5"
+              style={{ background: C.primarySoft, color: C.primary }}>
+              <Icon n="bell" s={16} />
             </div>
-          ) : notices.map(n => (
-            <div key={n.id} className="flex items-center gap-3.5 px-6 py-3.5"
-              style={{ borderBottom: "1px solid #f8fafc" }}>
+            <p className="text-sm font-medium" style={{ color: C.text3 }}>등록된 공지사항이 없습니다</p>
+            <p className="text-xs mt-0.5" style={{ color: C.text4 }}>새 소식이 있으면 이곳에 표시됩니다</p>
+          </div>
+        ) : notices.map(n => (
+          <div key={n.id} className="flex flex-col gap-1 px-6 py-3.5"
+            style={{ borderBottom: "1px solid #f8fafc" }}>
+            <div className="flex items-center gap-2">
               <span className="text-xs font-bold px-2 py-0.5 rounded-md shrink-0"
                 style={n.urgent
                   ? { background: "#FEE2E2", color: "#DC2626" }
                   : { background: "#f1f5f9", color: C.text3 }}>
                 {n.urgent ? "긴급" : "안내"}
               </span>
-              <span className="text-sm flex-1" style={{ color: C.text2 }}>{n.title}</span>
-              <span className="text-xs shrink-0 hidden sm:block" style={{ color: C.text4 }}>{n.date}</span>
+              <span className="text-xs shrink-0" style={{ color: C.text4 }}>{n.date}</span>
             </div>
-          ))}
-        </div>
+            <span className="text-sm" style={{ color: C.text2 }}>{n.title}</span>
+          </div>
+        ))}
       </div>
+    </div>
     </div>
   );
 }
@@ -435,7 +439,7 @@ function EducationTab() {
             등록된 교육 과정이 없습니다.
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
             {required.map(c => {
               const badge = courseBadge(c.deadline);
               return (
@@ -490,7 +494,7 @@ function EducationTab() {
       {materials.length > 0 && (
         <section className="mb-12">
           <h3 className="text-xl font-bold mb-6" style={{ fontFamily: "Manrope, sans-serif" }}>SW 활용 자료</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             {materials.map(m => (
               <a key={m.id} href={m.courseUrl && m.courseUrl !== "#" ? m.courseUrl : undefined}
                 target="_blank" rel="noopener noreferrer"
@@ -845,7 +849,7 @@ function SearchTab() {
               <p className="text-sm mb-5" style={{ color: C.text4 }}>
                 {filtered.length}개 결과{query && ` — "${query}"`}{catFilter !== "all" && ` — ${catEmoji(catFilter)} ${catFilter}`}
               </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
                 {filtered.map(s => {
                   const ss = STATUS_STYLE[s.status];
                   const cs = catStyle(s.category);
