@@ -1,6 +1,6 @@
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { memGet, memSet } from "@/lib/mem-cache";
-import type { Notice, Course } from "@/types/portal";
+import type { Notice, Course, DeclarationLog } from "@/types/portal";
 import type { SwItem } from "@/types";
 import type { BugStage } from "@/types/bug-report";
 import { DEFAULT_BUG_STAGES } from "@/types/bug-report";
@@ -14,6 +14,7 @@ const KV_AUDIT      = "portal:audit_log";
 const KV_ADMIN_AUDIT = "portal:admin_audit_log";
 const KV_BUG_STAGES = "portal:bug_stages";
 const KV_WORK_STAGES = "portal:work_stages";
+const KV_DECLARATION_LOG = "portal:declaration_log";
 
 // ─── Audit Log ──────────────────────────────────────────
 export interface AuditLog {
@@ -75,6 +76,38 @@ export async function getAuditLogs(limit = 100, key = KV_AUDIT): Promise<AuditLo
 
 export const appendAdminAuditLog = (entry: Omit<AuditLog, "id">) => appendAuditLog(entry, KV_ADMIN_AUDIT);
 export const getAdminAuditLogs = (limit = 100) => getAuditLogs(limit, KV_ADMIN_AUDIT);
+
+// ─── 실사 제출 이력 (개인/팀 실사 완료 기록) ──────────────────
+export async function appendDeclarationLog(entry: Omit<DeclarationLog, "id">): Promise<void> {
+  try {
+    const logs = (await kvGet<DeclarationLog[]>(KV_DECLARATION_LOG)) ?? [];
+    const newLog: DeclarationLog = { id: `dl_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, ...entry };
+    // 최대 2000건 유지
+    const trimmed = [newLog, ...logs].slice(0, 2000);
+    await kvSetPermanent(KV_DECLARATION_LOG, trimmed);
+  } catch (e) {
+    console.warn("[declaration-log] append failed:", e);
+  }
+}
+
+// 개인: company + name 기준 / 팀: company + department 기준으로 조회
+export async function getDeclarationLogs(filter: {
+  company: string; name?: string; department?: string; limit?: number;
+}): Promise<DeclarationLog[]> {
+  try {
+    const logs = (await kvGet<DeclarationLog[]>(KV_DECLARATION_LOG)) ?? [];
+    const norm = (s?: string) => (s ?? "").trim().toLowerCase();
+    const filtered = logs.filter(l => {
+      if (norm(l.company) !== norm(filter.company)) return false;
+      if (filter.name)       return norm(l.name) === norm(filter.name);
+      if (filter.department) return norm(l.department) === norm(filter.department);
+      return false;
+    });
+    return filtered.slice(0, filter.limit ?? 20);
+  } catch {
+    return [];
+  }
+}
 
 // 인메모리 캐시 TTL: 60초 (포털 콘텐츠는 자주 바뀌지 않음)
 const MEM_TTL = 60;

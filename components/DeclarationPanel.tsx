@@ -484,9 +484,22 @@ function Step2({ userInfo, initialRecords, onComplete }: {
 
   const removePending = (idx: number) => setPending(p => p.filter((_, i) => i !== idx));
 
+  // 실사 완료 이력을 남긴다 (조회용, 실패해도 무시)
+  const logDeclaration = (count: number) => {
+    fetch("/api/declaration/history", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "personal", company: userInfo.company, department: userInfo.department,
+        name: userInfo.name, count,
+      }),
+    }).catch(() => {});
+  };
+
   // 대기 중인 신규 SW를 한번에 Notion에 등록한 뒤 다음 단계로 진행한다.
   const handleComplete = async () => {
     if (pending.length === 0) {
+      logDeclaration(records.length);
       onComplete(records, []);
       return;
     }
@@ -514,6 +527,7 @@ function Step2({ userInfo, initialRecords, onComplete }: {
         renewalCycle: p.renewalCycle, monthlyKrw: p.monthlyKrw,
         monthlyUsd: p.monthlyUsd, licenseKey: p.licenseKey, renewalDate: "",
       }));
+      logDeclaration(records.length + added.length);
       onComplete(records, added);
     } catch (e) {
       setSubmitError(String(e));
@@ -826,7 +840,7 @@ function Step3({ userInfo, records, added, onReset }: {
 // ─────────────────────────────────────────────────────────────────────────────
 // 모드 선택 — 개인 / 팀
 // ─────────────────────────────────────────────────────────────────────────────
-function ModeSelect({ onSelect }: { onSelect: (m: "personal" | "team") => void }) {
+function ModeSelect({ onSelect }: { onSelect: (m: "personal" | "team" | "history") => void }) {
   return (
     <div className="max-w-2xl xl:max-w-3xl 2xl:max-w-4xl mx-auto">
       <p className="text-center text-sm xl:text-base text-gray-500 mb-3 xl:mb-5">실사 방식을 선택해주세요</p>
@@ -852,6 +866,131 @@ function ModeSelect({ onSelect }: { onSelect: (m: "personal" | "team") => void }
             <p className="text-sm xl:text-base text-gray-500 mt-1 leading-relaxed">법인 + 부서 기준으로 소속 팀원 전체 현황을 한번에 확인합니다</p>
           </div>
           <span className="text-amber-500 text-xs xl:text-sm font-semibold">시작하기 →</span>
+        </button>
+      </div>
+      <div className="text-center mt-5">
+        <button onClick={() => onSelect("history")}
+          className="inline-flex items-center gap-1.5 text-xs xl:text-sm text-gray-400 hover:text-amber-600 font-medium transition-colors">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>
+          지난 실사 제출 이력 확인하기 →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 실사 이력 조회 — 언제 제출했는지, 몇 건 확인했는지 조회
+// ─────────────────────────────────────────────────────────────────────────────
+interface DeclarationLogRow {
+  id: string; type: "personal" | "team";
+  company: string; department: string; name?: string;
+  count: number; timestamp: string;
+}
+
+function fmtLogDate(iso: string) {
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}.${p(d.getMonth() + 1)}.${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function HistoryLookup({ onBack }: { onBack: () => void }) {
+  const [scope,   setScope]   = useState<"personal" | "team">("personal");
+  const [company, setCompany] = useState("");
+  const [name,    setName]    = useState("");
+  const [dept,    setDept]    = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState("");
+  const [logs,    setLogs]    = useState<DeclarationLogRow[] | null>(null);
+
+  const lookup = async () => {
+    if (!company || (scope === "personal" ? !name.trim() : !dept.trim())) {
+      setError("모든 항목을 입력해주세요."); return;
+    }
+    setLoading(true); setError(""); setLogs(null);
+    try {
+      const qs = scope === "personal"
+        ? `company=${encodeURIComponent(company)}&name=${encodeURIComponent(name.trim())}`
+        : `company=${encodeURIComponent(company)}&department=${encodeURIComponent(dept.trim())}`;
+      const res  = await fetch(`/api/declaration/history?${qs}`);
+      const json = await safeJson(res);
+      if (!json.ok) throw new Error(json.error);
+      setLogs(json.logs ?? []);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="max-w-2xl mx-auto">
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-9 h-9 rounded-lg bg-amber-500 flex items-center justify-center shrink-0">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>
+          </div>
+          <div>
+            <h2 className="font-bold text-gray-900 text-base">실사 제출 이력 조회</h2>
+            <p className="text-xs text-gray-500 mt-0.5">언제, 몇 건 제출했는지 확인합니다</p>
+          </div>
+        </div>
+
+        {/* 개인/팀 토글 */}
+        <div className="flex gap-2 mb-4">
+          {(["personal", "team"] as const).map(s => (
+            <button key={s} type="button"
+              onClick={() => { setScope(s); setLogs(null); setError(""); }}
+              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
+                scope === s ? "bg-amber-500 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+              }`}>
+              {s === "personal" ? "개인 실사" : "팀(부서) 실사"}
+            </button>
+          ))}
+        </div>
+
+        <div className="space-y-3">
+          <Sel label="법인명" required value={company} options={COMPANIES} onChange={setCompany} />
+          {scope === "personal"
+            ? <Inp label="이름" required value={name} onChange={setName} placeholder="예: 홍길동" />
+            : <Inp label="부서" required value={dept} onChange={setDept} placeholder="예: 포털팀" />}
+        </div>
+
+        {error && <div className="mt-3 px-3 py-2 bg-red-50 rounded-lg text-sm text-red-600">{error}</div>}
+
+        <button onClick={lookup} disabled={loading}
+          className="mt-5 w-full py-2.5 rounded-xl bg-amber-500 text-white font-semibold text-base hover:bg-amber-600 disabled:opacity-50 transition-colors">
+          {loading ? "조회 중…" : "이력 조회 →"}
+        </button>
+
+        {logs !== null && (
+          <div className="mt-5 pt-5 border-t border-gray-100">
+            {logs.length === 0 ? (
+              <div className="text-center py-6">
+                <p className="text-gray-400 text-sm">제출 이력이 없습니다</p>
+                <p className="text-xs text-gray-300 mt-1">아직 실사를 완료하지 않았습니다</p>
+              </div>
+            ) : (
+              <ul className="space-y-2">
+                {logs.map(l => (
+                  <li key={l.id} className="flex items-center gap-3 bg-gray-50 rounded-lg px-4 py-2.5">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                      l.type === "personal" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"
+                    }`}>
+                      {l.type === "personal" ? "개인" : "팀"}
+                    </span>
+                    <span className="text-sm text-gray-700 flex-1">{fmtLogDate(l.timestamp)}</span>
+                    <span className="text-xs font-semibold text-gray-500 shrink-0">{l.count}건 확인</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        <button onClick={onBack}
+          className="mt-5 w-full text-xs text-gray-400 hover:text-amber-600 underline underline-offset-2 transition-colors">
+          ← 처음으로 돌아가기
         </button>
       </div>
     </div>
@@ -1089,7 +1228,14 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
       {/* 카드 1: 현황 확인 */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-3">
         <h4 className="text-base font-bold text-gray-900">현황 확인</h4>
-        <button onClick={() => setConfirmed(true)}
+        <button onClick={() => {
+            fetch("/api/declaration/history", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ type: "team", company, department: dept, count: records?.length ?? 0 }),
+            }).catch(() => {});
+            setConfirmed(true);
+          }}
           className="w-full py-3 rounded-xl bg-amber-500 text-white font-bold text-base hover:bg-amber-600 transition-colors">
           ✓ 모두 맞습니다 — 확인 완료
         </button>
@@ -1187,7 +1333,7 @@ function StepBar({ current }: { current: number }) {
 // 메인 Export
 // ─────────────────────────────────────────────────────────────────────────────
 export default function DeclarationPanel() {
-  const [mode,    setMode]     = useState<"personal" | "team" | null>(null);
+  const [mode,    setMode]     = useState<"personal" | "team" | "history" | null>(null);
   const [step,    setStep]     = useState(1);
   const [info,    setInfo]     = useState<UserInfo | null>(null);
   const [existing,setExisting] = useState<SwRecord[]>([]);
@@ -1210,7 +1356,9 @@ export default function DeclarationPanel() {
         </div>
         <span className="font-bold text-amber-900 text-base">SW 자산 실사</span>
         {mode !== null && (
-          <span className="text-xs text-amber-500 ml-auto">{mode === "personal" ? "개인" : "팀(부서)"}</span>
+          <span className="text-xs text-amber-500 ml-auto">
+            {mode === "personal" ? "개인" : mode === "team" ? "팀(부서)" : "이력 조회"}
+          </span>
         )}
       </div>
 
@@ -1237,6 +1385,8 @@ export default function DeclarationPanel() {
       )}
 
       {mode === "team" && <TeamFlow onBack={reset} />}
+
+      {mode === "history" && <HistoryLookup onBack={reset} />}
     </div>
   );
 }

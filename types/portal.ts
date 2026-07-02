@@ -59,6 +59,16 @@ export interface SwDoc {
   fileName?: string;   // 첨부 파일 원본명
 }
 
+export interface DeclarationLog {
+  id: string;
+  type: "personal" | "team";
+  company: string;
+  department: string;
+  name?: string;        // 개인 실사에서만 사용
+  count: number;         // 확인/등록된 SW 건수
+  timestamp: string;     // ISO
+}
+
 export interface Manual {
   id: string;
   title: string;        // 제목
