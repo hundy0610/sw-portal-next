@@ -404,7 +404,7 @@ function SwPanel() {
       <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
         {FILTERS.map(f => (
           <button key={f.key} onClick={() => setFilter(f.key)}
-            style={{ padding: "6px 14px", borderRadius: 20, border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer",
+            style={{ padding: "6px 14px", borderRadius: 12, border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer",
               background: filter === f.key ? C.primary : "#fff",
               color:      filter === f.key ? "#fff"     : C.text3,
               boxShadow:  filter === f.key ? "none" : `0 0 0 1px ${C.border}`,
@@ -443,7 +443,7 @@ function SwPanel() {
         {filtered.map(sw => {
           const st = STATUS_STYLE[sw.status] ?? { text: sw.status, bg: C.bg, color: C.text3 };
           return (
-            <div key={sw.id} className="hover:shadow-sm transition-shadow" style={{ background: "#fff", borderRadius: 16, padding: 20, display: "flex", alignItems: "center", gap: 16, border: `1px solid ${C.border}` }}>
+            <div key={sw.id} className="hover:shadow-sm transition-shadow" style={{ background: "#fff", borderRadius: 12, padding: 20, display: "flex", alignItems: "center", gap: 16, border: `1px solid ${C.border}` }}>
               <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: st.bg, color: st.color, flexShrink: 0 }}>{st.text}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 13, fontWeight: 700, color: C.text1, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -512,11 +512,11 @@ function AuditPanel() {
       {loading ? (
         <div style={{ textAlign: "center", padding: 48, color: C.text4 }}>불러오는 중...</div>
       ) : logs.length === 0 ? (
-        <div style={{ textAlign: "center", padding: 64, background: "#fff", borderRadius: 20, border: `1px solid ${C.border}`, color: C.text4, fontSize: 13 }}>
+        <div style={{ textAlign: "center", padding: 64, background: "#fff", borderRadius: 12, border: `1px solid ${C.border}`, color: C.text4, fontSize: 13 }}>
           아직 기록된 활동이 없습니다.
         </div>
       ) : (
-        <div style={{ background: "#fff", borderRadius: 20, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+        <div style={{ background: "#fff", borderRadius: 12, border: `1px solid ${C.border}`, overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ borderBottom: `1px solid ${C.border}` }}>
@@ -560,7 +560,7 @@ function FormCard({ title, children, onCancel, onSave, saving, disabled }: {
   onCancel: () => void; onSave: () => void; saving: boolean; disabled: boolean;
 }) {
   return (
-    <div style={{ background: "#fff", borderRadius: 20, padding: 24, marginBottom: 24, border: `1px solid ${C.border}`, borderLeft: `3px solid ${C.primary}` }}>
+    <div style={{ background: "#fff", borderRadius: 12, padding: 24, marginBottom: 24, border: `1px solid ${C.border}`, borderLeft: `3px solid ${C.primary}` }}>
       <h3 style={{ fontSize: 13, fontWeight: 700, color: C.text1, margin: "0 0 16px", display: "flex", alignItems: "center", gap: 6 }}>
         <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.primary, display: "inline-block" }} />
         {title}
@@ -591,7 +591,7 @@ function ItemList({ loading, empty, children }: { loading: boolean; empty: strin
   );
   const count = Array.isArray(children) ? children.length : (children ? 1 : 0);
   if (!count) return (
-    <div style={{ textAlign: "center", padding: 64, background: "#fff", borderRadius: 20, border: `1px dashed ${C.border}` }}>
+    <div style={{ textAlign: "center", padding: 64, background: "#fff", borderRadius: 12, border: `1px dashed ${C.border}` }}>
       <div style={{ width: 40, height: 40, borderRadius: "50%", background: C.primarySoft, color: C.primary, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", fontSize: 18 }}>—</div>
       <p style={{ color: C.text3, fontSize: 13, margin: 0 }}>{empty}</p>
     </div>
@@ -607,7 +607,7 @@ function ItemRow({ visible, badge, title, sub, onToggle, onDelete }: {
 }) {
   return (
     <div className="hover:shadow-sm transition-shadow"
-      style={{ background: "#fff", borderRadius: 16, padding: 20, display: "flex", alignItems: "center", gap: 16, border: `1px solid ${C.border}`, opacity: visible ? 1 : 0.55 }}>
+      style={{ background: "#fff", borderRadius: 12, padding: 20, display: "flex", alignItems: "center", gap: 16, border: `1px solid ${C.border}`, opacity: visible ? 1 : 0.55 }}>
       <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: badge.bg, color: badge.color, flexShrink: 0 }}>{badge.text}</span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ fontSize: 13, fontWeight: 700, color: C.text1, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</p>
@@ -870,7 +870,7 @@ function SwResourcesPanel() {
       {/* ── 오른쪽: 파일/문서 목록 ── */}
       <div>
         {!selVersion ? (
-          <div style={{ textAlign: "center", padding: 64, color: C.text4, fontSize: 13, background: "#f8fafc", borderRadius: 16, border: `1px dashed ${C.border}` }}>
+          <div style={{ textAlign: "center", padding: 64, color: C.text4, fontSize: 13, background: "#f8fafc", borderRadius: 12, border: `1px dashed ${C.border}` }}>
             왼쪽에서 SW 버전을 선택하면<br />파일/문서 목록이 표시됩니다.
           </div>
         ) : (
@@ -1016,7 +1016,7 @@ function SwResourcesPanel() {
             )}
 
             {docs.length === 0 ? (
-              <div style={{ textAlign: "center", padding: 48, color: C.text4, fontSize: 13, background: "#f8fafc", borderRadius: 16 }}>
+              <div style={{ textAlign: "center", padding: 48, color: C.text4, fontSize: 13, background: "#f8fafc", borderRadius: 12 }}>
                 등록된 파일이 없습니다.
               </div>
             ) : (
@@ -1233,7 +1233,7 @@ function ManualsPanel() {
 
       <ItemList loading={loading} empty="아직 등록된 매뉴얼이 없습니다.">
         {items.map(item => (
-          <div key={item.id} style={{ background: "#fff", borderRadius: 16, padding: 20, display: "flex", alignItems: "center", gap: 16, border: `1px solid ${C.border}`, opacity: item.visible ? 1 : 0.5 }}>
+          <div key={item.id} style={{ background: "#fff", borderRadius: 12, padding: 20, display: "flex", alignItems: "center", gap: 16, border: `1px solid ${C.border}`, opacity: item.visible ? 1 : 0.5 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 {item.category && (
@@ -1277,7 +1277,7 @@ function ManualsPanel() {
         <div onClick={() => setQrItem(null)}
           style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.4)" }}>
           <div onClick={e => e.stopPropagation()}
-            style={{ width: 300, background: "#fff", borderRadius: 16, padding: 24, display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+            style={{ width: 300, background: "#fff", borderRadius: 12, padding: 24, display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
             <div style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: C.text1 }}>{qrItem.title}</span>
               <button onClick={() => setQrItem(null)}

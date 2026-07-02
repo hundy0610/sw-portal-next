@@ -4,14 +4,14 @@ import DeclarationPanel from "@/components/DeclarationPanel";
 
 const C = {
   brand:       "#D97706",
-  primary:     "#EA8C0E",
-  primarySoft: "#FEF3E2",
-  text1:       "#111827",
+  primary:     "#D97706",
+  primarySoft: "#FAEEDA",
+  text1:       "#111111",
   text2:       "#374151",
-  text3:       "#6B7280",
-  text4:       "#9CA3AF",
-  border:      "#E5E7EB",
-  bgPage:      "#FAFAFA",
+  text3:       "#6B6B68",
+  text4:       "#8A8A86",
+  border:      "#EEEEEC",
+  bgPage:      "#FAFAF8",
 } as const;
 
 const INQUIRY_URL = "https://assetify-desk-main.vercel.app";
@@ -48,19 +48,18 @@ export default function DeclarationPage() {
       {/* ── 사이드바 ── */}
       <aside className="hidden lg:flex flex-col fixed inset-y-0 left-0 z-50 bg-white"
         style={{ width: 240, borderRight: `1px solid ${C.border}` }}>
-        <div className="flex items-center gap-3 px-5 py-4" style={{ borderBottom: `1px solid ${C.border}` }}>
+        <div className="flex items-center gap-3 px-6 py-5">
           <img src="/logo.png" alt="로고" className="shrink-0"
-            style={{ height: 32, width: "auto", maxWidth: 160, objectFit: "contain" }} />
+            style={{ height: 28, width: "auto", maxWidth: 160, objectFit: "contain" }} />
         </div>
-        <nav className="flex-1 p-3 flex flex-col gap-0.5">
+        <nav className="flex-1 px-3 flex flex-col gap-0.5">
           {NAV.map(({ label, icon, href, active }) => (
             <a key={label} href={href}
-              className="flex items-center gap-3 px-3.5 py-2.5 text-sm transition-all"
+              className="flex items-center gap-3 px-3.5 py-2.5 text-sm transition-colors"
               style={{
-                borderRadius: 10,
-                background:     active ? C.primarySoft  : "transparent",
-                color:          active ? C.primary      : C.text3,
-                fontWeight:     active ? 700             : 500,
+                borderLeft: `2px solid ${active ? C.brand : "transparent"}`,
+                color:          active ? C.text1 : C.text3,
+                fontWeight:     active ? 600     : 500,
                 textDecoration: "none",
               }}>
               <Icon n={icon} s={16} />
@@ -68,11 +67,11 @@ export default function DeclarationPage() {
             </a>
           ))}
         </nav>
-        <div className="p-3" style={{ borderTop: `1px solid ${C.border}` }}>
+        <div className="p-4" style={{ borderTop: `1px solid ${C.border}` }}>
           <a href={INQUIRY_URL} target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-2.5 px-4 py-3 text-white text-sm font-bold w-full"
-            style={{ borderRadius: 10, background: C.primary, textDecoration: "none" }}>
-            <Icon n="msg" s={15} /> IT 지원 문의하기
+            className="flex items-center justify-center gap-2 px-4 py-2.5 text-white text-sm font-medium w-full hover:brightness-105 transition-all"
+            style={{ borderRadius: 10, background: C.brand, textDecoration: "none" }}>
+            <Icon n="msg" s={14} /> IT 지원 문의
           </a>
           <a href="/admin"
             className="mt-3 block text-center text-xs hover:underline transition-colors"
@@ -85,26 +84,21 @@ export default function DeclarationPage() {
         style={{ height: 52, borderBottom: `1px solid ${C.border}`, backdropFilter: "blur(12px)" }}>
         <img src="/logo.png" alt="로고" className="mr-3 shrink-0"
           style={{ height: 22, width: "auto", maxWidth: 120, objectFit: "contain" }} />
-        <span className="font-bold text-sm" style={{ color: C.text1 }}>자산 실사</span>
+        <span className="font-medium text-sm" style={{ color: C.text1 }}>자산 실사</span>
       </header>
 
       {/* ── 메인 콘텐츠 ── */}
       <main className="flex-1 lg:ml-[240px] min-h-screen pb-20 lg:pb-10 pt-14 lg:pt-0">
-        {/* 히어로 */}
-        <div className="relative overflow-hidden"
-          style={{ background: `linear-gradient(135deg, ${C.brand} 0%, ${C.primary} 100%)` }}>
-          <div className="max-w-4xl mx-auto px-6 py-12 relative z-10">
-            <p className="text-xs font-bold uppercase tracking-widest mb-2"
-              style={{ color: "rgba(255,255,255,0.65)" }}>SW 자산 관리</p>
-            <h1 className="text-4xl font-extrabold text-white mb-2"
-              style={{ fontFamily: "Manrope, sans-serif" }}>자산 실사</h1>
-            <p className="text-sm" style={{ color: "rgba(255,255,255,0.8)" }}>
+        <div className="max-w-5xl xl:max-w-6xl 2xl:max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 py-10">
+          {/* 헤드라인 */}
+          <div className="mb-8 pb-6" style={{ borderBottom: `1px solid ${C.border}` }}>
+            <p className="text-xs mb-1" style={{ color: C.text4, textTransform: "uppercase", letterSpacing: "0.04em" }}>SW 자산 관리</p>
+            <h1 className="text-[28px] sm:text-[32px] font-bold mb-2" style={{ color: C.text1, letterSpacing: "-0.01em" }}>자산 실사</h1>
+            <p className="text-sm" style={{ color: C.text3 }}>
               사용 중인 SW 현황을 확인하고 미등록 SW를 신고하세요.
             </p>
           </div>
-        </div>
 
-        <div className="max-w-5xl xl:max-w-6xl 2xl:max-w-7xl mx-auto px-4 sm:px-6 py-6">
           <DeclarationPanel />
         </div>
       </main>
@@ -115,12 +109,9 @@ export default function DeclarationPage() {
         {NAV.map(({ label, icon, href, active, short }) => (
           <a key={label} href={href}
             className="flex-1 flex flex-col items-center justify-center gap-1 transition-colors"
-            style={{ color: active ? C.primary : C.text4, textDecoration: "none" }}>
-            <div className="flex items-center justify-center w-8 h-8 rounded-lg transition-all"
-              style={{ background: active ? C.primarySoft : "transparent" }}>
-              <Icon n={icon} s={17} />
-            </div>
-            <span style={{ fontSize: 9.5, fontWeight: 600 }}>{short}</span>
+            style={{ color: active ? C.brand : C.text4, textDecoration: "none" }}>
+            <Icon n={icon} s={18} />
+            <span style={{ fontSize: 9.5, fontWeight: 500 }}>{short}</span>
           </a>
         ))}
       </nav>
