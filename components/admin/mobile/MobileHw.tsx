@@ -159,9 +159,11 @@ export default function MobileHw({ session }: Props) {
       if (filterStatus  !== "전체" && r.status  !== filterStatus)  return false;
       if (filterCompany !== "전체" && r.company !== filterCompany) return false;
       if (search) {
-        const q = search.toLowerCase();
-        return [r.user, r.assetNo, r.serial, r.model, r.company, r.dept, r.location]
-          .some(v => v?.toLowerCase().includes(q));
+        const terms = search.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+        return terms.some(q =>
+          [r.user, r.assetNo, r.serial, r.model, r.company, r.dept, r.location]
+            .some(v => v?.toLowerCase().includes(q))
+        );
       }
       return true;
     });
@@ -174,7 +176,7 @@ export default function MobileHw({ session }: Props) {
         {/* 검색 */}
         <input
           type="text" value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="이름 · 자산번호 · 시리얼 · 모델 검색..."
+          placeholder="이름 · 자산번호 · 시리얼 · 모델 · 부서 검색 (쉼표로 다중검색)"
           className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400"
         />
         {/* 드롭다운 행 */}

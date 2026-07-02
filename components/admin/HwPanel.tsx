@@ -1069,10 +1069,10 @@ function SearchTab({ companyLock = "", onUpdate, isSuperAdmin = false }: { compa
       <div className="bg-white rounded-xl border border-gray-200 p-4">
         <div className="flex flex-wrap gap-3 items-end">
           <div className="flex-1 min-w-[180px]">
-            <label className="block text-xs font-semibold text-gray-500 mb-1">사용자 / 자산번호 / 모델명</label>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">사용자 / 자산번호 / 모델명 / 시리얼 / 부서</label>
             <input value={search} onChange={e => setSearch(e.target.value)}
               onKeyDown={e => e.key === "Enter" && load()}
-              placeholder="검색어 입력 후 Enter"
+              placeholder="검색어 입력 후 Enter (쉼표로 다중검색)"
               className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
             />
           </div>
