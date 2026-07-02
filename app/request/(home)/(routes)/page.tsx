@@ -1,18 +1,10 @@
 "use client";
 
 import MenuButton from "@/app/request/(home)/(components)/menuButton";
-import { useStocktakingInfo } from "@/app/request/(home)/(hooks)/useStocktakingInfo";
 import Container from "@/shared/components/common/container";
 import Header from "@/shared/components/common/header";
-import LoadingComponent from "@/shared/components/common/loadingComponent";
 
 export default function Home() {
-  const { data: stocktakingInfo, isLoading } = useStocktakingInfo();
-
-  if (isLoading) {
-    return <LoadingComponent />;
-  }
-
   return (
     <Container className="items-center md:h-dvh md:justify-center">
       <Header title="Assetify" highlighted="Desk" />
@@ -32,13 +24,6 @@ export default function Home() {
           title="회의실 무선 장비 대여신청"
           description="회의실용 무선 장비 대여를 신청할 수 있어요."
         />
-        {stocktakingInfo && (
-          <MenuButton
-            href="/request/stocktaking"
-            title={stocktakingInfo.실사제목 || "재고조사"}
-            description={`${stocktakingInfo.시작날짜} ~ ${stocktakingInfo.끝날짜}`}
-          />
-        )}
       </div>
     </Container>
   );

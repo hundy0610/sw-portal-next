@@ -1,6 +1,6 @@
 import { Client } from "@notionhq/client";
 import { isMock } from "./mock";
-import { findHwBySerial } from "./hw";
+import { findHwByAssetNo, serialFuzzyMatch, type HwRecord } from "./hw";
 import { uploadFileToNotion } from "./notion";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
@@ -122,6 +122,53 @@ export interface PcScanRecord {
   notionUrl: string;
 }
 
+export interface PcScanMismatch {
+  corp: boolean;
+  dept: boolean;
+  userName: boolean;
+}
+
+export interface PcScanRecordWithMatch extends PcScanRecord {
+  masterId: string | null;
+  mismatch: PcScanMismatch | null; // masterExists === true일 때만 값이 존재
+  master?: { corp: string; dept: string; userName: string };
+}
+
+/**
+ * PC 스캔 기록을 마스터(HW) DB와 대조: 자산번호로 마스터 레코드를 찾고,
+ * 시리얼 넘버가 대조(뒷자리 누락 허용)되면 일치로 보고 법인/부서/사용자를 비교한다.
+ */
+export function matchPcScansWithHw(
+  scans: PcScanRecord[],
+  hwRecords: HwRecord[]
+): PcScanRecordWithMatch[] {
+  const byAssetNo = new Map<string, HwRecord>();
+  for (const r of hwRecords) {
+    if (r.assetNo) byAssetNo.set(r.assetNo, r);
+  }
+
+  return scans.map(s => {
+    const master = s.assetNo ? byAssetNo.get(s.assetNo) : undefined;
+    const matched = !!master && serialFuzzyMatch(s.serial, master.serial);
+
+    if (!matched || !master) {
+      return { ...s, masterExists: false, masterId: null, mismatch: null };
+    }
+
+    return {
+      ...s,
+      masterExists: true,
+      masterId: master.id,
+      mismatch: {
+        corp:     master.company !== s.corp,
+        dept:     master.dept    !== s.dept,
+        userName: master.user    !== s.userName,
+      },
+      master: { corp: master.company, dept: master.dept, userName: master.user },
+    };
+  });
+}
+
 export async function fetchPcScans(): Promise<PcScanRecord[]> {
   if (isMock()) return [];
 
@@ -198,9 +245,12 @@ export async function upsertPcScan(data: PcScanPayload): Promise<UpsertResult> {
   if (!rawDbId) throw new Error("NOTION_DB_PC_SCAN 환경변수가 설정되지 않았습니다.");
   const dbId = toNotionId(rawDbId);
 
-  // 마스터 대조 (실패 시 false 폴백)
-  const hwRecord = await findHwBySerial(data.serial).catch(() => null);
-  const masterExists = hwRecord !== null;
+  // 마스터 대조: 자산번호로 마스터 레코드를 찾고, 시리얼 넘버가 대조(뒷자리 누락 허용)되면 일치
+  // (실패 시 false 폴백)
+  const hwRecord = data.assetNo
+    ? await findHwByAssetNo(data.assetNo).catch(() => null)
+    : null;
+  const masterExists = !!hwRecord && serialFuzzyMatch(data.serial, hwRecord.serial);
 
   // 엑셀 파일 Notion 업로드
   let fileUploadId: string | undefined;
@@ -215,10 +265,22 @@ export async function upsertPcScan(data: PcScanPayload): Promise<UpsertResult> {
     fileUploadId
   ) as Parameters<typeof notion.pages.create>[0]["properties"];
 
-  // 기존 페이지 조회 (serial 키)
+  // 기존 페이지 조회: 시리얼 넘버 + PC이름이 모두 일치해야 같은 기기로 판단.
+  // BIOS가 시리얼을 못 읽어 "Default string" 등 무의미한 값이 여러 기기에서
+  // 동일하게 들어오는 경우, 시리얼만으로 판단하면 서로 다른 기기가 한 레코드로
+  // 덮어써져 가장 최근 것만 남는 문제가 있었음 — PC이름을 추가 조건으로 걸어 방지.
+  const existingFilter = data.pcName
+    ? {
+        and: [
+          { property: "시리얼 넘버", rich_text: { equals: data.serial } },
+          { property: "PC이름", title: { equals: data.pcName } },
+        ],
+      }
+    : { property: "시리얼 넘버", rich_text: { equals: data.serial } };
+
   const res = await queryWithRetry({
     database_id: dbId,
-    filter: { property: "시리얼 넘버", rich_text: { equals: data.serial } },
+    filter: existingFilter,
     page_size: 1,
   });
 
@@ -229,8 +291,6 @@ export async function upsertPcScan(data: PcScanPayload): Promise<UpsertResult> {
     return { id: existing.id, action: "updated", masterExists };
   }
 
-  // TODO: "Default string"/"To be filled..." 같은 무의미 BIOS serial은
-  //       pcName + 첫 MAC 조합을 폴백 키로 사용하는 것 고려
   const created = await notion.pages.create({
     parent: { database_id: dbId },
     properties,

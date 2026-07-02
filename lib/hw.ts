@@ -230,18 +230,36 @@ export async function fetchHwFiltered({
   return records;
 }
 
-export async function findHwBySerial(serial: string): Promise<HwRecord | null> {
+export async function findHwByAssetNo(assetNo: string): Promise<HwRecord | null> {
   if (isMock()) {
-    return (mockHwRecords.find(r => r.serial === serial) as HwRecord) ?? null;
+    return (mockHwRecords.find(r => r.assetNo === assetNo) as HwRecord) ?? null;
   }
   const res = await queryWithRetry({
     database_id: DB_ID,
-    filter: { property: "시리얼 넘버", rich_text: { equals: serial } },
+    filter: { property: "자산번호", title: { equals: assetNo } },
     page_size: 1,
   });
   const page = res.results[0];
   if (!page || page.object !== "page" || !("properties" in page)) return null;
   return mapPage(page as PageObjectResponse);
+}
+
+function normalizeSerial(s: string): string {
+  return s.replace(/[\s-]/g, "").toUpperCase();
+}
+
+/**
+ * 시리얼 넘버 대조. 마스터 DB에 뒷자리가 누락되어 저장된 사례가 있어
+ * 완전 일치 외에도, 한쪽이 다른 쪽의 접두사이면서 길이 차가 1~2인 경우까지 일치로 본다.
+ */
+export function serialFuzzyMatch(a: string, b: string): boolean {
+  const x = normalizeSerial(a);
+  const y = normalizeSerial(b);
+  if (!x || !y) return false;
+  if (x === y) return true;
+  const [shorter, longer] = x.length <= y.length ? [x, y] : [y, x];
+  const diff = longer.length - shorter.length;
+  return diff >= 1 && diff <= 2 && longer.startsWith(shorter);
 }
 
 export async function fetchAllHwRecords(): Promise<HwRecord[]> {
