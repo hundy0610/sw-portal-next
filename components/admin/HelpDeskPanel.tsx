@@ -171,6 +171,7 @@ function InlineStatusCell({
   statuses: string[];
   onUpdated: (id: string, fields: Partial<HelpDeskTicket>) => void;
 }) {
+  const dark = useAdminDarkMode();
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<"idle" | "done" | "error">("idle");
 
@@ -197,7 +198,7 @@ function InlineStatusCell({
         value={ticket.status}
         onChange={handleChange}
         disabled={saving}
-        style={{ background: c.bg, color: c.text }}
+        style={{ background: dark ? "#1c1c1c" : c.bg, color: c.text }}
         className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-transparent focus:outline-none focus:ring-1 focus:ring-violet-200 cursor-pointer disabled:opacity-50 appearance-none"
       >
         {/* 현재 상태가 목록에 없는 경우 fallback */}
@@ -1068,20 +1069,22 @@ function HelpDeskTicketFloating({
 
 // ── Sub-components ───────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
+  const dark = useAdminDarkMode();
   const c = STATUS[status] ?? { bg: "#F1F5F9", text: "#64748B" };
   return (
     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap"
-      style={{ background: c.bg, color: c.text }}>
+      style={{ background: dark ? "#1c1c1c" : c.bg, color: c.text }}>
       {status || "—"}
     </span>
   );
 }
 
 function UrgencyBadge({ urgency }: { urgency: string }) {
+  const dark = useAdminDarkMode();
   const c = URGENCY[urgency] ?? { bg: "#F1F5F9", text: "#64748B", bar: "#94A3B8" };
   return (
     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap"
-      style={{ background: c.bg, color: c.text }}>
+      style={{ background: dark ? "#1c1c1c" : c.bg, color: c.text }}>
       {urgency || "—"}
     </span>
   );

@@ -127,21 +127,23 @@ function DDay({ date }: { date: string }) {
 
 // ── Sub-components ───────────────────────────────────────────
 function StageBadge({ stage }: { stage: string }) {
-  const c = STAGE_COLORS[stage] ?? { bg: "#F1F5F9", text: "#64748B" };
+  const dark = useAdminDarkMode();
+  const c = STAGE_COLORS[stage] ?? { bg: "#F1F5F9", text: "#64748B", dot: "#94A3B8" };
   return (
     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap"
-      style={{ background: c.bg, color: c.text }}>
+      style={{ background: dark ? "#1c1c1c" : c.bg, color: dark ? c.dot : c.text }}>
       {stage || "—"}
     </span>
   );
 }
 
 function TypeBadge({ type }: { type: string }) {
+  const dark = useAdminDarkMode();
   if (!type) return <span className="text-xs text-gray-300">—</span>;
   const c = TYPE_COLORS[type] ?? { bg: "#F1F5F9", text: "#64748B" };
   return (
     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap"
-      style={{ background: c.bg, color: c.text }}>
+      style={{ background: dark ? "#1c1c1c" : c.bg, color: c.text }}>
       {type}
     </span>
   );
@@ -1364,6 +1366,7 @@ function SwLicenseDetailModal({ record, onClose }: { record: SwDbRecord; onClose
 
 // ── HW 자산 상세 모달 ────────────────────────────────────────
 function HwAssetDetailModal({ assetNo, onClose }: { assetNo: string; onClose: () => void }) {
+  const dark = useAdminDarkMode();
   const [data, setData]     = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -1441,7 +1444,7 @@ function HwAssetDetailModal({ assetNo, onClose }: { assetNo: string; onClose: ()
                 return (
                   <div className="mb-4">
                     <span className="px-3 py-1 rounded-full text-xs font-bold"
-                      style={{ background: c.bg, color: c.text }}>{s}</span>
+                      style={{ background: dark ? "#1c1c1c" : c.bg, color: c.text }}>{s}</span>
                   </div>
                 );
               })()}

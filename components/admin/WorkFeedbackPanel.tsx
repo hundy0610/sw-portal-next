@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { AnnualGoal, MonthlyGoal, WeeklyEntry, WorkFeedbackStore, Grade } from "@/types/work-feedback";
 import { safeJson } from "@/lib/fetch-json";
+import { useAdminDarkMode } from "@/lib/use-admin-dark-mode";
 
 // ── Props ─────────────────────────────────────────────────────
 interface Props {
@@ -34,9 +35,10 @@ function isExcludedAccount(a: { userId: string; name?: string; company?: string 
 
 // ── Small helpers ─────────────────────────────────────────────
 function GradeBadge({ grade }: { grade: Grade }) {
+  const dark = useAdminDarkMode();
   const c = GRADE_COLOR[grade];
   return (
-    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold" style={{ background: c.bg, color: c.text }}>
+    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold" style={{ background: dark ? "#1c1c1c" : c.bg, color: c.text }}>
       {grade}
     </span>
   );
