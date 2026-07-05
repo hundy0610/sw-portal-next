@@ -4,6 +4,20 @@ import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import type { HwRepairRecord } from "@/types";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import { safeJson } from "@/lib/fetch-json";
+import { useAdminDarkMode } from "@/lib/use-admin-dark-mode";
+
+// 단계 필터 칩 색상 — 다크모드에서는 옅은 파스텔 배경 대신 중립 다크 서피스 +
+// dot 색상 텍스트로, 0건인 칩은 더 옅은 회색으로 표시한다.
+function stageChipStyle(
+  c: { bg: string; text: string; dot: string },
+  cnt: number,
+  active: boolean,
+  dark: boolean,
+): { background: string; color: string } {
+  if (active) return { background: c.dot, color: "#fff" };
+  if (cnt > 0) return dark ? { background: "#1c1c1c", color: c.dot } : { background: c.bg, color: c.text };
+  return dark ? { background: "#161616", color: "#525252" } : { background: "#F8FAFC", color: "#CBD5E1" };
+}
 
 // ── 상수 ────────────────────────────────────────────────────
 const STAGES = ["수리접수", "수리센터입고", "수리완료", "수리동의서수령", "기기발송", "세금계산서기안", "법인청구요청", "사용자과실분청구", "완료"] as const;
@@ -96,7 +110,9 @@ function AgingChip({ days, stage }: { days: number; stage: string }) {
 
 // 미니 진행 점
 function MiniStageBar({ stage }: { stage: string }) {
+  const dark = useAdminDarkMode();
   const idx = STAGES.indexOf(stage as Stage);
+  const notReached = dark ? "#333333" : "#E2E8F0";
   return (
     <div className="flex items-center gap-0.5">
       {STAGES.map((s, i) => {
@@ -107,7 +123,7 @@ function MiniStageBar({ stage }: { stage: string }) {
           <div key={s} title={s} className="rounded-full transition-all"
             style={{
               width: active ? 10 : 6, height: active ? 10 : 6,
-              background: done ? "#22C55E" : active ? c.dot : "#E2E8F0",
+              background: done ? "#22C55E" : active ? c.dot : notReached,
               border: active ? `2px solid ${c.dot}` : "none",
             }}
           />
@@ -119,7 +135,11 @@ function MiniStageBar({ stage }: { stage: string }) {
 
 // 대형 진행 바 (모달용)
 function BigStageBar({ stage }: { stage: string }) {
+  const dark = useAdminDarkMode();
   const idx = STAGES.indexOf(stage as Stage);
+  const notReached = dark ? "#333333" : "#E2E8F0";
+  const notReachedBorder = dark ? "#3a3a3a" : "#CBD5E1";
+  const notReachedLabel = dark ? "#525252" : "#94A3B8";
   return (
     <div className="flex items-start gap-0">
       {STAGES.map((s, i) => {
@@ -130,12 +150,12 @@ function BigStageBar({ stage }: { stage: string }) {
         return (
           <div key={s} className="flex flex-col items-center" style={{ flex: 1 }}>
             <div className="flex items-center w-full">
-              <div className="flex-1 h-0.5" style={{ background: i === 0 ? "transparent" : done || active ? "#22C55E" : "#E2E8F0" }} />
+              <div className="flex-1 h-0.5" style={{ background: i === 0 ? "transparent" : done || active ? "#22C55E" : notReached }} />
               <div className="rounded-full flex items-center justify-center flex-shrink-0 transition-all"
                 style={{
                   width: active ? 22 : 14, height: active ? 22 : 14,
-                  background: done ? "#22C55E" : active ? c.dot : "#E2E8F0",
-                  border: active ? `3px solid ${c.dot}` : done ? "none" : "2px solid #CBD5E1",
+                  background: done ? "#22C55E" : active ? c.dot : notReached,
+                  border: active ? `3px solid ${c.dot}` : done ? "none" : `2px solid ${notReachedBorder}`,
                 }}>
                 {done && (
                   <svg width="8" height="8" viewBox="0 0 12 12" fill="none">
@@ -143,10 +163,10 @@ function BigStageBar({ stage }: { stage: string }) {
                   </svg>
                 )}
               </div>
-              <div className="flex-1 h-0.5" style={{ background: isLast ? "transparent" : done ? "#22C55E" : "#E2E8F0" }} />
+              <div className="flex-1 h-0.5" style={{ background: isLast ? "transparent" : done ? "#22C55E" : notReached }} />
             </div>
             <div className="mt-1.5 text-center whitespace-pre-line leading-tight"
-              style={{ fontSize: 8, color: active ? c.text : done ? "#22C55E" : "#94A3B8", fontWeight: active ? 700 : done ? 600 : 400 }}>
+              style={{ fontSize: 8, color: active ? c.text : done ? "#22C55E" : notReachedLabel, fontWeight: active ? 700 : done ? 600 : 400 }}>
               {s.replace("수리센터", "수리\n센터").replace("과실분", "과실\n분")}
             </div>
           </div>
@@ -938,6 +958,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
 
 // ── 메인 패널 ─────────────────────────────────────────────────
 export default function HwRepairPanel() {
+  const dark = useAdminDarkMode();
   const [records, setRecords] = useState<HwRepairRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1176,7 +1197,7 @@ export default function HwRepairPanel() {
           return (
             <button key={s} onClick={() => setStageFilter(s)}
               className="px-3 py-1 rounded-full text-xs font-semibold transition-colors"
-              style={{ background: active ? c.dot : cnt > 0 ? c.bg : "#F8FAFC", color: active ? "white" : cnt > 0 ? c.text : "#CBD5E1" }}>
+              style={stageChipStyle(c, cnt, active, dark)}>
               {s} {cnt}
             </button>
           );

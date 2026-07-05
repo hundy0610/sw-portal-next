@@ -6,6 +6,7 @@ import type { FeedbackEntry } from "@/app/api/feedback/route";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import { AssetModalInner, HwRecord, HW_STATUSES } from "@/components/admin/AssetModal";
 import { safeJson } from "@/lib/fetch-json";
+import { useAdminDarkMode } from "@/lib/use-admin-dark-mode";
 
 // ── Color configs ────────────────────────────────────────────
 const URGENCY: Record<string, { bg: string; text: string; bar: string }> = {
@@ -1454,6 +1455,7 @@ function generateReportHTML(opts: {
 type Tab = "overview" | "type" | "company" | "list" | "status_list" | "report" | "assignee" | "analysis";
 
 export default function HelpDeskPanel({ company: companyFilter = "", typeFilter = "", currentUserName = "" }: { company?: string; typeFilter?: string; currentUserName?: string }) {
+  const dark = useAdminDarkMode();
   const [tickets,    setTickets]    = useState<HelpDeskTicket[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -2583,7 +2585,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                                       className={`w-full text-left px-4 py-2.5 hover:bg-violet-50/40 transition-colors ${h.id === t.id ? "bg-violet-50/60" : ""}`}>
                                       <div className="flex items-center gap-2 mb-1">
                                         <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
-                                          style={{ background: STATUS[h.status]?.bg || "#F8FAFC", color: STATUS[h.status]?.text || "#64748B" }}>
+                                          style={{ background: dark ? "#1c1c1c" : STATUS[h.status]?.bg || "#F8FAFC", color: STATUS[h.status]?.text || "#64748B" }}>
                                           {h.status}
                                         </span>
                                         <span className="text-[10px] font-semibold text-violet-700 bg-violet-50 px-1.5 py-0.5 rounded">

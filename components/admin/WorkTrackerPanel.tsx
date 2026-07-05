@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import type { WorkStage } from "@/types/work-tracker";
 import { DEFAULT_WORK_STAGES, UNASSIGNED_WORK_STAGE } from "@/types/work-tracker";
 import { safeJson } from "@/lib/fetch-json";
+import { useAdminDarkMode } from "@/lib/use-admin-dark-mode";
 
 interface WorkTask {
   id:               string;
@@ -123,6 +124,7 @@ function TaskCard({ t, dragging, parentTitle, childTotal, childDone, showCollabo
   onDragStart: () => void;
   onDragEnd: () => void;
 }) {
+  const dark = useAdminDarkMode();
   return (
     <div
       draggable
@@ -130,19 +132,19 @@ function TaskCard({ t, dragging, parentTitle, childTotal, childDone, showCollabo
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       style={{
-        background: dragging ? "#F0F4FF" : "#fff",
+        background: dragging ? (dark ? "#1a2840" : "#F0F4FF") : (dark ? "#171717" : "#fff"),
         opacity: dragging ? 0.6 : 1,
-        border: "1px solid #E2E8F0", borderRadius: 10, padding: "10px 12px",
+        border: `1px solid ${dark ? "#333333" : "#E2E8F0"}`, borderRadius: 10, padding: "10px 12px",
         marginBottom: 8, cursor: "grab",
       }}
     >
       {parentTitle && (
-        <div style={{ fontSize: 10, color: "#94a3b8", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
+        <div style={{ fontSize: 10, color: dark ? "#737373" : "#94a3b8", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
           ↳ {parentTitle}
         </div>
       )}
       <div style={{
-        fontSize: 13, fontWeight: 600, color: "#0f172a", marginBottom: 6, lineHeight: 1.4,
+        fontSize: 13, fontWeight: 600, color: dark ? "#e5e5e5" : "#0f172a", marginBottom: 6, lineHeight: 1.4,
         overflow: "hidden", display: "-webkit-box",
         WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const,
       }}>
@@ -150,16 +152,16 @@ function TaskCard({ t, dragging, parentTitle, childTotal, childDone, showCollabo
       </div>
       <div style={{ display: "flex", gap: 4, flexWrap: "wrap" as const, marginBottom: 6 }}>
         {t.shared && (
-          <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 20, background: "#E0F2FE", color: "#0369A1" }}>공유됨</span>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 20, background: dark ? "#1c1c1c" : "#E0F2FE", color: dark ? "#7dd3fc" : "#0369A1" }}>공유됨</span>
         )}
         {childTotal > 0 && (
-          <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 20, background: childDone === childTotal ? "#DCFCE7" : "#EFF6FF", color: childDone === childTotal ? "#15803D" : "#2563EB" }}>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 20, background: dark ? "#1c1c1c" : childDone === childTotal ? "#DCFCE7" : "#EFF6FF", color: childDone === childTotal ? (dark ? "#86efac" : "#15803D") : (dark ? "#93c5fd" : "#2563EB") }}>
             하위 {childDone}/{childTotal}
           </span>
         )}
       </div>
       {showCollaborator && (
-        <div style={{ fontSize: 11, color: "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{t.collaboratorName}</div>
+        <div style={{ fontSize: 11, color: dark ? "#737373" : "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{t.collaboratorName}</div>
       )}
     </div>
   );
@@ -184,13 +186,14 @@ function KanbanColumn({ stage, tasks, allTasks, lastStageName, isDragTarget, dra
   onCardDragStart: (id: string) => void;
   onCardDragEnd: () => void;
 }) {
+  const dark = useAdminDarkMode();
   return (
     <div
       style={{
         flex: "0 0 240px", minWidth: 240, marginRight: 10, minHeight: 360,
         display: "flex", flexDirection: "column" as const, borderRadius: 12,
-        background: isDragTarget ? stage.color : "#F8FAFC",
-        border: `2px solid ${isDragTarget ? stage.border : "#E2E8F0"}`,
+        background: isDragTarget ? stage.color : (dark ? "#141414" : "#F8FAFC"),
+        border: `2px solid ${isDragTarget ? stage.border : (dark ? "#262626" : "#E2E8F0")}`,
         transition: "all .15s",
       }}
       onDragOver={e => { e.preventDefault(); onDragOver(); }}
@@ -217,15 +220,15 @@ function KanbanColumn({ stage, tasks, allTasks, lastStageName, isDragTarget, dra
         {onAddClick && (
           <div onClick={onAddClick}
             style={{
-              border: "1px dashed #CBD5E1", borderRadius: 8, padding: "6px 10px",
+              border: `1px dashed ${dark ? "#3a3a3a" : "#CBD5E1"}`, borderRadius: 8, padding: "6px 10px",
               marginBottom: 8, textAlign: "center" as const, fontSize: 12,
-              color: "#94a3b8", cursor: "pointer", background: "#FAFBFC", fontWeight: 600,
+              color: dark ? "#737373" : "#94a3b8", cursor: "pointer", background: dark ? "#1a1a1a" : "#FAFBFC", fontWeight: 600,
             }}>
             {addLabel ?? "+ 추가"}
           </div>
         )}
         {tasks.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "30px 0", fontSize: 11, color: "#cbd5e1" }}>
+          <div style={{ textAlign: "center", padding: "30px 0", fontSize: 11, color: dark ? "#525252" : "#cbd5e1" }}>
             {isDragTarget ? "여기에 놓기" : "없음"}
           </div>
         ) : tasks.map(t => {
@@ -251,6 +254,7 @@ const ALL_TAB = "__all__";
 const MY_TAB  = "__mine__";
 
 export default function WorkTrackerPanel({ session }: { session: { userId: string; name: string } }) {
+  const dark = useAdminDarkMode();
   const [tasks, setTasks]     = useState<WorkTask[]>([]);
   const [stages, setStages]   = useState<WorkStage[]>(DEFAULT_WORK_STAGES);
   const [loading, setLoading] = useState(true);
@@ -489,22 +493,22 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
       {/* 헤더 */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
         <div>
-          <h2 style={{ fontSize: 20, fontWeight: 800, color: "#0f172a", margin: "0 0 4px" }}>작업 트래커</h2>
-          <p style={{ fontSize: 13, color: "#64748b", margin: 0 }}>총 {filtered.length}건</p>
+          <h2 style={{ fontSize: 20, fontWeight: 800, color: dark ? "#e5e5e5" : "#0f172a", margin: "0 0 4px" }}>작업 트래커</h2>
+          <p style={{ fontSize: 13, color: dark ? "#a3a3a3" : "#64748b", margin: 0 }}>총 {filtered.length}건</p>
         </div>
         <button onClick={load}
-          style={{ padding: "8px 14px", borderRadius: 8, background: "#EFF6FF", color: "#2563EB", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+          style={{ padding: "8px 14px", borderRadius: 8, background: dark ? "#1c1c1c" : "#EFF6FF", color: dark ? "#93c5fd" : "#2563EB", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
           새로고침
         </button>
       </div>
 
       {/* 탭 */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" as const, borderBottom: "1px solid #E2E8F0", paddingBottom: 10 }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" as const, borderBottom: `1px solid ${dark ? "#262626" : "#E2E8F0"}`, paddingBottom: 10 }}>
         <button onClick={() => setActiveTab(MY_TAB)}
           style={{
             padding: "6px 14px", borderRadius: 20, border: "none",
-            background: !isAllTab ? "#0f172a" : "#F1F5F9",
-            color: !isAllTab ? "#fff" : "#334155",
+            background: !isAllTab ? (dark ? "#e5e5e5" : "#0f172a") : (dark ? "#1f1f1f" : "#F1F5F9"),
+            color: !isAllTab ? (dark ? "#111111" : "#fff") : (dark ? "#a3a3a3" : "#334155"),
             fontSize: 12, fontWeight: 700, cursor: "pointer",
           }}>
           내 작업
@@ -512,8 +516,8 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
         <button onClick={() => setActiveTab(ALL_TAB)}
           style={{
             padding: "6px 14px", borderRadius: 20, border: "none",
-            background: isAllTab ? "#0f172a" : "#F1F5F9",
-            color: isAllTab ? "#fff" : "#334155",
+            background: isAllTab ? (dark ? "#e5e5e5" : "#0f172a") : (dark ? "#1f1f1f" : "#F1F5F9"),
+            color: isAllTab ? (dark ? "#111111" : "#fff") : (dark ? "#a3a3a3" : "#334155"),
             fontSize: 12, fontWeight: 700, cursor: "pointer",
           }}>
           전체 보기 (공유됨)

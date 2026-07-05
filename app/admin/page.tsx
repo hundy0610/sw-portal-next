@@ -117,8 +117,11 @@ export default function AdminPage() {
   const [renewalCount,      setRenewalCount]      = useState(0);
 
   const [darkMode,        setDarkMode]        = useState(() => {
-    if (typeof window !== "undefined") return localStorage.getItem("admin-dark") === "1";
-    return false;
+    if (typeof window === "undefined") return false;
+    const saved = localStorage.getItem("admin-dark");
+    if (saved !== null) return saved === "1";
+    // 저장된 설정이 없으면 기기의 다크모드 여부를 따른다
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
   });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     if (typeof window !== "undefined") return localStorage.getItem("admin-sidebar-collapsed") === "1";
@@ -254,6 +257,7 @@ export default function AdminPage() {
     setDarkMode(d => {
       const next = !d;
       localStorage.setItem("admin-dark", next ? "1" : "0");
+      window.dispatchEvent(new CustomEvent("admin-dark-change", { detail: next }));
       return next;
     });
   }
