@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { AnnualGoal, MonthlyGoal, WeeklyEntry, WorkFeedbackStore, Grade } from "@/types/work-feedback";
 import { safeJson } from "@/lib/fetch-json";
 
@@ -257,6 +257,8 @@ export default function WorkFeedbackPanel({ session }: Props) {
   const [viewUserId,  setViewUserId]  = useState(session.userId);
   const [members,     setMembers]     = useState<{ userId: string; name: string }[]>([]);
   const [knownAccountIds, setKnownAccountIds] = useState<Set<string>>(new Set());
+  const [memberMenuOpen, setMemberMenuOpen] = useState(false);
+  const memberMenuRef = useRef<HTMLDivElement>(null);
 
   const [annualFormOpen,  setAnnualFormOpen]  = useState(false);
   const [editingAnnual,   setEditingAnnual]   = useState<AnnualGoal | undefined>();
@@ -300,6 +302,18 @@ export default function WorkFeedbackPanel({ session }: Props) {
       })
       .catch(() => {});
   }, [isSuper]);
+
+  // ── 팀원 드롭다운 바깥 클릭 시 닫기 ─────────────────────────
+  useEffect(() => {
+    if (!memberMenuOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (memberMenuRef.current && !memberMenuRef.current.contains(e.target as Node)) {
+        setMemberMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [memberMenuOpen]);
 
   // ── derived data ─────────────────────────────────────────────
   // 슈퍼 어드민은 viewUserId(선택된 팀원)의 데이터, 일반 사용자는 본인 데이터
@@ -432,31 +446,6 @@ export default function WorkFeedbackPanel({ session }: Props) {
           </div>
         </div>
 
-        {/* Member selector (super only) */}
-        {isSuper && (
-          <div className="bg-white rounded-xl border border-gray-200 p-3">
-            <div className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide">팀원</div>
-            <div className="flex flex-col gap-1 max-h-52 overflow-y-auto">
-              {allMembers.map(m => (
-                <button key={m.userId} onClick={() => {
-                  setViewUserId(m.userId);
-                  setAnnualFormOpen(false);
-                  setMonthlyFormOpen(false);
-                  setWeeklyFormOpen(null);
-                }}
-                  className={`px-3 py-1.5 text-sm rounded-lg text-left truncate transition-colors ${
-                    activeUserId === m.userId ? "bg-blue-600 text-white font-bold" : "hover:bg-gray-50 text-gray-700"
-                  }`}>
-                  {m.name || m.userId}
-                </button>
-              ))}
-              {allMembers.length === 0 && (
-                <div className="text-xs text-gray-400 px-1">계정 로딩 중...</div>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* Tab nav */}
         <div className="bg-white rounded-xl border border-gray-200 p-3">
           <div className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide">메뉴</div>
@@ -473,13 +462,45 @@ export default function WorkFeedbackPanel({ session }: Props) {
           })}
         </div>
 
-        {/* Current user info */}
-        <div className="bg-white rounded-xl border border-gray-200 p-3">
+        {/* 작성자 — 슈퍼 어드민은 클릭 시 팀원 드롭다운 */}
+        <div ref={memberMenuRef} className="relative bg-white rounded-xl border border-gray-200 p-3">
           <div className="text-xs text-gray-400 mb-1">작성자</div>
-          <div className="text-sm font-bold text-gray-800">{viewMemberName}</div>
+          {isSuper ? (
+            <button
+              onClick={() => setMemberMenuOpen(v => !v)}
+              className="w-full flex items-center justify-between gap-1 text-sm font-bold text-gray-800 hover:text-blue-600 transition-colors"
+            >
+              <span className="truncate">{viewMemberName}</span>
+              <span className={`text-gray-400 text-xs transition-transform ${memberMenuOpen ? "rotate-180" : ""}`}>▾</span>
+            </button>
+          ) : (
+            <div className="text-sm font-bold text-gray-800">{viewMemberName}</div>
+          )}
           {isSuper && (
             <div className="mt-1.5 px-2 py-0.5 bg-purple-50 rounded text-xs text-purple-600 font-semibold text-center">
               슈퍼 어드민
+            </div>
+          )}
+
+          {isSuper && memberMenuOpen && (
+            <div className="absolute left-3 right-3 top-full mt-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto p-1">
+              {allMembers.map(m => (
+                <button key={m.userId} onClick={() => {
+                  setViewUserId(m.userId);
+                  setAnnualFormOpen(false);
+                  setMonthlyFormOpen(false);
+                  setWeeklyFormOpen(null);
+                  setMemberMenuOpen(false);
+                }}
+                  className={`w-full px-3 py-1.5 text-sm rounded-lg text-left truncate transition-colors ${
+                    activeUserId === m.userId ? "bg-blue-600 text-white font-bold" : "hover:bg-gray-50 text-gray-700"
+                  }`}>
+                  {m.name || m.userId}
+                </button>
+              ))}
+              {allMembers.length === 0 && (
+                <div className="text-xs text-gray-400 px-2 py-1.5">계정 로딩 중...</div>
+              )}
             </div>
           )}
         </div>
