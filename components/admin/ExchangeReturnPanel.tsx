@@ -73,11 +73,11 @@ const STAGE_COLORS: Record<string, { bg: string; text: string; dot: string }> = 
   "반납완료":   { bg: "#F0FDF4", text: "#15803D", dot: "#22C55E" },
 };
 
-const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
-  "교체":     { bg: "#EFF6FF", text: "#1D4ED8" },
-  "퇴사반납": { bg: "#FEF2F2", text: "#B91C1C" },
-  "신규지급": { bg: "#F0FDF4", text: "#15803D" },
-  "임대":     { bg: "#FFF7ED", text: "#C2410C" },
+const TYPE_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
+  "교체":     { bg: "#EFF6FF", text: "#1D4ED8", dot: "#93C5FD" },
+  "퇴사반납": { bg: "#FEF2F2", text: "#B91C1C", dot: "#FCA5A5" },
+  "신규지급": { bg: "#F0FDF4", text: "#15803D", dot: "#86EFAC" },
+  "임대":     { bg: "#FFF7ED", text: "#C2410C", dot: "#FDBA74" },
 };
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -140,10 +140,10 @@ function StageBadge({ stage }: { stage: string }) {
 function TypeBadge({ type }: { type: string }) {
   const dark = useAdminDarkMode();
   if (!type) return <span className="text-xs text-gray-300">—</span>;
-  const c = TYPE_COLORS[type] ?? { bg: "#F1F5F9", text: "#64748B" };
+  const c = TYPE_COLORS[type] ?? { bg: "#F1F5F9", text: "#64748B", dot: "#94A3B8" };
   return (
     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap"
-      style={{ background: dark ? "#1c1c1c" : c.bg, color: c.text }}>
+      style={{ background: dark ? "#1c1c1c" : c.bg, color: dark ? c.dot : c.text }}>
       {type}
     </span>
   );
@@ -3795,7 +3795,10 @@ export default function ExchangeReturnPanel() {
           return (
             <button key={t} onClick={() => setTypeFilter(t)}
               className="px-3 py-1 rounded-full text-xs font-semibold transition-colors"
-              style={{ background: active ? "#1E293B" : c.bg, color: active ? "white" : c.text }}>
+              style={{
+                background: active ? "#1E293B" : dark ? "#1c1c1c" : c.bg,
+                color: active ? "white" : dark ? c.dot : c.text,
+              }}>
               {t}
             </button>
           );
@@ -3919,16 +3922,16 @@ export default function ExchangeReturnPanel() {
                             disabled={mailPreviewLoading && mailTarget?.id === r.id}
                             className="flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
                             style={{
-                              background: mailSentIds.has(r.id)
+                              background: dark ? "#1c1c1c" : mailSentIds.has(r.id)
                                 ? "#D1FAE5"
                                 : r.stage === "반납요청"
                                   ? (r.address === "본사" ? "#FFFBEB" : "#FFF7ED")
                                   : (r.address === "본사" ? "#ECFDF5" : "#EFF6FF"),
                               color: mailSentIds.has(r.id)
-                                ? "#065F46"
+                                ? (dark ? "#6ee7b7" : "#065F46")
                                 : r.stage === "반납요청"
-                                  ? (r.address === "본사" ? "#D97706" : "#EA580C")
-                                  : (r.address === "본사" ? "#065F46" : "#1D4ED8"),
+                                  ? (r.address === "본사" ? (dark ? "#fbbf24" : "#D97706") : (dark ? "#fdba74" : "#EA580C"))
+                                  : (r.address === "본사" ? (dark ? "#6ee7b7" : "#065F46") : (dark ? "#93c5fd" : "#1D4ED8")),
                             }}
                             title={mailSentIds.has(r.id) ? "클릭하면 재발송" : "메일 발송"}
                           >
