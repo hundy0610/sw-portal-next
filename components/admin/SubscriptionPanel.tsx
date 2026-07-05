@@ -56,7 +56,7 @@ function DonutChart({ data }: { data: DonutSeg[] }) {
     <div className="flex items-center gap-5 flex-wrap justify-center">
       <svg width="120" height="120" viewBox="0 0 120 120" className="shrink-0">
         {total === 0
-          ? <circle cx={cx} cy={cy} r={r} fill="none" stroke="#E5E7EB" strokeWidth="16" />
+          ? <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--admin-table-row-border)" strokeWidth="16" />
           : segs.map(s => (
               <circle
                 key={s.label} cx={cx} cy={cy} r={r} fill="none" stroke={s.color}
@@ -67,8 +67,8 @@ function DonutChart({ data }: { data: DonutSeg[] }) {
               />
             ))
         }
-        <text x="60" y="55" textAnchor="middle" fontSize="15" fontWeight="700" fill="#111827">{total.toLocaleString()}</text>
-        <text x="60" y="70" textAnchor="middle" fontSize="9" fill="#9CA3AF">전체</text>
+        <text x="60" y="55" textAnchor="middle" fontSize="15" fontWeight="700" fill="var(--admin-text-primary)">{total.toLocaleString()}</text>
+        <text x="60" y="70" textAnchor="middle" fontSize="9" fill="var(--admin-text-secondary)">전체</text>
       </svg>
       <div className="flex flex-col gap-2 min-w-0">
         {segs.map(s => (

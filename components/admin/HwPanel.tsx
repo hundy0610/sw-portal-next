@@ -137,7 +137,7 @@ function DonutChart({ data, title, centerLabel }: {
       <div className="flex items-start gap-5">
         <div className="shrink-0">
           <svg width={180} height={180}>
-            <circle cx={90} cy={90} r={r} fill="none" stroke="#f3f4f6" strokeWidth={strokeWidth} />
+            <circle cx={90} cy={90} r={r} fill="none" stroke="var(--admin-table-row-border)" strokeWidth={strokeWidth} />
             {segments.map(seg => (
               <circle key={seg.index} cx={90} cy={90} r={r} fill="none"
                 stroke={seg.color}
@@ -151,8 +151,8 @@ function DonutChart({ data, title, centerLabel }: {
               />
             ))}
             <text x={90} y={82} textAnchor="middle" fontSize="22" fontWeight="700"
-              fill={hovered !== null ? data[hovered].color : "#111827"}>{displayTotal}</text>
-            <text x={90} y={102} textAnchor="middle" fontSize="10" fill="#9ca3af">{displayLabel}</text>
+              fill={hovered !== null ? data[hovered].color : "var(--admin-text-primary)"}>{displayTotal}</text>
+            <text x={90} y={102} textAnchor="middle" fontSize="10" fill="var(--admin-text-secondary)">{displayLabel}</text>
           </svg>
         </div>
         <div className="flex-1 space-y-1.5 overflow-hidden">

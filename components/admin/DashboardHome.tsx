@@ -34,7 +34,7 @@ function DonutChart({ data, title }: { data: DonutSeg[]; title: string }) {
       <div className="relative shrink-0">
         <svg width="128" height="128" viewBox="0 0 128 128">
           {total === 0
-            ? <circle cx={cx} cy={cy} r={r} fill="none" stroke="#E5E7EB" strokeWidth="18" />
+            ? <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--admin-table-row-border)" strokeWidth="18" />
             : segs.map(s => (
                 <circle
                   key={s.label} cx={cx} cy={cy} r={r} fill="none"
@@ -51,15 +51,15 @@ function DonutChart({ data, title }: { data: DonutSeg[]; title: string }) {
           }
           {hoverSeg ? (
             <>
-              <text x="64" y="58" textAnchor="middle" fontSize="14" fontWeight="800" fill="#111827">{hoverSeg.value}</text>
-              <text x="64" y="72" textAnchor="middle" fontSize="8.5" fill="#6B7280">
+              <text x="64" y="58" textAnchor="middle" fontSize="14" fontWeight="800" fill="var(--admin-text-primary)">{hoverSeg.value}</text>
+              <text x="64" y="72" textAnchor="middle" fontSize="8.5" fill="var(--admin-text-secondary)">
                 {hoverSeg.label.length > 6 ? hoverSeg.label.slice(0, 5) + "…" : hoverSeg.label}
               </text>
             </>
           ) : (
             <>
-              <text x="64" y="58" textAnchor="middle" fontSize="16" fontWeight="800" fill="#111827">{total.toLocaleString()}</text>
-              <text x="64" y="72" textAnchor="middle" fontSize="9" fill="#9CA3AF">{title}</text>
+              <text x="64" y="58" textAnchor="middle" fontSize="16" fontWeight="800" fill="var(--admin-text-primary)">{total.toLocaleString()}</text>
+              <text x="64" y="72" textAnchor="middle" fontSize="9" fill="var(--admin-text-secondary)">{title}</text>
             </>
           )}
         </svg>
