@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchManualBySlug } from "@/lib/notion";
-import { getSessionFromCookieHeader } from "@/lib/session";
+import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";
 
 export async function GET(
   req: NextRequest,
@@ -8,7 +8,7 @@ export async function GET(
 ) {
   const slug = params.slug.toLowerCase();
   const session = getSessionFromCookieHeader(req.headers.get("cookie"));
-  const allowHidden = session?.role === "super";
+  const allowHidden = session ? (await resolveCurrentRole(session)) === "super" : false;
 
   const manual = await fetchManualBySlug(slug, allowHidden);
   if (!manual) {

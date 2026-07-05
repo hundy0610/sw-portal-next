@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSessionFromCookieHeader } from "@/lib/session";
+import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";
 import { getWorkStages, saveWorkStages } from "@/lib/portal-store";
 import type { WorkStage } from "@/types/work-tracker";
 
-function getSuperSession(req: NextRequest) {
+async function getSuperSession(req: NextRequest) {
   const s = getSessionFromCookieHeader(req.headers.get("cookie"));
-  if (!s || s.role !== "super") return null;
+  if (!s || (await resolveCurrentRole(s)) !== "super") return null;
   return s;
 }
 
 export async function GET(req: NextRequest) {
-  const s = getSuperSession(req);
+  const s = await getSuperSession(req);
   if (!s) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const stages = await getWorkStages();
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const s = getSuperSession(req);
+  const s = await getSuperSession(req);
   if (!s) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();

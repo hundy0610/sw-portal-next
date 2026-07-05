@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import JSZip from "jszip";
-import { getSessionFromCookieHeader } from "@/lib/session";
+import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";
 import { fetchPcScans } from "@/lib/pc-scan";
 import { errorMessage } from "@/lib/api-error";
 
@@ -10,7 +10,7 @@ export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   const session = getSessionFromCookieHeader(req.headers.get("cookie"));
-  if (!session || session.role !== "super") {
+  if (!session || (await resolveCurrentRole(session)) !== "super") {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 

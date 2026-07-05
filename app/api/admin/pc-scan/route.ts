@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSessionFromCookieHeader } from "@/lib/session";
+import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";
 import { fetchPcScans, matchPcScansWithHw } from "@/lib/pc-scan";
 import { type HwRecord } from "@/lib/hw";
 import { kvGet } from "@/lib/kv-store";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   const session = getSessionFromCookieHeader(req.headers.get("cookie"));
-  if (!session || session.role !== "super") {
+  if (!session || (await resolveCurrentRole(session)) !== "super") {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 

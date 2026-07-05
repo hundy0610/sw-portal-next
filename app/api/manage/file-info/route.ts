@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSessionFromCookieHeader } from "@/lib/session";
+import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "";
@@ -18,7 +18,7 @@ function guessFileType(url: string): string {
 
 export async function GET(req: NextRequest) {
   const session = getSessionFromCookieHeader(req.headers.get("cookie"));
-  if (!session || session.role !== "super") {
+  if (!session || (await resolveCurrentRole(session)) !== "super") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

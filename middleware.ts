@@ -1,7 +1,24 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { Redis } from "@upstash/redis";
 
 const SESSION_SECRET = process.env.SESSION_SECRET;
+const ACCOUNTS_KEY = "sw:accounts";
+
+// 쿠키의 role은 로그인 시점 스냅샷이라 이후 계정관리에서 권한이 바뀌어도
+// 갱신되지 않는다. super 전용 라우트 진입 직전에 최신 권한을 다시 조회한다.
+async function resolveCurrentRole(userId: string, fallbackRole: string): Promise<string> {
+  const url   = process.env.UPSTASH_REDIS_REST_URL   || process.env.KV_REST_API_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN  || process.env.KV_REST_API_TOKEN;
+  if (!url || !token) return fallbackRole;
+  try {
+    const accounts = await new Redis({ url, token }).get<{ userId: string; role: string }[]>(ACCOUNTS_KEY);
+    const found = accounts?.find(a => a.userId === userId);
+    return found?.role ?? fallbackRole;
+  } catch {
+    return fallbackRole;
+  }
+}
 
 async function verifySessionToken(token: string): Promise<{ userId: string; role: string } | null> {
   if (!SESSION_SECRET) return null;
@@ -68,7 +85,8 @@ export async function middleware(request: NextRequest) {
     if (!session) {
       return NextResponse.redirect(new URL("/admin/login?redirect=/event/admin", request.url));
     }
-    if (session.role !== "super") {
+    const role = await resolveCurrentRole(session.userId, session.role);
+    if (role !== "super") {
       return NextResponse.redirect(new URL("/admin/login", request.url));
     }
     return NextResponse.next();
