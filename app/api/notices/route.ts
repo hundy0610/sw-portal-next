@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getNotices, saveNotices, appendAuditLog, summarizeChanges } from "@/lib/portal-store";
-import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
+import { getSessionFromCookieHeader, resolveCurrentName, resolveCurrentRole } from "@/lib/session";
 import type { Notice } from "@/types/portal";
 
-function getSuperSession(req: NextRequest) {
+async function getSuperSession(req: NextRequest) {
   const session = getSessionFromCookieHeader(req.headers.get("cookie"));
-  if (!session || session.role !== "super") return null;
+  if (!session || (await resolveCurrentRole(session)) !== "super") return null;
   return session;
 }
 
 export async function GET(req: NextRequest) {
   const all = req.nextUrl.searchParams.get("all") === "1";
-  if (all && !getSuperSession(req)) {
+  if (all && !(await getSuperSession(req))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const notices = await getNotices(!all);
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = getSuperSession(req);
+  const session = await getSuperSession(req);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();

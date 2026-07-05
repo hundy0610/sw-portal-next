@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSessionFromCookieHeader } from "@/lib/session";
+import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";
 
 const NOTION_API = "https://api.notion.com/v1";
 const NOTION_VER = "2026-03-11";
@@ -11,7 +11,7 @@ function notionHeaders(token: string): Record<string, string> {
 
 export async function POST(req: NextRequest) {
   const s = getSessionFromCookieHeader(req.headers.get("cookie"));
-  if (s?.role !== "super") {
+  if (!s || (await resolveCurrentRole(s)) !== "super") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

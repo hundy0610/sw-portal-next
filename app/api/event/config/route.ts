@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSessionFromCookieHeader } from "@/lib/session";
+import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";
 import { fetchEventSubmissions } from "@/lib/notion";
 import {
   getEventConfig,
@@ -12,9 +12,10 @@ import {
 
 export const dynamic = "force-dynamic";
 
-function isSuper(req: NextRequest): boolean {
+async function isSuper(req: NextRequest): Promise<boolean> {
   const session = getSessionFromCookieHeader(req.headers.get("cookie"));
-  return session?.role === "super";
+  if (!session) return false;
+  return (await resolveCurrentRole(session)) === "super";
 }
 
 export async function GET(req: NextRequest) {
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
     participationMode: cfg.participationMode,
   };
 
-  if (!isSuper(req)) {
+  if (!(await isSuper(req))) {
     return NextResponse.json(publicView);
   }
   const previousParticipantsCount = (await getPreviousParticipants()).length;
@@ -45,7 +46,7 @@ export async function GET(req: NextRequest) {
 // 일반 설정 변경(부분 patch) 또는 { action: "snapshot_previous" }로
 // 현재 토토 참여자 명단을 "이전 참여자" 명단으로 스냅샷.
 export async function POST(req: NextRequest) {
-  if (!isSuper(req)) {
+  if (!(await isSuper(req))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
   const body = await req.json();

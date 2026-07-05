@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
-import { decodeSession, resolveCurrentName } from "@/lib/session";
+import { decodeSession, resolveCurrentName, resolveCurrentRole } from "@/lib/session";
 import { createMailTransporter, buildMonitorRepairEmail } from "@/lib/mail";
 import type { GmDetail } from "@/app/api/admin/accounts/route";
 
@@ -93,7 +93,8 @@ export async function GET(req: NextRequest) {
 
   const requests = await getRequests();
   const managers = await getGeneralManagers();
-  const isPrivileged = session.role === "super" || session.role === "general" || managers.includes(session.userId);
+  const role = await resolveCurrentRole(session);
+  const isPrivileged = role === "super" || role === "general" || managers.includes(session.userId);
 
   const filtered = isPrivileged
     ? requests
