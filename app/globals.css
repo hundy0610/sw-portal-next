@@ -89,21 +89,21 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
 .prog-track { height: 6px; background: #EBECF0; border-radius: 99px; overflow: hidden; }
 .prog-fill  { height: 6px; border-radius: 99px; transition: width 0.8s ease; }
 
-/* ── 어드민 다크모드 (.admin-dark) ──────────────────────────── */
+/* ── 어드민 다크모드 (.admin-dark) — 네이비 대신 흑색-회색 계열 ── */
 .admin-dark {
-  --admin-content-bg:        #0d1526;
-  --admin-header-bg:         #111e35;
-  --admin-header-border:     #1e2d47;
-  --admin-table-head-bg:     #111e35;
-  --admin-table-head-border: #1e2d47;
-  --admin-table-row-border:  #1a2840;
-  --admin-table-hover-bg:    #162038;
-  --admin-input-bg:          #111e35;
-  --admin-input-border:      #2d4a6e;
-  --admin-input-color:       #e2e8f0;
-  --admin-text-primary:      #cbd5e1;
-  --admin-text-secondary:    #64748b;
-  --sidebar-bg:              #080f1f;
+  --admin-content-bg:        #0a0a0a;
+  --admin-header-bg:         #141414;
+  --admin-header-border:     #262626;
+  --admin-table-head-bg:     #141414;
+  --admin-table-head-border: #262626;
+  --admin-table-row-border:  #222222;
+  --admin-table-hover-bg:    #1a1a1a;
+  --admin-input-bg:          #171717;
+  --admin-input-border:      #3a3a3a;
+  --admin-input-color:       #e5e5e5;
+  --admin-text-primary:      #d4d4d4;
+  --admin-text-secondary:    #a3a3a3;
+  --sidebar-bg:              #0a0a0a;
   --sidebar-hover:           rgba(255,255,255,0.07);
   --sidebar-active:          rgba(96,165,250,0.18);
 }
@@ -113,12 +113,12 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
   background: var(--admin-header-bg) !important;
   border-color: var(--admin-header-border) !important;
 }
-.admin-dark header.admin-header .text-gray-900  { color: #e2e8f0 !important; }
+.admin-dark header.admin-header .text-gray-900  { color: #e5e5e5 !important; }
 .admin-dark header.admin-header .text-gray-400,
-.admin-dark header.admin-header .text-gray-500  { color: #64748b !important; }
-.admin-dark header.admin-header .hover\:text-gray-800:hover { color: #f1f5f9 !important; }
+.admin-dark header.admin-header .text-gray-500  { color: #737373 !important; }
+.admin-dark header.admin-header .hover\:text-gray-800:hover { color: #f5f5f5 !important; }
 .admin-dark header.admin-header .hover\:bg-gray-100:hover   { background: rgba(255,255,255,0.06) !important; }
-.admin-dark header.admin-header .border-gray-200            { border-color: #1e2d47 !important; }
+.admin-dark header.admin-header .border-gray-200            { border-color: #262626 !important; }
 
 /* 사이드바 활성 아이템 */
 .admin-dark .sidenav-item.active { color: #93c5fd !important; border-left-color: #93c5fd !important; }
@@ -127,22 +127,32 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
 .admin-dark main.admin-main { background: var(--admin-content-bg) !important; }
 
 /* 배경 */
-.admin-dark .bg-white    { background: #111e35 !important; }
-.admin-dark .bg-gray-50  { background: #0d1526 !important; }
-.admin-dark .bg-gray-100 { background: #111e35 !important; }
+.admin-dark .bg-white    { background: #171717 !important; }
+.admin-dark .bg-gray-50  { background: #111111 !important; }
+.admin-dark .bg-gray-100 { background: #1f1f1f !important; }
 
 /* 텍스트 */
-.admin-dark .text-gray-900 { color: #e2e8f0 !important; }
-.admin-dark .text-gray-800 { color: #cbd5e1 !important; }
-.admin-dark .text-gray-700 { color: #94a3b8 !important; }
-.admin-dark .text-gray-600 { color: #94a3b8 !important; }
-.admin-dark .text-gray-500 { color: #64748b !important; }
-.admin-dark .text-gray-400 { color: #475569 !important; }
+.admin-dark .text-gray-900 { color: #e5e5e5 !important; }
+.admin-dark .text-gray-800 { color: #d4d4d4 !important; }
+.admin-dark .text-gray-700 { color: #a3a3a3 !important; }
+.admin-dark .text-gray-600 { color: #a3a3a3 !important; }
+.admin-dark .text-gray-500 { color: #737373 !important; }
+.admin-dark .text-gray-400 { color: #525252 !important; }
+.admin-dark .text-gray-300,
+.admin-dark .text-gray-200 { color: #d4d4d4 !important; }
 
 /* 테두리 */
 .admin-dark .border-gray-100,
-.admin-dark .border-gray-200 { border-color: #1e2d47 !important; }
-.admin-dark .border-b        { border-color: #1a2840 !important; }
+.admin-dark .border-gray-200 { border-color: #262626 !important; }
+.admin-dark .border-b        { border-color: #262626 !important; }
+.admin-dark .border-gray-300 { border-color: #3a3a3a !important; }
+.admin-dark .border-gray-400,
+.admin-dark .border-gray-500 { border-color: #4a4a4a !important; }
+.admin-dark .border-gray-50  { border-color: #262626 !important; }
+.admin-dark .border-gray-800,
+.admin-dark .border-gray-900 { border-color: #4a4a4a !important; }
+.admin-dark .divide-gray-50 > :not([hidden]) ~ :not([hidden]),
+.admin-dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: #262626 !important; }
 
 /* 호버 */
 .admin-dark .hover\:bg-gray-100:hover  { background: rgba(255,255,255,0.05) !important; }
@@ -156,67 +166,166 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
   box-shadow: 0 0 0 2px rgba(59,130,246,0.25) !important;
 }
 
-/* ── 배지 / 칩 배경 ── */
-.admin-dark .bg-gray-200  { background: #1e2d47 !important; }
+/* ── 배지 / 칩 배경 (중립) ── */
+.admin-dark .bg-gray-200,
+.admin-dark .bg-gray-300,
+.admin-dark .bg-slate-200 { background: #2a2a2a !important; }
+.admin-dark .bg-gray-400  { background: #3a3a3a !important; }
+.admin-dark .bg-gray-800,
+.admin-dark .bg-gray-900,
+.admin-dark .bg-slate-800 { background: #1c1c1c !important; }
 
-/* ── 밝은 컬러 배경 (amber / orange / indigo / 기타) ── */
+/* ── 밝은 컬러 배경(-50 및 opacity 변형) — 네이비 대신 중립 다크 서피스로 통일 ── */
 .admin-dark .bg-amber-50,
-.admin-dark .bg-orange-50  { background: #111e35 !important; }
-.admin-dark .bg-amber-100,
-.admin-dark .bg-orange-100 { background: #162038 !important; }
-.admin-dark .bg-indigo-50  { background: #131f35 !important; }
-.admin-dark .bg-indigo-100 { background: #162038 !important; }
-.admin-dark .bg-emerald-50 { background: #0d1e1a !important; }
+.admin-dark .bg-amber-50\/30,
+.admin-dark .bg-amber-50\/40,
+.admin-dark .bg-amber-50\/50,
+.admin-dark .bg-amber-50\/60,
+.admin-dark .bg-orange-50,
+.admin-dark .bg-indigo-50,
+.admin-dark .bg-indigo-50\/30,
+.admin-dark .bg-emerald-50,
+.admin-dark .bg-emerald-50\/50,
 .admin-dark .bg-violet-50,
+.admin-dark .bg-violet-50\/20,
+.admin-dark .bg-violet-50\/40,
+.admin-dark .bg-violet-50\/60,
 .admin-dark .bg-pink-50,
 .admin-dark .bg-rose-50,
 .admin-dark .bg-teal-50,
+.admin-dark .bg-teal-50\/30,
 .admin-dark .bg-cyan-50,
 .admin-dark .bg-sky-50,
-.admin-dark .bg-green-50   { background: #111e35 !important; }
-.admin-dark .bg-blue-50    { background: #0d1a2e !important; }
-.admin-dark .bg-red-50     { background: #1a0d10 !important; }
+.admin-dark .bg-green-50,
+.admin-dark .bg-green-50\/50,
+.admin-dark .bg-blue-50,
+.admin-dark .bg-blue-50\/30,
+.admin-dark .bg-blue-50\/40,
+.admin-dark .bg-red-50,
+.admin-dark .bg-red-50\/40,
+.admin-dark .bg-red-50\/50,
+.admin-dark .bg-red-50\/60,
+.admin-dark .bg-purple-50,
+.admin-dark .bg-yellow-50,
+.admin-dark .bg-slate-50   { background: #161616 !important; }
 /* light-opacity white */
-.admin-dark .bg-white\/70  { background: rgba(17,30,53,0.7) !important; }
+.admin-dark .bg-white\/70  { background: rgba(23,23,23,0.7) !important; }
+.admin-dark .bg-gray-50\/50,
+.admin-dark .bg-gray-50\/60,
+.admin-dark .bg-gray-50\/80 { background: rgba(255,255,255,0.03) !important; }
 
 /* 카테고리 칩 배경 (100 계열) */
-.admin-dark .bg-blue-100   { background: #1a2840 !important; }
-.admin-dark .bg-cyan-100   { background: #0f1e24 !important; }
-.admin-dark .bg-teal-100   { background: #0f1e1a !important; }
-.admin-dark .bg-violet-100 { background: #1a1535 !important; }
-.admin-dark .bg-pink-100   { background: #1e1225 !important; }
-.admin-dark .bg-green-100  { background: #0f1e14 !important; }
-.admin-dark .bg-sky-100    { background: #0d1a2e !important; }
-.admin-dark .bg-rose-100   { background: #1a1015 !important; }
-.admin-dark .bg-slate-100  { background: #1e2d47 !important; }
-.admin-dark .bg-amber-50\/50 { background: rgba(17,30,53,0.5) !important; }
+.admin-dark .bg-amber-100,
+.admin-dark .bg-orange-100,
+.admin-dark .bg-blue-100,
+.admin-dark .bg-cyan-100,
+.admin-dark .bg-teal-100,
+.admin-dark .bg-violet-100,
+.admin-dark .bg-pink-100,
+.admin-dark .bg-green-100,
+.admin-dark .bg-sky-100,
+.admin-dark .bg-rose-100,
+.admin-dark .bg-slate-100,
+.admin-dark .bg-emerald-100,
+.admin-dark .bg-purple-100,
+.admin-dark .bg-red-100,
+.admin-dark .bg-red-200,
+.admin-dark .bg-red-300,
+.admin-dark .bg-yellow-100,
+.admin-dark .bg-indigo-100,
+.admin-dark .bg-indigo-100\/50 { background: #242424 !important; }
 
 /* ── 그라디언트 재정의 (from-amber-50 to-orange-50 등) ── */
-.admin-dark .from-amber-50  { --tw-gradient-from: #111e35 var(--tw-gradient-from-position) !important; }
-.admin-dark .to-orange-50   { --tw-gradient-to:   #131f35 var(--tw-gradient-to-position)   !important; }
-.admin-dark .from-blue-50   { --tw-gradient-from: #0d1a2e var(--tw-gradient-from-position) !important; }
-.admin-dark .to-indigo-50   { --tw-gradient-to:   #111e35 var(--tw-gradient-to-position)   !important; }
+.admin-dark .from-amber-50  { --tw-gradient-from: #161616 var(--tw-gradient-from-position) !important; }
+.admin-dark .to-orange-50   { --tw-gradient-to:   #161616 var(--tw-gradient-to-position)   !important; }
+.admin-dark .from-blue-50   { --tw-gradient-from: #161616 var(--tw-gradient-from-position) !important; }
+.admin-dark .to-indigo-50   { --tw-gradient-to:   #161616 var(--tw-gradient-to-position)   !important; }
 
-/* ── 테두리 컬러 ── */
+/* ── 테두리 컬러 — 연한(50~300) 하이라이트 보더는 중립 다크로 통일 ── */
+.admin-dark .border-amber-100,
 .admin-dark .border-amber-200,
-.admin-dark .border-amber-300  { border-color: #1e2d47 !important; }
+.admin-dark .border-amber-300,
+.admin-dark .border-blue-100,
+.admin-dark .border-blue-200,
+.admin-dark .border-blue-300,
+.admin-dark .border-cyan-100,
+.admin-dark .border-emerald-100,
+.admin-dark .border-emerald-200,
+.admin-dark .border-green-100,
+.admin-dark .border-green-200,
+.admin-dark .border-green-300,
 .admin-dark .border-indigo-100,
-.admin-dark .border-indigo-200 { border-color: #1e2d47 !important; }
-.admin-dark .border-emerald-200 { border-color: #1e3b2f !important; }
-.admin-dark .border-red-200    { border-color: #3b1220 !important; }
+.admin-dark .border-indigo-200,
+.admin-dark .border-indigo-300,
+.admin-dark .border-orange-100,
+.admin-dark .border-orange-200,
+.admin-dark .border-pink-100,
+.admin-dark .border-purple-100,
+.admin-dark .border-purple-200,
+.admin-dark .border-purple-300,
+.admin-dark .border-red-100,
+.admin-dark .border-red-200,
+.admin-dark .border-red-300,
+.admin-dark .border-slate-100,
+.admin-dark .border-slate-200,
+.admin-dark .border-teal-100,
+.admin-dark .border-teal-200,
+.admin-dark .border-violet-100,
+.admin-dark .border-violet-200,
+.admin-dark .border-violet-300,
+.admin-dark .border-yellow-100,
+.admin-dark .border-yellow-200,
+.admin-dark .border-yellow-300 { border-color: #262626 !important; }
+
+/* ── 테두리 컬러 — 중간톤 중립(gray/slate) ── */
+.admin-dark .border-slate-400 { border-color: #3a3a3a !important; }
+.admin-dark .border-slate-800 { border-color: #4a4a4a !important; }
+
+/* ── 테두리 컬러 — 강조(accent) 보더는 색조 유지, 다크에서 보이도록 밝게 ── */
+.admin-dark .border-amber-400,
+.admin-dark .border-amber-500 { border-color: #f59e0b !important; }
+.admin-dark .border-blue-400,
+.admin-dark .border-blue-500,
+.admin-dark .border-blue-600  { border-color: #60a5fa !important; }
+.admin-dark .border-green-600  { border-color: #34d399 !important; }
+.admin-dark .border-indigo-400 { border-color: #4f6daa !important; }
+.admin-dark .border-indigo-600 { border-color: #818cf8 !important; }
+.admin-dark .border-red-400,
+.admin-dark .border-red-600    { border-color: #f87171 !important; }
+.admin-dark .border-teal-400   { border-color: #2dd4bf !important; }
+.admin-dark .border-violet-600 { border-color: #a78bfa !important; }
+.admin-dark .border-purple-400 { border-color: #c084fc !important; }
+
+/* ── 포커스링 — 연한(200/300) 계열은 중립 톤 글로우로 통일 ── */
 .admin-dark .ring-amber-200,
-.admin-dark .ring-amber-300    { --tw-ring-color: #1e2d47 !important; }
+.admin-dark .ring-amber-300,
 .admin-dark .ring-blue-200,
+.admin-dark .ring-blue-300,
 .admin-dark .ring-cyan-200,
 .admin-dark .ring-indigo-200,
+.admin-dark .ring-indigo-300,
 .admin-dark .ring-violet-200,
+.admin-dark .ring-violet-300,
 .admin-dark .ring-slate-200,
 .admin-dark .ring-pink-200,
 .admin-dark .ring-green-200,
 .admin-dark .ring-rose-200,
 .admin-dark .ring-sky-200,
 .admin-dark .ring-teal-200,
-.admin-dark .ring-orange-200   { --tw-ring-color: #1e2d47 !important; }
+.admin-dark .ring-orange-200,
+.admin-dark .ring-orange-300,
+.admin-dark .ring-red-200,
+.admin-dark .ring-red-300,
+.admin-dark .ring-yellow-300   { --tw-ring-color: #3a3a3a !important; }
+
+/* ── 포커스링 — 강조(400/500) 계열은 색조 유지, 다크에서 보이도록 밝게 ── */
+.admin-dark .ring-amber-400   { --tw-ring-color: #fbbf24 !important; }
+.admin-dark .ring-blue-400,
+.admin-dark .ring-blue-500    { --tw-ring-color: #60a5fa !important; }
+.admin-dark .ring-indigo-400  { --tw-ring-color: #818cf8 !important; }
+.admin-dark .ring-purple-400  { --tw-ring-color: #c084fc !important; }
+.admin-dark .ring-red-400     { --tw-ring-color: #f87171 !important; }
+.admin-dark .ring-violet-400  { --tw-ring-color: #a78bfa !important; }
 
 /* ── 텍스트 — indigo ── */
 .admin-dark .text-indigo-900,
@@ -227,37 +336,86 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
 .admin-dark .text-indigo-400   { color: #818cf8 !important; }
 .admin-dark .text-indigo-300   { color: #4f5f8a !important; }
 .admin-dark .text-indigo-200   { color: #374466 !important; }
-.admin-dark .text-blue-600     { color: #93c5fd !important; }
+.admin-dark .text-blue-900,
+.admin-dark .text-blue-800,
+.admin-dark .text-blue-700,
+.admin-dark .text-blue-600,
+.admin-dark .text-blue-500,
+.admin-dark .text-blue-400     { color: #93c5fd !important; }
 
-/* ── 텍스트 — amber / orange ── */
+/* ── 텍스트 — amber / orange / yellow ── */
 .admin-dark .text-amber-900,
 .admin-dark .text-amber-800    { color: #fcd34d !important; }
 .admin-dark .text-amber-700    { color: #fbbf24 !important; }
 .admin-dark .text-amber-600    { color: #f59e0b !important; }
 .admin-dark .text-amber-500    { color: #d97706 !important; }
 .admin-dark .text-amber-400    { color: #92400e !important; }
+.admin-dark .text-orange-800,
+.admin-dark .text-orange-700,
 .admin-dark .text-orange-600,
-.admin-dark .text-orange-500   { color: #fb923c !important; }
+.admin-dark .text-orange-500,
+.admin-dark .text-orange-400   { color: #fdba74 !important; }
+.admin-dark .text-yellow-800,
+.admin-dark .text-yellow-700   { color: #fde047 !important; }
 
 /* ── 텍스트 — emerald / green ── */
+.admin-dark .text-emerald-800,
 .admin-dark .text-emerald-700,
-.admin-dark .text-emerald-600  { color: #34d399 !important; }
+.admin-dark .text-emerald-600,
+.admin-dark .text-emerald-500,
+.admin-dark .text-emerald-400  { color: #6ee7b7 !important; }
+.admin-dark .text-green-800,
+.admin-dark .text-green-700,
+.admin-dark .text-green-600,
+.admin-dark .text-green-500    { color: #86efac !important; }
 
-/* ── 텍스트 — 카테고리 칩 ── */
-.admin-dark .text-blue-700     { color: #93c5fd !important; }
-.admin-dark .text-cyan-700     { color: #67e8f9 !important; }
-.admin-dark .text-teal-700     { color: #5eead4 !important; }
-.admin-dark .text-violet-700   { color: #c4b5fd !important; }
-.admin-dark .text-pink-700     { color: #f9a8d4 !important; }
-.admin-dark .text-green-700    { color: #86efac !important; }
-.admin-dark .text-sky-700      { color: #7dd3fc !important; }
-.admin-dark .text-rose-700     { color: #fda4af !important; }
-.admin-dark .text-slate-500    { color: #94a3b8 !important; }
+/* ── 텍스트 — purple / violet ── */
+.admin-dark .text-purple-900,
+.admin-dark .text-purple-800,
+.admin-dark .text-purple-700,
+.admin-dark .text-purple-600,
+.admin-dark .text-purple-500,
+.admin-dark .text-purple-400   { color: #d8b4fe !important; }
+.admin-dark .text-violet-800,
+.admin-dark .text-violet-700,
+.admin-dark .text-violet-600,
+.admin-dark .text-violet-500,
+.admin-dark .text-violet-400   { color: #c4b5fd !important; }
+
+/* ── 텍스트 — 카테고리 칩 (cyan/teal/pink/rose/sky) ── */
+.admin-dark .text-cyan-700,
+.admin-dark .text-cyan-600     { color: #67e8f9 !important; }
+.admin-dark .text-teal-900,
+.admin-dark .text-teal-800,
+.admin-dark .text-teal-700,
+.admin-dark .text-teal-600,
+.admin-dark .text-teal-500,
+.admin-dark .text-teal-400     { color: #5eead4 !important; }
+.admin-dark .text-pink-700,
+.admin-dark .text-pink-600     { color: #f9a8d4 !important; }
+.admin-dark .text-sky-700,
+.admin-dark .text-sky-600      { color: #7dd3fc !important; }
+.admin-dark .text-rose-700,
+.admin-dark .text-rose-600     { color: #fda4af !important; }
+
+/* ── 텍스트 — red ── */
+.admin-dark .text-red-900,
+.admin-dark .text-red-800,
+.admin-dark .text-red-700,
 .admin-dark .text-red-600,
-.admin-dark .text-red-500      { color: #fca5a5 !important; }
+.admin-dark .text-red-500,
+.admin-dark .text-red-400      { color: #fca5a5 !important; }
+
+/* ── 텍스트 — 중립(slate) ── */
+.admin-dark .text-slate-900,
+.admin-dark .text-slate-800,
+.admin-dark .text-slate-700    { color: #d4d4d4 !important; }
+.admin-dark .text-slate-600,
+.admin-dark .text-slate-500,
+.admin-dark .text-slate-400    { color: #a3a3a3 !important; }
+.admin-dark .text-slate-300    { color: #e5e5e5 !important; }
 
 /* ── 아이콘 / 로딩 스피너 ── */
-.admin-dark .border-indigo-400  { border-color: #4f6daa !important; }
 .admin-dark .text-indigo-500    { color: #818cf8 !important; }
 
 /* ── 그림자 제거 ── */
