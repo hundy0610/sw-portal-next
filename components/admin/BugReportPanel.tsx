@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import type { BugStage } from "@/types/bug-report";
 import { DEFAULT_BUG_STAGES, UNASSIGNED_BUG_STAGE } from "@/types/bug-report";
 import { safeJson } from "@/lib/fetch-json";
+import { useAdminDarkMode } from "@/lib/use-admin-dark-mode";
 
 interface BugReport {
   id:           string;
@@ -227,6 +228,7 @@ function BugCard({ r, dragging, parentTitle, childTotal, childDone, onClick, onD
   onDragStart: () => void;
   onDragEnd: () => void;
 }) {
+  const dark = useAdminDarkMode();
   return (
     <div
       draggable
@@ -234,36 +236,36 @@ function BugCard({ r, dragging, parentTitle, childTotal, childDone, onClick, onD
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       style={{
-        background: dragging ? "#F0F4FF" : "#fff",
+        background: dragging ? (dark ? "#1a2840" : "#F0F4FF") : (dark ? "#171717" : "#fff"),
         opacity: dragging ? 0.6 : 1,
-        border: "1px solid #E2E8F0", borderRadius: 10, padding: "10px 12px",
+        border: `1px solid ${dark ? "#333333" : "#E2E8F0"}`, borderRadius: 10, padding: "10px 12px",
         marginBottom: 8, cursor: "grab",
       }}
     >
       {parentTitle && (
-        <div style={{ fontSize: 10, color: "#94a3b8", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
+        <div style={{ fontSize: 10, color: dark ? "#737373" : "#94a3b8", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
           ↳ {parentTitle}
         </div>
       )}
       <div style={{
-        fontSize: 13, fontWeight: 600, color: "#0f172a", marginBottom: 6, lineHeight: 1.4,
+        fontSize: 13, fontWeight: 600, color: dark ? "#e5e5e5" : "#0f172a", marginBottom: 6, lineHeight: 1.4,
         overflow: "hidden", display: "-webkit-box",
         WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const,
       }}>
         {r.title || "(제목 없음)"}
       </div>
       <div style={{ display: "flex", gap: 4, flexWrap: "wrap" as const, marginBottom: 6 }}>
-        <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 20, background: "#F1F5F9", color: "#334155" }}>{r.page}</span>
-        <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 20, background: r.type === "버그" ? "#FEE2E2" : "#E0F2FE", color: r.type === "버그" ? "#DC2626" : "#0369A1" }}>{r.type}</span>
+        <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 20, background: dark ? "#1f1f1f" : "#F1F5F9", color: dark ? "#a3a3a3" : "#334155" }}>{r.page}</span>
+        <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 20, background: dark ? "#1c1c1c" : (r.type === "버그" ? "#FEE2E2" : "#E0F2FE"), color: r.type === "버그" ? (dark ? "#fca5a5" : "#DC2626") : (dark ? "#7dd3fc" : "#0369A1") }}>{r.type}</span>
         {childTotal > 0 && (
-          <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 20, background: childDone === childTotal ? "#DCFCE7" : "#EFF6FF", color: childDone === childTotal ? "#15803D" : "#2563EB" }}>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 20, background: dark ? "#1c1c1c" : (childDone === childTotal ? "#DCFCE7" : "#EFF6FF"), color: childDone === childTotal ? (dark ? "#86efac" : "#15803D") : (dark ? "#93c5fd" : "#2563EB") }}>
             하위 {childDone}/{childTotal}
           </span>
         )}
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
-        <span style={{ fontSize: 11, color: "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{r.reporterName}</span>
-        {r.handler && <span style={{ fontSize: 11, color: "#2563EB", flexShrink: 0 }}>담당:{r.handler}</span>}
+        <span style={{ fontSize: 11, color: dark ? "#737373" : "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{r.reporterName}</span>
+        {r.handler && <span style={{ fontSize: 11, color: dark ? "#93c5fd" : "#2563EB", flexShrink: 0 }}>담당:{r.handler}</span>}
       </div>
     </div>
   );
@@ -287,13 +289,14 @@ function KanbanColumn({ stage, reports, allReports, lastStageName, isDragTarget,
   onCardDragStart: (id: string) => void;
   onCardDragEnd: () => void;
 }) {
+  const dark = useAdminDarkMode();
   return (
     <div
       style={{
         flex: "0 0 240px", minWidth: 240, marginRight: 10, minHeight: 360,
         display: "flex", flexDirection: "column" as const, borderRadius: 12,
-        background: isDragTarget ? stage.color : "#F8FAFC",
-        border: `2px solid ${isDragTarget ? stage.border : "#E2E8F0"}`,
+        background: isDragTarget ? stage.color : (dark ? "#141414" : "#F8FAFC"),
+        border: `2px solid ${isDragTarget ? stage.border : (dark ? "#262626" : "#E2E8F0")}`,
         transition: "all .15s",
       }}
       onDragOver={e => { e.preventDefault(); onDragOver(); }}
@@ -320,15 +323,15 @@ function KanbanColumn({ stage, reports, allReports, lastStageName, isDragTarget,
         {onAddClick && (
           <div onClick={onAddClick}
             style={{
-              border: "1px dashed #CBD5E1", borderRadius: 8, padding: "6px 10px",
+              border: `1px dashed ${dark ? "#3a3a3a" : "#CBD5E1"}`, borderRadius: 8, padding: "6px 10px",
               marginBottom: 8, textAlign: "center" as const, fontSize: 12,
-              color: "#94a3b8", cursor: "pointer", background: "#FAFBFC", fontWeight: 600,
+              color: dark ? "#737373" : "#94a3b8", cursor: "pointer", background: dark ? "#1a1a1a" : "#FAFBFC", fontWeight: 600,
             }}>
             {addLabel ?? "+ 추가"}
           </div>
         )}
         {reports.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "30px 0", fontSize: 11, color: "#cbd5e1" }}>
+          <div style={{ textAlign: "center", padding: "30px 0", fontSize: 11, color: dark ? "#525252" : "#cbd5e1" }}>
             {isDragTarget ? "여기에 놓기" : "없음"}
           </div>
         ) : reports.map(r => {
@@ -350,6 +353,7 @@ function KanbanColumn({ stage, reports, allReports, lastStageName, isDragTarget,
 }
 
 export default function BugReportPanel() {
+  const dark = useAdminDarkMode();
   const [reports, setReports]       = useState<BugReport[]>([]);
   const [stages, setStages]         = useState<BugStage[]>(DEFAULT_BUG_STAGES);
   const [loading, setLoading]       = useState(true);
@@ -626,16 +630,16 @@ export default function BugReportPanel() {
       {/* 헤더 */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
         <div>
-          <h2 style={{ fontSize: 20, fontWeight: 800, color: "#0f172a", margin: "0 0 4px" }}>버그리포트</h2>
-          <p style={{ fontSize: 13, color: "#64748b", margin: 0 }}>총 {filtered.length}건</p>
+          <h2 style={{ fontSize: 20, fontWeight: 800, color: dark ? "#e5e5e5" : "#0f172a", margin: "0 0 4px" }}>버그리포트</h2>
+          <p style={{ fontSize: 13, color: dark ? "#a3a3a3" : "#64748b", margin: 0 }}>총 {filtered.length}건</p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={() => { resetComposeForm(); setComposeOpen(true); }}
-            style={{ padding: "8px 14px", borderRadius: 8, background: "#1E3A8A", color: "#fff", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+            style={{ padding: "8px 14px", borderRadius: 8, background: dark ? "#1a2840" : "#1E3A8A", color: dark ? "#93c5fd" : "#fff", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
             🐛 새 리포트
           </button>
           <button onClick={load}
-            style={{ padding: "8px 14px", borderRadius: 8, background: "#EFF6FF", color: "#2563EB", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+            style={{ padding: "8px 14px", borderRadius: 8, background: dark ? "#1c1c1c" : "#EFF6FF", color: dark ? "#93c5fd" : "#2563EB", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
             새로고침
           </button>
         </div>
@@ -644,11 +648,11 @@ export default function BugReportPanel() {
       {/* 필터 */}
       <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" as const }}>
         <select value={filterPage} onChange={e => setFilterPage(e.target.value)}
-          style={{ padding: "7px 12px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 13, color: "#334155", background: "#fff" }}>
+          style={{ padding: "7px 12px", border: `1px solid ${dark ? "#333333" : "#E2E8F0"}`, borderRadius: 8, fontSize: 13, color: dark ? "#d4d4d4" : "#334155", background: dark ? "#171717" : "#fff" }}>
           {pages.map(p => <option key={p} value={p}>{p}</option>)}
         </select>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="제목/내용 검색"
-          style={{ padding: "7px 12px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 13, color: "#334155", background: "#fff", minWidth: 180 }} />
+          style={{ padding: "7px 12px", border: `1px solid ${dark ? "#333333" : "#E2E8F0"}`, borderRadius: 8, fontSize: 13, color: dark ? "#d4d4d4" : "#334155", background: dark ? "#171717" : "#fff", minWidth: 180 }} />
       </div>
 
       {/* 칸반 보드 */}
