@@ -49,12 +49,13 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
 .sidenav { background: var(--sidebar-bg); }
 .sidenav-item {
   display: flex; align-items: center; gap: 10px;
-  padding: 9px 16px; border-radius: 6px; cursor: pointer;
+  padding: 9px 16px; border-radius: 8px; cursor: pointer;
   color: rgba(255,255,255,0.65); font-size: 13.5px; font-weight: 500;
   transition: all 0.15s; margin: 0 8px 1px;
+  border-left: 3px solid transparent;
 }
 .sidenav-item:hover { background: var(--sidebar-hover); color: rgba(255,255,255,0.92); }
-.sidenav-item.active { background: var(--sidebar-active); color: #fff; font-weight: 700; }
+.sidenav-item.active { background: var(--sidebar-active); color: #fff; font-weight: 700; border-left-color: #60A5FA; }
 .sidenav-section {
   display: flex; align-items: center;
   font-size: 13px; font-weight: 700; letter-spacing: .04em;
@@ -120,7 +121,7 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
 .admin-dark header.admin-header .border-gray-200            { border-color: #1e2d47 !important; }
 
 /* 사이드바 활성 아이템 */
-.admin-dark .sidenav-item.active { color: #93c5fd !important; }
+.admin-dark .sidenav-item.active { color: #93c5fd !important; border-left-color: #93c5fd !important; }
 
 /* 메인 콘텐츠 */
 .admin-dark main.admin-main { background: var(--admin-content-bg) !important; }

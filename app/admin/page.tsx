@@ -489,7 +489,7 @@ export default function AdminPage() {
         {sidebarCollapsed && (
           <button
             onClick={toggleSidebar}
-            className="absolute left-0 top-6 z-30 flex items-center justify-center w-5 h-10 rounded-r-lg shadow-md transition-colors"
+            className="absolute left-0 top-6 z-30 flex items-center justify-center w-5 h-10 rounded-r-lg border border-l-0 border-white/10 hover:border-white/25 transition-colors"
             style={{ background: "#1C2B4A" }}
             title="사이드바 열기"
           >

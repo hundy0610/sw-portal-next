@@ -255,8 +255,8 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
     <div className="flex flex-col gap-6">
       {/* 페이지 타이틀 */}
       <div>
-        <h1 className="text-xl font-extrabold text-gray-900">대시보드</h1>
-        <p className="text-sm text-gray-400 mt-0.5">{isFiltered ? `${company} 현황 요약` : "전사 현황 요약"}</p>
+        <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">대시보드</h1>
+        <p className="text-sm text-gray-400 mt-1">{isFiltered ? `${company} 현황 요약` : "전사 현황 요약"}</p>
       </div>
 
       {/* ── ① HW 자산현황 | SW 자산현황 ─────────────────────────── */}
@@ -391,7 +391,7 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
         <div className="flex flex-wrap gap-2">
           {(["hw","sw","all"] as const).map(t => (
             <button key={t} onClick={() => clearCache(t)} disabled={clearing}
-              className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-500 hover:border-red-300 hover:text-red-600 hover:bg-red-50 disabled:opacity-40 transition-colors flex items-center gap-1.5">
+              className="text-xs px-3 py-1.5 rounded-[10px] border border-gray-200 bg-white text-gray-500 hover:border-red-300 hover:text-red-600 hover:bg-red-50 disabled:opacity-40 transition-colors flex items-center gap-1.5">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>
               </svg>
