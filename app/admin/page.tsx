@@ -465,27 +465,10 @@ export default function AdminPage() {
             </div>
           )}
 
-          {/* 하단 Notion 바로가기 (슈퍼어드민만) */}
-          {isSuper && (
-            <div className="mt-auto mx-3 pt-4 border-t border-white/10">
-              <div className="text-xs text-white/40 mb-2 px-1">Notion 바로가기</div>
-              <a href={process.env.NEXT_PUBLIC_NOTION_TRACKER_URL || "#"} target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-2 px-2 py-2 rounded text-xs text-white/60 hover:text-white hover:bg-white/10 transition-colors">
-                <span>🗄</span> SW DB 편집
-              </a>
-              <a href={process.env.NEXT_PUBLIC_NOTION_SW_UNIFIED_URL || "#"} target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-2 px-2 py-2 rounded text-xs text-white/60 hover:text-white hover:bg-white/10 transition-colors">
-                <span>📋</span> SW 데이터베이스
-              </a>
-              <a href="https://www.notion.so/29967f4bfdac8086b468ef3545b3e471" target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-2 px-2 py-2 rounded text-xs text-white/60 hover:text-white hover:bg-white/10 transition-colors">
-                <span>💻</span> NT/DT 트래커 (Notion)
-              </a>
-            </div>
-          )}
-
           <div className="px-4 pt-2 mt-auto">
-            <div className="text-xs text-white/30">v{process.env.NEXT_PUBLIC_APP_VERSION} · 법인별 계정</div>
+            <div className="text-xs text-white/30">
+              v{process.env.NEXT_PUBLIC_APP_VERSION} · {isSuper ? "슈퍼 어드민" : session.role === "general" ? "총무관리자" : "법인 담당자"}
+            </div>
           </div>
         </aside>
 
