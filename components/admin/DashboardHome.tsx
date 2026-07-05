@@ -5,6 +5,7 @@ import type { HwStats } from "@/lib/hw";
 import type { ExchangeReturnRecord } from "@/types";
 import { scGet, scSet } from "@/lib/session-cache";
 import { safeJson } from "@/lib/fetch-json";
+import { useAdminDarkMode } from "@/lib/use-admin-dark-mode";
 
 interface Props {
   company: string;
@@ -142,6 +143,7 @@ const TTL = 5 * 60 * 1000;
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────
 export default function DashboardHome({ company, initialHwStats, onNavigate }: Props) {
+  const dark = useAdminDarkMode();
   const isFiltered = !!company;
 
   // ── SW 현황
@@ -310,8 +312,8 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
               <button key={stage} onClick={() => setErStage(stage)}
                 className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all"
                 style={{
-                  background: active ? c.dot : c.bg,
-                  color: active ? "#fff" : c.text,
+                  background: active ? c.dot : dark ? "#1c1c1c" : c.bg,
+                  color: active ? "#fff" : dark ? c.dot : c.text,
                   borderColor: c.dot + "55",
                 }}>
                 <span className="w-1.5 h-1.5 rounded-full" style={{ background: active ? "#ffffffaa" : c.dot }} />
@@ -351,14 +353,14 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
                     style={{ gridTemplateColumns: "130px 64px 108px 108px 88px 80px 90px 1fr 100px 90px" }}>
                     <div className="flex items-center gap-1.5 min-w-0">
                       <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap shrink-0"
-                        style={{ background: sc.bg, color: sc.text }}>{r.stage}</span>
+                        style={{ background: dark ? "#1c1c1c" : sc.bg, color: dark ? sc.dot : sc.text }}>{r.stage}</span>
                       <span className="text-[10px] font-semibold shrink-0"
                         style={{ color: aging >= 7 ? "#DC2626" : aging >= 3 ? "#D97706" : "#9CA3AF" }}>
                         D+{aging}
                       </span>
                     </div>
                     <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold w-fit whitespace-nowrap"
-                      style={{ background: tc.bg, color: tc.text }}>{r.type || "—"}</span>
+                      style={{ background: dark ? "#1c1c1c" : tc.bg, color: tc.text }}>{r.type || "—"}</span>
                     <span className="text-[11px] text-blue-600 font-medium truncate pr-2">{r.assetId || "—"}</span>
                     <span className="text-[11px] text-blue-600 font-medium truncate pr-2">{r.newAssetId || "—"}</span>
                     <span className="text-[11px] text-gray-600 truncate pr-1">{r.company || "—"}</span>
