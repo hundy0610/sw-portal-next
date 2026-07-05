@@ -3462,20 +3462,24 @@ export default function ExchangeReturnPanel() {
   const [mailPreviewData, setMailPreviewData] = useState<{ html: string; subject: string } | null>(null);
   const [mailPreviewLoading, setMailPreviewLoading] = useState(false);
   const [mailSendingId, setMailSendingId] = useState<string | null>(null);
-  const [mailSentIds, setMailSentIds] = useState<Set<string>>(() => {
-    try {
-      const stored = localStorage.getItem("exchange-return:mail-sent");
-      return stored ? new Set<string>(JSON.parse(stored)) : new Set<string>();
-    } catch { return new Set<string>(); }
-  });
+  // 발송 여부는 기기(localStorage)가 아니라 서버(KV)에 기록해 모든 관리자·기기에서 동일하게 보이도록 한다.
+  const [mailSentIds, setMailSentIds] = useState<Set<string>>(new Set());
   const [mailPanelErr, setMailPanelErr] = useState<string | null>(null);
 
+  useEffect(() => {
+    fetch("/api/exchange-return/mail-sent")
+      .then(r => safeJson(r))
+      .then(d => { if (d.ok && Array.isArray(d.ids)) setMailSentIds(new Set<string>(d.ids)); })
+      .catch(() => {});
+  }, []);
+
   const addMailSentId = useCallback((id: string) => {
-    setMailSentIds(prev => {
-      const next = new Set(prev).add(id);
-      try { localStorage.setItem("exchange-return:mail-sent", JSON.stringify([...next])); } catch { /* */ }
-      return next;
-    });
+    setMailSentIds(prev => new Set(prev).add(id));
+    fetch("/api/exchange-return/mail-sent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    }).catch(() => {});
   }, []);
 
   const handleMailPreview = useCallback(async (r: ExchangeReturnRecord, returnMethod?: "행낭" | "직접방문") => {
