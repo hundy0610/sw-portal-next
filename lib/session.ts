@@ -66,6 +66,19 @@ export async function resolveCurrentName(session: AdminSession): Promise<string>
   }
 }
 
+// 쿠키의 role도 로그인 시점 스냅샷이라 이후 계정관리에서 권한이
+// 바뀌어도 갱신되지 않는다. 검사 직전에 최신 권한을 다시 조회한다.
+export async function resolveCurrentRole(session: AdminSession): Promise<AdminSession["role"]> {
+  if (session.notionPageId === "env-super") return session.role; // ENV 슈퍼어드민은 계정 DB에 없음
+  try {
+    const accounts = await kvGet<{ userId: string; role: AdminSession["role"] }[]>(ACCOUNTS_KEY);
+    const found = accounts?.find(a => a.userId === session.userId);
+    return found?.role ?? session.role;
+  } catch {
+    return session.role;
+  }
+}
+
 // super는 전체 법인 접근, 그 외(company/general)는 자기 법인으로 범위 제한
 // null = 제한 없음(super), string = 이 법인으로만 제한
 export function companyScope(session: AdminSession): string | null {

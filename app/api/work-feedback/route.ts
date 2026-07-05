@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
-import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
+import { getSessionFromCookieHeader, resolveCurrentName, resolveCurrentRole } from "@/lib/session";
 import type { Grade, AnnualGoal, MonthlyGoal, WeeklyEntry, WorkFeedbackStore } from "@/types/work-feedback";
 
 export type { Grade, AnnualGoal, MonthlyGoal, WeeklyEntry, WorkFeedbackStore };
@@ -23,11 +23,12 @@ function getSession(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const session = getSession(req);
   if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  const role = await resolveCurrentRole(session);
 
   const store = (await kvGet<WorkFeedbackStore>(KV_KEY)) ?? emptyStore();
 
   // 슈퍼 어드민은 전체 데이터, 일반 사용자는 본인 데이터만 반환
-  if (session.role !== "super") {
+  if (role !== "super") {
     const uid = session.userId;
     const filtered: WorkFeedbackStore = {
       annualGoals:   store.annualGoals.filter(g => g.userId === uid),
@@ -44,6 +45,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = getSession(req);
   if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  const role = await resolveCurrentRole(session);
 
   const body = await req.json();
   const { type, payload } = body as { type: string; payload: Record<string, unknown> };
@@ -54,7 +56,7 @@ export async function POST(req: NextRequest) {
   if (type === "annualGoal") {
     const { id, userId, year, title, currentLevel, reason, businessEffect, teamEffect } = payload as AnnualGoal;
     // Only super or self
-    if (session.role !== "super" && session.userId !== userId) {
+    if (role !== "super" && session.userId !== userId) {
       return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
     }
     if (id) {
@@ -67,7 +69,7 @@ export async function POST(req: NextRequest) {
     }
   } else if (type === "monthlyGoal") {
     const { id, userId, year, month, annualGoalIds, content } = payload as MonthlyGoal;
-    if (session.role !== "super" && session.userId !== userId) {
+    if (role !== "super" && session.userId !== userId) {
       return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
     }
     if (id) {
@@ -80,7 +82,7 @@ export async function POST(req: NextRequest) {
     }
   } else if (type === "weeklyEntry") {
     const { id, userId, year, month, week, activities, concerns, feedbackNeeded } = payload as WeeklyEntry;
-    if (session.role !== "super" && session.userId !== userId) {
+    if (role !== "super" && session.userId !== userId) {
       return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
     }
     if (id) {
@@ -102,7 +104,7 @@ export async function POST(req: NextRequest) {
 // PATCH /api/work-feedback  — update monthly evaluation or weekly comment (super only)
 export async function PATCH(req: NextRequest) {
   const session = getSession(req);
-  if (!session || session.role !== "super") {
+  if (!session || (await resolveCurrentRole(session)) !== "super") {
     return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
   }
 
@@ -143,7 +145,7 @@ export async function DELETE(req: NextRequest) {
   if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
   const { type, id, userId } = await req.json() as { type: string; id: string; userId: string };
-  if (session.role !== "super" && session.userId !== userId) {
+  if ((await resolveCurrentRole(session)) !== "super" && session.userId !== userId) {
     return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
   }
 
