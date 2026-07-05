@@ -256,6 +256,7 @@ export default function WorkFeedbackPanel({ session }: Props) {
   const [tab,         setTab]         = useState<"annual" | "monthly" | "summary">("annual");
   const [viewUserId,  setViewUserId]  = useState(session.userId);
   const [members,     setMembers]     = useState<{ userId: string; name: string }[]>([]);
+  const [knownAccountIds, setKnownAccountIds] = useState<Set<string>>(new Set());
 
   const [annualFormOpen,  setAnnualFormOpen]  = useState(false);
   const [editingAnnual,   setEditingAnnual]   = useState<AnnualGoal | undefined>();
@@ -289,11 +290,12 @@ export default function WorkFeedbackPanel({ session }: Props) {
       .then(d => {
         if (d.ok && Array.isArray(d.accounts)) {
           const filtered = d.accounts
-            .filter((a: { userId: string; name?: string; company?: string; active?: boolean }) =>
-              a.active !== false && !isExcludedAccount(a)
+            .filter((a: { userId: string; name?: string; company?: string; active?: boolean; role?: string }) =>
+              a.active !== false && a.role === "super" && !isExcludedAccount(a)
             )
             .map((a: { userId: string; name: string }) => ({ userId: a.userId, name: a.name }));
           setMembers(filtered);
+          setKnownAccountIds(new Set(d.accounts.map((a: { userId: string }) => a.userId)));
         }
       })
       .catch(() => {});
@@ -319,7 +321,8 @@ export default function WorkFeedbackPanel({ session }: Props) {
     ? (members.find(m => m.userId === activeUserId)?.name || activeUserId)
     : session.name;
 
-  // 슈퍼의 경우 계정 목록에 없는 userId도 store에서 추가
+  // 슈퍼의 경우 계정이 아예 삭제된(퇴사 등) userId도 store에서 추가.
+  // 단, 계정은 남아있지만 슈퍼 권한이 아닌 경우는 목록에서 제외한다.
   const allMembers: { userId: string; name: string }[] = isSuper
     ? [
         ...members,
@@ -331,7 +334,7 @@ export default function WorkFeedbackPanel({ session }: Props) {
             ...store.monthlyGoals.map(g => g.userId),
             ...store.weeklyEntries.map(e => e.userId),
           ].forEach(uid => {
-            if (!ids.has(uid)) { ids.add(uid); extra.push({ userId: uid, name: uid }); }
+            if (!ids.has(uid) && !knownAccountIds.has(uid)) { ids.add(uid); extra.push({ userId: uid, name: uid }); }
           });
           return extra;
         })(),
