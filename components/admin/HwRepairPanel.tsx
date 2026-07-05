@@ -82,21 +82,23 @@ function isPdfUrl(url: string): boolean {
 
 // ── Sub-components ───────────────────────────────────────────
 function StageBadge({ stage }: { stage: string }) {
-  const c = STAGE_COLORS[stage] ?? { bg: "#F1F5F9", text: "#64748B" };
+  const dark = useAdminDarkMode();
+  const c = STAGE_COLORS[stage] ?? { bg: "#F1F5F9", text: "#64748B", dot: "#94A3B8" };
   return (
     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap"
-      style={{ background: c.bg, color: c.text }}>
+      style={{ background: dark ? "#1c1c1c" : c.bg, color: dark ? c.dot : c.text }}>
       {stage || "—"}
     </span>
   );
 }
 
 function FaultBadge({ fault }: { fault: string }) {
+  const dark = useAdminDarkMode();
   if (!fault) return <span className="text-xs text-gray-300">—</span>;
   const c = FAULT_COLORS[fault] ?? { bg: "#F1F5F9", text: "#64748B" };
   return (
     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap"
-      style={{ background: c.bg, color: c.text }}>
+      style={{ background: dark ? "#1c1c1c" : c.bg, color: c.text }}>
       {fault}
     </span>
   );

@@ -5,6 +5,7 @@ import type { RepairTicket } from "@/types";
 import { AssetModalInner, HwRecord, HW_STATUSES } from "@/components/admin/AssetModal";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import { safeJson } from "@/lib/fetch-json";
+import { useAdminDarkMode } from "@/lib/use-admin-dark-mode";
 
 // ── Color configs ────────────────────────────────────────────
 const PRIORITY_COLORS: Record<string, { bg: string; text: string; bar: string }> = {
@@ -56,20 +57,22 @@ function StatCard({ label, value, color }: { label: string; value: string | numb
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const dark = useAdminDarkMode();
   const c = STATUS_STYLE[status] ?? { bg: "#F1F5F9", text: "#64748B" };
   return (
     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap"
-      style={{ background: c.bg, color: c.text }}>
+      style={{ background: dark ? "#1c1c1c" : c.bg, color: c.text }}>
       {status || "—"}
     </span>
   );
 }
 
 function PriorityBadge({ priority }: { priority: string }) {
+  const dark = useAdminDarkMode();
   const c = PRIORITY_COLORS[priority] ?? { bg: "#F1F5F9", text: "#64748B", bar: "#94A3B8" };
   return (
     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap"
-      style={{ background: c.bg, color: c.text }}>
+      style={{ background: dark ? "#1c1c1c" : c.bg, color: c.text }}>
       {priority || "—"}
     </span>
   );
@@ -169,6 +172,7 @@ function InlineStatusCell({
   ticket: RepairTicket;
   onUpdated: (id: string, fields: Partial<RepairTicket>) => void;
 }) {
+  const dark = useAdminDarkMode();
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<"idle" | "done" | "error">("idle");
 
@@ -195,7 +199,7 @@ function InlineStatusCell({
         value={ticket.status}
         onChange={handleChange}
         disabled={saving}
-        style={{ background: c.bg, color: c.text }}
+        style={{ background: dark ? "#1c1c1c" : c.bg, color: c.text }}
         className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-transparent focus:outline-none focus:ring-1 focus:ring-orange-200 cursor-pointer disabled:opacity-50 appearance-none"
       >
         {REPAIR_STATUSES_CONST.map(s => <option key={s} value={s}>{s}</option>)}
