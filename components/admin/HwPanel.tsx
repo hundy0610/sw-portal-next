@@ -1122,8 +1122,11 @@ function SearchTab({ companyLock = "", onUpdate, isSuperAdmin = false }: { compa
       }));
 
       // 변경이력 시트 — 자산별 changeLog(JSON)를 자산번호 기준으로 평탄화
+      // (자산별로 몰아서 쌓기 때문에 한 자산의 이력 행들은 항상 연속됨 → 첫 행 위치를 하이퍼링크 타깃으로 사용)
       const historyRows: Record<string, string>[] = [];
+      const firstHistoryRow = new Map<string, number>(); // 자산번호 → 변경이력 시트에서의 첫 행 번호(1-based, 헤더 제외)
       for (const r of records) {
+        if (!r.assetNo) continue;
         let events: HwChangeLogEvent[] = [];
         try {
           const parsed = r.changeLog ? JSON.parse(r.changeLog) : [];
@@ -1131,6 +1134,7 @@ function SearchTab({ companyLock = "", onUpdate, isSuperAdmin = false }: { compa
         } catch { /* 손상된 데이터는 건너뜀 */ }
         for (const ev of events) {
           for (const c of ev.changes) {
+            if (!firstHistoryRow.has(r.assetNo)) firstHistoryRow.set(r.assetNo, historyRows.length + 2);
             historyRows.push({
               "자산번호": r.assetNo || "",
               "변경시각": fmtDateTime(ev.at),
@@ -1144,12 +1148,25 @@ function SearchTab({ companyLock = "", onUpdate, isSuperAdmin = false }: { compa
       }
 
       const wb = XLSX.utils.book_new();
+      if (historyRows.length > 0) {
+        // "자산번호" 셀을 누르면 변경이력 시트의 해당 자산 첫 행으로 이동
+        records.forEach((r, i) => {
+          const targetRow = r.assetNo && firstHistoryRow.get(r.assetNo);
+          if (!targetRow) return;
+          const cellRef = `A${i + 2}`;
+          if (ws[cellRef]) {
+            ws[cellRef].l = { Target: `#'변경이력'!A${targetRow}`, Tooltip: "이 자산의 변경이력으로 이동" };
+          }
+        });
+      }
       XLSX.utils.book_append_sheet(wb, ws, "HW자산");
       if (historyRows.length > 0) {
         const wsHistory = XLSX.utils.json_to_sheet(historyRows);
         wsHistory["!cols"] = Object.keys(historyRows[0]).map(key => ({
           wch: Math.max(key.length, ...historyRows.map(r => String(r[key as keyof typeof r] ?? "").length)) + 2,
         }));
+        // 자산번호 컬럼 자동필터 — 특정 자산 하나만 골라서 보기
+        wsHistory["!autofilter"] = { ref: `A1:F${historyRows.length + 1}` };
         XLSX.utils.book_append_sheet(wb, wsHistory, "변경이력");
       }
       const now = new Date().toISOString().slice(0, 10);
