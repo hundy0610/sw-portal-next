@@ -1106,6 +1106,7 @@ function SearchTab({ companyLock = "", onUpdate, isSuperAdmin = false }: { compa
         "사용자":    r.user           || "",
         "법인명":    r.company        || "",
         "부서":      r.dept           || "",
+        "상태":      r.status         || "",
         "모델명":    r.model          || "",
         "제조사":    r.maker          || "",
         "CPU":       r.cpu            || "",
@@ -1119,8 +1120,38 @@ function SearchTab({ companyLock = "", onUpdate, isSuperAdmin = false }: { compa
       ws["!cols"] = Object.keys(rows[0]).map(key => ({
         wch: Math.max(key.length, ...rows.map(r => String(r[key as keyof typeof r] ?? "").length)) + 2,
       }));
+
+      // 변경이력 시트 — 자산별 changeLog(JSON)를 자산번호 기준으로 평탄화
+      const historyRows: Record<string, string>[] = [];
+      for (const r of records) {
+        let events: HwChangeLogEvent[] = [];
+        try {
+          const parsed = r.changeLog ? JSON.parse(r.changeLog) : [];
+          events = Array.isArray(parsed) ? parsed : [];
+        } catch { /* 손상된 데이터는 건너뜀 */ }
+        for (const ev of events) {
+          for (const c of ev.changes) {
+            historyRows.push({
+              "자산번호": r.assetNo || "",
+              "변경시각": fmtDateTime(ev.at),
+              "필드":     c.label,
+              "이전값":   c.from,
+              "이후값":   c.to,
+              "변경자":   ev.by,
+            });
+          }
+        }
+      }
+
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "HW자산");
+      if (historyRows.length > 0) {
+        const wsHistory = XLSX.utils.json_to_sheet(historyRows);
+        wsHistory["!cols"] = Object.keys(historyRows[0]).map(key => ({
+          wch: Math.max(key.length, ...historyRows.map(r => String(r[key as keyof typeof r] ?? "").length)) + 2,
+        }));
+        XLSX.utils.book_append_sheet(wb, wsHistory, "변경이력");
+      }
       const now = new Date().toISOString().slice(0, 10);
       XLSX.writeFile(wb, `HW자산_${companyLock || "전체"}_${now}.xlsx`);
     } finally {
