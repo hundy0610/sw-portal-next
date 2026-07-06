@@ -70,11 +70,12 @@ export async function GET(req: NextRequest) {
       const terms = search.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
       filtered = filtered.filter(r =>
         terms.some(q =>
-          r.user.toLowerCase().includes(q)    ||
-          r.assetNo.toLowerCase().includes(q) ||
-          r.model.toLowerCase().includes(q)   ||
-          r.serial.toLowerCase().includes(q)  ||
-          r.dept.toLowerCase().includes(q)
+          r.user.toLowerCase().includes(q)      ||
+          r.assetNo.toLowerCase().includes(q)   ||
+          r.model.toLowerCase().includes(q)     ||
+          r.serial.toLowerCase().includes(q)    ||
+          r.dept.toLowerCase().includes(q)      ||
+          r.changeLog.toLowerCase().includes(q)
         )
       );
     }
