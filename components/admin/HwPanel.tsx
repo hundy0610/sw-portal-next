@@ -2057,19 +2057,20 @@ function DispatchHistoryTab() {
 // 변경 이력 탭 (자산번호/필드로 검색 가능한 전체 변경 이력)
 // ─────────────────────────────────────────────────────────────────────────────
 function HwHistoryTab() {
-  const [assetNo, setAssetNo] = useState("");
+  const [search,  setSearch]  = useState("");
   const [field,   setField]   = useState("");
   const [history, setHistory] = useState<HwHistoryEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState("");
   const [searched, setSearched] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const params = new URLSearchParams({ limit: "200" });
-      if (assetNo.trim()) params.set("assetNo", assetNo.trim());
-      if (field)          params.set("field", field);
+      const params = new URLSearchParams({ limit: "500" });
+      if (search.trim()) params.set("search", search.trim());
+      if (field)         params.set("field", field);
       const res  = await fetch(`/api/hw/history?${params.toString()}`);
       const json = await safeJson(res);
       if (!json.ok) throw new Error(json.error);
@@ -2077,9 +2078,35 @@ function HwHistoryTab() {
       setSearched(true);
     } catch (e) { setError(String(e)); }
     finally { setLoading(false); }
-  }, [assetNo, field]);
+  }, [search, field]);
 
   useEffect(() => { load(); }, [load]);
+
+  const handleExport = useCallback(async () => {
+    if (history.length === 0) return;
+    setExporting(true);
+    try {
+      const XLSX = await import("xlsx");
+      const rows = history.map(h => ({
+        "변경 시각": fmtDateTime(h.changedAt),
+        "자산번호":  h.assetNo || "",
+        "필드":      h.field,
+        "변경 전":   h.from,
+        "변경 후":   h.to,
+        "변경자":    h.changedBy,
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws["!cols"] = Object.keys(rows[0]).map(key => ({
+        wch: Math.max(key.length, ...rows.map(r => String(r[key as keyof typeof r] ?? "").length)) + 2,
+      }));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "변경이력");
+      const now = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(wb, `HW변경이력_${now}.xlsx`);
+    } finally {
+      setExporting(false);
+    }
+  }, [history]);
 
   return (
     <div className="space-y-4">
@@ -2089,10 +2116,10 @@ function HwHistoryTab() {
           <p className="text-sm font-bold text-gray-800">변경 이력</p>
           <p className="text-xs text-gray-400 mt-0.5">자산 정보 수정 시 필드별로 자동 기록됩니다</p>
         </div>
-        <input value={assetNo} onChange={e => setAssetNo(e.target.value)}
+        <input value={search} onChange={e => setSearch(e.target.value)}
           onKeyDown={e => e.key === "Enter" && load()}
-          placeholder="자산번호로 검색"
-          className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+          placeholder="자산번호 / 법인명 / 시리얼 / 사용자 / 부서 / 모델명 검색"
+          className="w-64 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
         <select value={field} onChange={e => setField(e.target.value)}
           className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
           <option value="">전체 필드</option>
@@ -2101,6 +2128,10 @@ function HwHistoryTab() {
         <button onClick={load} disabled={loading}
           className="px-4 py-2 rounded-lg bg-indigo-500 text-white text-sm font-semibold hover:bg-indigo-600 disabled:opacity-50 transition-colors">
           {loading ? "불러오는 중…" : "검색"}
+        </button>
+        <button onClick={handleExport} disabled={exporting || history.length === 0}
+          className="px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors">
+          {exporting ? "생성 중…" : "엑셀 다운로드"}
         </button>
       </div>
 
