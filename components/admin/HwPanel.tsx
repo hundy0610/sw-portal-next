@@ -917,7 +917,7 @@ function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false }: {
                             onClick={() => handleRevertEvent(ev)}
                             title="이 시점의 값들로 한꺼번에 되돌립니다 (저장 전까지는 반영되지 않음)"
                             className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 hover:bg-amber-100 hover:text-amber-700 transition-colors">
-                            전체 되돌리기
+                            되돌리기
                           </button>
                         )}
                       </div>
