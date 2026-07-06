@@ -263,6 +263,14 @@ export async function searchHwRecords(rawSearch: string): Promise<HwRecord[]> {
     ) as HwRecord[];
   }
 
+  // Notion의 select 필터는 존재하지 않는 옵션값으로 equals 조회 시 에러를 던지므로,
+  // 검색어가 실제 법인명 옵션과 정확히 일치할 때만 법인명 필터를 추가한다.
+  const db = await notion.databases.retrieve({ database_id: DB_ID });
+  const companyProp = db.properties["법인명"];
+  const companyOptions = new Set(
+    companyProp?.type === "select" ? companyProp.select.options.map(o => o.name) : []
+  );
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const orFilters: any[] = [];
   for (const term of terms) {
@@ -272,8 +280,10 @@ export async function searchHwRecords(rawSearch: string): Promise<HwRecord[]> {
       { property: "모델명",      rich_text: { contains: term } },
       { property: "시리얼 넘버", rich_text: { contains: term } },
       { property: "부서",        rich_text: { contains: term } },
-      { property: "법인명",      select:    { equals: term } },
     );
+    if (companyOptions.has(term)) {
+      orFilters.push({ property: "법인명", select: { equals: term } });
+    }
   }
 
   const records: HwRecord[] = [];
