@@ -198,7 +198,7 @@ export async function POST(req: NextRequest) {
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const page: any = await notion.pages.retrieve({ page_id: id });
-        const assetNo: string = page.properties?.["자산번호"]?.title?.[0]?.plain_text || "";
+        const assetNo: string = page.properties?.["자산번호"]?.rich_text?.[0]?.plain_text || "";
         if (assetNo) {
           let changed = 0;
           if (fields.status === "재고") {
