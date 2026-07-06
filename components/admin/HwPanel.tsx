@@ -636,12 +636,30 @@ function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false }: {
     }
   }, [record.changeLog]);
 
-  function handleRevert(fieldKey: string, fromDisplay: string) {
-    const value = fromDisplay === "(없음)" ? "" : fromDisplay;
-    if (REVERTIBLE_FORM_FIELDS.has(fieldKey)) {
-      setField(fieldKey as keyof typeof form, value);
-    } else if (REVERTIBLE_SENSITIVE_FIELDS.has(fieldKey) && sensitiveUnlocked) {
-      setSensitiveForm(prev => ({ ...prev, [fieldKey]: value }));
+  // 이벤트 하나(같이 저장된 필드 묶음) 전체를 한꺼번에만 되돌릴 수 있도록 — 필드 일부만 되돌리면
+  // 실제로는 존재한 적 없는 어중간한 상태가 될 수 있어 개별 필드 되돌리기는 지원하지 않음
+  function handleRevertEvent(ev: HwChangeLogEvent) {
+    setForm(prev => {
+      const next = { ...prev };
+      for (const c of ev.changes) {
+        if (REVERTIBLE_FORM_FIELDS.has(c.field)) {
+          const value = c.from === "(없음)" ? "" : c.from;
+          (next as unknown as Record<string, string>)[c.field] = value;
+        }
+      }
+      return next;
+    });
+    if (sensitiveUnlocked) {
+      setSensitiveForm(prev => {
+        const next = { ...prev };
+        for (const c of ev.changes) {
+          if (REVERTIBLE_SENSITIVE_FIELDS.has(c.field)) {
+            const value = c.from === "(없음)" ? "" : c.from;
+            (next as unknown as Record<string, string>)[c.field] = value;
+          }
+        }
+        return next;
+      });
     }
   }
 
@@ -886,34 +904,33 @@ function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false }: {
               <p className="text-xs text-gray-400 py-1">변경 이력이 없습니다.</p>
             ) : (
               <div className="space-y-2 max-h-56 overflow-y-auto">
-                {changeLog.map((ev, i) => (
-                  <div key={i} className="text-xs border-b border-gray-50 last:border-0 pb-2">
-                    <div className="flex items-center justify-between text-gray-400 mb-1">
-                      <span>{fmtDateTime(ev.at)}</span>
-                      <span>{ev.by}</span>
-                    </div>
-                    <div className="space-y-1">
-                      {ev.changes.map((c, j) => {
-                        const canRevert = REVERTIBLE_FORM_FIELDS.has(c.field)
-                          || (REVERTIBLE_SENSITIVE_FIELDS.has(c.field) && sensitiveUnlocked);
-                        return (
-                          <div key={j} className="flex items-center justify-between gap-2">
-                            <span className="text-gray-700">
-                              <span className="font-semibold">{c.label}</span>: {c.from} → {c.to}
-                            </span>
-                            {canRevert && (
-                              <button
-                                onClick={() => handleRevert(c.field, c.from)}
-                                className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 hover:bg-amber-100 hover:text-amber-700 transition-colors">
-                                되돌리기
-                              </button>
-                            )}
+                {changeLog.map((ev, i) => {
+                  const revertibleCount = ev.changes.filter(c =>
+                    REVERTIBLE_FORM_FIELDS.has(c.field) || (REVERTIBLE_SENSITIVE_FIELDS.has(c.field) && sensitiveUnlocked)
+                  ).length;
+                  return (
+                    <div key={i} className="text-xs border-b border-gray-50 last:border-0 pb-2">
+                      <div className="flex items-center justify-between text-gray-400 mb-1">
+                        <span>{fmtDateTime(ev.at)} · {ev.by}</span>
+                        {revertibleCount > 0 && (
+                          <button
+                            onClick={() => handleRevertEvent(ev)}
+                            title="이 시점의 값들로 한꺼번에 되돌립니다 (저장 전까지는 반영되지 않음)"
+                            className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 hover:bg-amber-100 hover:text-amber-700 transition-colors">
+                            전체 되돌리기
+                          </button>
+                        )}
+                      </div>
+                      <div className="space-y-0.5">
+                        {ev.changes.map((c, j) => (
+                          <div key={j} className="text-gray-700">
+                            <span className="font-semibold">{c.label}</span>: {c.from} → {c.to}
                           </div>
-                        );
-                      })}
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
