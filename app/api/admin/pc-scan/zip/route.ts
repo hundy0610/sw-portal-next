@@ -59,12 +59,14 @@ export async function POST(req: NextRequest) {
 
     const zipBuf = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
     const date = new Date().toISOString().slice(0, 10);
+    const filename = `설치프로그램_${date}.zip`;
 
     return new NextResponse(zipBuf.buffer as ArrayBuffer, {
       status: 200,
       headers: {
         "Content-Type": "application/zip",
-        "Content-Disposition": `attachment; filename="설치프로그램_${date}.zip"`,
+        // Content-Disposition 헤더는 ByteString만 허용되어 한글을 직접 넣으면 undici가 예외를 던짐 (RFC 5987 인코딩 필요)
+        "Content-Disposition": `attachment; filename="install-programs_${date}.zip"; filename*=UTF-8''${encodeURIComponent(filename)}`,
         "Content-Length": String(zipBuf.byteLength),
       },
     });
