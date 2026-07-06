@@ -21,6 +21,21 @@ interface HwRecord {
   lastModifiedBy: string; lastModifiedAt: string;
 }
 
+interface HwHistoryEntry {
+  id: string;
+  assetNo: string;
+  field: string;
+  from: string;
+  to: string;
+  changedBy: string;
+  changedAt: string;
+}
+
+const HW_HISTORY_FIELDS = [
+  "상태","법인","사용자","자산번호","시리얼","부서","위치","기타",
+  "반납예정일","반납일자","사용일자","실사확인",
+];
+
 // 탭 공통 props (중앙 데이터 전달)
 interface TabProps {
   records: HwRecord[];
@@ -621,6 +636,25 @@ function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false }: {
 
   const setField = (k: keyof typeof form, v: string) => setForm(prev => ({ ...prev, [k]: v }));
 
+  // 변경 이력
+  const [history, setHistory] = useState<HwHistoryEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setHistoryLoading(true);
+      try {
+        const res  = await fetch(`/api/hw/history?assetId=${encodeURIComponent(record.id)}&limit=20`);
+        const json = await safeJson(res);
+        if (!cancelled && json.ok) setHistory(json.history);
+      } finally {
+        if (!cancelled) setHistoryLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [record.id]);
+
   const recAsMap = record as unknown as Record<string, unknown>;
   const isDirty = (Object.keys(form) as (keyof typeof form)[]).some(
     k => form[k] !== recAsMap[k]
@@ -853,6 +887,30 @@ function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false }: {
             <InfoRow label="잔존가치" value={record.residualValue > 0 ? fmtKrw(record.residualValue) : undefined} />
             <InfoRow label="문서번호" value={record.docNo} />
             {record.verified && <InfoRow label="실사확인" value="완료" />}
+          </div>
+
+          {/* 변경 이력 */}
+          <div className="border-t border-gray-100 pt-3">
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">변경 이력</p>
+            {historyLoading ? (
+              <p className="text-xs text-gray-400 py-1">불러오는 중…</p>
+            ) : history.length === 0 ? (
+              <p className="text-xs text-gray-400 py-1">변경 이력이 없습니다.</p>
+            ) : (
+              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                {history.map(h => (
+                  <div key={h.id} className="text-xs border-b border-gray-50 last:border-0 pb-1.5">
+                    <div className="flex items-center justify-between text-gray-400">
+                      <span>{fmtDateTime(h.changedAt)}</span>
+                      <span>{h.changedBy}</span>
+                    </div>
+                    <div className="text-gray-700 mt-0.5">
+                      <span className="font-semibold">{h.field}</span>: {h.from} → {h.to}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -1997,6 +2055,103 @@ function DispatchHistoryTab() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 변경 이력 탭 (자산번호/필드로 검색 가능한 전체 변경 이력)
+// ─────────────────────────────────────────────────────────────────────────────
+function HwHistoryTab() {
+  const [assetNo, setAssetNo] = useState("");
+  const [field,   setField]   = useState("");
+  const [history, setHistory] = useState<HwHistoryEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState("");
+  const [searched, setSearched] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true); setError("");
+    try {
+      const params = new URLSearchParams({ limit: "200" });
+      if (assetNo.trim()) params.set("assetNo", assetNo.trim());
+      if (field)          params.set("field", field);
+      const res  = await fetch(`/api/hw/history?${params.toString()}`);
+      const json = await safeJson(res);
+      if (!json.ok) throw new Error(json.error);
+      setHistory(json.history);
+      setSearched(true);
+    } catch (e) { setError(String(e)); }
+    finally { setLoading(false); }
+  }, [assetNo, field]);
+
+  useEffect(() => { load(); }, [load]);
+
+  return (
+    <div className="space-y-4">
+      {/* 필터 */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap items-center gap-3">
+        <div className="flex-1 min-w-[160px]">
+          <p className="text-sm font-bold text-gray-800">변경 이력</p>
+          <p className="text-xs text-gray-400 mt-0.5">자산 정보 수정 시 필드별로 자동 기록됩니다</p>
+        </div>
+        <input value={assetNo} onChange={e => setAssetNo(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && load()}
+          placeholder="자산번호로 검색"
+          className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+        <select value={field} onChange={e => setField(e.target.value)}
+          className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
+          <option value="">전체 필드</option>
+          {HW_HISTORY_FIELDS.map(f => <option key={f} value={f}>{f}</option>)}
+        </select>
+        <button onClick={load} disabled={loading}
+          className="px-4 py-2 rounded-lg bg-indigo-500 text-white text-sm font-semibold hover:bg-indigo-600 disabled:opacity-50 transition-colors">
+          {loading ? "불러오는 중…" : "검색"}
+        </button>
+      </div>
+
+      {error && <div className="px-4 py-3 bg-red-50 rounded-xl text-sm text-red-600">⚠️ {error}</div>}
+
+      {/* 목록 */}
+      {!loading && history.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-gray-50 text-gray-500 font-semibold">
+                <tr>
+                  <th className="px-4 py-2.5 text-left">변경 시각</th>
+                  <th className="px-4 py-2.5 text-left">자산번호</th>
+                  <th className="px-4 py-2.5 text-left">필드</th>
+                  <th className="px-4 py-2.5 text-left">변경 전</th>
+                  <th className="px-4 py-2.5 text-left">변경 후</th>
+                  <th className="px-4 py-2.5 text-left">변경자</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {history.map(h => (
+                  <tr key={h.id} className="hover:bg-gray-50/50">
+                    <td className="px-4 py-2.5 text-gray-400">{fmtDateTime(h.changedAt)}</td>
+                    <td className="px-4 py-2.5 font-mono text-gray-700">{h.assetNo || "—"}</td>
+                    <td className="px-4 py-2.5 text-gray-700">{h.field}</td>
+                    <td className="px-4 py-2.5 text-gray-500">{h.from}</td>
+                    <td className="px-4 py-2.5 text-gray-700 font-semibold">{h.to}</td>
+                    <td className="px-4 py-2.5 text-gray-500">{h.changedBy}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {!loading && searched && history.length === 0 && !error && (
+        <div className="py-16 text-center text-gray-300">
+          <p className="text-4xl mb-3">🕘</p>
+          <p className="text-sm">변경 이력이 없습니다</p>
+        </div>
+      )}
+
+      {loading && <div className="py-16 text-center text-gray-300 text-sm">불러오는 중…</div>}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 등록 현황 탭 (엑셀 신규 등록 로그 — 월별/연단위 분석)
 // ─────────────────────────────────────────────────────────────────────────────
 interface RegistrationRecord {
@@ -2424,7 +2579,7 @@ function StockByCompanyTab({ records, loading }: { records: HwRecord[]; loading:
 // ─────────────────────────────────────────────────────────────────────────────
 // 메인 HwPanel — 데이터 1회 fetch, 모든 탭에 props 전달
 // ─────────────────────────────────────────────────────────────────────────────
-type Tab = "dashboard"|"shipment"|"return"|"search"|"upload"|"dispatch"|"registration"|"label"|"stock";
+type Tab = "dashboard"|"shipment"|"return"|"search"|"upload"|"dispatch"|"registration"|"history"|"label"|"stock";
 
 interface DispatchRecord {
   id: string;
@@ -2605,6 +2760,7 @@ export default function HwPanel({ company = "", initialStats, isSuperAdmin = fal
     { id: "upload",    label: "엑셀 등록",   icon: "📂" },
     { id: "dispatch",  label: "자산지급 현황",icon: "📋" },
     { id: "registration", label: "등록 현황", icon: "🆕" },
+    { id: "history",   label: "변경 이력",   icon: "🕘" },
     { id: "label",     label: "행낭 발송지", icon: "🏷️" },
     { id: "stock",     label: "법인별 재고", icon: "📦" },
   ];
@@ -2721,6 +2877,7 @@ export default function HwPanel({ company = "", initialStats, isSuperAdmin = fal
       {tab === "upload"    && <ExcelUploadTab />}
       {tab === "dispatch"  && <DispatchHistoryTab />}
       {tab === "registration" && <RegistrationLogTab />}
+      {tab === "history"   && <HwHistoryTab />}
       {tab === "label"     && <LabelPrintTab records={records} recordsReady={recordsReady} onLoadRecords={loadAll} />}
       {tab === "stock"     && <StockByCompanyTab records={records} loading={recordsLoading} />}
     </div>
