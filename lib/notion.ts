@@ -1841,3 +1841,84 @@ export async function fetchEventSubmissions(since?: string | null): Promise<Even
     })
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
+
+// ────────────────────────────────────────────────────────────
+// HW 자산 변경 이력 (NOTION_DB_HW_HISTORY)
+// ────────────────────────────────────────────────────────────
+
+export interface HwHistoryEntry {
+  id: string;
+  assetId: string;
+  assetNo: string;
+  field: string;
+  from: string;
+  to: string;
+  changedBy: string;
+  changedAt: string;
+}
+
+export async function fetchHwHistory(opts: {
+  assetId?: string;
+  assetNo?: string;
+  field?: string;
+  limit?: number;
+}): Promise<HwHistoryEntry[]> {
+  const dbId = process.env.NOTION_DB_HW_HISTORY;
+  if (!dbId) return [];
+  let normalizedDbId: string;
+  try { normalizedDbId = toNotionId(dbId); }
+  catch (e: any) { console.error("[notion] fetchHwHistory DB ID error:", e.message); return []; }
+
+  const filters: QueryDatabaseParameters["filter"][] = [];
+  if (opts.assetId) filters.push({ property: "AssetId", rich_text: { equals: opts.assetId } });
+  if (opts.assetNo) filters.push({ property: "AssetNo", rich_text: { equals: opts.assetNo } });
+  if (opts.field)   filters.push({ property: "Field",   select:    { equals: opts.field } });
+
+  const filter: QueryDatabaseParameters["filter"] | undefined =
+    filters.length === 0 ? undefined :
+    filters.length === 1 ? filters[0] :
+    { and: filters as Extract<QueryDatabaseParameters["filter"], { and: unknown }>["and"] };
+
+  const pages = await queryAllPages(normalizedDbId, filter, [
+    { property: "ChangedAt", direction: "descending" },
+  ]);
+
+  return pages.slice(0, opts.limit ?? 50).map(page => {
+    const p = page.properties;
+    return {
+      id:        page.id,
+      assetId:   getPropText(p, "AssetId"),
+      assetNo:   getPropText(p, "AssetNo"),
+      field:     getPropSelect(p, "Field"),
+      from:      getPropText(p, "From"),
+      to:        getPropText(p, "To"),
+      changedBy: getPropText(p, "ChangedBy"),
+      changedAt: getPropDate(p, "ChangedAt"),
+    };
+  });
+}
+
+export async function createHwHistoryEntries(
+  entries: { assetId: string; assetNo: string; field: string; from: string; to: string; changedBy: string }[],
+): Promise<void> {
+  const rawDbId = process.env.NOTION_DB_HW_HISTORY;
+  if (!rawDbId || entries.length === 0) return;
+  const dbId = toNotionId(rawDbId);
+  const now = new Date().toISOString();
+
+  await Promise.all(entries.map((entry, idx) =>
+    notion.pages.create({
+      parent: { database_id: dbId },
+      properties: {
+        Title:     { title:     [{ text: { content: `${entry.assetNo}-${Date.now()}-${idx}` } }] },
+        AssetId:   { rich_text: [{ text: { content: entry.assetId } }] },
+        AssetNo:   { rich_text: [{ text: { content: entry.assetNo } }] },
+        Field:     { select:    { name: entry.field } },
+        From:      { rich_text: [{ text: { content: entry.from } }] },
+        To:        { rich_text: [{ text: { content: entry.to } }] },
+        ChangedBy: { rich_text: [{ text: { content: entry.changedBy } }] },
+        ChangedAt: { date:      { start: now } },
+      },
+    })
+  ));
+}
