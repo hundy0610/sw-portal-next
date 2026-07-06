@@ -68,10 +68,42 @@ function mapPage(page: PageObjectResponse) {
     duplicated:   p["중복"]?.type === "checkbox" ? p["중복"].checkbox : false,
     lastModifiedBy: txt(p, "마지막수정자"),
     lastModifiedAt: txt(p, "마지막수정일시"),
+    changeLog:    txt(p, "변경이력"),
   };
 }
 
 export type HwRecord = ReturnType<typeof mapPage>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 변경이력 — 별도 DB 없이 HW 레코드 자신의 "변경이력" rich_text 속성에 JSON으로 누적
+// (자산당 최근 MAX_CHANGE_LOG_ENTRIES건만 유지, Notion rich_text 배열은 100블록 한도)
+// ─────────────────────────────────────────────────────────────────────────────
+export interface HwChangeLogEvent {
+  at: string;                                                    // ISO timestamp
+  by: string;                                                    // "이름 (아이디)"
+  changes: { field: string; label: string; from: string; to: string }[];
+}
+
+const MAX_CHANGE_LOG_ENTRIES = 50;
+
+export function parseChangeLog(raw: string): HwChangeLogEvent[] {
+  try {
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+// 기존 변경이력 텍스트에 새 이벤트를 맨 앞에 추가하고, 캡을 적용한 뒤
+// json(캐시 패치용 원문)과 Notion rich_text 속성 값(블록 분할)을 함께 반환
+export function buildUpdatedChangeLog(existingRaw: string, event: HwChangeLogEvent) {
+  const updated = [event, ...parseChangeLog(existingRaw)].slice(0, MAX_CHANGE_LOG_ENTRIES);
+  const json = JSON.stringify(updated);
+  const chunks: string[] = [];
+  for (let i = 0; i < json.length; i += 1900) chunks.push(json.slice(i, i + 1900));
+  return { json, richText: { rich_text: chunks.map(c => ({ text: { content: c } })) } };
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 대시보드용 집계 통계 (전체 레코드 대신 이걸 KV에 별도 저장)

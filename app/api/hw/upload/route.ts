@@ -109,6 +109,7 @@ function pageToHwRecord(page: PageObjectResponse): HwRecord {
     duplicated: p["중복"]?.type     === "checkbox" ? p["중복"].checkbox    : false,
     lastModifiedBy: txt("마지막수정자"),
     lastModifiedAt: txt("마지막수정일시"),
+    changeLog:      txt("변경이력"),
   };
 }
 
