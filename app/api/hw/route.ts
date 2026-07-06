@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
           r.model.toLowerCase().includes(q)     ||
           r.serial.toLowerCase().includes(q)    ||
           r.dept.toLowerCase().includes(q)      ||
-          r.changeLog.toLowerCase().includes(q)
+          (r.changeLog || "").toLowerCase().includes(q)
         )
       );
     }
