@@ -640,20 +640,18 @@ function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false }: {
   const [history, setHistory] = useState<HwHistoryEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setHistoryLoading(true);
-      try {
-        const res  = await fetch(`/api/hw/history?assetId=${encodeURIComponent(record.id)}&limit=20`);
-        const json = await safeJson(res);
-        if (!cancelled && json.ok) setHistory(json.history);
-      } finally {
-        if (!cancelled) setHistoryLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    try {
+      const res  = await fetch(`/api/hw/history?assetId=${encodeURIComponent(record.id)}&limit=20`);
+      const json = await safeJson(res);
+      if (json.ok) setHistory(json.history);
+    } finally {
+      setHistoryLoading(false);
+    }
   }, [record.id]);
+
+  useEffect(() => { loadHistory(); }, [loadHistory]);
 
   const recAsMap = record as unknown as Record<string, unknown>;
   const isDirty = (Object.keys(form) as (keyof typeof form)[]).some(
@@ -702,6 +700,7 @@ function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false }: {
       await onSave(record.id, changed);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
+      loadHistory();
     } catch (e) { setError(String(e)); }
     finally { setSaving(false); }
   }
