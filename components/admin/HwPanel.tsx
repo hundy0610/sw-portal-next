@@ -1,6 +1,6 @@
 ﻿"use client";
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import type { HwStats } from "@/lib/hw";
+import type { HwStats, HwChangeLogEvent } from "@/lib/hw";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import { LabelPrintTab } from "@/components/admin/LabelPrintTab";
 import { safeJson } from "@/lib/fetch-json";
@@ -19,6 +19,7 @@ interface HwRecord {
   price: number; residualValue: number; note: string; docNo: string;
   verified: boolean; duplicated: boolean;
   lastModifiedBy: string; lastModifiedAt: string;
+  changeLog: string;
 }
 
 // 탭 공통 props (중앙 데이터 전달)
@@ -587,6 +588,10 @@ function EditModal({ record, fields, onSave, onClose }: EditModalProps) {
   );
 }
 
+// 변경 이력에서 "되돌리기"로 값을 다시 채워넣을 수 있는 필드
+const REVERTIBLE_FORM_FIELDS = new Set(["status","user","company","dept","location","useDate","returnDate","returnDue","note"]);
+const REVERTIBLE_SENSITIVE_FIELDS = new Set(["assetNo","serial"]);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 자산 상세 모달
 // ─────────────────────────────────────────────────────────────────────────────
@@ -620,6 +625,43 @@ function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false }: {
   const [pwVerifying, setPwVerifying]   = useState(false);
 
   const setField = (k: keyof typeof form, v: string) => setForm(prev => ({ ...prev, [k]: v }));
+
+  // 변경 이력 — 별도 API 없이 record.changeLog(JSON 텍스트)를 그대로 파싱
+  const changeLog: HwChangeLogEvent[] = useMemo(() => {
+    try {
+      const parsed = record.changeLog ? JSON.parse(record.changeLog) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }, [record.changeLog]);
+
+  // 이벤트 하나(같이 저장된 필드 묶음) 전체를 한꺼번에만 되돌릴 수 있도록 — 필드 일부만 되돌리면
+  // 실제로는 존재한 적 없는 어중간한 상태가 될 수 있어 개별 필드 되돌리기는 지원하지 않음
+  function handleRevertEvent(ev: HwChangeLogEvent) {
+    setForm(prev => {
+      const next = { ...prev };
+      for (const c of ev.changes) {
+        if (REVERTIBLE_FORM_FIELDS.has(c.field)) {
+          const value = c.from === "(없음)" ? "" : c.from;
+          (next as unknown as Record<string, string>)[c.field] = value;
+        }
+      }
+      return next;
+    });
+    if (sensitiveUnlocked) {
+      setSensitiveForm(prev => {
+        const next = { ...prev };
+        for (const c of ev.changes) {
+          if (REVERTIBLE_SENSITIVE_FIELDS.has(c.field)) {
+            const value = c.from === "(없음)" ? "" : c.from;
+            (next as unknown as Record<string, string>)[c.field] = value;
+          }
+        }
+        return next;
+      });
+    }
+  }
 
   const recAsMap = record as unknown as Record<string, unknown>;
   const isDirty = (Object.keys(form) as (keyof typeof form)[]).some(
@@ -854,6 +896,44 @@ function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false }: {
             <InfoRow label="문서번호" value={record.docNo} />
             {record.verified && <InfoRow label="실사확인" value="완료" />}
           </div>
+
+          {/* 변경 이력 */}
+          <div className="border-t border-gray-100 pt-3">
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">변경 이력</p>
+            {changeLog.length === 0 ? (
+              <p className="text-xs text-gray-400 py-1">변경 이력이 없습니다.</p>
+            ) : (
+              <div className="space-y-2 max-h-56 overflow-y-auto">
+                {changeLog.map((ev, i) => {
+                  const revertibleCount = ev.changes.filter(c =>
+                    REVERTIBLE_FORM_FIELDS.has(c.field) || (REVERTIBLE_SENSITIVE_FIELDS.has(c.field) && sensitiveUnlocked)
+                  ).length;
+                  return (
+                    <div key={i} className="text-xs border-b border-gray-50 last:border-0 pb-2">
+                      <div className="flex items-center justify-between text-gray-400 mb-1">
+                        <span>{fmtDateTime(ev.at)} · {ev.by}</span>
+                        {revertibleCount > 0 && (
+                          <button
+                            onClick={() => handleRevertEvent(ev)}
+                            title="이 시점의 값들로 한꺼번에 되돌립니다 (저장 전까지는 반영되지 않음)"
+                            className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 hover:bg-amber-100 hover:text-amber-700 transition-colors">
+                            되돌리기
+                          </button>
+                        )}
+                      </div>
+                      <div className="space-y-0.5">
+                        {ev.changes.map((c, j) => (
+                          <div key={j} className="text-gray-700">
+                            <span className="font-semibold">{c.label}</span>: {c.from} → {c.to}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* 저장 버튼 */}
@@ -1069,7 +1149,7 @@ function SearchTab({ companyLock = "", onUpdate, isSuperAdmin = false }: { compa
       <div className="bg-white rounded-xl border border-gray-200 p-4">
         <div className="flex flex-wrap gap-3 items-end">
           <div className="flex-1 min-w-[180px]">
-            <label className="block text-xs font-semibold text-gray-500 mb-1">사용자 / 자산번호 / 모델명 / 시리얼 / 부서</label>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">사용자 / 자산번호 / 모델명 / 시리얼 / 부서 / 변경이력</label>
             <input value={search} onChange={e => setSearch(e.target.value)}
               onKeyDown={e => e.key === "Enter" && load()}
               placeholder="검색어 입력 후 Enter (쉼표로 다중검색)"

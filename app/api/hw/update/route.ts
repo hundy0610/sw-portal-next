@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
-import { computeHwStats, type HwRecord } from "@/lib/hw";
+import { computeHwStats, type HwRecord, type HwChangeLogEvent, buildUpdatedChangeLog } from "@/lib/hw";
 import { kvGet, kvSet, kvSetPermanent } from "@/lib/kv-store";
 import { memDel } from "@/lib/mem-cache";
 import { autoCompleteReturnsByAssetId, autoSyncUseDateByAssetId } from "@/lib/exchange-return";
@@ -67,6 +67,27 @@ function buildProperties(fields: FieldMap) {
   return props;
 }
 
+// 변경이력에 기록할 필드 목록 — 전역 감사로그(8개)보다 넓게 전체 수정가능 필드 포함
+const HW_LOG_FIELDS: { key: keyof HwRecord; label: string }[] = [
+  { key: "status",     label: "상태" },
+  { key: "company",    label: "법인" },
+  { key: "user",       label: "사용자" },
+  { key: "assetNo",    label: "자산번호" },
+  { key: "serial",     label: "시리얼" },
+  { key: "dept",       label: "부서" },
+  { key: "location",   label: "위치" },
+  { key: "note",       label: "기타" },
+  { key: "returnDue",  label: "반납예정일" },
+  { key: "returnDate", label: "반납일자" },
+  { key: "useDate",    label: "사용일자" },
+  { key: "verified",   label: "실사확인" },
+];
+
+function fmtLogValue(v: unknown): string {
+  if (typeof v === "boolean") return v ? "예" : "아니오";
+  return v === undefined || v === null || v === "" ? "(없음)" : String(v);
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -104,6 +125,21 @@ export async function POST(req: NextRequest) {
     const properties = buildProperties(fields);
     if (Object.keys(properties).length === 0) {
       return NextResponse.json({ ok: false, error: "업데이트할 필드 없음" }, { status: 400 });
+    }
+
+    // 변경이력 — 이번 저장에서 실제로 바뀐 필드들을 하나의 이벤트로 묶어 "변경이력" 속성에 함께 기록
+    const logChanges = HW_LOG_FIELDS
+      .filter(f => f.key in (rawFields as object))
+      .map(f => ({
+        field: f.key as string, label: f.label,
+        from: fmtLogValue(before?.[f.key]), to: fmtLogValue((rawFields as Partial<HwRecord>)[f.key]),
+      }))
+      .filter(c => c.from !== c.to);
+    if (logChanges.length > 0) {
+      const event: HwChangeLogEvent = { at: modifiedAt, by: modifiedBy, changes: logChanges };
+      const { json, richText } = buildUpdatedChangeLog(before?.changeLog ?? "", event);
+      properties["변경이력"] = richText;
+      fields.changeLog = json; // KV 캐시 patch(hw:all/hw:deltas)에도 최신 변경이력이 함께 반영되도록
     }
 
     // Notion 페이지 업데이트 — 성공을 먼저 확인해야 캐시도 그 값으로 갱신
