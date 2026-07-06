@@ -199,7 +199,7 @@ export async function fetchHwFiltered({
   }
 
   if (assetNo) {
-    andFilters.push({ property: "자산번호", title: { equals: assetNo } });
+    andFilters.push({ property: "자산번호", rich_text: { equals: assetNo } });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -236,12 +236,64 @@ export async function findHwByAssetNo(assetNo: string): Promise<HwRecord | null>
   }
   const res = await queryWithRetry({
     database_id: DB_ID,
-    filter: { property: "자산번호", title: { equals: assetNo } },
+    filter: { property: "자산번호", rich_text: { equals: assetNo } },
     page_size: 1,
   });
   const page = res.results[0];
   if (!page || page.object !== "page" || !("properties" in page)) return null;
   return mapPage(page as PageObjectResponse);
+}
+
+/**
+ * 통합 검색 — 자산번호/사용자/부서/모델명/시리얼/법인명 중 하나라도 검색어를 포함하면 매칭.
+ * hw:all 캐시 상태와 무관하게 항상 Notion에서 직접 조회 (변경 이력 검색처럼 빈도가 낮은 용도용).
+ */
+export async function searchHwRecords(rawSearch: string): Promise<HwRecord[]> {
+  const terms = rawSearch.split(",").map(s => s.trim()).filter(Boolean);
+  if (terms.length === 0) return [];
+
+  if (isMock()) {
+    const lower = terms.map(t => t.toLowerCase());
+    return mockHwRecords.filter(r =>
+      lower.some(q =>
+        r.user.toLowerCase().includes(q)    || r.assetNo.toLowerCase().includes(q) ||
+        r.model.toLowerCase().includes(q)   || r.serial.toLowerCase().includes(q)  ||
+        r.dept.toLowerCase().includes(q)    || r.company.toLowerCase().includes(q)
+      )
+    ) as HwRecord[];
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const orFilters: any[] = [];
+  for (const term of terms) {
+    orFilters.push(
+      { property: "사용자",      title:     { contains: term } },
+      { property: "자산번호",    rich_text: { contains: term } },
+      { property: "모델명",      rich_text: { contains: term } },
+      { property: "시리얼 넘버", rich_text: { contains: term } },
+      { property: "부서",        rich_text: { contains: term } },
+      { property: "법인명",      select:    { equals: term } },
+    );
+  }
+
+  const records: HwRecord[] = [];
+  let cursor: string | undefined;
+  do {
+    const res = await queryWithRetry({
+      database_id: DB_ID,
+      page_size: 100,
+      start_cursor: cursor,
+      filter: { or: orFilters },
+    });
+    for (const page of res.results) {
+      if (page.object === "page" && "properties" in page) {
+        records.push(mapPage(page as PageObjectResponse));
+      }
+    }
+    cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined;
+  } while (cursor);
+
+  return records;
 }
 
 function normalizeSerial(s: string): string {

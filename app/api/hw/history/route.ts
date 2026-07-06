@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchHwHistory } from "@/lib/notion";
-import { type HwRecord } from "@/lib/hw";
+import { type HwRecord, searchHwRecords } from "@/lib/hw";
 import { kvGet } from "@/lib/kv-store";
 import { getSessionFromCookieHeader, companyScope } from "@/lib/session";
 import { errorMessage } from "@/lib/api-error";
@@ -39,22 +39,10 @@ export async function GET(req: NextRequest) {
 
     if (search) {
       // 자산번호 단독 검색이 아닌 법인명/시리얼/사용자/부서/모델명 등으로 검색
-      // — 조건에 맞는 자산번호를 먼저 찾고, 그 자산번호들의 이력만 필터링
-      const all = (await kvGet<HwRecord[]>("hw:all")) ?? [];
-      const scoped = scope ? all.filter(r => r.company === scope) : all;
-      const terms = search.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
-      const matchedAssetNos = new Set(
-        scoped
-          .filter(r => terms.some(q =>
-            r.user.toLowerCase().includes(q)    ||
-            r.assetNo.toLowerCase().includes(q) ||
-            r.model.toLowerCase().includes(q)   ||
-            r.serial.toLowerCase().includes(q)  ||
-            r.dept.toLowerCase().includes(q)    ||
-            r.company.toLowerCase().includes(q)
-          ))
-          .map(r => r.assetNo)
-      );
+      // — hw:all 캐시 상태와 무관하게 Notion에서 직접 매칭되는 자산을 찾고, 그 자산번호들의 이력만 필터링
+      const matched = await searchHwRecords(search);
+      const scoped = scope ? matched.filter(r => r.company === scope) : matched;
+      const matchedAssetNos = new Set(scoped.map(r => r.assetNo));
       const raw = await fetchHwHistory({ field, limit: 5000 });
       history = raw.filter(h => matchedAssetNos.has(h.assetNo)).slice(0, limit ?? 200);
     } else {
