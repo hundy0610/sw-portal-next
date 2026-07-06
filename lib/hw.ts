@@ -199,7 +199,7 @@ export async function fetchHwFiltered({
   }
 
   if (assetNo) {
-    andFilters.push({ property: "자산번호", title: { equals: assetNo } });
+    andFilters.push({ property: "자산번호", rich_text: { equals: assetNo } });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -236,7 +236,7 @@ export async function findHwByAssetNo(assetNo: string): Promise<HwRecord | null>
   }
   const res = await queryWithRetry({
     database_id: DB_ID,
-    filter: { property: "자산번호", title: { equals: assetNo } },
+    filter: { property: "자산번호", rich_text: { equals: assetNo } },
     page_size: 1,
   });
   const page = res.results[0];

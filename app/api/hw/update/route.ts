@@ -6,7 +6,6 @@ import { memDel } from "@/lib/mem-cache";
 import { autoCompleteReturnsByAssetId, autoSyncUseDateByAssetId } from "@/lib/exchange-return";
 import { getSessionFromCookieHeader, resolveCurrentName, companyScope } from "@/lib/session";
 import { appendAdminAuditLog, summarizeChanges } from "@/lib/portal-store";
-import { createHwHistoryEntries } from "@/lib/notion";
 import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
@@ -66,27 +65,6 @@ function buildProperties(fields: FieldMap) {
   if (fields.lastModifiedAt !== undefined) txt("마지막수정일시", String(fields.lastModifiedAt));
 
   return props;
-}
-
-// 자산별 변경 이력(Notion HW 변경 이력 DB)에 남길 필드 목록 — 전역 감사로그(8개)보다 넓게 전체 수정가능 필드 포함
-const HW_HISTORY_FIELDS: { key: keyof HwRecord; label: string }[] = [
-  { key: "status",     label: "상태" },
-  { key: "company",    label: "법인" },
-  { key: "user",       label: "사용자" },
-  { key: "assetNo",    label: "자산번호" },
-  { key: "serial",     label: "시리얼" },
-  { key: "dept",       label: "부서" },
-  { key: "location",   label: "위치" },
-  { key: "note",       label: "기타" },
-  { key: "returnDue",  label: "반납예정일" },
-  { key: "returnDate", label: "반납일자" },
-  { key: "useDate",    label: "사용일자" },
-  { key: "verified",   label: "실사확인" },
-];
-
-function fmtHwValue(v: unknown): string {
-  if (typeof v === "boolean") return v ? "예" : "아니오";
-  return v === undefined || v === null || v === "" ? "(없음)" : String(v);
 }
 
 export async function POST(req: NextRequest) {
@@ -168,37 +146,14 @@ export async function POST(req: NextRequest) {
       await kvSet("hw:deltas", { ...existing, [id]: fields }, 3600);
     })();
 
-    // 자산별 변경 이력 기록 — 실패해도 본 업데이트는 성공 처리 (감사로그와 동일한 관용 방식)
-    const historyPromise = (async () => {
-      try {
-        const historyEntries = HW_HISTORY_FIELDS
-          .filter(f => f.key in (rawFields as object))
-          .map(f => ({ label: f.label, oldV: before?.[f.key], newV: (rawFields as Partial<HwRecord>)[f.key] }))
-          .filter(f => JSON.stringify(f.oldV) !== JSON.stringify(f.newV))
-          .map(f => ({
-            assetId: id,
-            assetNo: String(rawFields.assetNo ?? before?.assetNo ?? ""),
-            field: f.label,
-            from: fmtHwValue(f.oldV),
-            to: fmtHwValue(f.newV),
-            changedBy: modifiedBy,
-          }));
-        if (historyEntries.length > 0) {
-          await createHwHistoryEntries(historyEntries);
-        }
-      } catch (e) {
-        console.error("[hw/update → change history]", e);
-      }
-    })();
-
-    await Promise.all([kvPatchPromise, deltaPromise, historyPromise]);
+    await Promise.all([kvPatchPromise, deltaPromise]);
 
     // 상태가 "재고"로 변경되거나 사용일자가 변경된 경우 — 연결된 자산 흐름 레코드에 반영
     if ((fields.status === "재고" || fields.useDate !== undefined) && process.env.NOTION_DB_EXCHANGE_RETURN) {
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const page: any = await notion.pages.retrieve({ page_id: id });
-        const assetNo: string = page.properties?.["자산번호"]?.title?.[0]?.plain_text || "";
+        const assetNo: string = page.properties?.["자산번호"]?.rich_text?.[0]?.plain_text || "";
         if (assetNo) {
           let changed = 0;
           if (fields.status === "재고") {
