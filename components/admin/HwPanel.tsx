@@ -2555,6 +2555,24 @@ function StockByCompanyTab({ records, loading }: { records: HwRecord[]; loading:
 // ─────────────────────────────────────────────────────────────────────────────
 const TIMELINE_FIELDS = new Set(["status", "company", "dept", "user"]);
 
+// 호버 미리보기에 보여줄 필드 — 스냅샷 재구성 대상 (자산번호/시리얼 등 잘 안 바뀌는 값은 제외)
+const SNAPSHOT_FIELDS: { key: "status"|"user"|"company"|"dept"|"location"|"useDate"|"returnDate"|"returnDue"; label: string }[] = [
+  { key: "status",     label: "상태" },
+  { key: "user",       label: "사용자" },
+  { key: "company",    label: "법인" },
+  { key: "dept",       label: "부서" },
+  { key: "location",   label: "위치" },
+  { key: "useDate",    label: "사용일자" },
+  { key: "returnDate", label: "반납일자" },
+  { key: "returnDue",  label: "반납예정일" },
+];
+
+// app/api/hw/update/route.ts의 fmtLogValue와 동일한 규칙 — changeLog의 from/to 문자열과 형식을 맞춘다.
+function fmtSnapshotValue(v: unknown): string {
+  if (typeof v === "boolean") return v ? "예" : "아니오";
+  return v === undefined || v === null || v === "" ? "(없음)" : String(v);
+}
+
 function ChangeHistoryTab({ companyLock = "" }: { companyLock?: string }) {
   const [query,       setQuery]       = useState("");
   const [candidates,  setCandidates]  = useState<HwRecord[]>([]);
@@ -2611,6 +2629,22 @@ function ChangeHistoryTab({ companyLock = "" }: { companyLock?: string }) {
       .filter(ev => ev.changes.length > 0)
       .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
   }, [changeLog]);
+
+  // 각 이벤트 "직후" 시점의 자산 상태 재구성 — 현재값에서 최신 이벤트부터 순서대로 되돌려서 계산.
+  // changeLog는 상태/법인/부서/이름 외 필드(사용일자 등)도 포함하므로, 원본 changeLog 전체를 사용해야 정확하다.
+  const snapshotsByAt = useMemo(() => {
+    const map = new Map<string, Record<string, string>>();
+    if (!detail) return map;
+    const snap: Record<string, string> = {};
+    for (const f of SNAPSHOT_FIELDS) snap[f.key] = fmtSnapshotValue(detail[f.key]);
+
+    const sorted = [...changeLog].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+    for (const ev of sorted) {
+      map.set(ev.at, { ...snap });
+      for (const c of ev.changes) snap[c.field] = c.from;
+    }
+    return map;
+  }, [changeLog, detail]);
 
   const [exporting, setExporting] = useState(false);
   const handleExport = useCallback(async () => {
@@ -2708,27 +2742,54 @@ function ChangeHistoryTab({ companyLock = "" }: { companyLock?: string }) {
             <p className="text-sm text-gray-400 py-8 text-center">변경 이력이 없습니다.</p>
           ) : (
             <div className="ml-1 border-l-2 border-gray-100 pl-4 space-y-2.5">
-              {timeline.map((ev, i) => (
-                <div key={i} className="relative">
-                  <span className={`absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full ring-2 ring-white ${i === 0 ? "bg-amber-500" : "bg-gray-300"}`} />
-                  <div className={`rounded-lg border p-2.5 ${i === 0 ? "border-amber-200 bg-amber-50" : "border-gray-100 bg-gray-50"}`}>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs text-gray-400">{fmtDateTime(ev.at)} · {ev.by}</span>
-                      {i === 0 && <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded shrink-0">최근 변경</span>}
+              {timeline.map((ev, i) => {
+                const snap = snapshotsByAt.get(ev.at);
+                const changedKeys = new Set(ev.changes.map(c => c.field));
+                return (
+                  <div key={i} className="relative group">
+                    <span className={`absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full ring-2 ring-white ${i === 0 ? "bg-amber-500" : "bg-gray-300"}`} />
+                    <div className={`rounded-lg border p-2.5 cursor-default ${i === 0 ? "border-amber-200 bg-amber-50" : "border-gray-100 bg-gray-50"}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-gray-400">{fmtDateTime(ev.at)} · {ev.by}</span>
+                        {i === 0 && <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded shrink-0">최근 변경</span>}
+                      </div>
+                      <div className="mt-1 space-y-0.5">
+                        {ev.changes.map((c, j) => (
+                          <p key={j} className="text-sm">
+                            <span className="font-semibold text-gray-500">{c.label}</span>{" "}
+                            <span className="text-gray-500">{c.from || "(없음)"}</span>
+                            {" → "}
+                            <span className={`font-semibold ${i === 0 ? "text-amber-700" : "text-gray-800"}`}>{c.to || "(없음)"}</span>
+                          </p>
+                        ))}
+                      </div>
                     </div>
-                    <div className="mt-1 space-y-0.5">
-                      {ev.changes.map((c, j) => (
-                        <p key={j} className="text-sm">
-                          <span className="font-semibold text-gray-500">{c.label}</span>{" "}
-                          <span className="text-gray-500">{c.from || "(없음)"}</span>
-                          {" → "}
-                          <span className={`font-semibold ${i === 0 ? "text-amber-700" : "text-gray-800"}`}>{c.to || "(없음)"}</span>
-                        </p>
-                      ))}
-                    </div>
+
+                    {/* 호버 시 — 이 시점의 자산 상태 스냅샷, 이 이벤트에서 바뀐 필드는 강조 표시 */}
+                    {snap && (
+                      <div className="hidden group-hover:block absolute z-20 left-0 top-full mt-1 w-80 max-w-[90vw] rounded-xl border border-gray-200 bg-white shadow-lg p-3">
+                        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">{fmtDate(ev.at)} 시점의 자산 상태</p>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {SNAPSHOT_FIELDS.map(f => {
+                            const changed = changedKeys.has(f.key);
+                            const from = ev.changes.find(c => c.field === f.key)?.from ?? "";
+                            return (
+                              <div key={f.key} className={`rounded-md px-2 py-1 ${changed ? "bg-amber-100 ring-1 ring-amber-300" : "bg-gray-50"}`}>
+                                <p className="text-[10px] text-gray-400">{f.label}</p>
+                                {changed ? (
+                                  <p className="text-xs font-semibold text-amber-700 truncate">{from} → {snap[f.key]}</p>
+                                ) : (
+                                  <p className="text-xs text-gray-700 truncate">{snap[f.key]}</p>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
