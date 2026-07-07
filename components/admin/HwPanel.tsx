@@ -1,5 +1,5 @@
 ﻿"use client";
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from "react";
 import type { HwStats, HwChangeLogEvent } from "@/lib/hw";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import { LabelPrintTab } from "@/components/admin/LabelPrintTab";
@@ -600,13 +600,15 @@ interface RevertibleForm {
   useDate: string; returnDate: string; returnDue: string; note: string;
 }
 
-function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false, initialForm, previewLabel }: {
+function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false, initialForm, previewLabel, hideHistory = false, variant = "modal" }: {
   record: HwRecord;
   onSave: (id: string, fields: Partial<HwRecord>) => Promise<void>;
   onClose: () => void;
   isSuperAdmin?: boolean;
   initialForm?: Partial<RevertibleForm>;  // 지정 시 현재값이 아닌 과거 시점 값으로 폼을 채운다 (변경이력 되돌리기 미리보기용)
   previewLabel?: string;                   // initialForm 사용 시 상단에 표시할 안내 문구
+  hideHistory?: boolean;                   // 변경 이력 섹션 숨김 (변경이력 탭에서 호출할 때 — 이미 그 화면에 있으므로 중복)
+  variant?: "modal" | "panel";             // "panel" = 배경 오버레이 없이 카드만 렌더 (호버 미리보기용)
 }) {
   const [form, setForm] = useState<RevertibleForm>({
     status: initialForm?.status ?? record.status,
@@ -734,8 +736,11 @@ function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false, initi
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+    <div
+      className={variant === "modal" ? "fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" : ""}
+      onClick={variant === "modal" ? onClose : undefined}
+    >
+      <div className={`bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden ${variant === "panel" ? "max-h-[70vh]" : "max-h-[90vh]"}`} onClick={e => e.stopPropagation()}>
         {/* 헤더 */}
         <div className="px-5 py-4 bg-amber-600 text-white flex items-start justify-between shrink-0">
           <div>
@@ -912,42 +917,44 @@ function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false, initi
           </div>
 
           {/* 변경 이력 */}
-          <div className="border-t border-gray-100 pt-3">
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">변경 이력</p>
-            {changeLog.length === 0 ? (
-              <p className="text-xs text-gray-400 py-1">변경 이력이 없습니다.</p>
-            ) : (
-              <div className="space-y-2 max-h-56 overflow-y-auto">
-                {changeLog.map((ev, i) => {
-                  const revertibleCount = ev.changes.filter(c =>
-                    REVERTIBLE_FORM_FIELDS.has(c.field) || (REVERTIBLE_SENSITIVE_FIELDS.has(c.field) && sensitiveUnlocked)
-                  ).length;
-                  return (
-                    <div key={i} className="text-xs border-b border-gray-50 last:border-0 pb-2">
-                      <div className="flex items-center justify-between text-gray-400 mb-1">
-                        <span>{fmtDateTime(ev.at)} · {ev.by}</span>
-                        {revertibleCount > 0 && (
-                          <button
-                            onClick={() => handleRevertEvent(ev)}
-                            title="이 시점의 값들로 한꺼번에 되돌립니다 (저장 전까지는 반영되지 않음)"
-                            className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 hover:bg-amber-100 hover:text-amber-700 transition-colors">
-                            되돌리기
-                          </button>
-                        )}
+          {!hideHistory && (
+            <div className="border-t border-gray-100 pt-3">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">변경 이력</p>
+              {changeLog.length === 0 ? (
+                <p className="text-xs text-gray-400 py-1">변경 이력이 없습니다.</p>
+              ) : (
+                <div className="space-y-2 max-h-56 overflow-y-auto">
+                  {changeLog.map((ev, i) => {
+                    const revertibleCount = ev.changes.filter(c =>
+                      REVERTIBLE_FORM_FIELDS.has(c.field) || (REVERTIBLE_SENSITIVE_FIELDS.has(c.field) && sensitiveUnlocked)
+                    ).length;
+                    return (
+                      <div key={i} className="text-xs border-b border-gray-50 last:border-0 pb-2">
+                        <div className="flex items-center justify-between text-gray-400 mb-1">
+                          <span>{fmtDateTime(ev.at)} · {ev.by}</span>
+                          {revertibleCount > 0 && (
+                            <button
+                              onClick={() => handleRevertEvent(ev)}
+                              title="이 시점의 값들로 한꺼번에 되돌립니다 (저장 전까지는 반영되지 않음)"
+                              className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 hover:bg-amber-100 hover:text-amber-700 transition-colors">
+                              되돌리기
+                            </button>
+                          )}
+                        </div>
+                        <div className="space-y-0.5">
+                          {ev.changes.map((c, j) => (
+                            <div key={j} className="text-gray-700">
+                              <span className="font-semibold">{c.label}</span>: {c.from} → {c.to}
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <div className="space-y-0.5">
-                        {ev.changes.map((c, j) => (
-                          <div key={j} className="text-gray-700">
-                            <span className="font-semibold">{c.label}</span>: {c.from} → {c.to}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* 저장 버튼 */}
@@ -2652,7 +2659,48 @@ function ChangeHistoryTab({ companyLock = "", onUpdate, isSuperAdmin = false }: 
     return map;
   }, [changeLog, detail]);
 
-  const [previewEvent, setPreviewEvent] = useState<HwChangeLogEvent | null>(null);
+  // 호버로 시점별 상세보기를 띄운다 — 트리거(카드)나 패널 중 어디에 마우스가 있어도 유지되도록
+  // 살짝의 유예(150ms)를 두고 닫고, 실제 위치는 뷰포트를 벗어나지 않게 보정한다 (Tooltip.tsx와 동일한 방식).
+  const [hoverAt, setHoverAt] = useState<string | null>(null);
+  const [hoverCoords, setHoverCoords] = useState({ top: 0, left: 0 });
+  const hoverTriggerRef = useRef<HTMLElement | null>(null);
+  const hoverPanelRef   = useRef<HTMLDivElement | null>(null);
+  const hideTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showPreview = useCallback((at: string, el: HTMLElement) => {
+    if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
+    hoverTriggerRef.current = el;
+    const rect = el.getBoundingClientRect();
+    setHoverCoords({ top: rect.bottom + 6, left: rect.left });
+    setHoverAt(at);
+  }, []);
+  const scheduleHide = useCallback(() => {
+    hideTimerRef.current = setTimeout(() => setHoverAt(null), 150);
+  }, []);
+  useEffect(() => () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); }, []);
+
+  // 뷰포트 밖으로 잘리지 않도록 실제 렌더된 패널 크기 기준으로 위치 보정
+  useLayoutEffect(() => {
+    if (!hoverAt) return;
+    const trigger = hoverTriggerRef.current;
+    const panel   = hoverPanelRef.current;
+    if (!trigger || !panel) return;
+    const triggerRect = trigger.getBoundingClientRect();
+    const panelRect   = panel.getBoundingClientRect();
+    const PADDING = 8;
+
+    let left = triggerRect.left;
+    if (left + panelRect.width > window.innerWidth - PADDING) left = window.innerWidth - PADDING - panelRect.width;
+    if (left < PADDING) left = PADDING;
+
+    let top = triggerRect.bottom + 6;
+    if (top + panelRect.height > window.innerHeight - PADDING) top = triggerRect.top - panelRect.height - 6;
+    if (top < PADDING) top = PADDING;
+
+    setHoverCoords({ top, left });
+  }, [hoverAt]);
+
+  const hoverEvent = hoverAt ? timeline.find(ev => ev.at === hoverAt) ?? null : null;
 
   const [exporting, setExporting] = useState(false);
   const handleExport = useCallback(async () => {
@@ -2751,12 +2799,11 @@ function ChangeHistoryTab({ companyLock = "", onUpdate, isSuperAdmin = false }: 
           ) : (
             <div className="ml-1 border-l-2 border-gray-100 pl-4 space-y-2.5">
               {timeline.map((ev, i) => (
-                <div key={i} className="relative">
+                <div key={i} className="relative"
+                  onMouseEnter={e => showPreview(ev.at, e.currentTarget)}
+                  onMouseLeave={scheduleHide}>
                   <span className={`absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full ring-2 ring-white ${i === 0 ? "bg-amber-500" : "bg-gray-300"}`} />
-                  <button
-                    onClick={() => setPreviewEvent(ev)}
-                    title="클릭하면 이 시점의 자산 상태를 보고 필요시 되돌릴 수 있습니다"
-                    className={`w-full text-left rounded-lg border p-2.5 transition-colors hover:ring-2 hover:ring-amber-300 ${i === 0 ? "border-amber-200 bg-amber-50" : "border-gray-100 bg-gray-50"}`}>
+                  <div className={`rounded-lg border p-2.5 cursor-default ${i === 0 ? "border-amber-200 bg-amber-50" : "border-gray-100 bg-gray-50"}`}>
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs text-gray-400">{fmtDateTime(ev.at)} · {ev.by}</span>
                       {i === 0 && <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded shrink-0">최근 변경</span>}
@@ -2771,7 +2818,7 @@ function ChangeHistoryTab({ companyLock = "", onUpdate, isSuperAdmin = false }: 
                         </p>
                       ))}
                     </div>
-                  </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -2779,19 +2826,28 @@ function ChangeHistoryTab({ companyLock = "", onUpdate, isSuperAdmin = false }: 
         </div>
       )}
 
-      {previewEvent && detail && (
-        <AssetDetailModal
-          record={detail}
-          isSuperAdmin={isSuperAdmin}
-          initialForm={rawSnapshotsByAt.get(previewEvent.at)}
-          previewLabel={`${fmtDateTime(previewEvent.at)} 시점 상태`}
-          onClose={() => setPreviewEvent(null)}
-          onSave={async (id, fields) => {
-            await onUpdate(id, fields);
-            await selectAsset(id);
-            setPreviewEvent(null);
-          }}
-        />
+      {hoverEvent && detail && (
+        <div
+          ref={hoverPanelRef}
+          className="fixed z-30"
+          style={{ top: hoverCoords.top, left: hoverCoords.left }}
+          onMouseEnter={() => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); }}
+          onMouseLeave={scheduleHide}
+        >
+          <AssetDetailModal
+            variant="panel"
+            hideHistory
+            record={detail}
+            isSuperAdmin={isSuperAdmin}
+            initialForm={rawSnapshotsByAt.get(hoverEvent.at)}
+            previewLabel={`${fmtDateTime(hoverEvent.at)} 시점 상태`}
+            onClose={() => setHoverAt(null)}
+            onSave={async (id, fields) => {
+              await onUpdate(id, fields);
+              await selectAsset(id);
+            }}
+          />
+        </div>
       )}
     </div>
   );
