@@ -251,10 +251,12 @@ export default function PcScanPanel() {
     setSyncing(true);
     try {
       const results = await Promise.allSettled(targets.map(r => {
-        const fields: Record<string, string> = {};
+        const fields: Record<string, string | boolean> = {};
         if (r.mismatch!.corp)     fields.company = r.corp;
         if (r.mismatch!.dept)     fields.dept    = r.dept;
         if (r.mismatch!.userName) fields.user    = r.userName;
+        fields.status   = "사용중";
+        fields.verified = true;
         return fetch("/api/hw/update", {
           method: "POST",
           headers: { "Content-Type": "application/json" },

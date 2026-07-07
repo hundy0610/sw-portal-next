@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
-import { computeHwStats, type HwRecord, type HwChangeLogEvent, buildUpdatedChangeLog } from "@/lib/hw";
-import { kvGet, kvSet, kvSetPermanent } from "@/lib/kv-store";
+import { type HwRecord, type HwChangeLogEvent, buildUpdatedChangeLog, patchHwCache } from "@/lib/hw";
+import { kvGet } from "@/lib/kv-store";
 import { memDel } from "@/lib/mem-cache";
 import { autoCompleteReturnsByAssetId, autoSyncUseDateByAssetId } from "@/lib/exchange-return";
 import { getSessionFromCookieHeader, resolveCurrentName, companyScope } from "@/lib/session";
@@ -164,25 +164,7 @@ export async function POST(req: NextRequest) {
     });
 
     // KV 캐시 in-place 패치 (삭제하지 않고 해당 레코드만 수정)
-    const kvPatchPromise = (async () => {
-      const all = await kvGet<HwRecord[]>("hw:all");
-      if (!all) return; // KV 미스 — warm 시 자연히 반영됨
-      const updated = all.map(r => r.id === id ? { ...r, ...fields } : r);
-      const stats   = computeHwStats(updated);
-      await Promise.all([
-        kvSetPermanent("hw:all",   updated),
-        kvSetPermanent("hw:stats", stats),
-      ]);
-      // 인메모리 캐시 무효화 (KV는 이미 최신)
-    })();
-
-    // hw:deltas 맵 업데이트 — hw:all 패치 성패와 무관하게 최신값 보장 (TTL 1시간)
-    const deltaPromise = (async () => {
-      const existing = await kvGet<Record<string, FieldMap>>("hw:deltas") ?? {};
-      await kvSet("hw:deltas", { ...existing, [id]: fields }, 3600);
-    })();
-
-    await Promise.all([kvPatchPromise, deltaPromise]);
+    await patchHwCache(id, fields);
 
     // 상태가 "재고"로 변경되거나 사용일자가 변경된 경우 — 연결된 자산 흐름 레코드에 반영
     if ((fields.status === "재고" || fields.useDate !== undefined) && process.env.NOTION_DB_EXCHANGE_RETURN) {
