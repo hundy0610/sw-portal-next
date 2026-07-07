@@ -2668,11 +2668,11 @@ function ChangeHistoryTab({ companyLock = "", onUpdate, isSuperAdmin = false }: 
   const hideTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 타임라인 카드가 가로로 거의 꽉 차서 "카드 왼쪽/오른쪽"을 기준으로 삼으면 둘 다 공간이 없어
-  // 구석으로 튕겨나간다 — 대신 마우스 커서 위치를 기준으로 살짝 오른쪽 아래에 띄운다(일반 툴팁 방식).
-  const showPreview = useCallback((at: string, x: number, y: number) => {
+  // 구석으로 튕겨나간다 — 가로는 마우스 커서 위치, 세로는 호버한 행의 위치를 기준으로 살짝 아래에 띄운다.
+  const showPreview = useCallback((at: string, x: number, rowTop: number) => {
     if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
-    hoverPointRef.current = { x, y };
-    setHoverCoords({ top: y + 12, left: x + 12 });
+    hoverPointRef.current = { x, y: rowTop };
+    setHoverCoords({ top: rowTop + 16, left: x + 12 });
     setHoverAt(at);
   }, []);
   const scheduleHide = useCallback(() => {
@@ -2680,7 +2680,8 @@ function ChangeHistoryTab({ companyLock = "", onUpdate, isSuperAdmin = false }: 
   }, []);
   useEffect(() => () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); }, []);
 
-  // 커서 기준 위치가 뷰포트를 벗어나면 반대쪽으로 뒤집고, 최종적으로 뷰포트 안쪽으로 클램프한다
+  // 뷰포트 밖으로 나가지 않게 클램프만 한다 — 위로 뒤집는 로직은 화면 위쪽 밖으로 잘리는
+  // 원인이 되어 제거했고, 대신 넘치면 그대로 clamp해 항상 뷰포트 안에 들어오게 한다
   // (components/ui/Tooltip.tsx와 동일한 방식).
   useLayoutEffect(() => {
     if (!hoverAt) return;
@@ -2692,11 +2693,9 @@ function ChangeHistoryTab({ companyLock = "", onUpdate, isSuperAdmin = false }: 
 
     let left = point.x + GAP;
     if (left + panelRect.width > window.innerWidth - PADDING) left = point.x - panelRect.width - GAP;
-    let top = point.y + GAP;
-    if (top + panelRect.height > window.innerHeight - PADDING) top = point.y - panelRect.height - GAP;
-
     left = Math.min(Math.max(left, PADDING), Math.max(PADDING, window.innerWidth - PADDING - panelRect.width));
-    top = Math.min(Math.max(top, PADDING), Math.max(PADDING, window.innerHeight - PADDING - panelRect.height));
+
+    const top = Math.min(Math.max(point.y + 16, PADDING), Math.max(PADDING, window.innerHeight - PADDING - panelRect.height));
 
     setHoverCoords({ top, left });
   }, [hoverAt]);
@@ -2801,7 +2800,7 @@ function ChangeHistoryTab({ companyLock = "", onUpdate, isSuperAdmin = false }: 
             <div className="ml-1 border-l-2 border-gray-100 pl-4 space-y-2.5">
               {timeline.map((ev, i) => (
                 <div key={i} className="relative"
-                  onMouseEnter={e => showPreview(ev.at, e.clientX, e.clientY)}
+                  onMouseEnter={e => showPreview(ev.at, e.clientX, e.currentTarget.getBoundingClientRect().top)}
                   onMouseLeave={scheduleHide}>
                   <span className={`absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full ring-2 ring-white ${i === 0 ? "bg-amber-500" : "bg-gray-300"}`} />
                   <div className={`rounded-lg border p-2.5 cursor-default ${i === 0 ? "border-amber-200 bg-amber-50" : "border-gray-100 bg-gray-50"}`}>
