@@ -2550,7 +2550,7 @@ function StockByCompanyTab({ records, loading }: { records: HwRecord[]; loading:
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 변경 이력 탭 — 자산 하나를 검색해 필드별 값 유지 구간을 세로 타임라인으로 표시
+// 변경 이력 탭 — 자산 하나를 검색해 전체 변경 흐름을 하나의 세로 타임라인으로 표시
 // ─────────────────────────────────────────────────────────────────────────────
 function daysBetween(a: string, b: string): number {
   const ta = new Date(a).getTime();
@@ -2560,6 +2560,8 @@ function daysBetween(a: string, b: string): number {
 }
 
 interface FieldSpan {
+  field: string;
+  label: string;
   value: string;
   start: string;   // "" = 시작 시점 미상
   end: string;      // "" = 현재까지 유지 중
@@ -2568,7 +2570,7 @@ interface FieldSpan {
 }
 
 // events는 최신순으로 정렬되어 들어온다는 가정 없이, field에 해당하는 변경만 골라 시간순으로 재구성한다.
-function buildFieldSpans(events: HwChangeLogEvent[], field: string, fallbackStart: string): FieldSpan[] {
+function buildFieldSpans(events: HwChangeLogEvent[], field: string, label: string, fallbackStart: string): FieldSpan[] {
   const relevant = events
     .filter(ev => ev.changes.some(c => c.field === field))
     .slice()
@@ -2577,10 +2579,11 @@ function buildFieldSpans(events: HwChangeLogEvent[], field: string, fallbackStar
 
   const spans: FieldSpan[] = [];
   const firstChange = relevant[0].changes.find(c => c.field === field)!;
-  spans.push({ value: firstChange.from, start: fallbackStart, end: relevant[0].at, by: "", current: false });
+  spans.push({ field, label, value: firstChange.from, start: fallbackStart, end: relevant[0].at, by: "", current: false });
   relevant.forEach((ev, i) => {
     const change = ev.changes.find(c => c.field === field)!;
     spans.push({
+      field, label,
       value: change.to,
       start: ev.at,
       end: relevant[i + 1]?.at ?? "",
@@ -2588,21 +2591,13 @@ function buildFieldSpans(events: HwChangeLogEvent[], field: string, fallbackStar
       current: i === relevant.length - 1,
     });
   });
-  return spans.reverse(); // 최신 값이 위로
+  return spans;
 }
 
 function spanDurationLabel(s: FieldSpan): string {
   if (!s.start) return "기간 미상";
   return `${daysBetween(s.start, s.end || new Date().toISOString())}일간`;
 }
-
-const RANGE_OPTIONS = [
-  { id: "all", label: "전체" },
-  { id: "12m", label: "최근 1년" },
-  { id: "6m",  label: "최근 6개월" },
-  { id: "3m",  label: "최근 3개월" },
-] as const;
-type RangeFilter = typeof RANGE_OPTIONS[number]["id"];
 
 function ChangeHistoryTab({ companyLock = "" }: { companyLock?: string }) {
   const [query,       setQuery]       = useState("");
@@ -2614,7 +2609,6 @@ function ChangeHistoryTab({ companyLock = "" }: { companyLock?: string }) {
   const [detail,        setDetail]        = useState<HwRecord | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError,   setDetailError]   = useState("");
-  const [range,         setRange]         = useState<RangeFilter>("all");
 
   const selectAsset = useCallback(async (id: string) => {
     setDetail(null); setDetailError(""); setDetailLoading(true);
@@ -2632,7 +2626,9 @@ function ChangeHistoryTab({ companyLock = "" }: { companyLock?: string }) {
     if (!query.trim()) return;
     setSearching(true); setSearchError(""); setSearched(true); setCandidates([]); setDetail(null);
     try {
-      const q = new URLSearchParams({ search: query.trim() });
+      // matchLog=0 — 변경이력 원문(과거 변경자 이름 등)까지 검색하면 실제 사용자와 무관한
+      // 자산까지 걸려 나오므로, 자산 고유 속성(사용자/자산번호/모델/시리얼/부서)만 매칭한다.
+      const q = new URLSearchParams({ search: query.trim(), matchLog: "0" });
       if (companyLock) q.set("company", companyLock);
       const res  = await fetch(`/api/hw?${q}`);
       const json = await safeJson(res);
@@ -2652,21 +2648,23 @@ function ChangeHistoryTab({ companyLock = "" }: { companyLock?: string }) {
     } catch { return []; }
   }, [detail?.changeLog]);
 
-  const filteredLog = useMemo(() => {
-    if (range === "all") return changeLog;
-    const months = range === "12m" ? 12 : range === "6m" ? 6 : 3;
-    const cutoff = new Date();
-    cutoff.setMonth(cutoff.getMonth() - months);
-    return changeLog.filter(ev => new Date(ev.at) >= cutoff);
-  }, [changeLog, range]);
-
   const fallbackStart = detail?.useDate || detail?.purchaseDate || "";
 
-  const fields = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const ev of changeLog) for (const c of ev.changes) if (!map.has(c.field)) map.set(c.field, c.label);
-    return [...map.entries()];
-  }, [changeLog]);
+  // 필드별로 재구성한 값 구간을 한 줄로 합쳐 시간순(최신 우선)으로 나열 — 필드별로 나눠서 보여주지 않음
+  const timeline = useMemo(() => {
+    const fieldLabels = new Map<string, string>();
+    for (const ev of changeLog) for (const c of ev.changes) if (!fieldLabels.has(c.field)) fieldLabels.set(c.field, c.label);
+
+    const combined: FieldSpan[] = [];
+    for (const [field, label] of fieldLabels) combined.push(...buildFieldSpans(changeLog, field, label, fallbackStart));
+
+    combined.sort((a, b) => {
+      const ta = a.start ? new Date(a.start).getTime() : -Infinity;
+      const tb = b.start ? new Date(b.start).getTime() : -Infinity;
+      return tb - ta;
+    });
+    return combined;
+  }, [changeLog, fallbackStart]);
 
   return (
     <div className="space-y-4">
@@ -2716,59 +2714,33 @@ function ChangeHistoryTab({ companyLock = "" }: { companyLock?: string }) {
 
       {detail && !detailLoading && (
         <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <div>
-              <p className="text-sm font-bold text-gray-800">{detail.assetNo || "-"} <span className="text-gray-400 font-normal">· {detail.model || "-"}</span></p>
-              <p className="text-xs text-gray-400 mt-0.5">현재 사용자 {detail.user || "-"} · {detail.company || "-"}{detail.dept ? ` · ${detail.dept}` : ""}</p>
-            </div>
-            <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-semibold">
-              {RANGE_OPTIONS.map(r => (
-                <button key={r.id} onClick={() => setRange(r.id)}
-                  className={`px-3 py-1.5 transition-colors ${range === r.id ? "bg-amber-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>
-                  {r.label}
-                </button>
-              ))}
-            </div>
+          <div className="mb-4">
+            <p className="text-sm font-bold text-gray-800">{detail.assetNo || "-"} <span className="text-gray-400 font-normal">· {detail.model || "-"}</span></p>
+            <p className="text-xs text-gray-400 mt-0.5">현재 사용자 {detail.user || "-"} · {detail.company || "-"}{detail.dept ? ` · ${detail.dept}` : ""}</p>
           </div>
 
-          {fields.length === 0 ? (
+          {timeline.length === 0 ? (
             <p className="text-sm text-gray-400 py-8 text-center">변경 이력이 없습니다.</p>
-          ) : filteredLog.length === 0 ? (
-            <p className="text-sm text-gray-400 py-8 text-center">선택한 기간에는 변경 이력이 없습니다.</p>
           ) : (
-            <div className="space-y-6">
-              {fields.map(([field, label]) => {
-                // 필터 창(range) 때문에 잘려나간 이벤트가 있으면, 가장 오래된 남은 값의 시작일은 신뢰할 수 없어 미상 처리
-                const fullCount     = changeLog.filter(ev => ev.changes.some(c => c.field === field)).length;
-                const windowedCount = filteredLog.filter(ev => ev.changes.some(c => c.field === field)).length;
-                const useFallback   = fullCount === windowedCount;
-                const spans = buildFieldSpans(filteredLog, field, useFallback ? fallbackStart : "");
-                if (spans.length === 0) return null;
-                return (
-                  <div key={field}>
-                    <p className="text-sm font-bold text-gray-700 mb-2.5 flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />{label}
-                    </p>
-                    <div className="ml-1 border-l-2 border-gray-100 pl-4 space-y-2.5">
-                      {spans.map((s, i) => (
-                        <div key={i} className="relative">
-                          <span className={`absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full ring-2 ring-white ${s.current ? "bg-amber-500" : "bg-gray-300"}`} />
-                          <div className={`rounded-lg border p-2.5 ${s.current ? "border-amber-200 bg-amber-50" : "border-gray-100 bg-gray-50"}`}>
-                            <div className="flex items-center justify-between gap-2">
-                              <span className={`text-sm font-semibold ${s.current ? "text-amber-700" : "text-gray-700"}`}>{s.value || "(없음)"}</span>
-                              {s.current && <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded shrink-0">현재</span>}
-                            </div>
-                            <p className="text-xs text-gray-400 mt-0.5">
-                              {s.start ? fmtDate(s.start) : "이전"} ~ {s.end ? fmtDate(s.end) : "현재"} · {spanDurationLabel(s)}
-                              {s.by && <> · {s.by}</>}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
+            <div className="ml-1 border-l-2 border-gray-100 pl-4 space-y-2.5">
+              {timeline.map((s, i) => (
+                <div key={i} className="relative">
+                  <span className={`absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full ring-2 ring-white ${s.current ? "bg-amber-500" : "bg-gray-300"}`} />
+                  <div className={`rounded-lg border p-2.5 ${s.current ? "border-amber-200 bg-amber-50" : "border-gray-100 bg-gray-50"}`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-2 min-w-0">
+                        <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 rounded px-1.5 py-0.5 shrink-0">{s.label}</span>
+                        <span className={`text-sm font-semibold truncate ${s.current ? "text-amber-700" : "text-gray-700"}`}>{s.value || "(없음)"}</span>
+                      </span>
+                      {s.current && <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded shrink-0">현재</span>}
                     </div>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {s.start ? fmtDate(s.start) : "이전"} ~ {s.end ? fmtDate(s.end) : "현재"} · {spanDurationLabel(s)}
+                      {s.by && <> · {s.by}</>}
+                    </p>
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           )}
         </div>

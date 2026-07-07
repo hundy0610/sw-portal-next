@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
   const assetNo   = searchParams.get("assetNo")?.trim()   || "";
   const returnDue = searchParams.get("returnDue") === "1";
   const refresh   = searchParams.get("refresh") === "1";
+  const matchLog  = searchParams.get("matchLog") !== "0"; // 변경이력 원문(과거 변경자 이름 등)도 검색어 매칭에 포함할지
   // 탭별 필터 직접 조회용 (KV cold miss 시 Notion 직접 쿼리)
   const statuses  = searchParams.get("statuses")?.split(",").map(s => s.trim()).filter(Boolean) ?? [];
 
@@ -75,7 +76,7 @@ export async function GET(req: NextRequest) {
           r.model.toLowerCase().includes(q)     ||
           r.serial.toLowerCase().includes(q)    ||
           r.dept.toLowerCase().includes(q)      ||
-          (r.changeLog || "").toLowerCase().includes(q)
+          (matchLog && (r.changeLog || "").toLowerCase().includes(q))
         )
       );
     }
