@@ -1,6 +1,7 @@
 import { Client } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
 import { isMock, mockHwRecords } from "./mock";
+import { kvGet, kvSet, kvSetPermanent } from "./kv-store";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
@@ -174,6 +175,44 @@ export function computeHwStats(records: HwRecord[]): HwStats {
   };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// hw:all/hw:stats/hw:deltas KV 캐시 in-place 패치 — Notion 페이지 업데이트 후 호출
+// ─────────────────────────────────────────────────────────────────────────────
+export async function patchHwCache(id: string, fields: Record<string, unknown>): Promise<void> {
+  const kvPatchPromise = (async () => {
+    const all = await kvGet<HwRecord[]>("hw:all");
+    if (!all) return; // KV 미스 — warm 시 자연히 반영됨
+    const updated = all.map(r => r.id === id ? { ...r, ...fields } : r);
+    const stats   = computeHwStats(updated);
+    await Promise.all([
+      kvSetPermanent("hw:all",   updated),
+      kvSetPermanent("hw:stats", stats),
+    ]);
+  })();
+
+  const deltaPromise = (async () => {
+    const existing = await kvGet<Record<string, Record<string, unknown>>>("hw:deltas") ?? {};
+    await kvSet("hw:deltas", { ...existing, [id]: fields }, 3600);
+  })();
+
+  await Promise.all([kvPatchPromise, deltaPromise]);
+}
+
+/**
+ * PC 실사 스캔이 마스터값과 완전히 일치할 때 자동 호출 — 해당 자산을
+ * 사용중 상태로, 실사확인 체크박스를 true로 표시한다.
+ */
+export async function markHwVerifiedByScanMatch(id: string): Promise<void> {
+  await notion.pages.update({
+    page_id: id,
+    properties: {
+      "사용/재고/폐기/기타": { select: { name: "사용중" } },
+      "실사확인": { checkbox: true },
+    } as Parameters<typeof notion.pages.update>[0]["properties"],
+  });
+  await patchHwCache(id, { status: "사용중", verified: true });
+}
+
 async function queryWithRetry(params: Parameters<typeof notion.databases.query>[0], maxRetries = 3) {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
@@ -260,6 +299,17 @@ export async function fetchHwFiltered({
   } while (cursor);
 
   return records;
+}
+
+// 자산번호는 중복 등록된 경우(HwRecord.duplicated)가 있어 자산번호만으로 조회하면
+// 사용자가 클릭한 것과 다른 레코드가 나올 수 있다 — id가 있으면 이 함수로 정확히 단건 조회한다.
+export async function findHwById(id: string): Promise<HwRecord | null> {
+  if (isMock()) {
+    return (mockHwRecords.find(r => r.id === id) as HwRecord) ?? null;
+  }
+  const page = await notion.pages.retrieve({ page_id: id });
+  if (page.object !== "page" || !("properties" in page)) return null;
+  return mapPage(page as PageObjectResponse);
 }
 
 export async function findHwByAssetNo(assetNo: string): Promise<HwRecord | null> {

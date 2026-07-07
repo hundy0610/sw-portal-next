@@ -1,6 +1,6 @@
 import { Client } from "@notionhq/client";
 import { isMock } from "./mock";
-import { findHwByAssetNo, serialFuzzyMatch, type HwRecord } from "./hw";
+import { findHwByAssetNo, serialFuzzyMatch, markHwVerifiedByScanMatch, type HwRecord } from "./hw";
 import { uploadFileToNotion } from "./notion";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
@@ -251,6 +251,19 @@ export async function upsertPcScan(data: PcScanPayload): Promise<UpsertResult> {
     ? await findHwByAssetNo(data.assetNo).catch(() => null)
     : null;
   const masterExists = !!hwRecord && serialFuzzyMatch(data.serial, hwRecord.serial);
+
+  // 마스터값과 완전히 일치(법인/부서/사용자 모두 동일)하면 실사 확인된 것으로 보고
+  // 해당 자산을 사용중 + 실사확인으로 자동 반영 (이미 반영돼 있으면 스킵)
+  if (hwRecord && masterExists
+    && hwRecord.company === (data.corp ?? "")
+    && hwRecord.dept    === (data.dept ?? "")
+    && hwRecord.user    === (data.userName ?? "")
+    && (hwRecord.status !== "사용중" || !hwRecord.verified)
+  ) {
+    await markHwVerifiedByScanMatch(hwRecord.id).catch(e =>
+      console.error("[pc-scan → hw 자동 실사확인 실패]", e)
+    );
+  }
 
   // 엑셀 파일 Notion 업로드
   let fileUploadId: string | undefined;

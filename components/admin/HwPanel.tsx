@@ -595,22 +595,30 @@ const REVERTIBLE_SENSITIVE_FIELDS = new Set(["assetNo","serial"]);
 // ─────────────────────────────────────────────────────────────────────────────
 // 자산 상세 모달
 // ─────────────────────────────────────────────────────────────────────────────
-function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false }: {
+interface RevertibleForm {
+  status: string; user: string; company: string; dept: string; location: string;
+  useDate: string; returnDate: string; returnDue: string; note: string;
+}
+
+function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false, initialForm, previewLabel, hideHistory = false }: {
   record: HwRecord;
   onSave: (id: string, fields: Partial<HwRecord>) => Promise<void>;
   onClose: () => void;
   isSuperAdmin?: boolean;
+  initialForm?: Partial<RevertibleForm>;  // 지정 시 현재값이 아닌 과거 시점 값으로 폼을 채운다 (변경이력 되돌리기 미리보기용)
+  previewLabel?: string;                   // initialForm 사용 시 상단에 표시할 안내 문구
+  hideHistory?: boolean;                   // 변경 이력 섹션 숨김 (변경이력 탭에서 호출할 때 — 이미 그 화면에 있으므로 중복)
 }) {
-  const [form, setForm] = useState({
-    status: record.status,
-    user: record.user,
-    company: record.company,
-    dept: record.dept,
-    location: record.location,
-    useDate: record.useDate,
-    returnDate: record.returnDate,
-    returnDue: record.returnDue,
-    note: record.note,
+  const [form, setForm] = useState<RevertibleForm>({
+    status: initialForm?.status ?? record.status,
+    user: initialForm?.user ?? record.user,
+    company: initialForm?.company ?? record.company,
+    dept: initialForm?.dept ?? record.dept,
+    location: initialForm?.location ?? record.location,
+    useDate: initialForm?.useDate ?? record.useDate,
+    returnDate: initialForm?.returnDate ?? record.returnDate,
+    returnDue: initialForm?.returnDue ?? record.returnDue,
+    note: initialForm?.note ?? record.note,
   });
   const [saving, setSaving] = useState(false);
   const [saved,  setSaved]  = useState(false);
@@ -669,6 +677,8 @@ function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false }: {
   ) || (sensitiveUnlocked && (
     sensitiveForm.assetNo !== record.assetNo || sensitiveForm.serial !== record.serial
   ));
+  // 현재 값과 다른 필드는 라벨을 강조 — 저장 시 실제로 바뀔 값을 미리 알려준다
+  const labelCls = (k: keyof typeof form) => `block text-xs font-semibold mb-1 ${form[k] !== recAsMap[k] ? "text-amber-600" : "text-gray-500"}`;
 
   async function handleVerifyPassword() {
     if (!pwValue) return;
@@ -744,10 +754,15 @@ function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false }: {
 
         {/* 스크롤 영역 */}
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
+          {previewLabel && (
+            <div className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              🕒 {previewLabel} — 강조된 필드가 현재와 다른 값입니다. 저장하면 이 값으로 되돌립니다.
+            </div>
+          )}
           {/* 수정 폼 */}
           <div className="space-y-3">
             <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1">상태</label>
+              <label className={labelCls("status")}>상태</label>
               <select value={form.status} onChange={e => setField("status", e.target.value)}
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300">
                 {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
@@ -755,17 +770,17 @@ function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false }: {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">사용자</label>
+                <label className={labelCls("user")}>사용자</label>
                 <input value={form.user} onChange={e => setField("user", e.target.value)}
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">부서</label>
+                <label className={labelCls("dept")}>부서</label>
                 <input value={form.dept} onChange={e => setField("dept", e.target.value)}
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">법인명</label>
+                <label className={labelCls("company")}>법인명</label>
                 <select value={form.company} onChange={e => setField("company", e.target.value)}
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300">
                   <option value="">— 선택 —</option>
@@ -773,28 +788,28 @@ function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false }: {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">위치</label>
+                <label className={labelCls("location")}>위치</label>
                 <input value={form.location} onChange={e => setField("location", e.target.value)}
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">사용일자</label>
+                <label className={labelCls("useDate")}>사용일자</label>
                 <input type="date" value={form.useDate} onChange={e => setField("useDate", e.target.value)}
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">반납일자</label>
+                <label className={labelCls("returnDate")}>반납일자</label>
                 <input type="date" value={form.returnDate} onChange={e => setField("returnDate", e.target.value)}
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">반납예정일</label>
+                <label className={labelCls("returnDue")}>반납예정일</label>
                 <input type="date" value={form.returnDue} onChange={e => setField("returnDue", e.target.value)}
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
               </div>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1">비고</label>
+              <label className={labelCls("note")}>비고</label>
               <textarea value={form.note} onChange={e => setField("note", e.target.value)} rows={2}
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 resize-none" />
             </div>
@@ -898,42 +913,44 @@ function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false }: {
           </div>
 
           {/* 변경 이력 */}
-          <div className="border-t border-gray-100 pt-3">
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">변경 이력</p>
-            {changeLog.length === 0 ? (
-              <p className="text-xs text-gray-400 py-1">변경 이력이 없습니다.</p>
-            ) : (
-              <div className="space-y-2 max-h-56 overflow-y-auto">
-                {changeLog.map((ev, i) => {
-                  const revertibleCount = ev.changes.filter(c =>
-                    REVERTIBLE_FORM_FIELDS.has(c.field) || (REVERTIBLE_SENSITIVE_FIELDS.has(c.field) && sensitiveUnlocked)
-                  ).length;
-                  return (
-                    <div key={i} className="text-xs border-b border-gray-50 last:border-0 pb-2">
-                      <div className="flex items-center justify-between text-gray-400 mb-1">
-                        <span>{fmtDateTime(ev.at)} · {ev.by}</span>
-                        {revertibleCount > 0 && (
-                          <button
-                            onClick={() => handleRevertEvent(ev)}
-                            title="이 시점의 값들로 한꺼번에 되돌립니다 (저장 전까지는 반영되지 않음)"
-                            className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 hover:bg-amber-100 hover:text-amber-700 transition-colors">
-                            되돌리기
-                          </button>
-                        )}
+          {!hideHistory && (
+            <div className="border-t border-gray-100 pt-3">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">변경 이력</p>
+              {changeLog.length === 0 ? (
+                <p className="text-xs text-gray-400 py-1">변경 이력이 없습니다.</p>
+              ) : (
+                <div className="space-y-2 max-h-56 overflow-y-auto">
+                  {changeLog.map((ev, i) => {
+                    const revertibleCount = ev.changes.filter(c =>
+                      REVERTIBLE_FORM_FIELDS.has(c.field) || (REVERTIBLE_SENSITIVE_FIELDS.has(c.field) && sensitiveUnlocked)
+                    ).length;
+                    return (
+                      <div key={i} className="text-xs border-b border-gray-50 last:border-0 pb-2">
+                        <div className="flex items-center justify-between text-gray-400 mb-1">
+                          <span>{fmtDateTime(ev.at)} · {ev.by}</span>
+                          {revertibleCount > 0 && (
+                            <button
+                              onClick={() => handleRevertEvent(ev)}
+                              title="이 시점의 값들로 한꺼번에 되돌립니다 (저장 전까지는 반영되지 않음)"
+                              className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 hover:bg-amber-100 hover:text-amber-700 transition-colors">
+                              되돌리기
+                            </button>
+                          )}
+                        </div>
+                        <div className="space-y-0.5">
+                          {ev.changes.map((c, j) => (
+                            <div key={j} className="text-gray-700">
+                              <span className="font-semibold">{c.label}</span>: {c.from} → {c.to}
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <div className="space-y-0.5">
-                        {ev.changes.map((c, j) => (
-                          <div key={j} className="text-gray-700">
-                            <span className="font-semibold">{c.label}</span>: {c.from} → {c.to}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* 저장 버튼 */}
@@ -2550,9 +2567,246 @@ function StockByCompanyTab({ records, loading }: { records: HwRecord[]; loading:
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 변경 이력 탭 — 자산 하나를 검색해 전체 변경 흐름을 하나의 세로 타임라인으로 표시
+// (핵심 필드 변경만 노출, 한 번에 같이 바뀐 필드는 한 카드에 묶어서 표시)
+// ─────────────────────────────────────────────────────────────────────────────
+const TIMELINE_FIELDS = new Set(["status", "company", "dept", "user"]);
+
+function ChangeHistoryTab({ companyLock = "", onUpdate, isSuperAdmin = false }: {
+  companyLock?: string;
+  onUpdate: (id: string, fields: Partial<HwRecord>) => Promise<void>;
+  isSuperAdmin?: boolean;
+}) {
+  const [query,       setQuery]       = useState("");
+  const [candidates,  setCandidates]  = useState<HwRecord[]>([]);
+  const [searching,   setSearching]   = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const [searched,    setSearched]    = useState(false);
+
+  const [detail,        setDetail]        = useState<HwRecord | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError,   setDetailError]   = useState("");
+
+  const selectAsset = useCallback(async (id: string) => {
+    setDetail(null); setDetailError(""); setDetailLoading(true);
+    try {
+      const res  = await fetch(`/api/hw/history?id=${encodeURIComponent(id)}`);
+      const json = await safeJson(res);
+      if (!json.ok) throw new Error(json.error);
+      if (!json.record) throw new Error("자산을 찾을 수 없습니다.");
+      setDetail(json.record);
+    } catch (e) { setDetailError(String(e)); }
+    finally { setDetailLoading(false); }
+  }, []);
+
+  const search = useCallback(async () => {
+    if (!query.trim()) return;
+    setSearching(true); setSearchError(""); setSearched(true); setCandidates([]); setDetail(null);
+    try {
+      // matchLog=0 — 변경이력 원문(과거 변경자 이름 등)까지 검색하면 실제 사용자와 무관한
+      // 자산까지 걸려 나오므로, 자산 고유 속성(사용자/자산번호/모델/시리얼/부서)만 매칭한다.
+      const q = new URLSearchParams({ search: query.trim(), matchLog: "0" });
+      if (companyLock) q.set("company", companyLock);
+      const res  = await fetch(`/api/hw?${q}`);
+      const json = await safeJson(res);
+      if (!json.ok) throw new Error(json.error);
+      const records: HwRecord[] = json.records ?? [];
+      setCandidates(records);
+      if (records.length === 1) selectAsset(records[0].id);
+    } catch (e) { setSearchError(String(e)); }
+    finally { setSearching(false); }
+  }, [query, companyLock, selectAsset]);
+
+  const changeLog: HwChangeLogEvent[] = useMemo(() => {
+    if (!detail?.changeLog) return [];
+    try {
+      const parsed = JSON.parse(detail.changeLog);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch { return []; }
+  }, [detail?.changeLog]);
+
+  // 상태/법인/부서/이름 변경만 남기고, 한 번에 같이 바뀐 필드는 이벤트 하나(한 카드)로 유지
+  const timeline = useMemo(() => {
+    return changeLog
+      .map(ev => ({ ...ev, changes: ev.changes.filter(c => TIMELINE_FIELDS.has(c.field)) }))
+      .filter(ev => ev.changes.length > 0)
+      .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+  }, [changeLog]);
+
+  // 각 이벤트 "직후" 시점의 자산 상태(폼 필드 원본값) 재구성 — 현재값에서 최신 이벤트부터
+  // 순서대로 되돌려서 계산. changeLog는 상태/법인/부서/이름 외 필드(사용일자 등)도 포함하므로,
+  // 원본 changeLog 전체를 사용해야 정확하다. AssetDetailModal의 되돌리기와 동일한 규칙(REVERTIBLE_FORM_FIELDS,
+  // "(없음)" → "")으로 값을 되돌려, 그 결과를 실제 폼(initialForm)에 그대로 먹일 수 있게 한다.
+  const rawSnapshotsByAt = useMemo(() => {
+    const map = new Map<string, RevertibleForm>();
+    if (!detail) return map;
+    const snap: RevertibleForm = {
+      status: detail.status, user: detail.user, company: detail.company, dept: detail.dept,
+      location: detail.location, useDate: detail.useDate, returnDate: detail.returnDate,
+      returnDue: detail.returnDue, note: detail.note,
+    };
+    const sorted = [...changeLog].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+    for (const ev of sorted) {
+      map.set(ev.at, { ...snap });
+      for (const c of ev.changes) {
+        if (REVERTIBLE_FORM_FIELDS.has(c.field)) (snap as unknown as Record<string, string>)[c.field] = c.from === "(없음)" ? "" : c.from;
+      }
+    }
+    return map;
+  }, [changeLog, detail]);
+
+  // 클릭하면 그 시점의 상세보기(배경이 흐려지는 정식 모달)를 연다
+  const [previewAt, setPreviewAt] = useState<string | null>(null);
+  const previewEvent = previewAt ? timeline.find(ev => ev.at === previewAt) ?? null : null;
+
+  const [exporting, setExporting] = useState(false);
+  const handleExport = useCallback(async () => {
+    if (!detail || timeline.length === 0) return;
+    setExporting(true);
+    try {
+      const XLSX = await import("xlsx");
+      const rows = timeline.flatMap(ev =>
+        ev.changes.map(c => ({
+          "변경시각": fmtDateTime(ev.at),
+          "필드":     c.label,
+          "이전값":   c.from || "(없음)",
+          "이후값":   c.to || "(없음)",
+          "변경자":   ev.by,
+        }))
+      );
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws["!cols"] = Object.keys(rows[0]).map(key => ({
+        wch: Math.max(key.length, ...rows.map(r => String(r[key as keyof typeof r] ?? "").length)) + 2,
+      }));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "변경이력");
+      const now = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(wb, `HW변경이력_${detail.assetNo || "자산"}_${now}.xlsx`);
+    } finally {
+      setExporting(false);
+    }
+  }, [detail, timeline]);
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="flex-1 min-w-[200px]">
+            <label className="block text-xs font-semibold text-gray-500 mb-1">자산번호 / 사용자 / 시리얼 / 모델명</label>
+            <input value={query} onChange={e => setQuery(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && search()}
+              placeholder="검색어 입력 후 Enter"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
+            />
+          </div>
+          <button onClick={search} disabled={searching}
+            className="px-5 py-2 rounded-lg bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-50 transition-colors">
+            {searching ? "검색 중…" : "🔍 검색"}
+          </button>
+        </div>
+      </div>
+
+      {searchError && <div className="px-4 py-3 bg-red-50 rounded-xl text-sm text-red-600">⚠️ {searchError}</div>}
+
+      {searched && !searching && candidates.length > 1 && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-gray-100 text-xs font-semibold text-gray-500">검색 결과 {candidates.length}건 — 자산을 선택하세요</div>
+          <div className="divide-y divide-gray-100">
+            {candidates.map(r => (
+              <button key={r.id} onClick={() => selectAsset(r.id)}
+                className={`w-full text-left px-4 py-2.5 text-sm hover:bg-amber-50 transition-colors flex items-center gap-3 ${detail?.id === r.id ? "bg-amber-50" : ""}`}>
+                <span className="font-mono text-amber-700 font-semibold">{r.assetNo || "-"}</span>
+                <span className="text-gray-600">{r.model || "-"}</span>
+                <span className="text-gray-400">·</span>
+                <span className="text-gray-700">{r.user || "-"}</span>
+                <span className="text-gray-400 text-xs">{r.company}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {searched && !searching && !searchError && candidates.length === 0 && !detailLoading && !detail && (
+        <div className="py-12 text-center text-gray-400 text-sm">조회된 자산이 없습니다</div>
+      )}
+
+      {detailLoading && <div className="py-12 text-center text-gray-400 text-sm">불러오는 중…</div>}
+      {detailError && <div className="px-4 py-3 bg-red-50 rounded-xl text-sm text-red-600">⚠️ {detailError}</div>}
+
+      {detail && !detailLoading && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-bold text-gray-800">{detail.assetNo || "-"} <span className="text-gray-400 font-normal">· {detail.model || "-"}</span></p>
+              <p className="text-xs text-gray-400 mt-0.5">현재 사용자 {detail.user || "-"} · {detail.company || "-"}{detail.dept ? ` · ${detail.dept}` : ""}</p>
+            </div>
+            <button
+              onClick={handleExport}
+              disabled={exporting || timeline.length === 0}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors shrink-0"
+            >
+              {exporting ? (
+                <><svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>생성 중…</>
+              ) : <>📥 엑셀 다운로드</>}
+            </button>
+          </div>
+
+          {timeline.length === 0 ? (
+            <p className="text-sm text-gray-400 py-8 text-center">변경 이력이 없습니다.</p>
+          ) : (
+            <div className="ml-1 border-l-2 border-gray-100 pl-4 space-y-2.5">
+              {timeline.map((ev, i) => (
+                <div key={i} className="relative">
+                  <span className={`absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full ring-2 ring-white ${i === 0 ? "bg-amber-500" : "bg-gray-300"}`} />
+                  <button
+                    onClick={() => setPreviewAt(ev.at)}
+                    title="클릭하면 이 시점의 자산 상태를 보고 필요시 되돌릴 수 있습니다"
+                    className={`w-full text-left rounded-lg border p-2.5 transition-colors hover:ring-2 hover:ring-amber-300 ${i === 0 ? "border-amber-200 bg-amber-50" : "border-gray-100 bg-gray-50"}`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs text-gray-400">{fmtDateTime(ev.at)} · {ev.by}</span>
+                      {i === 0 && <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded shrink-0">최근 변경</span>}
+                    </div>
+                    <div className="mt-1 space-y-0.5">
+                      {ev.changes.map((c, j) => (
+                        <p key={j} className="text-sm">
+                          <span className="font-semibold text-gray-500">{c.label}</span>{" "}
+                          <span className="text-gray-500">{c.from || "(없음)"}</span>
+                          {" → "}
+                          <span className={`font-semibold ${i === 0 ? "text-amber-700" : "text-gray-800"}`}>{c.to || "(없음)"}</span>
+                        </p>
+                      ))}
+                    </div>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {previewEvent && detail && (
+        <AssetDetailModal
+          hideHistory
+          record={detail}
+          isSuperAdmin={isSuperAdmin}
+          initialForm={rawSnapshotsByAt.get(previewEvent.at)}
+          previewLabel={`${fmtDateTime(previewEvent.at)} 시점 상태`}
+          onClose={() => setPreviewAt(null)}
+          onSave={async (id, fields) => {
+            await onUpdate(id, fields);
+            await selectAsset(id);
+            setPreviewAt(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 메인 HwPanel — 데이터 1회 fetch, 모든 탭에 props 전달
 // ─────────────────────────────────────────────────────────────────────────────
-type Tab = "dashboard"|"shipment"|"return"|"search"|"upload"|"dispatch"|"registration"|"label"|"stock";
+type Tab = "dashboard"|"shipment"|"return"|"search"|"upload"|"dispatch"|"registration"|"label"|"stock"|"history";
 
 interface DispatchRecord {
   id: string;
@@ -2730,6 +2984,7 @@ export default function HwPanel({ company = "", initialStats, isSuperAdmin = fal
     { id: "shipment",  label: "출고 현황",   icon: "📤" },
     { id: "return",    label: "반납 대상자", icon: "📅" },
     { id: "search",    label: "자산 검색",   icon: "🔍" },
+    { id: "history",   label: "변경 이력",   icon: "🕒" },
     { id: "upload",    label: "엑셀 등록",   icon: "📂" },
     { id: "dispatch",  label: "자산지급 현황",icon: "📋" },
     { id: "registration", label: "등록 현황", icon: "🆕" },
@@ -2846,6 +3101,7 @@ export default function HwPanel({ company = "", initialStats, isSuperAdmin = fal
       {tab === "shipment"  && <ShipmentTab onUpdate={handleUpdate} companyLock={company} isSuperAdmin={isSuperAdmin} />}
       {tab === "return"    && <ReturnTab   onUpdate={handleUpdate} companyLock={company} isSuperAdmin={isSuperAdmin} />}
       {tab === "search"    && <SearchTab companyLock={company} onUpdate={handleUpdate} isSuperAdmin={isSuperAdmin} />}
+      {tab === "history"   && <ChangeHistoryTab companyLock={company} onUpdate={handleUpdate} isSuperAdmin={isSuperAdmin} />}
       {tab === "upload"    && <ExcelUploadTab />}
       {tab === "dispatch"  && <DispatchHistoryTab />}
       {tab === "registration" && <RegistrationLogTab />}
