@@ -1,5 +1,5 @@
 ﻿"use client";
-import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import type { HwStats, HwChangeLogEvent } from "@/lib/hw";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import { LabelPrintTab } from "@/components/admin/LabelPrintTab";
@@ -600,7 +600,7 @@ interface RevertibleForm {
   useDate: string; returnDate: string; returnDue: string; note: string;
 }
 
-function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false, initialForm, previewLabel, hideHistory = false, variant = "modal" }: {
+function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false, initialForm, previewLabel, hideHistory = false }: {
   record: HwRecord;
   onSave: (id: string, fields: Partial<HwRecord>) => Promise<void>;
   onClose: () => void;
@@ -608,7 +608,6 @@ function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false, initi
   initialForm?: Partial<RevertibleForm>;  // 지정 시 현재값이 아닌 과거 시점 값으로 폼을 채운다 (변경이력 되돌리기 미리보기용)
   previewLabel?: string;                   // initialForm 사용 시 상단에 표시할 안내 문구
   hideHistory?: boolean;                   // 변경 이력 섹션 숨김 (변경이력 탭에서 호출할 때 — 이미 그 화면에 있으므로 중복)
-  variant?: "modal" | "panel";             // "panel" = 배경 오버레이 없이 카드만 렌더 (호버 미리보기용)
 }) {
   const [form, setForm] = useState<RevertibleForm>({
     status: initialForm?.status ?? record.status,
@@ -736,11 +735,8 @@ function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false, initi
   };
 
   return (
-    <div
-      className={variant === "modal" ? "fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" : ""}
-      onClick={variant === "modal" ? onClose : undefined}
-    >
-      <div className={`bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden ${variant === "panel" ? "max-h-[70vh]" : "max-h-[90vh]"}`} onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
         {/* 헤더 */}
         <div className="px-5 py-4 bg-amber-600 text-white flex items-start justify-between shrink-0">
           <div>
@@ -2659,48 +2655,9 @@ function ChangeHistoryTab({ companyLock = "", onUpdate, isSuperAdmin = false }: 
     return map;
   }, [changeLog, detail]);
 
-  // 호버로 시점별 상세보기를 띄운다 — 트리거(카드)나 패널 중 어디에 마우스가 있어도 유지되도록
-  // 살짝의 유예(150ms)를 두고 닫고, 실제 위치는 뷰포트를 벗어나지 않게 보정한다 (Tooltip.tsx와 동일한 방식).
-  const [hoverAt, setHoverAt] = useState<string | null>(null);
-  const [hoverCoords, setHoverCoords] = useState({ top: 0, left: 0 });
-  const hoverPointRef = useRef<{ x: number; y: number } | null>(null);
-  const hoverPanelRef = useRef<HTMLDivElement | null>(null);
-  const hideTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // 타임라인 카드가 가로로 거의 꽉 차서 "카드 왼쪽/오른쪽"을 기준으로 삼으면 둘 다 공간이 없어
-  // 구석으로 튕겨나간다 — 가로는 마우스 커서 위치, 세로는 호버한 행의 위치를 기준으로 살짝 아래에 띄운다.
-  const showPreview = useCallback((at: string, x: number, rowTop: number) => {
-    if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
-    hoverPointRef.current = { x, y: rowTop };
-    setHoverCoords({ top: rowTop + 16, left: x + 12 });
-    setHoverAt(at);
-  }, []);
-  const scheduleHide = useCallback(() => {
-    hideTimerRef.current = setTimeout(() => setHoverAt(null), 150);
-  }, []);
-  useEffect(() => () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); }, []);
-
-  // 뷰포트 밖으로 나가지 않게 클램프만 한다 — 위로 뒤집는 로직은 화면 위쪽 밖으로 잘리는
-  // 원인이 되어 제거했고, 대신 넘치면 그대로 clamp해 항상 뷰포트 안에 들어오게 한다
-  // (components/ui/Tooltip.tsx와 동일한 방식).
-  useLayoutEffect(() => {
-    if (!hoverAt) return;
-    const point = hoverPointRef.current;
-    const panel = hoverPanelRef.current;
-    if (!point || !panel) return;
-    const panelRect = panel.getBoundingClientRect();
-    const PADDING = 8, GAP = 12;
-
-    let left = point.x + GAP;
-    if (left + panelRect.width > window.innerWidth - PADDING) left = point.x - panelRect.width - GAP;
-    left = Math.min(Math.max(left, PADDING), Math.max(PADDING, window.innerWidth - PADDING - panelRect.width));
-
-    const top = Math.min(Math.max(point.y + 16, PADDING), Math.max(PADDING, window.innerHeight - PADDING - panelRect.height));
-
-    setHoverCoords({ top, left });
-  }, [hoverAt]);
-
-  const hoverEvent = hoverAt ? timeline.find(ev => ev.at === hoverAt) ?? null : null;
+  // 클릭하면 그 시점의 상세보기(배경이 흐려지는 정식 모달)를 연다
+  const [previewAt, setPreviewAt] = useState<string | null>(null);
+  const previewEvent = previewAt ? timeline.find(ev => ev.at === previewAt) ?? null : null;
 
   const [exporting, setExporting] = useState(false);
   const handleExport = useCallback(async () => {
@@ -2799,11 +2756,12 @@ function ChangeHistoryTab({ companyLock = "", onUpdate, isSuperAdmin = false }: 
           ) : (
             <div className="ml-1 border-l-2 border-gray-100 pl-4 space-y-2.5">
               {timeline.map((ev, i) => (
-                <div key={i} className="relative"
-                  onMouseEnter={e => showPreview(ev.at, e.clientX, e.currentTarget.getBoundingClientRect().top)}
-                  onMouseLeave={scheduleHide}>
+                <div key={i} className="relative">
                   <span className={`absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full ring-2 ring-white ${i === 0 ? "bg-amber-500" : "bg-gray-300"}`} />
-                  <div className={`rounded-lg border p-2.5 cursor-default ${i === 0 ? "border-amber-200 bg-amber-50" : "border-gray-100 bg-gray-50"}`}>
+                  <button
+                    onClick={() => setPreviewAt(ev.at)}
+                    title="클릭하면 이 시점의 자산 상태를 보고 필요시 되돌릴 수 있습니다"
+                    className={`w-full text-left rounded-lg border p-2.5 transition-colors hover:ring-2 hover:ring-amber-300 ${i === 0 ? "border-amber-200 bg-amber-50" : "border-gray-100 bg-gray-50"}`}>
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs text-gray-400">{fmtDateTime(ev.at)} · {ev.by}</span>
                       {i === 0 && <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded shrink-0">최근 변경</span>}
@@ -2818,7 +2776,7 @@ function ChangeHistoryTab({ companyLock = "", onUpdate, isSuperAdmin = false }: 
                         </p>
                       ))}
                     </div>
-                  </div>
+                  </button>
                 </div>
               ))}
             </div>
@@ -2826,29 +2784,20 @@ function ChangeHistoryTab({ companyLock = "", onUpdate, isSuperAdmin = false }: 
         </div>
       )}
 
-      {hoverEvent && detail && (
-        <div
-          ref={hoverPanelRef}
-          className="fixed z-30"
-          style={{ top: hoverCoords.top, left: hoverCoords.left }}
-          onMouseEnter={() => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); }}
-          onMouseLeave={scheduleHide}
-        >
-          <AssetDetailModal
-            variant="panel"
-            hideHistory
-            record={detail}
-            isSuperAdmin={isSuperAdmin}
-            initialForm={rawSnapshotsByAt.get(hoverEvent.at)}
-            previewLabel={`${fmtDateTime(hoverEvent.at)} 시점 상태`}
-            onClose={() => setHoverAt(null)}
-            onSave={async (id, fields) => {
-              await onUpdate(id, fields);
-              await selectAsset(id);
-              setHoverAt(null);
-            }}
-          />
-        </div>
+      {previewEvent && detail && (
+        <AssetDetailModal
+          hideHistory
+          record={detail}
+          isSuperAdmin={isSuperAdmin}
+          initialForm={rawSnapshotsByAt.get(previewEvent.at)}
+          previewLabel={`${fmtDateTime(previewEvent.at)} 시점 상태`}
+          onClose={() => setPreviewAt(null)}
+          onSave={async (id, fields) => {
+            await onUpdate(id, fields);
+            await selectAsset(id);
+            setPreviewAt(null);
+          }}
+        />
       )}
     </div>
   );
