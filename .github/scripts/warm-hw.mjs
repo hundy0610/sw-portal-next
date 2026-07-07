@@ -84,6 +84,7 @@ function mapPage(page) {
     docNo:         txt(p, "결재문서번호"),
     verified:   p["실사확인"]?.type === "checkbox" ? p["실사확인"].checkbox : false,
     duplicated: p["중복"]?.type     === "checkbox" ? p["중복"].checkbox    : false,
+    changeLog:  txt(p, "변경이력"),
   };
 }
 

@@ -1214,7 +1214,7 @@ function SearchTab({ companyLock = "", onUpdate, isSuperAdmin = false }: { compa
       <div className="bg-white rounded-xl border border-gray-200 p-4">
         <div className="flex flex-wrap gap-3 items-end">
           <div className="flex-1 min-w-[180px]">
-            <label className="block text-xs font-semibold text-gray-500 mb-1">사용자 / 자산번호 / 모델명 / 시리얼 / 부서 / 변경이력</label>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">사용자 / 자산번호 / 모델명 / 시리얼 / 부서 (이전 사용자·부서 포함)</label>
             <input value={search} onChange={e => setSearch(e.target.value)}
               onKeyDown={e => e.key === "Enter" && load()}
               placeholder="검색어 입력 후 Enter (쉼표로 다중검색)"
@@ -2603,9 +2603,7 @@ function ChangeHistoryTab({ companyLock = "", onUpdate, isSuperAdmin = false }: 
     if (!query.trim()) return;
     setSearching(true); setSearchError(""); setSearched(true); setCandidates([]); setDetail(null);
     try {
-      // matchLog=0 — 변경이력 원문(과거 변경자 이름 등)까지 검색하면 실제 사용자와 무관한
-      // 자산까지 걸려 나오므로, 자산 고유 속성(사용자/자산번호/모델/시리얼/부서)만 매칭한다.
-      const q = new URLSearchParams({ search: query.trim(), matchLog: "0" });
+      const q = new URLSearchParams({ search: query.trim() });
       if (companyLock) q.set("company", companyLock);
       const res  = await fetch(`/api/hw?${q}`);
       const json = await safeJson(res);
@@ -2692,7 +2690,7 @@ function ChangeHistoryTab({ companyLock = "", onUpdate, isSuperAdmin = false }: 
       <div className="bg-white rounded-xl border border-gray-200 p-4">
         <div className="flex flex-wrap gap-3 items-end">
           <div className="flex-1 min-w-[200px]">
-            <label className="block text-xs font-semibold text-gray-500 mb-1">자산번호 / 사용자 / 시리얼 / 모델명</label>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">자산번호 / 사용자 / 시리얼 / 모델명 (이전 사용자·부서 포함)</label>
             <input value={query} onChange={e => setQuery(e.target.value)}
               onKeyDown={e => e.key === "Enter" && search()}
               placeholder="검색어 입력 후 Enter"
