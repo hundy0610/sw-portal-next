@@ -2612,6 +2612,34 @@ function ChangeHistoryTab({ companyLock = "" }: { companyLock?: string }) {
       .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
   }, [changeLog]);
 
+  const [exporting, setExporting] = useState(false);
+  const handleExport = useCallback(async () => {
+    if (!detail || timeline.length === 0) return;
+    setExporting(true);
+    try {
+      const XLSX = await import("xlsx");
+      const rows = timeline.flatMap(ev =>
+        ev.changes.map(c => ({
+          "변경시각": fmtDateTime(ev.at),
+          "필드":     c.label,
+          "이전값":   c.from || "(없음)",
+          "이후값":   c.to || "(없음)",
+          "변경자":   ev.by,
+        }))
+      );
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws["!cols"] = Object.keys(rows[0]).map(key => ({
+        wch: Math.max(key.length, ...rows.map(r => String(r[key as keyof typeof r] ?? "").length)) + 2,
+      }));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "변경이력");
+      const now = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(wb, `HW변경이력_${detail.assetNo || "자산"}_${now}.xlsx`);
+    } finally {
+      setExporting(false);
+    }
+  }, [detail, timeline]);
+
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -2660,9 +2688,20 @@ function ChangeHistoryTab({ companyLock = "" }: { companyLock?: string }) {
 
       {detail && !detailLoading && (
         <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="mb-4">
-            <p className="text-sm font-bold text-gray-800">{detail.assetNo || "-"} <span className="text-gray-400 font-normal">· {detail.model || "-"}</span></p>
-            <p className="text-xs text-gray-400 mt-0.5">현재 사용자 {detail.user || "-"} · {detail.company || "-"}{detail.dept ? ` · ${detail.dept}` : ""}</p>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-bold text-gray-800">{detail.assetNo || "-"} <span className="text-gray-400 font-normal">· {detail.model || "-"}</span></p>
+              <p className="text-xs text-gray-400 mt-0.5">현재 사용자 {detail.user || "-"} · {detail.company || "-"}{detail.dept ? ` · ${detail.dept}` : ""}</p>
+            </div>
+            <button
+              onClick={handleExport}
+              disabled={exporting || timeline.length === 0}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors shrink-0"
+            >
+              {exporting ? (
+                <><svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>생성 중…</>
+              ) : <>📥 엑셀 다운로드</>}
+            </button>
           </div>
 
           {timeline.length === 0 ? (
