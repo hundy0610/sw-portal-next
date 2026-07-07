@@ -5,23 +5,23 @@
 @tailwind utilities;
 
 :root {
-  --sidebar-bg: #1C2B4A;
+  --sidebar-bg: #384959;
   --sidebar-hover: rgba(255,255,255,0.08);
   --sidebar-active: rgba(255,255,255,0.15);
 
-  /* 어드민 라이트 모드 */
-  --admin-content-bg: #F4F5F7;
+  /* 어드민 라이트 모드 — Stormy morning 팔레트 */
+  --admin-content-bg: #EAF2FB;
   --admin-header-bg: #ffffff;
-  --admin-header-border: #e5e7eb;
-  --admin-table-head-bg: #F4F5F7;
-  --admin-table-head-border: #DFE1E6;
-  --admin-table-row-border: #EBECF0;
-  --admin-table-hover-bg: #F4F5F7;
+  --admin-header-border: #D3E3F5;
+  --admin-table-head-bg: #EAF2FB;
+  --admin-table-head-border: #C9DCF0;
+  --admin-table-row-border: #DCE9F7;
+  --admin-table-hover-bg: #EAF2FB;
   --admin-input-bg: #ffffff;
-  --admin-input-border: #DFE1E6;
-  --admin-input-color: #172B4D;
-  --admin-text-primary: #344563;
-  --admin-text-secondary: #6B778C;
+  --admin-input-border: #B7CEE8;
+  --admin-input-color: #263845;
+  --admin-text-primary: #384959;
+  --admin-text-secondary: #6A89A7;
 }
 
 * { box-sizing: border-box; }
@@ -55,7 +55,7 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
   border-left: 3px solid transparent;
 }
 .sidenav-item:hover { background: var(--sidebar-hover); color: rgba(255,255,255,0.92); }
-.sidenav-item.active { background: var(--sidebar-active); color: #fff; font-weight: 700; border-left-color: #60A5FA; }
+.sidenav-item.active { background: var(--sidebar-active); color: #fff; font-weight: 700; border-left-color: #88BDF2; }
 .sidenav-section {
   display: flex; align-items: center;
   font-size: 13px; font-weight: 700; letter-spacing: .04em;
@@ -69,7 +69,7 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
 .data-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .data-table th {
   background: var(--admin-table-head-bg); padding: 10px 14px; text-align: left;
-  font-size: 11.5px; font-weight: 600; color: #6B778C;
+  font-size: 11.5px; font-weight: 600; color: var(--admin-text-secondary);
   letter-spacing: .04em; text-transform: uppercase;
   border-bottom: 2px solid var(--admin-table-head-border); white-space: nowrap;
 }
@@ -83,29 +83,29 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
   padding: 7px 12px; font-size: 13.5px; color: var(--admin-input-color);
   outline: none; transition: border-color 0.15s; background: var(--admin-input-bg); width: 100%;
 }
-.form-input:focus { border-color: #4C9AFF; box-shadow: 0 0 0 2px rgba(76,154,255,0.2); }
+.form-input:focus { border-color: #88BDF2; box-shadow: 0 0 0 2px rgba(136,189,242,0.25); }
 
 /* 프로그레스 바 */
 .prog-track { height: 6px; background: #EBECF0; border-radius: 99px; overflow: hidden; }
 .prog-fill  { height: 6px; border-radius: 99px; transition: width 0.8s ease; }
 
-/* ── 어드민 다크모드 (.admin-dark) — 네이비 대신 흑색-회색 계열 ── */
+/* ── 어드민 다크모드 (.admin-dark) — Stormy morning 팔레트 기반 다크 네이비 계열 ── */
 .admin-dark {
-  --admin-content-bg:        #0a0a0a;
-  --admin-header-bg:         #141414;
-  --admin-header-border:     #262626;
-  --admin-table-head-bg:     #141414;
-  --admin-table-head-border: #262626;
-  --admin-table-row-border:  #222222;
-  --admin-table-hover-bg:    #1a1a1a;
-  --admin-input-bg:          #171717;
-  --admin-input-border:      #3a3a3a;
-  --admin-input-color:       #e5e5e5;
-  --admin-text-primary:      #d4d4d4;
-  --admin-text-secondary:    #a3a3a3;
-  --sidebar-bg:              #0a0a0a;
+  --admin-content-bg:        #1E2A35;
+  --admin-header-bg:         #24323E;
+  --admin-header-border:     #34495E;
+  --admin-table-head-bg:     #24323E;
+  --admin-table-head-border: #34495E;
+  --admin-table-row-border:  #2C3B47;
+  --admin-table-hover-bg:    #293946;
+  --admin-input-bg:          #24323E;
+  --admin-input-border:      #45607A;
+  --admin-input-color:       #E8F0F7;
+  --admin-text-primary:      #E8F0F7;
+  --admin-text-secondary:    #9FB8CC;
+  --sidebar-bg:              #1A252F;
   --sidebar-hover:           rgba(255,255,255,0.07);
-  --sidebar-active:          rgba(96,165,250,0.18);
+  --sidebar-active:          rgba(136,189,242,0.18);
 }
 
 /* 헤더 */
@@ -121,7 +121,7 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
 .admin-dark header.admin-header .border-gray-200            { border-color: #262626 !important; }
 
 /* 사이드바 활성 아이템 */
-.admin-dark .sidenav-item.active { color: #93c5fd !important; border-left-color: #93c5fd !important; }
+.admin-dark .sidenav-item.active { color: #88BDF2 !important; border-left-color: #88BDF2 !important; }
 
 /* 메인 콘텐츠 */
 .admin-dark main.admin-main { background: var(--admin-content-bg) !important; }
@@ -162,8 +162,8 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
 
 /* 포커스 인풋 */
 .admin-dark .form-input:focus {
-  border-color: #3b82f6 !important;
-  box-shadow: 0 0 0 2px rgba(59,130,246,0.25) !important;
+  border-color: #88BDF2 !important;
+  box-shadow: 0 0 0 2px rgba(136,189,242,0.3) !important;
 }
 
 /* ── 배지 / 칩 배경 (중립) ── */
