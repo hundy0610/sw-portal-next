@@ -2671,7 +2671,7 @@ function ChangeHistoryTab({ companyLock = "", onUpdate, isSuperAdmin = false }: 
     if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
     hoverTriggerRef.current = el;
     const rect = el.getBoundingClientRect();
-    setHoverCoords({ top: rect.bottom + 6, left: rect.left });
+    setHoverCoords({ top: rect.top, left: rect.right + 12 });
     setHoverAt(at);
   }, []);
   const scheduleHide = useCallback(() => {
@@ -2679,7 +2679,8 @@ function ChangeHistoryTab({ companyLock = "", onUpdate, isSuperAdmin = false }: 
   }, []);
   useEffect(() => () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); }, []);
 
-  // 뷰포트 밖으로 잘리지 않도록 실제 렌더된 패널 크기 기준으로 위치 보정
+  // 카드 오른쪽에 띄우고, 뷰포트 밖으로 잘리지 않도록 실제 렌더된 패널 크기 기준으로 위치 보정
+  // (오른쪽에 공간이 부족하면 왼쪽으로 뒤집는다)
   useLayoutEffect(() => {
     if (!hoverAt) return;
     const trigger = hoverTriggerRef.current;
@@ -2689,12 +2690,12 @@ function ChangeHistoryTab({ companyLock = "", onUpdate, isSuperAdmin = false }: 
     const panelRect   = panel.getBoundingClientRect();
     const PADDING = 8;
 
-    let left = triggerRect.left;
-    if (left + panelRect.width > window.innerWidth - PADDING) left = window.innerWidth - PADDING - panelRect.width;
+    let left = triggerRect.right + 12;
+    if (left + panelRect.width > window.innerWidth - PADDING) left = triggerRect.left - panelRect.width - 12;
     if (left < PADDING) left = PADDING;
 
-    let top = triggerRect.bottom + 6;
-    if (top + panelRect.height > window.innerHeight - PADDING) top = triggerRect.top - panelRect.height - 6;
+    let top = triggerRect.top;
+    if (top + panelRect.height > window.innerHeight - PADDING) top = window.innerHeight - PADDING - panelRect.height;
     if (top < PADDING) top = PADDING;
 
     setHoverCoords({ top, left });
