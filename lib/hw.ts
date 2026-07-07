@@ -85,7 +85,7 @@ export interface HwChangeLogEvent {
   changes: { field: string; label: string; from: string; to: string }[];
 }
 
-const MAX_CHANGE_LOG_ENTRIES = 50;
+const MAX_CHANGE_LOG_ENTRIES = 150;
 
 export function parseChangeLog(raw: string): HwChangeLogEvent[] {
   try {

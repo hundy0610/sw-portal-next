@@ -1,11 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { type HwRecord, fetchHwFiltered } from "@/lib/hw";
+import { type HwRecord, fetchHwFiltered, parseChangeLog } from "@/lib/hw";
 import { kvGet } from "@/lib/kv-store";
 import { triggerWarmHw } from "@/lib/trigger-warm-hw";
 import { errorMessage } from "@/lib/api-error";
 import { getSessionFromCookieHeader, companyScope } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
+
+// 변경이력에 남은 과거 사용자/부서 값(from/to)만 매칭 — "by"(변경한 사람) 등 다른 텍스트는
+// 매칭 대상에서 제외해, 그 자산을 실제로 쓴 적 없는 관리자 이름이 검색결과에 섞이지 않게 한다.
+function matchesPastUserOrDept(changeLogRaw: string, q: string): boolean {
+  return parseChangeLog(changeLogRaw).some(ev =>
+    ev.changes.some(c =>
+      (c.field === "user" || c.field === "dept") &&
+      (c.from.toLowerCase().includes(q) || c.to.toLowerCase().includes(q))
+    )
+  );
+}
 
 export async function GET(req: NextRequest) {
   if (!process.env.NOTION_TOKEN) return NextResponse.json({ missingEnv: "NOTION_TOKEN", error: "환경변수 NOTION_TOKEN 이 설정되지 않았습니다." }, { status: 503 });
@@ -24,7 +35,6 @@ export async function GET(req: NextRequest) {
   const assetNo   = searchParams.get("assetNo")?.trim()   || "";
   const returnDue = searchParams.get("returnDue") === "1";
   const refresh   = searchParams.get("refresh") === "1";
-  const matchLog  = searchParams.get("matchLog") !== "0"; // 변경이력 원문(과거 변경자 이름 등)도 검색어 매칭에 포함할지
   // 탭별 필터 직접 조회용 (KV cold miss 시 Notion 직접 쿼리)
   const statuses  = searchParams.get("statuses")?.split(",").map(s => s.trim()).filter(Boolean) ?? [];
 
@@ -76,7 +86,7 @@ export async function GET(req: NextRequest) {
           r.model.toLowerCase().includes(q)     ||
           r.serial.toLowerCase().includes(q)    ||
           r.dept.toLowerCase().includes(q)      ||
-          (matchLog && (r.changeLog || "").toLowerCase().includes(q))
+          matchesPastUserOrDept(r.changeLog || "", q)
         )
       );
     }
