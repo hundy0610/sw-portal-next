@@ -2673,7 +2673,6 @@ function ChangeHistoryTab({ companyLock = "", onUpdate, isSuperAdmin = false }: 
   const [hoverCoords, setHoverCoords] = useState({ top: 0, left: 0 });
   const hoverTriggerRef = useRef<HTMLElement | null>(null);
   const hoverPanelRef   = useRef<HTMLDivElement | null>(null);
-  const timelineBoxRef  = useRef<HTMLDivElement | null>(null);
   const hideTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showPreview = useCallback((at: string, el: HTMLElement) => {
@@ -2688,36 +2687,21 @@ function ChangeHistoryTab({ companyLock = "", onUpdate, isSuperAdmin = false }: 
   }, []);
   useEffect(() => () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); }, []);
 
-  // 변경이력 목록 자체를 가리지 않는 위치를 최우선으로 찾는다 — ① 목록 전체 오른쪽 ② 목록 전체 아래
-  // 둘 다 안 되면(아주 좁은 화면 등) 마지막 수단으로만 호버한 카드 옆에 겹쳐서 띄운다.
+  // 카드는 작으므로 항상 호버한 카드 오른쪽에 띄우고, 화면 밖으로 나갈 때만 왼쪽으로 뒤집는다.
+  // 최종적으로는 뷰포트 안쪽으로 클램프해 구석으로 튕겨나가지 않게 한다 (Tooltip.tsx와 동일한 방식).
   useLayoutEffect(() => {
     if (!hoverAt) return;
     const trigger = hoverTriggerRef.current;
     const panel   = hoverPanelRef.current;
-    const box     = timelineBoxRef.current;
-    if (!trigger || !panel || !box) return;
+    if (!trigger || !panel) return;
     const triggerRect = trigger.getBoundingClientRect();
     const panelRect   = panel.getBoundingClientRect();
-    const boxRect     = box.getBoundingClientRect();
     const PADDING = 8, GAP = 12;
 
-    let left: number, top: number;
-    if (boxRect.right + GAP + panelRect.width <= window.innerWidth - PADDING) {
-      // ① 목록 오른쪽에 여유 공간 있음 — 겹치지 않음
-      left = boxRect.right + GAP;
-      top = Math.min(triggerRect.top, window.innerHeight - PADDING - panelRect.height);
-    } else if (boxRect.bottom + GAP + panelRect.height <= window.innerHeight - PADDING) {
-      // ② 목록 아래에 여유 공간 있음 — 겹치지 않음
-      left = Math.min(boxRect.left, window.innerWidth - PADDING - panelRect.width);
-      top = boxRect.bottom + GAP;
-    } else {
-      // ③ 부득이한 경우에만 호버한 카드 옆에 겹쳐서 표시
-      left = triggerRect.right + GAP;
-      if (left + panelRect.width > window.innerWidth - PADDING) left = triggerRect.left - panelRect.width - GAP;
-      top = triggerRect.top;
-      if (top + panelRect.height > window.innerHeight - PADDING) top = window.innerHeight - PADDING - panelRect.height;
-    }
-    // 항상 뷰포트 안쪽에 오도록 최종 클램프 (트리거 위치와 무관하게 구석으로 튕겨나가지 않도록 상/하한 모두 적용)
+    let left = triggerRect.right + GAP;
+    if (left + panelRect.width > window.innerWidth - PADDING) left = triggerRect.left - panelRect.width - GAP;
+    let top = triggerRect.top;
+
     left = Math.min(Math.max(left, PADDING), Math.max(PADDING, window.innerWidth - PADDING - panelRect.width));
     top = Math.min(Math.max(top, PADDING), Math.max(PADDING, window.innerHeight - PADDING - panelRect.height));
 
@@ -2804,7 +2788,7 @@ function ChangeHistoryTab({ companyLock = "", onUpdate, isSuperAdmin = false }: 
       {detailError && <div className="px-4 py-3 bg-red-50 rounded-xl text-sm text-red-600">⚠️ {detailError}</div>}
 
       {detail && !detailLoading && (
-        <div ref={timelineBoxRef} className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-bold text-gray-800">{detail.assetNo || "-"} <span className="text-gray-400 font-normal">· {detail.model || "-"}</span></p>
