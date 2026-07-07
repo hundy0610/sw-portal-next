@@ -2550,9 +2550,237 @@ function StockByCompanyTab({ records, loading }: { records: HwRecord[]; loading:
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 변경 이력 탭 — 자산 하나를 검색해 필드별 값 유지 구간을 세로 타임라인으로 표시
+// ─────────────────────────────────────────────────────────────────────────────
+function daysBetween(a: string, b: string): number {
+  const ta = new Date(a).getTime();
+  const tb = new Date(b).getTime();
+  if (isNaN(ta) || isNaN(tb)) return 0;
+  return Math.max(0, Math.round((tb - ta) / (1000 * 60 * 60 * 24)));
+}
+
+interface FieldSpan {
+  value: string;
+  start: string;   // "" = 시작 시점 미상
+  end: string;      // "" = 현재까지 유지 중
+  by: string;        // 이 값으로 바꾼 사람 ("" = 미상/추정 초기값)
+  current: boolean;
+}
+
+// events는 최신순으로 정렬되어 들어온다는 가정 없이, field에 해당하는 변경만 골라 시간순으로 재구성한다.
+function buildFieldSpans(events: HwChangeLogEvent[], field: string, fallbackStart: string): FieldSpan[] {
+  const relevant = events
+    .filter(ev => ev.changes.some(c => c.field === field))
+    .slice()
+    .sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
+  if (relevant.length === 0) return [];
+
+  const spans: FieldSpan[] = [];
+  const firstChange = relevant[0].changes.find(c => c.field === field)!;
+  spans.push({ value: firstChange.from, start: fallbackStart, end: relevant[0].at, by: "", current: false });
+  relevant.forEach((ev, i) => {
+    const change = ev.changes.find(c => c.field === field)!;
+    spans.push({
+      value: change.to,
+      start: ev.at,
+      end: relevant[i + 1]?.at ?? "",
+      by: ev.by,
+      current: i === relevant.length - 1,
+    });
+  });
+  return spans.reverse(); // 최신 값이 위로
+}
+
+function spanDurationLabel(s: FieldSpan): string {
+  if (!s.start) return "기간 미상";
+  return `${daysBetween(s.start, s.end || new Date().toISOString())}일간`;
+}
+
+const RANGE_OPTIONS = [
+  { id: "all", label: "전체" },
+  { id: "12m", label: "최근 1년" },
+  { id: "6m",  label: "최근 6개월" },
+  { id: "3m",  label: "최근 3개월" },
+] as const;
+type RangeFilter = typeof RANGE_OPTIONS[number]["id"];
+
+function ChangeHistoryTab({ companyLock = "" }: { companyLock?: string }) {
+  const [query,       setQuery]       = useState("");
+  const [candidates,  setCandidates]  = useState<HwRecord[]>([]);
+  const [searching,   setSearching]   = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const [searched,    setSearched]    = useState(false);
+
+  const [detail,        setDetail]        = useState<HwRecord | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError,   setDetailError]   = useState("");
+  const [range,         setRange]         = useState<RangeFilter>("all");
+
+  const selectAsset = useCallback(async (id: string) => {
+    setDetail(null); setDetailError(""); setDetailLoading(true);
+    try {
+      const res  = await fetch(`/api/hw/history?id=${encodeURIComponent(id)}`);
+      const json = await safeJson(res);
+      if (!json.ok) throw new Error(json.error);
+      if (!json.record) throw new Error("자산을 찾을 수 없습니다.");
+      setDetail(json.record);
+    } catch (e) { setDetailError(String(e)); }
+    finally { setDetailLoading(false); }
+  }, []);
+
+  const search = useCallback(async () => {
+    if (!query.trim()) return;
+    setSearching(true); setSearchError(""); setSearched(true); setCandidates([]); setDetail(null);
+    try {
+      const q = new URLSearchParams({ search: query.trim() });
+      if (companyLock) q.set("company", companyLock);
+      const res  = await fetch(`/api/hw?${q}`);
+      const json = await safeJson(res);
+      if (!json.ok) throw new Error(json.error);
+      const records: HwRecord[] = json.records ?? [];
+      setCandidates(records);
+      if (records.length === 1) selectAsset(records[0].id);
+    } catch (e) { setSearchError(String(e)); }
+    finally { setSearching(false); }
+  }, [query, companyLock, selectAsset]);
+
+  const changeLog: HwChangeLogEvent[] = useMemo(() => {
+    if (!detail?.changeLog) return [];
+    try {
+      const parsed = JSON.parse(detail.changeLog);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch { return []; }
+  }, [detail?.changeLog]);
+
+  const filteredLog = useMemo(() => {
+    if (range === "all") return changeLog;
+    const months = range === "12m" ? 12 : range === "6m" ? 6 : 3;
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - months);
+    return changeLog.filter(ev => new Date(ev.at) >= cutoff);
+  }, [changeLog, range]);
+
+  const fallbackStart = detail?.useDate || detail?.purchaseDate || "";
+
+  const fields = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const ev of changeLog) for (const c of ev.changes) if (!map.has(c.field)) map.set(c.field, c.label);
+    return [...map.entries()];
+  }, [changeLog]);
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="flex-1 min-w-[200px]">
+            <label className="block text-xs font-semibold text-gray-500 mb-1">자산번호 / 사용자 / 시리얼 / 모델명</label>
+            <input value={query} onChange={e => setQuery(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && search()}
+              placeholder="검색어 입력 후 Enter"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
+            />
+          </div>
+          <button onClick={search} disabled={searching}
+            className="px-5 py-2 rounded-lg bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-50 transition-colors">
+            {searching ? "검색 중…" : "🔍 검색"}
+          </button>
+        </div>
+      </div>
+
+      {searchError && <div className="px-4 py-3 bg-red-50 rounded-xl text-sm text-red-600">⚠️ {searchError}</div>}
+
+      {searched && !searching && candidates.length > 1 && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-gray-100 text-xs font-semibold text-gray-500">검색 결과 {candidates.length}건 — 자산을 선택하세요</div>
+          <div className="divide-y divide-gray-100">
+            {candidates.map(r => (
+              <button key={r.id} onClick={() => selectAsset(r.id)}
+                className={`w-full text-left px-4 py-2.5 text-sm hover:bg-amber-50 transition-colors flex items-center gap-3 ${detail?.id === r.id ? "bg-amber-50" : ""}`}>
+                <span className="font-mono text-amber-700 font-semibold">{r.assetNo || "-"}</span>
+                <span className="text-gray-600">{r.model || "-"}</span>
+                <span className="text-gray-400">·</span>
+                <span className="text-gray-700">{r.user || "-"}</span>
+                <span className="text-gray-400 text-xs">{r.company}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {searched && !searching && !searchError && candidates.length === 0 && !detailLoading && !detail && (
+        <div className="py-12 text-center text-gray-400 text-sm">조회된 자산이 없습니다</div>
+      )}
+
+      {detailLoading && <div className="py-12 text-center text-gray-400 text-sm">불러오는 중…</div>}
+      {detailError && <div className="px-4 py-3 bg-red-50 rounded-xl text-sm text-red-600">⚠️ {detailError}</div>}
+
+      {detail && !detailLoading && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div>
+              <p className="text-sm font-bold text-gray-800">{detail.assetNo || "-"} <span className="text-gray-400 font-normal">· {detail.model || "-"}</span></p>
+              <p className="text-xs text-gray-400 mt-0.5">현재 사용자 {detail.user || "-"} · {detail.company || "-"}{detail.dept ? ` · ${detail.dept}` : ""}</p>
+            </div>
+            <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-semibold">
+              {RANGE_OPTIONS.map(r => (
+                <button key={r.id} onClick={() => setRange(r.id)}
+                  className={`px-3 py-1.5 transition-colors ${range === r.id ? "bg-amber-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>
+                  {r.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {fields.length === 0 ? (
+            <p className="text-sm text-gray-400 py-8 text-center">변경 이력이 없습니다.</p>
+          ) : filteredLog.length === 0 ? (
+            <p className="text-sm text-gray-400 py-8 text-center">선택한 기간에는 변경 이력이 없습니다.</p>
+          ) : (
+            <div className="space-y-6">
+              {fields.map(([field, label]) => {
+                // 필터 창(range) 때문에 잘려나간 이벤트가 있으면, 가장 오래된 남은 값의 시작일은 신뢰할 수 없어 미상 처리
+                const fullCount     = changeLog.filter(ev => ev.changes.some(c => c.field === field)).length;
+                const windowedCount = filteredLog.filter(ev => ev.changes.some(c => c.field === field)).length;
+                const useFallback   = fullCount === windowedCount;
+                const spans = buildFieldSpans(filteredLog, field, useFallback ? fallbackStart : "");
+                if (spans.length === 0) return null;
+                return (
+                  <div key={field}>
+                    <p className="text-sm font-bold text-gray-700 mb-2.5 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />{label}
+                    </p>
+                    <div className="ml-1 border-l-2 border-gray-100 pl-4 space-y-2.5">
+                      {spans.map((s, i) => (
+                        <div key={i} className="relative">
+                          <span className={`absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full ring-2 ring-white ${s.current ? "bg-amber-500" : "bg-gray-300"}`} />
+                          <div className={`rounded-lg border p-2.5 ${s.current ? "border-amber-200 bg-amber-50" : "border-gray-100 bg-gray-50"}`}>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className={`text-sm font-semibold ${s.current ? "text-amber-700" : "text-gray-700"}`}>{s.value || "(없음)"}</span>
+                              {s.current && <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded shrink-0">현재</span>}
+                            </div>
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              {s.start ? fmtDate(s.start) : "이전"} ~ {s.end ? fmtDate(s.end) : "현재"} · {spanDurationLabel(s)}
+                              {s.by && <> · {s.by}</>}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 메인 HwPanel — 데이터 1회 fetch, 모든 탭에 props 전달
 // ─────────────────────────────────────────────────────────────────────────────
-type Tab = "dashboard"|"shipment"|"return"|"search"|"upload"|"dispatch"|"registration"|"label"|"stock";
+type Tab = "dashboard"|"shipment"|"return"|"search"|"upload"|"dispatch"|"registration"|"label"|"stock"|"history";
 
 interface DispatchRecord {
   id: string;
@@ -2730,6 +2958,7 @@ export default function HwPanel({ company = "", initialStats, isSuperAdmin = fal
     { id: "shipment",  label: "출고 현황",   icon: "📤" },
     { id: "return",    label: "반납 대상자", icon: "📅" },
     { id: "search",    label: "자산 검색",   icon: "🔍" },
+    { id: "history",   label: "변경 이력",   icon: "🕒" },
     { id: "upload",    label: "엑셀 등록",   icon: "📂" },
     { id: "dispatch",  label: "자산지급 현황",icon: "📋" },
     { id: "registration", label: "등록 현황", icon: "🆕" },
@@ -2846,6 +3075,7 @@ export default function HwPanel({ company = "", initialStats, isSuperAdmin = fal
       {tab === "shipment"  && <ShipmentTab onUpdate={handleUpdate} companyLock={company} isSuperAdmin={isSuperAdmin} />}
       {tab === "return"    && <ReturnTab   onUpdate={handleUpdate} companyLock={company} isSuperAdmin={isSuperAdmin} />}
       {tab === "search"    && <SearchTab companyLock={company} onUpdate={handleUpdate} isSuperAdmin={isSuperAdmin} />}
+      {tab === "history"   && <ChangeHistoryTab companyLock={company} />}
       {tab === "upload"    && <ExcelUploadTab />}
       {tab === "dispatch"  && <DispatchHistoryTab />}
       {tab === "registration" && <RegistrationLogTab />}

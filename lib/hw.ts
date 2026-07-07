@@ -301,6 +301,17 @@ export async function fetchHwFiltered({
   return records;
 }
 
+// 자산번호는 중복 등록된 경우(HwRecord.duplicated)가 있어 자산번호만으로 조회하면
+// 사용자가 클릭한 것과 다른 레코드가 나올 수 있다 — id가 있으면 이 함수로 정확히 단건 조회한다.
+export async function findHwById(id: string): Promise<HwRecord | null> {
+  if (isMock()) {
+    return (mockHwRecords.find(r => r.id === id) as HwRecord) ?? null;
+  }
+  const page = await notion.pages.retrieve({ page_id: id });
+  if (page.object !== "page" || !("properties" in page)) return null;
+  return mapPage(page as PageObjectResponse);
+}
+
 export async function findHwByAssetNo(assetNo: string): Promise<HwRecord | null> {
   if (isMock()) {
     return (mockHwRecords.find(r => r.assetNo === assetNo) as HwRecord) ?? null;
