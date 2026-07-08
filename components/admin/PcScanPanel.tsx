@@ -26,6 +26,7 @@ function DetailModal({ record, onClose }: { record: PcScanRecordWithMatch; onClo
     ["법인명",   record.corp],
     ["부서",     record.dept],
     ["사용자",   record.userName],
+    ["이메일",   record.email],
     ["제조사",   record.manufacturer],
     ["모델명",   record.model],
     ["CPU",      record.cpu],
@@ -102,7 +103,7 @@ interface Filters {
   corp: string;
   dept: string;
   userName: string;
-  model: string;
+  email: string;
   pcName: string;
   cpu: string;
   ram: string;
@@ -112,7 +113,7 @@ interface Filters {
   masterExists: string; // "" | "true" | "false"
 }
 const EMPTY: Filters = {
-  assetNo: "", corp: "", dept: "", userName: "", model: "",
+  assetNo: "", corp: "", dept: "", userName: "", email: "",
   pcName: "", cpu: "", ram: "", gpu: "", os: "", hasFile: "", masterExists: "",
 };
 
@@ -155,7 +156,7 @@ export default function PcScanPanel() {
     if (filters.corp       && r.corp !== filters.corp)                                               return false;
     if (filters.dept       && !r.dept.toLowerCase().includes(filters.dept.toLowerCase()))           return false;
     if (filters.userName   && !r.userName.toLowerCase().includes(filters.userName.toLowerCase()))   return false;
-    if (filters.model      && !r.model.toLowerCase().includes(filters.model.toLowerCase()))         return false;
+    if (filters.email      && !r.email.toLowerCase().includes(filters.email.toLowerCase()))         return false;
     if (filters.pcName     && !r.pcName.toLowerCase().includes(filters.pcName.toLowerCase()))       return false;
     if (filters.cpu        && !r.cpu.toLowerCase().includes(filters.cpu.toLowerCase()))             return false;
     if (filters.ram        && !r.ram.toLowerCase().includes(filters.ram.toLowerCase()))             return false;
@@ -179,6 +180,7 @@ export default function PcScanPanel() {
       법인:            r.corp,
       부서:            r.dept,
       사용자:          r.userName,
+      이메일:          r.email,
       모델:            r.model,
       PC이름:          r.pcName,
       CPU:             r.cpu,
@@ -365,7 +367,7 @@ export default function PcScanPanel() {
                     onChange={toggleSelectAll}
                   />
                 </th>
-                {["자산번호","법인","부서","사용자","모델","PC이름","CPU","RAM","GPU","OS","설치프로그램","마스터"].map(h => (
+                {["자산번호","법인","부서","사용자","이메일","PC이름","CPU","RAM","GPU","OS","설치프로그램","마스터"].map(h => (
                   <th key={h} className="text-left px-3 py-2.5 font-semibold whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -388,8 +390,8 @@ export default function PcScanPanel() {
                 <td className="px-2 py-1.5 min-w-[80px]">
                   <input className={INPUT_CLS} placeholder="검색" value={filters.userName} onChange={e => sf("userName", e.target.value)} />
                 </td>
-                <td className="px-2 py-1.5 min-w-[100px]">
-                  <input className={INPUT_CLS} placeholder="검색" value={filters.model} onChange={e => sf("model", e.target.value)} />
+                <td className="px-2 py-1.5 min-w-[130px]">
+                  <input className={INPUT_CLS} placeholder="검색" value={filters.email} onChange={e => sf("email", e.target.value)} />
                 </td>
                 <td className="px-2 py-1.5 min-w-[100px]">
                   <input className={INPUT_CLS} placeholder="검색" value={filters.pcName} onChange={e => sf("pcName", e.target.value)} />
@@ -455,7 +457,7 @@ export default function PcScanPanel() {
                   </td>
                   <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{r.dept || <span className="text-gray-300">—</span>}</td>
                   <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap">{r.userName || <span className="text-gray-300">—</span>}</td>
-                  <td className="px-3 py-2.5 text-gray-600 max-w-[140px] truncate" title={r.model}>{r.model || <span className="text-gray-300">—</span>}</td>
+                  <td className="px-3 py-2.5 text-gray-600 max-w-[160px] truncate" title={r.email}>{r.email || <span className="text-gray-300">—</span>}</td>
                   <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap">{r.pcName || <span className="text-gray-300">—</span>}</td>
                   <td className="px-3 py-2.5 text-gray-500 max-w-[160px] truncate" title={r.cpu}>{r.cpu || <span className="text-gray-300">—</span>}</td>
                   <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.ram || <span className="text-gray-300">—</span>}</td>

@@ -105,6 +105,8 @@ function pageToHwRecord(page: PageObjectResponse): HwRecord {
     residualValue: num("잔존가치"),
     note:          txt("기타"),
     docNo:         txt("결재문서번호"),
+    mac:           txt("MAC"),
+    email:         p["이메일"]?.type === "email" ? (p["이메일"].email || "") : "",
     verified:   p["실사확인"]?.type === "checkbox" ? p["실사확인"].checkbox : false,
     duplicated: p["중복"]?.type     === "checkbox" ? p["중복"].checkbox    : false,
     lastModifiedBy: txt("마지막수정자"),
