@@ -17,6 +17,7 @@ interface HwRecord {
   returnDue: string; returnDate: string;
   purchaseDate: string; useDate: string;
   price: number; residualValue: number; note: string; docNo: string;
+  mac: string; email: string;
   verified: boolean; duplicated: boolean;
   lastModifiedBy: string; lastModifiedAt: string;
   changeLog: string;
