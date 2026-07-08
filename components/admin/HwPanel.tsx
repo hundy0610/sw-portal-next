@@ -906,6 +906,8 @@ function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false, initi
             {!isSuperAdmin && <InfoRow label="시리얼" value={record.serial} />}
             <InfoRow label="CPU"      value={record.cpu} />
             <InfoRow label="RAM"      value={record.ram} />
+            <InfoRow label="MAC"      value={record.mac} />
+            <InfoRow label="이메일"   value={record.email} />
             <InfoRow label="구매일자" value={record.purchaseDate ? fmtDate(record.purchaseDate) : undefined} />
             <InfoRow label="단가"     value={record.price > 0 ? fmtKrw(record.price) : undefined} />
             <InfoRow label="잔존가치" value={record.residualValue > 0 ? fmtKrw(record.residualValue) : undefined} />
