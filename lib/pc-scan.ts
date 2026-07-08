@@ -13,6 +13,7 @@ export interface PcScanPayload {
   model?: string;
   dept?: string;
   userName?: string;
+  email?: string;
   macAddresses?: string[];
   cpu?: string;
   ram?: string;
@@ -82,6 +83,7 @@ function buildProperties(
   addRt("모델명", data.model);
   addRt("부서", data.dept);
   addRt("사용자", data.userName);
+  if (data.email) props["이메일"] = { email: data.email };
   if (data.macAddresses?.length) addRt("MAC", data.macAddresses.join(", "));
   addRt("CPU", data.cpu);
   addRt("RAM", data.ram);
@@ -109,6 +111,7 @@ export interface PcScanRecord {
   corp: string;
   dept: string;
   userName: string;
+  email: string;
   cpu: string;
   ram: string;
   os: string;
@@ -211,6 +214,7 @@ export async function fetchPcScans(): Promise<PcScanRecord[]> {
         corp:         (p["법인명"]?.type === "select" ? (p["법인명"].select as { name?: string } | null)?.name : "") ?? "",
         dept:         rt("부서"),
         userName:     rt("사용자"),
+        email:        (p["이메일"]?.type === "email" ? p["이메일"].email as string | null : "") ?? "",
         cpu:          rt("CPU"),
         ram:          rt("RAM"),
         os:           rt("OS"),
@@ -253,14 +257,23 @@ export async function upsertPcScan(data: PcScanPayload): Promise<UpsertResult> {
   const masterExists = !!hwRecord && serialFuzzyMatch(data.serial, hwRecord.serial);
 
   // 마스터값과 완전히 일치(법인/부서/사용자 모두 동일)하면 실사 확인된 것으로 보고
-  // 해당 자산을 사용중 + 실사확인으로 자동 반영 (이미 반영돼 있으면 스킵)
+  // 해당 자산을 사용중 + 실사확인으로 자동 반영, MAC/이메일도 함께 최신화
+  // (상태·실사확인·MAC·이메일이 이미 전부 반영돼 있으면 스킵)
+  const scanMac = data.macAddresses?.length ? data.macAddresses.join(", ") : undefined;
+  const scanEmail = data.email || undefined;
+  const alreadySynced = !!hwRecord
+    && hwRecord.status === "사용중"
+    && hwRecord.verified
+    && (!scanMac || hwRecord.mac === scanMac)
+    && (!scanEmail || hwRecord.email === scanEmail);
+
   if (hwRecord && masterExists
     && hwRecord.company === (data.corp ?? "")
     && hwRecord.dept    === (data.dept ?? "")
     && hwRecord.user    === (data.userName ?? "")
-    && (hwRecord.status !== "사용중" || !hwRecord.verified)
+    && !alreadySynced
   ) {
-    await markHwVerifiedByScanMatch(hwRecord.id).catch(e =>
+    await markHwVerifiedByScanMatch(hwRecord.id, { mac: scanMac, email: scanEmail }).catch(e =>
       console.error("[pc-scan → hw 자동 실사확인 실패]", e)
     );
   }
