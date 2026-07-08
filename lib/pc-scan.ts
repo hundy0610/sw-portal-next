@@ -257,15 +257,19 @@ export async function upsertPcScan(data: PcScanPayload): Promise<UpsertResult> {
   const masterExists = !!hwRecord && serialFuzzyMatch(data.serial, hwRecord.serial);
 
   // 마스터값과 완전히 일치(법인/부서/사용자 모두 동일)하면 실사 확인된 것으로 보고
-  // 해당 자산을 사용중 + 실사확인으로 자동 반영, MAC/이메일도 함께 최신화
-  // (상태·실사확인·MAC·이메일이 이미 전부 반영돼 있으면 스킵)
+  // 해당 자산을 사용중 + 실사확인으로 자동 반영, MAC/이메일/CPU/RAM도 함께 최신화
+  // (상태·실사확인·MAC·이메일·CPU·RAM이 이미 전부 반영돼 있으면 스킵)
   const scanMac = data.macAddresses?.length ? data.macAddresses.join(", ") : undefined;
   const scanEmail = data.email || undefined;
+  const scanCpu = data.cpu || undefined;
+  const scanRam = data.ram || undefined;
   const alreadySynced = !!hwRecord
     && hwRecord.status === "사용중"
     && hwRecord.verified
-    && (!scanMac || hwRecord.mac === scanMac)
-    && (!scanEmail || hwRecord.email === scanEmail);
+    && (!scanMac   || hwRecord.mac === scanMac)
+    && (!scanEmail || hwRecord.email === scanEmail)
+    && (!scanCpu   || hwRecord.cpu === scanCpu)
+    && (!scanRam   || hwRecord.ram === scanRam);
 
   if (hwRecord && masterExists
     && hwRecord.company === (data.corp ?? "")
@@ -273,7 +277,9 @@ export async function upsertPcScan(data: PcScanPayload): Promise<UpsertResult> {
     && hwRecord.user    === (data.userName ?? "")
     && !alreadySynced
   ) {
-    await markHwVerifiedByScanMatch(hwRecord.id, { mac: scanMac, email: scanEmail }).catch(e =>
+    await markHwVerifiedByScanMatch(hwRecord.id, {
+      mac: scanMac, email: scanEmail, cpu: scanCpu, ram: scanRam,
+    }).catch(e =>
       console.error("[pc-scan → hw 자동 실사확인 실패]", e)
     );
   }
