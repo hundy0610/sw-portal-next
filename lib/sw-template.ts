@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import type { SwDbRecord } from "@/types";
 
 // SW 등록 양식 엑셀 컬럼 — admin 엑셀 업로드(SW_COL_MAP)와 동일한 헤더를 사용한다.
 export const SW_TEMPLATE_HEADERS = [
@@ -150,4 +151,48 @@ export async function parseSwExcelFile(file: File): Promise<SwExcelRow[]> {
   if (parsed.length > 200) throw new Error("한 번에 최대 200건까지 업로드 가능합니다.");
 
   return parsed;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 검색 결과 → 엑셀 다운로드 (라이선스 현황판 전용)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SW_EXPORT_HEADERS = [
+  "상태", "법인", "부서", "이름", "SW대분류", "SW소분류", "버전",
+  "구매일", "사용일", "갱신필요일", "갱신주기", "월비용", "연비용", "결재방식", "구매처",
+];
+
+function fmtCost(krw: number, usd: number): string {
+  const parts: string[] = [];
+  if (krw > 0) parts.push(`${krw.toLocaleString()}원`);
+  if (usd > 0) parts.push(`$${usd.toLocaleString(undefined, { maximumFractionDigits: 2 })}`);
+  return parts.join(" / ");
+}
+
+// 검색/필터된 SW 레코드 목록을 엑셀로 다운로드한다.
+export function downloadSwRecordsExcel(records: SwDbRecord[], fileName = "SW라이선스_현황.xlsx") {
+  const rows = records.map(r => [
+    r.status || "",
+    r.company || "",
+    r.department || "",
+    r.user || "",
+    r.swCategory || "",
+    r.swDetail || "",
+    (r.version ?? []).join(", "),
+    r.purchaseDate || "",
+    r.usageDate || "",
+    r.renewalDate || "",
+    r.renewalCycle || "",
+    fmtCost(r.monthlyKrw, r.monthlyUsd),
+    fmtCost(r.annualKrw, r.annualUsd),
+    r.billingType || "",
+    r.vendor || "",
+  ]);
+
+  const ws = XLSX.utils.aoa_to_sheet([SW_EXPORT_HEADERS, ...rows]);
+  ws["!cols"] = SW_EXPORT_HEADERS.map(() => ({ wch: 16 }));
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "라이선스현황");
+  XLSX.writeFile(wb, fileName);
 }
