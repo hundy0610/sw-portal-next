@@ -590,7 +590,7 @@ function EditModal({ record, fields, onSave, onClose }: EditModalProps) {
 }
 
 // 변경 이력에서 "되돌리기"로 값을 다시 채워넣을 수 있는 필드
-const REVERTIBLE_FORM_FIELDS = new Set(["status","user","company","dept","location","useDate","returnDate","returnDue","note"]);
+const REVERTIBLE_FORM_FIELDS = new Set(["status","user","company","dept","location","useDate","returnDate","returnDue","note","email"]);
 const REVERTIBLE_SENSITIVE_FIELDS = new Set(["assetNo","serial"]);
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -598,7 +598,7 @@ const REVERTIBLE_SENSITIVE_FIELDS = new Set(["assetNo","serial"]);
 // ─────────────────────────────────────────────────────────────────────────────
 interface RevertibleForm {
   status: string; user: string; company: string; dept: string; location: string;
-  useDate: string; returnDate: string; returnDue: string; note: string;
+  useDate: string; returnDate: string; returnDue: string; note: string; email: string;
 }
 
 function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false, initialForm, previewLabel, hideHistory = false }: {
@@ -620,6 +620,7 @@ function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false, initi
     returnDate: initialForm?.returnDate ?? record.returnDate,
     returnDue: initialForm?.returnDue ?? record.returnDue,
     note: initialForm?.note ?? record.note,
+    email: initialForm?.email ?? record.email,
   });
   const [saving, setSaving] = useState(false);
   const [saved,  setSaved]  = useState(false);
@@ -780,6 +781,11 @@ function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false, initi
                 <input value={form.dept} onChange={e => setField("dept", e.target.value)}
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
               </div>
+              <div className="col-span-2">
+                <label className={labelCls("email")}>이메일</label>
+                <input type="email" value={form.email} onChange={e => setField("email", e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
+              </div>
               <div>
                 <label className={labelCls("company")}>법인명</label>
                 <select value={form.company} onChange={e => setField("company", e.target.value)}
@@ -907,7 +913,6 @@ function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false, initi
             <InfoRow label="CPU"      value={record.cpu} />
             <InfoRow label="RAM"      value={record.ram} />
             <InfoRow label="MAC"      value={record.mac} />
-            <InfoRow label="이메일"   value={record.email} />
             <InfoRow label="구매일자" value={record.purchaseDate ? fmtDate(record.purchaseDate) : undefined} />
             <InfoRow label="단가"     value={record.price > 0 ? fmtKrw(record.price) : undefined} />
             <InfoRow label="잔존가치" value={record.residualValue > 0 ? fmtKrw(record.residualValue) : undefined} />
@@ -2644,7 +2649,7 @@ function ChangeHistoryTab({ companyLock = "", onUpdate, isSuperAdmin = false }: 
     const snap: RevertibleForm = {
       status: detail.status, user: detail.user, company: detail.company, dept: detail.dept,
       location: detail.location, useDate: detail.useDate, returnDate: detail.returnDate,
-      returnDue: detail.returnDue, note: detail.note,
+      returnDue: detail.returnDue, note: detail.note, email: detail.email,
     };
     const sorted = [...changeLog].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
     for (const ev of sorted) {
