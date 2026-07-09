@@ -1,6 +1,7 @@
 import { Client } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
 import { isMock, mockHwRecords } from "./mock";
+import { kvGet, kvSet, kvSetPermanent } from "./kv-store";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
@@ -40,6 +41,12 @@ const num = (p: Props, k: string) => {
   return 0;
 };
 
+const email = (p: Props, k: string) => {
+  const v = p[k];
+  if (!v || v.type !== "email") return "";
+  return v.email || "";
+};
+
 function mapPage(page: PageObjectResponse) {
   const p = page.properties;
   return {
@@ -64,14 +71,48 @@ function mapPage(page: PageObjectResponse) {
     residualValue: num(p, "잔존가치"),
     note:         txt(p, "기타"),
     docNo:        txt(p, "결재문서번호"),
+    mac:          txt(p, "MAC"),
+    email:        email(p, "이메일"),
     verified:     p["실사확인"]?.type === "checkbox" ? p["실사확인"].checkbox : false,
     duplicated:   p["중복"]?.type === "checkbox" ? p["중복"].checkbox : false,
     lastModifiedBy: txt(p, "마지막수정자"),
     lastModifiedAt: txt(p, "마지막수정일시"),
+    changeLog:    txt(p, "변경이력"),
   };
 }
 
 export type HwRecord = ReturnType<typeof mapPage>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 변경이력 — 별도 DB 없이 HW 레코드 자신의 "변경이력" rich_text 속성에 JSON으로 누적
+// (자산당 최근 MAX_CHANGE_LOG_ENTRIES건만 유지, Notion rich_text 배열은 100블록 한도)
+// ─────────────────────────────────────────────────────────────────────────────
+export interface HwChangeLogEvent {
+  at: string;                                                    // ISO timestamp
+  by: string;                                                    // "이름 (아이디)"
+  changes: { field: string; label: string; from: string; to: string }[];
+}
+
+const MAX_CHANGE_LOG_ENTRIES = 150;
+
+export function parseChangeLog(raw: string): HwChangeLogEvent[] {
+  try {
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+// 기존 변경이력 텍스트에 새 이벤트를 맨 앞에 추가하고, 캡을 적용한 뒤
+// json(캐시 패치용 원문)과 Notion rich_text 속성 값(블록 분할)을 함께 반환
+export function buildUpdatedChangeLog(existingRaw: string, event: HwChangeLogEvent) {
+  const updated = [event, ...parseChangeLog(existingRaw)].slice(0, MAX_CHANGE_LOG_ENTRIES);
+  const json = JSON.stringify(updated);
+  const chunks: string[] = [];
+  for (let i = 0; i < json.length; i += 1900) chunks.push(json.slice(i, i + 1900));
+  return { json, richText: { rich_text: chunks.map(c => ({ text: { content: c } })) } };
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 대시보드용 집계 통계 (전체 레코드 대신 이걸 KV에 별도 저장)
@@ -142,6 +183,68 @@ export function computeHwStats(records: HwRecord[]): HwStats {
   };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// hw:all/hw:stats/hw:deltas KV 캐시 in-place 패치 — Notion 페이지 업데이트 후 호출
+// ─────────────────────────────────────────────────────────────────────────────
+export async function patchHwCache(id: string, fields: Record<string, unknown>): Promise<void> {
+  const kvPatchPromise = (async () => {
+    const all = await kvGet<HwRecord[]>("hw:all");
+    if (!all) return; // KV 미스 — warm 시 자연히 반영됨
+    const updated = all.map(r => r.id === id ? { ...r, ...fields } : r);
+    const stats   = computeHwStats(updated);
+    await Promise.all([
+      kvSetPermanent("hw:all",   updated),
+      kvSetPermanent("hw:stats", stats),
+    ]);
+  })();
+
+  const deltaPromise = (async () => {
+    const existing = await kvGet<Record<string, Record<string, unknown>>>("hw:deltas") ?? {};
+    await kvSet("hw:deltas", { ...existing, [id]: fields }, 3600);
+  })();
+
+  await Promise.all([kvPatchPromise, deltaPromise]);
+}
+
+/**
+ * PC 실사 스캔이 마스터값과 완전히 일치할 때 자동 호출 — 해당 자산을
+ * 사용중 상태로, 실사확인 체크박스를 true로 표시한다.
+ * 스캔에서 받은 MAC/이메일/CPU/RAM이 있으면 마스터에도 함께 반영한다.
+ */
+export async function markHwVerifiedByScanMatch(
+  id: string,
+  extra?: { mac?: string; email?: string; cpu?: string; ram?: string }
+): Promise<void> {
+  const properties: Record<string, unknown> = {
+    "사용/재고/폐기/기타": { select: { name: "사용중" } },
+    "실사확인": { checkbox: true },
+  };
+  const patch: Record<string, unknown> = { status: "사용중", verified: true };
+
+  if (extra?.mac) {
+    properties["MAC"] = { rich_text: [{ text: { content: extra.mac } }] };
+    patch.mac = extra.mac;
+  }
+  if (extra?.email) {
+    properties["이메일"] = { email: extra.email };
+    patch.email = extra.email;
+  }
+  if (extra?.cpu) {
+    properties["CPU"] = { rich_text: [{ text: { content: extra.cpu } }] };
+    patch.cpu = extra.cpu;
+  }
+  if (extra?.ram) {
+    properties["RAM"] = { rich_text: [{ text: { content: extra.ram } }] };
+    patch.ram = extra.ram;
+  }
+
+  await notion.pages.update({
+    page_id: id,
+    properties: properties as Parameters<typeof notion.pages.update>[0]["properties"],
+  });
+  await patchHwCache(id, patch);
+}
+
 async function queryWithRetry(params: Parameters<typeof notion.databases.query>[0], maxRetries = 3) {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
@@ -199,7 +302,7 @@ export async function fetchHwFiltered({
   }
 
   if (assetNo) {
-    andFilters.push({ property: "자산번호", title: { equals: assetNo } });
+    andFilters.push({ property: "자산번호", rich_text: { equals: assetNo } });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -230,13 +333,24 @@ export async function fetchHwFiltered({
   return records;
 }
 
+// 자산번호는 중복 등록된 경우(HwRecord.duplicated)가 있어 자산번호만으로 조회하면
+// 사용자가 클릭한 것과 다른 레코드가 나올 수 있다 — id가 있으면 이 함수로 정확히 단건 조회한다.
+export async function findHwById(id: string): Promise<HwRecord | null> {
+  if (isMock()) {
+    return (mockHwRecords.find(r => r.id === id) as HwRecord) ?? null;
+  }
+  const page = await notion.pages.retrieve({ page_id: id });
+  if (page.object !== "page" || !("properties" in page)) return null;
+  return mapPage(page as PageObjectResponse);
+}
+
 export async function findHwByAssetNo(assetNo: string): Promise<HwRecord | null> {
   if (isMock()) {
     return (mockHwRecords.find(r => r.assetNo === assetNo) as HwRecord) ?? null;
   }
   const res = await queryWithRetry({
     database_id: DB_ID,
-    filter: { property: "자산번호", title: { equals: assetNo } },
+    filter: { property: "자산번호", rich_text: { equals: assetNo } },
     page_size: 1,
   });
   const page = res.results[0];

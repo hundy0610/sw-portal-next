@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
-import { computeHwStats, type HwRecord } from "@/lib/hw";
-import { kvGet, kvSet, kvSetPermanent } from "@/lib/kv-store";
+import { type HwRecord, type HwChangeLogEvent, buildUpdatedChangeLog, patchHwCache } from "@/lib/hw";
+import { kvGet } from "@/lib/kv-store";
 import { memDel } from "@/lib/mem-cache";
 import { autoCompleteReturnsByAssetId, autoSyncUseDateByAssetId } from "@/lib/exchange-return";
 import { getSessionFromCookieHeader, resolveCurrentName, companyScope } from "@/lib/session";
@@ -52,6 +52,10 @@ function buildProperties(fields: FieldMap) {
   if (fields.dept        !== undefined) txt("부서",         String(fields.dept));
   if (fields.location    !== undefined) txt("위치",         String(fields.location));
   if (fields.note        !== undefined) txt("기타",         String(fields.note));
+  if (fields.email       !== undefined) {
+    const emailVal = String(fields.email ?? "");
+    props["이메일"] = emailVal ? { email: emailVal } : { email: null };
+  }
 
   if (fields.returnDue   !== undefined) dt("반납예정일", String(fields.returnDue  ?? ""));
   if (fields.returnDate  !== undefined) dt("반납일자",   String(fields.returnDate ?? ""));
@@ -65,6 +69,28 @@ function buildProperties(fields: FieldMap) {
   if (fields.lastModifiedAt !== undefined) txt("마지막수정일시", String(fields.lastModifiedAt));
 
   return props;
+}
+
+// 변경이력에 기록할 필드 목록 — 전역 감사로그(8개)보다 넓게 전체 수정가능 필드 포함
+const HW_LOG_FIELDS: { key: keyof HwRecord; label: string }[] = [
+  { key: "status",     label: "상태" },
+  { key: "company",    label: "법인" },
+  { key: "user",       label: "사용자" },
+  { key: "assetNo",    label: "자산번호" },
+  { key: "serial",     label: "시리얼" },
+  { key: "dept",       label: "부서" },
+  { key: "location",   label: "위치" },
+  { key: "note",       label: "기타" },
+  { key: "email",      label: "이메일" },
+  { key: "returnDue",  label: "반납예정일" },
+  { key: "returnDate", label: "반납일자" },
+  { key: "useDate",    label: "사용일자" },
+  { key: "verified",   label: "실사확인" },
+];
+
+function fmtLogValue(v: unknown): string {
+  if (typeof v === "boolean") return v ? "예" : "아니오";
+  return v === undefined || v === null || v === "" ? "(없음)" : String(v);
 }
 
 export async function POST(req: NextRequest) {
@@ -106,6 +132,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "업데이트할 필드 없음" }, { status: 400 });
     }
 
+    // 변경이력 — 이번 저장에서 실제로 바뀐 필드들을 하나의 이벤트로 묶어 "변경이력" 속성에 함께 기록
+    const logChanges = HW_LOG_FIELDS
+      .filter(f => f.key in (rawFields as object))
+      .map(f => ({
+        field: f.key as string, label: f.label,
+        from: fmtLogValue(before?.[f.key]), to: fmtLogValue((rawFields as Partial<HwRecord>)[f.key]),
+      }))
+      .filter(c => c.from !== c.to);
+    if (logChanges.length > 0) {
+      const event: HwChangeLogEvent = { at: modifiedAt, by: modifiedBy, changes: logChanges };
+      const { json, richText } = buildUpdatedChangeLog(before?.changeLog ?? "", event);
+      properties["변경이력"] = richText;
+      fields.changeLog = json; // KV 캐시 patch(hw:all/hw:deltas)에도 최신 변경이력이 함께 반영되도록
+    }
+
     // Notion 페이지 업데이트 — 성공을 먼저 확인해야 캐시도 그 값으로 갱신
     await notion.pages.update({
       page_id: id,
@@ -128,32 +169,14 @@ export async function POST(req: NextRequest) {
     });
 
     // KV 캐시 in-place 패치 (삭제하지 않고 해당 레코드만 수정)
-    const kvPatchPromise = (async () => {
-      const all = await kvGet<HwRecord[]>("hw:all");
-      if (!all) return; // KV 미스 — warm 시 자연히 반영됨
-      const updated = all.map(r => r.id === id ? { ...r, ...fields } : r);
-      const stats   = computeHwStats(updated);
-      await Promise.all([
-        kvSetPermanent("hw:all",   updated),
-        kvSetPermanent("hw:stats", stats),
-      ]);
-      // 인메모리 캐시 무효화 (KV는 이미 최신)
-    })();
-
-    // hw:deltas 맵 업데이트 — hw:all 패치 성패와 무관하게 최신값 보장 (TTL 1시간)
-    const deltaPromise = (async () => {
-      const existing = await kvGet<Record<string, FieldMap>>("hw:deltas") ?? {};
-      await kvSet("hw:deltas", { ...existing, [id]: fields }, 3600);
-    })();
-
-    await Promise.all([kvPatchPromise, deltaPromise]);
+    await patchHwCache(id, fields);
 
     // 상태가 "재고"로 변경되거나 사용일자가 변경된 경우 — 연결된 자산 흐름 레코드에 반영
     if ((fields.status === "재고" || fields.useDate !== undefined) && process.env.NOTION_DB_EXCHANGE_RETURN) {
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const page: any = await notion.pages.retrieve({ page_id: id });
-        const assetNo: string = page.properties?.["자산번호"]?.title?.[0]?.plain_text || "";
+        const assetNo: string = page.properties?.["자산번호"]?.rich_text?.[0]?.plain_text || "";
         if (assetNo) {
           let changed = 0;
           if (fields.status === "재고") {

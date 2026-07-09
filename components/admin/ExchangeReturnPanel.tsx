@@ -7,6 +7,20 @@ import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { LabelPrintTab, PrintQueueSection } from "@/components/admin/LabelPrintTab";
 import { safeJson } from "@/lib/fetch-json";
+import { useAdminDarkMode } from "@/lib/use-admin-dark-mode";
+
+// 단계 필터 칩 색상 — 다크모드에서는 옅은 파스텔 배경 대신 중립 다크 서피스 +
+// dot 색상 텍스트로, 0건인 칩은 더 옅은 회색으로 표시한다.
+function stageChipStyle(
+  c: { bg: string; text: string; dot: string },
+  cnt: number,
+  active: boolean,
+  dark: boolean,
+): { background: string; color: string } {
+  if (active) return { background: c.dot, color: "#fff" };
+  if (cnt > 0) return dark ? { background: "#1c1c1c", color: c.dot } : { background: c.bg, color: c.text };
+  return dark ? { background: "#161616", color: "#525252" } : { background: "#F8FAFC", color: "#CBD5E1" };
+}
 
 // Promise.all로 동시 처리하는 Notion 쓰기 중 하나라도 실패하면 즉시 throw하여
 // 호출부의 try/catch가 잡도록 한다. 이걸 안 하면 실패해도 모르고 로컬 상태를
@@ -59,11 +73,11 @@ const STAGE_COLORS: Record<string, { bg: string; text: string; dot: string }> = 
   "반납완료":   { bg: "#F0FDF4", text: "#15803D", dot: "#22C55E" },
 };
 
-const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
-  "교체":     { bg: "#EFF6FF", text: "#1D4ED8" },
-  "퇴사반납": { bg: "#FEF2F2", text: "#B91C1C" },
-  "신규지급": { bg: "#F0FDF4", text: "#15803D" },
-  "임대":     { bg: "#FFF7ED", text: "#C2410C" },
+const TYPE_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
+  "교체":     { bg: "#EFF6FF", text: "#1D4ED8", dot: "#93C5FD" },
+  "퇴사반납": { bg: "#FEF2F2", text: "#B91C1C", dot: "#FCA5A5" },
+  "신규지급": { bg: "#F0FDF4", text: "#15803D", dot: "#86EFAC" },
+  "임대":     { bg: "#FFF7ED", text: "#C2410C", dot: "#FDBA74" },
 };
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -113,21 +127,23 @@ function DDay({ date }: { date: string }) {
 
 // ── Sub-components ───────────────────────────────────────────
 function StageBadge({ stage }: { stage: string }) {
-  const c = STAGE_COLORS[stage] ?? { bg: "#F1F5F9", text: "#64748B" };
+  const dark = useAdminDarkMode();
+  const c = STAGE_COLORS[stage] ?? { bg: "#F1F5F9", text: "#64748B", dot: "#94A3B8" };
   return (
     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap"
-      style={{ background: c.bg, color: c.text }}>
+      style={{ background: dark ? "#1c1c1c" : c.bg, color: dark ? c.dot : c.text }}>
       {stage || "—"}
     </span>
   );
 }
 
 function TypeBadge({ type }: { type: string }) {
+  const dark = useAdminDarkMode();
   if (!type) return <span className="text-xs text-gray-300">—</span>;
-  const c = TYPE_COLORS[type] ?? { bg: "#F1F5F9", text: "#64748B" };
+  const c = TYPE_COLORS[type] ?? { bg: "#F1F5F9", text: "#64748B", dot: "#94A3B8" };
   return (
     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap"
-      style={{ background: c.bg, color: c.text }}>
+      style={{ background: dark ? "#1c1c1c" : c.bg, color: dark ? c.dot : c.text }}>
       {type}
     </span>
   );
@@ -144,8 +160,10 @@ function stagesFor(type: string): readonly Stage[] {
 }
 
 function MiniStageBar({ stage, type }: { stage: string; type: string }) {
+  const dark = useAdminDarkMode();
   const visible = stagesFor(type);
   const idx = visible.indexOf(stage as Stage);
+  const notReached = dark ? "#333333" : "#E2E8F0";
   return (
     <div className="flex items-center gap-0.5">
       {visible.map((s, i) => {
@@ -156,7 +174,7 @@ function MiniStageBar({ stage, type }: { stage: string; type: string }) {
           <div key={s} title={s} className="rounded-full transition-all"
             style={{
               width: active ? 10 : 6, height: active ? 10 : 6,
-              background: done ? "#22C55E" : active ? c.dot : "#E2E8F0",
+              background: done ? "#22C55E" : active ? c.dot : notReached,
               border: active ? `2px solid ${c.dot}` : "none",
             }}
           />
@@ -167,8 +185,12 @@ function MiniStageBar({ stage, type }: { stage: string; type: string }) {
 }
 
 function BigStageBar({ stage, type }: { stage: string; type: string }) {
+  const dark = useAdminDarkMode();
   const visible = stagesFor(type);
   const idx = visible.indexOf(stage as Stage);
+  const notReached = dark ? "#333333" : "#E2E8F0";
+  const notReachedBorder = dark ? "#3a3a3a" : "#CBD5E1";
+  const notReachedLabel = dark ? "#525252" : "#94A3B8";
   return (
     <div className="flex items-start gap-0">
       {visible.map((s, i) => {
@@ -179,12 +201,12 @@ function BigStageBar({ stage, type }: { stage: string; type: string }) {
         return (
           <div key={s} className="flex flex-col items-center" style={{ flex: 1 }}>
             <div className="flex items-center w-full">
-              <div className="flex-1 h-0.5" style={{ background: i === 0 ? "transparent" : done || active ? "#22C55E" : "#E2E8F0" }} />
+              <div className="flex-1 h-0.5" style={{ background: i === 0 ? "transparent" : done || active ? "#22C55E" : notReached }} />
               <div className="rounded-full flex items-center justify-center flex-shrink-0 transition-all"
                 style={{
                   width: active ? 22 : 14, height: active ? 22 : 14,
-                  background: done ? "#22C55E" : active ? c.dot : "#E2E8F0",
-                  border: active ? `3px solid ${c.dot}` : done ? "none" : "2px solid #CBD5E1",
+                  background: done ? "#22C55E" : active ? c.dot : notReached,
+                  border: active ? `3px solid ${c.dot}` : done ? "none" : `2px solid ${notReachedBorder}`,
                 }}>
                 {done && (
                   <svg width="8" height="8" viewBox="0 0 12 12" fill="none">
@@ -192,10 +214,10 @@ function BigStageBar({ stage, type }: { stage: string; type: string }) {
                   </svg>
                 )}
               </div>
-              <div className="flex-1 h-0.5" style={{ background: isLast ? "transparent" : done ? "#22C55E" : "#E2E8F0" }} />
+              <div className="flex-1 h-0.5" style={{ background: isLast ? "transparent" : done ? "#22C55E" : notReached }} />
             </div>
             <div className="mt-1.5 text-center whitespace-pre-line leading-tight"
-              style={{ fontSize: 8, color: active ? c.text : done ? "#22C55E" : "#94A3B8", fontWeight: active ? 700 : done ? 600 : 400 }}>
+              style={{ fontSize: 8, color: active ? c.text : done ? "#22C55E" : notReachedLabel, fontWeight: active ? 700 : done ? 600 : 400 }}>
               {s}
             </div>
           </div>
@@ -1344,6 +1366,7 @@ function SwLicenseDetailModal({ record, onClose }: { record: SwDbRecord; onClose
 
 // ── HW 자산 상세 모달 ────────────────────────────────────────
 function HwAssetDetailModal({ assetNo, onClose }: { assetNo: string; onClose: () => void }) {
+  const dark = useAdminDarkMode();
   const [data, setData]     = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -1421,7 +1444,7 @@ function HwAssetDetailModal({ assetNo, onClose }: { assetNo: string; onClose: ()
                 return (
                   <div className="mb-4">
                     <span className="px-3 py-1 rounded-full text-xs font-bold"
-                      style={{ background: c.bg, color: c.text }}>{s}</span>
+                      style={{ background: dark ? "#1c1c1c" : c.bg, color: c.text }}>{s}</span>
                   </div>
                 );
               })()}
@@ -3384,6 +3407,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
 
 // ── 메인 패널 ─────────────────────────────────────────────────
 export default function ExchangeReturnPanel() {
+  const dark = useAdminDarkMode();
   const [records, setRecords] = useState<ExchangeReturnRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -3438,20 +3462,24 @@ export default function ExchangeReturnPanel() {
   const [mailPreviewData, setMailPreviewData] = useState<{ html: string; subject: string } | null>(null);
   const [mailPreviewLoading, setMailPreviewLoading] = useState(false);
   const [mailSendingId, setMailSendingId] = useState<string | null>(null);
-  const [mailSentIds, setMailSentIds] = useState<Set<string>>(() => {
-    try {
-      const stored = localStorage.getItem("exchange-return:mail-sent");
-      return stored ? new Set<string>(JSON.parse(stored)) : new Set<string>();
-    } catch { return new Set<string>(); }
-  });
+  // 발송 여부는 기기(localStorage)가 아니라 서버(KV)에 기록해 모든 관리자·기기에서 동일하게 보이도록 한다.
+  const [mailSentIds, setMailSentIds] = useState<Set<string>>(new Set());
   const [mailPanelErr, setMailPanelErr] = useState<string | null>(null);
 
+  useEffect(() => {
+    fetch("/api/exchange-return/mail-sent")
+      .then(r => safeJson(r))
+      .then(d => { if (d.ok && Array.isArray(d.ids)) setMailSentIds(new Set<string>(d.ids)); })
+      .catch(() => {});
+  }, []);
+
   const addMailSentId = useCallback((id: string) => {
-    setMailSentIds(prev => {
-      const next = new Set(prev).add(id);
-      try { localStorage.setItem("exchange-return:mail-sent", JSON.stringify([...next])); } catch { /* */ }
-      return next;
-    });
+    setMailSentIds(prev => new Set(prev).add(id));
+    fetch("/api/exchange-return/mail-sent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    }).catch(() => {});
   }, []);
 
   const handleMailPreview = useCallback(async (r: ExchangeReturnRecord, returnMethod?: "행낭" | "직접방문") => {
@@ -3767,7 +3795,10 @@ export default function ExchangeReturnPanel() {
           return (
             <button key={t} onClick={() => setTypeFilter(t)}
               className="px-3 py-1 rounded-full text-xs font-semibold transition-colors"
-              style={{ background: active ? "#1E293B" : c.bg, color: active ? "white" : c.text }}>
+              style={{
+                background: active ? "#1E293B" : dark ? "#1c1c1c" : c.bg,
+                color: active ? "white" : dark ? c.dot : c.text,
+              }}>
               {t}
             </button>
           );
@@ -3786,7 +3817,7 @@ export default function ExchangeReturnPanel() {
           return (
             <button key={s} onClick={() => setStageFilter(s)}
               className="px-3 py-1 rounded-full text-xs font-semibold transition-colors"
-              style={{ background: active ? c.dot : cnt > 0 ? c.bg : "#F8FAFC", color: active ? "white" : cnt > 0 ? c.text : "#CBD5E1" }}>
+              style={stageChipStyle(c, cnt, active, dark)}>
               {s} {cnt}
             </button>
           );
@@ -3891,16 +3922,16 @@ export default function ExchangeReturnPanel() {
                             disabled={mailPreviewLoading && mailTarget?.id === r.id}
                             className="flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
                             style={{
-                              background: mailSentIds.has(r.id)
+                              background: dark ? "#1c1c1c" : mailSentIds.has(r.id)
                                 ? "#D1FAE5"
                                 : r.stage === "반납요청"
                                   ? (r.address === "본사" ? "#FFFBEB" : "#FFF7ED")
                                   : (r.address === "본사" ? "#ECFDF5" : "#EFF6FF"),
                               color: mailSentIds.has(r.id)
-                                ? "#065F46"
+                                ? (dark ? "#6ee7b7" : "#065F46")
                                 : r.stage === "반납요청"
-                                  ? (r.address === "본사" ? "#D97706" : "#EA580C")
-                                  : (r.address === "본사" ? "#065F46" : "#1D4ED8"),
+                                  ? (r.address === "본사" ? (dark ? "#fbbf24" : "#D97706") : (dark ? "#fdba74" : "#EA580C"))
+                                  : (r.address === "본사" ? (dark ? "#6ee7b7" : "#065F46") : (dark ? "#93c5fd" : "#1D4ED8")),
                             }}
                             title={mailSentIds.has(r.id) ? "클릭하면 재발송" : "메일 발송"}
                           >

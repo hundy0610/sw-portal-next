@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { Client } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
-import { decodeSession } from "@/lib/session";
+import { decodeSession, resolveCurrentRole } from "@/lib/session";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import type { Account, GmDetail } from "@/app/api/admin/accounts/route";
 import crypto from "crypto";
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
   const token = request.cookies.get("admin_session")?.value;
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const session = decodeSession(token);
-  if (!session || session.role !== "super") {
+  if (!session || (await resolveCurrentRole(session)) !== "super") {
     return NextResponse.json({ error: "슈퍼어드민만 실행할 수 있습니다" }, { status: 403 });
   }
 

@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import type { MeetingRentalTicket, MeetingEquipment } from "@/types";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import { safeJson } from "@/lib/fetch-json";
+import { useAdminDarkMode } from "@/lib/use-admin-dark-mode";
 
 const COMPANIES = [
   "대웅", "대웅제약", "대웅바이오", "대웅개발", "대웅펫",
@@ -48,6 +49,7 @@ function InlineTicketStatusCell({ ticket, onUpdated }: {
   ticket: MeetingRentalTicket;
   onUpdated: (id: string, fields: Partial<MeetingRentalTicket>) => void;
 }) {
+  const dark = useAdminDarkMode();
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<"idle" | "done" | "error">("idle");
 
@@ -74,7 +76,7 @@ function InlineTicketStatusCell({ ticket, onUpdated }: {
         value={ticket.status}
         onChange={handleChange}
         disabled={saving}
-        style={{ background: c.bg, color: c.text }}
+        style={{ background: dark ? "#1c1c1c" : c.bg, color: c.text }}
         className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-transparent focus:outline-none focus:ring-1 focus:ring-blue-200 cursor-pointer disabled:opacity-50 appearance-none"
       >
         {TICKET_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}

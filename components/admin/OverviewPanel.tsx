@@ -69,54 +69,57 @@ function DonutChart({ data, title }: { data: DonutSeg[]; title: string }) {
   const hoverSeg = hovered ? segs.find(s => s.label === hovered) : null;
 
   return (
-    <div className="flex items-center gap-5 flex-wrap">
-      <div className="relative shrink-0">
-        <svg width="128" height="128" viewBox="0 0 128 128">
-          {total === 0
-            ? <circle cx={cx} cy={cy} r={r} fill="none" stroke="#E5E7EB" strokeWidth="18" />
-            : segs.map(s => (
-                <circle key={s.label} cx={cx} cy={cy} r={r} fill="none"
-                  stroke={s.color}
-                  strokeWidth={hovered === s.label ? 22 : 18}
-                  strokeDasharray={`${Math.max(0, s.len - 2)} ${C}`}
-                  strokeDashoffset={-s.startOff}
-                  transform={`rotate(-90 ${cx} ${cy})`}
-                  style={{ transition: "stroke-width 0.15s ease", cursor: "pointer" }}
-                  onMouseEnter={() => setHovered(s.label)}
-                  onMouseLeave={() => setHovered(null)}
-                />
-              ))
-          }
-          {hoverSeg ? (
-            <>
-              <text x="64" y="58" textAnchor="middle" fontSize="14" fontWeight="800" fill="#111827">{hoverSeg.value}</text>
-              <text x="64" y="72" textAnchor="middle" fontSize="8.5" fill="#6B7280">
-                {hoverSeg.label.length > 6 ? hoverSeg.label.slice(0,5)+"…" : hoverSeg.label}
-              </text>
-            </>
-          ) : (
-            <>
-              <text x="64" y="58" textAnchor="middle" fontSize="16" fontWeight="800" fill="#111827">{total.toLocaleString()}</text>
-              <text x="64" y="72" textAnchor="middle" fontSize="9" fill="#9CA3AF">{title}</text>
-            </>
-          )}
-        </svg>
-      </div>
-      <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-        {segs.slice(0, 9).map(s => (
-          <div key={s.label}
-            className={`flex items-center gap-2 text-xs rounded px-2 py-0.5 cursor-pointer transition-colors ${hovered === s.label ? "bg-gray-100" : "hover:bg-gray-50"}`}
-            onMouseEnter={() => setHovered(s.label)}
-            onMouseLeave={() => setHovered(null)}
-          >
-            <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: s.color }} />
-            <span className="text-gray-600 flex-1 truncate">{s.icon ? `${s.icon} ` : ""}{s.label}</span>
-            <span className="font-bold text-gray-900 shrink-0">{s.value}</span>
-            <span className="text-gray-400 w-8 text-right shrink-0">
-              {total > 0 ? `${Math.round(s.value / total * 100)}%` : "0%"}
-            </span>
-          </div>
-        ))}
+    <div className="flex flex-col gap-4">
+      <div className="text-xs font-semibold text-gray-500 text-center">{title}</div>
+      <div className="flex items-center gap-5 flex-wrap justify-center">
+        <div className="relative">
+          <svg width="128" height="128" viewBox="0 0 128 128" className="shrink-0">
+            {total === 0
+              ? <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--admin-table-row-border)" strokeWidth="18" />
+              : segs.map(s => (
+                  <circle
+                    key={s.label} cx={cx} cy={cy} r={r} fill="none"
+                    stroke={s.color}
+                    strokeWidth={hovered === s.label ? 22 : 18}
+                    strokeDasharray={`${Math.max(0, s.len - 2)} ${C}`}
+                    strokeDashoffset={-s.startOff}
+                    transform={`rotate(-90 ${cx} ${cy})`}
+                    style={{ transition: "stroke-width 0.15s ease", cursor: "pointer" }}
+                    onMouseEnter={() => setHovered(s.label)}
+                    onMouseLeave={() => setHovered(null)}
+                  />
+                ))
+            }
+            {hoverSeg ? (
+              <>
+                <text x="64" y="58" textAnchor="middle" fontSize="14" fontWeight="800" fill="var(--admin-text-primary)">{hoverSeg.value}</text>
+                <text x="64" y="72" textAnchor="middle" fontSize="8.5" fill="var(--admin-text-secondary)">{hoverSeg.label.length > 6 ? hoverSeg.label.slice(0,5)+"…" : hoverSeg.label}</text>
+              </>
+            ) : (
+              <>
+                <text x="64" y="58" textAnchor="middle" fontSize="16" fontWeight="800" fill="var(--admin-text-primary)">{total.toLocaleString()}</text>
+                <text x="64" y="72" textAnchor="middle" fontSize="9" fill="var(--admin-text-secondary)">전체</text>
+              </>
+            )}
+          </svg>
+        </div>
+        <div className="flex flex-col gap-1.5 min-w-0 flex-1 max-w-[200px]">
+          {segs.map(s => (
+            <div
+              key={s.label}
+              className={`flex items-center gap-2 text-xs rounded-md px-2 py-0.5 cursor-pointer transition-colors ${hovered === s.label ? "bg-gray-100" : "hover:bg-gray-50"}`}
+              onMouseEnter={() => setHovered(s.label)}
+              onMouseLeave={() => setHovered(null)}
+            >
+              <span className="w-2.5 h-2.5 rounded-sm shrink-0 transition-all" style={{ background: s.color }} />
+              <span className="text-gray-600 flex-1 truncate">{s.icon} {s.label}</span>
+              <span className="font-bold text-gray-900 ml-1 shrink-0">{s.value}</span>
+              <span className="text-gray-400 w-8 text-right shrink-0">
+                {total > 0 ? `${Math.round(s.value / total * 100)}%` : "0%"}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

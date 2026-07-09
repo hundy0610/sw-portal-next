@@ -64,6 +64,7 @@ const SUPER_GROUPS: MenuGroup[] = [
       { id: "hw-repair",       icon: "🛠️", label: "수리/과실청구 트래커",     desc: "외부 수리 · 과실 청구 관리" },
       { id: "rental-hw",       icon: "📦", label: "임대노트북 현황 관리",     desc: "임시 PC 대여 · 반납 관리"   },
       { id: "assetmap",        icon: "🖥️", label: "스마트오피스 모니터 관리", desc: "인터랙티브 자산 맵"         },
+      { id: "pc-scan",         icon: "🖥️", label: "온라인 자산 실사",         desc: "WPF 에이전트 PC 수집 데이터" },
     ],
   },
   {
@@ -82,6 +83,7 @@ const SUPER_GROUPS: MenuGroup[] = [
       { id: "helpdesk",   icon: "🎫", label: "문의 접수 현황",  desc: "유형·법인별 분석"       },
       { id: "repair",     icon: "🖥️", label: "모니터 수리 접수 내역",  desc: "모니터 수리 접수 · 처리" },
       { id: "meeting-rental", icon: "📡", label: "회의실 장비 대여 관리", desc: "신청 티켓 · 장비 현황 통합 관리" },
+      { id: "survey-demand", icon: "📝", label: "업무 툴 수요조사", desc: "번역 툴 수요 응답 관리" },
     ],
   },
   {
@@ -93,8 +95,6 @@ const SUPER_GROUPS: MenuGroup[] = [
       { id: "bugreport",     icon: "🐛", label: "버그리포트",      desc: "버그 및 개선요청 관리" },
       { id: "worktracker",   icon: "🗂️", label: "작업 트래커",     desc: "개인 작업 칸반 관리"   },
       { id: "audit",         icon: "🕵️", label: "감사 로그",       desc: "관리자 변경 이력"     },
-      { id: "survey-demand", icon: "📝", label: "업무 툴 수요조사", desc: "번역 툴 수요 응답 관리" },
-      { id: "pc-scan",      icon: "🖥️", label: "자산 실사 현황",   desc: "WPF 에이전트 PC 수집 데이터" },
     ],
   },
 ];
@@ -117,8 +117,11 @@ export default function AdminPage() {
   const [renewalCount,      setRenewalCount]      = useState(0);
 
   const [darkMode,        setDarkMode]        = useState(() => {
-    if (typeof window !== "undefined") return localStorage.getItem("admin-dark") === "1";
-    return false;
+    if (typeof window === "undefined") return false;
+    const saved = localStorage.getItem("admin-dark");
+    if (saved !== null) return saved === "1";
+    // 저장된 설정이 없으면 기기의 다크모드 여부를 따른다
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
   });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     if (typeof window !== "undefined") return localStorage.getItem("admin-sidebar-collapsed") === "1";
@@ -254,6 +257,7 @@ export default function AdminPage() {
     setDarkMode(d => {
       const next = !d;
       localStorage.setItem("admin-dark", next ? "1" : "0");
+      window.dispatchEvent(new CustomEvent("admin-dark-change", { detail: next }));
       return next;
     });
   }
@@ -461,27 +465,10 @@ export default function AdminPage() {
             </div>
           )}
 
-          {/* 하단 Notion 바로가기 (슈퍼어드민만) */}
-          {isSuper && (
-            <div className="mt-auto mx-3 pt-4 border-t border-white/10">
-              <div className="text-xs text-white/40 mb-2 px-1">Notion 바로가기</div>
-              <a href={process.env.NEXT_PUBLIC_NOTION_TRACKER_URL || "#"} target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-2 px-2 py-2 rounded text-xs text-white/60 hover:text-white hover:bg-white/10 transition-colors">
-                <span>🗄</span> SW DB 편집
-              </a>
-              <a href={process.env.NEXT_PUBLIC_NOTION_SW_UNIFIED_URL || "#"} target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-2 px-2 py-2 rounded text-xs text-white/60 hover:text-white hover:bg-white/10 transition-colors">
-                <span>📋</span> SW 데이터베이스
-              </a>
-              <a href="https://www.notion.so/29967f4bfdac8086b468ef3545b3e471" target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-2 px-2 py-2 rounded text-xs text-white/60 hover:text-white hover:bg-white/10 transition-colors">
-                <span>💻</span> NT/DT 트래커 (Notion)
-              </a>
-            </div>
-          )}
-
           <div className="px-4 pt-2 mt-auto">
-            <div className="text-xs text-white/30">v{process.env.NEXT_PUBLIC_APP_VERSION} · 법인별 계정</div>
+            <div className="text-xs text-white/30">
+              v{process.env.NEXT_PUBLIC_APP_VERSION} · {isSuper ? "슈퍼 어드민" : session.role === "general" ? "총무관리자" : "법인 담당자"}
+            </div>
           </div>
         </aside>
 
@@ -489,7 +476,7 @@ export default function AdminPage() {
         {sidebarCollapsed && (
           <button
             onClick={toggleSidebar}
-            className="absolute left-0 top-6 z-30 flex items-center justify-center w-5 h-10 rounded-r-lg shadow-md transition-colors"
+            className="absolute left-0 top-6 z-30 flex items-center justify-center w-5 h-10 rounded-r-lg border border-l-0 border-white/10 hover:border-white/25 transition-colors"
             style={{ background: "#1C2B4A" }}
             title="사이드바 열기"
           >

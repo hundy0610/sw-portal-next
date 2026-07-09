@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
-import { decodeSession } from "@/lib/session";
+import { decodeSession, resolveCurrentRole } from "@/lib/session";
 import type { GmDetail } from "@/app/api/admin/accounts/route";
 
 const GM_KEY         = "sw:general-managers";
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
 // PUT /api/general-managers — 목록 전체 교체 (슈퍼어드민만)
 export async function PUT(req: NextRequest) {
   const session = getSession(req);
-  if (!session || session.role !== "super") {
+  if (!session || (await resolveCurrentRole(session)) !== "super") {
     return NextResponse.json({ ok: false, error: "권한 없음" }, { status: 403 });
   }
 

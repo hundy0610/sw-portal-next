@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
-import { getSessionFromCookieHeader } from "@/lib/session";
+import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";
 import { buildNotifications } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +19,7 @@ function firstSeenKey(userId: string) {
 export async function GET(req: NextRequest) {
   const session = getSessionFromCookieHeader(req.headers.get("cookie"));
   if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-  if (session.role !== "super") return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+  if ((await resolveCurrentRole(session)) !== "super") return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
 
   try {
     const items = await buildNotifications(session);
@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = getSessionFromCookieHeader(req.headers.get("cookie"));
   if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-  if (session.role !== "super") return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+  if ((await resolveCurrentRole(session)) !== "super") return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
 
   try {
     const body = await req.json() as { ids?: string[]; all?: boolean };

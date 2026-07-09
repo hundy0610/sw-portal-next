@@ -1,11 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { type HwRecord, fetchHwFiltered } from "@/lib/hw";
+import { type HwRecord, fetchHwFiltered, parseChangeLog } from "@/lib/hw";
 import { kvGet } from "@/lib/kv-store";
 import { triggerWarmHw } from "@/lib/trigger-warm-hw";
 import { errorMessage } from "@/lib/api-error";
 import { getSessionFromCookieHeader, companyScope } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
+
+// 변경이력에 남은 과거 사용자/부서 값(from/to)만 매칭 — "by"(변경한 사람) 등 다른 텍스트는
+// 매칭 대상에서 제외해, 그 자산을 실제로 쓴 적 없는 관리자 이름이 검색결과에 섞이지 않게 한다.
+function matchesPastUserOrDept(changeLogRaw: string, q: string): boolean {
+  return parseChangeLog(changeLogRaw).some(ev =>
+    ev.changes.some(c =>
+      (c.field === "user" || c.field === "dept") &&
+      (c.from.toLowerCase().includes(q) || c.to.toLowerCase().includes(q))
+    )
+  );
+}
 
 export async function GET(req: NextRequest) {
   if (!process.env.NOTION_TOKEN) return NextResponse.json({ missingEnv: "NOTION_TOKEN", error: "환경변수 NOTION_TOKEN 이 설정되지 않았습니다." }, { status: 503 });
@@ -70,11 +81,12 @@ export async function GET(req: NextRequest) {
       const terms = search.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
       filtered = filtered.filter(r =>
         terms.some(q =>
-          r.user.toLowerCase().includes(q)    ||
-          r.assetNo.toLowerCase().includes(q) ||
-          r.model.toLowerCase().includes(q)   ||
-          r.serial.toLowerCase().includes(q)  ||
-          r.dept.toLowerCase().includes(q)
+          r.user.toLowerCase().includes(q)      ||
+          r.assetNo.toLowerCase().includes(q)   ||
+          r.model.toLowerCase().includes(q)     ||
+          r.serial.toLowerCase().includes(q)    ||
+          r.dept.toLowerCase().includes(q)      ||
+          matchesPastUserOrDept(r.changeLog || "", q)
         )
       );
     }

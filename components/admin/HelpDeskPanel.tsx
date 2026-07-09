@@ -6,6 +6,7 @@ import type { FeedbackEntry } from "@/app/api/feedback/route";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import { AssetModalInner, HwRecord, HW_STATUSES } from "@/components/admin/AssetModal";
 import { safeJson } from "@/lib/fetch-json";
+import { useAdminDarkMode } from "@/lib/use-admin-dark-mode";
 
 // ── Color configs ────────────────────────────────────────────
 const URGENCY: Record<string, { bg: string; text: string; bar: string }> = {
@@ -170,6 +171,7 @@ function InlineStatusCell({
   statuses: string[];
   onUpdated: (id: string, fields: Partial<HelpDeskTicket>) => void;
 }) {
+  const dark = useAdminDarkMode();
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<"idle" | "done" | "error">("idle");
 
@@ -196,7 +198,7 @@ function InlineStatusCell({
         value={ticket.status}
         onChange={handleChange}
         disabled={saving}
-        style={{ background: c.bg, color: c.text }}
+        style={{ background: dark ? "#1c1c1c" : c.bg, color: c.text }}
         className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-transparent focus:outline-none focus:ring-1 focus:ring-violet-200 cursor-pointer disabled:opacity-50 appearance-none"
       >
         {/* 현재 상태가 목록에 없는 경우 fallback */}
@@ -1067,20 +1069,22 @@ function HelpDeskTicketFloating({
 
 // ── Sub-components ───────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
+  const dark = useAdminDarkMode();
   const c = STATUS[status] ?? { bg: "#F1F5F9", text: "#64748B" };
   return (
     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap"
-      style={{ background: c.bg, color: c.text }}>
+      style={{ background: dark ? "#1c1c1c" : c.bg, color: c.text }}>
       {status || "—"}
     </span>
   );
 }
 
 function UrgencyBadge({ urgency }: { urgency: string }) {
+  const dark = useAdminDarkMode();
   const c = URGENCY[urgency] ?? { bg: "#F1F5F9", text: "#64748B", bar: "#94A3B8" };
   return (
     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap"
-      style={{ background: c.bg, color: c.text }}>
+      style={{ background: dark ? "#1c1c1c" : c.bg, color: c.text }}>
       {urgency || "—"}
     </span>
   );
@@ -1454,6 +1458,7 @@ function generateReportHTML(opts: {
 type Tab = "overview" | "type" | "company" | "list" | "status_list" | "report" | "assignee" | "analysis";
 
 export default function HelpDeskPanel({ company: companyFilter = "", typeFilter = "", currentUserName = "" }: { company?: string; typeFilter?: string; currentUserName?: string }) {
+  const dark = useAdminDarkMode();
   const [tickets,    setTickets]    = useState<HelpDeskTicket[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -2583,7 +2588,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                                       className={`w-full text-left px-4 py-2.5 hover:bg-violet-50/40 transition-colors ${h.id === t.id ? "bg-violet-50/60" : ""}`}>
                                       <div className="flex items-center gap-2 mb-1">
                                         <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
-                                          style={{ background: STATUS[h.status]?.bg || "#F8FAFC", color: STATUS[h.status]?.text || "#64748B" }}>
+                                          style={{ background: dark ? "#1c1c1c" : STATUS[h.status]?.bg || "#F8FAFC", color: STATUS[h.status]?.text || "#64748B" }}>
                                           {h.status}
                                         </span>
                                         <span className="text-[10px] font-semibold text-violet-700 bg-violet-50 px-1.5 py-0.5 rounded">

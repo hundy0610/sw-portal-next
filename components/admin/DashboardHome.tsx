@@ -5,6 +5,7 @@ import type { HwStats } from "@/lib/hw";
 import type { ExchangeReturnRecord } from "@/types";
 import { scGet, scSet } from "@/lib/session-cache";
 import { safeJson } from "@/lib/fetch-json";
+import { useAdminDarkMode } from "@/lib/use-admin-dark-mode";
 
 interface Props {
   company: string;
@@ -34,7 +35,7 @@ function DonutChart({ data, title }: { data: DonutSeg[]; title: string }) {
       <div className="relative shrink-0">
         <svg width="128" height="128" viewBox="0 0 128 128">
           {total === 0
-            ? <circle cx={cx} cy={cy} r={r} fill="none" stroke="#E5E7EB" strokeWidth="18" />
+            ? <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--admin-table-row-border)" strokeWidth="18" />
             : segs.map(s => (
                 <circle
                   key={s.label} cx={cx} cy={cy} r={r} fill="none"
@@ -51,15 +52,15 @@ function DonutChart({ data, title }: { data: DonutSeg[]; title: string }) {
           }
           {hoverSeg ? (
             <>
-              <text x="64" y="58" textAnchor="middle" fontSize="14" fontWeight="800" fill="#111827">{hoverSeg.value}</text>
-              <text x="64" y="72" textAnchor="middle" fontSize="8.5" fill="#6B7280">
+              <text x="64" y="58" textAnchor="middle" fontSize="14" fontWeight="800" fill="var(--admin-text-primary)">{hoverSeg.value}</text>
+              <text x="64" y="72" textAnchor="middle" fontSize="8.5" fill="var(--admin-text-secondary)">
                 {hoverSeg.label.length > 6 ? hoverSeg.label.slice(0, 5) + "…" : hoverSeg.label}
               </text>
             </>
           ) : (
             <>
-              <text x="64" y="58" textAnchor="middle" fontSize="16" fontWeight="800" fill="#111827">{total.toLocaleString()}</text>
-              <text x="64" y="72" textAnchor="middle" fontSize="9" fill="#9CA3AF">{title}</text>
+              <text x="64" y="58" textAnchor="middle" fontSize="16" fontWeight="800" fill="var(--admin-text-primary)">{total.toLocaleString()}</text>
+              <text x="64" y="72" textAnchor="middle" fontSize="9" fill="var(--admin-text-secondary)">{title}</text>
             </>
           )}
         </svg>
@@ -142,6 +143,7 @@ const TTL = 5 * 60 * 1000;
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────
 export default function DashboardHome({ company, initialHwStats, onNavigate }: Props) {
+  const dark = useAdminDarkMode();
   const isFiltered = !!company;
 
   // ── SW 현황
@@ -255,8 +257,8 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
     <div className="flex flex-col gap-6">
       {/* 페이지 타이틀 */}
       <div>
-        <h1 className="text-xl font-extrabold text-gray-900">대시보드</h1>
-        <p className="text-sm text-gray-400 mt-0.5">{isFiltered ? `${company} 현황 요약` : "전사 현황 요약"}</p>
+        <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">대시보드</h1>
+        <p className="text-sm text-gray-400 mt-1">{isFiltered ? `${company} 현황 요약` : "전사 현황 요약"}</p>
       </div>
 
       {/* ── ① HW 자산현황 | SW 자산현황 ─────────────────────────── */}
@@ -310,8 +312,8 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
               <button key={stage} onClick={() => setErStage(stage)}
                 className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all"
                 style={{
-                  background: active ? c.dot : c.bg,
-                  color: active ? "#fff" : c.text,
+                  background: active ? c.dot : dark ? "#1c1c1c" : c.bg,
+                  color: active ? "#fff" : dark ? c.dot : c.text,
                   borderColor: c.dot + "55",
                 }}>
                 <span className="w-1.5 h-1.5 rounded-full" style={{ background: active ? "#ffffffaa" : c.dot }} />
@@ -351,14 +353,14 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
                     style={{ gridTemplateColumns: "130px 64px 108px 108px 88px 80px 90px 1fr 100px 90px" }}>
                     <div className="flex items-center gap-1.5 min-w-0">
                       <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap shrink-0"
-                        style={{ background: sc.bg, color: sc.text }}>{r.stage}</span>
+                        style={{ background: dark ? "#1c1c1c" : sc.bg, color: dark ? sc.dot : sc.text }}>{r.stage}</span>
                       <span className="text-[10px] font-semibold shrink-0"
                         style={{ color: aging >= 7 ? "#DC2626" : aging >= 3 ? "#D97706" : "#9CA3AF" }}>
                         D+{aging}
                       </span>
                     </div>
                     <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold w-fit whitespace-nowrap"
-                      style={{ background: tc.bg, color: tc.text }}>{r.type || "—"}</span>
+                      style={{ background: dark ? "#1c1c1c" : tc.bg, color: tc.text }}>{r.type || "—"}</span>
                     <span className="text-[11px] text-blue-600 font-medium truncate pr-2">{r.assetId || "—"}</span>
                     <span className="text-[11px] text-blue-600 font-medium truncate pr-2">{r.newAssetId || "—"}</span>
                     <span className="text-[11px] text-gray-600 truncate pr-1">{r.company || "—"}</span>
@@ -391,7 +393,7 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
         <div className="flex flex-wrap gap-2">
           {(["hw","sw","all"] as const).map(t => (
             <button key={t} onClick={() => clearCache(t)} disabled={clearing}
-              className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-500 hover:border-red-300 hover:text-red-600 hover:bg-red-50 disabled:opacity-40 transition-colors flex items-center gap-1.5">
+              className="text-xs px-3 py-1.5 rounded-[10px] border border-gray-200 bg-white text-gray-500 hover:border-red-300 hover:text-red-600 hover:bg-red-50 disabled:opacity-40 transition-colors flex items-center gap-1.5">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>
               </svg>

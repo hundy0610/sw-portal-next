@@ -58,6 +58,12 @@ const num = (p, k) => {
   return 0;
 };
 
+const email = (p, k) => {
+  const v = p[k];
+  if (!v || v.type !== "email") return "";
+  return v.email || "";
+};
+
 function mapPage(page) {
   const p = page.properties;
   return {
@@ -82,8 +88,11 @@ function mapPage(page) {
     residualValue: num(p, "잔존가치"),
     note:          txt(p, "기타"),
     docNo:         txt(p, "결재문서번호"),
+    mac:           txt(p, "MAC"),
+    email:         email(p, "이메일"),
     verified:   p["실사확인"]?.type === "checkbox" ? p["실사확인"].checkbox : false,
     duplicated: p["중복"]?.type     === "checkbox" ? p["중복"].checkbox    : false,
+    changeLog:  txt(p, "변경이력"),
   };
 }
 

@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { decodeSession, resolveCurrentName, type AdminSession } from "@/lib/session";
+import { decodeSession, resolveCurrentName, resolveCurrentRole, type AdminSession } from "@/lib/session";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { hashPassword } from "@/lib/crypto";
 import { createMailTransporter, buildWelcomeEmail } from "@/lib/mail";
@@ -38,11 +38,12 @@ export interface GmDetail {
   name: string;
 }
 
-function requireSuper(request: NextRequest): AdminSession | null {
+async function requireSuper(request: NextRequest): Promise<AdminSession | null> {
   const token = request.cookies.get("admin_session")?.value;
   if (!token) return null;
   const session = decodeSession(token);
-  return session?.role === "super" ? session : null;
+  if (!session) return null;
+  return (await resolveCurrentRole(session)) === "super" ? session : null;
 }
 
 function hasKv(): boolean {
@@ -82,7 +83,7 @@ async function syncGmLists(accounts: Account[]) {
 
 // ── GET — 계정 목록 (슈퍼어드민만) ──────────────────────────
 export async function GET(request: NextRequest) {
-  if (!requireSuper(request)) {
+  if (!await requireSuper(request)) {
     return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 });
   }
 
@@ -102,7 +103,7 @@ export async function GET(request: NextRequest) {
 
 // ── POST — 계정 생성 (비밀번호 없음, mustChangePassword=true) ─
 export async function POST(request: NextRequest) {
-  const session = requireSuper(request);
+  const session = await requireSuper(request);
   if (!session) {
     return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 });
   }
@@ -173,7 +174,7 @@ export async function POST(request: NextRequest) {
 
 // ── PATCH — 계정 수정 / 임시 비밀번호 재발송 ─────────────────
 export async function PATCH(request: NextRequest) {
-  const session = requireSuper(request);
+  const session = await requireSuper(request);
   if (!session) {
     return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 });
   }
@@ -267,7 +268,7 @@ export async function PATCH(request: NextRequest) {
 
 // ── DELETE — 계정 비활성화 또는 영구 삭제 ────────────────────
 export async function DELETE(request: NextRequest) {
-  const session = requireSuper(request);
+  const session = await requireSuper(request);
   if (!session) {
     return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 });
   }

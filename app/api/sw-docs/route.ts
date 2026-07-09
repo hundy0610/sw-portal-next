@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchSwDocs, createSwDoc, updateSwDoc, archiveSwDoc } from "@/lib/notion";
-import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
+import { getSessionFromCookieHeader, resolveCurrentName, resolveCurrentRole } from "@/lib/session";
 import { appendAuditLog, summarizeChanges } from "@/lib/portal-store";
 import { errorMessage } from "@/lib/api-error";
 
-function getSuperSession(req: NextRequest) {
+async function getSuperSession(req: NextRequest) {
   const s = getSessionFromCookieHeader(req.headers.get("cookie"));
-  return s?.role === "super" ? s : null;
+  if (!s) return null;
+  return (await resolveCurrentRole(s)) === "super" ? s : null;
 }
 
 export async function GET(req: NextRequest) {
   const versionId = req.nextUrl.searchParams.get("versionId") ?? undefined;
   const all = req.nextUrl.searchParams.get("all") === "1";
-  if (all && !getSuperSession(req)) {
+  if (all && !(await getSuperSession(req))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {
@@ -24,7 +25,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = getSuperSession(req);
+  const session = await getSuperSession(req);
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

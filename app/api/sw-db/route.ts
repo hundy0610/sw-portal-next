@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSwItems, saveSwItems, appendAuditLog, summarizeChanges } from "@/lib/portal-store";
-import { getSessionFromCookieHeader, resolveCurrentName } from "@/lib/session";
+import { getSessionFromCookieHeader, resolveCurrentName, resolveCurrentRole } from "@/lib/session";
 import type { SwItem } from "@/types";
 import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
 
-function getSuperSession(req: NextRequest) {
+async function getSuperSession(req: NextRequest) {
   const session = getSessionFromCookieHeader(req.headers.get("cookie"));
-  if (!session || session.role !== "super") return null;
+  if (!session || (await resolveCurrentRole(session)) !== "super") return null;
   return session;
 }
 
@@ -23,7 +23,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const session = getSuperSession(req);
+  const session = await getSuperSession(req);
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

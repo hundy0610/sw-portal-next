@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import JSZip from "jszip";
-import { getSessionFromCookieHeader } from "@/lib/session";
+import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";
 import { fetchPcScans } from "@/lib/pc-scan";
 import { errorMessage } from "@/lib/api-error";
 
@@ -10,7 +10,7 @@ export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   const session = getSessionFromCookieHeader(req.headers.get("cookie"));
-  if (!session || session.role !== "super") {
+  if (!session || (await resolveCurrentRole(session)) !== "super") {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
@@ -59,12 +59,14 @@ export async function POST(req: NextRequest) {
 
     const zipBuf = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
     const date = new Date().toISOString().slice(0, 10);
+    const filename = `설치프로그램_${date}.zip`;
 
     return new NextResponse(zipBuf.buffer as ArrayBuffer, {
       status: 200,
       headers: {
         "Content-Type": "application/zip",
-        "Content-Disposition": `attachment; filename="설치프로그램_${date}.zip"`,
+        // Content-Disposition 헤더는 ByteString만 허용되어 한글을 직접 넣으면 undici가 예외를 던짐 (RFC 5987 인코딩 필요)
+        "Content-Disposition": `attachment; filename="install-programs_${date}.zip"; filename*=UTF-8''${encodeURIComponent(filename)}`,
         "Content-Length": String(zipBuf.byteLength),
       },
     });
