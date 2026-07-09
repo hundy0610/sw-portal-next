@@ -52,6 +52,10 @@ function buildProperties(fields: FieldMap) {
   if (fields.dept        !== undefined) txt("부서",         String(fields.dept));
   if (fields.location    !== undefined) txt("위치",         String(fields.location));
   if (fields.note        !== undefined) txt("기타",         String(fields.note));
+  if (fields.email       !== undefined) {
+    const emailVal = String(fields.email ?? "");
+    props["이메일"] = emailVal ? { email: emailVal } : { email: null };
+  }
 
   if (fields.returnDue   !== undefined) dt("반납예정일", String(fields.returnDue  ?? ""));
   if (fields.returnDate  !== undefined) dt("반납일자",   String(fields.returnDate ?? ""));
@@ -77,6 +81,7 @@ const HW_LOG_FIELDS: { key: keyof HwRecord; label: string }[] = [
   { key: "dept",       label: "부서" },
   { key: "location",   label: "위치" },
   { key: "note",       label: "기타" },
+  { key: "email",      label: "이메일" },
   { key: "returnDue",  label: "반납예정일" },
   { key: "returnDate", label: "반납일자" },
   { key: "useDate",    label: "사용일자" },
