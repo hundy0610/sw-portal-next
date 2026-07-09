@@ -838,6 +838,42 @@ function Step3({ userInfo, records, added, onReset }: {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 실사 취지 안내 — "이거 왜 또 입력하나요?"에 대한 답
+// ─────────────────────────────────────────────────────────────────────────────
+function ScopeExplainer() {
+  return (
+    <div className="max-w-2xl xl:max-w-3xl 2xl:max-w-4xl mx-auto mb-6">
+      <div className="bg-white rounded-2xl border border-gray-200 p-5 xl:p-6">
+        <p className="text-sm font-bold text-gray-900 mb-3">이 실사는 어떤 부분을 확인하나요?</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+          <div className="flex gap-3">
+            <span className="shrink-0 w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 text-xs">✓</span>
+            <div>
+              <p className="font-semibold text-gray-700">PC·설치 프로그램은 자동 점검</p>
+              <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
+                하드웨어 사양과 설치된 프로그램 목록은 사내 점검 프로그램이 자동으로 수집해요. 따로 입력하실 필요 없습니다.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <span className="shrink-0 w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 text-xs font-bold">!</span>
+            <div>
+              <p className="font-semibold text-gray-700">구독료·라이선스 유형은 본인 확인 필요</p>
+              <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
+                누가 어떤 요금제를 얼마에 쓰는지는 자동으로 알 수 없어요. 이 부분만 몇 번의 클릭으로 확인해주시면 됩니다.
+              </p>
+            </div>
+          </div>
+        </div>
+        <p className="text-xs text-gray-400 mt-4 pt-4 border-t border-gray-100">
+          지난 실사에서는 자가 진행 방식으로 참여율 86%를 달성했어요 — 본인 확인 한 번이면 대부분 끝납니다.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 모드 선택 — 개인 / 팀
 // ─────────────────────────────────────────────────────────────────────────────
 function ModeSelect({ onSelect }: { onSelect: (m: "personal" | "team" | "history") => void }) {
@@ -1362,7 +1398,12 @@ export default function DeclarationPanel() {
         )}
       </div>
 
-      {mode === null && <ModeSelect onSelect={setMode} />}
+      {mode === null && (
+        <>
+          <ScopeExplainer />
+          <ModeSelect onSelect={setMode} />
+        </>
+      )}
 
       {mode === "personal" && (
         <>
