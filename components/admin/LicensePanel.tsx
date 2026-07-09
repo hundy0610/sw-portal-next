@@ -5,7 +5,7 @@ import type { SwDbRecord } from "@/types";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import { scGet, scSet, scDel } from "@/lib/session-cache";
 import { safeJson } from "@/lib/fetch-json";
-import { downloadSwTemplate, parseSwExcelFile, type SwExcelRow } from "@/lib/sw-template";
+import { downloadSwTemplate, parseSwExcelFile, downloadSwRecordsExcel, type SwExcelRow } from "@/lib/sw-template";
 
 const LC_KEY    = (co: string) => `lc:lp:swrec${co ? `:${co}` : ""}`;
 const LC_TTL_MS = 30 * 60 * 1000; // localStorage 30분
@@ -1484,6 +1484,40 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
     }
   }, [company]);
 
+  // 검색 결과 다운로드 (엑셀 / 증서·기안문서 ZIP)
+  const [zipping,  setZipping]  = useState(false);
+  const [zipError, setZipError] = useState("");
+
+  const handleZipDownload = useCallback(async (targets: SwDbRecord[]) => {
+    const ids = targets.filter(r => r.certificate || r.draftDocument).map(r => r.id);
+    if (ids.length === 0) return;
+    setZipping(true); setZipError("");
+    try {
+      const res = await fetch("/api/sw/export-zip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      if (!res.ok) {
+        const json = await safeJson(res);
+        throw new Error(json.error ?? "ZIP 다운로드 실패");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "SW증서_기안문서.zip";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setZipError(String(e));
+    } finally {
+      setZipping(false);
+    }
+  }, []);
+
   // 필터 상태
   const [search,           setSearch]           = useState("");
   const [filterMacrocat,   setFilterMacrocat]   = useState("전체");
@@ -1801,6 +1835,21 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
           )}
           {deleteError && (
             <span className="text-xs text-red-500">{deleteError}</span>
+          )}
+          <button
+            onClick={() => downloadSwRecordsExcel(filtered)}
+            disabled={filtered.length === 0}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-emerald-300 text-emerald-700 text-xs font-semibold rounded-lg hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title="현재 검색된 목록을 엑셀로 다운로드"
+          >📥 엑셀 다운로드</button>
+          <button
+            onClick={() => handleZipDownload(filtered)}
+            disabled={zipping || filtered.filter(r => r.certificate || r.draftDocument).length === 0}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-300 text-gray-600 text-xs font-semibold rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title="검색된 목록의 증서·기안문서를 ZIP으로 다운로드"
+          >{zipping ? "압축 중…" : "🗂 증서/기안문서 ZIP"}</button>
+          {zipError && (
+            <span className="text-xs text-red-500">{zipError}</span>
           )}
           <span className="text-xs text-gray-400">{filtered.length}건 조회됨</span>
         </div>
