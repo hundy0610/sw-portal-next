@@ -7,19 +7,19 @@ import type { AuditLog } from "@/lib/portal-store";
 import type { SwItem } from "@/types";
 import { safeJson } from "@/lib/fetch-json";
 
-/* ── 색상 토큰 ── */
+/* ── 색상 토큰 — 브랜드 앰버로 통일, CSS 변수 참조 (다크모드는 .portal-dark로 자동 대응) ── */
 const C = {
-  brand:       "#1E3A8A",
-  primary:     "#2563EB",
-  primarySoft: "#EFF6FF",
-  text1:       "#0f172a",
-  text2:       "#334155",
-  text3:       "#64748b",
-  text4:       "#94a3b8",
-  border:      "#E2E8F0",
-  bg:          "#f0f4f8",
-  danger:      "#DC2626",
-  dangerSoft:  "#FEE2E2",
+  brand:       "var(--brand)",
+  primary:     "var(--brand)",
+  primarySoft: "var(--brand-soft)",
+  text1:       "var(--portal-text)",
+  text2:       "var(--portal-text-2)",
+  text3:       "var(--portal-text-3)",
+  text4:       "var(--portal-text-4)",
+  border:      "var(--portal-border)",
+  bg:          "var(--portal-bg)",
+  danger:      "var(--state-risk)",
+  dangerSoft:  "var(--state-risk-soft)",
 } as const;
 
 type ManageTab = "notices" | "courses" | "swdb" | "audit" | "swresources" | "manuals";
@@ -82,6 +82,21 @@ function ManagePageInner() {
 function ManageDashboard({ session }: { session: SessionInfo }) {
   const [tab, setTab] = useState<ManageTab>("notices");
 
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const saved = localStorage.getItem("portal-dark");
+    if (saved !== null) return saved === "1";
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  });
+  function toggleDark() {
+    setDarkMode(d => {
+      const next = !d;
+      localStorage.setItem("portal-dark", next ? "1" : "0");
+      window.dispatchEvent(new CustomEvent("portal-dark-change", { detail: next }));
+      return next;
+    });
+  }
+
   const TABS: { id: ManageTab; label: string; icon: string }[] = [
     { id: "notices",     label: "공지사항",   icon: "🔔" },
     { id: "courses",     label: "교육과정",   icon: "🎓" },
@@ -97,9 +112,9 @@ function ManageDashboard({ session }: { session: SessionInfo }) {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg }}>
+    <div className={darkMode ? "portal-dark" : ""} style={{ minHeight: "100vh", background: C.bg }}>
       {/* 헤더 */}
-      <header style={{ background: "#fff", position: "sticky", top: 0, zIndex: 40, borderBottom: `1px solid ${C.border}` }}>
+      <header style={{ background: "var(--portal-surface)", position: "sticky", top: 0, zIndex: 40, borderBottom: `1px solid ${C.border}` }}>
         <div style={{ maxWidth: 1280, margin: "0 auto", padding: "14px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
             <div style={{ width: 32, height: 32, borderRadius: 8, background: C.primary, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 900, fontSize: 11 }}>SW</div>
@@ -115,7 +130,7 @@ function ManageDashboard({ session }: { session: SessionInfo }) {
                 className="transition-colors"
                 style={{
                   padding: "8px 14px", borderRadius: 8, border: "none", fontSize: 12, cursor: "pointer", whiteSpace: "nowrap",
-                  background: tab === t.id ? "#fff" : "transparent",
+                  background: tab === t.id ? "var(--portal-surface)" : "transparent",
                   color:      tab === t.id ? C.brand  : C.text3,
                   fontWeight: tab === t.id ? 700 : 500,
                   boxShadow:  tab === t.id ? "0 1px 3px rgba(0,0,0,.08)" : "none",
@@ -125,11 +140,19 @@ function ManageDashboard({ session }: { session: SessionInfo }) {
             ))}
           </div>
 
-          <button onClick={handleLogout}
-            className="hover:brightness-95 transition-all"
-            style={{ padding: "6px 14px", borderRadius: 8, background: C.dangerSoft, color: C.danger, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
-            로그아웃
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            <button onClick={toggleDark}
+              className="hover:brightness-95 transition-all"
+              title={darkMode ? "라이트 모드로 전환" : "다크 모드로 전환"}
+              style={{ padding: "6px 10px", borderRadius: 8, background: C.bg, color: C.text3, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+              {darkMode ? "☀️" : "🌙"}
+            </button>
+            <button onClick={handleLogout}
+              className="hover:brightness-95 transition-all"
+              style={{ padding: "6px 14px", borderRadius: 8, background: C.dangerSoft, color: C.danger, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+              로그아웃
+            </button>
+          </div>
         </div>
       </header>
 
@@ -173,7 +196,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-const iStyle: React.CSSProperties = { width: "100%", padding: "10px 12px", borderRadius: 12, border: `1px solid ${C.border}`, fontSize: 13, outline: "none", background: "#fff", fontFamily: "inherit" };
+const iStyle: React.CSSProperties = { width: "100%", padding: "10px 12px", borderRadius: 12, border: `1px solid ${C.border}`, fontSize: 13, outline: "none", background: "var(--portal-surface)", fontFamily: "inherit" };
 
 /* ══════════════════════════════════════════════════════
    공지사항 패널
@@ -219,7 +242,7 @@ function NoticesPanel() {
           <Field label="제목 *"><input style={iStyle} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="공지 제목" /></Field>
           <Field label="내용"><textarea style={{ ...iStyle, minHeight: 90, resize: "vertical" }} value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} placeholder="공지 내용" /></Field>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            <Field label="날짜"><div style={{ display: "flex", alignItems: "center", gap: 4 }}><input type="date" style={{ ...iStyle, flex: 1, width: "auto" }} value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />{form.date && <button type="button" onClick={() => setForm(f => ({ ...f, date: "" }))} style={{ color: "#9ca3af", fontSize: 18, lineHeight: 1, padding: "0 2px", background: "none", border: "none", cursor: "pointer", flexShrink: 0 }}>×</button>}</div></Field>
+            <Field label="날짜"><div style={{ display: "flex", alignItems: "center", gap: 4 }}><input type="date" style={{ ...iStyle, flex: 1, width: "auto" }} value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />{form.date && <button type="button" onClick={() => setForm(f => ({ ...f, date: "" }))} style={{ color: "var(--portal-text-4)", fontSize: 18, lineHeight: 1, padding: "0 2px", background: "none", border: "none", cursor: "pointer", flexShrink: 0 }}>×</button>}</div></Field>
             <Field label="이미지 URL (Notion 첨부파일 URL)"><input style={iStyle} value={form.imageUrl} onChange={e => setForm(f => ({ ...f, imageUrl: e.target.value }))} placeholder="https://..." /></Field>
           </div>
           <div style={{ display: "flex", gap: 24 }}>
@@ -296,7 +319,7 @@ function CoursesPanel() {
             <Field label="소요시간"><input style={iStyle} value={form.duration} onChange={e => setForm(f => ({ ...f, duration: e.target.value }))} placeholder="예: 45분" /></Field>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            <Field label="마감일"><div style={{ display: "flex", alignItems: "center", gap: 4 }}><input type="date" style={{ ...iStyle, flex: 1, width: "auto" }} value={form.deadline} onChange={e => setForm(f => ({ ...f, deadline: e.target.value }))} />{form.deadline && <button type="button" onClick={() => setForm(f => ({ ...f, deadline: "" }))} style={{ color: "#9ca3af", fontSize: 18, lineHeight: 1, padding: "0 2px", background: "none", border: "none", cursor: "pointer", flexShrink: 0 }}>×</button>}</div></Field>
+            <Field label="마감일"><div style={{ display: "flex", alignItems: "center", gap: 4 }}><input type="date" style={{ ...iStyle, flex: 1, width: "auto" }} value={form.deadline} onChange={e => setForm(f => ({ ...f, deadline: e.target.value }))} />{form.deadline && <button type="button" onClick={() => setForm(f => ({ ...f, deadline: "" }))} style={{ color: "var(--portal-text-4)", fontSize: 18, lineHeight: 1, padding: "0 2px", background: "none", border: "none", cursor: "pointer", flexShrink: 0 }}>×</button>}</div></Field>
             <Field label="순서"><input type="number" style={iStyle} value={form.order} onChange={e => setForm(f => ({ ...f, order: Number(e.target.value) }))} /></Field>
           </div>
           <Field label="교육 URL"><input style={iStyle} value={form.courseUrl} onChange={e => setForm(f => ({ ...f, courseUrl: e.target.value }))} placeholder="https://..." /></Field>
@@ -382,9 +405,9 @@ function SwPanel() {
   }
 
   const STATUS_STYLE: Record<SwItem["status"], { text: string; bg: string; color: string }> = {
-    approved:    { text: "승인",   bg: "#D1FAE5", color: "#065F46" },
-    banned:      { text: "금지",   bg: "#FEE2E2", color: "#B91C1C" },
-    conditional: { text: "조건부", bg: "#FEF3C7", color: "#92400E" },
+    approved:    { text: "승인",   bg: "var(--state-positive-soft)", color: "var(--state-positive)" },
+    banned:      { text: "금지",   bg: "var(--state-risk-soft)", color: "var(--state-risk)" },
+    conditional: { text: "조건부", bg: "var(--state-caution-soft)", color: "var(--state-caution)" },
   };
 
   const FILTERS: { key: "all" | SwItem["status"]; label: string }[] = [
@@ -405,7 +428,7 @@ function SwPanel() {
         {FILTERS.map(f => (
           <button key={f.key} onClick={() => setFilter(f.key)}
             style={{ padding: "6px 14px", borderRadius: 12, border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer",
-              background: filter === f.key ? C.primary : "#fff",
+              background: filter === f.key ? C.primary : "var(--portal-surface)",
               color:      filter === f.key ? "#fff"     : C.text3,
               boxShadow:  filter === f.key ? "none" : `0 0 0 1px ${C.border}`,
             }}>
@@ -443,7 +466,7 @@ function SwPanel() {
         {filtered.map(sw => {
           const st = STATUS_STYLE[sw.status] ?? { text: sw.status, bg: C.bg, color: C.text3 };
           return (
-            <div key={sw.id} className="hover:shadow-sm transition-shadow" style={{ background: "#fff", borderRadius: 12, padding: 20, display: "flex", alignItems: "center", gap: 16, border: `1px solid ${C.border}` }}>
+            <div key={sw.id} className="hover:shadow-sm transition-shadow" style={{ background: "var(--portal-surface)", borderRadius: 12, padding: 20, display: "flex", alignItems: "center", gap: 16, border: `1px solid ${C.border}` }}>
               <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: st.bg, color: st.color, flexShrink: 0 }}>{st.text}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 13, fontWeight: 700, color: C.text1, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -489,8 +512,8 @@ function AuditPanel() {
   }, []);
 
   const ACTION_STYLE: Record<AuditLog["action"], { label: string; bg: string; color: string }> = {
-    create: { label: "등록", bg: "#D1FAE5", color: "#065F46" },
-    update: { label: "수정", bg: "#FEF3C7", color: "#92400E" },
+    create: { label: "등록", bg: "var(--state-positive-soft)", color: "var(--state-positive)" },
+    update: { label: "수정", bg: "var(--state-caution-soft)", color: "var(--state-caution)" },
     delete: { label: "삭제", bg: C.dangerSoft, color: C.danger },
   };
 
@@ -512,11 +535,11 @@ function AuditPanel() {
       {loading ? (
         <div style={{ textAlign: "center", padding: 48, color: C.text4 }}>불러오는 중...</div>
       ) : logs.length === 0 ? (
-        <div style={{ textAlign: "center", padding: 64, background: "#fff", borderRadius: 12, border: `1px solid ${C.border}`, color: C.text4, fontSize: 13 }}>
+        <div style={{ textAlign: "center", padding: 64, background: "var(--portal-surface)", borderRadius: 12, border: `1px solid ${C.border}`, color: C.text4, fontSize: 13 }}>
           아직 기록된 활동이 없습니다.
         </div>
       ) : (
-        <div style={{ background: "#fff", borderRadius: 12, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+        <div style={{ background: "var(--portal-surface)", borderRadius: 12, border: `1px solid ${C.border}`, overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ borderBottom: `1px solid ${C.border}` }}>
@@ -529,7 +552,7 @@ function AuditPanel() {
               {logs.map((log, i) => {
                 const as = ACTION_STYLE[log.action];
                 return (
-                  <tr key={log.id} className="hover:bg-slate-50 transition-colors" style={{ borderBottom: i < logs.length - 1 ? `1px solid #f8fafc` : "none" }}>
+                  <tr key={log.id} className="hover:bg-slate-50 transition-colors" style={{ borderBottom: i < logs.length - 1 ? `1px solid var(--portal-border)` : "none" }}>
                     <td style={{ padding: "12px 16px", fontSize: 12, color: C.text3, whiteSpace: "nowrap" }}>{formatTime(log.timestamp)}</td>
                     <td style={{ padding: "12px 16px" }}>
                       <span style={{ fontSize: 12, fontWeight: 700, color: C.text1 }}>{log.adminName}</span>
@@ -560,7 +583,7 @@ function FormCard({ title, children, onCancel, onSave, saving, disabled }: {
   onCancel: () => void; onSave: () => void; saving: boolean; disabled: boolean;
 }) {
   return (
-    <div style={{ background: "#fff", borderRadius: 12, padding: 24, marginBottom: 24, border: `1px solid ${C.border}`, borderLeft: `3px solid ${C.primary}` }}>
+    <div style={{ background: "var(--portal-surface)", borderRadius: 12, padding: 24, marginBottom: 24, border: `1px solid ${C.border}`, borderLeft: `3px solid ${C.primary}` }}>
       <h3 style={{ fontSize: 13, fontWeight: 700, color: C.text1, margin: "0 0 16px", display: "flex", alignItems: "center", gap: 6 }}>
         <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.primary, display: "inline-block" }} />
         {title}
@@ -591,7 +614,7 @@ function ItemList({ loading, empty, children }: { loading: boolean; empty: strin
   );
   const count = Array.isArray(children) ? children.length : (children ? 1 : 0);
   if (!count) return (
-    <div style={{ textAlign: "center", padding: 64, background: "#fff", borderRadius: 12, border: `1px dashed ${C.border}` }}>
+    <div style={{ textAlign: "center", padding: 64, background: "var(--portal-surface)", borderRadius: 12, border: `1px dashed ${C.border}` }}>
       <div style={{ width: 40, height: 40, borderRadius: "50%", background: C.primarySoft, color: C.primary, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", fontSize: 18 }}>—</div>
       <p style={{ color: C.text3, fontSize: 13, margin: 0 }}>{empty}</p>
     </div>
@@ -607,7 +630,7 @@ function ItemRow({ visible, badge, title, sub, onToggle, onDelete }: {
 }) {
   return (
     <div className="hover:shadow-sm transition-shadow"
-      style={{ background: "#fff", borderRadius: 12, padding: 20, display: "flex", alignItems: "center", gap: 16, border: `1px solid ${C.border}`, opacity: visible ? 1 : 0.55 }}>
+      style={{ background: "var(--portal-surface)", borderRadius: 12, padding: 20, display: "flex", alignItems: "center", gap: 16, border: `1px solid ${C.border}`, opacity: visible ? 1 : 0.55 }}>
       <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: badge.bg, color: badge.color, flexShrink: 0 }}>{badge.text}</span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ fontSize: 13, fontWeight: 700, color: C.text1, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</p>
@@ -616,7 +639,7 @@ function ItemRow({ visible, badge, title, sub, onToggle, onDelete }: {
       <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
         <button onClick={onToggle}
           className="hover:brightness-95 transition-all"
-          style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: visible ? "#D1FAE5" : C.bg, color: visible ? "#065F46" : C.text3 }}>
+          style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: visible ? "var(--state-positive-soft)" : C.bg, color: visible ? "var(--state-positive)" : C.text3 }}>
           {visible ? "공개중" : "숨김"}
         </button>
         <button onClick={onDelete}
@@ -842,16 +865,16 @@ function SwResourcesPanel() {
                     <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingLeft: 8, marginBottom: 6 }}>
                       {items.map(ver => (
                         <div key={ver.id} onClick={() => setSelVersion(selVersion?.id === ver.id ? null : ver)}
-                          style={{ padding: "10px 14px", borderRadius: 12, border: `2px solid ${selVersion?.id === ver.id ? C.primary : C.border}`, background: selVersion?.id === ver.id ? C.primarySoft : "#fff", cursor: "pointer", transition: "all .15s" }}>
+                          style={{ padding: "10px 14px", borderRadius: 12, border: `2px solid ${selVersion?.id === ver.id ? C.primary : C.border}`, background: selVersion?.id === ver.id ? C.primarySoft : "var(--portal-surface)", cursor: "pointer", transition: "all .15s" }}>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
                             <div>
                               <div style={{ fontWeight: 700, fontSize: 13, color: C.text1 }}>{ver.name}</div>
                               <div style={{ fontSize: 11, color: C.text3 }}>v{ver.version} · {ver.category}</div>
-                              <div style={{ fontSize: 11, color: ver.visible ? "#16a34a" : C.text4, marginTop: 2 }}>{ver.visible ? "공개" : "숨김"}</div>
+                              <div style={{ fontSize: 11, color: ver.visible ? "var(--state-positive)" : C.text4, marginTop: 2 }}>{ver.visible ? "공개" : "숨김"}</div>
                             </div>
                             <div style={{ display: "flex", gap: 4 }} onClick={e => e.stopPropagation()}>
                               <button onClick={() => { setEditVer(ver); setAddingVer(false); setVerForm({ name: ver.name, version: ver.version, category: ver.category, os: ver.os.join(", "), description: ver.description, visible: ver.visible, order: ver.order }); }}
-                                style={{ padding: "3px 8px", borderRadius: 6, border: "none", fontSize: 10, fontWeight: 700, cursor: "pointer", background: "#e0f2fe", color: "#0369a1" }}>수정</button>
+                                style={{ padding: "3px 8px", borderRadius: 6, border: "none", fontSize: 10, fontWeight: 700, cursor: "pointer", background: "var(--state-progress-soft)", color: "var(--state-progress)" }}>수정</button>
                               <button onClick={() => delVer(ver)}
                                 style={{ padding: "3px 8px", borderRadius: 6, border: "none", fontSize: 10, fontWeight: 700, cursor: "pointer", background: C.dangerSoft, color: C.danger }}>삭제</button>
                             </div>
@@ -870,7 +893,7 @@ function SwResourcesPanel() {
       {/* ── 오른쪽: 파일/문서 목록 ── */}
       <div>
         {!selVersion ? (
-          <div style={{ textAlign: "center", padding: 64, color: C.text4, fontSize: 13, background: "#f8fafc", borderRadius: 12, border: `1px dashed ${C.border}` }}>
+          <div style={{ textAlign: "center", padding: 64, color: C.text4, fontSize: 13, background: "var(--portal-bg)", borderRadius: 12, border: `1px dashed ${C.border}` }}>
             왼쪽에서 SW 버전을 선택하면<br />파일/문서 목록이 표시됩니다.
           </div>
         ) : (
@@ -906,13 +929,13 @@ function SwResourcesPanel() {
                 <Field label="설명 (크기, 비고 등)"><input style={iStyle} value={docForm.description} onChange={e => setDocForm(f => ({ ...f, description: e.target.value }))} placeholder="예: 약 850MB" /></Field>
 
                 {/* 파일 첨부 영역 */}
-                <div style={{ borderRadius: 12, border: `1px solid ${C.border}`, padding: 16, background: "#f8fafc", display: "flex", flexDirection: "column", gap: 14 }}>
+                <div style={{ borderRadius: 12, border: `1px solid ${C.border}`, padding: 16, background: "var(--portal-bg)", display: "flex", flexDirection: "column", gap: 14 }}>
                   <p style={{ fontSize: 12, fontWeight: 700, color: C.text2, margin: 0 }}>파일 첨부</p>
 
                   {/* 현재 첨부 파일 표시 (수정 시) */}
                   {editDoc?.fileUrl && !uploadFile && !docForm.externalFileUrl && (
                     <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: C.text3 }}>
-                      <span style={{ padding: "2px 8px", borderRadius: 6, background: "#D1FAE5", color: "#065F46", fontWeight: 700, fontSize: 11 }}>현재 파일</span>
+                      <span style={{ padding: "2px 8px", borderRadius: 6, background: "var(--state-positive-soft)", color: "var(--state-positive)", fontWeight: 700, fontSize: 11 }}>현재 파일</span>
                       <span>{editDoc.fileName || editDoc.name}</span>
                       <a href={`/api/sw-docs/${editDoc.id}/file`} target="_blank" rel="noopener noreferrer"
                         style={{ color: C.primary, fontSize: 11 }}>미리보기</a>
@@ -922,7 +945,7 @@ function SwResourcesPanel() {
                   {/* A. 소용량 직접 업로드 (≤4MB) */}
                   <div>
                     <p style={{ fontSize: 11, color: C.text4, margin: "0 0 6px" }}>A. 직접 업로드 (PDF, 문서 등 4MB 이하)</p>
-                    <label style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 10, border: `1px solid ${C.border}`, background: docForm.externalFileUrl ? "#f1f5f9" : "#fff", cursor: docForm.externalFileUrl ? "not-allowed" : "pointer", fontSize: 12, color: C.text2, fontWeight: 600, opacity: docForm.externalFileUrl ? 0.5 : 1 }}>
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 10, border: `1px solid ${C.border}`, background: docForm.externalFileUrl ? "var(--portal-bg)" : "var(--portal-surface)", cursor: docForm.externalFileUrl ? "not-allowed" : "pointer", fontSize: 12, color: C.text2, fontWeight: 600, opacity: docForm.externalFileUrl ? 0.5 : 1 }}>
                       📎 파일 선택
                       <input type="file" style={{ display: "none" }} disabled={!!docForm.externalFileUrl} onChange={e => {
                         const f = e.target.files?.[0] ?? null;
@@ -942,7 +965,7 @@ function SwResourcesPanel() {
                       }} />
                     </label>
                     {uploadFile && !uploading && (
-                      <span style={{ marginLeft: 10, fontSize: 12, color: "#065F46", fontWeight: 600 }}>
+                      <span style={{ marginLeft: 10, fontSize: 12, color: "var(--state-positive)", fontWeight: 600 }}>
                         {uploadFile.name} ({(uploadFile.size / 1024 / 1024).toFixed(1)} MB)
                         <button type="button" onClick={() => setUploadFile(null)}
                           style={{ marginLeft: 6, color: C.danger, background: "none", border: "none", cursor: "pointer", fontSize: 14, lineHeight: 1 }}>×</button>
@@ -956,7 +979,7 @@ function SwResourcesPanel() {
                   </div>
 
                   {/* B. Notion에서 직접 첨부 (대용량 권장) */}
-                  <div style={{ padding: "10px 14px", borderRadius: 10, background: "#EFF6FF", border: `1px solid #BFDBFE` }}>
+                  <div style={{ padding: "10px 14px", borderRadius: 10, background: "var(--state-progress-soft)", border: `1px solid var(--state-progress)` }}>
                     <p style={{ fontSize: 11, color: C.brand, margin: "0 0 4px", fontWeight: 700 }}>B. 대용량 파일 — Notion에서 직접 첨부 (권장)</p>
                     <p style={{ fontSize: 11, color: C.text3, margin: 0 }}>
                       먼저 이 폼을 저장하면, 목록에서 해당 문서의 Notion 페이지 링크가 표시됩니다.
@@ -977,7 +1000,7 @@ function SwResourcesPanel() {
                   <div>
                     <p style={{ fontSize: 11, color: C.text4, margin: "0 0 6px" }}>C. 외부 URL (사내 파일 서버, 대용량 다운로드 링크 등)</p>
                     <input
-                      style={{ ...iStyle, background: uploadFile ? "#f1f5f9" : "#fff" }}
+                      style={{ ...iStyle, background: uploadFile ? "var(--portal-bg)" : "var(--portal-surface)" }}
                       value={docForm.externalFileUrl}
                       onChange={e => {
                         setDocForm(f => ({ ...f, externalFileUrl: e.target.value }));
@@ -1000,7 +1023,7 @@ function SwResourcesPanel() {
 
             {/* 방금 파일 없이 생성된 문서 → Notion 첨부 안내 */}
             {lastCreatedDocId && (
-              <div style={{ padding: "10px 16px", borderRadius: 12, background: "#EFF6FF", border: `1px solid #BFDBFE`, marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ padding: "10px 16px", borderRadius: 12, background: "var(--state-progress-soft)", border: `1px solid var(--state-progress)`, marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 12, color: C.brand }}>
                   문서가 생성되었습니다. 파일을 첨부하려면 →
                 </span>
@@ -1016,27 +1039,27 @@ function SwResourcesPanel() {
             )}
 
             {docs.length === 0 ? (
-              <div style={{ textAlign: "center", padding: 48, color: C.text4, fontSize: 13, background: "#f8fafc", borderRadius: 12 }}>
+              <div style={{ textAlign: "center", padding: 48, color: C.text4, fontSize: 13, background: "var(--portal-bg)", borderRadius: 12 }}>
                 등록된 파일이 없습니다.
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {docs.map(doc => (
-                  <div key={doc.id} style={{ padding: "12px 16px", borderRadius: 12, border: `1px solid ${C.border}`, background: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                  <div key={doc.id} style={{ padding: "12px 16px", borderRadius: 12, border: `1px solid ${C.border}`, background: "var(--portal-surface)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 6, background: doc.type === "설치파일" ? "#FEF3C7" : "#EFF6FF", color: doc.type === "설치파일" ? "#92400E" : C.brand }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 6, background: doc.type === "설치파일" ? "var(--state-caution-soft)" : "var(--state-progress-soft)", color: doc.type === "설치파일" ? "var(--state-caution)" : C.brand }}>
                           {doc.type}
                         </span>
                         <span style={{ fontWeight: 600, fontSize: 13, color: C.text1 }}>{doc.name}</span>
                         {doc.fileUrl ? (
                           <a href={`/api/sw-docs/${doc.id}/file`} target="_blank" rel="noopener noreferrer"
-                            style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "#D1FAE5", color: "#065F46", fontWeight: 700, textDecoration: "none" }}>
+                            style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "var(--state-positive-soft)", color: "var(--state-positive)", fontWeight: 700, textDecoration: "none" }}>
                             파일 ↗
                           </a>
                         ) : (
                           <a href={notionUrl(doc.id)} target="_blank" rel="noopener noreferrer"
-                            style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "#FEF3C7", color: "#92400E", fontWeight: 700, textDecoration: "none" }}>
+                            style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "var(--state-caution-soft)", color: "var(--state-caution)", fontWeight: 700, textDecoration: "none" }}>
                             미첨부 — Notion에서 첨부 ↗
                           </a>
                         )}
@@ -1045,9 +1068,9 @@ function SwResourcesPanel() {
                     </div>
                     <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
                       <button onClick={() => { setEditDoc(doc); setAddingDoc(false); setUploadFile(null); setDocForm({ name: doc.name, type: doc.type, description: doc.description, visible: doc.visible, order: doc.order, externalFileUrl: "" }); }}
-                        style={{ padding: "4px 10px", borderRadius: 6, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: "#e0f2fe", color: "#0369a1" }}>수정</button>
+                        style={{ padding: "4px 10px", borderRadius: 6, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: "var(--state-progress-soft)", color: "var(--state-progress)" }}>수정</button>
                       <button onClick={() => toggleDocVisible(doc)}
-                        style={{ padding: "4px 10px", borderRadius: 6, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: doc.visible ? "#d1fae5" : "#f1f5f9", color: doc.visible ? "#065f46" : C.text3 }}>
+                        style={{ padding: "4px 10px", borderRadius: 6, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: doc.visible ? "var(--state-positive-soft)" : "var(--portal-bg)", color: doc.visible ? "var(--state-positive)" : C.text3 }}>
                         {doc.visible ? "공개" : "숨김"}
                       </button>
                       <button onClick={() => delDoc(doc)}
@@ -1187,18 +1210,18 @@ function ManualsPanel() {
           </div>
           <Field label="설명 (관리자 목록용)"><input style={iStyle} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="간단한 설명" /></Field>
 
-          <div style={{ borderRadius: 12, border: `1px solid ${C.border}`, padding: 16, background: "#f8fafc", display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ borderRadius: 12, border: `1px solid ${C.border}`, padding: 16, background: "var(--portal-bg)", display: "flex", flexDirection: "column", gap: 10 }}>
             <p style={{ fontSize: 12, fontWeight: 700, color: C.text2, margin: 0 }}>HTML 파일 업로드 (4MB 이하)</p>
 
             {editing?.fileUrl && !uploadFile && (
               <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: C.text3 }}>
-                <span style={{ padding: "2px 8px", borderRadius: 6, background: "#D1FAE5", color: "#065F46", fontWeight: 700, fontSize: 11 }}>현재 파일</span>
+                <span style={{ padding: "2px 8px", borderRadius: 6, background: "var(--state-positive-soft)", color: "var(--state-positive)", fontWeight: 700, fontSize: 11 }}>현재 파일</span>
                 <span>{editing.fileName || editing.title}</span>
                 <a href={`/manual/${editing.slug}`} target="_blank" rel="noopener noreferrer" style={{ color: C.primary, fontSize: 11 }}>미리보기</a>
               </div>
             )}
 
-            <label style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 10, border: `1px solid ${C.border}`, background: "#fff", cursor: "pointer", fontSize: 12, color: C.text2, fontWeight: 600, width: "fit-content" }}>
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 10, border: `1px solid ${C.border}`, background: "var(--portal-surface)", cursor: "pointer", fontSize: 12, color: C.text2, fontWeight: 600, width: "fit-content" }}>
               📎 HTML 파일 선택
               <input type="file" accept=".html,.htm" style={{ display: "none" }} onChange={e => {
                 const f = e.target.files?.[0] ?? null;
@@ -1216,7 +1239,7 @@ function ManualsPanel() {
               }} />
             </label>
             {uploadFile && !uploading && (
-              <span style={{ fontSize: 12, color: "#065F46", fontWeight: 600 }}>
+              <span style={{ fontSize: 12, color: "var(--state-positive)", fontWeight: 600 }}>
                 {uploadFile.name} ({(uploadFile.size / 1024 / 1024).toFixed(1)} MB)
                 <button type="button" onClick={() => setUploadFile(null)}
                   style={{ marginLeft: 6, color: C.danger, background: "none", border: "none", cursor: "pointer", fontSize: 14, lineHeight: 1 }}>×</button>
@@ -1233,7 +1256,7 @@ function ManualsPanel() {
 
       <ItemList loading={loading} empty="아직 등록된 매뉴얼이 없습니다.">
         {items.map(item => (
-          <div key={item.id} style={{ background: "#fff", borderRadius: 12, padding: 20, display: "flex", alignItems: "center", gap: 16, border: `1px solid ${C.border}`, opacity: item.visible ? 1 : 0.5 }}>
+          <div key={item.id} style={{ background: "var(--portal-surface)", borderRadius: 12, padding: 20, display: "flex", alignItems: "center", gap: 16, border: `1px solid ${C.border}`, opacity: item.visible ? 1 : 0.5 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 {item.category && (
@@ -1241,7 +1264,7 @@ function ManualsPanel() {
                 )}
                 <span style={{ fontWeight: 700, fontSize: 13, color: C.text1 }}>{item.title}</span>
                 {!item.fileUrl && (
-                  <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "#FEF3C7", color: "#92400E", fontWeight: 700 }}>파일 미첨부</span>
+                  <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "var(--state-caution-soft)", color: "var(--state-caution)", fontWeight: 700 }}>파일 미첨부</span>
                 )}
               </div>
               <p style={{ fontSize: 11, color: C.text4, margin: "4px 0 0", fontFamily: "monospace" }}>/manual/{item.slug}</p>
@@ -1249,19 +1272,19 @@ function ManualsPanel() {
             </div>
             <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
               <button onClick={() => copyLink(item.slug)}
-                style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: "#f1f5f9", color: C.text2 }}>
+                style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: "var(--portal-bg)", color: C.text2 }}>
                 링크 복사
               </button>
               <button onClick={() => setQrItem(item)}
-                style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: "#f1f5f9", color: C.text2 }}>
+                style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: "var(--portal-bg)", color: C.text2 }}>
                 QR 코드
               </button>
               <button onClick={() => startEdit(item)}
-                style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: "#e0f2fe", color: "#0369a1" }}>
+                style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: "var(--state-progress-soft)", color: "var(--state-progress)" }}>
                 수정
               </button>
               <button onClick={() => toggleVisible(item)}
-                style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: item.visible ? "#D1FAE5" : C.bg, color: item.visible ? "#065F46" : C.text3 }}>
+                style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: item.visible ? "var(--state-positive-soft)" : C.bg, color: item.visible ? "var(--state-positive)" : C.text3 }}>
                 {item.visible ? "공개중" : "숨김"}
               </button>
               <button onClick={() => del(item)}
@@ -1277,7 +1300,7 @@ function ManualsPanel() {
         <div onClick={() => setQrItem(null)}
           style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.4)" }}>
           <div onClick={e => e.stopPropagation()}
-            style={{ width: 300, background: "#fff", borderRadius: 12, padding: 24, display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+            style={{ width: 300, background: "var(--portal-surface)", borderRadius: 12, padding: 24, display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
             <div style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: C.text1 }}>{qrItem.title}</span>
               <button onClick={() => setQrItem(null)}
