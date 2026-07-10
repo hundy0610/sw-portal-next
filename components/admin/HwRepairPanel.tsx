@@ -40,9 +40,9 @@ const STAGE_COLORS: Record<string, { bg: string; text: string; dot: string }> = 
 };
 
 const FAULT_COLORS: Record<string, { bg: string; text: string }> = {
-  "사용자과실": { bg: "#FEF2F2", text: "#DC2626" },
-  "과실없음":   { bg: "#F0FDF4", text: "#059669" },
-  "기타":       { bg: "#FAFAFA", text: "#71717A" },
+  "사용자과실": { bg: "var(--state-risk-soft)",     text: "var(--state-risk)" },
+  "과실없음":   { bg: "var(--state-positive-soft)", text: "var(--state-positive)" },
+  "기타":       { bg: "var(--state-neutral-soft)",  text: "var(--state-neutral)" },
 };
 
 // Notion 필드명 매핑
@@ -1174,10 +1174,10 @@ export default function HwRepairPanel() {
       {/* 요약 카드 */}
       <div className="grid grid-cols-4 gap-3 mb-6">
         {[
-          { label: "전체",       value: total,      color: "#1E40AF" },
-          { label: "진행 중",    value: inProgress,  color: "#C2410C" },
-          { label: "완료",       value: completed,   color: "#059669" },
-          { label: "사용자 과실", value: userFault,  color: "#DC2626" },
+          { label: "전체",       value: total,      color: "var(--state-neutral)" },
+          { label: "진행 중",    value: inProgress,  color: "var(--state-progress)" },
+          { label: "완료",       value: completed,   color: "var(--state-positive)" },
+          { label: "사용자 과실", value: userFault,  color: "var(--state-risk)" },
         ].map(({ label, value, color }) => (
           <div key={label} className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-1">
             <div className="text-2xl font-extrabold" style={{ color }}>{value}</div>

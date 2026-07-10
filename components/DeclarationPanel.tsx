@@ -94,14 +94,15 @@ const EMPTY_FORM: NewSwForm = {
   monthlyKrw:0, monthlyUsd:0, licenseKey:"",
 };
 
-const STATUS_COLOR: Record<string, string> = {
-  "사용중":   "bg-green-100 text-green-700",
-  "신규등록": "bg-amber-100 text-amber-700",
-  "갱신필요": "bg-yellow-100 text-yellow-700",
-  "반납예정": "bg-gray-100 text-gray-500",
-  "만료":     "bg-red-100 text-red-600",
-  "미확인":   "bg-orange-100 text-orange-600",
+const STATUS_COLOR: Record<string, { bg: string; color: string }> = {
+  "사용중":   { bg: "var(--state-positive-soft)", color: "var(--state-positive)" },
+  "신규등록": { bg: "var(--state-progress-soft)", color: "var(--state-progress)" },
+  "갱신필요": { bg: "var(--state-caution-soft)",  color: "var(--state-caution)" },
+  "반납예정": { bg: "var(--state-neutral-soft)",  color: "var(--state-neutral)" },
+  "만료":     { bg: "var(--state-risk-soft)",     color: "var(--state-risk)" },
+  "미확인":   { bg: "var(--state-risk-soft)",     color: "var(--state-risk)" },
 };
+const STATUS_COLOR_DEFAULT = { bg: "var(--state-neutral-soft)", color: "var(--state-neutral)" };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 툴팁 컴포넌트 — ? 아이콘 hover/click 시 설명 표시
@@ -588,7 +589,7 @@ function Step2({ userInfo, initialRecords, onComplete }: {
                       <span className="text-[10px] text-gray-300">{expandedId === r.id ? "▲" : "▼"}</span>
                     </button>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[r.status] ?? "bg-gray-100 text-gray-600"}`}>
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={STATUS_COLOR[r.status] ?? STATUS_COLOR_DEFAULT}>
                         {r.status}
                       </span>
                       {r.licenseType && <span className="text-xs text-gray-400">{r.licenseType}</span>}
@@ -749,22 +750,22 @@ function Step3({ userInfo, records, added, onReset }: {
         </p>
 
         <div className="mt-6 grid grid-cols-2 gap-3">
-          <div className="bg-green-50 rounded-xl p-4">
-            <p className="text-2xl font-bold text-green-600">{active}</p>
-            <p className="text-xs text-green-700 mt-0.5 font-medium">사용 중 확인</p>
+          <div className="rounded-xl p-4" style={{ background: "var(--state-positive-soft)" }}>
+            <p className="text-2xl font-bold" style={{ color: "var(--state-positive)" }}>{active}</p>
+            <p className="text-xs mt-0.5 font-medium" style={{ color: "var(--state-positive)" }}>사용 중 확인</p>
           </div>
-          <div className="bg-gray-50 rounded-xl p-4">
-            <p className="text-2xl font-bold text-gray-500">{returned}</p>
-            <p className="text-xs text-gray-500 mt-0.5 font-medium">반납 예정</p>
+          <div className="rounded-xl p-4" style={{ background: "var(--state-caution-soft)" }}>
+            <p className="text-2xl font-bold" style={{ color: "var(--state-caution)" }}>{returned}</p>
+            <p className="text-xs mt-0.5 font-medium" style={{ color: "var(--state-caution)" }}>반납 예정</p>
           </div>
-          <div className="bg-amber-50 rounded-xl p-4">
-            <p className="text-2xl font-bold text-amber-600">{added.length}</p>
-            <p className="text-xs text-amber-700 mt-0.5 font-medium">신규 등록</p>
+          <div className="rounded-xl p-4" style={{ background: "var(--state-progress-soft)" }}>
+            <p className="text-2xl font-bold" style={{ color: "var(--state-progress)" }}>{added.length}</p>
+            <p className="text-xs mt-0.5 font-medium" style={{ color: "var(--state-progress)" }}>신규 등록</p>
           </div>
           {untouched > 0 && (
-            <div className="bg-yellow-50 rounded-xl p-4">
-              <p className="text-2xl font-bold text-yellow-600">{untouched}</p>
-              <p className="text-xs text-yellow-700 mt-0.5 font-medium">미확인</p>
+            <div className="rounded-xl p-4" style={{ background: "var(--state-risk-soft)" }}>
+              <p className="text-2xl font-bold" style={{ color: "var(--state-risk)" }}>{untouched}</p>
+              <p className="text-xs mt-0.5 font-medium" style={{ color: "var(--state-risk)" }}>미확인</p>
             </div>
           )}
         </div>
@@ -823,7 +824,7 @@ function Step3({ userInfo, records, added, onReset }: {
           <p className="text-xs font-semibold text-gray-700">📋 처리 결과</p>
           <p className="text-xs text-gray-500">• 상태 변경 내용은 즉시 Notion에 반영되었습니다</p>
           <p className="text-xs text-gray-500">• 신규 SW는 IT팀 검토 후 최종 등록됩니다</p>
-          {untouched > 0 && <p className="text-xs text-yellow-600">• 미확인 {untouched}건은 IT팀이 별도 확인합니다</p>}
+          {untouched > 0 && <p className="text-xs" style={{ color: "var(--state-risk)" }}>• 미확인 {untouched}건은 IT팀이 별도 확인합니다</p>}
         </div>
 
         {onReset && (
@@ -1232,7 +1233,7 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
                               className="w-full flex items-center gap-2 flex-wrap text-sm text-left hover:opacity-70 transition-opacity">
                               <span className="font-semibold text-gray-800 text-base">{r.swCategory}</span>
                               {r.swDetail && <span className="text-xs text-gray-400">{r.swDetail}</span>}
-                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[r.status] ?? "bg-gray-100 text-gray-600"}`}>
+                              <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={STATUS_COLOR[r.status] ?? STATUS_COLOR_DEFAULT}>
                                 {r.status}
                               </span>
                               {cost && <span className="text-xs text-amber-600 font-medium ml-auto">{cost}/월</span>}

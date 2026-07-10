@@ -306,7 +306,12 @@ export default function PcScanPanel() {
         <div>
           <h2 className="text-xl font-bold text-gray-900 mb-0.5">자산 실사 현황</h2>
           <p className="text-sm text-gray-500">
-            전체 {records.length}대 · 필터 {filtered.length}대 표시 · 마스터 불일치 {syncableFiltered.length}건
+            전체 {records.length}대 · 필터 {filtered.length}대 표시 ·{" "}
+            {syncableFiltered.length > 0 ? (
+              <span className="font-semibold" style={{ color: "var(--state-risk)" }}>마스터 불일치 {syncableFiltered.length}건</span>
+            ) : (
+              <span style={{ color: "var(--state-positive)" }}>마스터 불일치 0건</span>
+            )}
           </p>
           {warming && (
             <p className="text-xs text-amber-600 mt-1">마스터 데이터 캐시를 갱신하고 있습니다. 잠시 후 새로고침 해주세요.</p>
