@@ -178,11 +178,11 @@ function DeptRowUnified({
         <td className="px-4 py-3 text-right whitespace-nowrap">
           <div>
             <span className="text-amber-700 font-bold text-[15px]">
-              {fmt(netKrwConverted)}원
+              {fmt(totalKrwConverted)}원
             </span>
             {hasShared && (
-              <div className="text-[11px] text-amber-500 mt-0.5">
-                🔗 쉐어드 {fmt(sharedKrwConverted)}원 제외됨
+              <div className="text-[11px] text-gray-400 mt-0.5">
+                쉐어드 {fmt(sharedKrwConverted)}원 포함
               </div>
             )}
           </div>
@@ -284,19 +284,13 @@ function DeptDetail({
         </div>
         <span className="text-xs text-slate-400 flex-shrink-0 hidden sm:block">{users.length}명</span>
         <div className="flex-shrink-0 ml-auto text-right">
-          {dHas ? (
-            <>
-              <div className="text-sm font-bold text-blue-700">
-                ₩{fmt(dNet)}<span className="text-xs font-normal text-slate-400 ml-0.5">/{periodLabel}</span>
-              </div>
-              <div className="text-[10px] text-amber-600 font-medium">
-                총 ₩{fmt(dTotal)} — 쉐어드 ₩{fmt(dShared)} 제외
-              </div>
-            </>
-          ) : (
-            <span className="text-sm font-bold text-blue-700">
-              ₩{fmt(dTotal)}<span className="text-xs font-normal text-slate-400 ml-0.5">/{periodLabel}</span>
-            </span>
+          <div className="text-sm font-bold text-blue-700">
+            ₩{fmt(dTotal)}<span className="text-xs font-normal text-slate-400 ml-0.5">/{periodLabel}</span>
+          </div>
+          {dHas && (
+            <div className="text-[10px] text-gray-400">
+              쉐어드 ₩{fmt(dShared)} 포함
+            </div>
           )}
         </div>
       </button>
@@ -409,7 +403,7 @@ function DeptDetail({
                       <td colSpan={6} className="px-4 py-1.5 bg-amber-50 border-y border-amber-200">
                         <span className="text-[10px] font-semibold text-amber-700 flex items-center gap-1.5">
                           <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block"/>
-                          외부 쉐어드 청구 항목 — 실부담 제외 · 합계에서 차감됨
+                          외부 쉐어드 청구 항목
                         </span>
                       </td>
                     </tr>
@@ -427,12 +421,10 @@ function DeptDetail({
                     </span>
                   </td>
                   <td className="px-3 py-2 text-center text-[10px] font-bold text-slate-500">{rows.length}</td>
-                  <td colSpan={2} className="px-3 py-2 text-right text-[10px] text-slate-400">
-                    {dHas && `쉐어드 ₩${fmt(dShared)} 제외`}
-                  </td>
+                  <td colSpan={2} className="px-3 py-2" />
                   <td className="px-4 py-2 text-right">
-                    <div className="text-xs font-bold text-blue-800">₩{fmt(dNet)}</div>
-                    {dHas && <div className="text-[10px] text-slate-400">총 ₩{fmt(dTotal)}</div>}
+                    <div className="text-xs font-bold text-blue-800">₩{fmt(dTotal)}</div>
+                    {dHas && <div className="text-[10px] text-slate-400">쉐어드 ₩{fmt(dShared)} 포함</div>}
                   </td>
                 </tr>
               </tfoot>
@@ -464,9 +456,8 @@ function CompanyBlock({
             <span className="text-slate-400 text-xs">{coRows.length}건 구독</span>
           </div>
           {coHas && (
-            <div className="text-xs text-slate-400 mt-0.5">
-              실부담 <span className="text-blue-300 font-semibold">₩{fmt(coNet)}</span>
-              <span className="ml-2 text-slate-500">· 쉐어드 ₩{fmt(coShared)} 제외</span>
+            <div className="text-xs text-slate-500 mt-0.5">
+              쉐어드 ₩{fmt(coShared)} 포함
             </div>
           )}
         </div>
@@ -498,8 +489,8 @@ function CompanyBlock({
                 <div className="w-36 text-right flex-shrink-0">
                   <span className={`text-xs font-bold ${isHigh?"text-blue-700":"text-slate-700"}`}>₩{fmt(dTotal)}</span>
                   {dHas && (
-                    <div className="text-[10px] text-amber-600 font-semibold">
-                      실부담 ₩{fmt(dNet)}
+                    <div className="text-[10px] text-gray-400">
+                      쉐어드 ₩{fmt(dShared)} 포함
                     </div>
                   )}
                 </div>
@@ -777,13 +768,13 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
           </span>
           <div className="text-right">
             <div className="text-xl font-bold text-blue-300">₩{fmt(grandTotal)}<span className="text-sm ml-1">/{mode==="monthly"?"월":"년"}</span></div>
-            {hasShared && <div className="text-xs text-slate-400 mt-0.5">실부담 ₩{fmt(netTotal)}</div>}
+            {hasShared && <div className="text-xs text-slate-500 mt-0.5">쉐어드 ₩{fmt(sharedTotal)} 포함</div>}
           </div>
         </div>
       )}
 
-      <p className="text-xs text-slate-300 text-right">
-        * 환율 $1 = ₩{fmt(rate)} (실시간) · 쉐어드청구 항목은 실부담에서 제외
+      <p className="text-xs text-slate-400 text-right">
+        * 환율 $1 = ₩{fmt(rate)} (실시간) · 금액은 쉐어드청구 포함 총액 기준
       </p>
     </div>{/* /화면용 */}
 
@@ -841,29 +832,11 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
                 <div style={{fontSize:"7pt",color:"#71717A",marginTop:"0.5mm"}}>IT 자산관리 파트 · {coRows.length}건 구독 · {[...deptMap.keys()].length}개 부서</div>
               </div>
               <div style={{textAlign:"right",display:"flex",gap:"4mm",alignItems:"center"}}>
-                {coHas ? (
-                  <>
-                    <div style={{textAlign:"center"}}>
-                      <div style={{fontSize:"6.5pt",color:"#71717A"}}>월 총비용</div>
-                      <div style={{fontSize:"10pt",fontWeight:800,color:"#1e3a8a"}}>₩{fmt(coTotal)}</div>
-                    </div>
-                    <div style={{color:"#A1A1AA"}}>—</div>
-                    <div style={{textAlign:"center"}}>
-                      <div style={{fontSize:"6.5pt",color:"#b45309"}}>쉐어드</div>
-                      <div style={{fontSize:"9pt",fontWeight:700,color:"#b45309"}}>₩{fmt(coShared)}</div>
-                    </div>
-                    <div style={{color:"#A1A1AA"}}>=</div>
-                    <div style={{textAlign:"center",background:"#1e3a8a",color:"white",borderRadius:"1.5mm",padding:"1mm 3mm"}}>
-                      <div style={{fontSize:"6.5pt",color:"#bfdbfe"}}>실부담</div>
-                      <div style={{fontSize:"10pt",fontWeight:800}}>₩{fmt(coNet)}</div>
-                    </div>
-                  </>
-                ) : (
-                  <div style={{textAlign:"center",background:"#1e3a8a",color:"white",borderRadius:"1.5mm",padding:"1mm 3mm"}}>
-                    <div style={{fontSize:"6.5pt",color:"#bfdbfe"}}>{printYear}년 {printMonth}월 기준</div>
-                    <div style={{fontSize:"10pt",fontWeight:800}}>₩{fmt(coTotal)}</div>
-                  </div>
-                )}
+                <div style={{textAlign:"center",background:"#1e3a8a",color:"white",borderRadius:"1.5mm",padding:"1mm 3mm"}}>
+                  <div style={{fontSize:"6.5pt",color:"#bfdbfe"}}>{printYear}년 {printMonth}월 기준</div>
+                  <div style={{fontSize:"10pt",fontWeight:800}}>₩{fmt(coTotal)}</div>
+                  {coHas && <div style={{fontSize:"6pt",color:"#A5B4FC",marginTop:"0.3mm"}}>쉐어드 ₩{fmt(coShared)} 포함</div>}
+                </div>
                 <div style={{fontSize:"6.5pt",color:"#A1A1AA",textAlign:"right"}}>
                   <div>{printYear}.{String(printMonth).padStart(2,"0")}</div>
                   <div>$1=₩{fmt(rate)}</div>
@@ -884,7 +857,8 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
                         <div style={{height:"100%",background:"#1e40af",width:`${pct}%`}}/>
                       </div>
                       <div style={{width:"20mm",textAlign:"right",flexShrink:0}}>
-                        <span style={{fontSize:"7pt",fontWeight:700,color:dHas?"#b45309":"#1e3a8a"}}>₩{fmt(dHas?dNet:dTotal)}</span>
+                        <span style={{fontSize:"7pt",fontWeight:700,color:"#1e3a8a"}}>₩{fmt(dTotal)}</span>
+                        {dHas && <div style={{fontSize:"5.5pt",color:"#A1A1AA"}}>쉐어드 ₩{fmt(dNet > 0 ? dTotal - dNet : 0)} 포함</div>}
                       </div>
                     </div>
                   );
@@ -896,7 +870,7 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
             <div className="pa">
               <div style={{fontSize:"7pt",fontWeight:700,color:"#334155",marginBottom:"1.5mm",paddingBottom:"1mm",borderBottom:"1.5px solid #1e3a8a",display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
                 <span>사용자별 구독 현황 상세</span>
-                <span style={{fontSize:"6.5pt",color:"#71717A",fontWeight:400}}>* [쉐] 항목은 외부 청구분 — 실부담 합계에서 제외</span>
+                <span style={{fontSize:"6.5pt",color:"#71717A",fontWeight:400}}>* [쉐] 쉐어드청구 항목 · 금액은 총액 기준</span>
               </div>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:"6.5pt"}}>
                 <thead>
@@ -939,9 +913,9 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
                     deptRows.push(
                       <tr key={`${dept}-sub`} style={{background:"#EEF2FF",borderTop:"1px solid #bfdbfe",borderBottom:"1.5px solid #bfdbfe"}}>
                         <td colSpan={6} style={{padding:"0.8mm 1.5mm",color:"#1e3a8a",fontSize:"6.5pt"}}>
-                          {dept} 소계 ({dRows.length}건){dHas&&<span style={{color:"#b45309",marginLeft:"2mm"}}>쉐어드 ₩{fmt(dTotal-dNet)} 외부 청구</span>}
+                          {dept} 소계 ({dRows.length}건){dHas&&<span style={{color:"#A1A1AA",marginLeft:"2mm",fontWeight:400}}>쉐어드 ₩{fmt(dTotal-dNet)} 포함</span>}
                         </td>
-                        <td style={{padding:"0.8mm 1.5mm",textAlign:"right",fontWeight:700,color:"#1e3a8a",fontSize:"6.5pt"}}>₩{fmt(dNet)}</td>
+                        <td style={{padding:"0.8mm 1.5mm",textAlign:"right",fontWeight:700,color:"#1e3a8a",fontSize:"6.5pt"}}>₩{fmt(dTotal)}</td>
                         <td/>
                       </tr>
                     );
@@ -952,9 +926,9 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
                   <tr style={{background:"#1e3a8a",color:"white"}}>
                     <td colSpan={6} style={{padding:"1.5mm",fontWeight:700,fontSize:"7.5pt"}}>
                       {co} 합계 · {[...deptMap.keys()].length}개 부서 · {coRows.length}건
-                      {coHas&&<span style={{color:"#fcd34d",marginLeft:"2mm",fontWeight:400,fontSize:"6.5pt"}}>쉐어드 ₩{fmt(coShared)} 외부 청구 제외</span>}
+                      {coHas&&<span style={{color:"#A5B4FC",marginLeft:"2mm",fontWeight:400,fontSize:"6.5pt"}}>쉐어드 ₩{fmt(coShared)} 포함</span>}
                     </td>
-                    <td style={{padding:"1.5mm",textAlign:"right",fontWeight:800,fontSize:"8.5pt",color:"#fbbf24"}}>₩{fmt(coNet)}</td>
+                    <td style={{padding:"1.5mm",textAlign:"right",fontWeight:800,fontSize:"8.5pt",color:"#fbbf24"}}>₩{fmt(coTotal)}</td>
                     <td/>
                   </tr>
                 </tfoot>
@@ -963,7 +937,7 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
 
             {/* 주석 */}
             <div style={{marginTop:"1.5mm",fontSize:"6pt",color:"#A1A1AA",display:"flex",justifyContent:"space-between"}}>
-              <span>환율 $1=₩{fmt(rate)} (실시간 기준) · [쉐] 쉐어드청구 항목은 외부 청구분으로 실부담 제외</span>
+              <span>환율 $1=₩{fmt(rate)} (실시간 기준) · 금액은 쉐어드청구 포함 총액 기준 · [쉐] 쉐어드청구 항목</span>
               <span>IT 자산관리 포털 · {printYear}.{String(printMonth).padStart(2,"0")}</span>
             </div>
           </div>
