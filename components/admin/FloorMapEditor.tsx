@@ -73,24 +73,24 @@ interface DragInfo {
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const MONITOR_META: Record<MonitorType, { label: string; color: string; long: string }> = {
-  std27:     { label: '27"', color: "#2563EB", long: '표준 27"' },
+  std27:     { label: '27"', color: "#4F46E5", long: '표준 27"' },
   std24:     { label: '24"', color: "#0284C7", long: '표준 24"' },
   dev34:     { label: '34"', color: "#7C3AED", long: '개발자 34"' },
   none:      { label: "✕",  color: "#DC2626", long: "미설치" },
-  unk:       { label: "·",  color: "#94A3B8", long: "미확인" },
+  unk:       { label: "·",  color: "#A1A1AA", long: "미확인" },
   repair:    { label: "요청", color: "#F97316", long: "수리 요청" },
   repairing: { label: "수리", color: "#EF4444", long: "수리 중" },
 };
 
 const FACILITY_META: Record<FacilityKind, { label: string; icon: string; color: string }> = {
-  elevator: { label: "엘리베이터", icon: "EV",   color: "#1D4ED8" },
+  elevator: { label: "엘리베이터", icon: "EV",   color: "#4338CA" },
   stairs:   { label: "계단",       icon: "계단",  color: "#374151" },
   entrance: { label: "출입구",     icon: "입구",  color: "#15803D" },
   exit:     { label: "비상구",     icon: "EXIT", color: "#DC2626" },
   restroom: { label: "화장실",     icon: "WC",   color: "#6B7280" },
 };
 
-const ZONE_COLORS  = ["#3B82F6","#10B981","#F59E0B","#EF4444","#8B5CF6","#EC4899","#06B6D4","#84CC16"];
+const ZONE_COLORS  = ["#6366F1","#10B981","#F59E0B","#EF4444","#8B5CF6","#EC4899","#06B6D4","#84CC16"];
 const MONITOR_TYPES: MonitorType[]   = ["std27","std24","dev34","none","unk","repair","repairing"];
 const FACILITY_KINDS: FacilityKind[] = ["elevator","stairs","entrance","exit","restroom"];
 const ITEM_DEF = { monitor: { w: 50, h: 36 } };
@@ -219,11 +219,11 @@ function ResizeHandles({ x, y, w, h, onStart }: {
   return (
     <>
       <rect x={x} y={y} width={w} height={h} fill="none"
-        stroke="#2563EB" strokeWidth={1} strokeDasharray="5,3" opacity={0.5}
+        stroke="#4F46E5" strokeWidth={1} strokeDasharray="5,3" opacity={0.5}
         style={{ pointerEvents:"none" }}/>
       {pts.map(p => (
         <rect key={p.t} x={p.cx-HS} y={p.cy-HS} width={S} height={S} rx={2}
-          fill="white" stroke="#2563EB" strokeWidth={1.5}
+          fill="white" stroke="#4F46E5" strokeWidth={1.5}
           style={{ cursor: RESIZE_CURSORS[p.t] }}
           onMouseDown={e => { e.stopPropagation(); e.preventDefault(); onStart(e, p.t); }}/>
       ))}
@@ -967,10 +967,10 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
               ) : (
                 <g opacity={0.1} style={{ pointerEvents:"none" }}>
                   {Array.from({length:Math.ceil(canvasW/50)+1},(_,i)=>(
-                    <line key={`gv${i}`} x1={i*50} y1={0} x2={i*50} y2={canvasH} stroke="#94A3B8" strokeWidth={0.5}/>
+                    <line key={`gv${i}`} x1={i*50} y1={0} x2={i*50} y2={canvasH} stroke="#A1A1AA" strokeWidth={0.5}/>
                   ))}
                   {Array.from({length:Math.ceil(canvasH/50)+1},(_,i)=>(
-                    <line key={`gh${i}`} x1={0} y1={i*50} x2={canvasW} y2={i*50} stroke="#94A3B8" strokeWidth={0.5}/>
+                    <line key={`gh${i}`} x1={0} y1={i*50} x2={canvasW} y2={i*50} stroke="#A1A1AA" strokeWidth={0.5}/>
                   ))}
                 </g>
               )}
@@ -1034,7 +1034,7 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
                       )}
                       {isSel && tool==="select" && (
                         <circle cx={fac.x+fac.r+5} cy={fac.y} r={5}
-                          fill="white" stroke="#2563EB" strokeWidth={1.5}
+                          fill="white" stroke="#4F46E5" strokeWidth={1.5}
                           style={{ cursor:"e-resize" }}
                           onMouseDown={e => { e.stopPropagation(); e.preventDefault();
                             startDrag(e, fac.id, "facility", "r", fac.x, fac.y, fac.r*2, fac.r*2); }}/>
@@ -1079,10 +1079,10 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
                       {isSel && tool==="select" && (
                         <>
                           <line x1={cx} y1={y - 1} x2={cx} y2={y - 22}
-                            stroke="#2563EB" strokeWidth={1} strokeDasharray="3,2"
+                            stroke="#4F46E5" strokeWidth={1} strokeDasharray="3,2"
                             style={{ pointerEvents: "none" }}/>
                           <circle cx={cx} cy={y - 30} r={11}
-                            fill="white" stroke="#2563EB" strokeWidth={1.5}
+                            fill="white" stroke="#4F46E5" strokeWidth={1.5}
                             style={{ cursor: "grab" }}
                             onMouseDown={e => {
                               e.stopPropagation(); e.preventDefault();
@@ -1112,7 +1112,7 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
                               setSelectedIds(new Set([item.id]));
                             }}/>
                           <text x={cx} y={y - 30} textAnchor="middle" dominantBaseline="middle"
-                            fontSize={13} fill="#2563EB" fontWeight="bold"
+                            fontSize={13} fill="#4F46E5" fontWeight="bold"
                             style={{ pointerEvents: "none", userSelect: "none" }}>↻</text>
                         </>
                       )}
@@ -1124,7 +1124,7 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
 
               {drawingZone && drawingZone.w>0 && drawingZone.h>0 && (
                 <rect x={drawingZone.x} y={drawingZone.y} width={drawingZone.w} height={drawingZone.h}
-                  fill="#3B82F622" stroke="#3B82F6" strokeWidth={1.5} strokeDasharray="8,4" rx={5}
+                  fill="#6366F122" stroke="#6366F1" strokeWidth={1.5} strokeDasharray="8,4" rx={5}
                   style={{ pointerEvents:"none" }}/>
               )}
             </svg>

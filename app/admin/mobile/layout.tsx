@@ -19,7 +19,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#1C2B4A",
+  themeColor: "#18181B",
 };
 
 export default function MobileAdminLayout({ children }: { children: React.ReactNode }) {

@@ -15,8 +15,8 @@ function stageChipStyle(
   dark: boolean,
 ): { background: string; color: string } {
   if (active) return { background: c.dot, color: "#fff" };
-  if (cnt > 0) return dark ? { background: "#1c1c1c", color: c.dot } : { background: c.bg, color: c.text };
-  return dark ? { background: "#161616", color: "#525252" } : { background: "#F8FAFC", color: "#CBD5E1" };
+  if (cnt > 0) return dark ? { background: "#18181B", color: c.dot } : { background: c.bg, color: c.text };
+  return dark ? { background: "#161616", color: "#525252" } : { background: "#FAFAFA", color: "#CBD5E1" };
 }
 
 // ── 상수 ────────────────────────────────────────────────────
@@ -28,8 +28,8 @@ const FAULT_TYPES = ["사용자과실", "과실없음", "기타"] as const;
 const COMPANIES = ["대웅제약", "대웅바이오", "대웅", "대웅개발", "대웅이엔지", "대웅펫", "한올바이오파마", "시지바이오", "시지메드텍", "IdsTrust", "디엔컴퍼니", "디엔코스메틱스", "더편한샵", "페이지원", "엠서클", "애디테라", "노바메디텍", "에이하나", "다나아데이터", "클리슈어리서치", "유와이즈원", "DNC", "석천나눔재단", "HR코리아", "힐코", "블루넷"];
 
 const STAGE_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
-  "수리접수":         { bg: "#F8FAFC", text: "#64748B", dot: "#94A3B8" },
-  "수리센터입고":     { bg: "#EFF6FF", text: "#1D4ED8", dot: "#3B82F6" },
+  "수리접수":         { bg: "#FAFAFA", text: "#71717A", dot: "#A1A1AA" },
+  "수리센터입고":     { bg: "#EEF2FF", text: "#4338CA", dot: "#6366F1" },
   "수리완료":         { bg: "#F0FDF4", text: "#15803D", dot: "#22C55E" },
   "수리동의서수령":   { bg: "#FFF7ED", text: "#C2410C", dot: "#F97316" },
   "기기발송":         { bg: "#FEFCE8", text: "#A16207", dot: "#EAB308" },
@@ -42,7 +42,7 @@ const STAGE_COLORS: Record<string, { bg: string; text: string; dot: string }> = 
 const FAULT_COLORS: Record<string, { bg: string; text: string }> = {
   "사용자과실": { bg: "#FEF2F2", text: "#DC2626" },
   "과실없음":   { bg: "#F0FDF4", text: "#059669" },
-  "기타":       { bg: "#F8FAFC", text: "#64748B" },
+  "기타":       { bg: "#FAFAFA", text: "#71717A" },
 };
 
 // Notion 필드명 매핑
@@ -83,10 +83,10 @@ function isPdfUrl(url: string): boolean {
 // ── Sub-components ───────────────────────────────────────────
 function StageBadge({ stage }: { stage: string }) {
   const dark = useAdminDarkMode();
-  const c = STAGE_COLORS[stage] ?? { bg: "#F1F5F9", text: "#64748B", dot: "#94A3B8" };
+  const c = STAGE_COLORS[stage] ?? { bg: "#F4F4F5", text: "#71717A", dot: "#A1A1AA" };
   return (
     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap"
-      style={{ background: dark ? "#1c1c1c" : c.bg, color: dark ? c.dot : c.text }}>
+      style={{ background: dark ? "#18181B" : c.bg, color: dark ? c.dot : c.text }}>
       {stage || "—"}
     </span>
   );
@@ -95,10 +95,10 @@ function StageBadge({ stage }: { stage: string }) {
 function FaultBadge({ fault }: { fault: string }) {
   const dark = useAdminDarkMode();
   if (!fault) return <span className="text-xs text-gray-300">—</span>;
-  const c = FAULT_COLORS[fault] ?? { bg: "#F1F5F9", text: "#64748B" };
+  const c = FAULT_COLORS[fault] ?? { bg: "#F4F4F5", text: "#71717A" };
   return (
     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap"
-      style={{ background: dark ? "#1c1c1c" : c.bg, color: c.text }}>
+      style={{ background: dark ? "#18181B" : c.bg, color: c.text }}>
       {fault}
     </span>
   );
@@ -114,7 +114,7 @@ function AgingChip({ days, stage }: { days: number; stage: string }) {
 function MiniStageBar({ stage }: { stage: string }) {
   const dark = useAdminDarkMode();
   const idx = STAGES.indexOf(stage as Stage);
-  const notReached = dark ? "#333333" : "#E2E8F0";
+  const notReached = dark ? "#333333" : "#E4E4E7";
   return (
     <div className="flex items-center gap-0.5">
       {STAGES.map((s, i) => {
@@ -139,9 +139,9 @@ function MiniStageBar({ stage }: { stage: string }) {
 function BigStageBar({ stage }: { stage: string }) {
   const dark = useAdminDarkMode();
   const idx = STAGES.indexOf(stage as Stage);
-  const notReached = dark ? "#333333" : "#E2E8F0";
+  const notReached = dark ? "#333333" : "#E4E4E7";
   const notReachedBorder = dark ? "#3a3a3a" : "#CBD5E1";
-  const notReachedLabel = dark ? "#525252" : "#94A3B8";
+  const notReachedLabel = dark ? "#525252" : "#A1A1AA";
   return (
     <div className="flex items-start gap-0">
       {STAGES.map((s, i) => {
@@ -1284,7 +1284,7 @@ export default function HwRepairPanel() {
                   <td>
                     {r.assetStatus ? (
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap"
-                        style={r.assetStatus === "재고" ? { background: "#F0FDF4", color: "#15803D" } : { background: "#EFF6FF", color: "#1D4ED8" }}>
+                        style={r.assetStatus === "재고" ? { background: "#F0FDF4", color: "#15803D" } : { background: "#EEF2FF", color: "#4338CA" }}>
                         {r.assetStatus}
                       </span>
                     ) : <span className="text-xs text-gray-300">—</span>}

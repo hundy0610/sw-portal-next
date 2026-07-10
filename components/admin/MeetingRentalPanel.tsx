@@ -15,7 +15,7 @@ const COMPANIES = [
 
 const TICKET_STATUSES = ["시작 전", "진행 중", "완료"] as const;
 const TICKET_STATUS_STYLE: Record<string, { bg: string; text: string }> = {
-  "시작 전": { bg: "#F8FAFC", text: "#64748B" },
+  "시작 전": { bg: "#FAFAFA", text: "#71717A" },
   "진행 중": { bg: "#FFF7ED", text: "#C2410C" },
   "완료":    { bg: "#F0FDF4", text: "#059669" },
 };
@@ -69,14 +69,14 @@ function InlineTicketStatusCell({ ticket, onUpdated }: {
     finally { setSaving(false); setTimeout(() => setResult("idle"), 2000); }
   };
 
-  const c = TICKET_STATUS_STYLE[ticket.status] ?? { bg: "#F1F5F9", text: "#64748B" };
+  const c = TICKET_STATUS_STYLE[ticket.status] ?? { bg: "#F4F4F5", text: "#71717A" };
   return (
     <div className="flex items-center gap-1">
       <select
         value={ticket.status}
         onChange={handleChange}
         disabled={saving}
-        style={{ background: dark ? "#1c1c1c" : c.bg, color: c.text }}
+        style={{ background: dark ? "#18181B" : c.bg, color: c.text }}
         className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-transparent focus:outline-none focus:ring-1 focus:ring-blue-200 cursor-pointer disabled:opacity-50 appearance-none"
       >
         {TICKET_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
@@ -237,8 +237,8 @@ function TicketsTab() {
       </div>
 
       <div className="grid grid-cols-4 gap-3 mb-5">
-        <StatCard label="전체"   value={stats.total}      color="#1F2937" />
-        <StatCard label="시작 전" value={stats.notStarted} color="#64748B" />
+        <StatCard label="전체"   value={stats.total}      color="#18181B" />
+        <StatCard label="시작 전" value={stats.notStarted} color="#71717A" />
         <StatCard label="진행 중" value={stats.inProgress} color="#C2410C" />
         <StatCard label="완료"   value={stats.done}       color="#059669" />
       </div>
@@ -478,9 +478,9 @@ function EquipmentTab() {
       </div>
 
       <div className="grid grid-cols-3 gap-3 mb-5">
-        <StatCard label="전체"   value={stats.total}     color="#1F2937" />
+        <StatCard label="전체"   value={stats.total}     color="#18181B" />
         <StatCard label="대여중"  value={stats.inUse}     color="#DC2626" />
-        <StatCard label="대여가능" value={stats.available} color="#1D4ED8" />
+        <StatCard label="대여가능" value={stats.available} color="#4338CA" />
       </div>
 
       <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4 space-y-3">

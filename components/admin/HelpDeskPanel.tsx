@@ -16,8 +16,8 @@ const URGENCY: Record<string, { bg: string; text: string; bar: string }> = {
 };
 
 const STATUS: Record<string, { bg: string; text: string }> = {
-  "시작 전": { bg: "#F8FAFC", text: "#64748B" },
-  "진행 중": { bg: "#EFF6FF", text: "#1D4ED8" },
+  "시작 전": { bg: "#FAFAFA", text: "#71717A" },
+  "진행 중": { bg: "#EEF2FF", text: "#4338CA" },
   "완료":    { bg: "#F0FDF4", text: "#059669" },
 };
 
@@ -191,14 +191,14 @@ function InlineStatusCell({
     finally { setSaving(false); setTimeout(() => setResult("idle"), 2000); }
   };
 
-  const c = STATUS[ticket.status] ?? { bg: "#F1F5F9", text: "#64748B" };
+  const c = STATUS[ticket.status] ?? { bg: "#F4F4F5", text: "#71717A" };
   return (
     <div className="flex items-center gap-1">
       <select
         value={ticket.status}
         onChange={handleChange}
         disabled={saving}
-        style={{ background: dark ? "#1c1c1c" : c.bg, color: c.text }}
+        style={{ background: dark ? "#18181B" : c.bg, color: c.text }}
         className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-transparent focus:outline-none focus:ring-1 focus:ring-violet-200 cursor-pointer disabled:opacity-50 appearance-none"
       >
         {/* 현재 상태가 목록에 없는 경우 fallback */}
@@ -1070,10 +1070,10 @@ function HelpDeskTicketFloating({
 // ── Sub-components ───────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
   const dark = useAdminDarkMode();
-  const c = STATUS[status] ?? { bg: "#F1F5F9", text: "#64748B" };
+  const c = STATUS[status] ?? { bg: "#F4F4F5", text: "#71717A" };
   return (
     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap"
-      style={{ background: dark ? "#1c1c1c" : c.bg, color: c.text }}>
+      style={{ background: dark ? "#18181B" : c.bg, color: c.text }}>
       {status || "—"}
     </span>
   );
@@ -1081,10 +1081,10 @@ function StatusBadge({ status }: { status: string }) {
 
 function UrgencyBadge({ urgency }: { urgency: string }) {
   const dark = useAdminDarkMode();
-  const c = URGENCY[urgency] ?? { bg: "#F1F5F9", text: "#64748B", bar: "#94A3B8" };
+  const c = URGENCY[urgency] ?? { bg: "#F4F4F5", text: "#71717A", bar: "#A1A1AA" };
   return (
     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap"
-      style={{ background: dark ? "#1c1c1c" : c.bg, color: c.text }}>
+      style={{ background: dark ? "#18181B" : c.bg, color: c.text }}>
       {urgency || "—"}
     </span>
   );
@@ -1132,8 +1132,8 @@ function MonthlyLineChart({ data }: { data: { month: string; count: number }[] }
         const val = Math.round(max * pct);
         return (
           <g key={pct}>
-            <line x1={PAD_X} y1={y} x2={W - PAD_X} y2={y} stroke="#F1F5F9" strokeWidth={1} />
-            <text x={PAD_X - 6} y={y + 4} textAnchor="end" fontSize={9} fill="#94A3B8">{val}</text>
+            <line x1={PAD_X} y1={y} x2={W - PAD_X} y2={y} stroke="#F4F4F5" strokeWidth={1} />
+            <text x={PAD_X - 6} y={y + 4} textAnchor="end" fontSize={9} fill="#A1A1AA">{val}</text>
           </g>
         );
       })}
@@ -1157,7 +1157,7 @@ function MonthlyLineChart({ data }: { data: { month: string; count: number }[] }
                 {d.count}
               </text>
             )}
-            <text x={cx} y={H - 4} textAnchor="middle" fontSize={10} fill="#94A3B8">
+            <text x={cx} y={H - 4} textAnchor="middle" fontSize={10} fill="#A1A1AA">
               {monthLabel(d.month)}
             </text>
           </g>
@@ -1286,29 +1286,29 @@ function generateReportHTML(opts: {
 <title>문의 접수 현황 보고서 · ${companyLabel} · ${periodLabel}</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; background: #F8FAFC; color: #1E293B; }
+  body { font-family: "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; background: #FAFAFA; color: #1E293B; }
   .page { max-width: 1000px; margin: 0 auto; padding: 40px 32px; }
-  .cover { text-align: center; padding: 60px 0 40px; border-bottom: 2px solid #E2E8F0; margin-bottom: 32px; }
+  .cover { text-align: center; padding: 60px 0 40px; border-bottom: 2px solid #E4E4E7; margin-bottom: 32px; }
   .cover h1 { font-size: 28px; font-weight: 800; color: #1E293B; margin-bottom: 8px; }
-  .cover .meta { font-size: 14px; color: #64748B; margin-top: 6px; }
+  .cover .meta { font-size: 14px; color: #71717A; margin-top: 6px; }
   .cover .period { display: inline-block; background: #7C3AED; color: white; padding: 4px 16px; border-radius: 20px; font-size: 13px; font-weight: 700; margin-top: 12px; }
   .section { margin-bottom: 32px; }
   .section-title { font-size: 15px; font-weight: 700; color: #334155; border-left: 4px solid #7C3AED; padding-left: 10px; margin-bottom: 16px; }
   .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 24px; }
-  .stat-card { background: white; border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px; text-align: center; }
+  .stat-card { background: white; border: 1px solid #E4E4E7; border-radius: 12px; padding: 16px; text-align: center; }
   .stat-card .value { font-size: 26px; font-weight: 800; color: #7C3AED; }
-  .stat-card .label { font-size: 11px; color: #94A3B8; margin-top: 4px; }
-  .chart-box { background: white; border: 1px solid #E2E8F0; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
-  .chart-title { font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 12px; }
-  table { width: 100%; border-collapse: collapse; background: white; border-radius: 12px; overflow: hidden; border: 1px solid #E2E8F0; font-size: 12px; }
-  thead th { background: #F1F5F9; padding: 10px 12px; text-align: left; font-weight: 600; color: #475569; border-bottom: 1px solid #E2E8F0; white-space: nowrap; }
-  tbody td { padding: 9px 12px; border-bottom: 1px solid #F8FAFC; color: #334155; vertical-align: top; }
-  tbody tr:hover td { background: #F8FAFC; }
-  .footer { text-align: center; padding: 24px 0 8px; font-size: 11px; color: #CBD5E1; border-top: 1px solid #E2E8F0; margin-top: 40px; }
+  .stat-card .label { font-size: 11px; color: #A1A1AA; margin-top: 4px; }
+  .chart-box { background: white; border: 1px solid #E4E4E7; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+  .chart-title { font-size: 13px; font-weight: 600; color: #52525B; margin-bottom: 12px; }
+  table { width: 100%; border-collapse: collapse; background: white; border-radius: 12px; overflow: hidden; border: 1px solid #E4E4E7; font-size: 12px; }
+  thead th { background: #F4F4F5; padding: 10px 12px; text-align: left; font-weight: 600; color: #52525B; border-bottom: 1px solid #E4E4E7; white-space: nowrap; }
+  tbody td { padding: 9px 12px; border-bottom: 1px solid #FAFAFA; color: #334155; vertical-align: top; }
+  tbody tr:hover td { background: #FAFAFA; }
+  .footer { text-align: center; padding: 24px 0 8px; font-size: 11px; color: #CBD5E1; border-top: 1px solid #E4E4E7; margin-top: 40px; }
   .action-rate { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
-  .rate-card { background: white; border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px; text-align: center; }
+  .rate-card { background: white; border: 1px solid #E4E4E7; border-radius: 12px; padding: 16px; text-align: center; }
   .rate-card .rate { font-size: 24px; font-weight: 800; }
-  .rate-card .rate-label { font-size: 11px; color: #94A3B8; margin-top: 4px; }
+  .rate-card .rate-label { font-size: 11px; color: #A1A1AA; margin-top: 4px; }
   .rate-card .rate-sub { font-size: 10px; color: #CBD5E1; margin-top: 2px; }
   @media print { body { background: white; } .page { padding: 20px; } }
 </style>
@@ -1328,7 +1328,7 @@ function generateReportHTML(opts: {
     <div class="section-title">요약 통계</div>
     <div class="stats">
       <div class="stat-card"><div class="value">${total}</div><div class="label">전체 접수</div></div>
-      <div class="stat-card"><div class="value" style="color:#1D4ED8">${inProg}</div><div class="label">진행 중</div></div>
+      <div class="stat-card"><div class="value" style="color:#4338CA">${inProg}</div><div class="label">진행 중</div></div>
       <div class="stat-card"><div class="value" style="color:#059669">${done}</div><div class="label">완료</div></div>
       <div class="stat-card"><div class="value" style="color:#B45309">${avgDays !== null ? avgDays + "일" : "—"}</div><div class="label">평균 처리일</div></div>
       <div class="stat-card"><div class="value" style="color:#F59E0B">${avgRating ? "★ " + avgRating : "—"}</div><div class="label">평균 만족도</div></div>
@@ -1348,8 +1348,8 @@ function generateReportHTML(opts: {
         </defs>
         ${[0,0.25,0.5,0.75,1].map(p => {
           const y = padY + (chartH - padY*2) * (1 - p);
-          return `<line x1="${padX}" y1="${y}" x2="${chartW - padX}" y2="${y}" stroke="#F1F5F9" stroke-width="1"/>
-                  <text x="${padX - 5}" y="${y + 4}" text-anchor="end" font-size="9" fill="#94A3B8">${Math.round(maxMonthly * p)}</text>`;
+          return `<line x1="${padX}" y1="${y}" x2="${chartW - padX}" y2="${y}" stroke="#F4F4F5" stroke-width="1"/>
+                  <text x="${padX - 5}" y="${y + 4}" text-anchor="end" font-size="9" fill="#A1A1AA">${Math.round(maxMonthly * p)}</text>`;
         }).join("")}
         ${n > 1 ? `<polygon points="${padX},${chartH - padY} ${linePoints} ${xOf(n-1)},${chartH - padY}" fill="url(#g)"/>` : ""}
         ${n > 1 ? `<polyline points="${linePoints}" fill="none" stroke="#7C3AED" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>` : ""}
@@ -1357,7 +1357,7 @@ function generateReportHTML(opts: {
           const cx = xOf(i), cy = yOf(m.count);
           return `<circle cx="${cx}" cy="${cy}" r="4" fill="white" stroke="#7C3AED" stroke-width="2"/>
                   ${m.count > 0 ? `<text x="${cx}" y="${cy - 9}" text-anchor="middle" font-size="9" font-weight="700" fill="#5B21B6">${m.count}</text>` : ""}
-                  <text x="${cx}" y="${chartH - 2}" text-anchor="middle" font-size="9" fill="#94A3B8">${m.label}</text>`;
+                  <text x="${cx}" y="${chartH - 2}" text-anchor="middle" font-size="9" fill="#A1A1AA">${m.label}</text>`;
         }).join("")}
       </svg>
     </div>
@@ -1372,10 +1372,10 @@ function generateReportHTML(opts: {
         const pct = total > 0 ? Math.max((count / total) * 100, count > 0 ? 2 : 0) : 0;
         return `<div style="margin-bottom:10px">
           <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
-            <span style="color:#475569;font-weight:600">${type}</span>
-            <span style="color:#94A3B8">${count}건 · ${Math.round(count/total*100)}%</span>
+            <span style="color:#52525B;font-weight:600">${type}</span>
+            <span style="color:#A1A1AA">${count}건 · ${Math.round(count/total*100)}%</span>
           </div>
-          <div style="background:#F1F5F9;border-radius:6px;height:20px;overflow:hidden">
+          <div style="background:#F4F4F5;border-radius:6px;height:20px;overflow:hidden">
             <div style="width:${pct}%;background:#7C3AED;height:100%;border-radius:6px;display:flex;align-items:center;padding-left:8px">
               <span style="color:white;font-size:10px;font-weight:700">${count}</span>
             </div>
@@ -1416,10 +1416,10 @@ function generateReportHTML(opts: {
           const color = ({ "원격": "#6366F1", "방문": "#F59E0B", "메신저/메일": "#0EA5E9", "기타": "#9CA3AF" } as Record<string,string>)[method] ?? "#7C3AED";
           return `<div style="margin-bottom:10px">
             <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
-              <span style="color:#475569;font-weight:600">${method}</span>
-              <span style="color:#94A3B8">${count}건 · ${Math.round(count / totalMethodCount * 100)}%</span>
+              <span style="color:#52525B;font-weight:600">${method}</span>
+              <span style="color:#A1A1AA">${count}건 · ${Math.round(count / totalMethodCount * 100)}%</span>
             </div>
-            <div style="background:#F1F5F9;border-radius:6px;height:20px;overflow:hidden">
+            <div style="background:#F4F4F5;border-radius:6px;height:20px;overflow:hidden">
               <div style="width:${pct}%;background:${color};height:100%;border-radius:6px;display:flex;align-items:center;padding-left:8px">
                 <span style="color:white;font-size:10px;font-weight:700">${count}</span>
               </div>
@@ -1434,10 +1434,10 @@ function generateReportHTML(opts: {
           const label = cat.split(" > ")[1] ?? cat;
           return `<div style="margin-bottom:8px">
             <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
-              <span style="color:#475569;font-weight:600">${label}</span>
-              <span style="color:#94A3B8">${count}건</span>
+              <span style="color:#52525B;font-weight:600">${label}</span>
+              <span style="color:#A1A1AA">${count}건</span>
             </div>
-            <div style="background:#F1F5F9;border-radius:5px;height:16px;overflow:hidden">
+            <div style="background:#F4F4F5;border-radius:5px;height:16px;overflow:hidden">
               <div style="width:${pct}%;background:#7C3AED;height:100%;border-radius:5px"></div>
             </div>
           </div>`;
@@ -1963,7 +1963,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
           onClick={() => setAssigneeListOpen(o => !o)}
           className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-sm font-semibold text-gray-700">
           <span className="flex items-center gap-2">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2.5">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4F46E5" strokeWidth="2.5">
               <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
               <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
             </svg>
@@ -2047,7 +2047,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
       {/* ── Summary Cards ── */}
       <div className="grid grid-cols-5 gap-3 mb-6">
         <StatCard label="전체 접수"  value={total}                                                    color="#1E40AF" />
-        <StatCard label="진행 중"    value={inProgress}                                               color="#1D4ED8" />
+        <StatCard label="진행 중"    value={inProgress}                                               color="#4338CA" />
         <StatCard label="완료"       value={done}                                                     color="#059669" />
         <StatCard label="평균 처리일" value={avgProcessDays !== null ? `${avgProcessDays}일` : "—"}  color="#7C3AED" />
         <StatCard label="평균 만족도" value={avgRating ? `★ ${avgRating}` : "—"}                     color="#F59E0B" />
@@ -2588,7 +2588,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                                       className={`w-full text-left px-4 py-2.5 hover:bg-violet-50/40 transition-colors ${h.id === t.id ? "bg-violet-50/60" : ""}`}>
                                       <div className="flex items-center gap-2 mb-1">
                                         <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
-                                          style={{ background: dark ? "#1c1c1c" : STATUS[h.status]?.bg || "#F8FAFC", color: STATUS[h.status]?.text || "#64748B" }}>
+                                          style={{ background: dark ? "#18181B" : STATUS[h.status]?.bg || "#FAFAFA", color: STATUS[h.status]?.text || "#71717A" }}>
                                           {h.status}
                                         </span>
                                         <span className="text-[10px] font-semibold text-violet-700 bg-violet-50 px-1.5 py-0.5 rounded">
@@ -2989,7 +2989,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
             detailCounts.set(cat, (detailCounts.get(cat) ?? 0) + 1);
           });
         });
-        const MAIN_COLORS: Record<string, string> = { "하드웨어": "#3B82F6", "소프트웨어": "#10B981", "기타": "#9CA3AF" };
+        const MAIN_COLORS: Record<string, string> = { "하드웨어": "#6366F1", "소프트웨어": "#10B981", "기타": "#9CA3AF" };
         const totalCatActions = Object.values(mainCatCounts).reduce((s, v) => s + v, 0);
 
         const byDetail = [...detailCounts.entries()]
@@ -3232,7 +3232,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
             {/* ── 메인 카테고리 분포 요약 ── */}
             <div className="grid grid-cols-3 gap-3">
               {[
-                { label: "SW 문의", count: swTickets.length,  color: "#3B82F6", bg: "#EFF6FF",  icon: "💿" },
+                { label: "SW 문의", count: swTickets.length,  color: "#6366F1", bg: "#EEF2FF",  icon: "💿" },
                 { label: "HW 문의", count: hwTickets.length,  color: "#F59E0B", bg: "#FFFBEB",  icon: "🖥️" },
                 { label: "기타",    count: etcTickets.length, color: "#6B7280", bg: "#F9FAFB",  icon: "📋" },
               ].map(item => (
@@ -3431,7 +3431,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                   {[
                     { label: "접수 건수", value: previewTickets.length, color: "#7C3AED" },
                     { label: "완료",      value: previewDone,            color: "#059669" },
-                    { label: "진행 중",   value: previewTickets.length - previewDone, color: "#1D4ED8" },
+                    { label: "진행 중",   value: previewTickets.length - previewDone, color: "#4338CA" },
                     { label: "평균 만족도", value: previewAvgR ? `★ ${previewAvgR}` : "—", color: "#F59E0B" },
                   ].map(item => (
                     <div key={item.label} className="bg-white rounded-lg p-3 text-center border border-violet-100">

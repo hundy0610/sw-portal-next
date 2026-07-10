@@ -51,7 +51,7 @@ export default function ChangePasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: "#F4F5F7" }}>
+    <div className="min-h-screen flex items-center justify-center" style={{ background: "#FAFAFA" }}>
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 w-[400px]">
         {/* 헤더 */}
         <div className="flex items-center gap-3 mb-6">
@@ -80,7 +80,7 @@ export default function ChangePasswordPage() {
                 onChange={e => { setNewPassword(e.target.value); setError(""); }}
                 placeholder="6자 이상 입력"
                 autoFocus
-                className="w-full px-3 py-2.5 pr-16 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+                className="w-full px-3 py-2.5 pr-16 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                 required
               />
               <button type="button" onClick={() => setShowNew(!showNew)}
@@ -115,7 +115,7 @@ export default function ChangePasswordPage() {
                     ? "border-red-300 focus:ring-red-400"
                     : confirmPassword.length > 0 && confirmPassword === newPassword
                     ? "border-green-300 focus:ring-green-400"
-                    : "border-gray-200 focus:ring-purple-500"}`}
+                    : "border-gray-200 focus:ring-indigo-500"}`}
                 required
               />
               <button type="button" onClick={() => setShowConfirm(!showConfirm)}
@@ -143,7 +143,7 @@ export default function ChangePasswordPage() {
           <button
             type="submit"
             disabled={loading || !newPassword || !confirmPassword || newPassword !== confirmPassword || newPassword.length < 6}
-            className="w-full bg-purple-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors mt-1"
+            className="w-full bg-indigo-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors mt-1"
           >
             {loading ? "변경 중..." : "비밀번호 변경 및 로그인"}
           </button>

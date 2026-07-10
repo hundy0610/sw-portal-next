@@ -15,7 +15,7 @@ const GRADES: Grade[] = ["A+", "A", "B+", "B", "C+", "C"];
 const GRADE_COLOR: Record<Grade, { bg: string; text: string }> = {
   "A+": { bg: "#ECFDF5", text: "#065F46" },
   "A":  { bg: "#D1FAE5", text: "#065F46" },
-  "B+": { bg: "#EFF6FF", text: "#1E40AF" },
+  "B+": { bg: "#EEF2FF", text: "#1E40AF" },
   "B":  { bg: "#DBEAFE", text: "#1E40AF" },
   "C+": { bg: "#FFFBEB", text: "#92400E" },
   "C":  { bg: "#FEF3C7", text: "#92400E" },
@@ -38,7 +38,7 @@ function GradeBadge({ grade }: { grade: Grade }) {
   const dark = useAdminDarkMode();
   const c = GRADE_COLOR[grade];
   return (
-    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold" style={{ background: dark ? "#1c1c1c" : c.bg, color: c.text }}>
+    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold" style={{ background: dark ? "#18181B" : c.bg, color: c.text }}>
       {grade}
     </span>
   );

@@ -102,11 +102,11 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: "#F4F5F7" }}>
+    <div className="min-h-screen flex items-center justify-center" style={{ background: "#FAFAFA" }}>
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 w-[380px]">
         {/* 헤더 */}
         <div className="flex items-center gap-3 mb-7">
-          <div className="w-10 h-10 rounded-lg bg-purple-600 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-lg bg-indigo-600 flex items-center justify-center">
             <span className="text-white font-extrabold text-sm">AD</span>
           </div>
           <div>
@@ -125,7 +125,7 @@ export default function AdminLoginPage() {
               onChange={(e) => setUserId(e.target.value)}
               autoFocus
               autoComplete="username"
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
               required
             />
           </div>
@@ -138,7 +138,7 @@ export default function AdminLoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
               required
             />
             <p className="text-xs text-gray-400 mt-0.5">
@@ -158,7 +158,7 @@ export default function AdminLoginPage() {
           <button
             type="submit"
             disabled={loading || !userId || !password}
-            className="w-full bg-purple-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-purple-700 active:bg-purple-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed mt-1"
+            className="w-full bg-indigo-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-indigo-700 active:bg-indigo-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed mt-1"
           >
             {loading ? "로그인 중..." : "로그인"}
           </button>
@@ -168,7 +168,7 @@ export default function AdminLoginPage() {
         <div className="mt-4 pt-4 border-t border-gray-100 text-center">
           <button
             onClick={() => setResetStep("request")}
-            className="text-xs text-purple-600 hover:text-purple-800 hover:underline font-medium"
+            className="text-xs text-indigo-600 hover:text-indigo-800 hover:underline font-medium"
           >
             비밀번호를 잊으셨나요? 초기화하기
           </button>
@@ -176,7 +176,7 @@ export default function AdminLoginPage() {
 
         <p className="text-center text-xs text-gray-400 mt-3">
           일반 사용자라면{" "}
-          <a href="/" className="text-purple-600 hover:underline font-medium">
+          <a href="/" className="text-indigo-600 hover:underline font-medium">
             직원 포털
           </a>
           로 이동하세요
@@ -209,7 +209,7 @@ export default function AdminLoginPage() {
                   <input
                     value={resetUserId} onChange={e => setResetUserId(e.target.value)}
                     placeholder="로그인 아이디" required
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
                   />
                 </div>
                 <div>
@@ -217,7 +217,7 @@ export default function AdminLoginPage() {
                   <input
                     type="email" value={resetEmail} onChange={e => setResetEmail(e.target.value)}
                     placeholder="registered@email.com" required
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
                   />
                 </div>
                 {resetError && <p className="text-xs text-red-500">{resetError}</p>}
@@ -227,7 +227,7 @@ export default function AdminLoginPage() {
                     취소
                   </button>
                   <button type="submit" disabled={resetLoading}
-                    className="flex-1 py-2 rounded-lg bg-purple-600 text-white text-sm font-semibold hover:bg-purple-700 disabled:opacity-50">
+                    className="flex-1 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50">
                     {resetLoading ? "전송 중..." : "인증코드 발송"}
                   </button>
                 </div>
@@ -244,7 +244,7 @@ export default function AdminLoginPage() {
                   <input
                     value={resetCode} onChange={e => setResetCode(e.target.value)}
                     placeholder="6자리 코드 입력" maxLength={6} required
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm font-mono text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-purple-400"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm font-mono text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-indigo-400"
                   />
                 </div>
                 <div>
@@ -252,7 +252,7 @@ export default function AdminLoginPage() {
                   <input
                     type="password" value={resetPw} onChange={e => setResetPw(e.target.value)}
                     placeholder="6자 이상 입력" required
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
                   />
                 </div>
                 <div>
@@ -263,7 +263,7 @@ export default function AdminLoginPage() {
                     className={`w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 transition-all
                       ${resetConfirm && resetConfirm !== resetPw ? "border-red-300 focus:ring-red-400" :
                         resetConfirm && resetConfirm === resetPw ? "border-green-300 focus:ring-green-400" :
-                        "border-gray-200 focus:ring-purple-400"}`}
+                        "border-gray-200 focus:ring-indigo-400"}`}
                   />
                 </div>
                 {resetError && <p className="text-xs text-red-500">{resetError}</p>}
@@ -273,7 +273,7 @@ export default function AdminLoginPage() {
                     이전
                   </button>
                   <button type="submit" disabled={resetLoading}
-                    className="flex-1 py-2 rounded-lg bg-purple-600 text-white text-sm font-semibold hover:bg-purple-700 disabled:opacity-50">
+                    className="flex-1 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50">
                     {resetLoading ? "처리 중..." : "비밀번호 변경"}
                   </button>
                 </div>
@@ -288,7 +288,7 @@ export default function AdminLoginPage() {
                 </p>
                 <button
                   onClick={closeReset}
-                  className="w-full py-2.5 rounded-lg bg-purple-600 text-white text-sm font-semibold hover:bg-purple-700"
+                  className="w-full py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700"
                 >
                   로그인으로 돌아가기
                 </button>

@@ -6,8 +6,8 @@
 
 :root {
   /* ── 통합 디자인 토큰 — 포털·어드민 공통 (2026-07 디자인 체계 통일) ──
-     brand: 버튼·링크 등 상호작용 요소 전용. state-*: 현황·상태 표시 전용.
-     이 둘을 섞지 않는 것이 원칙 — brand는 "누르는 것", state는 "지금 어떤 상태인지". */
+     brand: 버튼·링크·활성 탭 등 상호작용 요소 전용, 포털·어드민이 공유하는 단일 액센트.
+     state-*: 현황·상태 표시 전용 5의미. 이 둘을 섞지 않는 것이 원칙. */
   --brand: #D97706;
   --brand-soft: #FCEEDA;
   --state-positive:      #2F6B44; --state-positive-soft: #E4EFE6;
@@ -16,23 +16,36 @@
   --state-risk:          #A6392C; --state-risk-soft:     #F6E4E1;
   --state-neutral:       #6B7280; --state-neutral-soft:  #EEEEEC;
 
-  --sidebar-bg: #1C2B4A;
-  --sidebar-hover: rgba(255,255,255,0.08);
-  --sidebar-active: rgba(255,255,255,0.15);
+  /* 어드민 — Modern Neutral 서피스/타이포 토큰 (컬러 액센트는 위 --brand로 통일) */
+  --admin-bg: #FAFAFA;
+  --admin-surface: #FFFFFF;
+  --admin-surface-sunken: #F4F4F5;
+  --admin-border: #E4E4E7;
+  --admin-border-strong: #D4D4D8;
+  --admin-text: #18181B;
+  --admin-text-2: #52525B;
+  --admin-text-3: #A1A1AA;
+  --admin-accent: var(--brand);
+  --admin-accent-hover: #B45F05;
+  --admin-accent-soft: var(--brand-soft);
 
-  /* 어드민 라이트 모드 */
-  --admin-content-bg: #F4F5F7;
-  --admin-header-bg: #ffffff;
-  --admin-header-border: #e5e7eb;
-  --admin-table-head-bg: #F4F5F7;
-  --admin-table-head-border: #DFE1E6;
-  --admin-table-row-border: #EBECF0;
-  --admin-table-hover-bg: #F4F5F7;
-  --admin-input-bg: #ffffff;
-  --admin-input-border: #DFE1E6;
-  --admin-input-color: #172B4D;
-  --admin-text-primary: #344563;
-  --admin-text-secondary: #6B778C;
+  --sidebar-bg: #18181B;
+  --sidebar-hover: rgba(255,255,255,0.08);
+  --sidebar-active: rgba(217,119,6,0.28);
+
+  /* 어드민 라이트 모드 (레거시 변수명 — Modern Neutral 토큰으로 alias) */
+  --admin-content-bg: var(--admin-bg);
+  --admin-header-bg: var(--admin-surface);
+  --admin-header-border: var(--admin-border);
+  --admin-table-head-bg: var(--admin-surface-sunken);
+  --admin-table-head-border: var(--admin-border);
+  --admin-table-row-border: var(--admin-border);
+  --admin-table-hover-bg: var(--admin-surface-sunken);
+  --admin-input-bg: var(--admin-surface);
+  --admin-input-border: var(--admin-border);
+  --admin-input-color: var(--admin-text);
+  --admin-text-primary: var(--admin-text);
+  --admin-text-secondary: var(--admin-text-2);
 }
 
 * { box-sizing: border-box; }
@@ -66,7 +79,7 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
   border-left: 3px solid transparent;
 }
 .sidenav-item:hover { background: var(--sidebar-hover); color: rgba(255,255,255,0.92); }
-.sidenav-item.active { background: var(--sidebar-active); color: #fff; font-weight: 700; border-left-color: #60A5FA; }
+.sidenav-item.active { background: var(--sidebar-active); color: #fff; font-weight: 700; border-left-color: var(--brand); }
 .sidenav-section {
   display: flex; align-items: center;
   font-size: 13px; font-weight: 700; letter-spacing: .04em;
@@ -80,9 +93,9 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
 .data-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .data-table th {
   background: var(--admin-table-head-bg); padding: 10px 14px; text-align: left;
-  font-size: 11.5px; font-weight: 600; color: #6B778C;
+  font-size: 11.5px; font-weight: 600; color: var(--admin-text-3);
   letter-spacing: .04em; text-transform: uppercase;
-  border-bottom: 2px solid var(--admin-table-head-border); white-space: nowrap;
+  border-bottom: 1px solid var(--admin-table-head-border); white-space: nowrap;
 }
 .data-table td { padding: 11px 14px; border-bottom: 1px solid var(--admin-table-row-border); color: var(--admin-text-primary); vertical-align: middle; }
 .data-table tbody tr:hover td { background: var(--admin-table-hover-bg); }
@@ -90,15 +103,171 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
 
 /* 인풋 */
 .form-input {
-  border: 2px solid var(--admin-input-border); border-radius: 4px;
+  border: 1px solid var(--admin-input-border); border-radius: 8px;
   padding: 7px 12px; font-size: 13.5px; color: var(--admin-input-color);
   outline: none; transition: border-color 0.15s; background: var(--admin-input-bg); width: 100%;
 }
-.form-input:focus { border-color: #4C9AFF; box-shadow: 0 0 0 2px rgba(76,154,255,0.2); }
+.form-input:focus { border-color: var(--admin-accent); box-shadow: 0 0 0 2px var(--admin-accent-soft); }
 
 /* 프로그레스 바 */
-.prog-track { height: 6px; background: #EBECF0; border-radius: 99px; overflow: hidden; }
+.prog-track { height: 6px; background: var(--admin-surface-sunken); border-radius: 99px; overflow: hidden; }
 .prog-fill  { height: 6px; border-radius: 99px; transition: width 0.8s ease; }
+
+/* ── 어드민 라이트모드 Modern Neutral 오버라이드 (.admin-root) ── */
+.admin-root .bg-gray-50  { background: var(--admin-bg) !important; }
+.admin-root .bg-gray-100 { background: var(--admin-surface-sunken) !important; }
+.admin-root .border-gray-100,
+.admin-root .border-gray-200,
+.admin-root .border-gray-300,
+.admin-root .border-b        { border-color: var(--admin-border) !important; }
+.admin-root .divide-gray-50 > :not([hidden]) ~ :not([hidden]),
+.admin-root .divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: var(--admin-border) !important; }
+
+/* 장식용 밝은 컬러 배경(-50, opacity 변형) — 중립 서피스로 통일 */
+.admin-root .bg-amber-50,
+.admin-root .bg-amber-50\/30,
+.admin-root .bg-amber-50\/40,
+.admin-root .bg-amber-50\/50,
+.admin-root .bg-amber-50\/60,
+.admin-root .bg-orange-50,
+.admin-root .bg-indigo-50,
+.admin-root .bg-indigo-50\/30,
+.admin-root .bg-emerald-50,
+.admin-root .bg-emerald-50\/50,
+.admin-root .bg-violet-50,
+.admin-root .bg-violet-50\/20,
+.admin-root .bg-violet-50\/40,
+.admin-root .bg-violet-50\/60,
+.admin-root .bg-pink-50,
+.admin-root .bg-rose-50,
+.admin-root .bg-teal-50,
+.admin-root .bg-teal-50\/30,
+.admin-root .bg-cyan-50,
+.admin-root .bg-sky-50,
+.admin-root .bg-green-50,
+.admin-root .bg-green-50\/50,
+.admin-root .bg-blue-50,
+.admin-root .bg-blue-50\/30,
+.admin-root .bg-blue-50\/40,
+.admin-root .bg-red-50,
+.admin-root .bg-red-50\/40,
+.admin-root .bg-red-50\/50,
+.admin-root .bg-red-50\/60,
+.admin-root .bg-purple-50,
+.admin-root .bg-yellow-50,
+.admin-root .bg-slate-50   { background: var(--admin-surface-sunken) !important; }
+.admin-root .bg-gray-50\/50,
+.admin-root .bg-gray-50\/60,
+.admin-root .bg-gray-50\/80 { background: rgba(24,24,27,0.03) !important; }
+
+/* 카테고리 칩 배경 (100 계열) — 중립 배경 + 컬러 텍스트로 구분 유지 */
+.admin-root .bg-amber-100,
+.admin-root .bg-orange-100,
+.admin-root .bg-blue-100,
+.admin-root .bg-cyan-100,
+.admin-root .bg-teal-100,
+.admin-root .bg-violet-100,
+.admin-root .bg-pink-100,
+.admin-root .bg-green-100,
+.admin-root .bg-sky-100,
+.admin-root .bg-rose-100,
+.admin-root .bg-slate-100,
+.admin-root .bg-emerald-100,
+.admin-root .bg-purple-100,
+.admin-root .bg-red-100,
+.admin-root .bg-red-200,
+.admin-root .bg-red-300,
+.admin-root .bg-yellow-100,
+.admin-root .bg-indigo-100,
+.admin-root .bg-indigo-100\/50 { background: #ECECEF !important; }
+
+/* 연한(100~300) 하이라이트 보더 — 중립 톤으로 통일 */
+.admin-root .border-amber-100,
+.admin-root .border-amber-200,
+.admin-root .border-amber-300,
+.admin-root .border-blue-100,
+.admin-root .border-blue-200,
+.admin-root .border-blue-300,
+.admin-root .border-cyan-100,
+.admin-root .border-emerald-100,
+.admin-root .border-emerald-200,
+.admin-root .border-green-100,
+.admin-root .border-green-200,
+.admin-root .border-green-300,
+.admin-root .border-indigo-100,
+.admin-root .border-indigo-200,
+.admin-root .border-indigo-300,
+.admin-root .border-orange-100,
+.admin-root .border-orange-200,
+.admin-root .border-pink-100,
+.admin-root .border-purple-100,
+.admin-root .border-purple-200,
+.admin-root .border-purple-300,
+.admin-root .border-red-100,
+.admin-root .border-red-200,
+.admin-root .border-red-300,
+.admin-root .border-slate-100,
+.admin-root .border-slate-200,
+.admin-root .border-teal-100,
+.admin-root .border-teal-200,
+.admin-root .border-violet-100,
+.admin-root .border-violet-200,
+.admin-root .border-violet-300,
+.admin-root .border-yellow-100,
+.admin-root .border-yellow-200,
+.admin-root .border-yellow-300 { border-color: var(--admin-border) !important; }
+
+/* 연한(200/300) 포커스링 — 중립 톤으로 통일 */
+.admin-root .ring-amber-200,
+.admin-root .ring-amber-300,
+.admin-root .ring-blue-200,
+.admin-root .ring-blue-300,
+.admin-root .ring-cyan-200,
+.admin-root .ring-indigo-200,
+.admin-root .ring-indigo-300,
+.admin-root .ring-violet-200,
+.admin-root .ring-violet-300,
+.admin-root .ring-slate-200,
+.admin-root .ring-pink-200,
+.admin-root .ring-green-200,
+.admin-root .ring-rose-200,
+.admin-root .ring-sky-200,
+.admin-root .ring-teal-200,
+.admin-root .ring-orange-200,
+.admin-root .ring-orange-300,
+.admin-root .ring-red-200,
+.admin-root .ring-red-300,
+.admin-root .ring-yellow-300   { --tw-ring-color: var(--admin-border-strong) !important; }
+
+/* 그라디언트 재정의 */
+.admin-root .from-amber-50 { --tw-gradient-from: var(--admin-surface-sunken) var(--tw-gradient-from-position) !important; }
+.admin-root .to-orange-50  { --tw-gradient-to:   var(--admin-surface-sunken) var(--tw-gradient-to-position)   !important; }
+.admin-root .from-blue-50  { --tw-gradient-from: var(--admin-surface-sunken) var(--tw-gradient-from-position) !important; }
+.admin-root .to-indigo-50  { --tw-gradient-to:   var(--admin-surface-sunken) var(--tw-gradient-to-position)   !important; }
+
+/* 단일 액센트 통일 — 파랑 계열 주요 버튼·링크·포커스를 인디고 액센트로 수렴 */
+.admin-root .bg-blue-600,
+.admin-root .bg-blue-700              { background: var(--admin-accent) !important; }
+.admin-root .hover\:bg-blue-600:hover,
+.admin-root .hover\:bg-blue-700:hover,
+.admin-root .hover\:bg-blue-800:hover { background: var(--admin-accent-hover) !important; }
+.admin-root .hover\:bg-blue-50:hover  { background: var(--admin-accent-soft) !important; }
+.admin-root .text-blue-500,
+.admin-root .text-blue-600            { color: var(--admin-accent) !important; }
+.admin-root .hover\:text-blue-600:hover,
+.admin-root .hover\:text-blue-700:hover { color: var(--admin-accent-hover) !important; }
+.admin-root .border-blue-400,
+.admin-root .border-blue-500,
+.admin-root .border-blue-600          { border-color: var(--admin-accent) !important; }
+.admin-root .ring-blue-400,
+.admin-root .ring-blue-500            { --tw-ring-color: var(--admin-accent) !important; }
+
+/* 그림자 플랫화 — 헤어라인 위계 (모달류 그림자는 보존) */
+.admin-root .shadow-sm { box-shadow: 0 1px 2px rgba(24,24,27,0.05) !important; }
+
+/* 라운드 스케일 정리 — 카드 8px 유지, 큰 컨테이너 10~12px로 축소 */
+.admin-root .rounded-xl  { border-radius: 10px !important; }
+.admin-root .rounded-2xl { border-radius: 12px !important; }
 
 /* ── 어드민 다크모드 (.admin-dark) — 네이비 대신 흑색-회색 계열 ── */
 .admin-dark {
@@ -108,22 +277,25 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
   --state-caution:       #E0B15C; --state-caution-soft:  #2E2717;
   --state-risk:          #E08476; --state-risk-soft:     #2E1E1A;
   --state-neutral:       #9A968C; --state-neutral-soft:  #242522;
+  --admin-accent: var(--brand);
+  --admin-accent-hover: #F5C583;
+  --admin-accent-soft: var(--brand-soft);
 
-  --admin-content-bg:        #0a0a0a;
-  --admin-header-bg:         #141414;
-  --admin-header-border:     #262626;
-  --admin-table-head-bg:     #141414;
-  --admin-table-head-border: #262626;
-  --admin-table-row-border:  #222222;
-  --admin-table-hover-bg:    #1a1a1a;
-  --admin-input-bg:          #171717;
-  --admin-input-border:      #3a3a3a;
-  --admin-input-color:       #e5e5e5;
-  --admin-text-primary:      #d4d4d4;
-  --admin-text-secondary:    #a3a3a3;
-  --sidebar-bg:              #0a0a0a;
+  --admin-content-bg:        #09090B;
+  --admin-header-bg:         #18181B;
+  --admin-header-border:     #27272A;
+  --admin-table-head-bg:     #18181B;
+  --admin-table-head-border: #27272A;
+  --admin-table-row-border:  #232326;
+  --admin-table-hover-bg:    #1F1F23;
+  --admin-input-bg:          #18181B;
+  --admin-input-border:      #3F3F46;
+  --admin-input-color:       #E4E4E7;
+  --admin-text-primary:      #D4D4D8;
+  --admin-text-secondary:    #A1A1AA;
+  --sidebar-bg:              #09090B;
   --sidebar-hover:           rgba(255,255,255,0.07);
-  --sidebar-active:          rgba(96,165,250,0.18);
+  --sidebar-active:          rgba(240,169,78,0.20);
 }
 
 /* 헤더 */
@@ -139,7 +311,7 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
 .admin-dark header.admin-header .border-gray-200            { border-color: #262626 !important; }
 
 /* 사이드바 활성 아이템 */
-.admin-dark .sidenav-item.active { color: #93c5fd !important; border-left-color: #93c5fd !important; }
+.admin-dark .sidenav-item.active { color: var(--brand) !important; border-left-color: var(--brand) !important; }
 
 /* 메인 콘텐츠 */
 .admin-dark main.admin-main { background: var(--admin-content-bg) !important; }
@@ -180,8 +352,8 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
 
 /* 포커스 인풋 */
 .admin-dark .form-input:focus {
-  border-color: #3b82f6 !important;
-  box-shadow: 0 0 0 2px rgba(59,130,246,0.25) !important;
+  border-color: var(--brand) !important;
+  box-shadow: 0 0 0 2px var(--brand-soft) !important;
 }
 
 /* ── 배지 / 칩 배경 (중립) ── */

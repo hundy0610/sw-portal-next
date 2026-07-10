@@ -18,8 +18,8 @@ function stageChipStyle(
   dark: boolean,
 ): { background: string; color: string } {
   if (active) return { background: c.dot, color: "#fff" };
-  if (cnt > 0) return dark ? { background: "#1c1c1c", color: c.dot } : { background: c.bg, color: c.text };
-  return dark ? { background: "#161616", color: "#525252" } : { background: "#F8FAFC", color: "#CBD5E1" };
+  if (cnt > 0) return dark ? { background: "#18181B", color: c.dot } : { background: c.bg, color: c.text };
+  return dark ? { background: "#161616", color: "#525252" } : { background: "#FAFAFA", color: "#CBD5E1" };
 }
 
 // Promise.all로 동시 처리하는 Notion 쓰기 중 하나라도 실패하면 즉시 throw하여
@@ -64,8 +64,8 @@ const COMPANIES = [
 ];
 
 const STAGE_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
-  "교체요청":   { bg: "#F8FAFC", text: "#64748B", dot: "#94A3B8" },
-  "요청기안":   { bg: "#EFF6FF", text: "#1D4ED8", dot: "#3B82F6" },
+  "교체요청":   { bg: "#FAFAFA", text: "#71717A", dot: "#A1A1AA" },
+  "요청기안":   { bg: "#EEF2FF", text: "#4338CA", dot: "#6366F1" },
   "기기준비":   { bg: "#F5F3FF", text: "#6D28D9", dot: "#8B5CF6" },
   "기기준비완료": { bg: "#ECFDF5", text: "#065F46", dot: "#10B981" },
   "사용자수령": { bg: "#FFF7ED", text: "#C2410C", dot: "#F97316" },
@@ -74,7 +74,7 @@ const STAGE_COLORS: Record<string, { bg: string; text: string; dot: string }> = 
 };
 
 const TYPE_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
-  "교체":     { bg: "#EFF6FF", text: "#1D4ED8", dot: "#93C5FD" },
+  "교체":     { bg: "#EEF2FF", text: "#4338CA", dot: "#A5B4FC" },
   "퇴사반납": { bg: "#FEF2F2", text: "#B91C1C", dot: "#FCA5A5" },
   "신규지급": { bg: "#F0FDF4", text: "#15803D", dot: "#86EFAC" },
   "임대":     { bg: "#FFF7ED", text: "#C2410C", dot: "#FDBA74" },
@@ -128,10 +128,10 @@ function DDay({ date }: { date: string }) {
 // ── Sub-components ───────────────────────────────────────────
 function StageBadge({ stage }: { stage: string }) {
   const dark = useAdminDarkMode();
-  const c = STAGE_COLORS[stage] ?? { bg: "#F1F5F9", text: "#64748B", dot: "#94A3B8" };
+  const c = STAGE_COLORS[stage] ?? { bg: "#F4F4F5", text: "#71717A", dot: "#A1A1AA" };
   return (
     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap"
-      style={{ background: dark ? "#1c1c1c" : c.bg, color: dark ? c.dot : c.text }}>
+      style={{ background: dark ? "#18181B" : c.bg, color: dark ? c.dot : c.text }}>
       {stage || "—"}
     </span>
   );
@@ -140,10 +140,10 @@ function StageBadge({ stage }: { stage: string }) {
 function TypeBadge({ type }: { type: string }) {
   const dark = useAdminDarkMode();
   if (!type) return <span className="text-xs text-gray-300">—</span>;
-  const c = TYPE_COLORS[type] ?? { bg: "#F1F5F9", text: "#64748B", dot: "#94A3B8" };
+  const c = TYPE_COLORS[type] ?? { bg: "#F4F4F5", text: "#71717A", dot: "#A1A1AA" };
   return (
     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap"
-      style={{ background: dark ? "#1c1c1c" : c.bg, color: dark ? c.dot : c.text }}>
+      style={{ background: dark ? "#18181B" : c.bg, color: dark ? c.dot : c.text }}>
       {type}
     </span>
   );
@@ -163,7 +163,7 @@ function MiniStageBar({ stage, type }: { stage: string; type: string }) {
   const dark = useAdminDarkMode();
   const visible = stagesFor(type);
   const idx = visible.indexOf(stage as Stage);
-  const notReached = dark ? "#333333" : "#E2E8F0";
+  const notReached = dark ? "#333333" : "#E4E4E7";
   return (
     <div className="flex items-center gap-0.5">
       {visible.map((s, i) => {
@@ -188,9 +188,9 @@ function BigStageBar({ stage, type }: { stage: string; type: string }) {
   const dark = useAdminDarkMode();
   const visible = stagesFor(type);
   const idx = visible.indexOf(stage as Stage);
-  const notReached = dark ? "#333333" : "#E2E8F0";
+  const notReached = dark ? "#333333" : "#E4E4E7";
   const notReachedBorder = dark ? "#3a3a3a" : "#CBD5E1";
-  const notReachedLabel = dark ? "#525252" : "#94A3B8";
+  const notReachedLabel = dark ? "#525252" : "#A1A1AA";
   return (
     <div className="flex items-start gap-0">
       {visible.map((s, i) => {
@@ -1392,7 +1392,7 @@ function HwAssetDetailModal({ assetNo, onClose }: { assetNo: string; onClose: ()
   }, [onClose]);
 
   const statusColors: Record<string, { bg: string; text: string }> = {
-    "사용중":    { bg: "#EFF6FF", text: "#1D4ED8" },
+    "사용중":    { bg: "#EEF2FF", text: "#4338CA" },
     "재고":      { bg: "#F0FDF4", text: "#15803D" },
     "폐기":      { bg: "#FEF2F2", text: "#B91C1C" },
     "반납예정":  { bg: "#FEFCE8", text: "#A16207" },
@@ -1440,11 +1440,11 @@ function HwAssetDetailModal({ assetNo, onClose }: { assetNo: string; onClose: ()
               {/* 상태 배지 */}
               {data.status && (() => {
                 const s = String(data.status);
-                const c = statusColors[s] ?? { bg: "#F1F5F9", text: "#64748B" };
+                const c = statusColors[s] ?? { bg: "#F4F4F5", text: "#71717A" };
                 return (
                   <div className="mb-4">
                     <span className="px-3 py-1 rounded-full text-xs font-bold"
-                      style={{ background: dark ? "#1c1c1c" : c.bg, color: c.text }}>{s}</span>
+                      style={{ background: dark ? "#18181B" : c.bg, color: c.text }}>{s}</span>
                   </div>
                 );
               })()}
@@ -1961,7 +1961,7 @@ function DetailModal({
                     style={{
                       background: stage === "반납요청"
                         ? (record.address === "본사" ? "#D97706" : "#EA580C")
-                        : (record.address === "본사" ? "#10B981" : "#3B82F6"),
+                        : (record.address === "본사" ? "#10B981" : "#6366F1"),
                       color: "white",
                     }}
                   >
@@ -2050,7 +2050,7 @@ function DetailModal({
                       style={{
                         background: stage === "반납요청"
                           ? (record.address === "본사" ? "#D97706" : "#EA580C")
-                          : (record.address === "본사" ? "#10B981" : "#3B82F6"),
+                          : (record.address === "본사" ? "#10B981" : "#6366F1"),
                       }}
                     >
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -2159,7 +2159,7 @@ const EMPTY_FORM: CreateForm = {
 type CreatePhase = "type" | "form" | "stock" | "detail" | "info" | "confirm" | "rt_search" | "rt_list" | "rt_fields" | "ex_search" | "ex_list" | "ex_confirm";
 
 const TYPE_META = [
-  { type: "교체",     desc: "기존 기기를 새 기기로 교체",          color: "#1D4ED8", bg: "#EFF6FF" },
+  { type: "교체",     desc: "기존 기기를 새 기기로 교체",          color: "#4338CA", bg: "#EEF2FF" },
   { type: "퇴사반납", desc: "반납 등록",                           color: "#B91C1C", bg: "#FEF2F2" },
   { type: "신규지급", desc: "신규 입사 또는 재고 자산 지급",        color: "#15803D", bg: "#F0FDF4" },
   { type: "임대",     desc: "임대노트북현황관리 DB 자산 지급",      color: "#C2410C", bg: "#FFF7ED" },
@@ -3772,7 +3772,7 @@ export default function ExchangeReturnPanel() {
           { label: "전체",    value: total,      color: "#1E40AF" },
           { label: "진행 중", value: inProgress,  color: "#C2410C" },
           { label: "완료",    value: completed,   color: "#059669" },
-          { label: "교체",    value: exchanges,   color: "#1D4ED8" },
+          { label: "교체",    value: exchanges,   color: "#4338CA" },
           { label: "퇴사반납", value: returns,    color: "#B91C1C" },
           { label: "미반납",   value: overdue,    color: "#DC2626" },
         ].map(({ label, value, color }) => (
@@ -3796,7 +3796,7 @@ export default function ExchangeReturnPanel() {
             <button key={t} onClick={() => setTypeFilter(t)}
               className="px-3 py-1 rounded-full text-xs font-semibold transition-colors"
               style={{
-                background: active ? "#1E293B" : dark ? "#1c1c1c" : c.bg,
+                background: active ? "#1E293B" : dark ? "#18181B" : c.bg,
                 color: active ? "white" : dark ? c.dot : c.text,
               }}>
               {t}
@@ -3922,16 +3922,16 @@ export default function ExchangeReturnPanel() {
                             disabled={mailPreviewLoading && mailTarget?.id === r.id}
                             className="flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
                             style={{
-                              background: dark ? "#1c1c1c" : mailSentIds.has(r.id)
+                              background: dark ? "#18181B" : mailSentIds.has(r.id)
                                 ? "#D1FAE5"
                                 : r.stage === "반납요청"
                                   ? (r.address === "본사" ? "#FFFBEB" : "#FFF7ED")
-                                  : (r.address === "본사" ? "#ECFDF5" : "#EFF6FF"),
+                                  : (r.address === "본사" ? "#ECFDF5" : "#EEF2FF"),
                               color: mailSentIds.has(r.id)
                                 ? (dark ? "#6ee7b7" : "#065F46")
                                 : r.stage === "반납요청"
                                   ? (r.address === "본사" ? (dark ? "#fbbf24" : "#D97706") : (dark ? "#fdba74" : "#EA580C"))
-                                  : (r.address === "본사" ? (dark ? "#6ee7b7" : "#065F46") : (dark ? "#93c5fd" : "#1D4ED8")),
+                                  : (r.address === "본사" ? (dark ? "#6ee7b7" : "#065F46") : (dark ? "#A5B4FC" : "#4338CA")),
                             }}
                             title={mailSentIds.has(r.id) ? "클릭하면 재발송" : "메일 발송"}
                           >
@@ -4209,7 +4209,7 @@ export default function ExchangeReturnPanel() {
                   style={{
                     background: mailTarget.stage === "반납요청"
                       ? (mailTarget.address === "본사" ? "#D97706" : "#EA580C")
-                      : (mailTarget.address === "본사" ? "#10B981" : "#3B82F6"),
+                      : (mailTarget.address === "본사" ? "#10B981" : "#6366F1"),
                   }}
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
