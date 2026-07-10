@@ -580,7 +580,7 @@ function SearchTab() {
           <button key={key} onClick={() => { setFilter(key); setSelected(null); }}
             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all"
             style={{
-              background: filter === key ? C.text1 : C.bg,
+              background: filter === key ? C.brand : C.bg,
               color:      filter === key ? "#fff"  : C.text3,
             }}>
             {FILTER_LABELS[key]}
@@ -596,7 +596,7 @@ function SearchTab() {
             onClick={() => { setCatFilter("all"); setSelected(null); }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all"
             style={{
-              background: catFilter === "all" ? C.text1 : "transparent",
+              background: catFilter === "all" ? C.brand : "transparent",
               color:      catFilter === "all" ? "#fff"  : C.text3,
               border: catFilter === "all" ? "none" : `1px solid ${C.border}`,
             }}>
@@ -607,7 +607,7 @@ function SearchTab() {
               onClick={() => { setCatFilter(cat); setSelected(null); }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all"
               style={{
-                background: catFilter === cat ? C.text1 : "transparent",
+                background: catFilter === cat ? C.brand : "transparent",
                 color:      catFilter === cat ? "#fff"  : C.text3,
                 border: catFilter === cat ? "none" : `1px solid ${C.border}`,
               }}>

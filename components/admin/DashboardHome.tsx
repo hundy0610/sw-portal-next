@@ -87,15 +87,16 @@ function DonutChart({ data, title }: { data: DonutSeg[]; title: string }) {
 }
 
 // ── 색상 상수 ─────────────────────────────────────────────────
+// 상태색 — 통합 토큰(--state-*) 참조: 긍정/진행/주의/위험/중립 5의미만 사용
 const SW_STATUS_COLORS: Record<string, string> = {
-  "사용중": "#3B82F6", "신규등록": "#8B5CF6", "재고": "#10B981",
-  "출고준비중": "#06B6D4", "갱신필요": "#F97316", "반납예정": "#EAB308",
-  "만료": "#9CA3AF", "미확인": "#D1D5DB",
+  "사용중": "var(--state-positive)", "신규등록": "var(--state-positive)", "재고": "var(--state-neutral)",
+  "출고준비중": "var(--state-progress)", "갱신필요": "var(--state-caution)", "반납예정": "var(--state-caution)",
+  "만료": "var(--state-risk)", "미확인": "var(--state-neutral)",
 };
 const HW_STATUS_COLORS: Record<string, string> = {
-  "사용중": "#3B82F6", "재고": "#10B981", "출고준비중": "#06B6D4",
-  "출고준비완료": "#0EA5E9", "수리": "#F97316", "렌탈": "#8B5CF6",
-  "임시지급": "#EAB308", "반납예정": "#EC4899", "미분류": "#D1D5DB",
+  "사용중": "var(--state-positive)", "재고": "var(--state-neutral)", "출고준비중": "var(--state-progress)",
+  "출고준비완료": "var(--state-progress)", "수리": "var(--state-risk)", "렌탈": "var(--state-progress)",
+  "임시지급": "var(--state-caution)", "반납예정": "var(--state-caution)", "미분류": "var(--state-neutral)",
 };
 const HW_HIDDEN = new Set(["미확인", "미분류"]);
 const PALETTE = [
@@ -104,19 +105,20 @@ const PALETTE = [
   "#64748b","#e11d48","#059669","#d97706",
 ];
 
+// 자산흐름 단계색 — 통합 토큰 참조 (교체요청=중립 → 요청·준비=진행중 → 완료=긍정, 대기성 단계=주의)
 const STAGE_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
-  "교체요청":     { bg: "#F8FAFC", text: "#64748B", dot: "#94A3B8" },
-  "요청기안":     { bg: "#EFF6FF", text: "#1D4ED8", dot: "#3B82F6" },
-  "기기준비":     { bg: "#F5F3FF", text: "#6D28D9", dot: "#8B5CF6" },
-  "기기준비완료": { bg: "#ECFDF5", text: "#065F46", dot: "#10B981" },
-  "사용자수령":   { bg: "#FFF7ED", text: "#C2410C", dot: "#F97316" },
-  "반납요청":     { bg: "#FEFCE8", text: "#A16207", dot: "#EAB308" },
-  "반납완료":     { bg: "#F0FDF4", text: "#15803D", dot: "#22C55E" },
+  "교체요청":     { bg: "var(--state-neutral-soft)",  text: "var(--state-neutral)",  dot: "var(--state-neutral)" },
+  "요청기안":     { bg: "var(--state-progress-soft)", text: "var(--state-progress)", dot: "var(--state-progress)" },
+  "기기준비":     { bg: "var(--state-progress-soft)", text: "var(--state-progress)", dot: "var(--state-progress)" },
+  "기기준비완료": { bg: "var(--state-positive-soft)", text: "var(--state-positive)", dot: "var(--state-positive)" },
+  "사용자수령":   { bg: "var(--state-caution-soft)",  text: "var(--state-caution)",  dot: "var(--state-caution)" },
+  "반납요청":     { bg: "var(--state-caution-soft)",  text: "var(--state-caution)",  dot: "var(--state-caution)" },
+  "반납완료":     { bg: "var(--state-positive-soft)", text: "var(--state-positive)", dot: "var(--state-positive)" },
 };
 const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
-  "교체":     { bg: "#EFF6FF", text: "#1D4ED8" },
-  "퇴사반납": { bg: "#FEF2F2", text: "#B91C1C" },
-  "신규지급": { bg: "#F0FDF4", text: "#15803D" },
+  "교체":     { bg: "var(--state-progress-soft)", text: "var(--state-progress)" },
+  "퇴사반납": { bg: "var(--state-risk-soft)",     text: "var(--state-risk)" },
+  "신규지급": { bg: "var(--state-positive-soft)", text: "var(--state-positive)" },
 };
 const ALL_STAGES = ["교체요청","요청기안","기기준비","기기준비완료","사용자수령","반납요청"] as const;
 
@@ -266,14 +268,14 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <div className="flex items-center justify-between mb-4">
             <span className="text-sm font-bold text-gray-700">하드웨어 현황</span>
-            <button onClick={() => onNavigate("hw")} className="text-xs text-blue-500 hover:text-blue-700">전체 보기 →</button>
+            <button onClick={() => onNavigate("hw")} className="text-xs font-medium hover:opacity-75 transition-opacity" style={{ color: "var(--brand)" }}>전체 보기 →</button>
           </div>
           {hwLoading ? <LoadingBox /> : <DonutChart data={hwSegs} title="상태" />}
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <div className="flex items-center justify-between mb-4">
             <span className="text-sm font-bold text-gray-700">SW 라이선스 현황</span>
-            <button onClick={() => onNavigate("overview")} className="text-xs text-blue-500 hover:text-blue-700">전체 보기 →</button>
+            <button onClick={() => onNavigate("overview")} className="text-xs font-medium hover:opacity-75 transition-opacity" style={{ color: "var(--brand)" }}>전체 보기 →</button>
           </div>
           {swLoading ? <LoadingBox /> : <DonutChart data={swSegs} title="전체" />}
         </div>
@@ -289,7 +291,7 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
               진행 중 <strong className="text-gray-700">{Object.values(stageCounts).reduce((a, b) => a + b, 0)}</strong>건
             </span>
           </div>
-          <button onClick={() => onNavigate("exchange-return")} className="text-xs text-blue-500 hover:text-blue-700">
+          <button onClick={() => onNavigate("exchange-return")} className="text-xs font-medium hover:opacity-75 transition-opacity" style={{ color: "var(--brand)" }}>
             전체 보기 →
           </button>
         </div>
@@ -314,7 +316,7 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
                 style={{
                   background: active ? c.dot : dark ? "#1c1c1c" : c.bg,
                   color: active ? "#fff" : dark ? c.dot : c.text,
-                  borderColor: c.dot + "55",
+                  borderColor: `color-mix(in srgb, ${c.dot} 40%, transparent)`,
                 }}>
                 <span className="w-1.5 h-1.5 rounded-full" style={{ background: active ? "#ffffffaa" : c.dot }} />
                 {stage} {cnt}
@@ -355,7 +357,7 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
                       <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap shrink-0"
                         style={{ background: dark ? "#1c1c1c" : sc.bg, color: dark ? sc.dot : sc.text }}>{r.stage}</span>
                       <span className="text-[10px] font-semibold shrink-0"
-                        style={{ color: aging >= 7 ? "#DC2626" : aging >= 3 ? "#D97706" : "#9CA3AF" }}>
+                        style={{ color: aging >= 7 ? "var(--state-risk)" : aging >= 3 ? "var(--state-caution)" : "var(--state-neutral)" }}>
                         D+{aging}
                       </span>
                     </div>

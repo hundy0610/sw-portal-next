@@ -5,6 +5,17 @@
 @tailwind utilities;
 
 :root {
+  /* ── 통합 디자인 토큰 — 포털·어드민 공통 (2026-07 디자인 체계 통일) ──
+     brand: 버튼·링크 등 상호작용 요소 전용. state-*: 현황·상태 표시 전용.
+     이 둘을 섞지 않는 것이 원칙 — brand는 "누르는 것", state는 "지금 어떤 상태인지". */
+  --brand: #D97706;
+  --brand-soft: #FCEEDA;
+  --state-positive:      #2F6B44; --state-positive-soft: #E4EFE6;
+  --state-progress:      #1D4ED8; --state-progress-soft: #E7EEFC;
+  --state-caution:       #9C6B1E; --state-caution-soft:  #F5EBD9;
+  --state-risk:          #A6392C; --state-risk-soft:     #F6E4E1;
+  --state-neutral:       #6B7280; --state-neutral-soft:  #EEEEEC;
+
   --sidebar-bg: #1C2B4A;
   --sidebar-hover: rgba(255,255,255,0.08);
   --sidebar-active: rgba(255,255,255,0.15);
@@ -91,6 +102,13 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
 
 /* ── 어드민 다크모드 (.admin-dark) — 네이비 대신 흑색-회색 계열 ── */
 .admin-dark {
+  --brand: #F0A94E; --brand-soft: #2B2013;
+  --state-positive:      #7FC195; --state-positive-soft: #1B2A20;
+  --state-progress:      #7FA4F0; --state-progress-soft: #1B2333;
+  --state-caution:       #E0B15C; --state-caution-soft:  #2E2717;
+  --state-risk:          #E08476; --state-risk-soft:     #2E1E1A;
+  --state-neutral:       #9A968C; --state-neutral-soft:  #242522;
+
   --admin-content-bg:        #0a0a0a;
   --admin-header-bg:         #141414;
   --admin-header-border:     #262626;
