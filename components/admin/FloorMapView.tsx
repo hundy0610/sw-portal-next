@@ -2,16 +2,16 @@
 import { type EditorData } from "./FloorMapEditor";
 
 const MONITOR_META: Record<string, { label: string; color: string }> = {
-  std27:     { label: '27"', color: "#2563EB" },
+  std27:     { label: '27"', color: "#4F46E5" },
   std24:     { label: '24"', color: "#0284C7" },
   dev34:     { label: '34"', color: "#7C3AED" },
   none:      { label: "✕",  color: "#DC2626" },
-  unk:       { label: "·",  color: "#94A3B8" },
+  unk:       { label: "·",  color: "#A1A1AA" },
   repair:    { label: "요청", color: "#F97316" },
   repairing: { label: "수리", color: "#EF4444" },
 };
 const FACILITY_META: Record<string, { icon: string; color: string }> = {
-  elevator: { icon: "EV",   color: "#1D4ED8" },
+  elevator: { icon: "EV",   color: "#4338CA" },
   stairs:   { icon: "계단",  color: "#374151" },
   entrance: { icon: "입구",  color: "#15803D" },
   exit:     { icon: "EXIT", color: "#DC2626" },
@@ -78,10 +78,10 @@ export default function FloorMapView({
         {!data.imageUrl && (
           <g opacity={0.06} style={{ pointerEvents: "none" }}>
             {Array.from({ length: Math.ceil(vw/50)+1 }, (_, i) => (
-              <line key={`gv${i}`} x1={i*50} y1={0} x2={i*50} y2={vh} stroke="#94A3B8" strokeWidth={0.5}/>
+              <line key={`gv${i}`} x1={i*50} y1={0} x2={i*50} y2={vh} stroke="#A1A1AA" strokeWidth={0.5}/>
             ))}
             {Array.from({ length: Math.ceil(vh/50)+1 }, (_, i) => (
-              <line key={`gh${i}`} x1={0} y1={i*50} x2={vw} y2={i*50} stroke="#94A3B8" strokeWidth={0.5}/>
+              <line key={`gh${i}`} x1={0} y1={i*50} x2={vw} y2={i*50} stroke="#A1A1AA" strokeWidth={0.5}/>
             ))}
           </g>
         )}

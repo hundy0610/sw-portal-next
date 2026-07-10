@@ -88,12 +88,12 @@ function DonutChart({ data, title }: { data: DonutSeg[]; title: string }) {
 
 // ── 색상 상수 ─────────────────────────────────────────────────
 const SW_STATUS_COLORS: Record<string, string> = {
-  "사용중": "#3B82F6", "신규등록": "#8B5CF6", "재고": "#10B981",
+  "사용중": "#6366F1", "신규등록": "#8B5CF6", "재고": "#10B981",
   "출고준비중": "#06B6D4", "갱신필요": "#F97316", "반납예정": "#EAB308",
   "만료": "#9CA3AF", "미확인": "#D1D5DB",
 };
 const HW_STATUS_COLORS: Record<string, string> = {
-  "사용중": "#3B82F6", "재고": "#10B981", "출고준비중": "#06B6D4",
+  "사용중": "#6366F1", "재고": "#10B981", "출고준비중": "#06B6D4",
   "출고준비완료": "#0EA5E9", "수리": "#F97316", "렌탈": "#8B5CF6",
   "임시지급": "#EAB308", "반납예정": "#EC4899", "미분류": "#D1D5DB",
 };
@@ -101,12 +101,12 @@ const HW_HIDDEN = new Set(["미확인", "미분류"]);
 const PALETTE = [
   "#6366f1","#f59e0b","#10b981","#ef4444","#3b82f6","#8b5cf6",
   "#ec4899","#14b8a6","#f97316","#84cc16","#06b6d4","#a855f7",
-  "#64748b","#e11d48","#059669","#d97706",
+  "#71717A","#e11d48","#059669","#d97706",
 ];
 
 const STAGE_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
-  "교체요청":     { bg: "#F8FAFC", text: "#64748B", dot: "#94A3B8" },
-  "요청기안":     { bg: "#EFF6FF", text: "#1D4ED8", dot: "#3B82F6" },
+  "교체요청":     { bg: "#FAFAFA", text: "#71717A", dot: "#A1A1AA" },
+  "요청기안":     { bg: "#EEF2FF", text: "#4338CA", dot: "#6366F1" },
   "기기준비":     { bg: "#F5F3FF", text: "#6D28D9", dot: "#8B5CF6" },
   "기기준비완료": { bg: "#ECFDF5", text: "#065F46", dot: "#10B981" },
   "사용자수령":   { bg: "#FFF7ED", text: "#C2410C", dot: "#F97316" },
@@ -114,7 +114,7 @@ const STAGE_COLORS: Record<string, { bg: string; text: string; dot: string }> = 
   "반납완료":     { bg: "#F0FDF4", text: "#15803D", dot: "#22C55E" },
 };
 const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
-  "교체":     { bg: "#EFF6FF", text: "#1D4ED8" },
+  "교체":     { bg: "#EEF2FF", text: "#4338CA" },
   "퇴사반납": { bg: "#FEF2F2", text: "#B91C1C" },
   "신규지급": { bg: "#F0FDF4", text: "#15803D" },
 };
@@ -312,7 +312,7 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
               <button key={stage} onClick={() => setErStage(stage)}
                 className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all"
                 style={{
-                  background: active ? c.dot : dark ? "#1c1c1c" : c.bg,
+                  background: active ? c.dot : dark ? "#18181B" : c.bg,
                   color: active ? "#fff" : dark ? c.dot : c.text,
                   borderColor: c.dot + "55",
                 }}>
@@ -345,22 +345,22 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
             <div className="max-h-[480px] overflow-y-auto divide-y divide-gray-50">
               {erFiltered.map(r => {
                 const aging = agingDays(r.requestedAt, r.completedAt, r.stage);
-                const sc = STAGE_COLORS[r.stage] ?? { bg: "#F1F5F9", text: "#64748B", dot: "#94A3B8" };
-                const tc = TYPE_COLORS[r.type]  ?? { bg: "#F1F5F9", text: "#64748B" };
+                const sc = STAGE_COLORS[r.stage] ?? { bg: "#F4F4F5", text: "#71717A", dot: "#A1A1AA" };
+                const tc = TYPE_COLORS[r.type]  ?? { bg: "#F4F4F5", text: "#71717A" };
                 return (
                   <div key={r.id}
                     className="grid items-center px-5 py-2.5 hover:bg-gray-50 transition-colors"
                     style={{ gridTemplateColumns: "130px 64px 108px 108px 88px 80px 90px 1fr 100px 90px" }}>
                     <div className="flex items-center gap-1.5 min-w-0">
                       <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap shrink-0"
-                        style={{ background: dark ? "#1c1c1c" : sc.bg, color: dark ? sc.dot : sc.text }}>{r.stage}</span>
+                        style={{ background: dark ? "#18181B" : sc.bg, color: dark ? sc.dot : sc.text }}>{r.stage}</span>
                       <span className="text-[10px] font-semibold shrink-0"
                         style={{ color: aging >= 7 ? "#DC2626" : aging >= 3 ? "#D97706" : "#9CA3AF" }}>
                         D+{aging}
                       </span>
                     </div>
                     <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold w-fit whitespace-nowrap"
-                      style={{ background: dark ? "#1c1c1c" : tc.bg, color: tc.text }}>{r.type || "—"}</span>
+                      style={{ background: dark ? "#18181B" : tc.bg, color: tc.text }}>{r.type || "—"}</span>
                     <span className="text-[11px] text-blue-600 font-medium truncate pr-2">{r.assetId || "—"}</span>
                     <span className="text-[11px] text-blue-600 font-medium truncate pr-2">{r.newAssetId || "—"}</span>
                     <span className="text-[11px] text-gray-600 truncate pr-1">{r.company || "—"}</span>

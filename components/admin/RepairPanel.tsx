@@ -15,10 +15,10 @@ const PRIORITY_COLORS: Record<string, { bg: string; text: string; bar: string }>
 };
 
 const STATUS_STYLE: Record<string, { bg: string; text: string }> = {
-  "시작 전": { bg: "#F8FAFC", text: "#64748B" },
+  "시작 전": { bg: "#FAFAFA", text: "#71717A" },
   "진행 중": { bg: "#FFF7ED", text: "#C2410C" },
   "완료":    { bg: "#F0FDF4", text: "#059669" },
-  "이관":    { bg: "#EFF6FF", text: "#1D4ED8" },
+  "이관":    { bg: "#EEF2FF", text: "#4338CA" },
   "기타":    { bg: "#FAF5FF", text: "#7E22CE" },
 };
 
@@ -58,10 +58,10 @@ function StatCard({ label, value, color }: { label: string; value: string | numb
 
 function StatusBadge({ status }: { status: string }) {
   const dark = useAdminDarkMode();
-  const c = STATUS_STYLE[status] ?? { bg: "#F1F5F9", text: "#64748B" };
+  const c = STATUS_STYLE[status] ?? { bg: "#F4F4F5", text: "#71717A" };
   return (
     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap"
-      style={{ background: dark ? "#1c1c1c" : c.bg, color: c.text }}>
+      style={{ background: dark ? "#18181B" : c.bg, color: c.text }}>
       {status || "—"}
     </span>
   );
@@ -69,10 +69,10 @@ function StatusBadge({ status }: { status: string }) {
 
 function PriorityBadge({ priority }: { priority: string }) {
   const dark = useAdminDarkMode();
-  const c = PRIORITY_COLORS[priority] ?? { bg: "#F1F5F9", text: "#64748B", bar: "#94A3B8" };
+  const c = PRIORITY_COLORS[priority] ?? { bg: "#F4F4F5", text: "#71717A", bar: "#A1A1AA" };
   return (
     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap"
-      style={{ background: dark ? "#1c1c1c" : c.bg, color: c.text }}>
+      style={{ background: dark ? "#18181B" : c.bg, color: c.text }}>
       {priority || "—"}
     </span>
   );
@@ -109,8 +109,8 @@ function MonthlyLineChart({ data }: { data: { month: string; count: number }[] }
         const val = Math.round(max * pct);
         return (
           <g key={pct}>
-            <line x1={PAD_X} y1={y} x2={W - PAD_X} y2={y} stroke="#F1F5F9" strokeWidth={1} />
-            <text x={PAD_X - 6} y={y + 4} textAnchor="end" fontSize={9} fill="#94A3B8">{val}</text>
+            <line x1={PAD_X} y1={y} x2={W - PAD_X} y2={y} stroke="#F4F4F5" strokeWidth={1} />
+            <text x={PAD_X - 6} y={y + 4} textAnchor="end" fontSize={9} fill="#A1A1AA">{val}</text>
           </g>
         );
       })}
@@ -128,7 +128,7 @@ function MonthlyLineChart({ data }: { data: { month: string; count: number }[] }
                 {d.count}
               </text>
             )}
-            <text x={cx} y={H - 4} textAnchor="middle" fontSize={10} fill="#94A3B8">
+            <text x={cx} y={H - 4} textAnchor="middle" fontSize={10} fill="#A1A1AA">
               {monthLabel(d.month)}
             </text>
           </g>
@@ -192,14 +192,14 @@ function InlineStatusCell({
     finally { setSaving(false); setTimeout(() => setResult("idle"), 2000); }
   };
 
-  const c = STATUS_STYLE[ticket.status] ?? { bg: "#F1F5F9", text: "#64748B" };
+  const c = STATUS_STYLE[ticket.status] ?? { bg: "#F4F4F5", text: "#71717A" };
   return (
     <div className="flex items-center gap-1">
       <select
         value={ticket.status}
         onChange={handleChange}
         disabled={saving}
-        style={{ background: dark ? "#1c1c1c" : c.bg, color: c.text }}
+        style={{ background: dark ? "#18181B" : c.bg, color: c.text }}
         className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-transparent focus:outline-none focus:ring-1 focus:ring-orange-200 cursor-pointer disabled:opacity-50 appearance-none"
       >
         {REPAIR_STATUSES_CONST.map(s => <option key={s} value={s}>{s}</option>)}
@@ -926,7 +926,7 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
           onClick={() => setAssigneeListOpen(o => !o)}
           className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-sm font-semibold text-gray-700">
           <span className="flex items-center gap-2">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2.5">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4F46E5" strokeWidth="2.5">
               <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
               <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
             </svg>
@@ -1010,10 +1010,10 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
       {/* ── Summary Cards ── */}
       <div className="grid grid-cols-5 gap-3 mb-6">
         <StatCard label="전체 접수" value={total}       color="#1E40AF" />
-        <StatCard label="시작 전"   value={notStarted}  color="#64748B" />
+        <StatCard label="시작 전"   value={notStarted}  color="#71717A" />
         <StatCard label="진행 중"   value={inProgress}  color="#C2410C" />
         <StatCard label="완료"      value={done}        color="#059669" />
-        <StatCard label="이관"      value={transferred} color="#1D4ED8" />
+        <StatCard label="이관"      value={transferred} color="#4338CA" />
       </div>
 
       {/* ── Tab Bar ── */}
@@ -1050,7 +1050,7 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
               <h3 className="text-sm font-bold text-gray-800 mb-4">긴급도 분포</h3>
               <div className="space-y-3">
                 {byPriority.map(([p, count]) => {
-                  const c = PRIORITY_COLORS[p] ?? { bar: "#94A3B8" };
+                  const c = PRIORITY_COLORS[p] ?? { bar: "#A1A1AA" };
                   return <HBar key={p} label={p} count={count} total={total} color={c.bar} />;
                 })}
                 {byPriority.length === 0 && <p className="text-xs text-gray-300 text-center py-4">데이터 없음</p>}

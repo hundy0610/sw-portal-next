@@ -103,9 +103,9 @@ export default function MobileAdminPage() {
     <div className="flex flex-col bg-gray-50" style={{ minHeight: "100dvh" }}>
       <ServiceWorkerRegistrar />
       {/* Header */}
-      <header className="bg-[#1C2B4A] text-white sticky top-0 z-40 flex items-center px-4 gap-3"
+      <header className="bg-[#18181B] text-white sticky top-0 z-40 flex items-center px-4 gap-3"
         style={{ height: 56, paddingTop: "env(safe-area-inset-top)" }}>
-        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-extrabold flex-shrink-0 ${isSuper ? "bg-purple-500" : "bg-blue-500"}`}>
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-extrabold flex-shrink-0 ${isSuper ? "bg-purple-500" : "bg-indigo-500"}`}>
           {isSuper ? "SA" : "AD"}
         </div>
         <div className="flex-1 min-w-0">
@@ -131,7 +131,7 @@ export default function MobileAdminPage() {
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-colors min-h-[56px] ${tab === t.id ? "text-blue-600" : "text-gray-400"}`}
+            className={`flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-colors min-h-[56px] ${tab === t.id ? "text-indigo-600" : "text-gray-400"}`}
           >
             {t.icon}
             <span className="text-[10px] font-medium">{t.label}</span>
@@ -194,7 +194,7 @@ function MorePanel({ isSuper, session, onNavigate, onLogout }: {
 
       <div className="pt-4 space-y-2">
         <a href="/admin"
-          className="w-full flex items-center justify-center gap-2 p-3.5 rounded-2xl bg-[#1C2B4A] text-white text-sm font-semibold">
+          className="w-full flex items-center justify-center gap-2 p-3.5 rounded-2xl bg-[#18181B] text-white text-sm font-semibold">
           💻 데스크탑 버전으로 이동
         </a>
         <button onClick={onLogout}

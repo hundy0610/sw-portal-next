@@ -13,12 +13,12 @@ const TTL_SWREC =  5 * 60 * 1000;
 
 // ── 색상 상수 ─────────────────────────────────────────────────
 const STATUS_COLORS: Record<string, string> = {
-  "사용중": "#3B82F6", "신규등록": "#8B5CF6", "재고": "#10B981",
+  "사용중": "#6366F1", "신규등록": "#8B5CF6", "재고": "#10B981",
   "출고준비중": "#06B6D4", "갱신필요": "#F97316", "반납예정": "#EAB308",
   "만료": "#9CA3AF", "미확인": "#D1D5DB",
 };
 const TYPE_COLORS: Record<string, string> = {
-  "영구": "#3B82F6", "구독(업체)": "#8B5CF6", "구독(웹)": "#06B6D4",
+  "영구": "#6366F1", "구독(업체)": "#8B5CF6", "구독(웹)": "#06B6D4",
 };
 const PALETTE = [
   "#6366f1","#f59e0b","#10b981","#ef4444","#3b82f6","#8b5cf6",
@@ -27,7 +27,7 @@ const PALETTE = [
 
 // ── SW 매크로 카테고리 ─────────────────────────────────────────
 const SW_CAT_RULES: { label: string; icon: string; color: string; keywords: string[] }[] = [
-  { label: "문서작업용", icon: "📝", color: "#3B82F6",
+  { label: "문서작업용", icon: "📝", color: "#6366F1",
     keywords: ["office","word","excel","powerpoint","365","한글","hwp","acrobat","pdf","한셀","한쇼","thinkfree","docs","sheets","slides","hancom","libreoffice","foxit"] },
   { label: "AI 툴",    icon: "🤖", color: "#8B5CF6",
     keywords: ["copilot","chatgpt","gpt","claude","midjourney","cursor","tabnine","gemini","codeium","stable diffusion","ai","wrtn"] },
@@ -141,7 +141,7 @@ function HBarChart({ data, maxShow = 10 }: {
           <div key={d.label} className="flex items-center gap-2.5">
             <div className="w-28 shrink-0 text-right text-xs text-gray-600 font-medium truncate" title={d.label}>{d.label}</div>
             <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
-              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: d.color || "#3B82F6" }} />
+              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: d.color || "#6366F1" }} />
             </div>
             <div className="w-12 shrink-0 text-right">
               <span className="text-xs font-bold text-gray-800">{d.value}</span>
@@ -348,7 +348,7 @@ export default function OverviewPanel({ company = "" }: { company?: string }) {
             val: filteredRecs.length.toLocaleString(),
             unit: "건",
             sub: `영구 ${permRecs.length} · 구독 ${subRecs.length}`,
-            color: "#3B82F6", dot: "#DBEAFE",
+            color: "#6366F1", dot: "#DBEAFE",
           },
           {
             label: "구독 사용 중",

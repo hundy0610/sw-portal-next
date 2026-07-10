@@ -60,11 +60,11 @@ interface FloorSvgCfg{
 // MONITOR META
 // ══════════════════════════════════════════════════════════════════════════════
 const MONITOR = {
-  std27:     { label:'27"',  long:'표준형 27"',  color:"#2563EB", pale:"#DBEAFE", border:"#93C5FD" },
+  std27:     { label:'27"',  long:'표준형 27"',  color:"#4F46E5", pale:"#DBEAFE", border:"#A5B4FC" },
   std24:     { label:'24"',  long:'표준형 24"',  color:"#0284C7", pale:"#E0F2FE", border:"#7DD3FC" },
   dev34:     { label:'34"',  long:'개발자 34"',  color:"#7C3AED", pale:"#EDE9FE", border:"#C4B5FD" },
   none:      { label:"✕",   long:"미설치",      color:"#DC2626", pale:"#FEE2E2", border:"#FCA5A5" },
-  unk:       { label:"·",   long:"미확인",      color:"#94A3B8", pale:"#F1F5F9", border:"#CBD5E1" },
+  unk:       { label:"·",   long:"미확인",      color:"#A1A1AA", pale:"#F4F4F5", border:"#CBD5E1" },
   repair:    { label:"요청", long:"수리 요청",   color:"#F97316", pale:"#FFF7ED", border:"#FED7AA" },
   repairing: { label:"수리", long:"수리 중",     color:"#EF4444", pale:"#FEF2F2", border:"#FECACA" },
 } as const;
@@ -218,19 +218,19 @@ const FLOOR_SVGS: Record<string, FloorSvgCfg> = {
       { x:512, y:18, w:90, h:342, label:"계단\nELEV HALL\nEV" },
       { x:608, y:18, w:78, h:342, label:"EPS\n화장실" },
     ],
-    extraBlocks:[{ x:692, y:18, w:100, h:342, label:"창고 2평\n(VOID)", fill:"#E2E8F0", stroke:"#94A3B8" }],
+    extraBlocks:[{ x:692, y:18, w:100, h:342, label:"창고 2평\n(VOID)", fill:"#E4E4E7", stroke:"#A1A1AA" }],
     rooms:[
       { x:348, y:20,  w:158, h:80,  label:"미팅룸 A", sub:"13.5㎡ / 4.1평" },
       { x:348, y:106, w:158, h:90,  label:"미팅룸 B", sub:"21.1㎡ / 6.4평" },
       { x:348, y:202, w:158, h:82,  label:"미팅룸 C", sub:"18.8㎡ / 5.7평" },
       { x:348, y:290, w:158, h:70,  label:"쇼룸",     sub:"15.2㎡ / 4.6평" },
     ],
-    deskBg:[{ id:"SO", x:12, y:12, w:328, h:348, label:"스마트오피스 (서편) — 90평 / 52석", fill:"#EFF6FF", stroke:"#93C5FD" }],
+    deskBg:[{ id:"SO", x:12, y:12, w:328, h:348, label:"스마트오피스 (서편) — 90평 / 52석", fill:"#EEF2FF", stroke:"#A5B4FC" }],
     // 실제 도면 4개 블록에 맞춰 4줄 사이 통로: rowGroups=[1,1,1,1]
     seatGrids:[{ zoneId:"SO", startX:22, startY:60, cols:13, rows:4, sw:21, sh:26, gx:3, gy:4, rowGroups:[1,1,1,1], aisle:48 }],
     labels:[
-      { x:176, y:32, text:"← 서편 (WEST) →", size:9, color:"#2563EB", anchor:"middle", bold:true },
-      { x:427, y:372, text:"↑ 동편 복도 / 엘리베이터 홀 / 창고", size:7.5, color:"#94A3B8", anchor:"middle" },
+      { x:176, y:32, text:"← 서편 (WEST) →", size:9, color:"#4F46E5", anchor:"middle", bold:true },
+      { x:427, y:372, text:"↑ 동편 복도 / 엘리베이터 홀 / 창고", size:7.5, color:"#A1A1AA", anchor:"middle" },
     ],
   },
   "3F": {
@@ -246,17 +246,17 @@ const FLOOR_SVGS: Record<string, FloorSvgCfg> = {
       { x:165, y:298, w:148, h:72, label:"미팅룸", sub:"16.1m² / 4.9인" },
     ],
     deskBg:[
-      { id:"W", x:12, y:108, w:305, h:182, label:"서편", fill:"#EFF6FF", stroke:"#93C5FD" },
-      { id:"E", x:483, y:108, w:308, h:182, label:"동편", fill:"#EFF6FF", stroke:"#93C5FD" },
+      { id:"W", x:12, y:108, w:305, h:182, label:"서편", fill:"#EEF2FF", stroke:"#A5B4FC" },
+      { id:"E", x:483, y:108, w:308, h:182, label:"동편", fill:"#EEF2FF", stroke:"#A5B4FC" },
     ],
     seatGrids:[
       { zoneId:"W", startX:22, startY:118, cols:6, rows:8, sw:15, sh:12, gx:5, gy:3, rowGroups:[2,2,2,2], aisle:12 },
       { zoneId:"E", startX:493, startY:118, cols:9, rows:7, sw:15, sh:12, gx:5, gy:3, rowGroups:[2,2,2,1], aisle:12 },
     ],
     labels:[
-      { x:164, y:28, text:"서편 (WEST)", size:9, color:"#2563EB", anchor:"middle", bold:true },
-      { x:636, y:28, text:"동편 (EAST)", size:9, color:"#2563EB", anchor:"middle", bold:true },
-      { x:398, y:192, text:"계단\nEPS\n화장실", size:8, color:"#64748B", anchor:"middle" },
+      { x:164, y:28, text:"서편 (WEST)", size:9, color:"#4F46E5", anchor:"middle", bold:true },
+      { x:636, y:28, text:"동편 (EAST)", size:9, color:"#4F46E5", anchor:"middle", bold:true },
+      { x:398, y:192, text:"계단\nEPS\n화장실", size:8, color:"#71717A", anchor:"middle" },
     ],
   },
   "4F": {
@@ -270,7 +270,7 @@ const FLOOR_SVGS: Record<string, FloorSvgCfg> = {
     ],
     deskBg:[
       { id:"W", x:12, y:12, w:305, h:278, label:"서편 (미설치 다수)", fill:"#FFF1F2", stroke:"#FCA5A5" },
-      { id:"E", x:483, y:12, w:308, h:278, label:"동편", fill:"#EFF6FF", stroke:"#93C5FD" },
+      { id:"E", x:483, y:12, w:308, h:278, label:"동편", fill:"#EEF2FF", stroke:"#A5B4FC" },
     ],
     seatGrids:[
       { zoneId:"W", startX:22, startY:22, cols:5, rows:8, sw:18, sh:13, gx:5, gy:3, rowGroups:[2,2,2,2], aisle:14 },
@@ -278,8 +278,8 @@ const FLOOR_SVGS: Record<string, FloorSvgCfg> = {
     ],
     labels:[
       { x:164, y:28, text:"서편 (WEST) — 미설치 주의", size:9, color:"#DC2626", anchor:"middle", bold:true },
-      { x:636, y:28, text:"동편 (EAST)", size:9, color:"#2563EB", anchor:"middle", bold:true },
-      { x:398, y:192, text:"계단\nEPS\n화장실", size:8, color:"#64748B", anchor:"middle" },
+      { x:636, y:28, text:"동편 (EAST)", size:9, color:"#4F46E5", anchor:"middle", bold:true },
+      { x:398, y:192, text:"계단\nEPS\n화장실", size:8, color:"#71717A", anchor:"middle" },
     ],
   },
   "5F": {
@@ -291,17 +291,17 @@ const FLOOR_SVGS: Record<string, FloorSvgCfg> = {
     extraBlocks:[{ x:570, y:12, w:222, h:105, label:"라운지 / 바 (Bar Table)", fill:"#FEF3C7", stroke:"#FCD34D" }],
     rooms:[],
     deskBg:[
-      { id:"W", x:12, y:12, w:305, h:358, label:"서편", fill:"#EFF6FF", stroke:"#93C5FD" },
-      { id:"E", x:483, y:118, w:308, h:252, label:"동편", fill:"#EFF6FF", stroke:"#93C5FD" },
+      { id:"W", x:12, y:12, w:305, h:358, label:"서편", fill:"#EEF2FF", stroke:"#A5B4FC" },
+      { id:"E", x:483, y:118, w:308, h:252, label:"동편", fill:"#EEF2FF", stroke:"#A5B4FC" },
     ],
     seatGrids:[
       { zoneId:"W", startX:22, startY:22, cols:6, rows:7, sw:17, sh:13, gx:5, gy:3, rowGroups:[2,2,2,1], aisle:14 },
       { zoneId:"E", startX:493, startY:128, cols:8, rows:6, sw:17, sh:13, gx:5, gy:3, rowGroups:[2,2,2], aisle:14 },
     ],
     labels:[
-      { x:164, y:28, text:"서편 (WEST)", size:9, color:"#2563EB", anchor:"middle", bold:true },
-      { x:636, y:134, text:"동편 (EAST)", size:9, color:"#2563EB", anchor:"middle", bold:true },
-      { x:398, y:152, text:"계단/EPS", size:8, color:"#64748B", anchor:"middle" },
+      { x:164, y:28, text:"서편 (WEST)", size:9, color:"#4F46E5", anchor:"middle", bold:true },
+      { x:636, y:134, text:"동편 (EAST)", size:9, color:"#4F46E5", anchor:"middle", bold:true },
+      { x:398, y:152, text:"계단/EPS", size:8, color:"#71717A", anchor:"middle" },
     ],
   },
   "6F": {
@@ -311,7 +311,7 @@ const FLOOR_SVGS: Record<string, FloorSvgCfg> = {
     rooms:[],
     deskBg:[
       { id:"W", x:12, y:12, w:305, h:358, label:'서편 — 개발자 34" 구역', fill:"#F5F3FF", stroke:"#C4B5FD" },
-      { id:"E", x:483, y:12, w:308, h:358, label:"동편", fill:"#EFF6FF", stroke:"#93C5FD" },
+      { id:"E", x:483, y:12, w:308, h:358, label:"동편", fill:"#EEF2FF", stroke:"#A5B4FC" },
     ],
     seatGrids:[
       { zoneId:"W", startX:22, startY:42, cols:7, rows:7, sw:16, sh:13, gx:5, gy:3, rowGroups:[2,2,2,1], aisle:14 },
@@ -319,18 +319,18 @@ const FLOOR_SVGS: Record<string, FloorSvgCfg> = {
     ],
     labels:[
       { x:164, y:28, text:'서편 (WEST) — 개발자 34"', size:9, color:"#7C3AED", anchor:"middle", bold:true },
-      { x:636, y:28, text:"동편 (EAST)", size:9, color:"#2563EB", anchor:"middle", bold:true },
-      { x:398, y:192, text:"계단\nEPS\n화장실", size:8, color:"#64748B", anchor:"middle" },
+      { x:636, y:28, text:"동편 (EAST)", size:9, color:"#4F46E5", anchor:"middle", bold:true },
+      { x:398, y:192, text:"계단\nEPS\n화장실", size:8, color:"#71717A", anchor:"middle" },
     ],
   },
   "7F": {
     vw:800, vh:380,
     coreBlocks:[{ x:325, y:18, w:150, h:342, label:"계단/EPS/화장실" }],
-    extraBlocks:[{ x:12, y:298, w:305, h:72, label:"로커 구역 (LOCKER)", fill:"#F1F5F9", stroke:"#CBD5E1" }],
+    extraBlocks:[{ x:12, y:298, w:305, h:72, label:"로커 구역 (LOCKER)", fill:"#F4F4F5", stroke:"#CBD5E1" }],
     rooms:[],
     deskBg:[
       { id:"W", x:12, y:12, w:305, h:278, label:"서편 (미설치 다수)", fill:"#FFF1F2", stroke:"#FCA5A5" },
-      { id:"E", x:483, y:12, w:308, h:358, label:"동편", fill:"#EFF6FF", stroke:"#93C5FD" },
+      { id:"E", x:483, y:12, w:308, h:358, label:"동편", fill:"#EEF2FF", stroke:"#A5B4FC" },
     ],
     seatGrids:[
       { zoneId:"W", startX:22, startY:22, cols:6, rows:6, sw:17, sh:13, gx:5, gy:3, rowGroups:[2,2,2], aisle:14 },
@@ -338,8 +338,8 @@ const FLOOR_SVGS: Record<string, FloorSvgCfg> = {
     ],
     labels:[
       { x:164, y:28, text:"서편 (WEST) — 미설치 주의", size:9, color:"#DC2626", anchor:"middle", bold:true },
-      { x:636, y:28, text:"동편 (EAST)", size:9, color:"#2563EB", anchor:"middle", bold:true },
-      { x:398, y:192, text:"계단\nEPS\n화장실", size:8, color:"#64748B", anchor:"middle" },
+      { x:636, y:28, text:"동편 (EAST)", size:9, color:"#4F46E5", anchor:"middle", bold:true },
+      { x:398, y:192, text:"계단\nEPS\n화장실", size:8, color:"#71717A", anchor:"middle" },
     ],
   },
   "8F": {
@@ -354,13 +354,13 @@ const FLOOR_SVGS: Record<string, FloorSvgCfg> = {
       { x:483, y:158, w:308, h:105, label:"회의실/멀티룸", sub:"13.8인" },
       { x:483, y:271, w:308, h:99, label:"Conference-2", sub:"19.5인" },
     ],
-    deskBg:[{ id:"M", x:172, y:90, w:145, h:200, label:"업무공간", fill:"#EFF6FF", stroke:"#93C5FD" }],
+    deskBg:[{ id:"M", x:172, y:90, w:145, h:200, label:"업무공간", fill:"#EEF2FF", stroke:"#A5B4FC" }],
     seatGrids:[{ zoneId:"M", startX:180, startY:100, cols:5, rows:5, sw:16, sh:13, gx:5, gy:3, rowGroups:[2,3], aisle:20 }],
     labels:[
       { x:92, y:28, text:"← 회의실 구역 →", size:9, color:"#15803D", anchor:"middle" },
       { x:636, y:28, text:"← 컨퍼런스룸 구역 →", size:9, color:"#15803D", anchor:"middle" },
-      { x:244, y:52, text:"업무공간", size:8, color:"#2563EB", anchor:"middle" },
-      { x:398, y:192, text:"CANTEEN\n계단\n화장실", size:8, color:"#64748B", anchor:"middle" },
+      { x:244, y:52, text:"업무공간", size:8, color:"#4F46E5", anchor:"middle" },
+      { x:398, y:192, text:"CANTEEN\n계단\n화장실", size:8, color:"#71717A", anchor:"middle" },
     ],
   },
   "9F": {
@@ -373,7 +373,7 @@ const FLOOR_SVGS: Record<string, FloorSvgCfg> = {
     rooms:[],
     deskBg:[
       { id:"W", x:12, y:208, w:305, h:162, label:"스튜디오 (서편)", fill:"#FFF7E6", stroke:"#F6CE4A" },
-      { id:"E", x:483, y:12, w:308, h:358, label:"홀 (동편) — 54석", fill:"#EFF6FF", stroke:"#93C5FD" },
+      { id:"E", x:483, y:12, w:308, h:358, label:"홀 (동편) — 54석", fill:"#EEF2FF", stroke:"#A5B4FC" },
     ],
     seatGrids:[
       { zoneId:"W", startX:22, startY:220, cols:4, rows:5, sw:20, sh:14, gx:7, gy:4, rowGroups:[2,2,1], aisle:14 },
@@ -381,8 +381,8 @@ const FLOOR_SVGS: Record<string, FloorSvgCfg> = {
     ],
     labels:[
       { x:164, y:28, text:"서편 — 스튜디오 / 라이브러리", size:9, color:"#92400E", anchor:"middle", bold:true },
-      { x:636, y:28, text:"동편 (EAST) — 홀 54석", size:9, color:"#2563EB", anchor:"middle", bold:true },
-      { x:398, y:192, text:"계단\n화장실\n창고", size:8, color:"#64748B", anchor:"middle" },
+      { x:636, y:28, text:"동편 (EAST) — 홀 54석", size:9, color:"#4F46E5", anchor:"middle", bold:true },
+      { x:398, y:192, text:"계단\n화장실\n창고", size:8, color:"#71717A", anchor:"middle" },
     ],
   },
 };
@@ -399,7 +399,7 @@ const NS_FLOOR: FloorSvgCfg = {
     { x:280, y:300, w:90, h:70, label:"MEETING", sub:"12.4㎡" },
   ],
   deskBg:[
-    { id:"M", x:520, y:108, w:265, h:182, label:"OPEN-OFFICE (동편)", fill:"#EFF6FF", stroke:"#93C5FD" },
+    { id:"M", x:520, y:108, w:265, h:182, label:"OPEN-OFFICE (동편)", fill:"#EEF2FF", stroke:"#A5B4FC" },
     { id:"M2",x:12,  y:12,  w:360, h:78,  label:"CASUAL / BENCH (서편)", fill:"#FFF7E6", stroke:"#F6CE4A" },
   ],
   seatGrids:[
@@ -407,7 +407,7 @@ const NS_FLOOR: FloorSvgCfg = {
   ],
   labels:[
     { x:650, y:58,  text:"FOCUS OFFICES (1~4)", size:9, color:"#15803D", anchor:"middle", bold:true },
-    { x:440, y:200, text:"코어", size:8, color:"#64748B", anchor:"middle" },
+    { x:440, y:200, text:"코어", size:8, color:"#71717A", anchor:"middle" },
     { x:142, y:50,  text:"서편 작업대", size:9, color:"#92400E", anchor:"middle", bold:true },
   ],
 };
@@ -423,7 +423,7 @@ const SB_FLOOR: FloorSvgCfg = {
     { x:180, y:300, w:110, h:70, label:"MEETING RM", sub:"12.4㎡" },
   ],
   deskBg:[
-    { id:"M",  x:420, y:98,  w:370, h:260, label:"OPEN-OFFICE (동편)", fill:"#EFF6FF", stroke:"#93C5FD" },
+    { id:"M",  x:420, y:98,  w:370, h:260, label:"OPEN-OFFICE (동편)", fill:"#EEF2FF", stroke:"#A5B4FC" },
     { id:"M2", x:12,  y:12,  w:280, h:278, label:"CASUAL WORK SPACE (서편)", fill:"#FFF7E6", stroke:"#F6CE4A" },
   ],
   seatGrids:[
@@ -432,7 +432,7 @@ const SB_FLOOR: FloorSvgCfg = {
   labels:[
     { x:152, y:30,  text:"CASUAL WORK SPACE", size:9, color:"#92400E", anchor:"middle", bold:true },
     { x:605, y:58,  text:"FOCUS OFFICES", size:9, color:"#15803D", anchor:"middle", bold:true },
-    { x:355, y:154, text:"계단\n화장실", size:8, color:"#64748B", anchor:"middle" },
+    { x:355, y:154, text:"계단\n화장실", size:8, color:"#71717A", anchor:"middle" },
   ],
 };
 
@@ -448,9 +448,9 @@ const FALLBACK_SVG: FloorSvgCfg = {
   coreBlocks:[{ x:325, y:18, w:150, h:325, label:"계단/EV/화장실" }],
   extraBlocks:[],
   rooms:[],
-  deskBg:[{ id:"M", x:12, y:12, w:305, h:335, label:"업무 구역 (도면 확인 중)", fill:"#F1F5F9", stroke:"#CBD5E1" }],
+  deskBg:[{ id:"M", x:12, y:12, w:305, h:335, label:"업무 구역 (도면 확인 중)", fill:"#F4F4F5", stroke:"#CBD5E1" }],
   seatGrids:[{ zoneId:"M", startX:22, startY:60, cols:8, rows:6, sw:20, sh:14, gx:6, gy:4, rowGroups:[2,2,2], aisle:18 }],
-  labels:[{ x:400, y:190, text:"도면 업데이트 예정\n신관/S빌딩 도면 수신 후 반영됩니다", size:11, color:"#94A3B8", anchor:"middle" }],
+  labels:[{ x:400, y:190, text:"도면 업데이트 예정\n신관/S빌딩 도면 수신 후 반영됩니다", size:11, color:"#A1A1AA", anchor:"middle" }],
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -517,7 +517,7 @@ function FloorPlanSVG({
         style={{ width:"100%", minWidth:560, maxWidth:900, height:"auto", display:"block" }}
       >
         {/* 건물 외곽 */}
-        <rect x={4} y={4} width={vw-8} height={vh-8} rx={8} fill="#FAFAFA" stroke="#94A3B8" strokeWidth={1.5}/>
+        <rect x={4} y={4} width={vw-8} height={vh-8} rx={8} fill="#FAFAFA" stroke="#A1A1AA" strokeWidth={1.5}/>
         {/* 창문 힌트 (외벽) */}
         {Array.from({length: Math.floor((vw-50)/30)}, (_,i) => (
           <line key={`wt${i}`} x1={30+i*30} y1={4} x2={30+i*30} y2={10} stroke="#BAE6FD" strokeWidth={2} opacity={0.6}/>
@@ -539,10 +539,10 @@ function FloorPlanSVG({
         {extraBlocks.map((eb, i) => (
           <g key={`eb${i}`}>
             <rect x={eb.x} y={eb.y} width={eb.w} height={eb.h} rx={4}
-              fill={eb.fill||"#E2E8F0"} stroke={eb.stroke||"#94A3B8"} strokeWidth={1}/>
+              fill={eb.fill||"#E4E4E7"} stroke={eb.stroke||"#A1A1AA"} strokeWidth={1}/>
             {eb.label.split("\n").map((line,li) => (
               <text key={li} x={eb.x+eb.w/2} y={eb.y+eb.h/2-6+li*12}
-                fontSize={8} fill="#475569" textAnchor="middle">{line}</text>
+                fontSize={8} fill="#52525B" textAnchor="middle">{line}</text>
             ))}
           </g>
         ))}
@@ -565,12 +565,12 @@ function FloorPlanSVG({
         {coreBlocks.map((core, i) => (
           <g key={`core${i}`}>
             <rect x={core.x} y={core.y} width={core.w} height={core.h} rx={4}
-              fill={core.fill||"#E2E8F0"} stroke={core.stroke||"#94A3B8"} strokeWidth={1}/>
-            <line x1={core.x+10} y1={core.y+25} x2={core.x+core.w-10} y2={core.y+25} stroke="#94A3B8" strokeWidth={0.8}/>
-            <line x1={core.x+10} y1={core.y+35} x2={core.x+core.w-10} y2={core.y+35} stroke="#94A3B8" strokeWidth={0.8}/>
+              fill={core.fill||"#E4E4E7"} stroke={core.stroke||"#A1A1AA"} strokeWidth={1}/>
+            <line x1={core.x+10} y1={core.y+25} x2={core.x+core.w-10} y2={core.y+25} stroke="#A1A1AA" strokeWidth={0.8}/>
+            <line x1={core.x+10} y1={core.y+35} x2={core.x+core.w-10} y2={core.y+35} stroke="#A1A1AA" strokeWidth={0.8}/>
             {core.label.split("\n").map((line,li) => (
               <text key={li} x={core.x+core.w/2} y={core.y+core.h/2-8+li*14}
-                fontSize={8.5} fill="#64748B" textAnchor="middle">{line}</text>
+                fontSize={8.5} fill="#71717A" textAnchor="middle">{line}</text>
             ))}
           </g>
         ))}
@@ -642,11 +642,11 @@ function FloorPlanSVG({
           lb.text.includes("\n")
             ? lb.text.split("\n").map((line,li) => (
                 <text key={`lb${i}-${li}`} x={lb.x} y={lb.y+li*13}
-                  fontSize={lb.size||9} fill={lb.color||"#64748B"} textAnchor={(lb.anchor||"middle") as "inherit"|"start"|"end"|"middle"}
+                  fontSize={lb.size||9} fill={lb.color||"#71717A"} textAnchor={(lb.anchor||"middle") as "inherit"|"start"|"end"|"middle"}
                   fontWeight={lb.bold?"700":"400"}>{line}</text>
               ))
             : <text key={`lb${i}`} x={lb.x} y={lb.y}
-                fontSize={lb.size||9} fill={lb.color||"#64748B"} textAnchor={(lb.anchor||"middle") as "inherit"|"start"|"end"|"middle"}
+                fontSize={lb.size||9} fill={lb.color||"#71717A"} textAnchor={(lb.anchor||"middle") as "inherit"|"start"|"end"|"middle"}
                 fontWeight={lb.bold?"700":"400"}>{lb.text}</text>
         ))}
       </svg>
@@ -664,7 +664,7 @@ const URGENCY_OPTIONS = ["매우 급합니다.", "조금 급합니다.", "기다
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
   pending:     { label: "접수",    color: "#F59E0B" },
   수리중:       { label: "수리중",  color: "#EF4444" },
-  in_progress: { label: "처리 중", color: "#3B82F6" },
+  in_progress: { label: "처리 중", color: "#6366F1" },
   done:        { label: "완료",    color: "#10B981" },
 };
 const EVENT_LABEL: Record<string, string> = {
@@ -686,14 +686,14 @@ function buildEmailPreview(opts: {
   return `<!DOCTYPE html>
 <html lang="ko">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#F8FAFC;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;">
+<body style="margin:0;padding:0;background:#FAFAFA;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;">
 <div style="max-width:520px;margin:32px auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
   <div style="background:#DC2626;padding:24px 32px;">
     <div style="color:white;font-size:17px;font-weight:800;">🖥️ 모니터 교체/수리 요청</div>
     <div style="color:rgba(255,255,255,0.8);font-size:12px;margin-top:4px;">스마트오피스 자산관리</div>
   </div>
   <div style="padding:28px 32px;">
-    <p style="font-size:14px;color:#475569;margin:0 0 20px;">
+    <p style="font-size:14px;color:#52525B;margin:0 0 20px;">
       안녕하세요${opts.gmName ? `, <strong>${opts.gmName}</strong>님` : ""}.<br>
       아래 위치의 모니터 교체/수리 요청이 접수되었습니다. 확인 후 조치 부탁드립니다.
     </p>
@@ -721,9 +721,9 @@ function buildEmailPreview(opts: {
         </tr>` : ""}
       </table>
     </div>
-    <p style="font-size:11px;color:#94A3B8;text-align:center;margin:0;">본 메일은 발신 전용입니다.</p>
+    <p style="font-size:11px;color:#A1A1AA;text-align:center;margin:0;">본 메일은 발신 전용입니다.</p>
   </div>
-  <div style="background:#F8FAFC;border-top:1px solid #E2E8F0;padding:14px 32px;text-align:center;">
+  <div style="background:#FAFAFA;border-top:1px solid #E4E4E7;padding:14px 32px;text-align:center;">
     <p style="font-size:11px;color:#CBD5E1;margin:0;">스마트오피스 자산관리파트</p>
   </div>
 </div>
@@ -1207,7 +1207,7 @@ function OverviewSidePanel({ building, floor, editorData }: { building: Building
                 <span className="text-xs text-gray-400">{confirmed}/{st.total}대 완료</span>
               </div>
               <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div className="h-full rounded-full transition-all" style={{ width:`${pct}%`, background: pct===100?"#10B981":"#3B82F6" }}/>
+                <div className="h-full rounded-full transition-all" style={{ width:`${pct}%`, background: pct===100?"#10B981":"#6366F1" }}/>
               </div>
             </div>
 
