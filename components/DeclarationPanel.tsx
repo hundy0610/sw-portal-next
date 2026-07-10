@@ -849,18 +849,18 @@ function ScopeExplainer() {
           <div className="flex gap-3">
             <span className="shrink-0 w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 text-xs">✓</span>
             <div>
-              <p className="font-semibold text-gray-700">PC·설치 프로그램은 자동 점검</p>
+              <p className="font-semibold text-gray-700">PC에 설치된 SW는 자동 점검</p>
               <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
-                하드웨어 사양과 설치된 프로그램 목록은 사내 점검 프로그램이 자동으로 수집해요. 따로 입력하실 필요 없습니다.
+                하드웨어 사양과 PC에 설치된 프로그램 목록은 사내 점검 프로그램이 자동으로 수집해요. 따로 입력하실 필요 없습니다.
               </p>
             </div>
           </div>
           <div className="flex gap-3">
             <span className="shrink-0 w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 text-xs font-bold">!</span>
             <div>
-              <p className="font-semibold text-gray-700">구독료·라이선스 유형은 본인 확인 필요</p>
+              <p className="font-semibold text-gray-700">구독형 SW(웹 서비스)는 본인 확인 필요</p>
               <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
-                누가 어떤 요금제를 얼마에 쓰는지는 자동으로 알 수 없어요. 이 부분만 몇 번의 클릭으로 확인해주시면 됩니다.
+                웹에서 로그인해서 쓰는 구독형 서비스는 PC에 설치되지 않아 점검 프로그램이 감지하지 못해요. 이 부분만 본인이 직접 확인해주시면 됩니다.
               </p>
             </div>
           </div>
