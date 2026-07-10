@@ -112,57 +112,58 @@ function ManageDashboard({ session }: { session: SessionInfo }) {
   }
 
   return (
-    <div className={darkMode ? "portal-dark" : ""} style={{ minHeight: "100vh", background: C.bg }}>
-      {/* 헤더 */}
-      <header style={{ background: "var(--portal-surface)", position: "sticky", top: 0, zIndex: 40, borderBottom: `1px solid ${C.border}` }}>
-        <div style={{ maxWidth: 1280, margin: "0 auto", padding: "14px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: C.primary, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 900, fontSize: 11 }}>SW</div>
-            <div>
-              <span style={{ fontWeight: 800, fontSize: 13, color: C.text1 }}>포털 관리모드</span>
-              <span style={{ fontSize: 11, color: C.text4, marginLeft: 8 }}>슈퍼어드민: {session.name} ({session.userId})</span>
-            </div>
-          </div>
-
-          <div style={{ display: "flex", background: C.bg, padding: 6, borderRadius: 12, gap: 2, overflowX: "auto" }}>
-            {TABS.map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)}
-                className="transition-colors"
-                style={{
-                  padding: "8px 14px", borderRadius: 8, border: "none", fontSize: 12, cursor: "pointer", whiteSpace: "nowrap",
-                  background: tab === t.id ? "var(--portal-surface)" : "transparent",
-                  color:      tab === t.id ? C.brand  : C.text3,
-                  fontWeight: tab === t.id ? 700 : 500,
-                  boxShadow:  tab === t.id ? "0 1px 3px rgba(0,0,0,.08)" : "none",
-                }}>
-                {t.icon} {t.label}
-              </button>
-            ))}
-          </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-            <button onClick={toggleDark}
-              className="hover:brightness-95 transition-all"
-              title={darkMode ? "라이트 모드로 전환" : "다크 모드로 전환"}
-              style={{ padding: "6px 10px", borderRadius: 8, background: C.bg, color: C.text3, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-              {darkMode ? "☀️" : "🌙"}
-            </button>
-            <button onClick={handleLogout}
-              className="hover:brightness-95 transition-all"
-              style={{ padding: "6px 14px", borderRadius: 8, background: C.dangerSoft, color: C.danger, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-              로그아웃
-            </button>
+    <div className={`flex min-h-screen${darkMode ? " portal-dark" : ""}`} style={{ background: C.bg }}>
+      {/* ── 좌측 사이드바 (포털·어드민과 동일한 레이아웃 구조) ── */}
+      <aside style={{ width: 240, flexShrink: 0, background: "var(--portal-surface)", borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", position: "sticky", top: 0, height: "100vh" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "20px 18px" }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: C.primary, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 900, fontSize: 11, flexShrink: 0 }}>SW</div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 800, fontSize: 13, color: C.text1 }}>포털 관리모드</div>
+            <div style={{ fontSize: 10.5, color: C.text4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{session.name} ({session.userId})</div>
           </div>
         </div>
-      </header>
 
-      <main style={{ maxWidth: 1280, margin: "0 auto", padding: "32px 24px" }}>
-        {tab === "notices"     && <NoticesPanel      />}
-        {tab === "courses"     && <CoursesPanel      />}
-        {tab === "swresources" && <SwResourcesPanel  />}
-        {tab === "swdb"        && <SwPanel           />}
-        {tab === "manuals"     && <ManualsPanel      />}
-        {tab === "audit"       && <AuditPanel        />}
+        <nav style={{ flex: 1, padding: "4px 12px", display: "flex", flexDirection: "column", gap: 2, overflowY: "auto" }}>
+          {TABS.map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className="transition-colors"
+              style={{
+                display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", width: "100%", textAlign: "left",
+                borderRadius: 0, border: "none", borderLeft: `2px solid ${tab === t.id ? C.brand : "transparent"}`,
+                fontSize: 13, cursor: "pointer",
+                background: tab === t.id ? C.bg : "transparent",
+                color:      tab === t.id ? C.text1 : C.text3,
+                fontWeight: tab === t.id ? 700 : 500,
+              }}>
+              <span>{t.icon}</span> {t.label}
+            </button>
+          ))}
+        </nav>
+
+        <div style={{ padding: 14, borderTop: `1px solid ${C.border}`, display: "flex", flexDirection: "column", gap: 6 }}>
+          <button onClick={toggleDark}
+            className="hover:brightness-95 transition-all"
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px 10px", borderRadius: 8, background: C.bg, color: C.text3, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+            {darkMode ? "☀️ 라이트 모드" : "🌙 다크 모드"}
+          </button>
+          <button onClick={handleLogout}
+            className="hover:brightness-95 transition-all"
+            style={{ padding: "8px 10px", borderRadius: 8, background: C.dangerSoft, color: C.danger, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+            로그아웃
+          </button>
+        </div>
+      </aside>
+
+      {/* ── 메인 콘텐츠 ── */}
+      <main style={{ flex: 1, minWidth: 0, padding: "32px 28px", overflowY: "auto" }}>
+        <div style={{ maxWidth: 1040, margin: "0 auto" }}>
+          {tab === "notices"     && <NoticesPanel      />}
+          {tab === "courses"     && <CoursesPanel      />}
+          {tab === "swresources" && <SwResourcesPanel  />}
+          {tab === "swdb"        && <SwPanel           />}
+          {tab === "manuals"     && <ManualsPanel      />}
+          {tab === "audit"       && <AuditPanel        />}
+        </div>
       </main>
     </div>
   );
