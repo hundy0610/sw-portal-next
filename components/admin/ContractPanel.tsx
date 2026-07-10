@@ -458,8 +458,8 @@ export default function ContractPanel() {
                   key={stage.id}
                   className="flex-1 min-w-0 flex flex-col rounded-xl transition-all"
                   style={{
-                    background: isDragTarget ? stage.color : "#F8FAFC",
-                    border: `2px solid ${isDragTarget ? stage.border : "#E2E8F0"}`,
+                    background: isDragTarget ? stage.color : "#FAFAFA",
+                    border: `2px solid ${isDragTarget ? stage.border : "#E4E4E7"}`,
                     minHeight: 380,
                   }}
                   onDragOver={(e) => { e.preventDefault(); setDragOver(stage.id); }}
@@ -509,7 +509,7 @@ export default function ContractPanel() {
                           onDragEnd={() => { setDragId(null); setDragOver(null); }}
                           className="bg-white rounded-lg p-3 shadow-sm border cursor-grab active:cursor-grabbing transition-all hover:shadow-md"
                           style={{
-                            borderColor: expiring ? "#FFE380" : "#E2E8F0",
+                            borderColor: expiring ? "#FFE380" : "#E4E4E7",
                             background: dragId === c.id ? "#F0F4FF" : "#FFFFFF",
                             opacity: dragId === c.id ? 0.6 : 1,
                           }}
@@ -855,7 +855,7 @@ export default function ContractPanel() {
                     onClick={() => { setAttachMode("upload"); setPdfLink(""); }}
                     className="flex-1 py-2 flex items-center justify-center gap-1.5 transition-colors"
                     style={{
-                      background: attachMode === "upload" ? "#D97706" : "#F8FAFC",
+                      background: attachMode === "upload" ? "#D97706" : "#FAFAFA",
                       color:      attachMode === "upload" ? "#fff"     : "#6B7280",
                     }}
                   >
@@ -871,7 +871,7 @@ export default function ContractPanel() {
                     onClick={() => { setAttachMode("link"); setPdfFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
                     className="flex-1 py-2 flex items-center justify-center gap-1.5 transition-colors"
                     style={{
-                      background: attachMode === "link" ? "#D97706" : "#F8FAFC",
+                      background: attachMode === "link" ? "#D97706" : "#FAFAFA",
                       color:      attachMode === "link" ? "#fff"    : "#6B7280",
                     }}
                   >
@@ -960,8 +960,8 @@ export default function ContractPanel() {
                       onClick={() => setForm(prev => ({ ...prev, stage: s.id }))}
                       className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold border-2 transition-all"
                       style={{
-                        background:   form.stage === s.id ? s.color        : "#F8FAFC",
-                        borderColor:  form.stage === s.id ? s.border        : "#E2E8F0",
+                        background:   form.stage === s.id ? s.color        : "#FAFAFA",
+                        borderColor:  form.stage === s.id ? s.border        : "#E4E4E7",
                         color:        form.stage === s.id ? s.tc            : "#9CA3AF",
                         fontWeight:   form.stage === s.id ? 700             : 500,
                       }}

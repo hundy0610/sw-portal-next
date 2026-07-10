@@ -838,21 +838,21 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
             <div className="pa" style={{marginBottom:"2.5mm",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:"2px solid #1e3a8a",paddingBottom:"2mm"}}>
               <div>
                 <div style={{fontSize:"11pt",fontWeight:800,color:"#1e3a8a"}}>구독 SW 월간 현황 · {co}</div>
-                <div style={{fontSize:"7pt",color:"#64748b",marginTop:"0.5mm"}}>IT 자산관리 파트 · {coRows.length}건 구독 · {[...deptMap.keys()].length}개 부서</div>
+                <div style={{fontSize:"7pt",color:"#71717A",marginTop:"0.5mm"}}>IT 자산관리 파트 · {coRows.length}건 구독 · {[...deptMap.keys()].length}개 부서</div>
               </div>
               <div style={{textAlign:"right",display:"flex",gap:"4mm",alignItems:"center"}}>
                 {coHas ? (
                   <>
                     <div style={{textAlign:"center"}}>
-                      <div style={{fontSize:"6.5pt",color:"#64748b"}}>월 총비용</div>
+                      <div style={{fontSize:"6.5pt",color:"#71717A"}}>월 총비용</div>
                       <div style={{fontSize:"10pt",fontWeight:800,color:"#1e3a8a"}}>₩{fmt(coTotal)}</div>
                     </div>
-                    <div style={{color:"#94a3b8"}}>—</div>
+                    <div style={{color:"#A1A1AA"}}>—</div>
                     <div style={{textAlign:"center"}}>
                       <div style={{fontSize:"6.5pt",color:"#b45309"}}>쉐어드</div>
                       <div style={{fontSize:"9pt",fontWeight:700,color:"#b45309"}}>₩{fmt(coShared)}</div>
                     </div>
-                    <div style={{color:"#94a3b8"}}>=</div>
+                    <div style={{color:"#A1A1AA"}}>=</div>
                     <div style={{textAlign:"center",background:"#1e3a8a",color:"white",borderRadius:"1.5mm",padding:"1mm 3mm"}}>
                       <div style={{fontSize:"6.5pt",color:"#bfdbfe"}}>실부담</div>
                       <div style={{fontSize:"10pt",fontWeight:800}}>₩{fmt(coNet)}</div>
@@ -864,7 +864,7 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
                     <div style={{fontSize:"10pt",fontWeight:800}}>₩{fmt(coTotal)}</div>
                   </div>
                 )}
-                <div style={{fontSize:"6.5pt",color:"#94a3b8",textAlign:"right"}}>
+                <div style={{fontSize:"6.5pt",color:"#A1A1AA",textAlign:"right"}}>
                   <div>{printYear}.{String(printMonth).padStart(2,"0")}</div>
                   <div>$1=₩{fmt(rate)}</div>
                 </div>
@@ -872,15 +872,15 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
             </div>
 
             {/* ② 부서별 바 차트 (컴팩트) */}
-            <div className="pa" style={{marginBottom:"2mm",padding:"2mm 3mm",background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:"1.5mm"}}>
-              <div style={{fontSize:"7pt",fontWeight:700,color:"#475569",marginBottom:"1.5mm"}}>부서별 지출 현황</div>
+            <div className="pa" style={{marginBottom:"2mm",padding:"2mm 3mm",background:"#FAFAFA",border:"1px solid #E4E4E7",borderRadius:"1.5mm"}}>
+              <div style={{fontSize:"7pt",fontWeight:700,color:"#52525B",marginBottom:"1.5mm"}}>부서별 지출 현황</div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(55mm,1fr))",gap:"1mm 3mm"}}>
                 {deptList.map(({dept, dTotal, dNet, dHas}) => {
                   const pct = (dTotal / maxDept * 100).toFixed(1);
                   return (
                     <div key={dept} style={{display:"flex",alignItems:"center",gap:"1.5mm"}}>
                       <div style={{width:"18mm",textAlign:"right",fontSize:"7pt",fontWeight:600,color:"#334155",flexShrink:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{dept}</div>
-                      <div style={{flex:1,height:"4mm",background:"#e2e8f0",borderRadius:"1mm",overflow:"hidden"}}>
+                      <div style={{flex:1,height:"4mm",background:"#E4E4E7",borderRadius:"1mm",overflow:"hidden"}}>
                         <div style={{height:"100%",background:"#1e40af",width:`${pct}%`}}/>
                       </div>
                       <div style={{width:"20mm",textAlign:"right",flexShrink:0}}>
@@ -896,7 +896,7 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
             <div className="pa">
               <div style={{fontSize:"7pt",fontWeight:700,color:"#334155",marginBottom:"1.5mm",paddingBottom:"1mm",borderBottom:"1.5px solid #1e3a8a",display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
                 <span>사용자별 구독 현황 상세</span>
-                <span style={{fontSize:"6.5pt",color:"#64748b",fontWeight:400}}>* [쉐] 항목은 외부 청구분 — 실부담 합계에서 제외</span>
+                <span style={{fontSize:"6.5pt",color:"#71717A",fontWeight:400}}>* [쉐] 항목은 외부 청구분 — 실부담 합계에서 제외</span>
               </div>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:"6.5pt"}}>
                 <thead>
@@ -919,25 +919,25 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
                       const conv = convertedKrw(r.annualKrw, r.annualUsd, rate, "monthly");
                       const shared = isShared(r);
                       return (
-                        <tr key={r.id} style={{background:shared?"#fffbeb":ri%2===0?"#ffffff":"#f8fafc",borderBottom:"1px solid #f1f5f9"}}>
+                        <tr key={r.id} style={{background:shared?"#fffbeb":ri%2===0?"#ffffff":"#FAFAFA",borderBottom:"1px solid #F4F4F5"}}>
                           <td style={{padding:"1mm 1.5mm",color:"#334155",verticalAlign:"top",fontWeight:ri===0?700:400,borderLeft:ri===0?"3px solid #1e3a8a":"3px solid transparent"}}>
                             {ri===0 ? dept : ""}
                           </td>
-                          <td style={{padding:"1mm 1.5mm",color:"#475569",verticalAlign:"top"}}>{r.user||"—"}</td>
+                          <td style={{padding:"1mm 1.5mm",color:"#52525B",verticalAlign:"top"}}>{r.user||"—"}</td>
                           <td style={{padding:"1mm 1.5mm",fontWeight:600,color:shared?"#92400e":"#0f172a",verticalAlign:"top"}}>
                             {r.swName}{shared&&<span style={{fontSize:"6pt",marginLeft:"0.5mm"}}>[쉐]</span>}
                           </td>
-                          <td style={{padding:"1mm 1.5mm",textAlign:"center",color:"#475569",verticalAlign:"top"}}>{r.category}</td>
+                          <td style={{padding:"1mm 1.5mm",textAlign:"center",color:"#52525B",verticalAlign:"top"}}>{r.category}</td>
                           <td style={{padding:"1mm 1.5mm",textAlign:"right",color:"#334155",verticalAlign:"top"}}>{mKrw>0?fmt(mKrw):"—"}</td>
                           <td style={{padding:"1mm 1.5mm",textAlign:"right",color:"#059669",verticalAlign:"top"}}>{mUsd>0?`$${mUsd.toFixed(2)}`:"—"}</td>
                           <td style={{padding:"1mm 1.5mm",textAlign:"right",fontWeight:600,color:shared?"#92400e":"#1e3a8a",verticalAlign:"top"}}>{conv>0?fmt(conv):"—"}</td>
-                          <td style={{padding:"1mm 1.5mm",textAlign:"center",color:"#64748b",verticalAlign:"top"}}>{r.renewalDate?r.renewalDate.slice(0,7):"—"}</td>
+                          <td style={{padding:"1mm 1.5mm",textAlign:"center",color:"#71717A",verticalAlign:"top"}}>{r.renewalDate?r.renewalDate.slice(0,7):"—"}</td>
                         </tr>
                       );
                     });
                     // 부서 소계
                     deptRows.push(
-                      <tr key={`${dept}-sub`} style={{background:"#eff6ff",borderTop:"1px solid #bfdbfe",borderBottom:"1.5px solid #bfdbfe"}}>
+                      <tr key={`${dept}-sub`} style={{background:"#EEF2FF",borderTop:"1px solid #bfdbfe",borderBottom:"1.5px solid #bfdbfe"}}>
                         <td colSpan={6} style={{padding:"0.8mm 1.5mm",color:"#1e3a8a",fontSize:"6.5pt"}}>
                           {dept} 소계 ({dRows.length}건){dHas&&<span style={{color:"#b45309",marginLeft:"2mm"}}>쉐어드 ₩{fmt(dTotal-dNet)} 외부 청구</span>}
                         </td>
@@ -962,7 +962,7 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
             </div>
 
             {/* 주석 */}
-            <div style={{marginTop:"1.5mm",fontSize:"6pt",color:"#94a3b8",display:"flex",justifyContent:"space-between"}}>
+            <div style={{marginTop:"1.5mm",fontSize:"6pt",color:"#A1A1AA",display:"flex",justifyContent:"space-between"}}>
               <span>환율 $1=₩{fmt(rate)} (실시간 기준) · [쉐] 쉐어드청구 항목은 외부 청구분으로 실부담 제외</span>
               <span>IT 자산관리 포털 · {printYear}.{String(printMonth).padStart(2,"0")}</span>
             </div>

@@ -77,7 +77,7 @@ const STATUS_COLOR: Record<string, string> = {
 const PALETTE = [
   "#6366f1","#f59e0b","#10b981","#ef4444","#3b82f6","#8b5cf6",
   "#ec4899","#14b8a6","#f97316","#84cc16","#06b6d4","#a855f7",
-  "#64748b","#e11d48","#059669","#d97706",
+  "#71717A","#e11d48","#059669","#d97706",
 ];
 
 const CONTRACT_QUANTITY = 3837;
@@ -2472,22 +2472,22 @@ function generateRegistrationReportHTML(opts: {
 <title>HW 신규 등록 현황 보고서 · ${year}년</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; background: #F8FAFC; color: #1E293B; }
+  body { font-family: "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; background: #FAFAFA; color: #1E293B; }
   .page { max-width: 900px; margin: 0 auto; padding: 40px 32px; }
-  .cover { text-align: center; padding: 50px 0 30px; border-bottom: 2px solid #E2E8F0; margin-bottom: 28px; }
+  .cover { text-align: center; padding: 50px 0 30px; border-bottom: 2px solid #E4E4E7; margin-bottom: 28px; }
   .cover h1 { font-size: 26px; font-weight: 800; }
-  .cover .meta { font-size: 13px; color: #64748B; margin-top: 6px; }
+  .cover .meta { font-size: 13px; color: #71717A; margin-top: 6px; }
   .cover .period { display: inline-block; background: #4F46E5; color: white; padding: 4px 16px; border-radius: 20px; font-size: 13px; font-weight: 700; margin-top: 10px; }
   .section { margin-bottom: 28px; }
   .section h2 { font-size: 15px; font-weight: 700; margin-bottom: 12px; color: #334155; }
   .summary { display: flex; gap: 12px; }
-  .summary .card { flex: 1; background: white; border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px; }
-  .summary .card .label { font-size: 12px; color: #64748B; }
+  .summary .card { flex: 1; background: white; border: 1px solid #E4E4E7; border-radius: 12px; padding: 16px; }
+  .summary .card .label { font-size: 12px; color: #71717A; }
   .summary .card .value { font-size: 22px; font-weight: 800; margin-top: 4px; }
   table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; }
-  th, td { padding: 8px 12px; font-size: 13px; border-bottom: 1px solid #F1F5F9; text-align: left; }
-  th { background: #F8FAFC; color: #64748B; font-weight: 600; }
-  .footer { text-align: center; font-size: 12px; color: #94A3B8; margin-top: 40px; }
+  th, td { padding: 8px 12px; font-size: 13px; border-bottom: 1px solid #F4F4F5; text-align: left; }
+  th { background: #FAFAFA; color: #71717A; font-weight: 600; }
+  .footer { text-align: center; font-size: 12px; color: #A1A1AA; margin-top: 40px; }
   @media print { body { background: white; } }
 </style>
 </head>
@@ -2509,9 +2509,9 @@ function generateRegistrationReportHTML(opts: {
 
   <div class="section">
     <h2>월별 등록 추이</h2>
-    <svg width="100%" viewBox="0 0 ${chartW} ${chartH}" style="background:white;border-radius:8px;border:1px solid #E2E8F0">
+    <svg width="100%" viewBox="0 0 ${chartW} ${chartH}" style="background:white;border-radius:8px;border:1px solid #E4E4E7">
       <polyline points="${linePoints}" fill="none" stroke="#4F46E5" stroke-width="2"/>
-      ${monthlyStats.map((m, i) => `<circle cx="${xOf(i)}" cy="${yOf(m.count)}" r="3" fill="#4F46E5"/><text x="${xOf(i)}" y="${chartH-4}" font-size="9" fill="#94A3B8" text-anchor="middle">${m.label}</text>`).join("")}
+      ${monthlyStats.map((m, i) => `<circle cx="${xOf(i)}" cy="${yOf(m.count)}" r="3" fill="#4F46E5"/><text x="${xOf(i)}" y="${chartH-4}" font-size="9" fill="#A1A1AA" text-anchor="middle">${m.label}</text>`).join("")}
     </svg>
   </div>
 

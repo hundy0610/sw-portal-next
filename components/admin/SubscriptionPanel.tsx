@@ -13,7 +13,7 @@ const PREVIEW_COUNT = 5; // 목록에서 기본 표시 건수
 
 // ── 상태 스타일 ─────────────────────────────────────────────────────────
 const STATUS_STYLE: Record<string, { bg: string; text: string; dot: string; color: string }> = {
-  "사용중":   { bg: "bg-blue-50",   text: "text-blue-700",   dot: "bg-blue-500",   color: "#3B82F6" },
+  "사용중":   { bg: "bg-blue-50",   text: "text-blue-700",   dot: "bg-blue-500",   color: "#6366F1" },
   "갱신필요": { bg: "bg-red-50",    text: "text-red-600",    dot: "bg-red-500",    color: "#EF4444" },
   "만료":     { bg: "bg-gray-100",  text: "text-gray-500",   dot: "bg-gray-400",   color: "#9CA3AF" },
   "재고":     { bg: "bg-green-50",  text: "text-green-700",  dot: "bg-green-500",  color: "#10B981" },

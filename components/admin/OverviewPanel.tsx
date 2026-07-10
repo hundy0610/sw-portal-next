@@ -14,7 +14,7 @@ const TTL_SWREC = 5 * 60 * 1000; // 5분
 
 // ── SW 매크로 카테고리 규칙 ──────────────────────────────────────
 const SW_CAT_RULES: { label: string; icon: string; keywords: string[]; chartColor: string }[] = [
-  { label: "문서작업용", icon: "📝", chartColor: "#3B82F6",
+  { label: "문서작업용", icon: "📝", chartColor: "#6366F1",
     keywords: ["office","word","excel","powerpoint","365","한글","hwp","acrobat","pdf","한셀","한쇼","thinkfree","docs","sheets","slides","hancom","libreoffice","foxit"] },
   { label: "AI 툴",    icon: "🤖", chartColor: "#8B5CF6",
     keywords: ["copilot","chatgpt","gpt","claude","midjourney","cursor","tabnine","gemini","codeium","stable diffusion","ai","wrtn"] },
@@ -141,7 +141,7 @@ function HBarChart({ data, maxShow = 10 }: {
             <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
               <div
                 className="h-full rounded-full transition-all duration-500"
-                style={{ width: `${pct}%`, background: d.color || "#3B82F6" }}
+                style={{ width: `${pct}%`, background: d.color || "#6366F1" }}
               />
             </div>
             <div className="w-14 shrink-0 text-right">
@@ -165,7 +165,7 @@ function HBarChart({ data, maxShow = 10 }: {
 
 // ── 상태 색상 ──────────────────────────────────────────────────
 const STATUS_COLORS: Record<string, string> = {
-  "사용중": "#3B82F6", "신규등록": "#8B5CF6",
+  "사용중": "#6366F1", "신규등록": "#8B5CF6",
   "재고": "#10B981", "출고준비중": "#06B6D4",
   "갱신필요": "#F97316", "반납예정": "#EAB308",
   "만료": "#9CA3AF", "미확인": "#D1D5DB",
@@ -336,7 +336,7 @@ export default function OverviewPanel({ company = "" }: { company?: string }) {
         map[k] = (map[k] ?? 0) + 1;
       }
       const TYPE_COLORS: Record<string, string> = {
-        "영구": "#3B82F6",
+        "영구": "#6366F1",
         "구독(업체)": "#8B5CF6",
         "구독(웹)": "#06B6D4",
       };

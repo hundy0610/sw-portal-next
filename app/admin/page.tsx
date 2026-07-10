@@ -208,7 +208,7 @@ export default function AdminPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#F4F5F7" }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#FAFAFA" }}>
         <div className="text-gray-400 text-sm">로딩 중...</div>
       </div>
     );
@@ -270,7 +270,7 @@ export default function AdminPage() {
   }
 
   return (
-    <div className={`flex flex-col min-h-screen${darkMode ? " admin-dark" : ""}`}>
+    <div className={`admin-root flex flex-col min-h-screen${darkMode ? " admin-dark" : ""}`}>
       {/* ── 상단 헤더 ── */}
       <header className="admin-header bg-white border-b border-gray-200 h-[52px] flex items-center px-5 gap-3 sticky top-0 z-40">
         {/* 사이드바 토글 */}
@@ -477,7 +477,7 @@ export default function AdminPage() {
           <button
             onClick={toggleSidebar}
             className="absolute left-0 top-6 z-30 flex items-center justify-center w-5 h-10 rounded-r-lg border border-l-0 border-white/10 hover:border-white/25 transition-colors"
-            style={{ background: "#1C2B4A" }}
+            style={{ background: "var(--sidebar-bg)" }}
             title="사이드바 열기"
           >
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="2.5">

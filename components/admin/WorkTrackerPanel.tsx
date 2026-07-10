@@ -26,8 +26,8 @@ interface TaskFormState {
 }
 
 // ── 작업 추가 모달 ────────────────────────────────────────
-const FIELD_LABEL_STYLE = { fontSize: 12, fontWeight: 700, color: "#475569", marginBottom: 6, display: "block" as const };
-const FIELD_INPUT_STYLE = { width: "100%", padding: "10px 12px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 13, color: "#0f172a", boxSizing: "border-box" as const, background: "#fff" };
+const FIELD_LABEL_STYLE = { fontSize: 12, fontWeight: 700, color: "#52525B", marginBottom: 6, display: "block" as const };
+const FIELD_INPUT_STYLE = { width: "100%", padding: "10px 12px", border: "1px solid #E4E4E7", borderRadius: 8, fontSize: 13, color: "#0f172a", boxSizing: "border-box" as const, background: "#fff" };
 
 function TaskFormModal({ title, form, setForm, collaboratorOptions, onCancel, onSubmit, submitting }: {
   title: string;
@@ -44,9 +44,9 @@ function TaskFormModal({ title, form, setForm, collaboratorOptions, onCancel, on
       style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
     >
       <div style={{ background: "#fff", borderRadius: 18, width: "100%", maxWidth: 480, boxShadow: "0 24px 70px rgba(0,0,0,.25)", overflow: "hidden" }}>
-        <div style={{ padding: "18px 22px", borderBottom: "1px solid #F1F5F9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ padding: "18px 22px", borderBottom: "1px solid #F4F4F5", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <h3 style={{ fontSize: 17, fontWeight: 800, color: "#0f172a", margin: 0 }}>{title}</h3>
-          <button onClick={onCancel} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#94a3b8", lineHeight: 1 }}>✕</button>
+          <button onClick={onCancel} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#A1A1AA", lineHeight: 1 }}>✕</button>
         </div>
         <div style={{ padding: 22, display: "flex", flexDirection: "column" as const, gap: 16 }}>
           <div>
@@ -74,9 +74,9 @@ function TaskFormModal({ title, form, setForm, collaboratorOptions, onCancel, on
                     } : f)}
                     style={{
                       padding: "5px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: "pointer",
-                      border: `1px solid ${active ? "#2563EB" : "#E2E8F0"}`,
-                      background: active ? "#EFF6FF" : "#fff",
-                      color: active ? "#2563EB" : "#64748b",
+                      border: `1px solid ${active ? "#4F46E5" : "#E4E4E7"}`,
+                      background: active ? "#EEF2FF" : "#fff",
+                      color: active ? "#4F46E5" : "#71717A",
                     }}>
                     {name}
                   </button>
@@ -84,26 +84,26 @@ function TaskFormModal({ title, form, setForm, collaboratorOptions, onCancel, on
               })}
             </div>
           </div>
-          <div style={{ background: "#F8FAFC", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ background: "#FAFAFA", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, color: "#334155" }}>공유</div>
-              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
+              <div style={{ fontSize: 11, color: "#A1A1AA", marginTop: 2 }}>
                 {form.shared ? "전체 보기(공유됨)에 표시됩니다" : "나에게만 표시됩니다"}
               </div>
             </div>
             <button type="button" onClick={() => setForm(f => f ? { ...f, shared: !f.shared } : f)}
-              style={{ width: 40, height: 22, borderRadius: 20, border: "none", position: "relative" as const, background: form.shared ? "#2563EB" : "#CBD5E1", cursor: "pointer", padding: 0, flexShrink: 0, transition: "background .15s" }}>
+              style={{ width: 40, height: 22, borderRadius: 20, border: "none", position: "relative" as const, background: form.shared ? "#4F46E5" : "#CBD5E1", cursor: "pointer", padding: 0, flexShrink: 0, transition: "background .15s" }}>
               <span style={{ position: "absolute" as const, top: 2, left: form.shared ? 20 : 2, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "left .15s", boxShadow: "0 1px 3px rgba(0,0,0,.2)" }} />
             </button>
           </div>
         </div>
-        <div style={{ padding: "14px 22px", borderTop: "1px solid #F1F5F9", display: "flex", gap: 8, justifyContent: "flex-end", background: "#FAFBFC" }}>
+        <div style={{ padding: "14px 22px", borderTop: "1px solid #F4F4F5", display: "flex", gap: 8, justifyContent: "flex-end", background: "#FAFBFC" }}>
           <button onClick={onCancel}
-            style={{ padding: "9px 18px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", color: "#64748b", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+            style={{ padding: "9px 18px", borderRadius: 8, border: "1px solid #E4E4E7", background: "#fff", color: "#71717A", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
             취소
           </button>
           <button onClick={onSubmit} disabled={!form.title.trim() || submitting}
-            style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: !form.title.trim() || submitting ? "#E2E8F0" : "#2563EB", color: !form.title.trim() || submitting ? "#94a3b8" : "#fff", fontSize: 12, fontWeight: 700, cursor: !form.title.trim() || submitting ? "not-allowed" : "pointer" }}>
+            style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: !form.title.trim() || submitting ? "#E4E4E7" : "#4F46E5", color: !form.title.trim() || submitting ? "#A1A1AA" : "#fff", fontSize: 12, fontWeight: 700, cursor: !form.title.trim() || submitting ? "not-allowed" : "pointer" }}>
             {submitting ? "추가 중..." : "추가"}
           </button>
         </div>
@@ -134,12 +134,12 @@ function TaskCard({ t, dragging, parentTitle, childTotal, childDone, showCollabo
       style={{
         background: dragging ? (dark ? "#1a2840" : "#F0F4FF") : (dark ? "#171717" : "#fff"),
         opacity: dragging ? 0.6 : 1,
-        border: `1px solid ${dark ? "#333333" : "#E2E8F0"}`, borderRadius: 10, padding: "10px 12px",
+        border: `1px solid ${dark ? "#333333" : "#E4E4E7"}`, borderRadius: 10, padding: "10px 12px",
         marginBottom: 8, cursor: "grab",
       }}
     >
       {parentTitle && (
-        <div style={{ fontSize: 10, color: dark ? "#737373" : "#94a3b8", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
+        <div style={{ fontSize: 10, color: dark ? "#737373" : "#A1A1AA", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
           ↳ {parentTitle}
         </div>
       )}
@@ -152,16 +152,16 @@ function TaskCard({ t, dragging, parentTitle, childTotal, childDone, showCollabo
       </div>
       <div style={{ display: "flex", gap: 4, flexWrap: "wrap" as const, marginBottom: 6 }}>
         {t.shared && (
-          <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 20, background: dark ? "#1c1c1c" : "#E0F2FE", color: dark ? "#7dd3fc" : "#0369A1" }}>공유됨</span>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 20, background: dark ? "#18181B" : "#E0F2FE", color: dark ? "#7dd3fc" : "#0369A1" }}>공유됨</span>
         )}
         {childTotal > 0 && (
-          <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 20, background: dark ? "#1c1c1c" : childDone === childTotal ? "#DCFCE7" : "#EFF6FF", color: childDone === childTotal ? (dark ? "#86efac" : "#15803D") : (dark ? "#93c5fd" : "#2563EB") }}>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 20, background: dark ? "#18181B" : childDone === childTotal ? "#DCFCE7" : "#EEF2FF", color: childDone === childTotal ? (dark ? "#86efac" : "#15803D") : (dark ? "#A5B4FC" : "#4F46E5") }}>
             하위 {childDone}/{childTotal}
           </span>
         )}
       </div>
       {showCollaborator && (
-        <div style={{ fontSize: 11, color: dark ? "#737373" : "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{t.collaboratorName}</div>
+        <div style={{ fontSize: 11, color: dark ? "#737373" : "#A1A1AA", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{t.collaboratorName}</div>
       )}
     </div>
   );
@@ -192,8 +192,8 @@ function KanbanColumn({ stage, tasks, allTasks, lastStageName, isDragTarget, dra
       style={{
         flex: "0 0 240px", minWidth: 240, marginRight: 10, minHeight: 360,
         display: "flex", flexDirection: "column" as const, borderRadius: 12,
-        background: isDragTarget ? stage.color : (dark ? "#141414" : "#F8FAFC"),
-        border: `2px solid ${isDragTarget ? stage.border : (dark ? "#262626" : "#E2E8F0")}`,
+        background: isDragTarget ? stage.color : (dark ? "#141414" : "#FAFAFA"),
+        border: `2px solid ${isDragTarget ? stage.border : (dark ? "#262626" : "#E4E4E7")}`,
         transition: "all .15s",
       }}
       onDragOver={e => { e.preventDefault(); onDragOver(); }}
@@ -222,7 +222,7 @@ function KanbanColumn({ stage, tasks, allTasks, lastStageName, isDragTarget, dra
             style={{
               border: `1px dashed ${dark ? "#3a3a3a" : "#CBD5E1"}`, borderRadius: 8, padding: "6px 10px",
               marginBottom: 8, textAlign: "center" as const, fontSize: 12,
-              color: dark ? "#737373" : "#94a3b8", cursor: "pointer", background: dark ? "#1a1a1a" : "#FAFBFC", fontWeight: 600,
+              color: dark ? "#737373" : "#A1A1AA", cursor: "pointer", background: dark ? "#1a1a1a" : "#FAFBFC", fontWeight: 600,
             }}>
             {addLabel ?? "+ 추가"}
           </div>
@@ -494,20 +494,20 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
         <div>
           <h2 style={{ fontSize: 20, fontWeight: 800, color: dark ? "#e5e5e5" : "#0f172a", margin: "0 0 4px" }}>작업 트래커</h2>
-          <p style={{ fontSize: 13, color: dark ? "#a3a3a3" : "#64748b", margin: 0 }}>총 {filtered.length}건</p>
+          <p style={{ fontSize: 13, color: dark ? "#a3a3a3" : "#71717A", margin: 0 }}>총 {filtered.length}건</p>
         </div>
         <button onClick={load}
-          style={{ padding: "8px 14px", borderRadius: 8, background: dark ? "#1c1c1c" : "#EFF6FF", color: dark ? "#93c5fd" : "#2563EB", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+          style={{ padding: "8px 14px", borderRadius: 8, background: dark ? "#18181B" : "#EEF2FF", color: dark ? "#A5B4FC" : "#4F46E5", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
           새로고침
         </button>
       </div>
 
       {/* 탭 */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" as const, borderBottom: `1px solid ${dark ? "#262626" : "#E2E8F0"}`, paddingBottom: 10 }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" as const, borderBottom: `1px solid ${dark ? "#262626" : "#E4E4E7"}`, paddingBottom: 10 }}>
         <button onClick={() => setActiveTab(MY_TAB)}
           style={{
             padding: "6px 14px", borderRadius: 20, border: "none",
-            background: !isAllTab ? (dark ? "#e5e5e5" : "#0f172a") : (dark ? "#1f1f1f" : "#F1F5F9"),
+            background: !isAllTab ? (dark ? "#e5e5e5" : "#0f172a") : (dark ? "#1f1f1f" : "#F4F4F5"),
             color: !isAllTab ? (dark ? "#111111" : "#fff") : (dark ? "#a3a3a3" : "#334155"),
             fontSize: 12, fontWeight: 700, cursor: "pointer",
           }}>
@@ -516,7 +516,7 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
         <button onClick={() => setActiveTab(ALL_TAB)}
           style={{
             padding: "6px 14px", borderRadius: 20, border: "none",
-            background: isAllTab ? (dark ? "#e5e5e5" : "#0f172a") : (dark ? "#1f1f1f" : "#F1F5F9"),
+            background: isAllTab ? (dark ? "#e5e5e5" : "#0f172a") : (dark ? "#1f1f1f" : "#F4F4F5"),
             color: isAllTab ? (dark ? "#111111" : "#fff") : (dark ? "#a3a3a3" : "#334155"),
             fontSize: 12, fontWeight: 700, cursor: "pointer",
           }}>
@@ -526,11 +526,11 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
 
       {/* 칸반 보드 */}
       {loading ? (
-        <div style={{ textAlign: "center", padding: 60, color: "#94a3b8" }}>불러오는 중...</div>
+        <div style={{ textAlign: "center", padding: 60, color: "#A1A1AA" }}>불러오는 중...</div>
       ) : error ? (
         <div style={{ textAlign: "center", padding: 60, color: "#DC2626", fontSize: 13 }}>
           <div style={{ marginBottom: 8 }}>⚠️ 데이터를 불러오지 못했습니다</div>
-          <div style={{ color: "#94a3b8", fontSize: 12 }}>{error}</div>
+          <div style={{ color: "#A1A1AA", fontSize: 12 }}>{error}</div>
         </div>
       ) : (
         <div style={{ display: "flex", overflowX: "auto" as const, paddingBottom: 12 }}>
@@ -591,17 +591,17 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
           <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 1200, height: "min(90vh, 820px)", boxShadow: "0 20px 60px rgba(0,0,0,.2)", display: "flex", flexDirection: "column" as const, overflow: "hidden" }}>
 
             {/* ── 고정 헤더 ── */}
-            <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid #E2E8F0", flexShrink: 0 }}>
+            <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid #E4E4E7", flexShrink: 0 }}>
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
                 <div style={{ flex: 1 }}>
                   {editing ? (
                     <input value={editTitle} onChange={e => setEditTitle(e.target.value)}
-                      style={{ width: "100%", fontSize: 15, fontWeight: 700, color: "#0f172a", border: "1px solid #E2E8F0", borderRadius: 8, padding: "6px 10px", boxSizing: "border-box" as const }} />
+                      style={{ width: "100%", fontSize: 15, fontWeight: 700, color: "#0f172a", border: "1px solid #E4E4E7", borderRadius: 8, padding: "6px 10px", boxSizing: "border-box" as const }} />
                   ) : (
                     <div style={{ fontSize: 15, fontWeight: 700, color: "#0f172a", lineHeight: 1.4 }}>{selected.title}</div>
                   )}
                 </div>
-                <button onClick={closeDetail} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#94a3b8", lineHeight: 1, flexShrink: 0 }}>✕</button>
+                <button onClick={closeDetail} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#A1A1AA", lineHeight: 1, flexShrink: 0 }}>✕</button>
               </div>
 
               {/* 단계 버튼 */}
@@ -610,7 +610,7 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
                   const active = selected.status === s.name;
                   return (
                     <button key={s.name} onClick={() => handleStatusChange(selected.id, s.name)}
-                      style={{ padding: "4px 13px", borderRadius: 20, border: `2px solid ${active ? s.tc : "#E2E8F0"}`, background: active ? s.color : "#fff", color: active ? s.tc : "#64748b", fontSize: 12, fontWeight: active ? 700 : 500, cursor: "pointer" }}>
+                      style={{ padding: "4px 13px", borderRadius: 20, border: `2px solid ${active ? s.tc : "#E4E4E7"}`, background: active ? s.color : "#fff", color: active ? s.tc : "#71717A", fontSize: 12, fontWeight: active ? 700 : 500, cursor: "pointer" }}>
                       {s.name}
                     </button>
                   );
@@ -619,13 +619,13 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
 
               {/* 공유 토글 */}
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 12, color: "#64748b" }}>공유:</span>
+                <span style={{ fontSize: 12, color: "#71717A" }}>공유:</span>
                 <button onClick={() => handleToggleShared(selected)}
                   style={{
                     fontSize: 11, padding: "3px 10px", borderRadius: 20,
-                    border: `1px solid ${selected.shared ? "#BAE6FD" : "#E2E8F0"}`,
+                    border: `1px solid ${selected.shared ? "#BAE6FD" : "#E4E4E7"}`,
                     background: selected.shared ? "#E0F2FE" : "#fff",
-                    color: selected.shared ? "#0369A1" : "#94a3b8",
+                    color: selected.shared ? "#0369A1" : "#A1A1AA",
                     cursor: "pointer", fontWeight: 600,
                   }}>
                   {selected.shared ? "공유됨 (전체 보기에 표시)" : "비공개"}
@@ -644,9 +644,9 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
                             onClick={() => setEditCollaboratorNames(prev => active ? prev.filter(n => n !== name) : [...prev, name])}
                             style={{
                               padding: "5px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: "pointer",
-                              border: `1px solid ${active ? "#2563EB" : "#E2E8F0"}`,
-                              background: active ? "#EFF6FF" : "#fff",
-                              color: active ? "#2563EB" : "#64748b",
+                              border: `1px solid ${active ? "#4F46E5" : "#E4E4E7"}`,
+                              background: active ? "#EEF2FF" : "#fff",
+                              color: active ? "#4F46E5" : "#71717A",
                             }}>
                             {name}
                           </button>
@@ -655,11 +655,11 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
                     </div>
                     <div style={{ display: "flex", gap: 6 }}>
                       <button onClick={handleSaveCollaborators}
-                        style={{ padding: "5px 12px", borderRadius: 8, border: "none", background: "#2563EB", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                        style={{ padding: "5px 12px", borderRadius: 8, border: "none", background: "#4F46E5", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
                         저장
                       </button>
                       <button onClick={() => { setEditingCollaborators(false); setEditCollaboratorNames(selected.collaboratorName ? selected.collaboratorName.split(",").map(s => s.trim()).filter(Boolean) : []); }}
-                        style={{ padding: "5px 12px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", color: "#64748b", fontSize: 12, cursor: "pointer" }}>
+                        style={{ padding: "5px 12px", borderRadius: 8, border: "1px solid #E4E4E7", background: "#fff", color: "#71717A", fontSize: 12, cursor: "pointer" }}>
                         취소
                       </button>
                     </div>
@@ -667,10 +667,10 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
                 ) : (
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, alignItems: "center" }}>
                     {selected.collaboratorName.split(",").map(s => s.trim()).filter(Boolean).map(name => (
-                      <span key={name} style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, background: "#F1F5F9", color: "#334155" }}>{name}</span>
+                      <span key={name} style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, background: "#F4F4F5", color: "#334155" }}>{name}</span>
                     ))}
                     <button onClick={() => setEditingCollaborators(true)}
-                      style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, border: "1px solid #E2E8F0", background: "#F8FAFC", color: "#64748b", cursor: "pointer", fontWeight: 600 }}>
+                      style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, border: "1px solid #E4E4E7", background: "#FAFAFA", color: "#71717A", cursor: "pointer", fontWeight: 600 }}>
                       협업자 수정
                     </button>
                   </div>
@@ -681,10 +681,10 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
               {selected.parentId && (() => {
                 const parent = tasks.find(t => t.id === selected.parentId);
                 return parent ? (
-                  <div style={{ marginTop: 8, fontSize: 12, color: "#64748b" }}>
+                  <div style={{ marginTop: 8, fontSize: 12, color: "#71717A" }}>
                     상위 작업:{" "}
                     <button onClick={() => openDetail(parent)}
-                      style={{ background: "none", border: "none", color: "#2563EB", cursor: "pointer", fontWeight: 600, padding: 0, fontSize: 12 }}>
+                      style={{ background: "none", border: "none", color: "#4F46E5", cursor: "pointer", fontWeight: 600, padding: 0, fontSize: 12 }}>
                       {parent.title}
                     </button>
                   </div>
@@ -693,19 +693,19 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
             </div>
 
             {/* ── 내용 ── */}
-            <div style={{ padding: "12px 20px", borderBottom: "1px solid #E2E8F0", flexShrink: 0 }}>
+            <div style={{ padding: "12px 20px", borderBottom: "1px solid #E4E4E7", flexShrink: 0 }}>
               {editing ? (
                 <>
                   <textarea value={editContent} onChange={e => setEditContent(e.target.value)}
                     rows={4} placeholder="내용"
-                    style={{ width: "100%", padding: "8px 10px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 13, color: "#0f172a", resize: "vertical" as const, boxSizing: "border-box" as const, fontFamily: "inherit" }} />
+                    style={{ width: "100%", padding: "8px 10px", border: "1px solid #E4E4E7", borderRadius: 8, fontSize: 13, color: "#0f172a", resize: "vertical" as const, boxSizing: "border-box" as const, fontFamily: "inherit" }} />
                   <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
                     <button onClick={handleSaveContent}
-                      style={{ padding: "5px 12px", borderRadius: 8, border: "none", background: "#2563EB", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                      style={{ padding: "5px 12px", borderRadius: 8, border: "none", background: "#4F46E5", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
                       저장
                     </button>
                     <button onClick={() => { setEditing(false); setEditTitle(selected.title); setEditContent(selected.content); }}
-                      style={{ padding: "5px 12px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", color: "#64748b", fontSize: 12, cursor: "pointer" }}>
+                      style={{ padding: "5px 12px", borderRadius: 8, border: "1px solid #E4E4E7", background: "#fff", color: "#71717A", fontSize: 12, cursor: "pointer" }}>
                       취소
                     </button>
                   </div>
@@ -714,7 +714,7 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
                 <>
                   <p style={{ fontSize: 13, color: "#334155", margin: 0, lineHeight: 1.7, whiteSpace: "pre-wrap" as const, minHeight: 20 }}>{selected.content || "(내용 없음)"}</p>
                   <button onClick={() => setEditing(true)}
-                    style={{ marginTop: 8, fontSize: 11, padding: "3px 10px", borderRadius: 20, border: "1px solid #E2E8F0", background: "#F8FAFC", color: "#64748b", cursor: "pointer", fontWeight: 600 }}>
+                    style={{ marginTop: 8, fontSize: 11, padding: "3px 10px", borderRadius: 20, border: "1px solid #E4E4E7", background: "#FAFAFA", color: "#71717A", cursor: "pointer", fontWeight: 600 }}>
                     수정
                   </button>
                 </>
@@ -783,13 +783,13 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
             </div>
 
             {/* ── 하단 버튼 ── */}
-            <div style={{ padding: "10px 20px", borderTop: "1px solid #F1F5F9", display: "flex", justifyContent: "space-between", flexShrink: 0, background: "#fff" }}>
+            <div style={{ padding: "10px 20px", borderTop: "1px solid #F4F4F5", display: "flex", justifyContent: "space-between", flexShrink: 0, background: "#fff" }}>
               <button onClick={() => handleDelete(selected.id)}
                 style={{ padding: "7px 14px", borderRadius: 8, border: "1px solid #FEE2E2", background: "#FFF5F5", color: "#DC2626", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
                 삭제
               </button>
               <button onClick={closeDetail}
-                style={{ padding: "7px 16px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", color: "#64748b", fontSize: 12, cursor: "pointer" }}>
+                style={{ padding: "7px 16px", borderRadius: 8, border: "1px solid #E4E4E7", background: "#fff", color: "#71717A", fontSize: 12, cursor: "pointer" }}>
                 닫기
               </button>
             </div>
