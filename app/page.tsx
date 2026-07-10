@@ -9,19 +9,20 @@ type Tab = "home" | "education" | "search";
 
 const INQUIRY_URL = "https://assetify-desk-main.vercel.app";
 
-/* ── 색상 토큰 — 에디토리얼 방향: 잉크블랙 텍스트 + 미세 보더, 앰버는 액션에만 ── */
+/* ── 색상 토큰 — 에디토리얼 방향: 잉크블랙 텍스트 + 미세 보더, 앰버는 액션에만 ──
+   CSS 변수 참조로 전환 — .portal-dark 클래스가 켜지면 자동으로 다크 팔레트로 전환됨 (app/globals.css 참고) */
 const C = {
-  brand:       "#D97706",
-  primary:     "#D97706",
-  primarySoft: "#FAEEDA",
-  text1:       "#111111",
-  text2:       "#374151",
-  text3:       "#6B6B68",
-  text4:       "#8A8A86",
-  index:       "#D8D5CB",
-  border:      "#EEEEEC",
-  bg:          "#F5F4F1",
-  bgPage:      "#FAFAF8",
+  brand:       "var(--brand)",
+  primary:     "var(--brand)",
+  primarySoft: "var(--brand-soft)",
+  text1:       "var(--portal-text)",
+  text2:       "var(--portal-text-2)",
+  text3:       "var(--portal-text-3)",
+  text4:       "var(--portal-text-4)",
+  index:       "var(--portal-border)",
+  border:      "var(--portal-border)",
+  bg:          "var(--portal-bg)",
+  bgPage:      "var(--portal-bg-page)",
 } as const;
 
 /* ── D-day 동적 계산 ── */
@@ -77,8 +78,23 @@ export default function PortalPage() {
   const [tab, setTab] = useState<Tab>("home");
   const currentNav = NAV_ITEMS.find(i => i.id === tab)!;
 
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const saved = localStorage.getItem("portal-dark");
+    if (saved !== null) return saved === "1";
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  });
+  function toggleDark() {
+    setDarkMode(d => {
+      const next = !d;
+      localStorage.setItem("portal-dark", next ? "1" : "0");
+      window.dispatchEvent(new CustomEvent("portal-dark-change", { detail: next }));
+      return next;
+    });
+  }
+
   return (
-    <div className="flex min-h-screen" style={{ background: C.bgPage, color: C.text2 }}>
+    <div className={`flex min-h-screen${darkMode ? " portal-dark" : ""}`} style={{ background: C.bgPage, color: C.text2 }}>
 
       {/* ── 사이드바 (데스크톱) ── */}
       <aside className="hidden lg:flex flex-col fixed inset-y-0 left-0 z-50 bg-white"
@@ -113,9 +129,18 @@ export default function PortalPage() {
             style={{ borderRadius: 10, background: C.brand }}>
             <Icon n="msg" s={14} /> IT 지원 문의
           </a>
-          <a href="/admin"
-            className="mt-3 block text-center text-xs hover:underline transition-colors"
-            style={{ color: C.text4 }}>관리자</a>
+          <div className="mt-3 flex items-center justify-center gap-3">
+            <a href="/admin"
+              className="text-center text-xs hover:underline transition-colors"
+              style={{ color: C.text4 }}>관리자</a>
+            <span style={{ color: C.border }}>·</span>
+            <button onClick={toggleDark}
+              className="flex items-center gap-1 text-xs hover:underline transition-colors"
+              style={{ color: C.text4 }}
+              title={darkMode ? "라이트 모드로 전환" : "다크 모드로 전환"}>
+              {darkMode ? "라이트 모드" : "다크 모드"}
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -254,7 +279,7 @@ function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
           <div key={n.id} className="py-3.5" style={{ borderBottom: `1px solid ${C.border}` }}>
             <div className="flex items-center gap-2 mb-1">
               <span className="text-[11px] font-semibold"
-                style={{ color: n.urgent ? "#B91C1C" : C.text4 }}>
+                style={{ color: n.urgent ? "var(--state-risk)" : C.text4 }}>
                 {n.urgent ? "긴급" : "안내"}
               </span>
               <span className="text-[11px]" style={{ color: C.text4 }}>{n.date}</span>
@@ -272,12 +297,12 @@ function HomeTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
    교육 센터 탭
 ══════════════════════════════════════════════════════ */
 function courseBadge(deadline: string): { text: string; bg: string; color: string } {
-  if (!deadline) return { text: "NEW", bg: "#F1F0EC", color: C.text3 };
+  if (!deadline) return { text: "NEW", bg: "var(--state-neutral-soft)", color: C.text3 };
   const diff = Math.ceil((new Date(deadline).getTime() - Date.now()) / 86400000);
-  if (diff < 0)  return { text: "마감", bg: "#F1F0EC", color: C.text4 };
-  if (diff <= 7) return { text: `D-${diff}`, bg: "#FCEBEB", color: "#A32D2D" };
-  if (diff <= 30) return { text: `D-${diff}`, bg: C.primarySoft, color: "#854F0B" };
-  return { text: "진행중", bg: "#EAF3DE", color: "#3B6D11" };
+  if (diff < 0)  return { text: "마감", bg: "var(--state-neutral-soft)", color: C.text4 };
+  if (diff <= 7) return { text: `D-${diff}`, bg: "var(--state-risk-soft)", color: "var(--state-risk)" };
+  if (diff <= 30) return { text: `D-${diff}`, bg: "var(--state-caution-soft)", color: "var(--state-caution)" };
+  return { text: "진행중", bg: "var(--state-positive-soft)", color: "var(--state-positive)" };
 }
 
 /* "■" 구분 목록형 콘텐츠와 긴 평문을 모두 안전하게 표시 (긴 텍스트로 카드가 무너지는 문제 방지) */
@@ -359,7 +384,7 @@ function EducationTab() {
             {required.map(c => {
               const badge = courseBadge(c.deadline);
               return (
-                <div key={c.id} className="bg-white p-5 flex flex-col hover:border-[#D8D5CB] transition-colors"
+                <div key={c.id} className="bg-white p-5 flex flex-col hover:border-[var(--portal-text-4)] transition-colors"
                   style={{ borderRadius: 12, border: `1px solid ${C.border}` }}>
                   <div className="flex justify-between items-center mb-4">
                     <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full"
@@ -398,7 +423,7 @@ function EducationTab() {
             {materials.map(m => (
               <a key={m.id} href={m.courseUrl && m.courseUrl !== "#" ? m.courseUrl : undefined}
                 target="_blank" rel="noopener noreferrer"
-                className="p-4 flex items-start gap-3.5 hover:border-[#D8D5CB] transition-colors"
+                className="p-4 flex items-start gap-3.5 hover:border-[var(--portal-text-4)] transition-colors"
                 style={{ borderRadius: 12, border: `1px solid ${C.border}`, textDecoration: "none" }}>
                 {m.thumbnailUrl && (
                   <img src={m.thumbnailUrl} alt="" className="w-11 h-11 shrink-0 object-cover" style={{ borderRadius: 8 }} />
@@ -469,7 +494,7 @@ function EducationTab() {
 const QUICK_SEARCHES = ["LibreOffice", "7-Zip", "VLC", "GIMP", "VSCode", "uTorrent", "WinRAR", "TeamViewer"];
 
 function catStyle() {
-  return { bg: C.primarySoft, color: "#854F0B" };
+  return { bg: "var(--state-caution-soft)", color: "var(--state-caution)" };
 }
 
 function SearchTab() {
@@ -515,9 +540,9 @@ function SearchTab() {
   };
 
   const STATUS_STYLE: Record<string, { color: string; bg: string; border: string; label: string }> = {
-    approved:    { color: "#3B6D11", bg: "#EAF3DE", border: "#C0DD97", label: "✅ 승인됨"  },
-    conditional: { color: "#854F0B", bg: C.primarySoft, border: "#FAC775", label: "⚠️ 조건부"  },
-    banned:      { color: "#A32D2D", bg: "#FCEBEB", border: "#F7C1C1", label: "🚫 금지됨"  },
+    approved:    { color: "var(--state-positive)", bg: "var(--state-positive-soft)", border: "var(--state-positive)", label: "✅ 승인됨"  },
+    conditional: { color: "var(--state-caution)",  bg: "var(--state-caution-soft)",  border: "var(--state-caution)",  label: "⚠️ 조건부"  },
+    banned:      { color: "var(--state-risk)",     bg: "var(--state-risk-soft)",     border: "var(--state-risk)",     label: "🚫 금지됨"  },
   };
 
   const FILTER_LABELS: Record<string, string> = {
@@ -535,9 +560,9 @@ function SearchTab() {
         </div>
         <div className="flex flex-wrap gap-4 items-center">
           {[
-            { color: "#639922", label: "승인됨"  },
-            { color: "#BA7517", label: "조건부"  },
-            { color: "#E24B4A", label: "금지됨"  },
+            { color: "var(--state-positive)", label: "승인됨"  },
+            { color: "var(--state-caution)",  label: "조건부"  },
+            { color: "var(--state-risk)",     label: "금지됨"  },
           ].map(({ color, label }) => (
             <div key={label} className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full" style={{ background: color }} />
@@ -629,7 +654,7 @@ function SearchTab() {
             <div className="flex flex-wrap gap-2.5">
               {QUICK_SEARCHES.map(sw => (
                 <button key={sw} onClick={() => setQuery(sw)}
-                  className="px-3.5 py-2 text-sm font-medium hover:border-[#D8D5CB] transition-colors"
+                  className="px-3.5 py-2 text-sm font-medium hover:border-[var(--portal-text-4)] transition-colors"
                   style={{ color: C.text2, borderRadius: 10, border: `1px solid ${C.border}` }}>
                   {sw}
                 </button>
@@ -642,7 +667,7 @@ function SearchTab() {
             <div className="space-y-1 overflow-y-auto max-h-52">
               {catCounts.slice(0, 8).map(({ cat, count }) => (
                 <button key={cat} onClick={() => setCatFilter(cat)}
-                  className="flex items-center justify-between w-full px-2.5 py-2 text-sm font-medium transition-colors hover:bg-[#F5F4F1]"
+                  className="flex items-center justify-between w-full px-2.5 py-2 text-sm font-medium transition-colors hover:bg-[var(--portal-bg)]"
                   style={{ borderRadius: 8, color: C.text2 }}>
                   <span>{cat}</span>
                   <span className="text-xs" style={{ color: C.text4 }}>{count}개</span>

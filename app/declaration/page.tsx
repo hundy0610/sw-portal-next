@@ -1,17 +1,18 @@
 "use client";
 
+import { useState } from "react";
 import DeclarationPanel from "@/components/DeclarationPanel";
 
 const C = {
-  brand:       "#D97706",
-  primary:     "#D97706",
-  primarySoft: "#FAEEDA",
-  text1:       "#111111",
-  text2:       "#374151",
-  text3:       "#6B6B68",
-  text4:       "#8A8A86",
-  border:      "#EEEEEC",
-  bgPage:      "#FAFAF8",
+  brand:       "var(--brand)",
+  primary:     "var(--brand)",
+  primarySoft: "var(--brand-soft)",
+  text1:       "var(--portal-text)",
+  text2:       "var(--portal-text-2)",
+  text3:       "var(--portal-text-3)",
+  text4:       "var(--portal-text-4)",
+  border:      "var(--portal-border)",
+  bgPage:      "var(--portal-bg-page)",
 } as const;
 
 const INQUIRY_URL = "https://assetify-desk-main.vercel.app";
@@ -42,8 +43,23 @@ const NAV = [
 ];
 
 export default function DeclarationPage() {
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const saved = localStorage.getItem("portal-dark");
+    if (saved !== null) return saved === "1";
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  });
+  function toggleDark() {
+    setDarkMode(d => {
+      const next = !d;
+      localStorage.setItem("portal-dark", next ? "1" : "0");
+      window.dispatchEvent(new CustomEvent("portal-dark-change", { detail: next }));
+      return next;
+    });
+  }
+
   return (
-    <div className="flex min-h-screen" style={{ background: C.bgPage, color: C.text2 }}>
+    <div className={`flex min-h-screen${darkMode ? " portal-dark" : ""}`} style={{ background: C.bgPage, color: C.text2 }}>
 
       {/* ── 사이드바 ── */}
       <aside className="hidden lg:flex flex-col fixed inset-y-0 left-0 z-50 bg-white"
@@ -73,9 +89,18 @@ export default function DeclarationPage() {
             style={{ borderRadius: 10, background: C.brand, textDecoration: "none" }}>
             <Icon n="msg" s={14} /> IT 지원 문의
           </a>
-          <a href="/admin"
-            className="mt-3 block text-center text-xs hover:underline transition-colors"
-            style={{ color: C.text4, textDecoration: "none" }}>관리자</a>
+          <div className="mt-3 flex items-center justify-center gap-3">
+            <a href="/admin"
+              className="text-center text-xs hover:underline transition-colors"
+              style={{ color: C.text4, textDecoration: "none" }}>관리자</a>
+            <span style={{ color: C.border }}>·</span>
+            <button onClick={toggleDark}
+              className="text-xs hover:underline transition-colors"
+              style={{ color: C.text4 }}
+              title={darkMode ? "라이트 모드로 전환" : "다크 모드로 전환"}>
+              {darkMode ? "라이트 모드" : "다크 모드"}
+            </button>
+          </div>
         </div>
       </aside>
 

@@ -5,16 +5,16 @@ import type { SwVersion, SwDoc } from "@/types/portal";
 import { safeJson } from "@/lib/fetch-json";
 
 const C = {
-  brand:       "#D97706",
-  primary:     "#D97706",
-  primarySoft: "#FAEEDA",
-  text1:       "#111111",
-  text2:       "#374151",
-  text3:       "#6B6B68",
-  text4:       "#8A8A86",
-  border:      "#EEEEEC",
-  bg:          "#F5F4F1",
-  bgPage:      "#FAFAF8",
+  brand:       "var(--brand)",
+  primary:     "var(--brand)",
+  primarySoft: "var(--brand-soft)",
+  text1:       "var(--portal-text)",
+  text2:       "var(--portal-text-2)",
+  text3:       "var(--portal-text-3)",
+  text4:       "var(--portal-text-4)",
+  border:      "var(--portal-border)",
+  bg:          "var(--portal-bg)",
+  bgPage:      "var(--portal-bg-page)",
 } as const;
 
 const INQUIRY_URL = "https://assetify-desk-main.vercel.app";
@@ -51,6 +51,20 @@ const NAV = [
 ];
 
 export default function ResourcesPage() {
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const saved = localStorage.getItem("portal-dark");
+    if (saved !== null) return saved === "1";
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  });
+  function toggleDark() {
+    setDarkMode(d => {
+      const next = !d;
+      localStorage.setItem("portal-dark", next ? "1" : "0");
+      window.dispatchEvent(new CustomEvent("portal-dark-change", { detail: next }));
+      return next;
+    });
+  }
   const [versions, setVersions]               = useState<SwVersion[]>([]);
   const [selectedSwName, setSelectedSwName]   = useState<string | null>(null);
   const [selectedVersion, setSelectedVersion] = useState<SwVersion | null>(null);
@@ -126,7 +140,7 @@ export default function ResourcesPage() {
   const swVersionList = selectedSwName ? (swGroups.get(selectedSwName) ?? []) : [];
 
   return (
-    <div className="flex min-h-screen" style={{ background: C.bgPage, color: C.text2 }}>
+    <div className={`flex min-h-screen${darkMode ? " portal-dark" : ""}`} style={{ background: C.bgPage, color: C.text2 }}>
 
       {/* ── 사이드바 ── */}
       <aside className="hidden lg:flex flex-col fixed inset-y-0 left-0 z-50 bg-white"
@@ -156,9 +170,18 @@ export default function ResourcesPage() {
             style={{ borderRadius: 10, background: C.brand, textDecoration: "none" }}>
             <Icon n="msg" s={14} /> IT 지원 문의
           </a>
-          <a href="/admin"
-            className="mt-3 block text-center text-xs hover:underline transition-colors"
-            style={{ color: C.text4, textDecoration: "none" }}>관리자</a>
+          <div className="mt-3 flex items-center justify-center gap-3">
+            <a href="/admin"
+              className="text-center text-xs hover:underline transition-colors"
+              style={{ color: C.text4, textDecoration: "none" }}>관리자</a>
+            <span style={{ color: C.border }}>·</span>
+            <button onClick={toggleDark}
+              className="text-xs hover:underline transition-colors"
+              style={{ color: C.text4 }}
+              title={darkMode ? "라이트 모드로 전환" : "다크 모드로 전환"}>
+              {darkMode ? "라이트 모드" : "다크 모드"}
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -233,11 +256,11 @@ export default function ResourcesPage() {
                   const allOs = Array.from(new Set(vers.flatMap(v => v.os)));
                   return (
                     <button key={name} onClick={() => setSelectedSwName(name)}
-                      className="p-5 text-left transition-colors hover:border-[#D8D5CB]"
-                      style={{ background: "#fff", borderRadius: 12, border: `1px solid ${C.border}` }}>
+                      className="p-5 text-left transition-colors hover:border-[var(--portal-text-4)]"
+                      style={{ background: "var(--portal-surface)", borderRadius: 12, border: `1px solid ${C.border}` }}>
                       <div className="flex items-start justify-between mb-4">
                         <div className="w-10 h-10 rounded-full flex items-center justify-center"
-                          style={{ background: C.primarySoft, color: "#854F0B" }}>
+                          style={{ background: C.primarySoft, color: "var(--state-caution)" }}>
                           <Icon n="box" s={18} />
                         </div>
                         <span className="text-[11px] font-medium" style={{ color: C.text4 }}>{cat}</span>
@@ -361,13 +384,13 @@ export default function ResourcesPage() {
                           const locked    = isInstall && !canDownload;
                           return (
                             <div key={doc.id} className="overflow-hidden bg-white"
-                              style={{ borderRadius: 12, border: `1px solid ${locked ? "#FAC775" : C.border}` }}>
+                              style={{ borderRadius: 12, border: `1px solid ${locked ? "var(--state-caution)" : C.border}` }}>
                               <div className="flex items-center justify-between p-4">
                                 <div className="flex items-center gap-3 min-w-0">
                                   <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
                                     style={{
                                       background: locked ? C.primarySoft : C.bg,
-                                      color:      locked ? "#854F0B" : C.text3,
+                                      color:      locked ? "var(--state-caution)" : C.text3,
                                     }}>
                                     <Icon n={isInstall ? (locked ? "shield" : "dl") : "file"} s={16} />
                                   </div>
@@ -385,7 +408,7 @@ export default function ResourcesPage() {
                                 {isInstall ? (
                                   locked ? (
                                     <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 ml-3"
-                                      style={{ background: C.primarySoft, color: "#854F0B" }}>
+                                      style={{ background: C.primarySoft, color: "var(--state-caution)" }}>
                                       🔒 규정 확인 필요
                                     </div>
                                   ) : (
@@ -401,7 +424,7 @@ export default function ResourcesPage() {
                                     className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold shrink-0 ml-3 transition-colors"
                                     style={{
                                       background: isPdfOpen ? C.bg      : C.primarySoft,
-                                      color:      isPdfOpen ? C.text3   : "#854F0B",
+                                      color:      isPdfOpen ? C.text3   : "var(--state-caution)",
                                     }}>
                                     {isPdfOpen ? "닫기" : "미리보기"}
                                   </button>
@@ -426,8 +449,8 @@ export default function ResourcesPage() {
                       {isRegulation && (
                         <label className="flex items-center gap-3 mt-4 p-4 rounded-[12px] cursor-pointer"
                           style={{
-                            background:   regulationConfirmed ? "#EAF3DE" : C.primarySoft,
-                            border:       `1px solid ${regulationConfirmed ? "#C0DD97" : "#FAC775"}`,
+                            background:   regulationConfirmed ? "var(--state-positive-soft)" : C.primarySoft,
+                            border:       `1px solid ${regulationConfirmed ? "var(--state-positive)" : "var(--state-caution)"}`,
                           }}>
                           <input
                             type="checkbox"
@@ -442,7 +465,7 @@ export default function ResourcesPage() {
                             className="w-4 h-4 cursor-pointer"
                           />
                           <span className="text-sm font-medium"
-                            style={{ color: regulationConfirmed ? "#3B6D11" : "#854F0B" }}>
+                            style={{ color: regulationConfirmed ? "var(--state-positive)" : "var(--state-caution)" }}>
                             {regulationConfirmed
                               ? "✅ 규정을 확인하였습니다. 설치 파일을 다운로드할 수 있습니다."
                               : "위 규정을 모두 읽고 확인하였습니다. (체크 후 설치 파일 다운로드 가능)"}

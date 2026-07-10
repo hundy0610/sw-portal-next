@@ -49,7 +49,7 @@
 }
 
 * { box-sizing: border-box; }
-body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #fef3d0; color: #44403c; }
+body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--portal-bg-page); color: var(--portal-text-2); transition: background .15s ease; }
 
 /* 스크롤바 */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
@@ -269,14 +269,18 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
 .admin-root .rounded-xl  { border-radius: 10px !important; }
 .admin-root .rounded-2xl { border-radius: 12px !important; }
 
-/* ── 어드민 다크모드 (.admin-dark) — 네이비 대신 흑색-회색 계열 ── */
-.admin-dark {
+/* ── 공유 다크모드 브랜드/상태 토큰 — 어드민·포털 어느 쪽에서 다크모드를 켜도 동일 ── */
+.admin-dark, .portal-dark {
   --brand: #F0A94E; --brand-soft: #2B2013;
   --state-positive:      #7FC195; --state-positive-soft: #1B2A20;
   --state-progress:      #7FA4F0; --state-progress-soft: #1B2333;
   --state-caution:       #E0B15C; --state-caution-soft:  #2E2717;
   --state-risk:          #E08476; --state-risk-soft:     #2E1E1A;
   --state-neutral:       #9A968C; --state-neutral-soft:  #242522;
+}
+
+/* ── 어드민 다크모드 (.admin-dark) — 네이비 대신 흑색-회색 계열 ── */
+.admin-dark {
   --admin-accent: var(--brand);
   --admin-accent-hover: #F5C583;
   --admin-accent-soft: var(--brand-soft);
@@ -297,6 +301,92 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
   --sidebar-hover:           rgba(255,255,255,0.07);
   --sidebar-active:          rgba(240,169,78,0.20);
 }
+
+/* ── 포털 라이트/다크 서피스 토큰 (Modern Neutral과 동일 계층 구조를 포털에도 적용) ── */
+:root {
+  --portal-bg-page: #FAFAF8;
+  --portal-bg:      #F5F4F1;
+  --portal-surface: #FFFFFF;
+  --portal-border:  #EEEEEC;
+  --portal-text:    #111111;
+  --portal-text-2:  #374151;
+  --portal-text-3:  #6B6B68;
+  --portal-text-4:  #8A8A86;
+}
+
+/* ── 포털 다크모드 (.portal-dark) — 순흑색이 아닌 앰버 브랜드와 어울리는 웜다크 톤 ──
+   어드민(zinc 중립)과 같은 명도 단계 구조를 따르되, 색온도만 브랜드에 맞게 데움 */
+.portal-dark {
+  --portal-bg-page: #18140F;
+  --portal-bg:      #211C15;
+  --portal-surface: #241F18;
+  --portal-border:  #3A3226;
+  --portal-text:    #F3EEE5;
+  --portal-text-2:  #CDC5B5;
+  --portal-text-3:  #9C9384;
+  --portal-text-4:  #746C5D;
+}
+.portal-dark body { background: var(--portal-bg-page); }
+
+/* 포털 컴포넌트가 직접 쓰는 Tailwind 유틸리티 클래스 다크모드 오버라이드
+   (DeclarationPanel 등 C 토큰 대신 클래스를 바로 쓰는 컴포넌트를 위한 계층) */
+.portal-dark .bg-white       { background: var(--portal-surface) !important; }
+.portal-dark .bg-gray-50     { background: var(--portal-bg) !important; }
+.portal-dark .bg-gray-100    { background: #2C2620 !important; }
+.portal-dark .bg-gray-200    { background: #362F27 !important; }
+.portal-dark .bg-gray-800    { background: #100D09 !important; }
+.portal-dark .bg-amber-50    { background: var(--brand-soft) !important; }
+.portal-dark .bg-amber-100   { background: #3A2B15 !important; }
+.portal-dark .bg-red-50      { background: #2E1E1A !important; }
+.portal-dark .bg-green-50    { background: #1B2A20 !important; }
+.portal-dark .bg-green-100   { background: #20362A !important; }
+.portal-dark .bg-yellow-50   { background: #2E2717 !important; }
+.portal-dark .bg-white\/20,
+.portal-dark .bg-white\/30,
+.portal-dark .bg-white\/95,
+.portal-dark .bg-white\/10   { background: rgba(255,255,255,0.08) !important; }
+
+.portal-dark .text-gray-900  { color: var(--portal-text) !important; }
+.portal-dark .text-gray-800  { color: var(--portal-text) !important; }
+.portal-dark .text-gray-700  { color: var(--portal-text-2) !important; }
+.portal-dark .text-gray-600  { color: var(--portal-text-2) !important; }
+.portal-dark .text-gray-500  { color: var(--portal-text-3) !important; }
+.portal-dark .text-gray-400  { color: var(--portal-text-4) !important; }
+.portal-dark .text-gray-300  { color: #564D3F !important; }
+.portal-dark .text-white     { color: #100D09 !important; }
+.portal-dark .text-amber-400,
+.portal-dark .text-amber-500,
+.portal-dark .text-amber-600 { color: var(--brand) !important; }
+.portal-dark .text-amber-700,
+.portal-dark .text-amber-800,
+.portal-dark .text-amber-900 { color: #F5C583 !important; }
+.portal-dark .text-red-400,
+.portal-dark .text-red-500,
+.portal-dark .text-red-600   { color: var(--state-risk) !important; }
+.portal-dark .text-green-600,
+.portal-dark .text-green-700 { color: var(--state-positive) !important; }
+.portal-dark .text-yellow-600,
+.portal-dark .text-yellow-700 { color: var(--state-caution) !important; }
+
+.portal-dark .border-gray-100,
+.portal-dark .border-gray-200,
+.portal-dark .border-gray-300 { border-color: var(--portal-border) !important; }
+.portal-dark .border-amber-200,
+.portal-dark .border-amber-300,
+.portal-dark .border-amber-400 { border-color: #55401F !important; }
+.portal-dark .border-red-200   { border-color: #4A2B26 !important; }
+.portal-dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: var(--portal-border) !important; }
+
+.portal-dark .bg-amber-500    { background: var(--brand) !important; color: #100D09 !important; }
+.portal-dark .hover\:bg-amber-600:hover { filter: brightness(1.1); }
+.portal-dark .hover\:bg-amber-50:hover  { background: var(--brand-soft) !important; }
+.portal-dark .hover\:bg-amber-100:hover { background: #3A2B15 !important; }
+.portal-dark .hover\:bg-gray-50:hover   { background: var(--portal-bg) !important; }
+.portal-dark .hover\:text-amber-600:hover,
+.portal-dark .hover\:text-amber-700:hover { color: #F5C583 !important; }
+.portal-dark .hover\:text-red-500:hover { color: var(--state-risk) !important; }
+.portal-dark .focus\:ring-amber-300:focus { --tw-ring-color: rgba(240,169,78,0.4) !important; }
+.portal-dark .shadow-sm, .portal-dark .shadow-md { box-shadow: 0 1px 3px rgba(0,0,0,0.5) !important; }
 
 /* 헤더 */
 .admin-dark header.admin-header {
