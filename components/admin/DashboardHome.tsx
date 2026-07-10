@@ -266,17 +266,33 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
       {/* ── ① HW 자산현황 | SW 자산현황 ─────────────────────────── */}
       <div className="grid grid-cols-2 gap-5">
         <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-1">
             <span className="text-sm font-bold text-gray-700">하드웨어 현황</span>
             <button onClick={() => onNavigate("hw")} className="text-xs font-medium hover:opacity-75 transition-opacity" style={{ color: "var(--brand)" }}>전체 보기 →</button>
           </div>
+          {!hwLoading && (
+            <div className="flex items-baseline gap-1.5 mb-3" style={{ fontFamily: "var(--mono, monospace)" }}>
+              <span className="text-3xl font-extrabold text-gray-900" style={{ fontVariantNumeric: "tabular-nums" }}>
+                {hwSegs.reduce((s, d) => s + d.value, 0).toLocaleString()}
+              </span>
+              <span className="text-xs text-gray-400 font-medium">전체 자산</span>
+            </div>
+          )}
           {hwLoading ? <LoadingBox /> : <DonutChart data={hwSegs} title="상태" />}
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-1">
             <span className="text-sm font-bold text-gray-700">SW 라이선스 현황</span>
             <button onClick={() => onNavigate("overview")} className="text-xs font-medium hover:opacity-75 transition-opacity" style={{ color: "var(--brand)" }}>전체 보기 →</button>
           </div>
+          {!swLoading && (
+            <div className="flex items-baseline gap-1.5 mb-3">
+              <span className="text-3xl font-extrabold text-gray-900" style={{ fontVariantNumeric: "tabular-nums" }}>
+                {swSegs.reduce((s, d) => s + d.value, 0).toLocaleString()}
+              </span>
+              <span className="text-xs text-gray-400 font-medium">전체 라이선스</span>
+            </div>
+          )}
           {swLoading ? <LoadingBox /> : <DonutChart data={swSegs} title="전체" />}
         </div>
       </div>

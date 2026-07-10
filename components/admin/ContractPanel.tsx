@@ -42,7 +42,7 @@ function CopyEmail({ email }: { email: string }) {
       <span className="underline underline-offset-2 decoration-dotted">{email}</span>
       <span className="opacity-0 group-hover:opacity-100 transition-opacity">
         {copied ? (
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--state-positive)" strokeWidth="2.5">
             <polyline points="20 6 9 17 4 12" />
           </svg>
         ) : (
@@ -59,9 +59,9 @@ function CopyEmail({ email }: { email: string }) {
 // ── 상태 뱃지 ─────────────────────────────────────────────────
 function StatusBadge({ status }: { status: Contract["status"] }) {
   const m = {
-    active:  { bg: "#E3FCEF", color: "#006644", label: "진행중" },
-    expired: { bg: "#FFEBE6", color: "#BF2600", label: "만료"   },
-    pending: { bg: "#FFFAE6", color: "#974F0C", label: "예정"   },
+    active:  { bg: "var(--state-positive-soft)", color: "var(--state-positive)", label: "진행중" },
+    expired: { bg: "var(--state-risk-soft)",     color: "var(--state-risk)",     label: "만료"   },
+    pending: { bg: "var(--state-caution-soft)",  color: "var(--state-caution)",  label: "예정"   },
   }[status];
   return (
     <span className="px-2 py-0.5 rounded-full text-xs font-semibold"
@@ -396,21 +396,22 @@ export default function ContractPanel() {
 
       {AlertBanner}
 
-      {/* KPI 카드 */}
+      {/* KPI 카드 — 계약수·PC수는 중립(참고 정보), 월/연 수익은 브랜드 강조(핵심 지표) */}
       <div className="grid grid-cols-4 gap-4 mb-6">
         {[
-          { label: "진행중 계약",  value: `${active.length}건`,            icon: "📋", bg: "#FEF3C7", tc: "#D97706" },
-          { label: "총 관리 PC",   value: `${totalQty.toLocaleString()}대`, icon: "💻", bg: "#E3FCEF", tc: "#006644" },
-          { label: "월 수익",      value: won(monthlyRevenue),              icon: "💰", bg: "#FFFAE6", tc: "#974F0C" },
-          { label: "연 수익",      value: won(monthlyRevenue * 12),         icon: "📈", bg: "#FFEBE6", tc: "#BF2600" },
+          { label: "진행중 계약",  value: `${active.length}건`,            icon: "📋", bg: "var(--state-neutral-soft)", tc: "var(--state-neutral)", emphasis: false },
+          { label: "총 관리 PC",   value: `${totalQty.toLocaleString()}대`, icon: "💻", bg: "var(--state-neutral-soft)", tc: "var(--state-neutral)", emphasis: false },
+          { label: "월 수익",      value: won(monthlyRevenue),              icon: "💰", bg: "var(--brand-soft)", tc: "var(--brand)", emphasis: true },
+          { label: "연 수익",      value: won(monthlyRevenue * 12),         icon: "📈", bg: "var(--brand-soft)", tc: "var(--brand)", emphasis: true },
         ].map((k) => (
-          <div key={k.label} className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+          <div key={k.label} className="bg-white rounded-xl p-4 shadow-sm"
+            style={{ border: k.emphasis ? `1.5px solid var(--brand)` : "1px solid #f3f4f6" }}>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{k.label}</span>
               <span className="w-8 h-8 rounded-lg flex items-center justify-center text-base"
                 style={{ background: k.bg }}>{k.icon}</span>
             </div>
-            <div className="text-2xl font-bold" style={{ color: k.tc }}>{k.value}</div>
+            <div className={k.emphasis ? "text-3xl font-extrabold" : "text-2xl font-bold"} style={{ color: k.tc }}>{k.value}</div>
           </div>
         ))}
       </div>
@@ -616,7 +617,7 @@ export default function ContractPanel() {
                   const expiring = isExpiringSoon(c);
                   const monthly  = c.quantity * c.unitPrice;
                   return (
-                    <tr key={c.id} style={expiring ? { background: "#FFFDF0" } : undefined}>
+                    <tr key={c.id} style={expiring ? { background: "var(--state-caution-soft)" } : undefined}>
                       <td className="whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <span className="font-semibold text-gray-900">{c.company}</span>
@@ -819,7 +820,7 @@ export default function ContractPanel() {
               {/* 수익 미리보기 */}
               {form.quantity > 0 && form.unitPrice > 0 && (
                 <div className="flex items-center gap-4 px-4 py-3 rounded-lg text-sm"
-                  style={{ background: "#FEF3C7" }}>
+                  style={{ background: "var(--brand-soft)" }}>
                   <div>
                     <span className="text-gray-500 text-xs">월 수익</span>
                     <div className="font-bold text-amber-700">{won(form.quantity * form.unitPrice)}</div>
