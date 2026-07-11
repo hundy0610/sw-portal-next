@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import type { HwStats } from "@/lib/hw";
+import type { MetricTrend } from "@/lib/metrics-snapshot";
 import type { ExchangeReturnRecord } from "@/types";
 import { scGet, scSet } from "@/lib/session-cache";
 import { safeJson } from "@/lib/fetch-json";
@@ -139,6 +140,20 @@ function LoadingBox() {
   return <div className="h-32 flex items-center justify-center text-xs text-gray-400">불러오는 중...</div>;
 }
 
+// 전월 대비 증감 배지 — 스냅샷 데이터가 아직 없으면(신규 인프라) 조용히 아무것도 렌더링하지 않는다.
+function TrendBadge({ trend }: { trend: MetricTrend | null }) {
+  if (!trend || trend.deltaPct === null) return null;
+  const up = trend.delta > 0;
+  const flat = trend.delta === 0;
+  const color = flat ? "var(--state-neutral)" : up ? "var(--state-positive)" : "var(--state-risk)";
+  const arrow = flat ? "→" : up ? "▲" : "▼";
+  return (
+    <span className="text-[11px] font-bold ml-0.5" style={{ color }} title="전월 동기간 대비">
+      {arrow} {Math.abs(trend.deltaPct).toFixed(1)}%
+    </span>
+  );
+}
+
 // ── sessionStorage 캐시 키 ────────────────────────────────────
 const SC_SW = (co: string) => `sc:dash:sw${co ? `:${co}` : ""}`;
 const TTL = 5 * 60 * 1000;
@@ -155,6 +170,7 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
   // ── HW 현황
   const [hwStats,   setHwStats]   = useState<HwStats | null>(initialHwStats);
   const [hwLoading, setHwLoading] = useState(!initialHwStats);
+  const [hwTrend,   setHwTrend]   = useState<MetricTrend | null>(null); // 전월 대비 (스냅샷 없으면 null — 표시 생략)
 
   // ── 자산흐름
   const [erLoading, setErLoading] = useState(true);
@@ -195,7 +211,7 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
     async function load(isRetry = false) {
       try {
         const d = await fetch("/api/hw/stats").then(r => safeJson(r));
-        if (d.ok && d.stats) { setHwStats(d.stats); setHwLoading(false); }
+        if (d.ok && d.stats) { setHwStats(d.stats); setHwTrend(d.trend ?? null); setHwLoading(false); }
         else if (d.warming && !isRetry) { retry = setTimeout(() => load(true), 45_000); }
         else { setHwLoading(false); }
       } catch { setHwLoading(false); }
@@ -276,6 +292,7 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
                 {hwSegs.reduce((s, d) => s + d.value, 0).toLocaleString()}
               </span>
               <span className="text-xs text-gray-400 font-medium">전체 자산</span>
+              <TrendBadge trend={hwTrend} />
             </div>
           )}
           {hwLoading ? <LoadingBox /> : <DonutChart data={hwSegs} title="상태" />}

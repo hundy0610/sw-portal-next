@@ -5,6 +5,7 @@ import type { HwStats } from "@/lib/hw";
 import { triggerWarmHw } from "@/lib/trigger-warm-hw";
 import { errorMessage } from "@/lib/api-error";
 import { getSessionFromCookieHeader, companyScope } from "@/lib/session";
+import { getMonthOverMonthTrend } from "@/lib/metrics-snapshot";
 
 export const dynamic = "force-dynamic";
 
@@ -30,14 +31,19 @@ export async function GET(req: NextRequest) {
 
     // KV(stats) → KV(all) → warming
     const stats = await kvGet<HwStats>("hw:stats");
-    if (stats) return NextResponse.json({ ok: true, stats, cached: "kv" });
+    if (stats) {
+      // 전사 총량 대비 전월 스냅샷 증감 — 스냅샷이 없으면(신규 인프라) 조용히 null
+      const trend = await getMonthOverMonthTrend("hwTotal").catch(() => null);
+      return NextResponse.json({ ok: true, stats, trend, cached: "kv" });
+    }
 
     // hw:stats 미스 → hw:all에서 즉석 계산 (hw:all은 있을 수 있음)
     const all = await kvGet<HwRecord[]>("hw:all");
     if (all && all.length > 0) {
       const computed = computeHwStats(all);
       kvSetPermanent("hw:stats", computed).catch(console.warn);
-      return NextResponse.json({ ok: true, stats: computed, cached: "computed" });
+      const trend = await getMonthOverMonthTrend("hwTotal").catch(() => null);
+      return NextResponse.json({ ok: true, stats: computed, trend, cached: "computed" });
     }
 
     // hw:all도 없음 — GitHub Actions warm 트리거

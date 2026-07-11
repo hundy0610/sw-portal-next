@@ -1,0 +1,27 @@
+name: Daily Metrics Snapshot
+
+on:
+  schedule:
+    # 매일 00:10 UTC — warm-hw/warm-cache가 채워둔 캐시를 읽어 하루 1회 스냅샷 저장
+    - cron: "10 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  snapshot-daily:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Save daily metrics snapshot (Upstash 캐시 → Upstash)
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+        run: node .github/scripts/snapshot-daily.mjs
