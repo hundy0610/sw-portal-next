@@ -3651,6 +3651,14 @@ export default function ExchangeReturnPanel() {
     [tabRecords]
   );
 
+  // 헤더 전용 단계별 요약 — 현재 필터링된 유형(typeFilter) 기준으로 해당 유형에 실제 존재하는
+  // 단계만 집계한다 (목록/상세용 MiniStageBar·BigStageBar와는 별개의 집계 요약).
+  const headerStages = useMemo(() => stagesFor(typeFilter), [typeFilter]);
+  const headerStageCounts = useMemo(() => {
+    const base = typeFilter === "all" ? tabRecords : tabRecords.filter(r => r.type === typeFilter);
+    return Object.fromEntries(headerStages.map(s => [s, base.filter(r => r.stage === s).length]));
+  }, [tabRecords, typeFilter, headerStages]);
+
   const filtered = useMemo(() => {
     const arr = tabRecords.filter(r => {
       if (stageFilter !== "all" && r.stage !== stageFilter) return false;
@@ -3781,6 +3789,21 @@ export default function ExchangeReturnPanel() {
             <div className="text-xs font-medium text-gray-500">{label}</div>
           </div>
         ))}
+      </div>
+
+      {/* 단계별 요약 바 — 현재 선택된 유형 기준 단계별 집계 */}
+      <div className="flex flex-wrap gap-2 mb-6">
+        {headerStages.map(s => {
+          const c = STAGE_COLORS[s];
+          return (
+            <div key={s} className="bg-white border border-gray-200 rounded-lg px-3 py-2 min-w-[84px]">
+              <div className="text-lg font-extrabold leading-none" style={{ color: dark ? c.dot : c.text }}>
+                {headerStageCounts[s] ?? 0}
+              </div>
+              <div className="text-[10px] font-medium text-gray-500 mt-1 whitespace-nowrap">{s}</div>
+            </div>
+          );
+        })}
       </div>
 
       {/* 유형 + 단계 필터 */}
