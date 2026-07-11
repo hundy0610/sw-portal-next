@@ -22,6 +22,15 @@ const STATUS_STYLE: Record<string, { bg: string; text: string }> = {
   "기타":    { bg: "#FAF5FF", text: "#7E22CE" },
 };
 
+// 행 배경 틴트 — STATUS_STYLE도 하드코딩 값이라 text 색상을 낮은 불투명도로 오버레이한다.
+// (다크모드에서 옅은 파스텔 배경이 흰 알약처럼 남던 70bbfd0 회귀를 피하기 위해
+// 다크에서 살짝 더 진한 불투명도를 사용)
+function statusRowStyle(status: string, dark: boolean) {
+  const c = STATUS_STYLE[status];
+  if (!c) return undefined;
+  return { background: `${c.text}${dark ? "26" : "1A"}` };
+}
+
 const FAULT_COLORS = [
   "#3B82F6","#8B5CF6","#F59E0B","#EF4444",
   "#10B981","#6366F1","#EC4899","#0EA5E9","#6B7280","#F97316",
@@ -697,6 +706,7 @@ function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
 
 // ── Main Panel ────────────────────────────────────────────────
 export default function RepairPanel({ company = "" }: { company?: string }) {
+  const dark = useAdminDarkMode();
   const [tickets,    setTickets]    = useState<RepairTicket[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -1498,7 +1508,7 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
                 {filteredList.length === 0 ? (
                   <tr><td colSpan={8} className="text-center text-gray-400 py-10">데이터 없음</td></tr>
                 ) : filteredList.map(t => (
-                  <tr key={t.id}>
+                  <tr key={t.id} style={statusRowStyle(t.status, dark)}>
                     <td className="text-xs text-gray-400 font-mono">{t.ticketNumber || "—"}</td>
                     <td><InlineStatusCell ticket={t} onUpdated={handleTicketUpdated} /></td>
                     <td className="text-sm text-gray-600">{t.company || "—"}</td>

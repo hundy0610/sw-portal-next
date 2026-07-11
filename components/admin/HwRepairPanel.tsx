@@ -45,6 +45,16 @@ const FAULT_COLORS: Record<string, { bg: string; text: string }> = {
   "기타":       { bg: "var(--state-neutral-soft)",  text: "var(--state-neutral)" },
 };
 
+// 행 배경 틴트 — STAGE_COLORS는 다색 하드코딩 값이라(683e516에서 토큰화 대상 제외됨)
+// dot 색상을 낮은 불투명도로 오버레이해 라이트/다크 모두에서 자연스럽게 섞이도록 한다.
+// (다크모드에서 옅은 파스텔 배경이 흰 알약처럼 남던 70bbfd0 회귀와 동일한 함정을 피하기 위해
+// 다크에서 살짝 더 진한 불투명도를 사용)
+function stageRowStyle(stage: string, dark: boolean) {
+  const c = STAGE_COLORS[stage];
+  if (!c) return undefined;
+  return { background: `${c.dot}${dark ? "26" : "1A"}` };
+}
+
 // Notion 필드명 매핑
 const FILE_FIELD_MAP: Record<keyof Pick<HwRepairRecord, "receiptUrl" | "consentUrl" | "taxInvoiceUrl" | "approvalUrl">, string> = {
   receiptUrl:    "수리영수증",
@@ -1186,6 +1196,21 @@ export default function HwRepairPanel() {
         ))}
       </div>
 
+      {/* 단계별 요약 카드 */}
+      <div className="flex flex-wrap gap-2 mb-6">
+        {STAGES.map(s => {
+          const c = STAGE_COLORS[s];
+          return (
+            <div key={s} className="bg-white border border-gray-200 rounded-lg px-3 py-2 min-w-[84px]">
+              <div className="text-lg font-extrabold leading-none" style={{ color: dark ? c.dot : c.text }}>
+                {stageCounts[s] ?? 0}
+              </div>
+              <div className="text-[10px] font-medium text-gray-500 mt-1 whitespace-nowrap">{s}</div>
+            </div>
+          );
+        })}
+      </div>
+
       {/* 단계 필터 탭 — 닫힌 케이스는 모두 "완료"이므로 숨김 */}
       {caseTab === "open" && <div className="flex flex-wrap gap-1.5 mb-4">
         <button onClick={() => setStageFilter("all")}
@@ -1232,7 +1257,7 @@ export default function HwRepairPanel() {
             ) : filtered.map(r => {
               const days = agingDays(r.receivedAt, r.completedAt, r.stage);
               return (
-                <tr key={r.id}>
+                <tr key={r.id} style={stageRowStyle(r.stage, dark)}>
                   {/* 진행단계 */}
                   <td>
                     <div className="flex flex-col gap-1">
