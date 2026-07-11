@@ -17,6 +17,16 @@ function formatDate(iso: string) {
   });
 }
 
+// ── 스탯 카드 ──────────────────────────────────────────────────
+function StatCard({ label, value, color }: { label: string; value: string | number; color: string }) {
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-1">
+      <div className="text-2xl font-extrabold" style={{ color }}>{value}</div>
+      <div className="text-xs font-medium text-gray-500">{label}</div>
+    </div>
+  );
+}
+
 // ── 상세 팝업 ──────────────────────────────────────────────────
 function DetailModal({ record, onClose }: { record: PcScanRecordWithMatch; onClose: () => void }) {
   const fields: [string, string][] = [
@@ -304,15 +314,13 @@ export default function PcScanPanel() {
       {/* 헤더 */}
       <div className="mb-4 flex items-end justify-between gap-3 flex-wrap">
         <div>
-          <h2 className="text-xl font-bold text-gray-900 mb-0.5">자산 실사 현황</h2>
-          <p className="text-sm text-gray-500">
-            전체 {records.length}대 · 필터 {filtered.length}대 표시 ·{" "}
-            {syncableFiltered.length > 0 ? (
-              <span className="font-semibold" style={{ color: "var(--state-risk)" }}>마스터 불일치 {syncableFiltered.length}건</span>
-            ) : (
-              <span style={{ color: "var(--state-positive)" }}>마스터 불일치 0건</span>
-            )}
-          </p>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">자산 실사 현황</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <StatCard label="전체"         value={records.length}                              color="var(--state-neutral)" />
+            <StatCard label="필터 표시"    value={filtered.length}                              color="var(--state-progress)" />
+            <StatCard label="마스터 일치"  value={filtered.length - syncableFiltered.length}    color="var(--state-positive)" />
+            <StatCard label="마스터 불일치" value={syncableFiltered.length}                     color="var(--state-risk)" />
+          </div>
           {warming && (
             <p className="text-xs text-amber-600 mt-1">마스터 데이터 캐시를 갱신하고 있습니다. 잠시 후 새로고침 해주세요.</p>
           )}
