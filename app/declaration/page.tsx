@@ -35,11 +35,11 @@ function Icon({ n, s = 18 }: { n: string; s?: number }) {
 }
 
 const NAV = [
-  { label: "홈",       icon: "home",   href: "/",          active: false, short: "홈"    },
-  { label: "교육 센터", icon: "edu",    href: "/",          active: false, short: "교육"  },
-  { label: "자료실",    icon: "folder", href: "/resources", active: false, short: "자료실" },
-  { label: "SW 검색",  icon: "search", href: "/",          active: false, short: "SW"   },
-  { label: "자산 실사", icon: "clip",   href: "/declaration", active: true, short: "실사"  },
+  { label: "홈",       icon: "home",   href: "/",                active: false, short: "홈"    },
+  { label: "교육 센터", icon: "edu",    href: "/?tab=education",  active: false, short: "교육"  },
+  { label: "자료실",    icon: "folder", href: "/resources",       active: false, short: "자료실" },
+  { label: "SW 검색",  icon: "search", href: "/?tab=search",     active: false, short: "SW"   },
+  { label: "자산 실사", icon: "clip",   href: "/declaration",     active: true,  short: "실사"  },
 ];
 
 export default function DeclarationPage() {
@@ -53,6 +53,7 @@ export default function DeclarationPage() {
     setDarkMode(d => {
       const next = !d;
       localStorage.setItem("portal-dark", next ? "1" : "0");
+      document.documentElement.classList.toggle("portal-dark", next);
       window.dispatchEvent(new CustomEvent("portal-dark-change", { detail: next }));
       return next;
     });

@@ -256,6 +256,7 @@ export default function AdminPage() {
     setDarkMode(d => {
       const next = !d;
       localStorage.setItem("admin-dark", next ? "1" : "0");
+      document.documentElement.classList.toggle("admin-dark", next);
       window.dispatchEvent(new CustomEvent("admin-dark-change", { detail: next }));
       return next;
     });

@@ -75,7 +75,13 @@ const NAV_ITEMS = [
    포털 메인
 ══════════════════════════════════════════════════════ */
 export default function PortalPage() {
-  const [tab, setTab] = useState<Tab>("home");
+  // 자료실/자산실사 페이지의 "교육 센터"·"SW 검색" 링크가 ?tab= 쿼리로 진입시켜줌
+  // (이 두 항목은 홈 화면 내부 탭이라 별도 라우트가 없음)
+  const [tab, setTab] = useState<Tab>(() => {
+    if (typeof window === "undefined") return "home";
+    const t = new URLSearchParams(window.location.search).get("tab");
+    return t === "education" || t === "search" ? t : "home";
+  });
   const currentNav = NAV_ITEMS.find(i => i.id === tab)!;
 
   const [darkMode, setDarkMode] = useState(() => {
@@ -88,6 +94,7 @@ export default function PortalPage() {
     setDarkMode(d => {
       const next = !d;
       localStorage.setItem("portal-dark", next ? "1" : "0");
+      document.documentElement.classList.toggle("portal-dark", next);
       window.dispatchEvent(new CustomEvent("portal-dark-change", { detail: next }));
       return next;
     });

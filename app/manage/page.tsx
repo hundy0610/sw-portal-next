@@ -92,6 +92,7 @@ function ManageDashboard({ session }: { session: SessionInfo }) {
     setDarkMode(d => {
       const next = !d;
       localStorage.setItem("portal-dark", next ? "1" : "0");
+      document.documentElement.classList.toggle("portal-dark", next);
       window.dispatchEvent(new CustomEvent("portal-dark-change", { detail: next }));
       return next;
     });
