@@ -36,7 +36,8 @@
   --sidebar-active: rgba(255,255,255,0.14);
   --sidebar-text: rgba(255,255,255,0.68);
   --sidebar-text-hover: rgba(255,255,255,0.92);
-  --sidebar-text-active: var(--brand);
+  /* 기능 선택(활성 항목) 포인트 컬러 — 인디고 사이드바와 어울리는 코럴/로즈 */
+  --sidebar-text-active: #FB7185;
   --sidebar-section-text: rgba(255,255,255,0.4);
   --sidebar-divider: rgba(255,255,255,0.1);
 
