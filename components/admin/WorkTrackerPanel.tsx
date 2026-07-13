@@ -74,9 +74,9 @@ function TaskFormModal({ title, form, setForm, collaboratorOptions, onCancel, on
                     } : f)}
                     style={{
                       padding: "5px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: "pointer",
-                      border: `1px solid ${active ? "#4F46E5" : "#E4E4E7"}`,
-                      background: active ? "#EEF2FF" : "#fff",
-                      color: active ? "#4F46E5" : "#71717A",
+                      border: `1px solid ${active ? "var(--brand)" : "#E4E4E7"}`,
+                      background: active ? "var(--brand-soft)" : "#fff",
+                      color: active ? "var(--brand)" : "#71717A",
                     }}>
                     {name}
                   </button>
@@ -92,7 +92,7 @@ function TaskFormModal({ title, form, setForm, collaboratorOptions, onCancel, on
               </div>
             </div>
             <button type="button" onClick={() => setForm(f => f ? { ...f, shared: !f.shared } : f)}
-              style={{ width: 40, height: 22, borderRadius: 20, border: "none", position: "relative" as const, background: form.shared ? "#4F46E5" : "#CBD5E1", cursor: "pointer", padding: 0, flexShrink: 0, transition: "background .15s" }}>
+              style={{ width: 40, height: 22, borderRadius: 20, border: "none", position: "relative" as const, background: form.shared ? "var(--brand)" : "#CBD5E1", cursor: "pointer", padding: 0, flexShrink: 0, transition: "background .15s" }}>
               <span style={{ position: "absolute" as const, top: 2, left: form.shared ? 20 : 2, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "left .15s", boxShadow: "0 1px 3px rgba(0,0,0,.2)" }} />
             </button>
           </div>
@@ -103,7 +103,7 @@ function TaskFormModal({ title, form, setForm, collaboratorOptions, onCancel, on
             취소
           </button>
           <button onClick={onSubmit} disabled={!form.title.trim() || submitting}
-            style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: !form.title.trim() || submitting ? "#E4E4E7" : "#4F46E5", color: !form.title.trim() || submitting ? "#A1A1AA" : "#fff", fontSize: 12, fontWeight: 700, cursor: !form.title.trim() || submitting ? "not-allowed" : "pointer" }}>
+            style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: !form.title.trim() || submitting ? "#E4E4E7" : "var(--brand)", color: !form.title.trim() || submitting ? "#A1A1AA" : "#fff", fontSize: 12, fontWeight: 700, cursor: !form.title.trim() || submitting ? "not-allowed" : "pointer" }}>
             {submitting ? "추가 중..." : "추가"}
           </button>
         </div>
@@ -155,7 +155,7 @@ function TaskCard({ t, dragging, parentTitle, childTotal, childDone, showCollabo
           <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 20, background: dark ? "#18181B" : "#E0F2FE", color: dark ? "#7dd3fc" : "#0369A1" }}>공유됨</span>
         )}
         {childTotal > 0 && (
-          <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 20, background: dark ? "#18181B" : childDone === childTotal ? "#DCFCE7" : "#EEF2FF", color: childDone === childTotal ? (dark ? "#86efac" : "#15803D") : (dark ? "#A5B4FC" : "#4F46E5") }}>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 20, background: dark ? "#18181B" : childDone === childTotal ? "#DCFCE7" : "var(--brand-soft)", color: childDone === childTotal ? (dark ? "#86efac" : "#15803D") : ("var(--brand)") }}>
             하위 {childDone}/{childTotal}
           </span>
         )}
@@ -497,7 +497,7 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
           <p style={{ fontSize: 13, color: dark ? "#a3a3a3" : "#71717A", margin: 0 }}>총 {filtered.length}건</p>
         </div>
         <button onClick={load}
-          style={{ padding: "8px 14px", borderRadius: 8, background: dark ? "#18181B" : "#EEF2FF", color: dark ? "#A5B4FC" : "#4F46E5", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+          style={{ padding: "8px 14px", borderRadius: 8, background: dark ? "#18181B" : "var(--brand-soft)", color: "var(--brand)", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
           새로고침
         </button>
       </div>
@@ -644,9 +644,9 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
                             onClick={() => setEditCollaboratorNames(prev => active ? prev.filter(n => n !== name) : [...prev, name])}
                             style={{
                               padding: "5px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: "pointer",
-                              border: `1px solid ${active ? "#4F46E5" : "#E4E4E7"}`,
-                              background: active ? "#EEF2FF" : "#fff",
-                              color: active ? "#4F46E5" : "#71717A",
+                              border: `1px solid ${active ? "var(--brand)" : "#E4E4E7"}`,
+                              background: active ? "var(--brand-soft)" : "#fff",
+                              color: active ? "var(--brand)" : "#71717A",
                             }}>
                             {name}
                           </button>
@@ -655,7 +655,7 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
                     </div>
                     <div style={{ display: "flex", gap: 6 }}>
                       <button onClick={handleSaveCollaborators}
-                        style={{ padding: "5px 12px", borderRadius: 8, border: "none", background: "#4F46E5", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                        style={{ padding: "5px 12px", borderRadius: 8, border: "none", background: "var(--brand)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
                         저장
                       </button>
                       <button onClick={() => { setEditingCollaborators(false); setEditCollaboratorNames(selected.collaboratorName ? selected.collaboratorName.split(",").map(s => s.trim()).filter(Boolean) : []); }}
@@ -684,7 +684,7 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
                   <div style={{ marginTop: 8, fontSize: 12, color: "#71717A" }}>
                     상위 작업:{" "}
                     <button onClick={() => openDetail(parent)}
-                      style={{ background: "none", border: "none", color: "#4F46E5", cursor: "pointer", fontWeight: 600, padding: 0, fontSize: 12 }}>
+                      style={{ background: "none", border: "none", color: "var(--brand)", cursor: "pointer", fontWeight: 600, padding: 0, fontSize: 12 }}>
                       {parent.title}
                     </button>
                   </div>
@@ -701,7 +701,7 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
                     style={{ width: "100%", padding: "8px 10px", border: "1px solid #E4E4E7", borderRadius: 8, fontSize: 13, color: "#0f172a", resize: "vertical" as const, boxSizing: "border-box" as const, fontFamily: "inherit" }} />
                   <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
                     <button onClick={handleSaveContent}
-                      style={{ padding: "5px 12px", borderRadius: 8, border: "none", background: "#4F46E5", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                      style={{ padding: "5px 12px", borderRadius: 8, border: "none", background: "var(--brand)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
                       저장
                     </button>
                     <button onClick={() => { setEditing(false); setEditTitle(selected.title); setEditContent(selected.content); }}
