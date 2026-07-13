@@ -29,10 +29,9 @@
   --admin-accent-hover: #B45F05;
   --admin-accent-soft: var(--brand-soft);
 
-  /* 라이트 모드 사이드바 — 슬레이트 네이비(#334155). 어두운 뉴트럴이라 흰 텍스트 고정으로
-     충분한 대비를 확보하고, 배경색을 다시 바꿔도 텍스트 대비 문제가 재발하지 않음.
-     (다크 모드는 아래 .admin-dark에서 별도 정의) */
-  --sidebar-bg: #334155;
+  /* 라이트 모드 사이드바 — 인디고(#4F46E5). 어두운 톤이라 흰 텍스트 고정으로
+     충분한 대비를 확보함. (다크 모드는 아래 .admin-dark에서 별도 정의) */
+  --sidebar-bg: #4F46E5;
   --sidebar-hover: rgba(255,255,255,0.08);
   --sidebar-active: rgba(255,255,255,0.14);
   --sidebar-text: rgba(255,255,255,0.68);
