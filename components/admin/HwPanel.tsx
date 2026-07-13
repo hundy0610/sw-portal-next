@@ -169,8 +169,8 @@ function DashboardTab({ stats, loading, onRefresh }: { stats: HwStats | null; lo
 
   const { total=0, activeCount=0, stockCount=0, shipCount=0, repairCount=0,
           rentalCount=0, tempCount=0, returnCount=0, disposalCount=0,
-          verifiedCount=0, totalValue=0, companyTable=[], byStatus={} } = stats ?? {};
-  const confirmedTotal = total - (byStatus["미확인"] ?? 0);
+          verifiedCount=0, totalValue=0, companyTable=[] } = stats ?? {};
+  // total은 이미 미확인 자산을 제외한 수량 (lib/hw.ts computeHwStats 참고)
   const progressCount = shipCount + repairCount + rentalCount + tempCount;
 
   return (
@@ -183,7 +183,7 @@ function DashboardTab({ stats, loading, onRefresh }: { stats: HwStats | null; lo
               <span className="text-3xl font-extrabold text-gray-900 tabular-nums">{CONTRACT_QUANTITY.toLocaleString()}</span>
               <span className="text-xs text-gray-400 font-medium">계약 수량</span>
               <span className="text-xs text-gray-400 ml-1">
-                미확인 제외 {confirmedTotal.toLocaleString()}건{totalValue>0 && ` · ₩${Math.round(totalValue/1000000)}M`}
+                미확인 제외 {total.toLocaleString()}건{totalValue>0 && ` · ₩${Math.round(totalValue/1000000)}M`}
               </span>
             </div>
           )}
@@ -359,11 +359,11 @@ function ShipmentTab({ onUpdate, companyLock = "", isSuperAdmin = false }: { onU
       {loading ? (
         <div className="py-16 text-center text-gray-300 text-sm">불러오는 중…</div>
       ) : pendingShip.length === 0 && readyShip.length === 0 ? (
-        <div className="py-16 text-center text-gray-300 text-sm"><p className="text-4xl mb-3">📤</p><p>출고 대상 자산이 없습니다</p></div>
+        <div className="py-16 text-center text-gray-300 text-sm"><p>출고 대상 자산이 없습니다</p></div>
       ) : (
         <>
-          <SectionTable title="📤 출고준비중" items={sortedPending} headerCls="bg-orange-50 text-orange-700" />
-          <SectionTable title="✅ 출고준비완료" items={sortedReady} headerCls="bg-amber-50 text-amber-700" />
+          <SectionTable title="출고준비중" items={sortedPending} headerCls="bg-orange-50 text-orange-700" />
+          <SectionTable title="출고준비완료" items={sortedReady} headerCls="bg-amber-50 text-amber-700" />
         </>
       )}
       {detailRecord && <AssetDetailModal record={detailRecord} onSave={onUpdate} onClose={() => setDetailRecord(null)} isSuperAdmin={isSuperAdmin} />}
@@ -525,12 +525,12 @@ function EditModal({ record, fields, onSave, onClose }: EditModalProps) {
           )}
         </div>
 
-        {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">⚠️ {error}</p>}
+        {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
 
         <div className="flex gap-2 pt-1">
           <button onClick={handleSave} disabled={saving}
             className="flex-1 py-2.5 rounded-xl bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-50 transition-colors">
-            {saving ? "저장 중…" : "✅ Notion에 저장"}
+            {saving ? "저장 중…" : "Notion에 저장"}
           </button>
           <button onClick={onClose}
             className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm hover:bg-gray-50 transition-colors">
@@ -711,7 +711,7 @@ function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false, initi
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
           {previewLabel && (
             <div className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-              🕒 {previewLabel} — 강조된 필드가 현재와 다른 값입니다. 저장하면 이 값으로 되돌립니다.
+              {previewLabel} — 강조된 필드가 현재와 다른 값입니다. 저장하면 이 값으로 되돌립니다.
             </div>
           )}
           {/* 수정 폼 */}
@@ -780,7 +780,7 @@ function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false, initi
             <div className="border border-red-100 rounded-xl p-3 bg-red-50/50">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-[10px] font-semibold text-red-500 uppercase tracking-wider">
-                  🔒 민감 정보 {sensitiveUnlocked ? "(잠금 해제됨)" : ""}
+                  민감 정보 {sensitiveUnlocked ? "(잠금 해제됨)" : ""}
                 </p>
                 {!sensitiveUnlocked && !showPwInput && (
                   <button
@@ -823,7 +823,7 @@ function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false, initi
                       취소
                     </button>
                   </div>
-                  {pwError && <p className="text-xs text-red-600">⚠ {pwError}</p>}
+                  {pwError && <p className="text-xs text-red-600">{pwError}</p>}
                 </div>
               )}
 
@@ -916,10 +916,10 @@ function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false, initi
 
         {/* 저장 버튼 */}
         <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex items-center justify-between shrink-0">
-          <span className="text-xs text-red-600">{error ? `⚠️ ${error}` : ""}</span>
+          <span className="text-xs text-red-600">{error ? `${error}` : ""}</span>
           <button onClick={handleSave} disabled={saving || !isDirty}
             className="px-4 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 disabled:opacity-40 transition-colors">
-            {saving ? "저장 중…" : saved ? "✓ 저장됨" : "저장"}
+            {saving ? "저장 중…" : saved ? "저장됨" : "저장"}
           </button>
         </div>
       </div>
@@ -1026,8 +1026,8 @@ function ReturnTab({ onUpdate, companyLock = "", isSuperAdmin = false }: { onUpd
         </div>
         {!loading && (
           <div className="mt-5 flex gap-3 text-xs">
-            <span className="text-red-500 font-semibold">🔴 D-7 이내: {urgent.length}건</span>
-            <span className="text-orange-500 font-semibold">🟡 D-30 이내: {soon.length}건</span>
+            <span className="text-red-500 font-semibold">D-7 이내: {urgent.length}건</span>
+            <span className="text-orange-500 font-semibold">D-30 이내: {soon.length}건</span>
             <span className="text-gray-500">◽ 그 외: {later.length}건</span>
           </div>
         )}
@@ -1035,11 +1035,11 @@ function ReturnTab({ onUpdate, companyLock = "", isSuperAdmin = false }: { onUpd
       {loading ? (
         <div className="py-16 text-center text-gray-300 text-sm">불러오는 중…</div>
       ) : returnRecords.length === 0 ? (
-        <div className="py-16 text-center text-gray-300 text-sm"><p className="text-4xl mb-3">✅</p><p>반납 예정 자산이 없습니다</p></div>
+        <div className="py-16 text-center text-gray-300 text-sm"><p>반납 예정 자산이 없습니다</p></div>
       ) : (
         <>
-          <TableSection title="🔴 D-7 이내 — 즉시 확인 필요" items={urgent} cls="bg-red-50 text-red-700" />
-          <TableSection title="🟡 D-30 이내 — 반납 임박"     items={soon}   cls="bg-yellow-50 text-yellow-700" />
+          <TableSection title="D-7 이내 — 즉시 확인 필요" items={urgent} cls="bg-red-50 text-red-700" />
+          <TableSection title="D-30 이내 — 반납 임박"     items={soon}   cls="bg-yellow-50 text-yellow-700" />
           <TableSection title="◽ D-30 초과"                   items={later}  cls="bg-gray-50 text-gray-700" />
         </>
       )}
@@ -1210,7 +1210,7 @@ function SearchTab({ companyLock = "", onUpdate, isSuperAdmin = false }: { compa
           </div>
           <button onClick={load} disabled={loading}
             className="px-5 py-2 rounded-lg bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-50 transition-colors">
-            {loading ? "검색 중…" : "🔍 검색"}
+            {loading ? "검색 중…" : "검색"}
           </button>
           <button onClick={() => { setSearch(""); setCompany(""); setLocation(""); setStatus(""); setRecords([]); setSearched(false); }}
             className="px-3 py-2 rounded-lg border border-gray-300 text-gray-600 text-sm hover:bg-gray-50 transition-colors">
@@ -1232,7 +1232,7 @@ function SearchTab({ companyLock = "", onUpdate, isSuperAdmin = false }: { compa
               >
                 {exporting ? (
                   <><svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>생성 중…</>
-                ) : <>📥 엑셀 다운로드</>}
+                ) : <>엑셀 다운로드</>}
               </button>
             </div>
           </div>
@@ -1302,7 +1302,7 @@ function SearchTab({ companyLock = "", onUpdate, isSuperAdmin = false }: { compa
       )}
       {!searched && (
         <div className="py-16 text-center text-gray-300 text-sm">
-          <p className="text-4xl mb-3">💻</p><p>조건을 선택하고 검색 버튼을 눌러주세요</p>
+          <p>조건을 선택하고 검색 버튼을 눌러주세요</p>
         </div>
       )}
       {detailRecord && onUpdate && (
@@ -1380,7 +1380,6 @@ function DuplicateModal({dups,cleanCount,onSkipDups,onUploadAll,onCancel}:{
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel}/>
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden">
         <div className="px-6 py-4 bg-amber-50 border-b border-amber-200 flex items-start gap-3">
-          <span className="text-2xl mt-0.5">⚠️</span>
           <div>
             <p className="font-bold text-amber-800 text-base">중복 데이터 감지됨</p>
             <p className="text-xs text-amber-700 mt-1">엑셀 {dups.length+cleanCount}건 중 <strong>{dups.length}건</strong>이 Notion에 이미 등록되어 있습니다.</p>
@@ -1413,7 +1412,7 @@ function DuplicateModal({dups,cleanCount,onSkipDups,onUploadAll,onCancel}:{
           </table>
         </div>
         <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex flex-col sm:flex-row gap-3">
-          {cleanCount>0&&<button onClick={onSkipDups} className="flex-1 py-2.5 rounded-xl bg-teal-600 text-white text-sm font-bold hover:bg-teal-700 transition-colors">✅ 중복 제외하고 {cleanCount}건만 등록</button>}
+          {cleanCount>0&&<button onClick={onSkipDups} className="flex-1 py-2.5 rounded-xl bg-teal-600 text-white text-sm font-bold hover:bg-teal-700 transition-colors">중복 제외하고 {cleanCount}건만 등록</button>}
           <button onClick={onUploadAll} className="flex-1 py-2.5 rounded-xl bg-gray-700 text-white text-sm font-bold hover:bg-gray-800 transition-colors">전체 {dups.length+cleanCount}건 등록 (중복 포함)</button>
           <button onClick={onCancel} className="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-600 text-sm hover:bg-gray-100">취소</button>
         </div>
@@ -1590,7 +1589,7 @@ function ExcelUploadTab(){
     <div className="space-y-4">
       {showDupModal&&<DuplicateModal dups={dupItems} cleanCount={cleanRows.length} onSkipDups={()=>doUpload(cleanRows)} onUploadAll={()=>doUpload(rows)} onCancel={()=>setShowDupModal(false)}/>}
       <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 text-xs text-teal-700 space-y-1">
-        <p className="font-semibold text-sm text-teal-800">📋 업체 제공 엑셀 → Notion 자동 등록</p>
+        <p className="font-semibold text-sm text-teal-800">업체 제공 엑셀 → Notion 자동 등록</p>
         <p>업체가 제공한 엑셀 파일을 업로드하면 <strong>사용중</strong> 상태로 NT/DT 트래커에 자동 등록됩니다.</p>
         <p className="text-teal-600">지원 컬럼: 관리번호 · 모델명 · 시리얼 · 제조사 · CPU · 램 · 법인 · 사용자 · 부서 · 위치 · 구매년도 · 구매가격 · 사용일자</p>
       </div>
@@ -1598,7 +1597,6 @@ function ExcelUploadTab(){
         <div onDrop={handleDrop} onDragOver={e=>e.preventDefault()}
           className="bg-white border-2 border-dashed border-gray-300 rounded-xl p-10 text-center hover:border-teal-400 hover:bg-teal-50/30 transition-colors cursor-pointer"
           onClick={()=>fileRef.current?.click()}>
-          <div className="text-4xl mb-3">📂</div>
           <p className="text-sm font-semibold text-gray-700">엑셀 파일을 드래그하거나 클릭하여 선택</p>
           <p className="text-xs text-gray-400 mt-1">.xlsx · .xls 지원</p>
           <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={e=>{const f=e.target.files?.[0];if(f)handleFile(f);}}/>
@@ -1606,7 +1604,6 @@ function ExcelUploadTab(){
       )}
       {parseErr&&(
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700 flex items-start gap-3">
-          <span className="text-xl">⚠️</span>
           <div><p className="font-semibold">파일 파싱 오류</p><p className="mt-1 text-xs">{parseErr}</p><button onClick={reset} className="mt-2 text-xs underline text-red-600">다시 선택</button></div>
         </div>
       )}
@@ -1614,7 +1611,7 @@ function ExcelUploadTab(){
         <>
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-              <div><span className="text-sm font-semibold text-gray-800">📄 {fileName}</span><span className="ml-2 text-xs text-gray-400">{rows.length}개 행 파싱 완료</span></div>
+              <div><span className="text-sm font-semibold text-gray-800">{fileName}</span><span className="ml-2 text-xs text-gray-400">{rows.length}개 행 파싱 완료</span></div>
               <button onClick={reset} className="text-xs text-gray-400 hover:text-gray-700 underline">취소</button>
             </div>
             <div className="overflow-x-auto max-h-80">
@@ -1644,7 +1641,7 @@ function ExcelUploadTab(){
           {!uploading&&!checking&&(
             <div className="flex gap-3">
               <button onClick={handleCheckAndUpload} className="flex-1 py-3 rounded-xl bg-teal-600 text-white text-sm font-bold hover:bg-teal-700 transition-colors shadow-sm">
-                🔍 중복 확인 후 Notion 등록 ({rows.length}건)
+                중복 확인 후 Notion 등록 ({rows.length}건)
               </button>
               <button onClick={reset} className="px-5 py-3 rounded-xl border border-gray-300 text-gray-600 text-sm hover:bg-gray-50">취소</button>
             </div>
@@ -1670,12 +1667,11 @@ function ExcelUploadTab(){
       {summary&&results&&(
         <div className="space-y-4">
           <div className={`rounded-xl p-5 border ${summary.failed===0?"bg-green-50 border-green-200":"bg-yellow-50 border-yellow-200"}`}>
-            <p className={`text-base font-bold mb-1 ${summary.failed===0?"text-green-800":"text-yellow-800"}`}>{summary.failed===0?"✅ 전체 등록 완료!":"⚠️ 등록 완료 (일부 실패)"}</p>
+            <p className={`text-base font-bold mb-1 ${summary.failed===0?"text-green-800":"text-yellow-800"}`}>{summary.failed===0?"전체 등록 완료!":"등록 완료 (일부 실패)"}</p>
             <p className="text-sm text-gray-700">성공 <span className="font-bold text-green-700">{summary.success}</span>건 · 실패 <span className="font-bold text-red-600">{summary.failed}</span>건</p>
           </div>
           {syncWarn&&(
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-              <span className="text-lg shrink-0">⚠️</span>
               <div>
                 <p className="text-sm font-semibold text-amber-800">자산흐름관리 연동 실패</p>
                 <p className="text-xs text-amber-700 mt-0.5">{syncWarn}</p>
@@ -1695,7 +1691,7 @@ function ExcelUploadTab(){
                       <td className="px-3 py-2 text-gray-400">{r.index+1}</td>
                       <td className="px-3 py-2 font-medium text-gray-800">{r.user||"-"}</td>
                       <td className="px-3 py-2 font-mono text-gray-600">{r.assetNo||"-"}</td>
-                      <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${r.ok?"bg-green-100 text-green-700":"bg-red-100 text-red-700"}`}>{r.ok?"✓ 성공":"✗ 실패"}</span></td>
+                      <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${r.ok?"bg-green-100 text-green-700":"bg-red-100 text-red-700"}`}>{r.ok?"성공":"실패"}</span></td>
                       <td className="px-3 py-2 text-red-500 text-[11px]">{r.error||""}</td>
                     </tr>
                   ))}
@@ -1750,7 +1746,7 @@ function ExcelUploadTab(){
                             </ul>
                           </div>
                         </div>
-                        {m.error&&<p className="text-xs text-red-600">⚠️ {m.error}</p>}
+                        {m.error&&<p className="text-xs text-red-600">{m.error}</p>}
                         {!m.confirmed&&(
                           <button onClick={()=>confirmSync(i)} disabled={m.confirming}
                             className="w-full py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-40">
@@ -1787,7 +1783,7 @@ function CopyAssetNo({ value }: { value: string }) {
       }}
       title="클릭하여 복사"
     >
-      {copied ? "✓ 복사됨" : value}
+      {copied ? "복사됨" : value}
     </button>
   );
 }
@@ -1839,7 +1835,7 @@ function NextAssetNoPanel(){
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
       <div className="px-5 py-3 border-b border-gray-100">
-        <p className="text-sm font-semibold text-gray-700">🔢 법인별 다음 자산번호 추천 ({yy}년 {mm}월)</p>
+        <p className="text-sm font-semibold text-gray-700">법인별 다음 자산번호 추천 ({yy}년 {mm}월)</p>
         <p className="text-xs text-gray-400 mt-0.5">형식: 연도(YY) + 법인코드 - 월(MM) + 일련번호(101~). 같은 연/월/법인에 등록된 최대 번호 +1로 계산됩니다.</p>
       </div>
       {loading&&<div className="px-5 py-4 text-sm text-gray-400">불러오는 중…</div>}
@@ -1950,7 +1946,7 @@ function DispatchHistoryTab() {
         </button>
       </div>
 
-      {error && <div className="px-4 py-3 bg-red-50 rounded-xl text-sm text-red-600">⚠️ {error}</div>}
+      {error && <div className="px-4 py-3 bg-red-50 rounded-xl text-sm text-red-600">{error}</div>}
 
       {/* 요약 카드 */}
       {!loading && (
@@ -2091,7 +2087,6 @@ function DispatchHistoryTab() {
 
       {!loading && filtered.length === 0 && !error && (
         <div className="py-16 text-center text-gray-300">
-          <p className="text-4xl mb-3">📋</p>
           <p className="text-sm">지급 이력이 없습니다</p>
           <p className="text-xs mt-2 text-gray-300">출고준비완료 전환 또는 엑셀 등록 시 자동으로 기록됩니다</p>
         </div>
@@ -2212,7 +2207,7 @@ function RegistrationLogTab() {
         </button>
       </div>
 
-      {error && <div className="px-4 py-3 bg-red-50 rounded-xl text-sm text-red-600">⚠️ {error}</div>}
+      {error && <div className="px-4 py-3 bg-red-50 rounded-xl text-sm text-red-600">{error}</div>}
 
       {/* 요약 카드 */}
       {!loading && (
@@ -2505,7 +2500,7 @@ function StockByCompanyTab({ records, loading }: { records: HwRecord[]; loading:
   const total = rows.reduce((s: number, [, n]: [string, number]) => s + n, 0);
 
   if (loading) return <div className="py-20 text-center text-gray-400 text-sm">불러오는 중…</div>;
-  if (!records.length) return <div className="py-20 text-center text-gray-300 text-sm"><p className="text-4xl mb-3">📦</p><p>데이터를 불러오는 중입니다</p></div>;
+  if (!records.length) return <div className="py-20 text-center text-gray-300 text-sm"><p>데이터를 불러오는 중입니다</p></div>;
 
   return (
     <div className="p-6">
@@ -2660,12 +2655,12 @@ function ChangeHistoryTab({ companyLock = "", onUpdate, isSuperAdmin = false }: 
           </div>
           <button onClick={search} disabled={searching}
             className="px-5 py-2 rounded-lg bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-50 transition-colors">
-            {searching ? "검색 중…" : "🔍 검색"}
+            {searching ? "검색 중…" : "검색"}
           </button>
         </div>
       </div>
 
-      {searchError && <div className="px-4 py-3 bg-red-50 rounded-xl text-sm text-red-600">⚠️ {searchError}</div>}
+      {searchError && <div className="px-4 py-3 bg-red-50 rounded-xl text-sm text-red-600">{searchError}</div>}
 
       {searched && !searching && candidates.length > 1 && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -2690,7 +2685,7 @@ function ChangeHistoryTab({ companyLock = "", onUpdate, isSuperAdmin = false }: 
       )}
 
       {detailLoading && <div className="py-12 text-center text-gray-400 text-sm">불러오는 중…</div>}
-      {detailError && <div className="px-4 py-3 bg-red-50 rounded-xl text-sm text-red-600">⚠️ {detailError}</div>}
+      {detailError && <div className="px-4 py-3 bg-red-50 rounded-xl text-sm text-red-600">{detailError}</div>}
 
       {detail && !detailLoading && (
         <div className="bg-white rounded-xl border border-gray-200 p-5">
@@ -2706,7 +2701,7 @@ function ChangeHistoryTab({ companyLock = "", onUpdate, isSuperAdmin = false }: 
             >
               {exporting ? (
                 <><svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>생성 중…</>
-              ) : <>📥 엑셀 다운로드</>}
+              ) : <>엑셀 다운로드</>}
             </button>
           </div>
 
@@ -2979,9 +2974,6 @@ export default function HwPanel({ company = "", initialStats, isSuperAdmin = fal
       {/* 패널 헤더 */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-amber-600 flex items-center justify-center shrink-0">
-            <span className="text-white text-lg">💻</span>
-          </div>
           <div>
             <h2 className="font-bold text-gray-900 text-sm">HW 자산 관리</h2>
             <p className="text-xs text-gray-400 mt-0.5">
@@ -3014,9 +3006,9 @@ export default function HwPanel({ company = "", initialStats, isSuperAdmin = fal
                 동기화 중…
               </>
             ) : syncDone ? (
-              <>✓ 동기화 시작됨</>
+              <>동기화 시작됨</>
             ) : syncError ? (
-              <>⚠ 실패</>
+              <>실패</>
             ) : (
               <>
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -3040,8 +3032,8 @@ export default function HwPanel({ company = "", initialStats, isSuperAdmin = fal
         </div>
       </div>
 
-      {statsError  && <div className="px-4 py-3 bg-red-50 rounded-xl text-sm text-red-600">⚠️ {statsError}</div>}
-      {recordsError && <div className="px-4 py-3 bg-red-50 rounded-xl text-sm text-red-600">⚠️ {recordsError}</div>}
+      {statsError  && <div className="px-4 py-3 bg-red-50 rounded-xl text-sm text-red-600">{statsError}</div>}
+      {recordsError && <div className="px-4 py-3 bg-red-50 rounded-xl text-sm text-red-600">{recordsError}</div>}
 
       {/* 탭 */}
       <div className="flex gap-1 bg-gray-100 rounded-xl p-1 overflow-x-auto">

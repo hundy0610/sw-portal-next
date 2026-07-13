@@ -152,18 +152,22 @@ export function computeHwStats(records: HwRecord[]): HwStats {
     const co = r.company || "미분류";
     const mk = r.maker   || "기타";
     byStatus[st]  = (byStatus[st]  || 0) + 1;
-    byCompany[co] = (byCompany[co] || 0) + 1;
     byMaker[mk]   = (byMaker[mk]   || 0) + 1;
-    if (!coMap[co]) coMap[co] = { total: 0, active: 0, stock: 0 };
-    coMap[co].total++;
-    if (r.status === "사용중") coMap[co].active++;
-    if (r.status === "재고")   coMap[co].stock++;
-    totalValue += r.price || 0;
+    // 미확인 자산은 실사 후 실물 확인되면 "사용중"으로 전환됨 — 확인 전까지는
+    // 법인별 분포·법인별 총계·전체 수량 집계에서 제외한다 (byStatus 자체엔 남겨서 미확인 건수는 계속 조회 가능)
+    if (st !== "미확인") {
+      byCompany[co] = (byCompany[co] || 0) + 1;
+      if (!coMap[co]) coMap[co] = { total: 0, active: 0, stock: 0 };
+      coMap[co].total++;
+      if (st === "사용중") coMap[co].active++;
+      if (st === "재고")   coMap[co].stock++;
+      totalValue += r.price || 0;
+    }
     if (r.verified) verifiedCount++;
   }
 
   return {
-    total:          records.length,
+    total:          records.length - (byStatus["미확인"] || 0),
     byStatus,
     byCompany,
     byMaker,
