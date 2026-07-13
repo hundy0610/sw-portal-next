@@ -29,16 +29,17 @@
   --admin-accent-hover: #B45F05;
   --admin-accent-soft: var(--brand-soft);
 
-  /* 라이트 모드 사이드바 — 라이트 그린 300(#81C784) (다크 모드는 아래 .admin-dark에서 별도 정의) */
-  --sidebar-bg: #81C784;
-  --sidebar-hover: rgba(0,0,0,0.08);
-  --sidebar-active: rgba(0,0,0,0.16);
-  /* 밝은 그린 배경 위에서는 흰 글자 대비가 부족해 가독성이 떨어짐 — 진한 그린 계열 텍스트로 대비 확보 */
-  --sidebar-text: rgba(11,31,15,0.72);
-  --sidebar-text-hover: rgba(11,31,15,0.92);
-  --sidebar-text-active: #0B1F0F;
-  --sidebar-section-text: rgba(11,31,15,0.48);
-  --sidebar-divider: rgba(11,31,15,0.14);
+  /* 라이트 모드 사이드바 — 슬레이트 네이비(#334155). 어두운 뉴트럴이라 흰 텍스트 고정으로
+     충분한 대비를 확보하고, 배경색을 다시 바꿔도 텍스트 대비 문제가 재발하지 않음.
+     (다크 모드는 아래 .admin-dark에서 별도 정의) */
+  --sidebar-bg: #334155;
+  --sidebar-hover: rgba(255,255,255,0.08);
+  --sidebar-active: rgba(255,255,255,0.14);
+  --sidebar-text: rgba(255,255,255,0.68);
+  --sidebar-text-hover: rgba(255,255,255,0.92);
+  --sidebar-text-active: var(--brand);
+  --sidebar-section-text: rgba(255,255,255,0.4);
+  --sidebar-divider: rgba(255,255,255,0.1);
 
   /* 어드민 라이트 모드 (레거시 변수명 — Modern Neutral 토큰으로 alias) */
   --admin-content-bg: var(--admin-bg);
