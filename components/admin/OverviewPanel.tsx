@@ -12,18 +12,15 @@ const TTL_SWDB  = 10 * 60 * 1000;
 const TTL_SWREC =  5 * 60 * 1000;
 
 // ── 색상 상수 ─────────────────────────────────────────────────
+// 상태색 — 통합 토큰(--state-*) 참조: 긍정/진행/주의/위험/중립 5의미만 사용
 const STATUS_COLORS: Record<string, string> = {
-  "사용중": "#6366F1", "신규등록": "#8B5CF6", "재고": "#10B981",
-  "출고준비중": "#06B6D4", "갱신필요": "#F97316", "반납예정": "#EAB308",
-  "만료": "#9CA3AF", "미확인": "#D1D5DB",
+  "사용중": "var(--state-positive)", "신규등록": "var(--state-positive)", "재고": "var(--state-neutral)",
+  "출고준비중": "var(--state-progress)", "갱신필요": "var(--state-caution)", "반납예정": "var(--state-caution)",
+  "만료": "var(--state-risk)", "미확인": "var(--state-neutral)",
 };
 const TYPE_COLORS: Record<string, string> = {
   "영구": "#6366F1", "구독(업체)": "#8B5CF6", "구독(웹)": "#06B6D4",
 };
-const PALETTE = [
-  "#6366f1","#f59e0b","#10b981","#ef4444","#3b82f6","#8b5cf6",
-  "#ec4899","#14b8a6","#f97316","#84cc16","#06b6d4","#a855f7",
-];
 
 // ── SW 매크로 카테고리 ─────────────────────────────────────────
 const SW_CAT_RULES: { label: string; icon: string; color: string; keywords: string[] }[] = [
@@ -242,12 +239,12 @@ export default function OverviewPanel({ company = "" }: { company?: string }) {
     return d >= 0 && d <= 30;
   }), [filteredRecs]);
 
-  // 상태별 도넛 세그
-  const statusSegs: DonutSeg[] = useMemo(() => {
+  // 상태별 막대 — 카테고리가 6개를 넘어 순위 비교가 목적이므로 도넛 대신 막대 사용
+  const statusSegs = useMemo(() => {
     const map: Record<string, number> = {};
     for (const r of filteredRecs) { const k = r.status || "미확인"; map[k] = (map[k] ?? 0) + 1; }
     return Object.entries(map).sort((a, b) => b[1] - a[1])
-      .map(([label, value]) => ({ label, value, color: STATUS_COLORS[label] ?? "#9CA3AF" }));
+      .map(([label, value]) => ({ label, value, color: STATUS_COLORS[label] ?? "var(--state-neutral)" }));
   }, [filteredRecs]);
 
   // 라이선스 유형 도넛 세그
@@ -272,13 +269,13 @@ export default function OverviewPanel({ company = "" }: { company?: string }) {
     if (chartTab === "company") {
       const map: Record<string, number> = {};
       for (const r of filteredRecs) { const k = r.company || "미지정"; map[k] = (map[k] ?? 0) + 1; }
-      return Object.entries(map).map(([label, value], i) => ({ label, value, color: PALETTE[i % PALETTE.length] }))
+      return Object.entries(map).map(([label, value]) => ({ label, value, color: "var(--brand)" }))
         .sort((a, b) => b.value - a.value);
     }
     if (chartTab === "dept") {
       const map: Record<string, number> = {};
       for (const r of filteredRecs) { const k = r.department || "미지정"; map[k] = (map[k] ?? 0) + 1; }
-      return Object.entries(map).map(([label, value], i) => ({ label, value, color: PALETTE[i % PALETTE.length] }))
+      return Object.entries(map).map(([label, value]) => ({ label, value, color: "var(--brand)" }))
         .sort((a, b) => b.value - a.value);
     }
     if (chartTab === "type") {
@@ -294,7 +291,7 @@ export default function OverviewPanel({ company = "" }: { company?: string }) {
   const topSwData = useMemo(() => {
     const map: Record<string, number> = {};
     for (const r of filteredRecs) { const k = r.swCategory || "미지정"; map[k] = (map[k] ?? 0) + 1; }
-    return Object.entries(map).map(([label, value], i) => ({ label, value, color: PALETTE[i % PALETTE.length] }))
+    return Object.entries(map).map(([label, value]) => ({ label, value, color: "var(--brand)" }))
       .sort((a, b) => b.value - a.value);
   }, [filteredRecs]);
 
@@ -348,35 +345,34 @@ export default function OverviewPanel({ company = "" }: { company?: string }) {
             val: filteredRecs.length.toLocaleString(),
             unit: "건",
             sub: `영구 ${permRecs.length} · 구독 ${subRecs.length}`,
-            color: "#6366F1", dot: "#DBEAFE",
+            color: "var(--state-neutral)",
           },
           {
             label: "구독 사용 중",
             val: activeSubs.toLocaleString(),
             unit: "건",
             sub: `전체 구독 ${subRecs.length}건 중`,
-            color: "#10B981", dot: "#D1FAE5",
+            color: "var(--state-positive)",
           },
           {
             label: "갱신 임박",
             val: rn.toLocaleString(),
             unit: "건",
             sub: "30일 이내 갱신 필요일",
-            color: rn > 0 ? "#F97316" : "#9CA3AF",
-            dot:   rn > 0 ? "#FFEDD5" : "#F3F4F6",
+            color: rn > 0 ? "var(--state-caution)" : "var(--state-neutral)",
           },
           ...(!isCompanyFiltered ? [{
             label: "SW DB 승인 목록",
             val: swDb.filter(s => s.status === "approved").length.toLocaleString(),
             unit: "종",
             sub: `금지 ${swDb.filter(s => s.status === "banned").length}종 포함 전체 ${swDb.length}종`,
-            color: "#8B5CF6", dot: "#EDE9FE",
+            color: "var(--state-neutral)",
           }] : [{
             label: "영구 라이선스",
             val: permRecs.length.toLocaleString(),
             unit: "건",
             sub: `사용중 ${permRecs.filter(r => r.status === "사용중").length}건`,
-            color: "#8B5CF6", dot: "#EDE9FE",
+            color: "var(--state-neutral)",
           }]),
         ].map(k => (
           <div key={k.label} className="bg-white rounded-xl border border-gray-200 p-5">
@@ -402,7 +398,7 @@ export default function OverviewPanel({ company = "" }: { company?: string }) {
           </div>
           {filteredRecs.length === 0
             ? <div className="h-24 flex items-center justify-center text-xs text-gray-400">데이터 없음</div>
-            : <DonutChart data={statusSegs} title="상태" />
+            : <HBarChart data={statusSegs} maxShow={8} />
           }
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-5">
@@ -423,7 +419,7 @@ export default function OverviewPanel({ company = "" }: { company?: string }) {
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold text-gray-700">갱신 임박 현황</span>
             {rn > 0 && (
-              <span className="text-xs font-bold text-white bg-orange-500 rounded-full px-2 py-0.5">{rn}건</span>
+              <span className="text-xs font-bold text-white rounded-full px-2 py-0.5" style={{ background: "var(--state-caution)" }}>{rn}건</span>
             )}
           </div>
           <span className="text-xs text-gray-400">30일 이내 갱신 필요일 기준</span>
@@ -444,12 +440,12 @@ export default function OverviewPanel({ company = "" }: { company?: string }) {
                 .sort((a, b) => new Date(a.renewalDate).getTime() - new Date(b.renewalDate).getTime())
                 .map(r => {
                   const days = Math.ceil((new Date(r.renewalDate).getTime() - Date.now()) / 86400000);
-                  const bgCls = days <= 7 ? "bg-red-500" : days <= 14 ? "bg-orange-400" : "bg-yellow-400";
+                  const badgeColor = days <= 7 ? "var(--state-risk)" : days <= 14 ? "var(--state-caution)" : "var(--state-caution)";
                   return (
                     <div key={r.id}
                       className="grid items-center px-5 py-2.5 hover:bg-gray-50 transition-colors"
                       style={{ gridTemplateColumns: "64px 1fr 100px 80px 80px 90px 90px" }}>
-                      <span className={`text-[10px] font-bold text-white ${bgCls} rounded px-1.5 py-0.5 w-fit`}>D-{days}</span>
+                      <span className="text-[10px] font-bold text-white rounded px-1.5 py-0.5 w-fit" style={{ background: badgeColor }}>D-{days}</span>
                       <span className="text-xs font-semibold text-gray-900 truncate pr-2">
                         {r.swCategory}{r.swDetail ? ` · ${r.swDetail}` : ""}
                       </span>

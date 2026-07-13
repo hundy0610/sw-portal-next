@@ -74,12 +74,6 @@ const STATUS_COLOR: Record<string, string> = {
   "미확인":               "bg-orange-100 text-orange-600",
 };
 
-const PALETTE = [
-  "#6366f1","#f59e0b","#10b981","#ef4444","#3b82f6","#8b5cf6",
-  "#ec4899","#14b8a6","#f97316","#84cc16","#06b6d4","#a855f7",
-  "#71717A","#e11d48","#059669","#d97706",
-];
-
 const CONTRACT_QUANTITY = 3837;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -106,73 +100,32 @@ function fmtDateTime(iso: string) {
 function fmtKrw(n: number)  { return n > 0 ? `₩${n.toLocaleString("ko-KR")}` : "-"; }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SVG 도넛 차트
+// 가로 막대 차트 — 법인·상태·제조사별처럼 항목이 많고 순위 비교가 목적인 데이터용.
+// (도넛은 6개 이하 구성비에만 적합 — 세그먼트가 많으면 길이 비교가 가능한 막대가 낫다)
 // ─────────────────────────────────────────────────────────────────────────────
-interface ChartSlice { label: string; value: number; color: string; }
+interface ChartSlice { label: string; value: number; }
 
-function DonutChart({ data, title, centerLabel }: {
-  data: ChartSlice[];
-  title: string;
-  centerLabel?: string;
-}) {
-  const [hovered, setHovered] = useState<number | null>(null);
+function HBarChart({ data, title }: { data: ChartSlice[]; title: string }) {
   const total = data.reduce((s, d) => s + d.value, 0);
   if (total === 0) return null;
-
-  const r = 68, strokeWidth = 22;
-  const circumference = 2 * Math.PI * r;
-
-  let accumulated = 0;
-  const segments = data.map((d, i) => {
-    const length = (d.value / total) * circumference;
-    const offset = circumference - accumulated;
-    accumulated += length;
-    return { ...d, length, offset, index: i };
-  });
-
-  const displayTotal = hovered !== null ? data[hovered].value : total;
-  const displayLabel = hovered !== null ? data[hovered].label : (centerLabel ?? "총계");
+  const max = Math.max(...data.map(d => d.value));
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5">
-      <p className="text-sm font-bold text-gray-700 mb-4">{title}</p>
-      <div className="flex items-start gap-5">
-        <div className="shrink-0">
-          <svg width={180} height={180}>
-            <circle cx={90} cy={90} r={r} fill="none" stroke="var(--admin-table-row-border)" strokeWidth={strokeWidth} />
-            {segments.map(seg => (
-              <circle key={seg.index} cx={90} cy={90} r={r} fill="none"
-                stroke={seg.color}
-                strokeWidth={hovered === seg.index ? strokeWidth + 4 : strokeWidth}
-                strokeDasharray={`${seg.length} ${circumference - seg.length}`}
-                strokeDashoffset={seg.offset}
-                transform="rotate(-90 90 90)"
-                style={{ cursor: "pointer", transition: "stroke-width 0.15s" }}
-                onMouseEnter={() => setHovered(seg.index)}
-                onMouseLeave={() => setHovered(null)}
-              />
-            ))}
-            <text x={90} y={82} textAnchor="middle" fontSize="22" fontWeight="700"
-              fill={hovered !== null ? data[hovered].color : "var(--admin-text-primary)"}>{displayTotal}</text>
-            <text x={90} y={102} textAnchor="middle" fontSize="10" fill="var(--admin-text-secondary)">{displayLabel}</text>
-          </svg>
-        </div>
-        <div className="flex-1 space-y-1.5 overflow-hidden">
-          {segments.map(seg => (
-            <div key={seg.index}
-              className={`flex items-center gap-2 rounded-lg px-2 py-1 cursor-pointer transition-colors ${hovered === seg.index ? "bg-gray-50" : ""}`}
-              onMouseEnter={() => setHovered(seg.index)}
-              onMouseLeave={() => setHovered(null)}
-            >
-              <span className="shrink-0 w-2.5 h-2.5 rounded-full" style={{ background: seg.color }} />
-              <span className="text-xs text-gray-600 truncate flex-1">{seg.label}</span>
-              <span className="text-xs font-bold text-gray-800 shrink-0">{seg.value}</span>
-              <span className="text-[10px] text-gray-400 shrink-0">
-                {Math.round((seg.value / total) * 100)}%
-              </span>
+      <div className="flex items-baseline justify-between mb-4">
+        <p className="text-sm font-bold text-gray-700">{title}</p>
+        <span className="text-xs text-gray-400 tabular-nums">{total.toLocaleString()}건</span>
+      </div>
+      <div className="space-y-2">
+        {data.map(d => (
+          <div key={d.label} className="grid items-center gap-2" style={{ gridTemplateColumns: "88px 1fr 40px" }}>
+            <span className="text-xs text-gray-600 truncate" title={d.label}>{d.label}</span>
+            <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--admin-table-row-border)" }}>
+              <div className="h-full rounded-full" style={{ width: `${(d.value / max) * 100}%`, background: "var(--brand)" }} />
             </div>
-          ))}
-        </div>
+            <span className="text-xs font-bold text-gray-800 text-right tabular-nums">{d.value}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -185,7 +138,7 @@ function DashboardTab({ stats, loading, onRefresh }: { stats: HwStats | null; lo
   const coData = useMemo<ChartSlice[]>(() => {
     if (!stats) return [];
     return Object.entries(stats.byCompany).sort((a,b)=>b[1]-a[1]).slice(0,14)
-      .map(([label,value],i)=>({ label, value, color: PALETTE[i%PALETTE.length] }));
+      .map(([label,value])=>({ label, value }));
   }, [stats]);
 
   const stData = useMemo<ChartSlice[]>(() => {
@@ -193,25 +146,24 @@ function DashboardTab({ stats, loading, onRefresh }: { stats: HwStats | null; lo
     return Object.entries(stats.byStatus)
       .filter(([label]) => label !== "미확인")
       .sort((a,b)=>b[1]-a[1]).slice(0,10)
-      .map(([label,value],i)=>({ label, value, color: PALETTE[i%PALETTE.length] }));
+      .map(([label,value])=>({ label, value }));
   }, [stats]);
 
   const mkData = useMemo<ChartSlice[]>(() => {
     if (!stats) return [];
     return Object.entries(stats.byMaker).sort((a,b)=>b[1]-a[1]).slice(0,12)
-      .map(([label,value],i)=>({ label, value, color: PALETTE[i%PALETTE.length] }));
+      .map(([label,value])=>({ label, value }));
   }, [stats]);
 
-  const StatCard = ({ label, value, sub, icon, cls }: {
-    label:string; value:string|number; sub?:string; icon:string; cls:string;
+  // 상태 토큰 4묶음 — 긍정(사용중) / 중립(재고) / 진행(출고·수리·렌탈·임시지급) / 주의·위험(반납예정·폐기)
+  const StatCard = ({ label, value, sub, tone }: {
+    label:string; value:string|number; sub?:string; tone: "positive"|"neutral"|"progress"|"caution"|"risk";
   }) => (
-    <div className={`rounded-xl p-4 border flex items-start gap-3 ${cls}`}>
-      <span className="text-xl">{icon}</span>
-      <div>
-        <p className="text-xl font-bold text-current leading-tight">{value}</p>
-        <p className="text-xs font-semibold opacity-80 mt-0.5">{label}</p>
-        {sub && <p className="text-[11px] opacity-60 mt-0.5">{sub}</p>}
-      </div>
+    <div className="rounded-xl p-4 border flex flex-col gap-1"
+      style={{ background: `var(--state-${tone}-soft)`, borderColor: "transparent" }}>
+      <span className="text-xl font-extrabold leading-tight tabular-nums" style={{ color: `var(--state-${tone})` }}>{value}</span>
+      <span className="text-xs font-semibold" style={{ color: `var(--state-${tone})`, opacity: 0.85 }}>{label}</span>
+      {sub && <span className="text-[11px] text-gray-400">{sub}</span>}
     </div>
   );
 
@@ -219,13 +171,22 @@ function DashboardTab({ stats, loading, onRefresh }: { stats: HwStats | null; lo
           rentalCount=0, tempCount=0, returnCount=0, disposalCount=0,
           verifiedCount=0, totalValue=0, companyTable=[], byStatus={} } = stats ?? {};
   const confirmedTotal = total - (byStatus["미확인"] ?? 0);
+  const progressCount = shipCount + repairCount + rentalCount + tempCount;
 
   return (
     <div className="space-y-5">
       <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center justify-between">
         <div>
           <p className="text-sm font-semibold text-gray-700">전체 자산 현황 대시보드</p>
-          {!loading && stats && <p className="text-xs text-gray-400 mt-0.5">계약 수량 {CONTRACT_QUANTITY.toLocaleString()}건 기준 (미확인 제외 {confirmedTotal.toLocaleString()}건)</p>}
+          {!loading && stats && (
+            <div className="flex items-baseline gap-1.5 mt-1">
+              <span className="text-3xl font-extrabold text-gray-900 tabular-nums">{CONTRACT_QUANTITY.toLocaleString()}</span>
+              <span className="text-xs text-gray-400 font-medium">계약 수량</span>
+              <span className="text-xs text-gray-400 ml-1">
+                미확인 제외 {confirmedTotal.toLocaleString()}건{totalValue>0 && ` · ₩${Math.round(totalValue/1000000)}M`}
+              </span>
+            </div>
+          )}
         </div>
         <button onClick={onRefresh} disabled={loading}
           className="px-4 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 disabled:opacity-50 transition-colors">
@@ -238,28 +199,20 @@ function DashboardTab({ stats, loading, onRefresh }: { stats: HwStats | null; lo
       ) : (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard icon="💻" label="계약 수량" value={CONTRACT_QUANTITY.toLocaleString()} sub={totalValue>0 ? `₩${Math.round(totalValue/1000000)}M` : undefined} cls="bg-amber-50 text-amber-700 border-amber-100" />
-            <StatCard icon="✅" label="사용중"    value={activeCount}   sub={total>0 ? `${Math.round(activeCount/total*100)}%` : undefined}    cls="bg-amber-50 text-amber-700 border-blue-100" />
-            <StatCard icon="📦" label="재고"      value={stockCount}    cls="bg-purple-50 text-purple-700 border-purple-100" />
-            <StatCard icon="📤" label="출고 대기" value={shipCount}     cls="bg-orange-50 text-orange-700 border-orange-100" />
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard icon="🔧" label="수리 중"   value={repairCount}   cls="bg-pink-50 text-pink-700 border-pink-100" />
-            <StatCard icon="🚗" label="렌탈"      value={rentalCount}   cls="bg-cyan-50 text-cyan-700 border-cyan-100" />
-            <StatCard icon="📋" label="임시지급"  value={tempCount}     cls="bg-amber-50 text-amber-700 border-amber-100" />
-            <StatCard icon="📅" label="반납 예정" value={returnCount}   cls="bg-yellow-50 text-yellow-700 border-yellow-100" />
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard icon="🗑️" label="폐기 대상" value={disposalCount} cls="bg-red-50 text-red-700 border-red-100" />
-            <StatCard icon="✓"  label="실사 확인" value={verifiedCount} sub={`확인율 ${Math.round(verifiedCount/CONTRACT_QUANTITY*100)}%`} cls="bg-green-50 text-green-700 border-green-100" />
+            <StatCard tone="positive" label="사용중"   value={activeCount} sub={total>0 ? `${Math.round(activeCount/total*100)}%` : undefined} />
+            <StatCard tone="neutral"  label="재고"      value={stockCount} />
+            <StatCard tone="progress" label="출고·수리·렌탈·임시지급" value={progressCount} />
+            <StatCard tone="caution"  label="반납 예정" value={returnCount} />
+            <StatCard tone="risk"     label="폐기 대상" value={disposalCount} />
+            <StatCard tone="positive" label="실사 확인" value={verifiedCount} sub={`확인율 ${Math.round(verifiedCount/CONTRACT_QUANTITY*100)}%`} />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <DonutChart data={coData} title="법인별 자산 분포" centerLabel="법인" />
-            <DonutChart data={stData} title="상태별 자산 분포" centerLabel="상태" />
+            <HBarChart data={coData} title="법인별 자산 분포" />
+            <HBarChart data={stData} title="상태별 자산 분포" />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <DonutChart data={mkData} title="제조사별 분포" centerLabel="제조사" />
+            <HBarChart data={mkData} title="제조사별 분포" />
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-100">
                 <p className="text-sm font-bold text-gray-700">법인별 자산 수</p>
@@ -279,8 +232,8 @@ function DashboardTab({ stats, loading, onRefresh }: { stats: HwStats | null; lo
                       <tr key={company} className="hover:bg-gray-50">
                         <td className="px-4 py-2 font-medium text-gray-800">{company}</td>
                         <td className="px-4 py-2 text-right font-bold text-gray-900">{t}</td>
-                        <td className="px-4 py-2 text-right text-amber-600 font-semibold">{active||"-"}</td>
-                        <td className="px-4 py-2 text-right text-purple-600 font-semibold">{stock||"-"}</td>
+                        <td className="px-4 py-2 text-right font-semibold" style={{ color: "var(--state-positive)" }}>{active||"-"}</td>
+                        <td className="px-4 py-2 text-right font-semibold" style={{ color: "var(--state-neutral)" }}>{stock||"-"}</td>
                       </tr>
                     ))}
                   </tbody>
