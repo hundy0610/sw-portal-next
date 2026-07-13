@@ -94,7 +94,7 @@ function SubTaskFormModal({ title, form, setForm, onCancel, onSubmit, submitting
             취소
           </button>
           <button onClick={onSubmit} disabled={!form.title.trim() || submitting}
-            style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: !form.title.trim() || submitting ? "#E4E4E7" : "#4F46E5", color: !form.title.trim() || submitting ? "#A1A1AA" : "#fff", fontSize: 12, fontWeight: 700, cursor: !form.title.trim() || submitting ? "not-allowed" : "pointer" }}>
+            style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: !form.title.trim() || submitting ? "#E4E4E7" : "var(--brand)", color: !form.title.trim() || submitting ? "#A1A1AA" : "#fff", fontSize: 12, fontWeight: 700, cursor: !form.title.trim() || submitting ? "not-allowed" : "pointer" }}>
             {submitting ? "추가 중..." : "추가"}
           </button>
         </div>
@@ -137,7 +137,7 @@ function ComposeReportModal({
             <div style={{ display: "flex", gap: 8 }}>
               {(["버그", "개선요청"] as const).map(t => (
                 <button key={t} onClick={() => setType(t)}
-                  style={{ flex: 1, padding: "8px 0", border: `1.5px solid ${type === t ? "#4F46E5" : "#E4E4E7"}`, borderRadius: 8, background: type === t ? "#EEF2FF" : "#fff", color: type === t ? "#4F46E5" : "#71717A", fontWeight: type === t ? 700 : 500, fontSize: 14, cursor: "pointer" }}>
+                  style={{ flex: 1, padding: "8px 0", border: `1.5px solid ${type === t ? "var(--brand)" : "#E4E4E7"}`, borderRadius: 8, background: type === t ? "var(--brand-soft)" : "#fff", color: type === t ? "var(--brand)" : "#71717A", fontWeight: type === t ? 700 : 500, fontSize: 14, cursor: "pointer" }}>
                   {t}
                 </button>
               ))}
@@ -208,7 +208,7 @@ function ComposeReportModal({
             취소
           </button>
           <button onClick={onSubmit} disabled={!title.trim() || !content.trim() || submitting}
-            style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: !title.trim() || !content.trim() || submitting ? "#E4E4E7" : "#4F46E5", color: !title.trim() || !content.trim() || submitting ? "#A1A1AA" : "#fff", fontSize: 12, fontWeight: 700, cursor: !title.trim() || !content.trim() || submitting ? "not-allowed" : "pointer" }}>
+            style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: !title.trim() || !content.trim() || submitting ? "#E4E4E7" : "var(--brand)", color: !title.trim() || !content.trim() || submitting ? "#A1A1AA" : "#fff", fontSize: 12, fontWeight: 700, cursor: !title.trim() || !content.trim() || submitting ? "not-allowed" : "pointer" }}>
             {submitting ? "제출 중..." : "제출"}
           </button>
         </div>
@@ -258,14 +258,14 @@ function BugCard({ r, dragging, parentTitle, childTotal, childDone, onClick, onD
         <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 20, background: dark ? "#1f1f1f" : "#F4F4F5", color: dark ? "#a3a3a3" : "#334155" }}>{r.page}</span>
         <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 20, background: dark ? "#18181B" : (r.type === "버그" ? "#FEE2E2" : "#E0F2FE"), color: r.type === "버그" ? (dark ? "#fca5a5" : "#DC2626") : (dark ? "#7dd3fc" : "#0369A1") }}>{r.type}</span>
         {childTotal > 0 && (
-          <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 20, background: dark ? "#18181B" : (childDone === childTotal ? "#DCFCE7" : "#EEF2FF"), color: childDone === childTotal ? (dark ? "#86efac" : "#15803D") : (dark ? "#A5B4FC" : "#4F46E5") }}>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 20, background: dark ? "#18181B" : (childDone === childTotal ? "#DCFCE7" : "var(--brand-soft)"), color: childDone === childTotal ? (dark ? "#86efac" : "#15803D") : ("var(--brand)") }}>
             하위 {childDone}/{childTotal}
           </span>
         )}
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
         <span style={{ fontSize: 11, color: dark ? "#737373" : "#A1A1AA", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{r.reporterName}</span>
-        {r.handler && <span style={{ fontSize: 11, color: dark ? "#A5B4FC" : "#4F46E5", flexShrink: 0 }}>담당:{r.handler}</span>}
+        {r.handler && <span style={{ fontSize: 11, color: "var(--brand)", flexShrink: 0 }}>담당:{r.handler}</span>}
       </div>
     </div>
   );
@@ -635,11 +635,11 @@ export default function BugReportPanel() {
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={() => { resetComposeForm(); setComposeOpen(true); }}
-            style={{ padding: "8px 14px", borderRadius: 8, background: dark ? "#1a2840" : "#1E3A8A", color: dark ? "#A5B4FC" : "#fff", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+            style={{ padding: "8px 14px", borderRadius: 8, background: "var(--brand)", color: "#fff", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
             새 리포트
           </button>
           <button onClick={load}
-            style={{ padding: "8px 14px", borderRadius: 8, background: dark ? "#18181B" : "#EEF2FF", color: dark ? "#A5B4FC" : "#4F46E5", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+            style={{ padding: "8px 14px", borderRadius: 8, background: dark ? "#18181B" : "var(--brand-soft)", color: "var(--brand)", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
             새로고침
           </button>
         </div>
@@ -747,12 +747,12 @@ export default function BugReportPanel() {
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontSize: 12, color: "#71717A" }}>담당자:</span>
                 {selected.handler ? (
-                  <span style={{ fontSize: 12, fontWeight: 700, color: "#1E3A8A", background: "#EEF2FF", padding: "2px 10px", borderRadius: 20 }}>{selected.handler}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "var(--brand)", background: "var(--brand-soft)", padding: "2px 10px", borderRadius: 20 }}>{selected.handler}</span>
                 ) : (
                   <span style={{ fontSize: 12, color: "#A1A1AA" }}>미지정</span>
                 )}
                 <button onClick={handleAssignHandler}
-                  style={{ fontSize: 11, padding: "3px 10px", borderRadius: 20, border: "1px solid #BFDBFE", background: "#EEF2FF", color: "#4F46E5", cursor: "pointer", fontWeight: 600 }}>
+                  style={{ fontSize: 11, padding: "3px 10px", borderRadius: 20, border: "1px solid var(--brand-soft)", background: "var(--brand-soft)", color: "var(--brand)", cursor: "pointer", fontWeight: 600 }}>
                   내가 담당
                 </button>
               </div>
@@ -764,7 +764,7 @@ export default function BugReportPanel() {
                   <div style={{ marginTop: 8, fontSize: 12, color: "#71717A" }}>
                     상위 작업:{" "}
                     <button onClick={() => openDetail(parent)}
-                      style={{ background: "none", border: "none", color: "#4F46E5", cursor: "pointer", fontWeight: 600, padding: 0, fontSize: 12 }}>
+                      style={{ background: "none", border: "none", color: "var(--brand)", cursor: "pointer", fontWeight: 600, padding: 0, fontSize: 12 }}>
                       {parent.title}
                     </button>
                   </div>
@@ -778,8 +778,8 @@ export default function BugReportPanel() {
               {([["subtasks", `하위 작업 (${childrenOf(selected.id).length})`], ["reply", "답변"]] as const).map(([key, label]) => (
                 <button key={key} onClick={() => setModalTab(key)}
                   style={{
-                    padding: "10px 14px", border: "none", borderBottom: `2px solid ${modalTab === key ? "#4F46E5" : "transparent"}`,
-                    background: "none", color: modalTab === key ? "#4F46E5" : "#A1A1AA",
+                    padding: "10px 14px", border: "none", borderBottom: `2px solid ${modalTab === key ? "var(--brand)" : "transparent"}`,
+                    background: "none", color: modalTab === key ? "var(--brand)" : "#A1A1AA",
                     fontSize: 13, fontWeight: modalTab === key ? 700 : 500, cursor: "pointer",
                   }}>
                   {label}
@@ -878,7 +878,7 @@ export default function BugReportPanel() {
                     const isReporter = msg.senderId === selected.reporterId;
                     return (
                       <div key={i} style={{ display: "flex", gap: 10, flexDirection: isReporter ? "row" : "row-reverse" as const }}>
-                        <div style={{ width: 32, height: 32, borderRadius: "50%", background: isReporter ? "#E4E4E7" : "#1E3A8A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: isReporter ? "#71717A" : "#fff", flexShrink: 0 }}>
+                        <div style={{ width: 32, height: 32, borderRadius: "50%", background: isReporter ? "#E4E4E7" : "var(--brand)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: isReporter ? "#71717A" : "#fff", flexShrink: 0 }}>
                           {msg.senderName?.[0] ?? "?"}
                         </div>
                         <div style={{ flex: 1 }}>
@@ -886,8 +886,8 @@ export default function BugReportPanel() {
                             <span style={{ fontSize: 12, fontWeight: 700, color: "#0f172a" }}>{msg.senderName}</span>
                             {!isReporter && <span style={{ fontSize: 11, color: "#A1A1AA" }}>담당자</span>}
                           </div>
-                          <div style={{ background: isReporter ? "#FAFAFA" : "#EEF2FF", border: `1px solid ${isReporter ? "#E4E4E7" : "#BFDBFE"}`, borderRadius: isReporter ? "0 10px 10px 10px" : "10px 0 10px 10px", padding: "10px 14px" }}>
-                            <p style={{ fontSize: 14, color: isReporter ? "#0f172a" : "#1E3A8A", margin: 0, lineHeight: 1.7, whiteSpace: "pre-wrap" as const }}>{msg.text}</p>
+                          <div style={{ background: isReporter ? "#FAFAFA" : "var(--brand-soft)", border: `1px solid ${isReporter ? "#E4E4E7" : "var(--brand-soft)"}`, borderRadius: isReporter ? "0 10px 10px 10px" : "10px 0 10px 10px", padding: "10px 14px" }}>
+                            <p style={{ fontSize: 14, color: isReporter ? "#0f172a" : "var(--brand)", margin: 0, lineHeight: 1.7, whiteSpace: "pre-wrap" as const }}>{msg.text}</p>
                           </div>
                         </div>
                       </div>
@@ -916,7 +916,7 @@ export default function BugReportPanel() {
                     <button
                       onClick={handleSendMessage}
                       disabled={sending || !replyText.trim()}
-                      style={{ padding: "10px 18px", borderRadius: 10, background: sending || !replyText.trim() ? "#E4E4E7" : "#4F46E5", color: sending || !replyText.trim() ? "#A1A1AA" : "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: sending || !replyText.trim() ? "not-allowed" : "pointer", flexShrink: 0, alignSelf: "flex-end" }}>
+                      style={{ padding: "10px 18px", borderRadius: 10, background: sending || !replyText.trim() ? "#E4E4E7" : "var(--brand)", color: sending || !replyText.trim() ? "#A1A1AA" : "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: sending || !replyText.trim() ? "not-allowed" : "pointer", flexShrink: 0, alignSelf: "flex-end" }}>
                       {sending ? "..." : "전송"}
                     </button>
                   </div>
