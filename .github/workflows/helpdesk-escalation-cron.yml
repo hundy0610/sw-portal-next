@@ -1,0 +1,23 @@
+name: Help Desk Escalation Emails (Cron)
+
+on:
+  schedule:
+    # 30분마다 실행 — 접수 후 30분 이상 "시작 전" 상태로 남은 문의에 알림 발송
+    - cron: '*/30 * * * *'
+  workflow_dispatch:  # 수동 실행 가능
+
+jobs:
+  helpdesk-escalation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call helpdesk-escalation cron endpoint
+        run: |
+          response=$(curl -s -o /tmp/response.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://swportal.vercel.app/api/cron/helpdesk-escalation)
+          echo "HTTP Status: $response"
+          cat /tmp/response.json
+          if [ "$response" != "200" ]; then
+            echo "Error: Non-200 response"
+            exit 1
+          fi
