@@ -156,13 +156,16 @@ function DashboardTab({ stats, loading, onRefresh }: { stats: HwStats | null; lo
   }, [stats]);
 
   // 상태 토큰 4묶음 — 긍정(사용중) / 중립(재고) / 진행(출고·수리·렌탈·임시지급) / 주의·위험(반납예정·폐기)
+  // 카드 배경을 상태색으로 채우면 다크 모드에서 카드마다 다른 색조의 어두운
+  // 배경이 뒤섞여 화면이 지저분해 보임 — 카드는 중립 서피스로 통일하고
+  // 좌측 accent bar + 숫자 색상으로만 상태를 구분한다.
   const StatCard = ({ label, value, sub, tone }: {
     label:string; value:string|number; sub?:string; tone: "positive"|"neutral"|"progress"|"caution"|"risk";
   }) => (
     <div className="rounded-xl p-4 border flex flex-col gap-1"
-      style={{ background: `var(--state-${tone}-soft)`, borderColor: "transparent" }}>
+      style={{ background: "var(--admin-header-bg)", borderColor: "var(--admin-border)", borderLeft: `3px solid var(--state-${tone})` }}>
       <span className="text-xl font-extrabold leading-tight tabular-nums" style={{ color: `var(--state-${tone})` }}>{value}</span>
-      <span className="text-xs font-semibold" style={{ color: `var(--state-${tone})`, opacity: 0.85 }}>{label}</span>
+      <span className="text-xs font-semibold" style={{ color: "var(--admin-text-secondary)" }}>{label}</span>
       {sub && <span className="text-[11px] text-gray-400">{sub}</span>}
     </div>
   );
