@@ -259,7 +259,7 @@ export function LabelPrintTab({
     <div className="space-y-4">
       {/* 발신자 정보 */}
       <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <h3 className="text-sm font-bold text-gray-700 mb-3">📮 발신자 정보</h3>
+        <h3 className="text-sm font-bold text-gray-700 mb-3">발신자 정보</h3>
         <div>
           <label className="text-xs text-gray-500 font-semibold block mb-1">발신 (회사/부서/이름)</label>
           <input
@@ -274,7 +274,7 @@ export function LabelPrintTab({
       {/* 라벨 목록 */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-gray-700">🏷️ 발송 라벨 ({labels.length}장)</h3>
+          <h3 className="text-sm font-bold text-gray-700">발송 라벨 ({labels.length}장)</h3>
           <button
             onClick={addLabel}
             className="text-xs font-semibold text-amber-600 border border-amber-200 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg transition-colors"
@@ -292,7 +292,7 @@ export function LabelPrintTab({
                   onClick={() => { setPickerTarget(label.id); setPickerSearch(""); setShowPicker(true); }}
                   className="text-xs text-amber-600 border border-blue-200 bg-amber-50 hover:bg-amber-100 px-2.5 py-1 rounded-lg font-semibold transition-colors"
                 >
-                  📋 자산에서 불러오기
+                  자산에서 불러오기
                 </button>
                 {labels.length > 1 && (
                   <button onClick={() => removeLabel(label.id)} className="text-xs text-red-400 hover:text-red-600">✕</button>
@@ -345,7 +345,7 @@ export function LabelPrintTab({
         onClick={printLabels}
         className="w-full py-3 rounded-xl bg-amber-600 text-white text-sm font-bold hover:bg-amber-700 transition-colors shadow-sm"
       >
-        🖨️ 행낭 발송지 출력 ({labels.length}장) — A4 1매에 2장
+        행낭 발송지 출력 ({labels.length}장) — A4 1매에 2장
       </button>
 
       {/* 190건 경고 팝업 */}
@@ -353,7 +353,6 @@ export function LabelPrintTab({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
             <div className="flex items-center gap-3">
-              <span className="text-3xl">⚠️</span>
               <div>
                 <div className="font-bold text-gray-800 text-base">출력 이력이 {history.length}건에 달했습니다</div>
                 <div className="text-xs text-gray-500 mt-0.5">최대 200건까지 저장됩니다. 오래된 이력을 정리해 주세요.</div>
@@ -385,14 +384,14 @@ export function LabelPrintTab({
         <button onClick={() => setShowHistory(v => !v)}
           className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors">
           <span className="text-sm font-bold text-gray-700 flex items-center gap-2">
-            📋 출력 이력
+            출력 이력
             {historyRows.length > 0 && (
               <span className="text-xs font-semibold bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full">{historyRows.length}행</span>
             )}
             {history.length >= 190 && (
               <span onClick={e => { e.stopPropagation(); setShowCleanup(true); }}
                 className="text-xs font-bold bg-red-100 text-red-500 px-2 py-0.5 rounded-full cursor-pointer hover:bg-red-200 transition-colors">
-                ⚠️ 정리 필요
+                정리 필요
               </span>
             )}
           </span>
@@ -402,7 +401,6 @@ export function LabelPrintTab({
         {showHistory && (
           <div className="border-t border-gray-100">
             <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
-              <span className="text-gray-400 text-sm">🔍</span>
               <input value={historySearch} onChange={e => setHistorySearch(e.target.value)}
                 placeholder="날짜, 발신, 수신처, 수신자, 자산번호 등으로 검색..."
                 className="flex-1 text-sm focus:outline-none text-gray-700 placeholder-gray-300" />
@@ -420,7 +418,6 @@ export function LabelPrintTab({
               <div className="text-center py-8 text-sm text-gray-400">출력 이력이 없습니다</div>
             ) : filteredRows.length === 0 ? (
               <div className="text-center py-8 text-sm text-gray-400">
-                <div className="text-2xl mb-2">😕</div>
                 &apos;{historySearch}&apos; 에 해당하는 이력이 없습니다
               </div>
             ) : (
@@ -618,7 +615,7 @@ export function PrintQueueSection({
     <div className="bg-white rounded-xl border border-amber-200 overflow-hidden mb-4">
       <div className="px-4 py-3 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
         <span className="text-sm font-bold text-amber-800 flex items-center gap-2">
-          🚚 출력 대기
+          출력 대기
           {items.length > 0 && (
             <span className="text-xs font-semibold bg-amber-200 text-amber-700 px-2 py-0.5 rounded-full">{items.length}건</span>
           )}
@@ -629,7 +626,7 @@ export function PrintQueueSection({
             disabled={printing}
             className="text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
           >
-            {printing ? "출력 중…" : `🖨️ 선택 출력 (${selected.length}장)`}
+            {printing ? "출력 중…" : `선택 출력 (${selected.length}장)`}
           </button>
         )}
       </div>
@@ -659,7 +656,7 @@ export function PrintQueueSection({
                     )}
                   </div>
                   {item.note && (
-                    <p className="text-xs text-gray-400 truncate" title={item.note}>📝 {item.note}</p>
+                    <p className="text-xs text-gray-400 truncate" title={item.note}>{item.note}</p>
                   )}
                   <div className="flex items-center gap-2">
                     <input

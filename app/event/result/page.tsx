@@ -77,7 +77,6 @@ export default function EventResultPage() {
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12" style={{ background: C.bgPage }}>
       <div className={`w-full ${result?.published ? "max-w-xl" : "max-w-md"}`}>
         <div className="text-center mb-8">
-          <div className="text-5xl mb-3">🏆</div>
           <h1 className="text-2xl font-extrabold mb-1" style={{ color: C.text1 }}>토토 결과 발표</h1>
         </div>
 
@@ -85,7 +84,6 @@ export default function EventResultPage() {
           <div className="text-center py-12 text-sm" style={{ color: C.text4 }}>불러오는 중...</div>
         ) : !result?.published ? (
           <div className="bg-white rounded-3xl p-10 shadow-sm text-center" style={{ border: `1px solid ${C.border}` }}>
-            <div className="text-4xl mb-4">⏳</div>
             <p className="text-sm font-semibold" style={{ color: C.text2 }}>
               아직 결과가 공개되지 않았습니다.
             </p>
@@ -109,7 +107,6 @@ export default function EventResultPage() {
 
             {winners.length > 0 ? (
               <div className="mb-6 p-4 rounded-2xl text-center" style={{ background: "#fef9c3", border: "1px solid #fde047" }}>
-                <div className="text-2xl mb-1">🎉</div>
                 <p className="text-sm font-bold" style={{ color: "#854d0e" }}>
                   정답자: {winners.map(w => w.name).join(", ")}
                 </p>
@@ -153,7 +150,6 @@ export default function EventResultPage() {
                       border: p.correct ? "1px solid #fde047" : "1px solid #f1f5f9",
                     }}>
                     <div className="flex items-center gap-2 min-w-0">
-                      {p.correct && <span>🎉</span>}
                       <span className="font-semibold truncate" style={{ color: C.text1 }}>{p.name}</span>
                       <span className="text-xs truncate" style={{ color: C.text4 }}>{p.corporation}</span>
                     </div>

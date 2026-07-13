@@ -461,7 +461,7 @@ function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
               >
                 {saving === "status" ? "저장 중…" : "저장"}
               </button>
-              {saveResult.status === "done"  && <span className="text-xs text-green-600">✓ 변경됨</span>}
+              {saveResult.status === "done"  && <span className="text-xs text-green-600">변경됨</span>}
               {saveResult.status === "error" && <span className="text-xs text-red-500">실패</span>}
             </div>
           </DetailRow>
@@ -625,7 +625,7 @@ function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
               >
                 {saving === "assignee" ? "저장 중…" : "저장"}
               </button>
-              {saveResult.assignee === "done"  && <span className="text-xs text-green-600">✓ 변경됨</span>}
+              {saveResult.assignee === "done"  && <span className="text-xs text-green-600">변경됨</span>}
               {saveResult.assignee === "error" && <span className="text-xs text-red-500">실패</span>}
             </div>
           </DetailRow>
@@ -672,7 +672,7 @@ function TicketFloating({ ticket, assigneeList, onClose, onUpdated }: {
                   <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
                   <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
                 </svg>
-                {noteSaveResult === "done" && <span className="text-xs text-green-600 shrink-0">✓ 저장됨</span>}
+                {noteSaveResult === "done" && <span className="text-xs text-green-600 shrink-0">저장됨</span>}
               </div>
             )}
           </DetailRow>
@@ -927,7 +927,7 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
       {/* ── Error ── */}
       {error && (
         <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
-          ⚠️ {error}
+          {error}
         </div>
       )}
 
@@ -1030,17 +1030,17 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
       {/* ── Tab Bar ── */}
       <div className="flex gap-1 mb-5 bg-gray-100 p-1 rounded-xl w-fit">
         {([
-          ["overview",  "📈", "개요"],
-          ["faults",    "🔧", "고장유형"],
-          ["company",   "🏢", "법인현황"],
-          ["assignee",  "👤", "담당자"],
-          ["list",      "📋", "접수 현황"],
-        ] as [Tab, string, string][]).map(([id, icon, label]) => (
+          ["overview",  "개요"],
+          ["faults",    "고장유형"],
+          ["company",   "법인현황"],
+          ["assignee",  "담당자"],
+          ["list",      "접수 현황"],
+        ] as [Tab, string][]).map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)}
             className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
               tab === id ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
             }`}>
-            {icon} {label}
+            {label}
           </button>
         ))}
       </div>

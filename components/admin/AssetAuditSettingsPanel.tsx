@@ -109,7 +109,7 @@ export default function AssetAuditSettingsPanel() {
         className="w-full flex items-center justify-between px-4 py-3 text-left"
       >
         <div className="flex items-center gap-2">
-          <span className="font-bold text-sm text-gray-900">🚀 자산실사 프로그램 배포 관리</span>
+          <span className="font-bold text-sm text-gray-900">자산실사 프로그램 배포 관리</span>
           <span
             className="px-2 py-0.5 text-[10px] font-semibold rounded-full"
             style={{
@@ -197,7 +197,7 @@ export default function AssetAuditSettingsPanel() {
             {cfg.fileUrl ? (
               <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 mb-2">
                 <div className="text-xs text-gray-700">
-                  📦 {cfg.fileName} ({formatBytes(cfg.fileSize)})
+                  {cfg.fileName} ({formatBytes(cfg.fileSize)})
                   {cfg.updatedAt && <span className="text-gray-400"> · {new Date(cfg.updatedAt).toLocaleDateString("ko-KR")} 업로드</span>}
                 </div>
                 <a href={cfg.fileUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline">다운로드 확인</a>

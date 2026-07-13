@@ -6,7 +6,6 @@ import { safeJson } from "@/lib/fetch-json";
 
 const STARS = [1, 2, 3, 4, 5];
 const STAR_LABELS = ["매우 불만족", "불만족", "보통", "만족", "매우 만족"];
-const STAR_EMOJI  = ["😞", "😕", "😐", "😊", "😄"];
 
 const PLACEHOLDER = `예시)
 • 처리 속도가 빠르고 친절했습니다.
@@ -68,7 +67,6 @@ export default function FeedbackPage() {
   if (status === "done") return (
     <div className="min-h-screen bg-gradient-to-br from-violet-50 to-white flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-lg p-10 max-w-md w-full text-center">
-        <div className="text-5xl mb-4">🎉</div>
         <div className="mt-2 flex justify-center gap-1 mb-3">
           {STARS.map(s => (
             <span key={s} className="text-2xl" style={{ color: s <= rating ? "#F59E0B" : "#D1D5DB" }}>★</span>
@@ -89,7 +87,6 @@ export default function FeedbackPage() {
   if (status === "already") return (
     <div className="min-h-screen bg-gradient-to-br from-violet-50 to-white flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-lg p-10 max-w-md w-full text-center">
-        <div className="text-4xl mb-4">✅</div>
         <h1 className="text-xl font-bold text-gray-800 mb-2">이미 평가가 완료되었습니다</h1>
         <p className="text-sm text-gray-500">해당 문의에 대한 평가가 이미 접수되었습니다.<br />소중한 의견 감사드립니다.</p>
       </div>
@@ -140,7 +137,7 @@ export default function FeedbackPage() {
           <div className="h-7 flex items-center justify-center mt-2">
             {active > 0 && (
               <p className="text-sm font-semibold text-violet-600">
-                {STAR_EMOJI[active - 1]}&nbsp;{STAR_LABELS[active - 1]}
+                {STAR_LABELS[active - 1]}
               </p>
             )}
           </div>
@@ -163,7 +160,7 @@ export default function FeedbackPage() {
           />
           {/* 주의 문구 */}
           <p className="text-[11px] text-gray-400 mt-1.5 leading-relaxed">
-            💡 업무 프로세스 개선, 자산 관리 불편사항, 서비스 제안 등 무엇이든 환영합니다.<br />
+            업무 프로세스 개선, 자산 관리 불편사항, 서비스 제안 등 무엇이든 환영합니다.<br />
             <span className="text-red-400">욕설·비방·개인 공격</span>이 포함된 내용은 검토에서 제외될 수 있습니다.
           </p>
         </div>

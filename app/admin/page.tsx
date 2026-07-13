@@ -59,42 +59,42 @@ const SUPER_GROUPS: MenuGroup[] = [
   {
     label: "하드웨어 자산",
     items: [
-      { id: "exchange-return", icon: "📲", label: "자산 흐름 관리",           desc: "기기 교체 · 반납 처리 관리" },
-      { id: "hw",              icon: "💻", label: "노트북/데스크탑 자산관리", desc: "NT/DT 재고 · 반납 관리"     },
-      { id: "hw-repair",       icon: "🛠️", label: "수리/과실청구 트래커",     desc: "외부 수리 · 과실 청구 관리" },
-      { id: "rental-hw",       icon: "📦", label: "임대노트북 현황 관리",     desc: "임시 PC 대여 · 반납 관리"   },
-      { id: "assetmap",        icon: "🖥️", label: "스마트오피스 모니터 관리", desc: "인터랙티브 자산 맵"         },
-      { id: "pc-scan",         icon: "🖥️", label: "온라인 자산 실사",         desc: "WPF 에이전트 PC 수집 데이터" },
+      { id: "exchange-return", icon: "",   label: "자산 흐름 관리",           desc: "기기 교체 · 반납 처리 관리" },
+      { id: "hw",              icon: "",   label: "노트북/데스크탑 자산관리", desc: "NT/DT 재고 · 반납 관리"     },
+      { id: "hw-repair",       icon: "",   label: "수리/과실청구 트래커",     desc: "외부 수리 · 과실 청구 관리" },
+      { id: "rental-hw",       icon: "",   label: "임대노트북 현황 관리",     desc: "임시 PC 대여 · 반납 관리"   },
+      { id: "assetmap",        icon: "",   label: "스마트오피스 모니터 관리", desc: "인터랙티브 자산 맵"         },
+      { id: "pc-scan",         icon: "",   label: "온라인 자산 실사",         desc: "WPF 에이전트 PC 수집 데이터" },
     ],
   },
   {
     label: "소프트웨어 자산",
     items: [
-      { id: "overview",    icon: "⚡", label: "전사 라이선스 현황",      desc: "현황 요약"             },
-      { id: "license",     icon: "🔑", label: "상용 라이선스 자산관리",  desc: "영구 · 구독 통합"      },
-      { id: "credentials", icon: "🔐", label: "계정 관리",               desc: "ID / PW 목록"          },
-      { id: "swdb",        icon: "🗄", label: "라이선스 설치 정책 관리", desc: "승인 / 금지 목록"      },
-      { id: "report",      icon: "📊", label: "구독형 라이선스 현황",    desc: "현황 분석 · 만료 알림" },
+      { id: "overview",    icon: "",   label: "전사 라이선스 현황",      desc: "현황 요약"             },
+      { id: "license",     icon: "",   label: "상용 라이선스 자산관리",  desc: "영구 · 구독 통합"      },
+      { id: "credentials", icon: "",   label: "계정 관리",               desc: "ID / PW 목록"          },
+      { id: "swdb",        icon: "",   label: "라이선스 설치 정책 관리", desc: "승인 / 금지 목록"      },
+      { id: "report",      icon: "",   label: "구독형 라이선스 현황",    desc: "현황 분석 · 만료 알림" },
     ],
   },
   {
     label: "사용자 지원",
     items: [
-      { id: "helpdesk",   icon: "🎫", label: "문의 접수 현황",  desc: "유형·법인별 분석"       },
-      { id: "repair",     icon: "🖥️", label: "모니터 수리 접수 내역",  desc: "모니터 수리 접수 · 처리" },
-      { id: "meeting-rental", icon: "📡", label: "회의실 장비 대여 관리", desc: "신청 티켓 · 장비 현황 통합 관리" },
-      { id: "survey-demand", icon: "📝", label: "업무 툴 수요조사", desc: "번역 툴 수요 응답 관리" },
+      { id: "helpdesk",   icon: "",   label: "문의 접수 현황",  desc: "유형·법인별 분석"       },
+      { id: "repair",     icon: "",   label: "모니터 수리 접수 내역",  desc: "모니터 수리 접수 · 처리" },
+      { id: "meeting-rental", icon: "", label: "회의실 장비 대여 관리", desc: "신청 티켓 · 장비 현황 통합 관리" },
+      { id: "survey-demand", icon: "", label: "업무 툴 수요조사", desc: "번역 툴 수요 응답 관리" },
     ],
   },
   {
     label: "관리",
     items: [
-      { id: "accounts",      icon: "👤", label: "계정 권한 설정", desc: "담당자 계정 관리"    },
-      { id: "contracts",     icon: "📋", label: "계약 관리",       desc: "PC/OA 유지보수 계약" },
-      { id: "work-feedback", icon: "🌱", label: "업무 피드백",     desc: "연/월/주간 목표 관리" },
-      { id: "bugreport",     icon: "🐛", label: "버그리포트",      desc: "버그 및 개선요청 관리" },
-      { id: "worktracker",   icon: "🗂️", label: "작업 트래커",     desc: "개인 작업 칸반 관리"   },
-      { id: "audit",         icon: "🕵️", label: "감사 로그",       desc: "관리자 변경 이력"     },
+      { id: "accounts",      icon: "",   label: "계정 권한 설정", desc: "담당자 계정 관리"    },
+      { id: "contracts",     icon: "",   label: "계약 관리",       desc: "PC/OA 유지보수 계약" },
+      { id: "work-feedback", icon: "",   label: "업무 피드백",     desc: "연/월/주간 목표 관리" },
+      { id: "bugreport",     icon: "",   label: "버그리포트",      desc: "버그 및 개선요청 관리" },
+      { id: "worktracker",   icon: "",   label: "작업 트래커",     desc: "개인 작업 칸반 관리"   },
+      { id: "audit",         icon: "",   label: "감사 로그",       desc: "관리자 변경 이력"     },
     ],
   },
 ];
@@ -102,7 +102,6 @@ const SUPER_GROUPS: MenuGroup[] = [
 function AccessDenied() {
   return (
     <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-400">
-      <span className="text-4xl">🔒</span>
       <p className="text-sm font-medium">— 접근권한이 없습니다. —</p>
     </div>
   );
@@ -437,7 +436,7 @@ export default function AdminPage() {
                           if (m.id === "assetmap") setPendingMonitorCount(0);
                         }}
                       >
-                        <span style={{ fontSize: 14, flexShrink: 0 }}>{accessible ? m.icon : "🔒"}</span>
+                        <span style={{ fontSize: 14, flexShrink: 0 }}>{accessible ? m.icon : ""}</span>
                         <div className="flex flex-col leading-tight flex-1 min-w-0">
                           <span className="truncate">{m.label}</span>
                           <span className="text-xs opacity-50 truncate">

@@ -39,39 +39,39 @@ const PAGE_SIZE = 30;
 
 // ── SW 매크로 카테고리 (Notion DB 실제 분류 기준) ────────────────────────
 const SW_CAT_RULES: {
-  label: string; icon: string; color: string; bg: string; keywords: string[];
+  label: string; color: string; bg: string; keywords: string[];
 }[] = [
   {
-    label: "문서/오피스", icon: "📄", color: "text-blue-700", bg: "bg-blue-50",
+    label: "문서/오피스", color: "text-blue-700", bg: "bg-blue-50",
     keywords: ["office","hancom","pdf","ezpdf","nspdf"],
   },
   {
-    label: "AI 툴", icon: "🤖", color: "text-violet-700", bg: "bg-violet-50",
+    label: "AI 툴", color: "text-violet-700", bg: "bg-violet-50",
     keywords: ["gpt","claude","copilot","cursor","google ai"],
   },
   {
-    label: "개발 툴", icon: "💻", color: "text-emerald-700", bg: "bg-emerald-50",
+    label: "개발 툴", color: "text-emerald-700", bg: "bg-emerald-50",
     keywords: ["jetbrains","postman","sendbird"],
   },
   {
-    label: "협업 툴", icon: "🤝", color: "text-orange-700", bg: "bg-orange-50",
+    label: "협업 툴", color: "text-orange-700", bg: "bg-orange-50",
     keywords: ["notion","slack","confluence","jira","채널"],
   },
   {
-    label: "디자인/그래픽", icon: "🎨", color: "text-pink-700", bg: "bg-pink-50",
+    label: "디자인/그래픽", color: "text-pink-700", bg: "bg-pink-50",
     keywords: ["figma","keyshot","adobe"],
   },
   {
-    label: "설계/CAD", icon: "📐", color: "text-cyan-700", bg: "bg-cyan-50",
+    label: "설계/CAD", color: "text-cyan-700", bg: "bg-cyan-50",
     keywords: ["cad","zwcad","sketch up","sketchup","cadian"],
   },
   {
-    label: "RPA/자동화", icon: "⚙️", color: "text-amber-700", bg: "bg-amber-50",
+    label: "RPA/자동화", color: "text-amber-700", bg: "bg-amber-50",
     keywords: ["robot","uipath"],
   },
 ];
 
-const EXTRA_CAT = { label: "기타", icon: "📦", color: "text-gray-700", bg: "bg-gray-50" };
+const EXTRA_CAT = { label: "기타", color: "text-gray-700", bg: "bg-gray-50" };
 
 function getSwMacroCategory(swName: string) {
   if (!swName) return EXTRA_CAT;
@@ -150,7 +150,7 @@ function CopyButton({ text, label = "복사" }: { text: string; label?: string }
       }`}
       title={`${label} 복사`}
     >
-      {copied ? "✓ 복사됨" : `📋 ${label}`}
+      {copied ? "복사됨" : label}
     </button>
   );
 }
@@ -242,7 +242,7 @@ function FilePreview({ recordId, prop, cachedUrl, label }: { recordId: string; p
         {isImage ? (
           <img src={liveUrl} alt={label} className="max-h-40 rounded-lg border border-gray-200 hover:opacity-90 transition-opacity" />
         ) : (
-          <span className="text-blue-600 hover:underline text-sm truncate block max-w-full">📄 {getFileNameFromUrl(cachedUrl)}</span>
+          <span className="text-blue-600 hover:underline text-sm truncate block max-w-full">{getFileNameFromUrl(cachedUrl)}</span>
         )}
       </button>
       {open && (
@@ -519,7 +519,6 @@ function SwEditModal({
               onChange={e => setCertFile(e.target.files?.[0] ?? null)} />
             {certFile ? (
               <div className="flex items-center gap-2 px-3 py-2 text-sm border border-blue-300 bg-blue-50 rounded-lg">
-                <span className="text-blue-600">📎</span>
                 <span className="flex-1 truncate text-blue-700 font-medium">{certFile.name}</span>
                 <button type="button" onClick={() => { setCertFile(null); if (certFileRef.current) certFileRef.current.value = ""; }}
                   className="text-gray-400 hover:text-red-500 text-xs font-bold">✕</button>
@@ -533,7 +532,7 @@ function SwEditModal({
             ) : (
               <button type="button" onClick={() => certFileRef.current?.click()}
                 className="w-full px-3 py-2 text-sm border border-dashed border-gray-300 rounded-lg text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/30 transition-colors text-left">
-                📎 파일 선택 (PDF, 이미지)
+                파일 선택 (PDF, 이미지)
               </button>
             )}
           </div>
@@ -545,7 +544,6 @@ function SwEditModal({
               onChange={e => setDraftFile(e.target.files?.[0] ?? null)} />
             {draftFile ? (
               <div className="flex items-center gap-2 px-3 py-2 text-sm border border-blue-300 bg-blue-50 rounded-lg">
-                <span className="text-blue-600">📎</span>
                 <span className="flex-1 truncate text-blue-700 font-medium">{draftFile.name}</span>
                 <button type="button" onClick={() => { setDraftFile(null); if (draftFileRef.current) draftFileRef.current.value = ""; }}
                   className="text-gray-400 hover:text-red-500 text-xs font-bold">✕</button>
@@ -559,7 +557,7 @@ function SwEditModal({
             ) : (
               <button type="button" onClick={() => draftFileRef.current?.click()}
                 className="w-full px-3 py-2 text-sm border border-dashed border-gray-300 rounded-lg text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/30 transition-colors text-left">
-                📎 파일 선택 (PDF, 이미지)
+                파일 선택 (PDF, 이미지)
               </button>
             )}
           </div>
@@ -571,7 +569,7 @@ function SwEditModal({
           <button onClick={onClose} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50">취소</button>
           <button onClick={handleSave} disabled={saving}
             className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 transition-colors">
-            {saving ? "저장 중…" : "✓ Notion에 저장"}
+            {saving ? "저장 중…" : "Notion에 저장"}
           </button>
         </div>
       </div>
@@ -617,7 +615,7 @@ function CategoryView({ records, onEdit }: { records: SwDbRecord[]; onEdit: (r: 
         return { swName, records: swRecs, using, stock, expired, renewal, urgent, minDays };
       }).sort((a, b) => (b.using + b.stock) - (a.using + a.stock));
       return {
-        label, icon: info.icon, color: info.color, bg: info.bg, swGroups,
+        label, color: info.color, bg: info.bg, swGroups,
         totalRecs: recs.length,
         usingRecs: recs.filter(r => r.status === "사용중" || r.status === "신규등록").length,
         urgentRecs: recs.filter(r => { const d = daysLeft(r.renewalDate); return d !== null && d >= 0 && d <= 30; }).length,
@@ -628,7 +626,6 @@ function CategoryView({ records, onEdit }: { records: SwDbRecord[]; onEdit: (r: 
   if (records.length === 0) {
     return (
       <div className="text-center py-16 text-gray-400">
-        <div className="text-3xl mb-2">📋</div>
         <div>조건에 맞는 데이터가 없습니다.</div>
       </div>
     );
@@ -643,7 +640,6 @@ function CategoryView({ records, onEdit }: { records: SwDbRecord[]; onEdit: (r: 
             style={{ borderColor: "rgba(0,0,0,0.08)" }}
           >
             <div className="flex items-center gap-2">
-              <span className="text-lg">{cat.icon}</span>
               <span className={`font-bold text-sm ${cat.color}`}>{cat.label}</span>
               <span className="text-xs text-gray-400">{cat.swGroups.length}종</span>
             </div>
@@ -652,7 +648,7 @@ function CategoryView({ records, onEdit }: { records: SwDbRecord[]; onEdit: (r: 
               <span className="text-blue-600">사용중 <strong>{cat.usingRecs}</strong></span>
               {cat.urgentRecs > 0 && (
                 <span className="text-red-600 font-semibold bg-red-50 px-2 py-0.5 rounded-full border border-red-100">
-                  ⚠ 갱신임박 {cat.urgentRecs}건
+                  갱신임박 {cat.urgentRecs}건
                 </span>
               )}
             </div>
@@ -686,7 +682,7 @@ function CategoryView({ records, onEdit }: { records: SwDbRecord[]; onEdit: (r: 
                   </div>
                   {isExpanded && (
                     <div className="bg-gray-50 border-t border-gray-100 px-4 py-3">
-                      <div className="text-xs text-gray-500 font-semibold mb-2.5">📋 세부 내역 ({sw.records.length}건)</div>
+                      <div className="text-xs text-gray-500 font-semibold mb-2.5">세부 내역 ({sw.records.length}건)</div>
                       <div className="flex flex-col gap-2">
                         {sw.records.map(r => {
                           const days = daysLeft(r.renewalDate);
@@ -717,19 +713,19 @@ function CategoryView({ records, onEdit }: { records: SwDbRecord[]; onEdit: (r: 
                                     onClick={e => { e.stopPropagation(); onEdit(r); }}
                                     className="text-xs text-gray-400 hover:text-blue-600 border border-gray-200 hover:border-blue-300 px-2 py-0.5 rounded transition-colors"
                                     title="수정"
-                                  >✏️ 수정</button>
+                                  >수정</button>
                                 </div>
                               </div>
                               {/* 영구 라이선스 키 표시 */}
                               {isPermanent && r.licenseKey && (
                                 <div className="flex items-center gap-2 mt-1 p-2 bg-blue-50 rounded-lg border border-blue-100">
-                                  <span className="text-blue-600 font-semibold text-xs shrink-0">🔑 인증키</span>
+                                  <span className="text-blue-600 font-semibold text-xs shrink-0">인증키</span>
                                   <span className="font-mono text-xs text-gray-700 flex-1 break-all">{r.licenseKey}</span>
                                   <CopyButton text={r.licenseKey} label="키 복사" />
                                 </div>
                               )}
                               {isPermanent && !r.licenseKey && (
-                                <div className="text-xs text-gray-400 italic mt-0.5 pl-1">🔑 인증키 없음</div>
+                                <div className="text-xs text-gray-400 italic mt-0.5 pl-1">인증키 없음</div>
                               )}
                             </div>
                           );
@@ -1018,7 +1014,7 @@ function SwManualAdd({ onClose, onSuccess, swCategoryOptions, versionOptions, co
 
         <div className="px-6 py-4 bg-indigo-600 text-white flex items-center justify-between shrink-0">
           <div>
-            <div className="font-bold text-base">✏️ SW 자산 직접 등록</div>
+            <div className="font-bold text-base">SW 자산 직접 등록</div>
             <div className="text-xs opacity-80 mt-0.5">항목을 직접 입력하여 Notion에 등록합니다</div>
           </div>
           <button onClick={onClose} className="text-white/70 hover:text-white text-2xl leading-none">✕</button>
@@ -1118,7 +1114,6 @@ function SwManualAdd({ onClose, onSuccess, swCategoryOptions, versionOptions, co
                   onChange={e => setCertFile(e.target.files?.[0] ?? null)} />
                 {certFile ? (
                   <div className="flex items-center gap-2 px-3 py-2 text-sm border border-indigo-300 bg-indigo-50 rounded-lg">
-                    <span className="text-indigo-600">📎</span>
                     <span className="flex-1 truncate text-indigo-700 font-medium">{certFile.name}</span>
                     <button type="button" onClick={() => { setCertFile(null); if (certFileRef.current) certFileRef.current.value = ""; }}
                       className="text-gray-400 hover:text-red-500 text-xs font-bold">✕</button>
@@ -1126,7 +1121,7 @@ function SwManualAdd({ onClose, onSuccess, swCategoryOptions, versionOptions, co
                 ) : (
                   <button type="button" onClick={() => certFileRef.current?.click()}
                     className="w-full px-3 py-2 text-sm border border-dashed border-gray-300 rounded-lg text-gray-400 hover:border-indigo-400 hover:text-indigo-500 hover:bg-indigo-50/30 transition-colors text-left">
-                    📎 파일 선택 (PDF, 이미지)
+                    파일 선택 (PDF, 이미지)
                   </button>
                 )}
               </Field>
@@ -1140,7 +1135,6 @@ function SwManualAdd({ onClose, onSuccess, swCategoryOptions, versionOptions, co
                   onChange={e => setDraftFile(e.target.files?.[0] ?? null)} />
                 {draftFile ? (
                   <div className="flex items-center gap-2 px-3 py-2 text-sm border border-indigo-300 bg-indigo-50 rounded-lg">
-                    <span className="text-indigo-600">📎</span>
                     <span className="flex-1 truncate text-indigo-700 font-medium">{draftFile.name}</span>
                     <button type="button" onClick={() => { setDraftFile(null); if (draftFileRef.current) draftFileRef.current.value = ""; }}
                       className="text-gray-400 hover:text-red-500 text-xs font-bold">✕</button>
@@ -1148,7 +1142,7 @@ function SwManualAdd({ onClose, onSuccess, swCategoryOptions, versionOptions, co
                 ) : (
                   <button type="button" onClick={() => draftFileRef.current?.click()}
                     className="w-full px-3 py-2 text-sm border border-dashed border-gray-300 rounded-lg text-gray-400 hover:border-indigo-400 hover:text-indigo-500 hover:bg-indigo-50/30 transition-colors text-left">
-                    📎 파일 선택 (PDF, 이미지)
+                    파일 선택 (PDF, 이미지)
                   </button>
                 )}
               </Field>
@@ -1157,7 +1151,7 @@ function SwManualAdd({ onClose, onSuccess, swCategoryOptions, versionOptions, co
 
           {error && (
             <div className="mt-4 bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">
-              ⚠️ {error}
+              {error}
             </div>
           )}
         </div>
@@ -1169,7 +1163,7 @@ function SwManualAdd({ onClose, onSuccess, swCategoryOptions, versionOptions, co
           </button>
           <button onClick={handleSubmit} disabled={submitting}
             className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 disabled:opacity-60 transition-colors shadow-sm">
-            {submitting ? (submitStatus || "등록 중…") : "🚀 Notion에 등록"}
+            {submitting ? (submitStatus || "등록 중…") : "Notion에 등록"}
           </button>
         </div>
       </div>
@@ -1248,7 +1242,7 @@ function SwExcelUpload({ onClose, onSuccess }: { onClose: () => void; onSuccess:
         {/* 헤더 */}
         <div className="px-6 py-4 bg-indigo-600 text-white flex items-center justify-between shrink-0">
           <div>
-            <div className="font-bold text-base">📂 SW 자산 엑셀 등록</div>
+            <div className="font-bold text-base">SW 자산 엑셀 등록</div>
             <div className="text-xs opacity-80 mt-0.5">양식을 다운로드 후 작성하여 업로드하세요</div>
           </div>
           <button onClick={onClose} className="text-white/70 hover:text-white text-2xl leading-none">✕</button>
@@ -1260,13 +1254,13 @@ function SwExcelUpload({ onClose, onSuccess }: { onClose: () => void; onSuccess:
           {/* 안내 + 양식 다운로드 */}
           <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex items-start gap-4">
             <div className="flex-1 text-xs text-indigo-700 space-y-1">
-              <p className="font-semibold text-sm text-indigo-800">📋 업로드 순서</p>
+              <p className="font-semibold text-sm text-indigo-800">업로드 순서</p>
               <p>① 아래 <strong>양식 다운로드</strong> → ② 엑셀에 데이터 입력 → ③ 파일 업로드 → ④ Notion 자동 등록</p>
               <p className="text-indigo-500">필수 컬럼: <strong>사용자</strong> · <strong>SW대분류</strong> / 최대 200건</p>
             </div>
             <button onClick={downloadTemplate}
               className="shrink-0 flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm">
-              ⬇️ 양식 다운로드
+              양식 다운로드
             </button>
           </div>
 
@@ -1277,7 +1271,6 @@ function SwExcelUpload({ onClose, onSuccess }: { onClose: () => void; onSuccess:
               onClick={() => fileRef.current?.click()}
               onDragOver={e => e.preventDefault()}
               onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}>
-              <div className="text-4xl mb-3">📂</div>
               <p className="text-sm font-semibold text-gray-700">엑셀 파일을 드래그하거나 클릭하여 선택</p>
               <p className="text-xs text-gray-400 mt-1">.xlsx · .xls 지원</p>
               <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden"
@@ -1288,7 +1281,7 @@ function SwExcelUpload({ onClose, onSuccess }: { onClose: () => void; onSuccess:
           {/* 파싱 오류 */}
           {parseErr && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">
-              <p className="font-semibold mb-1">⚠️ 오류</p>
+              <p className="font-semibold mb-1">오류</p>
               <p>{parseErr}</p>
               <button onClick={() => { setParseErr(""); setRows([]); }}
                 className="mt-2 text-xs underline text-red-600">다시 시도</button>
@@ -1300,7 +1293,7 @@ function SwExcelUpload({ onClose, onSuccess }: { onClose: () => void; onSuccess:
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-semibold text-gray-700">
-                  📄 <span className="text-gray-500 font-normal">{fileName}</span> —
+                  <span className="text-gray-500 font-normal">{fileName}</span> —
                   <span className="text-indigo-600 font-bold ml-1">{rows.length}건</span> 파싱됨
                 </p>
                 <button onClick={() => { setRows([]); setFileName(""); }}
@@ -1346,7 +1339,7 @@ function SwExcelUpload({ onClose, onSuccess }: { onClose: () => void; onSuccess:
               {!uploading && (
                 <button onClick={doUpload}
                   className="w-full py-3 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition-colors shadow-sm">
-                  🚀 Notion에 {rows.length}건 등록
+                  Notion에 {rows.length}건 등록
                 </button>
               )}
             </div>
@@ -1367,7 +1360,7 @@ function SwExcelUpload({ onClose, onSuccess }: { onClose: () => void; onSuccess:
           {results && summary && (
             <div className={`rounded-xl border p-4 ${summary.failed === 0 ? "bg-green-50 border-green-200" : "bg-orange-50 border-orange-200"}`}>
               <p className={`font-bold text-base mb-2 ${summary.failed === 0 ? "text-green-700" : "text-orange-700"}`}>
-                {summary.failed === 0 ? "✅ 등록 완료!" : `⚠️ 일부 오류 발생`}
+                {summary.failed === 0 ? "등록 완료!" : `일부 오류 발생`}
               </p>
               <p className="text-sm text-gray-600">
                 성공 <strong className="text-green-600">{summary.success}건</strong>
@@ -1673,20 +1666,19 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
             className="flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-300 text-gray-600 text-sm font-semibold rounded-lg hover:bg-gray-50 disabled:opacity-60 transition-colors"
             title="Notion에서 최신 데이터를 강제로 가져옵니다"
           >
-            <span className={refreshing ? "animate-spin inline-block" : ""}>🔄</span>
             {refreshing ? "갱신 중…" : "새로고침"}
           </button>
           <button
             onClick={() => setShowManualAdd(true)}
             className="flex items-center gap-2 px-4 py-2 bg-white border border-indigo-300 text-indigo-600 text-sm font-semibold rounded-lg hover:bg-indigo-50 transition-colors shadow-sm"
           >
-            ✏️ 직접 등록
+            직접 등록
           </button>
           <button
             onClick={() => setShowUpload(true)}
             className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
           >
-            📂 엑셀 등록
+            엑셀 등록
           </button>
         </div>
       </div>
@@ -1805,7 +1797,7 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
       {/* ── 뷰 토글 + 선택 삭제 ── */}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div className="flex gap-1.5">
-          {([["category", "📂 카테고리별"], ["list", "📋 전체 목록"]] as const).map(([v, label]) => (
+          {([["category", "카테고리별"], ["list", "전체 목록"]] as const).map(([v, label]) => (
             <button key={v} onClick={() => { setDetailView(v); setSelectedIds(new Set()); }}
               className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all border ${
                 detailView === v
@@ -1825,7 +1817,7 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
                 disabled={deleting}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-xs font-semibold rounded-lg transition-colors"
               >
-                {deleting ? "삭제 중…" : `🗑 ${selectedIds.size}건 삭제`}
+                {deleting ? "삭제 중…" : `${selectedIds.size}건 삭제`}
               </button>
               <button
                 onClick={() => setSelectedIds(new Set())}
@@ -1841,13 +1833,13 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
             disabled={filtered.length === 0}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-emerald-300 text-emerald-700 text-xs font-semibold rounded-lg hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             title="현재 검색된 목록을 엑셀로 다운로드"
-          >📥 엑셀 다운로드</button>
+          >엑셀 다운로드</button>
           <button
             onClick={() => handleZipDownload(filtered)}
             disabled={zipping || filtered.filter(r => r.certificate || r.draftDocument).length === 0}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-300 text-gray-600 text-xs font-semibold rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             title="검색된 목록의 증서·기안문서를 ZIP으로 다운로드"
-          >{zipping ? "압축 중…" : "🗂 증서/기안문서 ZIP"}</button>
+          >{zipping ? "압축 중…" : "증서/기안문서 ZIP"}</button>
           {zipError && (
             <span className="text-xs text-red-500">{zipError}</span>
           )}

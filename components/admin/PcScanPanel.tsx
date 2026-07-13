@@ -82,7 +82,7 @@ function DetailModal({ record, onClose }: { record: PcScanRecordWithMatch; onClo
                 rel="noreferrer"
                 className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline font-medium"
               >
-                📥 {record.programFileName || "파일 다운로드"}
+                {record.programFileName || "파일 다운로드"}
               </a>
             </div>
           )}
@@ -531,7 +531,7 @@ export default function PcScanPanel() {
                         className="inline-flex items-center gap-1 text-blue-600 hover:underline whitespace-nowrap"
                         title={r.programFileName}
                       >
-                        📥 {r.programFileName ? r.programFileName.replace(/\.[^.]+$/, "") : "다운로드"}
+                        {r.programFileName ? r.programFileName.replace(/\.[^.]+$/, "") : "다운로드"}
                       </a>
                     ) : <span className="text-gray-300">—</span>}
                   </td>

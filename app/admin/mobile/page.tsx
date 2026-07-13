@@ -145,7 +145,6 @@ export default function MobileAdminPage() {
 function AccessDenied() {
   return (
     <div className="flex flex-col items-center justify-center h-64 gap-3 text-gray-400">
-      <span className="text-4xl">🔒</span>
       <p className="text-sm font-medium">접근권한이 없습니다</p>
     </div>
   );
@@ -158,11 +157,11 @@ function MorePanel({ isSuper, session, onNavigate, onLogout }: {
   onLogout: () => void;
 }) {
   const items: { id: string; icon: string; label: string; desc: string; superOnly?: boolean }[] = [
-    { id: "home",            icon: "🏠", label: "대시보드",      desc: "전사 현황 요약" },
-    { id: "exchange-return", icon: "📲", label: "자산흐름 관리", desc: "교체·반납 처리 관리", superOnly: true },
-    { id: "hw",              icon: "💻", label: "HW 자산관리",   desc: "NT/DT 재고·현황 조회" },
-    { id: "sw",              icon: "🔑", label: "SW 자산관리",   desc: "라이선스 현황 조회" },
-    { id: "helpdesk",        icon: "🎫", label: "헬프데스크",    desc: "문의 접수 현황" },
+    { id: "home",            icon: "",   label: "대시보드",      desc: "전사 현황 요약" },
+    { id: "exchange-return", icon: "",   label: "자산흐름 관리", desc: "교체·반납 처리 관리", superOnly: true },
+    { id: "hw",              icon: "",   label: "HW 자산관리",   desc: "NT/DT 재고·현황 조회" },
+    { id: "sw",              icon: "",   label: "SW 자산관리",   desc: "라이선스 현황 조회" },
+    { id: "helpdesk",        icon: "",   label: "헬프데스크",    desc: "문의 접수 현황" },
   ];
 
   return (
@@ -178,7 +177,7 @@ function MorePanel({ isSuper, session, onNavigate, onLogout }: {
             className={`w-full flex items-center gap-4 p-4 rounded-2xl text-left transition-colors
               ${locked ? "bg-gray-100 text-gray-300" : "bg-white shadow-sm active:bg-gray-50"}`}
           >
-            <span className="text-2xl w-8 text-center">{locked ? "🔒" : item.icon}</span>
+            <span className="text-2xl w-8 text-center">{locked ? "" : item.icon}</span>
             <div className="flex-1 min-w-0">
               <div className={`font-semibold ${locked ? "text-gray-400" : "text-gray-900"}`}>{item.label}</div>
               <div className="text-xs text-gray-400 mt-0.5">{locked ? "슈퍼 어드민 전용" : item.desc}</div>
@@ -195,7 +194,7 @@ function MorePanel({ isSuper, session, onNavigate, onLogout }: {
       <div className="pt-4 space-y-2">
         <a href="/admin"
           className="w-full flex items-center justify-center gap-2 p-3.5 rounded-2xl bg-[#18181B] text-white text-sm font-semibold">
-          💻 데스크탑 버전으로 이동
+          데스크탑 버전으로 이동
         </a>
         <button onClick={onLogout}
           className="w-full flex items-center justify-center gap-2 p-3.5 rounded-2xl bg-red-50 text-red-600 text-sm font-semibold">

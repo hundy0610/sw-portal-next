@@ -110,7 +110,7 @@ export default function SurveyDemandPanel() {
         <div className="flex items-center gap-2">
           <button onClick={copyLink}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 text-sm font-semibold hover:bg-blue-100 transition-colors">
-            🔗 {copied ? "복사됨!" : "설문 링크 복사"}
+            {copied ? "복사됨!" : "설문 링크 복사"}
           </button>
           <a href="/survey" target="_blank" rel="noopener noreferrer"
             className="px-3.5 py-2 rounded-xl border border-gray-200 bg-white text-gray-600 text-sm hover:bg-gray-50 transition-colors">
@@ -146,7 +146,6 @@ export default function SurveyDemandPanel() {
       {/* 응답 목록 */}
       {filtered.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
-          <div className="text-3xl mb-2">📋</div>
           <p>{data.length === 0 ? "아직 접수된 응답이 없습니다." : "검색 결과가 없습니다."}</p>
         </div>
       ) : (
@@ -231,7 +230,7 @@ export default function SurveyDemandPanel() {
                 onClick={e => handleDelete(selected.id, e)}
                 disabled={deleting === selected.id}
                 className="px-3 py-2 rounded-xl text-xs font-medium border border-red-200 text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50">
-                🗑 삭제
+                삭제
               </button>
               <button onClick={() => setSelected(null)}
                 className="flex-1 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors">

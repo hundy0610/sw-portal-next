@@ -127,7 +127,7 @@ export default function ChangePasswordPage() {
               <p className="text-xs text-red-500 mt-1">비밀번호가 일치하지 않습니다</p>
             )}
             {confirmPassword.length > 0 && confirmPassword === newPassword && (
-              <p className="text-xs text-green-600 mt-1">✓ 비밀번호가 일치합니다</p>
+              <p className="text-xs text-green-600 mt-1">비밀번호가 일치합니다</p>
             )}
           </div>
 

@@ -232,7 +232,7 @@ function TicketsTab() {
         <div className="text-sm text-gray-500">{filtered.length}건 조회됨</div>
         <button onClick={() => load(true)}
           className="px-3 py-2 text-xs border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 transition-colors">
-          🔄 새로고침
+          새로고침
         </button>
       </div>
 
@@ -394,7 +394,7 @@ function EquipmentFormModal({ title, initial, onSave, onClose, showInUse }: {
           <button onClick={onClose} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50">취소</button>
           <button onClick={handleSave} disabled={saving}
             className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 transition-colors">
-            {saving ? "저장 중…" : "✓ Notion에 저장"}
+            {saving ? "저장 중…" : "Notion에 저장"}
           </button>
         </div>
       </div>
@@ -468,7 +468,7 @@ function EquipmentTab() {
         <div className="flex gap-2">
           <button onClick={() => load(true)}
             className="px-3 py-2 text-xs border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 transition-colors">
-            🔄 새로고침
+            새로고침
           </button>
           <button onClick={() => setCreateOpen(true)}
             className="px-4 py-2 text-xs bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors">

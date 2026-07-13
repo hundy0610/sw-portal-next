@@ -689,7 +689,7 @@ function buildEmailPreview(opts: {
 <body style="margin:0;padding:0;background:#FAFAFA;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;">
 <div style="max-width:520px;margin:32px auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
   <div style="background:#DC2626;padding:24px 32px;">
-    <div style="color:white;font-size:17px;font-weight:800;">🖥️ 모니터 교체/수리 요청</div>
+    <div style="color:white;font-size:17px;font-weight:800;">모니터 교체/수리 요청</div>
     <div style="color:rgba(255,255,255,0.8);font-size:12px;margin-top:4px;">스마트오피스 자산관리</div>
   </div>
   <div style="padding:28px 32px;">
@@ -895,7 +895,7 @@ function ItemDetailPanel({
         {/* 구역 */}
         {zone && (
           <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-            <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">📍 구역</div>
+            <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">구역</div>
             <div className="flex flex-wrap gap-1.5">
               <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-semibold border border-blue-100">
                 {zone.name}
@@ -909,7 +909,7 @@ function ItemDetailPanel({
 
         {/* 상태 변경 */}
         <div className="bg-white border border-gray-100 rounded-xl p-3">
-          <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">✏️ 상태 변경</div>
+          <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">상태 변경</div>
           <div className="grid grid-cols-1 gap-1.5">
             {TYPES.map(t => {
               const m = MONITOR[t];
@@ -926,7 +926,7 @@ function ItemDetailPanel({
                   <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
                     style={{ background: isActive ? "white" : m.color + "CC" }}/>
                   {m.long}
-                  {isActive && <span className="ml-auto text-[10px] opacity-80">✓ 현재</span>}
+                  {isActive && <span className="ml-auto text-[10px] opacity-80">현재</span>}
                 </button>
               );
             })}
@@ -938,7 +938,7 @@ function ItemDetailPanel({
           <button
             onClick={() => setRepairOpen(o => !o)}
             className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-bold text-red-600 hover:bg-red-50 transition-colors">
-            <span>🔧 교체/수리 요청</span>
+            <span>교체/수리 요청</span>
             <span className="text-gray-400 text-[10px]">{repairOpen ? "▲" : "▼"}</span>
           </button>
           {repairOpen && (
@@ -1014,7 +1014,7 @@ function ItemDetailPanel({
         {/* 이력 목록 */}
         <div className="bg-white border border-gray-100 rounded-xl p-3">
           <div className="flex items-center justify-between mb-2">
-            <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">📋 이력</div>
+            <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">이력</div>
             <button onClick={loadHistory} className="text-[10px] text-blue-400 hover:text-blue-600">↻ 새로고침</button>
           </div>
           {histLoading ? (
@@ -1098,7 +1098,7 @@ function ItemDetailPanel({
               {/* 헤더 */}
               <div className="flex items-start justify-between px-5 py-4 border-b border-gray-100 shrink-0">
                 <div>
-                  <div className="text-sm font-bold text-gray-900">📧 메일 미리보기</div>
+                  <div className="text-sm font-bold text-gray-900">메일 미리보기</div>
                   <div className="text-[11px] text-gray-500 mt-1">
                     수신자: <span className="font-semibold text-gray-800">{selectedGm?.name}</span>
                     {selectedGm?.email && (
@@ -1138,7 +1138,7 @@ function ItemDetailPanel({
                       </svg>
                       발송 중…
                     </>
-                  ) : "📨 메일 발송"}
+                  ) : "메일 발송"}
                 </button>
               </div>
             </div>
@@ -1194,7 +1194,6 @@ function OverviewSidePanel({ building, floor, editorData }: { building: Building
       <div className="flex-1 p-3 space-y-3 overflow-y-auto">
         {items.length === 0 ? (
           <div className="text-center text-gray-400 text-xs py-8">
-            <div className="text-2xl mb-2">📋</div>
             도면 데이터가 없습니다.<br/>편집 모드에서 저장 후 확인해주세요.
           </div>
         ) : (
@@ -1842,7 +1841,7 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
               ? "bg-amber-500 text-white border-amber-500 shadow-sm"
               : "bg-white text-slate-600 border-gray-200 hover:border-amber-400 hover:text-amber-600"
           }`}>
-          {editorMode ? "✏️ 편집 모드 ON" : "✏️ 편집 모드"}
+          {editorMode ? "편집 모드 ON" : "편집 모드"}
         </button>
 
         {/* 건물 + 층 선택 (그룹 기반) */}
@@ -2237,7 +2236,7 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
       {editorMode && (
         <div className="flex flex-1 min-h-0 overflow-hidden flex-col">
           <div className="flex-none bg-amber-50 border-b border-amber-200 px-5 py-1.5 flex items-center gap-2">
-            <span className="text-[10px] font-semibold text-amber-700">✏️ 편집 모드</span>
+            <span className="text-[10px] font-semibold text-amber-700">편집 모드</span>
             <span className="text-[10px] text-amber-600 hidden lg:block">
               도면 이미지 업로드 · 모니터 배치 · 공간 구역 지정 · 시설물 마커 · 드래그 이동 · 회전 지원
             </span>
@@ -2251,7 +2250,7 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
                 onClick={handleSaveToNotion}
                 disabled={isSaving}
                 className="px-3 py-1 rounded-lg text-[11px] font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm">
-                {isSaving ? "저장 중…" : "💾 노션 저장"}
+                {isSaving ? "저장 중…" : "노션 저장"}
               </button>
               <span className="text-[10px] text-amber-500">{building?.label ?? ""} {floor?.label ?? ""}</span>
             </div>
@@ -2269,7 +2268,7 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
           <div className="flex items-center gap-1 mb-3">
             <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
               <span className="px-3 py-1.5 font-medium bg-blue-600 text-white">
-                📊 시트 배치도
+                시트 배치도
               </span>
             </div>
             <h2 className="text-sm font-bold text-slate-700 ml-2">{floor?.label ?? ""}</h2>
@@ -2287,9 +2286,8 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
                 selectedItemId={selectedItemId}
               />
             : <div className="flex flex-col items-center justify-center py-20 text-center text-gray-400">
-                <div className="text-4xl mb-3">🗺</div>
                 <div className="text-sm font-medium text-gray-500">저장된 도면이 없습니다</div>
-                <div className="text-xs mt-1">편집 모드에서 도면을 작성하고 <span className="font-semibold text-blue-500">💾 노션 저장</span>을 눌러주세요.</div>
+                <div className="text-xs mt-1">편집 모드에서 도면을 작성하고 <span className="font-semibold text-blue-500">노션 저장</span>을 눌러주세요.</div>
               </div>
           }
         </div>

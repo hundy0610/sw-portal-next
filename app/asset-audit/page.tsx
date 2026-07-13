@@ -42,7 +42,6 @@ export default function AssetAuditProgramPage() {
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12" style={{ background: C.bgPage }}>
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="text-5xl mb-3">🖥️</div>
           <h1 className="text-2xl font-extrabold mb-1" style={{ color: C.text1 }}>
             {loading ? "" : cfg?.title}
           </h1>
@@ -90,7 +89,7 @@ export default function AssetAuditProgramPage() {
                 className="w-full h-12 rounded-xl font-bold text-sm text-white flex items-center justify-center transition-opacity hover:opacity-90"
                 style={{ background: C.brand, textDecoration: "none" }}
               >
-                📥 프로그램 다운로드
+                프로그램 다운로드
               </a>
             ) : (
               <div className="w-full h-12 rounded-xl font-bold text-sm flex items-center justify-center"

@@ -294,10 +294,10 @@ export default function AccountsPanel({ isSuperAdmin = true }: { isSuperAdmin?: 
       });
       const json = await safeJson(res);
       if (!json.ok) throw new Error(json.error || "실패");
-      alert(`✅ ${acc.email}로 임시 비밀번호를 발송했습니다.`);
+      alert(`${acc.email}로 임시 비밀번호를 발송했습니다.`);
       load();
     } catch (e) {
-      alert(`❌ 발송 실패: ${String(e)}`);
+      alert(`발송 실패: ${String(e)}`);
     } finally {
       setSendingTemp(null);
     }
@@ -351,7 +351,7 @@ export default function AccountsPanel({ isSuperAdmin = true }: { isSuperAdmin?: 
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">⚠️ {error}</div>
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">{error}</div>
       )}
 
       {/* 통합 계정 테이블 */}
@@ -491,7 +491,7 @@ export default function AccountsPanel({ isSuperAdmin = true }: { isSuperAdmin?: 
       {/* 빈 상태 안내 */}
       {accounts.length === 0 && !error && isSuperAdmin && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-700">
-          <div className="font-semibold mb-1">👤 등록된 계정이 없습니다</div>
+          <div className="font-semibold mb-1">등록된 계정이 없습니다</div>
           <p>오른쪽 상단의 <strong>+ 계정 추가</strong> 버튼으로 첫 번째 계정을 등록하세요.</p>
         </div>
       )}

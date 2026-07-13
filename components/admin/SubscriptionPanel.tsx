@@ -289,7 +289,7 @@ export default function SubscriptionPanel() {
 
       {/* ── 글로벌 필터 (법인 / SW명) ── */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4 flex flex-wrap items-center gap-3">
-        <span className="text-xs font-semibold text-gray-500">🔍 데이터 필터</span>
+        <span className="text-xs font-semibold text-gray-500">데이터 필터</span>
 
         {/* 법인 선택 */}
         <div className="relative">
@@ -302,7 +302,7 @@ export default function SubscriptionPanel() {
                 : "bg-white border-gray-300 text-gray-600"
             }`}
           >
-            {companyOptions.map(c => <option key={c} value={c}>{c === "전체" ? "🏭 전체 법인" : c}</option>)}
+            {companyOptions.map(c => <option key={c} value={c}>{c === "전체" ? "전체 법인" : c}</option>)}
           </select>
           <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">▾</span>
         </div>
@@ -318,7 +318,7 @@ export default function SubscriptionPanel() {
                 : "bg-white border-gray-300 text-gray-600"
             }`}
           >
-            {swNameOptions.map(n => <option key={n} value={n}>{n === "전체" ? "💾 전체 SW명" : n}</option>)}
+            {swNameOptions.map(n => <option key={n} value={n}>{n === "전체" ? "전체 SW명" : n}</option>)}
           </select>
           <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">▾</span>
         </div>
@@ -355,15 +355,15 @@ export default function SubscriptionPanel() {
       {/* ── 차트 ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
         <div className="bg-white border border-gray-200 rounded-xl p-5">
-          <div className="text-sm font-bold text-gray-800 mb-4">🍩 구독 유형 분포</div>
+          <div className="text-sm font-bold text-gray-800 mb-4">구독 유형 분포</div>
           <DonutChart data={typeChartData} />
         </div>
         <div className="bg-white border border-gray-200 rounded-xl p-5">
-          <div className="text-sm font-bold text-gray-800 mb-4">📊 상태별 현황</div>
+          <div className="text-sm font-bold text-gray-800 mb-4">상태별 현황</div>
           <DonutChart data={statusChartData.map(d => ({ label: d.label, value: d.value, color: d.color }))} />
         </div>
         <div className="bg-white border border-gray-200 rounded-xl p-5">
-          <div className="text-sm font-bold text-gray-800 mb-4">📈 SW별 구독 현황</div>
+          <div className="text-sm font-bold text-gray-800 mb-4">SW별 구독 현황</div>
           <HorizBarChart data={swBarData} maxCount={8} />
         </div>
       </div>
@@ -374,7 +374,7 @@ export default function SubscriptionPanel() {
           {/* 요약 헤더 */}
           <div className="flex items-center justify-between px-4 py-3.5">
             <div className="flex items-center gap-3">
-              <span className="text-sm font-bold text-red-700">⚠️ 갱신 임박</span>
+              <span className="text-sm font-bold text-red-700">갱신 임박</span>
               <span className="bg-red-600 text-white text-xs font-bold px-2.5 py-1 rounded-full">
                 {renewingSoon.length}건
               </span>
@@ -479,7 +479,7 @@ export default function SubscriptionPanel() {
       {/* ── 뷰 토글 ── */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex gap-1.5">
-          {([["grouped", "📂 SW별 그룹"], ["table", "📋 전체 목록"]] as const).map(([v, label]) => (
+          {([["grouped", "SW별 그룹"], ["table", "전체 목록"]] as const).map(([v, label]) => (
             <button key={v} onClick={() => setViewMode(v)}
               className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all border ${
                 viewMode === v
@@ -499,7 +499,6 @@ export default function SubscriptionPanel() {
         <div className="flex flex-col gap-3">
           {groupedBySw.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
-              <div className="text-3xl mb-2">🔍</div>
               <div>검색 결과가 없습니다.</div>
             </div>
           ) : (
@@ -541,7 +540,7 @@ export default function SubscriptionPanel() {
                         )}
                         {urgentCount > 0 && (
                           <span className="text-xs text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full font-bold">
-                            ⚠ D-day {urgentCount}
+                            D-day {urgentCount}
                           </span>
                         )}
                         <span className="text-xs text-gray-400 font-medium">{recs.length}건</span>

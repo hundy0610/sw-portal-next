@@ -396,7 +396,7 @@ function AssetPickerModal({
             </div>
             {!loading && (
               <div className="shrink-0 px-4 py-3 border-t border-dashed border-gray-200 bg-gray-50">
-                {error && <p className="text-xs text-red-600 mb-2">⚠️ {error}</p>}
+                {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
                 <button onClick={handleNewPurchase} disabled={newPurchasing}
                   className="w-full text-xs text-gray-400 hover:text-amber-600 hover:bg-amber-50 border border-dashed border-gray-200 hover:border-amber-300 rounded-lg px-4 py-2.5 flex items-center justify-center gap-2 transition-colors disabled:opacity-40">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -522,7 +522,7 @@ function AssetPickerModal({
                 {memo && <li>메모 → <strong>{memo}</strong></li>}
               </ul>
             </div>
-            {error && <p className="text-xs text-red-600">⚠️ {error}</p>}
+            {error && <p className="text-xs text-red-600">{error}</p>}
             <div className="flex gap-2 justify-end mt-1">
               <button onClick={() => setPhase(3)}
                 className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">
@@ -652,7 +652,7 @@ function ReceiptConfirmModal({
             </div>
           )}
 
-          {error && <p className="text-xs text-red-600">⚠️ {error}</p>}
+          {error && <p className="text-xs text-red-600">{error}</p>}
         </div>
 
         <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
@@ -793,7 +793,7 @@ function ReturnCompleteModal({
               <li>반납일자 → <strong>{returnDate}</strong></li>
             </ul>
           </div>
-          {error && <p className="text-xs text-red-600">⚠️ {error}</p>}
+          {error && <p className="text-xs text-red-600">{error}</p>}
         </div>
 
         <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
@@ -1042,7 +1042,7 @@ function ReturnRegModal({
                   </button>
                 </div>
               </div>
-              {error && <p className="text-xs text-red-600">⚠️ {error}</p>}
+              {error && <p className="text-xs text-red-600">{error}</p>}
             </div>
 
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
@@ -1208,7 +1208,7 @@ function ReturnRegModal({
                   <li>확정 후 → <strong>SW 라이선스 회수</strong> 단계로 이동</li>
                 </ul>
               </div>
-              {error && <p className="text-xs text-red-600">⚠️ {error}</p>}
+              {error && <p className="text-xs text-red-600">{error}</p>}
             </div>
 
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
@@ -1267,7 +1267,7 @@ function ReturnRegModal({
                   })}
                 </div>
               )}
-              {swError && <p className="text-xs text-red-600">⚠️ {swError}</p>}
+              {swError && <p className="text-xs text-red-600">{swError}</p>}
             </div>
 
             <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-2">
@@ -1672,7 +1672,7 @@ function DetailModal({
     <Row label={label}>
       <div className="flex items-center gap-2 flex-wrap">
         {children}
-        {saved[field] && <span className="text-xs text-green-600">✓ 변경됨</span>}
+        {saved[field] && <span className="text-xs text-green-600">변경됨</span>}
         {saveErr?.field === field && <span className="text-xs text-red-500">{saveErr.msg}</span>}
       </div>
     </Row>
@@ -1697,7 +1697,7 @@ function DetailModal({
               <TypeBadge type={record.type} />
               {record.stage !== FINAL_STAGE && <AgingChip days={days} stage={record.stage} />}
               {record.autoSynced && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-50 text-cyan-700" title="HW DB 자동 동기화로 진행됨">⚡ 자동</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-50 text-cyan-700" title="HW DB 자동 동기화로 진행됨">자동</span>
               )}
               {isOverdue(record) && (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">미반납</span>
@@ -1757,7 +1757,7 @@ function DetailModal({
               className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40">
               {saving === "department" ? "저장 중…" : "저장"}
             </button>
-            {saved["department"] && <span className="text-xs text-green-600">✓ 변경됨</span>}
+            {saved["department"] && <span className="text-xs text-green-600">변경됨</span>}
           </SaveRow>
 
           <SaveRow label="사용자" field="user">
@@ -1766,7 +1766,7 @@ function DetailModal({
               className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40">
               {saving === "user" ? "저장 중…" : "저장"}
             </button>
-            {saved["user"] && <span className="text-xs text-green-600">✓ 변경됨</span>}
+            {saved["user"] && <span className="text-xs text-green-600">변경됨</span>}
           </SaveRow>
 
           <SaveRow label="사용일자" field="useDate">
@@ -1820,7 +1820,7 @@ function DetailModal({
                       </button>
                     : <span className="font-mono text-sm text-gray-800">{newAssetId || "—"}</span>
                 )}
-                {saved.newAssetId && <span className="text-xs text-green-600">✓ 변경됨</span>}
+                {saved.newAssetId && <span className="text-xs text-green-600">변경됨</span>}
               </div>
             </Row>
           )}
@@ -1921,7 +1921,7 @@ function DetailModal({
               className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40">
               {saving === "requesterEmail" ? "저장 중…" : "저장"}
             </button>
-            {saved["requesterEmail"] && <span className="text-xs text-green-600">✓ 변경됨</span>}
+            {saved["requesterEmail"] && <span className="text-xs text-green-600">변경됨</span>}
           </SaveRow>
 
           {(stage === "기기준비완료" || stage === "반납요청") && (
@@ -1973,10 +1973,10 @@ function DetailModal({
                       ? (record.address === "본사" ? "반납 안내 메일 미리보기" : "반납(행낭) 안내 메일 미리보기")
                       : (record.address === "본사" ? "수령 안내 메일 미리보기" : "행낭 발송 안내 메일 미리보기")}
                   </button>
-                  {mailSent && <span className="text-xs text-green-600 font-medium">✓ 발송 완료</span>}
+                  {mailSent && <span className="text-xs text-green-600 font-medium">발송 완료</span>}
                 </div>
                 {!(emailRef.current?.value ?? record.requesterEmail ?? "") && <p className="text-xs text-amber-600">기안자 이메일을 입력해야 발송할 수 있습니다.</p>}
-                {mailErr && <p className="text-xs text-red-500">⚠️ {mailErr}</p>}
+                {mailErr && <p className="text-xs text-red-500">{mailErr}</p>}
               </div>
             </Row>
           )}
@@ -2071,7 +2071,7 @@ function DetailModal({
               className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40">
               {saving === "reason" ? "저장 중…" : "저장"}
             </button>
-            {saved["reason"] && <span className="text-xs text-green-600">✓ 변경됨</span>}
+            {saved["reason"] && <span className="text-xs text-green-600">변경됨</span>}
           </SaveRow>
 
           <Row label={record.type === "임대" ? "지급사유" : "비고"}>
@@ -2086,7 +2086,7 @@ function DetailModal({
                   className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed">
                   {saving === "note" ? "저장 중…" : "저장"}
                 </button>
-                {saved.note && <span className="text-xs text-green-600">✓ 저장됨</span>}
+                {saved.note && <span className="text-xs text-green-600">저장됨</span>}
               </div>
             </div>
           </Row>
@@ -2711,7 +2711,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
                         조회 중…
                       </span>
                     )}
-                    {!autoFilling && autoFilled && <span className="text-[10px] text-green-500">✓ 자동입력 완료</span>}
+                    {!autoFilling && autoFilled && <span className="text-[10px] text-green-500">자동입력 완료</span>}
                   </div>
                   <input className={inputCls} placeholder="예) DW-NB-0123" value={form.assetId} onChange={set("assetId")} autoFocus />
                 </div>
@@ -3023,7 +3023,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
                   {niMemo && <li>메모 → <strong>{niMemo}</strong></li>}
                 </ul>
               </div>
-              {err && <p className="text-xs text-red-600">⚠️ {err}</p>}
+              {err && <p className="text-xs text-red-600">{err}</p>}
             </div>
             <div className="shrink-0 px-6 py-4 border-t border-gray-100 flex gap-2 justify-end">
               <button onClick={() => setPhase("info")}
@@ -3335,7 +3335,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
                   placeholder="기타 특이사항 등..."
                   className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full resize-none" />
               </div>
-              {err && <p className="text-xs text-red-600">⚠️ {err}</p>}
+              {err && <p className="text-xs text-red-600">{err}</p>}
             </div>
             <div className="shrink-0 px-6 py-4 border-t border-gray-100 flex gap-2 justify-between">
               <button onClick={() => { setExSelected(null); setPhase("ex_list"); }}
@@ -3387,7 +3387,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
                   placeholder="비고 메모..."
                   className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-200 w-full resize-none" />
               </div>
-              {err && <p className="text-xs text-red-600">⚠️ {err}</p>}
+              {err && <p className="text-xs text-red-600">{err}</p>}
             </div>
             <div className="shrink-0 px-6 py-4 border-t border-gray-100 flex gap-2 justify-between">
               <button onClick={() => { setRtSelected(null); setPhase("rt_list"); }}
@@ -3714,7 +3714,7 @@ export default function ExchangeReturnPanel() {
             </button>
             <button onClick={() => setMainTab("label")}
               className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${mainTab === "label" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
-              🏷️ 행낭 발송지
+              행낭 발송지
             </button>
           </div>
           {mainTab === "list" && (<>
@@ -3755,7 +3755,7 @@ export default function ExchangeReturnPanel() {
 
       {mainTab === "list" && (<>
       {error && (
-        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">⚠️ {error}</div>
+        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{error}</div>
       )}
 
       {/* 열린/닫힌 케이스 탭 */}
@@ -3926,7 +3926,7 @@ export default function ExchangeReturnPanel() {
                             }`}
                             title="행낭 출력 대기에 추가"
                           >
-                            {queuingId === r.id ? "…" : queuedIds.has(r.id) ? "🏷️ 대기중" : "🏷️ 출력대기"}
+                            {queuingId === r.id ? "…" : queuedIds.has(r.id) ? "대기중" : "출력대기"}
                           </button>
                         )}
                         {(r.stage === "기기준비완료" || r.stage === "반납요청") && !r.isClosed && (
@@ -3961,8 +3961,8 @@ export default function ExchangeReturnPanel() {
                             {mailPreviewLoading && mailTarget?.id === r.id
                               ? "…"
                               : mailSentIds.has(r.id)
-                                ? "✓ 발송됨"
-                                : "✉️ 메일발송"}
+                                ? "발송됨"
+                                : "메일발송"}
                           </button>
                         )}
                       </div>
@@ -4124,7 +4124,6 @@ export default function ExchangeReturnPanel() {
               <button
                 onClick={() => { setMailMethodSelect(null); handleMailPreview(mailMethodSelect, "행낭"); }}
                 className="flex items-center gap-3 p-4 rounded-xl border-2 border-orange-200 bg-orange-50 hover:bg-orange-100 transition-colors text-left">
-                <span className="text-2xl">📦</span>
                 <div>
                   <p className="text-sm font-bold text-orange-700">행낭 발송</p>
                   <p className="text-xs text-orange-500 mt-0.5">행낭으로 포장하여 본사로 발송</p>
@@ -4133,7 +4132,6 @@ export default function ExchangeReturnPanel() {
               <button
                 onClick={() => { setMailMethodSelect(null); handleMailPreview(mailMethodSelect, "직접방문"); }}
                 className="flex items-center gap-3 p-4 rounded-xl border-2 border-amber-200 bg-amber-50 hover:bg-amber-100 transition-colors text-left">
-                <span className="text-2xl">🚶</span>
                 <div>
                   <p className="text-sm font-bold text-amber-700">직접 방문</p>
                   <p className="text-xs text-amber-500 mt-0.5">신관 4층 자산관리파트 직접 방문 반납</p>
@@ -4156,12 +4154,12 @@ export default function ExchangeReturnPanel() {
                 <h3 className="font-bold text-gray-900 text-base">메일 미리보기</h3>
                 {mailTarget.requesterEmail
                   ? <p className="text-xs text-gray-400 mt-0.5">수신: {mailTarget.requesterEmail}</p>
-                  : <p className="text-xs text-red-500 mt-0.5">⚠️ 기안자 이메일이 없습니다. 상세 모달에서 먼저 입력해주세요.</p>}
+                  : <p className="text-xs text-red-500 mt-0.5">기안자 이메일이 없습니다. 상세 모달에서 먼저 입력해주세요.</p>}
                 {mailPreviewData && <p className="text-xs text-gray-500 mt-0.5 font-medium truncate max-w-sm">{mailPreviewData.subject}</p>}
                 {mailTarget.stage === "반납요청" && (
                   <span className="inline-flex items-center gap-1 mt-1.5 text-xs font-semibold px-2 py-0.5 rounded-full"
                     style={{ background: mailReturnMethod === "행낭" ? "#FFF7ED" : "#FFFBEB", color: mailReturnMethod === "행낭" ? "#EA580C" : "#D97706" }}>
-                    {mailReturnMethod === "행낭" ? "📦 행낭 반납" : "🚶 직접방문 반납"}
+                    {mailReturnMethod === "행낭" ? "행낭 반납" : "직접방문 반납"}
                   </span>
                 )}
               </div>
@@ -4182,7 +4180,7 @@ export default function ExchangeReturnPanel() {
                 <iframe srcDoc={mailPreviewData.html} className="w-full h-full border-0" style={{ minHeight: "420px" }} sandbox="allow-same-origin" />
               ) : mailPanelErr ? (
                 <div className="flex items-center justify-center h-full">
-                  <p className="text-sm text-red-500">⚠️ {mailPanelErr}</p>
+                  <p className="text-sm text-red-500">{mailPanelErr}</p>
                 </div>
               ) : null}
             </div>

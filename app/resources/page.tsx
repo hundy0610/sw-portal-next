@@ -409,7 +409,7 @@ export default function ResourcesPage() {
                                   locked ? (
                                     <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 ml-3"
                                       style={{ background: C.primarySoft, color: "var(--state-caution)" }}>
-                                      🔒 규정 확인 필요
+                                      규정 확인 필요
                                     </div>
                                   ) : (
                                     <a href={`/api/sw-docs/${doc.id}/file?download=1`}
@@ -467,7 +467,7 @@ export default function ResourcesPage() {
                           <span className="text-sm font-medium"
                             style={{ color: regulationConfirmed ? "var(--state-positive)" : "var(--state-caution)" }}>
                             {regulationConfirmed
-                              ? "✅ 규정을 확인하였습니다. 설치 파일을 다운로드할 수 있습니다."
+                              ? "규정을 확인하였습니다. 설치 파일을 다운로드할 수 있습니다."
                               : "위 규정을 모두 읽고 확인하였습니다. (체크 후 설치 파일 다운로드 가능)"}
                           </span>
                         </label>

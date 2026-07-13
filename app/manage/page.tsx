@@ -97,13 +97,13 @@ function ManageDashboard({ session }: { session: SessionInfo }) {
     });
   }
 
-  const TABS: { id: ManageTab; label: string; icon: string }[] = [
-    { id: "notices",     label: "공지사항",   icon: "🔔" },
-    { id: "courses",     label: "교육과정",   icon: "🎓" },
-    { id: "swresources", label: "SW 자료실",  icon: "💿" },
-    { id: "swdb",        label: "SW 검색",    icon: "🔍" },
-    { id: "manuals",     label: "매뉴얼",     icon: "📘" },
-    { id: "audit",       label: "감사 로그",  icon: "🕵️" },
+  const TABS: { id: ManageTab; label: string }[] = [
+    { id: "notices",     label: "공지사항"   },
+    { id: "courses",     label: "교육과정"   },
+    { id: "swresources", label: "SW 자료실"  },
+    { id: "swdb",        label: "SW 검색"    },
+    { id: "manuals",     label: "매뉴얼"     },
+    { id: "audit",       label: "감사 로그"  },
   ];
 
   async function handleLogout() {
@@ -135,7 +135,7 @@ function ManageDashboard({ session }: { session: SessionInfo }) {
                 color:      tab === t.id ? C.text1 : C.text3,
                 fontWeight: tab === t.id ? 700 : 500,
               }}>
-              <span>{t.icon}</span> {t.label}
+              {t.label}
             </button>
           ))}
         </nav>
@@ -144,7 +144,7 @@ function ManageDashboard({ session }: { session: SessionInfo }) {
           <button onClick={toggleDark}
             className="hover:brightness-95 transition-all"
             style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px 10px", borderRadius: 8, background: C.bg, color: C.text3, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-            {darkMode ? "☀️ 라이트 모드" : "🌙 다크 모드"}
+            {darkMode ? "라이트 모드" : "다크 모드"}
           </button>
           <button onClick={handleLogout}
             className="hover:brightness-95 transition-all"
@@ -332,7 +332,7 @@ function CoursesPanel() {
         {items.map(c => (
           <ItemRow key={c.id} visible={c.visible}
             badge={{ text: CAT[c.category], bg: C.primarySoft, color: C.primary }}
-            title={c.title} sub={`${c.duration ? `⏱ ${c.duration}` : ""}${c.deadline ? ` · 마감 ${c.deadline}` : ""}`}
+            title={c.title} sub={`${c.duration ? c.duration : ""}${c.deadline ? ` · 마감 ${c.deadline}` : ""}`}
             onToggle={() => toggleVisible(c)} onDelete={() => del(c.id, c.title)} />
         ))}
       </ItemList>
@@ -477,7 +477,7 @@ function SwPanel() {
                 <p style={{ fontSize: 11, color: C.text4, margin: "4px 0 0" }}>
                   {sw.vendor}{sw.category ? ` · ${sw.category}` : ""}
                   {sw.alternatives.length ? ` · 대체: ${sw.alternatives.join(", ")}` : ""}
-                  {sw.officialUrl ? " · 🔗 공식링크" : ""}
+                  {sw.officialUrl ? " · 공식링크" : ""}
                 </p>
               </div>
               <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
@@ -947,7 +947,7 @@ function SwResourcesPanel() {
                   <div>
                     <p style={{ fontSize: 11, color: C.text4, margin: "0 0 6px" }}>A. 직접 업로드 (PDF, 문서 등 4MB 이하)</p>
                     <label style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 10, border: `1px solid ${C.border}`, background: docForm.externalFileUrl ? "var(--portal-bg)" : "var(--portal-surface)", cursor: docForm.externalFileUrl ? "not-allowed" : "pointer", fontSize: 12, color: C.text2, fontWeight: 600, opacity: docForm.externalFileUrl ? 0.5 : 1 }}>
-                      📎 파일 선택
+                      파일 선택
                       <input type="file" style={{ display: "none" }} disabled={!!docForm.externalFileUrl} onChange={e => {
                         const f = e.target.files?.[0] ?? null;
                         if (!f) return;
@@ -1223,7 +1223,7 @@ function ManualsPanel() {
             )}
 
             <label style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 10, border: `1px solid ${C.border}`, background: "var(--portal-surface)", cursor: "pointer", fontSize: 12, color: C.text2, fontWeight: 600, width: "fit-content" }}>
-              📎 HTML 파일 선택
+              HTML 파일 선택
               <input type="file" accept=".html,.htm" style={{ display: "none" }} onChange={e => {
                 const f = e.target.files?.[0] ?? null;
                 if (!f) return;

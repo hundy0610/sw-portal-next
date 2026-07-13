@@ -20,33 +20,6 @@ type FormData = Omit<SwCredential, "id">;
 const EMPTY_FORM: FormData = { swName: "", siteUrl: "", accountId: "", password: "", memo: "" };
 
 // ────────────────────────────────────────────────────────────
-// SW 아이콘 매핑
-// ────────────────────────────────────────────────────────────
-const SW_ICON_MAP: { keywords: string[]; icon: string }[] = [
-  { keywords: ["office","365","microsoft","ms "], icon: "🪟" },
-  { keywords: ["adobe","photoshop","illustrator","premiere","acrobat"], icon: "🎨" },
-  { keywords: ["github","gitlab","git"], icon: "🐙" },
-  { keywords: ["notion"], icon: "📓" },
-  { keywords: ["slack"], icon: "💬" },
-  { keywords: ["zoom"], icon: "📹" },
-  { keywords: ["figma"], icon: "🎯" },
-  { keywords: ["jetbrains","intellij","pycharm","webstorm","datagrip","rider"], icon: "🧠" },
-  { keywords: ["aws","amazon"], icon: "☁️" },
-  { keywords: ["google"], icon: "🔵" },
-  { keywords: ["apple","mac"], icon: "🍎" },
-  { keywords: ["한컴","hwp","한글"], icon: "🇰🇷" },
-  { keywords: ["autocad","autodesk"], icon: "📐" },
-  { keywords: ["vpn","보안","security"], icon: "🛡️" },
-];
-function getSwIcon(name: string): string {
-  const lower = name.toLowerCase();
-  for (const { keywords, icon } of SW_ICON_MAP) {
-    if (keywords.some(k => lower.includes(k))) return icon;
-  }
-  return "💾";
-}
-
-// ────────────────────────────────────────────────────────────
 // 클립보드 복사 버튼
 // ────────────────────────────────────────────────────────────
 function CopyBtn({ text, label }: { text: string; label: string }) {
@@ -70,7 +43,7 @@ function CopyBtn({ text, label }: { text: string; label: string }) {
       }`}
       title={`${label} 복사`}
     >
-      {copied ? "✓ 복사됨" : `📋 ${label}`}
+      {copied ? "복사됨" : label}
     </button>
   );
 }
@@ -110,7 +83,7 @@ function CredentialModal({
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 z-10">
         <div className="flex items-center justify-between mb-5">
           <h3 className="font-bold text-base text-gray-900">
-            {isEdit ? "✏️ 계정 수정" : "➕ 새 계정 추가"}
+            {isEdit ? "계정 수정" : "새 계정 추가"}
           </h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
         </div>
@@ -222,7 +195,6 @@ function DeleteConfirmModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 z-10 text-center">
-        <div className="text-3xl mb-3">🗑️</div>
         <h3 className="font-bold text-base text-gray-900 mb-1">계정 삭제</h3>
         <p className="text-sm text-gray-500 mb-5">
           <span className="font-semibold text-gray-800">{cred.swName}</span>의 계정을 삭제하시겠습니까?<br />
@@ -306,7 +278,7 @@ export default function CredentialsPanel() {
       if (!res.ok) throw new Error(json.error ?? "추가 실패");
       setCreds(p => [...p, json.data]);
       setShowAdd(false);
-      showToast("✅ 계정이 추가되었습니다.");
+      showToast("계정이 추가되었습니다.");
     } catch (e) {
       showToast((e as Error).message, "error");
     } finally {
@@ -328,7 +300,7 @@ export default function CredentialsPanel() {
       if (!res.ok) throw new Error(json.error ?? "수정 실패");
       setCreds(p => p.map(c => c.id === editTarget.id ? { ...c, ...form } : c));
       setEditTarget(null);
-      showToast("✅ 계정이 수정되었습니다.");
+      showToast("계정이 수정되었습니다.");
     } catch (e) {
       showToast((e as Error).message, "error");
     } finally {
@@ -350,7 +322,7 @@ export default function CredentialsPanel() {
       if (!res.ok) throw new Error(json.error ?? "삭제 실패");
       setCreds(p => p.filter(c => c.id !== deleteTarget.id));
       setDeleteTarget(null);
-      showToast("🗑️ 계정이 삭제되었습니다.");
+      showToast("계정이 삭제되었습니다.");
     } catch (e) {
       showToast((e as Error).message, "error");
     } finally {
@@ -421,7 +393,6 @@ export default function CredentialsPanel() {
 
       {/* ── 보안 배너 ── */}
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-5 flex items-start gap-3">
-        <span className="text-lg shrink-0">🔒</span>
         <div className="text-xs text-amber-800">
           <strong>관리자 전용 페이지입니다.</strong> 이 화면의 계정 정보는 로그인된 관리자에게만 표시됩니다.
           비밀번호는 클릭 시 잠깐만 표시되며, 복사 후 바로 가려집니다.
@@ -435,7 +406,6 @@ export default function CredentialsPanel() {
 
       {!loading && error && (
         <div className="text-center py-20">
-          <div className="text-3xl mb-3">⚠️</div>
           <div className="text-sm text-red-600 font-semibold mb-2">{error}</div>
           <button onClick={loadCreds} className="text-xs text-blue-600 underline">다시 시도</button>
         </div>
@@ -467,7 +437,6 @@ export default function CredentialsPanel() {
           {/* ── 빈 상태 ── */}
           {filtered.length === 0 && (
             <div className="text-center py-16 text-gray-400">
-              <div className="text-3xl mb-2">{search ? "🔍" : "🔐"}</div>
               <div className="text-sm mb-3">
                 {search ? "검색 결과가 없습니다." : "등록된 계정이 없습니다."}
               </div>
@@ -485,12 +454,10 @@ export default function CredentialsPanel() {
           {/* ── 카드 렌더 함수 ── */}
           {(() => {
             function CredCard({ c }: { c: SwCredential }) {
-              const icon = getSwIcon(c.swName);
               const isRevealed = revealId === c.id;
               return (
                 <div className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition-all hover:border-blue-200 flex flex-col gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-xl shrink-0">{icon}</div>
                     <div className="flex-1 min-w-0">
                       <div className="font-bold text-sm text-gray-900 truncate">{c.swName}</div>
                       {search && c.memo && <div className="text-xs text-gray-400 truncate mt-0.5">{c.memo}</div>}

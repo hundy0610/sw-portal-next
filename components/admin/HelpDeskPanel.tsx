@@ -1878,7 +1878,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
       {/* ── Error ── */}
       {error && (
         <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
-          ⚠️ {error}
+          {error}
           {error.includes("NOTION_DB_HELPDESK") && (
             <p className="mt-1 text-xs text-red-500">Vercel 환경변수에 <code className="bg-red-100 px-1 rounded">NOTION_DB_HELPDESK</code>를 추가해주세요.</p>
           )}
@@ -2056,20 +2056,20 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
       {/* ── Tab Bar ── */}
       <div className="flex gap-1 mb-5 bg-gray-100 p-1 rounded-xl w-fit">
         {([
-          ["overview",  "📈", "개요"],
-          ["type",      "🏷",  "유형분석"],
-          ["company",   "🏢", "법인현황"],
-          ["assignee",  "👤", "담당자"],
-          ["analysis",  "📊", "분석"],
-          ["list",      "📋", "목록"],
-          ["status_list", "📊", "접수 현황"],
-          ["report",    "📄", "보고서"],
-        ] as [Tab, string, string][]).map(([id, icon, label]) => (
+          ["overview",  "개요"],
+          ["type",      "유형분석"],
+          ["company",   "법인현황"],
+          ["assignee",  "담당자"],
+          ["analysis",  "분석"],
+          ["list",      "목록"],
+          ["status_list", "접수 현황"],
+          ["report",    "보고서"],
+        ] as [Tab, string][]).map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)}
             className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
               tab === id ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
             }`}>
-            {icon} {label}
+            {label}
           </button>
         ))}
       </div>
@@ -2403,7 +2403,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                             <button onClick={() => copyFeedbackLink(t.id)}
                               title="평가 링크 복사"
                               className="text-violet-400 hover:text-violet-600 transition-colors text-[10px] font-medium whitespace-nowrap">
-                              {copiedId === t.id ? "✓ 복사됨" : "평가링크"}
+                              {copiedId === t.id ? "복사됨" : "평가링크"}
                             </button>
                           )}
                           {t.status === "완료" && t.requesterEmail && !emailSentIds.has(t.id) && (
@@ -3232,12 +3232,11 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
             {/* ── 메인 카테고리 분포 요약 ── */}
             <div className="grid grid-cols-3 gap-3">
               {[
-                { label: "SW 문의", count: swTickets.length,  color: "#6366F1", bg: "#EEF2FF",  icon: "💿" },
-                { label: "HW 문의", count: hwTickets.length,  color: "#F59E0B", bg: "#FFFBEB",  icon: "🖥️" },
-                { label: "기타",    count: etcTickets.length, color: "#6B7280", bg: "#F9FAFB",  icon: "📋" },
+                { label: "SW 문의", count: swTickets.length,  color: "#6366F1", bg: "#EEF2FF" },
+                { label: "HW 문의", count: hwTickets.length,  color: "#F59E0B", bg: "#FFFBEB" },
+                { label: "기타",    count: etcTickets.length, color: "#6B7280", bg: "#F9FAFB" },
               ].map(item => (
                 <div key={item.label} className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3">
-                  <div className="text-2xl">{item.icon}</div>
                   <div>
                     <div className="text-xl font-extrabold" style={{ color: item.color }}>{item.count}건</div>
                     <div className="text-xs text-gray-500 font-medium">{item.label}</div>
@@ -3250,7 +3249,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
             {/* ── 급증 경보 ── */}
             {spikes.length > 0 && (
               <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-                <h3 className="text-sm font-bold text-red-700 mb-2">⚠️ 이번 달 급증 항목 감지</h3>
+                <h3 className="text-sm font-bold text-red-700 mb-2">이번 달 급증 항목 감지</h3>
                 <div className="space-y-1.5">
                   {spikes.map(({ label, color, cur, prevAvg }) => (
                     <div key={label} className="text-xs text-red-600 flex items-center gap-2">
@@ -3269,7 +3268,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
             {/* ── SW 세부 분석 ── */}
             <div className="bg-white border border-gray-200 rounded-xl p-5">
               <h3 className="text-sm font-bold text-gray-800 mb-1 flex items-center gap-2">
-                <span className="text-base">💿</span> SW 문의 세부 분류
+                SW 문의 세부 분류
                 <span className="text-xs font-normal text-gray-400 ml-1">내용 분석 기반 · {swTickets.length}건</span>
               </h3>
               <p className="text-[11px] text-gray-400 mb-4">어떤 소프트웨어·프로그램 문의가 많이 접수되는지 파악</p>
@@ -3279,7 +3278,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
             {/* ── HW 세부 분석 ── */}
             <div className="bg-white border border-gray-200 rounded-xl p-5">
               <h3 className="text-sm font-bold text-gray-800 mb-1 flex items-center gap-2">
-                <span className="text-base">🖥️</span> HW 문의 세부 분류
+                HW 문의 세부 분류
                 <span className="text-xs font-normal text-gray-400 ml-1">내용 분석 기반 · {hwTickets.length}건</span>
               </h3>
               <p className="text-[11px] text-gray-400 mb-4">어떤 하드웨어·장비 문제가 반복 접수되는지 파악</p>

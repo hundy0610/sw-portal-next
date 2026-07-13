@@ -98,7 +98,7 @@ function AnnualGoalForm({
       <TextArea label="왜 해야 하는가 (배경/필요성)" value={reason} onChange={setReason} rows={3}
         placeholder="이 목표를 달성해야 하는 이유, 배경, 문제의식을 작성하세요." />
       <div className="bg-blue-50 rounded-xl p-4 space-y-3">
-        <div className="text-xs font-bold text-blue-700 mb-2">📈 기대효과</div>
+        <div className="text-xs font-bold text-blue-700 mb-2">기대효과</div>
         <TextArea label="현업 입장 기대효과" value={businessEffect} onChange={setBusinessEffect} rows={2}
           placeholder="달성 시 현업(고객/유관부서)에 어떤 긍정적 변화가 생기는가?" />
         <TextArea label="우리 팀 입장 기대효과" value={teamEffect} onChange={setTeamEffect} rows={2}
@@ -452,7 +452,7 @@ export default function WorkFeedbackPanel({ session }: Props) {
         <div className="bg-white rounded-xl border border-gray-200 p-3">
           <div className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide">메뉴</div>
           {(["annual", "monthly", ...(isSuper ? ["summary"] : [])] as ("annual" | "monthly" | "summary")[]).map(t => {
-            const labels = { annual: "📌 연목표 설정", monthly: "📅 월간 관리", summary: "📊 종합 평가" };
+            const labels = { annual: "연목표 설정", monthly: "월간 관리", summary: "종합 평가" };
             return (
               <button key={t} onClick={() => setTab(t)}
                 className={`w-full px-3 py-1.5 text-sm rounded-lg text-left transition-colors mb-0.5 ${
@@ -568,7 +568,6 @@ export default function WorkFeedbackPanel({ session }: Props) {
 
             {annualGoals.length === 0 && !annualFormOpen && (
               <div className="text-center py-16 text-gray-400 text-sm">
-                <div className="text-3xl mb-2">🎯</div>
                 아직 작성된 연목표가 없습니다.
               </div>
             )}
@@ -652,7 +651,7 @@ export default function WorkFeedbackPanel({ session }: Props) {
               {/* Monthly Goal */}
               <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
                 <div className="flex items-center justify-between mb-3">
-                  <SectionTitle>📅 {month}월 목표</SectionTitle>
+                  <SectionTitle>{month}월 목표</SectionTitle>
                   <div className="flex items-center gap-2">
                     {monthlyGoal?.evaluation && <GradeBadge grade={monthlyGoal.evaluation.grade} />}
                     {canEdit && !monthlyFormOpen && (
@@ -666,7 +665,7 @@ export default function WorkFeedbackPanel({ session }: Props) {
                     {isSuper && monthlyGoal && (
                       <button onClick={() => setEvalModalGoal(monthlyGoal)}
                         className="px-3 py-1 text-xs rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100 font-semibold">
-                        {monthlyGoal.evaluation ? "평가 수정" : "✍️ 평가하기"}
+                        {monthlyGoal.evaluation ? "평가 수정" : "평가하기"}
                       </button>
                     )}
                   </div>
@@ -722,7 +721,7 @@ export default function WorkFeedbackPanel({ session }: Props) {
 
               {/* Weekly entries */}
               <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-                <SectionTitle>📝 주간 활동 기록</SectionTitle>
+                <SectionTitle>주간 활동 기록</SectionTitle>
 
                 <div className="space-y-4">
                   {[1, 2, 3, 4, 5].map(w => {
@@ -787,7 +786,7 @@ export default function WorkFeedbackPanel({ session }: Props) {
                               {/* 매니저 코멘트 — 슈퍼 어드민: 입력/수정 가능 / 팀원: 읽기 전용 */}
                               {isSuper ? (
                                 <div className="border-t border-gray-100 pt-3 mt-1">
-                                  <div className="text-xs font-bold text-blue-700 mb-1.5">💬 코멘트</div>
+                                  <div className="text-xs font-bold text-blue-700 mb-1.5">코멘트</div>
                                   {entry.id in commentEditing ? (
                                     <div className="space-y-2">
                                       <textarea
@@ -834,7 +833,7 @@ export default function WorkFeedbackPanel({ session }: Props) {
                                 </div>
                               ) : entry.managerComment && (
                                 <div className="border-t border-gray-100 pt-3 mt-1">
-                                  <div className="text-xs font-bold text-blue-700 mb-1.5">💬 매니저 코멘트</div>
+                                  <div className="text-xs font-bold text-blue-700 mb-1.5">매니저 코멘트</div>
                                   <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
                                     <div className="text-gray-700 whitespace-pre-wrap text-sm">{entry.managerComment.comment}</div>
                                     <div className="text-xs text-blue-500 mt-2">

@@ -136,7 +136,7 @@ export default function MonitorAssetSection({
   return (
     <div className="bg-white border border-gray-100 rounded-xl p-3">
       <div className="flex items-center justify-between mb-2">
-        <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">🏷 자산 정보</div>
+        <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">자산 정보</div>
         {!loading && (
           editing ? (
             <div className="flex gap-1">
@@ -148,7 +148,7 @@ export default function MonitorAssetSection({
               </button>
             </div>
           ) : (
-            <button onClick={() => setEditing(true)} className="text-[10px] text-blue-400 hover:text-blue-600">✏️ 편집</button>
+            <button onClick={() => setEditing(true)} className="text-[10px] text-blue-400 hover:text-blue-600">편집</button>
           )
         )}
       </div>

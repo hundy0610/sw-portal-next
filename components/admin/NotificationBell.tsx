@@ -20,14 +20,6 @@ interface Props {
   onNavigate: (page: string) => void;
 }
 
-const CATEGORY_ICON: Record<NotifCategory, string> = {
-  "sw-expiry": "🔑",
-  "asset-ready": "📲",
-  "return-due": "📦",
-  "helpdesk-new": "🎫",
-  "weekly-feedback": "🌱",
-};
-
 const SEVERITY_STYLE: Record<NotificationItem["severity"], { text: string; dot: string; border: string }> = {
   urgent: { text: "text-red-600", dot: "bg-red-500", border: "border-l-red-500" },
   warn:   { text: "text-amber-700", dot: "bg-amber-500", border: "border-l-amber-500" },
@@ -161,7 +153,6 @@ export default function NotificationBell({ onNavigate }: Props) {
                     onClick={() => handleItemClick(item)}
                     className={`w-full text-left px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors flex gap-2.5 ${item.read ? "opacity-60" : ""}`}
                   >
-                    <span className="text-base shrink-0 leading-none mt-0.5">{CATEGORY_ICON[item.category]}</span>
                     <span className="flex-1 min-w-0">
                       <span className="flex items-center gap-1.5">
                         {!item.read && <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${s.dot}`} />}
@@ -196,7 +187,6 @@ export default function NotificationBell({ onNavigate }: Props) {
               key={item.id}
               className={`bg-white rounded-lg shadow-2xl border border-gray-100 border-l-4 ${s.border} flex gap-2.5 items-start p-3`}
             >
-              <span className="text-base shrink-0 leading-none mt-0.5">{CATEGORY_ICON[item.category]}</span>
               <button onClick={() => handleToastClick(item)} className="flex-1 min-w-0 text-left">
                 <span className="text-xs font-semibold text-gray-800 block truncate">{item.title}</span>
                 <span className={`text-xs mt-0.5 block ${s.text}`}>{item.description}</span>

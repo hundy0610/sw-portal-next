@@ -596,7 +596,7 @@ function Step2({ userInfo, initialRecords, onComplete }: {
                       {r.workType    && <span className="text-xs text-gray-400">· {r.workType}</span>}
                       {shared ? (
                         <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
-                          🔗 {r.billingType}
+                          {r.billingType}
                         </span>
                       ) : (
                         cost && <span className="text-xs text-amber-600 font-medium">{cost}/월</span>
@@ -623,7 +623,7 @@ function Step2({ userInfo, initialRecords, onComplete }: {
                           ? "bg-green-500 text-white shadow-sm"
                           : "bg-white text-green-700 border border-green-300 hover:bg-green-50"
                       }`}>
-                      ✓ 사용 중
+                      사용 중
                     </button>
                     <button onClick={() => updateStatus(r.id, "반납예정")} disabled={updating[r.id]}
                       className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
@@ -631,7 +631,7 @@ function Step2({ userInfo, initialRecords, onComplete }: {
                           ? "bg-gray-400 text-white shadow-sm"
                           : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"
                       }`}>
-                      ✗ 반납예정
+                      반납예정
                     </button>
                   </div>
                 </li>
@@ -689,7 +689,7 @@ function Step2({ userInfo, initialRecords, onComplete }: {
         {submitError && <div className="mb-2 px-3 py-2 bg-red-50 rounded-lg text-sm text-red-600">{submitError}</div>}
         <button onClick={handleComplete} disabled={submitting}
           className="w-full py-3.5 rounded-2xl bg-amber-500 text-white font-bold text-base hover:bg-amber-600 disabled:opacity-50 transition-colors shadow-md">
-          {submitting ? "등록 중…" : "✓ 실사 완료"}
+          {submitting ? "등록 중…" : "실사 완료"}
         </button>
         <p className="mt-1.5 text-xs text-center text-gray-400">완료 후에는 수정이 어렵습니다.</p>
       </div>
@@ -777,7 +777,7 @@ function Step3({ userInfo, records, added, onReset }: {
             {/* 직접 부담 비용 */}
             {(ownKrw > 0 || ownUsd > 0) && (
               <div className="bg-amber-50 rounded-xl p-4">
-                <p className="text-xs font-semibold text-amber-700 mb-2">💳 월 구독 비용 (직접 부담)</p>
+                <p className="text-xs font-semibold text-amber-700 mb-2">월 구독 비용 (직접 부담)</p>
                 {ownKrw > 0 && (
                   <p className="text-lg font-bold text-amber-800">{fmtKrw(ownKrw)}<span className="text-xs font-normal text-amber-600 ml-1">/월</span></p>
                 )}
@@ -792,7 +792,7 @@ function Step3({ userInfo, records, added, onReset }: {
             {sharedItems.length > 0 && (
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
                 <div className="flex items-center gap-1.5 mb-2">
-                  <p className="text-xs font-semibold text-amber-700">🔗 쉐어드 청구 비용 (총액 제외)</p>
+                  <p className="text-xs font-semibold text-amber-700">쉐어드 청구 비용 (총액 제외)</p>
                   <Tooltip text={"쉐어드 청구는 서비스를 제공하는 법인에서 청구하는 비용으로,\n실제 지불 주체가 다르므로 총 비용에서 제외됩니다.\n\n해당 비용은 서비스 제공 법인에 문의하세요."} />
                 </div>
                 {(sharedKrw > 0 || sharedUsd > 0) && (
@@ -821,7 +821,7 @@ function Step3({ userInfo, records, added, onReset }: {
         )}
 
         <div className="mt-5 bg-gray-50 rounded-xl p-4 text-left space-y-1">
-          <p className="text-xs font-semibold text-gray-700">📋 처리 결과</p>
+          <p className="text-xs font-semibold text-gray-700">처리 결과</p>
           <p className="text-xs text-gray-500">• 상태 변경 내용은 즉시 Notion에 반영되었습니다</p>
           <p className="text-xs text-gray-500">• 신규 SW는 IT팀 검토 후 최종 등록됩니다</p>
           {untouched > 0 && <p className="text-xs" style={{ color: "var(--state-risk)" }}>• 미확인 {untouched}건은 IT팀이 별도 확인합니다</p>}
@@ -1214,7 +1214,7 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
           <div className="divide-y divide-gray-100">
             {grouped.map(([user, items]) => (
               <div key={user} className="px-5 py-4">
-                <p className="text-xs font-bold text-gray-400 mb-2">👤 {user}</p>
+                <p className="text-xs font-bold text-gray-400 mb-2">{user}</p>
                 <ul className="space-y-2">
                   {items.map(r => {
                     const cost = r.monthlyKrw > 0 ? `₩${r.monthlyKrw.toLocaleString("ko-KR")}` : (r.monthlyUsd > 0 ? `$${r.monthlyUsd}` : null);
@@ -1274,7 +1274,7 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
             setConfirmed(true);
           }}
           className="w-full py-3 rounded-xl bg-amber-500 text-white font-bold text-base hover:bg-amber-600 transition-colors">
-          ✓ 모두 맞습니다 — 확인 완료
+          모두 맞습니다 — 확인 완료
         </button>
         <button onClick={() => setMismatchMode(m => !m)}
           className="w-full py-2.5 rounded-xl border border-gray-300 text-gray-600 text-sm font-semibold hover:bg-gray-50 transition-colors">
@@ -1295,13 +1295,13 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
         <div className="flex gap-2">
           <button onClick={() => { downloadSwTemplate({ company, department: dept }); setDownloaded(true); }}
             className="flex-1 py-2.5 rounded-xl border border-amber-300 text-amber-600 text-sm font-semibold hover:bg-amber-50 transition-colors">
-            ⬇️ 양식 다운로드
+            양식 다운로드
           </button>
           <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadFile(f); }} />
           <button onClick={() => fileRef.current?.click()}
             className="flex-1 py-2.5 rounded-xl border border-amber-300 text-amber-600 text-sm font-semibold hover:bg-amber-50 transition-colors">
-            📤 파일 업로드
+            파일 업로드
           </button>
         </div>
         {downloaded && (
@@ -1310,7 +1310,7 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
         {uploadErr && <div className="px-3 py-2 bg-red-50 rounded-lg text-xs text-red-600">{uploadErr}</div>}
         {uploadRows && (
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
-            <p className="text-xs font-semibold text-amber-800">📄 {uploadFile} — {uploadRows.length}건</p>
+            <p className="text-xs font-semibold text-amber-800">{uploadFile} — {uploadRows.length}건</p>
             <ul className="text-xs text-amber-700 space-y-0.5 max-h-28 overflow-y-auto">
               {uploadRows.slice(0, 10).map((r, i) => (
                 <li key={i}>{r.user} · {r.swCategory}{r.swDetail && ` (${r.swDetail})`}</li>
@@ -1330,7 +1330,7 @@ function TeamFlow({ onBack }: { onBack: () => void }) {
           </div>
         )}
         {uploadResult !== null && (
-          <p className="text-xs text-green-600">✅ {uploadResult}건 등록 완료되었습니다.</p>
+          <p className="text-xs text-green-600">{uploadResult}건 등록 완료되었습니다.</p>
         )}
       </div>
     </div>

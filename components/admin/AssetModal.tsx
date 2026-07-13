@@ -166,7 +166,7 @@ export function AssetModalInner({ assetId, onClose }: { assetId: string; onClose
                   </button>
                 </div>
               </div>
-              {saveResult === "done"  && <p className="text-xs text-green-600 pl-24">✓ 상태가 변경되었습니다.</p>}
+              {saveResult === "done"  && <p className="text-xs text-green-600 pl-24">상태가 변경되었습니다.</p>}
               {saveResult === "error" && <p className="text-xs text-red-500 pl-24">저장에 실패했습니다. 다시 시도해주세요.</p>}
               <Row label="구매일자"  value={record.purchaseDate} />
               <Row label="사용일자"  value={record.useDate} />

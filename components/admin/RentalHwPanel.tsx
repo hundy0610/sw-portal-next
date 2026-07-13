@@ -67,11 +67,11 @@ function StatusPopover({ record, onSave, onClose }: {
         <div className="text-xs text-gray-400 font-semibold mb-1">{record.assetNo} 상태 변경</div>
         <button disabled={saving || !record.inStock} onClick={() => toggle(false)}
           className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-colors disabled:opacity-40 hover:bg-red-50 text-red-600">
-          🔴 임대중 (미반납)
+          임대중 (미반납)
         </button>
         <button disabled={saving || record.inStock} onClick={() => toggle(true)}
           className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-colors disabled:opacity-40 hover:bg-blue-50 text-blue-600">
-          🔵 반납완료 (재고)
+          반납완료 (재고)
         </button>
       </div>
     </div>
@@ -152,7 +152,7 @@ function CreateModal({ onSave, onClose }: {
           <button onClick={onClose} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50">취소</button>
           <button onClick={handleSave} disabled={saving}
             className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 transition-colors">
-            {saving ? "저장 중…" : "✓ Notion에 저장"}
+            {saving ? "저장 중…" : "Notion에 저장"}
           </button>
         </div>
       </div>
@@ -267,7 +267,7 @@ function EditModal({ record, onSave, onClose }: {
           <button onClick={onClose} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50">취소</button>
           <button onClick={handleSave} disabled={saving}
             className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 transition-colors">
-            {saving ? "저장 중…" : "✓ Notion에 저장"}
+            {saving ? "저장 중…" : "Notion에 저장"}
           </button>
         </div>
       </div>
@@ -384,7 +384,6 @@ export default function RentalHwPanel() {
 
   if (missingEnv) return (
     <div className="flex flex-col items-center justify-center py-20 gap-4">
-      <div className="text-3xl">⚙️</div>
       <div className="text-center">
         <p className="text-sm font-semibold text-gray-700 mb-1">환경변수가 설정되지 않았습니다</p>
         <p className="text-xs text-gray-400 mb-4">Vercel 대시보드 → Settings → Environment Variables 에서 아래 변수를 추가해주세요.</p>
@@ -406,7 +405,7 @@ export default function RentalHwPanel() {
         <div className="flex gap-2">
           <button onClick={() => load(true)}
             className="px-3 py-2 text-xs border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 transition-colors">
-            🔄 새로고침
+            새로고침
           </button>
           <button onClick={() => setCreateOpen(true)}
             className="px-4 py-2 text-xs bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors">
@@ -464,7 +463,7 @@ export default function RentalHwPanel() {
           {/* 반납초과 */}
           <button onClick={() => setShowOverdue(v => !v)}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-all ${showOverdue ? "bg-red-50 border-red-300 text-red-600" : "bg-white border-gray-300 text-gray-600 hover:border-gray-400"}`}>
-            ⚠ 반납 초과만
+            반납 초과만
           </button>
         </div>
         <div className="text-right text-xs text-gray-400">{filtered.length}건 조회됨</div>

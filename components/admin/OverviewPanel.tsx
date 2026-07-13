@@ -23,21 +23,21 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 // ── SW 매크로 카테고리 ─────────────────────────────────────────
-const SW_CAT_RULES: { label: string; icon: string; color: string; keywords: string[] }[] = [
-  { label: "문서작업용", icon: "📝", color: "#6366F1",
+const SW_CAT_RULES: { label: string; color: string; keywords: string[] }[] = [
+  { label: "문서작업용", color: "#6366F1",
     keywords: ["office","word","excel","powerpoint","365","한글","hwp","acrobat","pdf","한셀","한쇼","thinkfree","docs","sheets","slides","hancom","libreoffice","foxit"] },
-  { label: "AI 툴",    icon: "🤖", color: "#8B5CF6",
+  { label: "AI 툴",    color: "#8B5CF6",
     keywords: ["copilot","chatgpt","gpt","claude","midjourney","cursor","tabnine","gemini","codeium","stable diffusion","ai","wrtn"] },
-  { label: "개발 툴",  icon: "💻", color: "#10B981",
+  { label: "개발 툴",  color: "#10B981",
     keywords: ["vscode","vs code","intellij","pycharm","eclipse","xcode","git","github","gitlab","docker","postman","dbeaver","sourcetree","datagrip","rider","goland","webstorm"] },
-  { label: "협업 툴",  icon: "🤝", color: "#F97316",
+  { label: "협업 툴",  color: "#F97316",
     keywords: ["notion","slack","teams","zoom","webex","google meet","trello","asana","monday","카카오워크","miro","confluence","jira","dooray"] },
-  { label: "디자인 툴", icon: "🎨", color: "#EC4899",
+  { label: "디자인 툴", color: "#EC4899",
     keywords: ["figma","photoshop","illustrator","indesign","adobe cc","adobe creative","sketch","after effects","premiere","lightroom","canva","zeplin","invision"] },
-  { label: "보안/관리", icon: "🛡️", color: "#EF4444",
+  { label: "보안/관리", color: "#EF4444",
     keywords: ["v3","ahnlab","알약","antivirus","vpn","dlp","endpoint","mcafee","symantec","fortinet","crowdstrike","wireshark","nessus"] },
 ];
-const EXTRA_CAT = { label: "기타", icon: "📦", color: "#9CA3AF" };
+const EXTRA_CAT = { label: "기타", color: "#9CA3AF" };
 
 function getMacroCategory(name?: string) {
   if (!name) return EXTRA_CAT;
@@ -49,7 +49,7 @@ function getMacroCategory(name?: string) {
 }
 
 // ── Donut Chart ───────────────────────────────────────────────
-interface DonutSeg { label: string; value: number; color: string; icon?: string }
+interface DonutSeg { label: string; value: number; color: string }
 
 function DonutChart({ data, title }: { data: DonutSeg[]; title: string }) {
   const [hovered, setHovered] = useState<string | null>(null);
@@ -109,7 +109,7 @@ function DonutChart({ data, title }: { data: DonutSeg[]; title: string }) {
               onMouseLeave={() => setHovered(null)}
             >
               <span className="w-2.5 h-2.5 rounded-sm shrink-0 transition-all" style={{ background: s.color }} />
-              <span className="text-gray-600 flex-1 truncate">{s.icon} {s.label}</span>
+              <span className="text-gray-600 flex-1 truncate">{s.label}</span>
               <span className="font-bold text-gray-900 ml-1 shrink-0">{s.value}</span>
               <span className="text-gray-400 w-8 text-right shrink-0">
                 {total > 0 ? `${Math.round(s.value / total * 100)}%` : "0%"}
@@ -163,10 +163,10 @@ function LoadingBox() {
 
 // ── 차트 탭 옵션 ──────────────────────────────────────────────
 const CHART_TABS = [
-  { id: "category", label: "카테고리별", icon: "📂" },
-  { id: "company",  label: "법인별",    icon: "🏭" },
-  { id: "dept",     label: "부서별",    icon: "🏢" },
-  { id: "type",     label: "라이선스 유형", icon: "💳" },
+  { id: "category", label: "카테고리별" },
+  { id: "company",  label: "법인별" },
+  { id: "dept",     label: "부서별" },
+  { id: "type",     label: "라이선스 유형" },
 ] as const;
 type ChartTabId = (typeof CHART_TABS)[number]["id"];
 
@@ -258,10 +258,10 @@ export default function OverviewPanel({ company = "" }: { company?: string }) {
   // 인터랙티브 차트 데이터
   const chartData = useMemo(() => {
     if (chartTab === "category") {
-      const map: Record<string, { value: number; color: string; icon: string }> = {};
+      const map: Record<string, { value: number; color: string }> = {};
       for (const r of filteredRecs) {
         const cat = getMacroCategory(r.swCategory);
-        if (!map[cat.label]) map[cat.label] = { value: 0, color: cat.color, icon: cat.icon };
+        if (!map[cat.label]) map[cat.label] = { value: 0, color: cat.color };
         map[cat.label].value++;
       }
       return Object.entries(map).map(([label, v]) => ({ label, ...v })).sort((a, b) => b.value - a.value);
@@ -333,7 +333,7 @@ export default function OverviewPanel({ company = "" }: { company?: string }) {
           </div>
         )}
         {isCompanyFiltered && (
-          <span className="px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-xs font-semibold text-blue-700">🏭 {company}</span>
+          <span className="px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-xs font-semibold text-blue-700">{company}</span>
         )}
       </div>
 
@@ -426,7 +426,7 @@ export default function OverviewPanel({ company = "" }: { company?: string }) {
         </div>
 
         {rn === 0 ? (
-          <div className="py-10 text-center text-xs text-gray-400">30일 이내 갱신 임박 항목 없음 ✓</div>
+          <div className="py-10 text-center text-xs text-gray-400">30일 이내 갱신 임박 항목 없음</div>
         ) : (
           <>
             {/* 컬럼 헤더 */}
@@ -480,7 +480,6 @@ export default function OverviewPanel({ company = "" }: { company?: string }) {
                   ? "bg-gray-800 text-white border-gray-800"
                   : "bg-gray-50 text-gray-600 border-gray-200 hover:border-gray-400"
               }`}>
-              <span>{t.icon}</span>
               <span>{t.label}</span>
             </button>
           ))}

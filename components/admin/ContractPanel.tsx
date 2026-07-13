@@ -340,7 +340,6 @@ export default function ContractPanel() {
   const AlertBanner = expiringSoon.length > 0 && (
     <div className="mb-5 flex items-start gap-3 px-4 py-3 rounded-lg border"
       style={{ background: "#FFFAE6", borderColor: "#FFE380" }}>
-      <span className="text-xl mt-0.5">⚠️</span>
       <div>
         <div className="font-semibold text-sm" style={{ color: "#974F0C" }}>
           계약 만료 임박 알림 — {expiringSoon.length}건
@@ -400,17 +399,15 @@ export default function ContractPanel() {
       {/* KPI 카드 — 계약수·PC수는 중립(참고 정보), 월/연 수익은 브랜드 강조(핵심 지표) */}
       <div className="grid grid-cols-4 gap-4 mb-6">
         {[
-          { label: "진행중 계약",  value: `${active.length}건`,            icon: "📋", bg: "var(--state-neutral-soft)", tc: "var(--state-neutral)", emphasis: false },
-          { label: "총 관리 PC",   value: `${totalQty.toLocaleString()}대`, icon: "💻", bg: "var(--state-neutral-soft)", tc: "var(--state-neutral)", emphasis: false },
-          { label: "월 수익",      value: won(monthlyRevenue),              icon: "💰", bg: "var(--brand-soft)", tc: "var(--brand)", emphasis: true },
-          { label: "연 수익",      value: won(monthlyRevenue * 12),         icon: "📈", bg: "var(--brand-soft)", tc: "var(--brand)", emphasis: true },
+          { label: "진행중 계약",  value: `${active.length}건`,            tc: "var(--state-neutral)", emphasis: false },
+          { label: "총 관리 PC",   value: `${totalQty.toLocaleString()}대`, tc: "var(--state-neutral)", emphasis: false },
+          { label: "월 수익",      value: won(monthlyRevenue),              tc: "var(--brand)", emphasis: true },
+          { label: "연 수익",      value: won(monthlyRevenue * 12),         tc: "var(--brand)", emphasis: true },
         ].map((k) => (
           <div key={k.label} className="bg-white rounded-xl p-4 shadow-sm"
             style={{ border: k.emphasis ? `1.5px solid var(--brand)` : "1px solid #f3f4f6" }}>
-            <div className="flex items-center justify-between mb-2">
+            <div className="mb-2">
               <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{k.label}</span>
-              <span className="w-8 h-8 rounded-lg flex items-center justify-center text-base"
-                style={{ background: k.bg }}>{k.icon}</span>
             </div>
             <div className={k.emphasis ? "text-3xl font-extrabold" : "text-2xl font-bold"} style={{ color: k.tc }}>{k.value}</div>
           </div>
@@ -520,7 +517,7 @@ export default function ContractPanel() {
                             <span className="text-sm font-bold text-gray-900 leading-tight line-clamp-1">{c.company}</span>
                             <StatusBadge status={c.status} />
                           </div>
-                          <div className="text-xs text-gray-500 mb-1">👤 {c.contactName}</div>
+                          <div className="text-xs text-gray-500 mb-1">{c.contactName}</div>
                           <div className="text-xs text-gray-400 mb-1.5">
                             {fmt(c.startDate)} ~ {fmt(c.endDate)}
                             {c.status === "active" && daysUntil(c.endDate) > 0 && (
@@ -678,7 +675,7 @@ export default function ContractPanel() {
                         {c.pdfUrl ? (
                           <a href={c.pdfUrl} target="_blank" rel="noopener noreferrer"
                             className="text-xs text-amber-600 hover:underline flex items-center gap-1">
-                            📄 {c.pdfName || "보기"}
+                            {c.pdfName || "보기"}
                           </a>
                         ) : (
                           <span className="text-xs text-gray-300">없음</span>
@@ -836,7 +833,6 @@ export default function ContractPanel() {
                 {/* 기존 파일 표시 (수정 모드, 새 첨부 없을 때) */}
                 {editTarget?.pdfUrl && !pdfFile && !pdfLink && (
                   <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-100">
-                    <span className="text-base">📄</span>
                     <a href={editTarget.pdfUrl} target="_blank" rel="noopener noreferrer"
                       className="text-xs text-amber-600 hover:underline flex-1 truncate">
                       {editTarget.pdfName || "계약서 파일"}
@@ -885,7 +881,6 @@ export default function ContractPanel() {
                   <>
                     {pdfFile ? (
                       <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-50 border border-green-100">
-                        <span className="text-base">📄</span>
                         <span className="text-xs text-green-700 flex-1 truncate">{pdfFile.name}</span>
                         <span className="text-xs text-gray-400">
                           {(pdfFile.size / 1024 / 1024).toFixed(1)}MB
@@ -1005,7 +1000,6 @@ export default function ContractPanel() {
           style={{ background: "rgba(0,0,0,0.4)" }}>
           <div className="bg-white rounded-2xl shadow-2xl w-80 p-6">
             <div className="text-center">
-              <div className="text-4xl mb-3">🗑️</div>
               <h3 className="font-bold text-gray-900 mb-1">계약을 삭제하시겠습니까?</h3>
               <p className="text-sm text-gray-500 mb-5">이 작업은 되돌릴 수 없습니다.</p>
               <div className="flex gap-2 justify-center">
@@ -1029,7 +1023,7 @@ export default function ContractPanel() {
           className="fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl shadow-lg text-sm font-medium text-white flex items-center gap-2 fade-in"
           style={{ background: toast.type === "ok" ? "#006644" : "#BF2600" }}
         >
-          {toast.type === "ok" ? "✓" : "✕"} {toast.msg}
+          {toast.msg}
         </div>
       )}
     </div>

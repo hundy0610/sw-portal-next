@@ -529,7 +529,7 @@ export default function WorkTrackerPanel({ session }: { session: { userId: strin
         <div style={{ textAlign: "center", padding: 60, color: "#A1A1AA" }}>불러오는 중...</div>
       ) : error ? (
         <div style={{ textAlign: "center", padding: 60, color: "#DC2626", fontSize: 13 }}>
-          <div style={{ marginBottom: 8 }}>⚠️ 데이터를 불러오지 못했습니다</div>
+          <div style={{ marginBottom: 8 }}>데이터를 불러오지 못했습니다</div>
           <div style={{ color: "#A1A1AA", fontSize: 12 }}>{error}</div>
         </div>
       ) : (

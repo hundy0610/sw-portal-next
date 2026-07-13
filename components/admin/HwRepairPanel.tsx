@@ -231,7 +231,6 @@ function FilePreviewModal({ url, name, onClose }: { url: string; name: string; o
             <iframe src={url} className="w-full rounded-lg border border-gray-200" style={{ height: "70vh" }} title={name} />
           ) : (
             <div className="text-center py-12">
-              <div className="text-4xl mb-3">📄</div>
               <p className="text-sm text-gray-600 mb-4">{name}</p>
               <a href={url} download target="_blank" rel="noopener noreferrer"
                 className="text-xs px-4 py-2 rounded-lg bg-gray-800 text-white hover:bg-gray-700 transition-colors">
@@ -405,7 +404,7 @@ function SaveRow({ label, field, saved, children }: { label: string; field: stri
     <Row label={label}>
       <div className="flex items-center gap-2 flex-wrap">
         {children}
-        {saved[field] && <span className="text-xs text-green-600">✓ 변경됨</span>}
+        {saved[field] && <span className="text-xs text-green-600">변경됨</span>}
       </div>
     </Row>
   );
@@ -592,7 +591,7 @@ function DetailModal({
                   className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed">
                   {saving === "note" ? "저장 중…" : "저장"}
                 </button>
-                {saved.note && <span className="text-xs text-green-600">✓ 저장됨</span>}
+                {saved.note && <span className="text-xs text-green-600">저장됨</span>}
               </div>
             </div>
           </Row>
@@ -866,7 +865,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
             <div className="flex items-center justify-between mb-1">
               <label className={labelCls} style={{ margin: 0 }}>자산번호 <span className="text-red-500">*</span></label>
               {autoFilling && <span className="text-[10px] text-gray-400 flex items-center gap-1"><svg className="animate-spin w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity="0.25"/><path d="M21 12a9 9 0 00-9-9"/></svg>조회 중…</span>}
-              {!autoFilling && autoFilled && <span className="text-[10px] text-green-500">✓ 자동입력 완료</span>}
+              {!autoFilling && autoFilled && <span className="text-[10px] text-green-500">자동입력 완료</span>}
             </div>
             <input className={inputCls} placeholder="예) DW-NB-0123" value={form.assetId} onChange={set("assetId")} autoFocus />
           </div>
@@ -1163,7 +1162,7 @@ export default function HwRepairPanel() {
       </div>
 
       {error && (
-        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">⚠️ {error}</div>
+        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{error}</div>
       )}
 
       {/* 열린/닫힌 케이스 탭 */}

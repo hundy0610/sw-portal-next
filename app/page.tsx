@@ -393,8 +393,8 @@ function EducationTab() {
                   <h3 className="text-base font-semibold leading-snug mb-2.5" style={{ color: C.text1 }}>{c.title}</h3>
                   {c.description && <CourseDescription text={c.description} />}
                   <div className="flex items-center gap-3 mb-4 text-xs" style={{ color: C.text4 }}>
-                    {c.duration && <span>⏱ {c.duration}</span>}
-                    {c.deadline && <span>📅 {c.deadline}</span>}
+                    {c.duration && <span>{c.duration}</span>}
+                    {c.deadline && <span>{c.deadline}</span>}
                   </div>
                   {c.courseUrl && c.courseUrl !== "#" ? (
                     <a href={c.courseUrl} target="_blank" rel="noopener noreferrer"
@@ -458,7 +458,7 @@ function EducationTab() {
                   <h3 className="text-base font-semibold leading-snug mb-2" style={{ color: C.text1 }}>{p.title}</h3>
                   {p.description && <CourseDescription text={p.description} />}
                   <div className="flex items-center gap-3 flex-wrap">
-                    {p.duration && <span className="text-xs" style={{ color: C.text4 }}>⏱ {p.duration}</span>}
+                    {p.duration && <span className="text-xs" style={{ color: C.text4 }}>{p.duration}</span>}
                     {p.courseUrl && p.courseUrl !== "#" && (
                       <a href={p.courseUrl} target="_blank" rel="noopener noreferrer"
                         className="text-xs font-semibold hover:underline transition-all"
@@ -540,9 +540,9 @@ function SearchTab() {
   };
 
   const STATUS_STYLE: Record<string, { color: string; bg: string; border: string; label: string }> = {
-    approved:    { color: "var(--state-positive)", bg: "var(--state-positive-soft)", border: "var(--state-positive)", label: "✅ 승인됨"  },
-    conditional: { color: "var(--state-caution)",  bg: "var(--state-caution-soft)",  border: "var(--state-caution)",  label: "⚠️ 조건부"  },
-    banned:      { color: "var(--state-risk)",     bg: "var(--state-risk-soft)",     border: "var(--state-risk)",     label: "🚫 금지됨"  },
+    approved:    { color: "var(--state-positive)", bg: "var(--state-positive-soft)", border: "var(--state-positive)", label: "승인됨"  },
+    conditional: { color: "var(--state-caution)",  bg: "var(--state-caution-soft)",  border: "var(--state-caution)",  label: "조건부"  },
+    banned:      { color: "var(--state-risk)",     bg: "var(--state-risk-soft)",     border: "var(--state-risk)",     label: "금지됨"  },
   };
 
   const FILTER_LABELS: Record<string, string> = {
@@ -751,11 +751,11 @@ function SearchTab() {
                             </div>
                           )}
                           <div className="text-xs p-3" style={{ borderRadius: 10, background: ss.bg, color: ss.color }}>
-                            {s.status === "approved"    && "✅ 사내 공식 승인된 소프트웨어입니다. 자유롭게 사용할 수 있습니다."}
-                            {s.status === "banned"      && "🚫 사용이 금지된 소프트웨어입니다. 즉시 삭제하고 IT팀에 신고해주세요."}
+                            {s.status === "approved"    && "사내 공식 승인된 소프트웨어입니다. 자유롭게 사용할 수 있습니다."}
+                            {s.status === "banned"      && "사용이 금지된 소프트웨어입니다. 즉시 삭제하고 IT팀에 신고해주세요."}
                             {s.status === "conditional" && (
                               <span className="flex items-start justify-between gap-3">
-                                <span>⚠️ IT팀 사전 승인 후 사용 가능합니다.</span>
+                                <span>IT팀 사전 승인 후 사용 가능합니다.</span>
                                 <a href={INQUIRY_URL} target="_blank" rel="noopener noreferrer"
                                   className="font-semibold shrink-0 underline"
                                   onClick={e => e.stopPropagation()}>승인 요청 →</a>

@@ -282,7 +282,6 @@ export default function AdminLoginPage() {
 
             {resetStep === "done" && (
               <div className="text-center py-4">
-                <div className="text-4xl mb-3">✅</div>
                 <p className="text-sm text-gray-700 mb-5">
                   비밀번호가 성공적으로 변경되었습니다.<br />새 비밀번호로 로그인해주세요.
                 </p>

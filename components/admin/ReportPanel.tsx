@@ -88,7 +88,7 @@ function NotionBtn({ url }: { url: string }) {
 function SharedBadge({ label }: { label?: string }) {
   return (
     <span className="ml-1 inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-bold bg-amber-100 text-amber-700 ring-1 ring-amber-300">
-      🔗 {label || "쉐어드청구"}
+      {label || "쉐어드청구"}
     </span>
   );
 }

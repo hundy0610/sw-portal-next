@@ -280,7 +280,7 @@ function ZoneDashboard({ data, selectedIds, onSelect }: {
                       selectedIds.has(item.id) ? "bg-blue-50 text-blue-600 font-medium" : "text-gray-500 hover:bg-gray-50"
                     }`}
                     onClick={() => onSelect(item.id)}>
-                    🖥 {item.label}
+                    {item.label}
                   </div>
                 ))}
                 {facilities.map(fac => (
@@ -289,7 +289,7 @@ function ZoneDashboard({ data, selectedIds, onSelect }: {
                       selectedIds.has(fac.id) ? "bg-blue-50 text-blue-600 font-medium" : "text-gray-500 hover:bg-gray-50"
                     }`}
                     onClick={() => onSelect(fac.id)}>
-                    📍 {fac.label}
+                    {fac.label}
                   </div>
                 ))}
               </div>
@@ -313,7 +313,7 @@ function ZoneDashboard({ data, selectedIds, onSelect }: {
                   selectedIds.has(item.id) ? "bg-blue-50 text-blue-600 font-medium" : "text-gray-500 hover:bg-gray-50"
                 }`}
                 onClick={() => onSelect(item.id)}>
-                🖥 {item.label}
+                {item.label}
               </div>
             ))}
             {unassignedFacs.map(fac => (
@@ -322,7 +322,7 @@ function ZoneDashboard({ data, selectedIds, onSelect }: {
                   selectedIds.has(fac.id) ? "bg-blue-50 text-blue-600 font-medium" : "text-gray-500 hover:bg-gray-50"
                 }`}
                 onClick={() => onSelect(fac.id)}>
-                📍 {fac.label}
+                {fac.label}
               </div>
             ))}
           </div>
@@ -810,15 +810,15 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
       <div className="flex-none bg-white border-b px-4 py-2 flex items-center gap-2 flex-wrap shadow-sm">
         <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
           {([
-            { id:"select",   icon:"↖",  label:"선택"   },
-            { id:"monitor",  icon:"🖥",  label:"모니터" },
-            { id:"zone",     icon:"⬜",  label:"구역"   },
-            { id:"facility", icon:"📍",  label:"시설물" },
-          ] as { id:EditTool; icon:string; label:string }[]).map(t => (
+            { id:"select",   label:"선택"   },
+            { id:"monitor",  label:"모니터" },
+            { id:"zone",     label:"구역"   },
+            { id:"facility", label:"시설물" },
+          ] as { id:EditTool; label:string }[]).map(t => (
             <button key={t.id} onClick={() => setTool(t.id)}
               className={`px-3 py-1.5 font-medium border-r border-gray-200 last:border-0 transition-colors ${
                 tool===t.id ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-gray-50"
-              }`}>{t.icon} {t.label}</button>
+              }`}>{t.label}</button>
           ))}
         </div>
 
@@ -875,13 +875,13 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
         {tool==="select" && selNonZoneIds.length >= 2 && !selGroup && (
           <button onClick={groupSelected}
             className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-purple-50 text-purple-600 hover:bg-purple-100 border border-purple-200 transition-colors">
-            🔗 그룹화 ({selNonZoneIds.length})
+            그룹화 ({selNonZoneIds.length})
           </button>
         )}
         {tool==="select" && selGroup && (
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] text-purple-500 bg-purple-50 px-2 py-1 rounded-lg border border-purple-200">
-              🔗 {selGroup.name}
+              {selGroup.name}
             </span>
             <button onClick={ungroupSelected}
               className="px-2 py-1 rounded-lg text-[11px] font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200 transition-colors">
@@ -916,7 +916,7 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
           {itemCount>0 && <span className="text-[10px] text-gray-400">{itemCount}개</span>}
           <button onClick={() => fileRef.current?.click()}
             className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200 transition-colors">
-            🖼 도면 이미지
+            도면 이미지
           </button>
           {data.imageUrl && (
             <button onClick={() => onChange({...data, imageUrl:null})}
@@ -946,7 +946,6 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
               <div onClick={() => fileRef.current?.click()}
                 className="absolute inset-0 z-10 flex flex-col items-center justify-center cursor-pointer rounded-xl border-2 border-dashed border-blue-300 bg-white/70 hover:border-blue-400 transition-colors"
                 style={{ minHeight:200 }}>
-                <div className="text-5xl mb-3">🖼</div>
                 <div className="text-sm font-semibold text-blue-500">도면 이미지를 업로드하세요</div>
                 <div className="text-xs text-gray-400 mt-1">또는 툴바의 아이템을 직접 배치하세요</div>
               </div>
@@ -1184,7 +1183,7 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
                   {!selGroup ? (
                     <button onClick={groupSelected}
                       className="w-full py-1.5 rounded-lg bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700 transition-colors">
-                      🔗 그룹으로 묶기
+                      그룹으로 묶기
                     </button>
                   ) : (
                     <div className="space-y-1.5">
@@ -1203,7 +1202,7 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
 
               {/* ── Monitor ── */}
               {selItem && (<>
-                <div className="text-xs font-semibold text-slate-700">🖥 모니터</div>
+                <div className="text-xs font-semibold text-slate-700">모니터</div>
                 <div>
                   <div className="text-[10px] text-gray-400 mb-1.5">모니터 타입</div>
                   <div className="space-y-1">
@@ -1331,7 +1330,7 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
               {/* ── Z-order ── */}
               {lastSelId && (
                 <div className="border-t border-gray-100 pt-3">
-                  <div className="text-[10px] text-gray-400 mb-1.5">🔢 순서 (Z-order)</div>
+                  <div className="text-[10px] text-gray-400 mb-1.5">순서 (Z-order)</div>
                   <div className="grid grid-cols-4 gap-1">
                     {([["back","맨뒤","⇊"],["backward","뒤로","↓"],["forward","앞으로","↑"],["front","맨앞","⇈"]] as [string,string,string][]).map(([op, label, icon]) => (
                       <button key={op}
@@ -1348,7 +1347,7 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
               {/* ── Tags ── */}
               {(selItem || selFac || selZone) && (
                 <div className="border-t border-gray-100 pt-3">
-                  <div className="text-[10px] text-gray-400 mb-1.5">🏷 태그</div>
+                  <div className="text-[10px] text-gray-400 mb-1.5">태그</div>
                   <TagEditor
                     key={lastSelId}
                     tags={selItem?.tags ?? selFac?.tags ?? selZone?.tags ?? []}
@@ -1365,7 +1364,7 @@ export default function FloorMapEditor({ data, onChange, onZoneMove }: {
               <div className="pt-2 border-t border-gray-100">
                 <button onClick={deleteSelected}
                   className="w-full py-2 rounded-lg bg-red-50 text-red-600 text-xs font-semibold hover:bg-red-100 border border-red-200 transition-colors">
-                  🗑 삭제{selectedIds.size > 1 ? ` (${selectedIds.size}개)` : ""}
+                  삭제{selectedIds.size > 1 ? ` (${selectedIds.size}개)` : ""}
                 </button>
               </div>
             </div>

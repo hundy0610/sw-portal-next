@@ -140,7 +140,6 @@ export default function EventPage() {
 
         {/* 헤더 */}
         <div className="text-center mb-8">
-          <div className="text-5xl mb-3">⚽</div>
           <h1 className="text-2xl font-extrabold mb-1" style={{ color: C.text1 }}>
             {cfg.title}
           </h1>
@@ -302,7 +301,6 @@ export default function EventPage() {
         {step === "done" && (
           <div className="bg-white rounded-3xl p-10 shadow-sm text-center"
             style={{ border: `1px solid ${C.border}` }}>
-            <div className="text-5xl mb-4">🎉</div>
             <h2 className="text-xl font-extrabold mb-2" style={{ color: C.text1 }}>
               참여 완료!
             </h2>

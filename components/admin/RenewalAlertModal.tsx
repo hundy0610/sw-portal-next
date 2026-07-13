@@ -72,8 +72,8 @@ export default function RenewalAlertModal({ company = "", open: openProp, onClos
 
       if (json.ok) {
         setResult(action === "renew"
-          ? { msg: `✅ ${json.success}건 갱신 완료 — 갱신일이 연장되었습니다.`, type: "ok" }
-          : { msg: `⚠️ ${json.success}건 만료 처리 — 30일 후 자동 삭제됩니다.`, type: "warn" }
+          ? { msg: `${json.success}건 갱신 완료 — 갱신일이 연장되었습니다.`, type: "ok" }
+          : { msg: `${json.success}건 만료 처리 — 30일 후 자동 삭제됩니다.`, type: "warn" }
         );
         setTimeout(dismiss, 3500);
       } else {

@@ -218,7 +218,6 @@ export default function SurveyPage() {
     <div className="min-h-screen flex items-center justify-center p-4" style={{ background: C.bgPage }}>
       <div className="w-full max-w-md rounded-3xl p-10 text-center"
         style={{ background: "#fff", border: `1px solid ${C.border}`, boxShadow: "0 8px 32px rgba(0,0,0,0.06)" }}>
-        <div className="text-5xl mb-5">✅</div>
         <h2 className="text-2xl font-extrabold mb-3" style={{ color: C.text1 }}>제출 완료</h2>
         <p className="text-sm leading-relaxed mb-6" style={{ color: C.text3 }}>
           수요 조사에 참여해 주셔서 감사합니다.<br />

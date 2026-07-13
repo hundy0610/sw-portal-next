@@ -266,8 +266,8 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
       if (target !== "sw") calls.push(fetch("/api/hw/cache-clear", { method: "POST" }));
       if (target !== "hw") calls.push(fetch("/api/sw-records/cache-clear", { method: "POST" }));
       await Promise.all(calls);
-      setClearMsg(`✅ ${target === "hw" ? "HW" : target === "sw" ? "SW" : "전체"} 캐시 초기화 완료`);
-    } catch { setClearMsg("⚠️ 초기화 중 오류 발생"); }
+      setClearMsg(`${target === "hw" ? "HW" : target === "sw" ? "SW" : "전체"} 캐시 초기화 완료`);
+    } catch { setClearMsg("초기화 중 오류 발생"); }
     finally { setClearing(false); setTimeout(() => setClearMsg(null), 4000); }
   }
 

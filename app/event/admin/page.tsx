@@ -294,7 +294,7 @@ export default function EventAdminPage() {
         <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
           <div>
             <h1 className="text-2xl font-extrabold" style={{ color: C.text1 }}>
-              ⚽ 토토 이벤트 관리자
+              토토 이벤트 관리자
             </h1>
             <p className="text-sm mt-1" style={{ color: C.text3 }}>
               {cfg ? `${cfg.teamA} vs ${cfg.teamB}` : "한국 vs 멕시코"} 점수 예측 참여 현황
@@ -321,7 +321,7 @@ export default function EventAdminPage() {
         {loadError && (
           <div className="mb-6 p-4 rounded-2xl text-sm font-medium"
             style={{ background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca" }}>
-            ⚠️ {loadError}
+            {loadError}
           </div>
         )}
 
@@ -425,7 +425,7 @@ export default function EventAdminPage() {
                 disabled={settingsSaving}
                 className="mt-4 px-4 py-2 rounded-xl text-sm font-bold text-white disabled:opacity-50"
                 style={{ background: C.brand }}>
-                {settingsSaving ? "저장 중..." : settingsSaved ? "저장됨 ✓" : "설정 저장"}
+                {settingsSaving ? "저장 중..." : settingsSaved ? "저장됨" : "설정 저장"}
               </button>
             </div>
 
@@ -512,7 +512,7 @@ export default function EventAdminPage() {
                   disabled={resultSaving}
                   className="ml-auto px-4 py-2 rounded-xl text-sm font-bold text-white disabled:opacity-50"
                   style={{ background: C.brand }}>
-                  {resultSaving ? "저장 중..." : resultSaved ? "저장됨 ✓" : "결과 설정 저장"}
+                  {resultSaving ? "저장 중..." : resultSaved ? "저장됨" : "결과 설정 저장"}
                 </button>
               </div>
             </div>

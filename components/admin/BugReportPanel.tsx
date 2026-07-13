@@ -183,7 +183,7 @@ function ComposeReportModal({
                 onClick={() => fileInputRef.current?.click()}
                 style={{ width: "100%", padding: 10, border: "1.5px dashed #CBD5E1", borderRadius: 8, background: "#FAFAFA", color: "#71717A", fontSize: 13, cursor: "pointer", textAlign: "center" as const }}
               >
-                📎 클릭하여 이미지 추가 {files.length > 0 ? `(${files.length}/5)` : ""}
+                클릭하여 이미지 추가 {files.length > 0 ? `(${files.length}/5)` : ""}
               </button>
             )}
             {previews.length > 0 && (
@@ -636,7 +636,7 @@ export default function BugReportPanel() {
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={() => { resetComposeForm(); setComposeOpen(true); }}
             style={{ padding: "8px 14px", borderRadius: 8, background: dark ? "#1a2840" : "#1E3A8A", color: dark ? "#A5B4FC" : "#fff", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-            🐛 새 리포트
+            새 리포트
           </button>
           <button onClick={load}
             style={{ padding: "8px 14px", borderRadius: 8, background: dark ? "#18181B" : "#EEF2FF", color: dark ? "#A5B4FC" : "#4F46E5", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
@@ -660,7 +660,7 @@ export default function BugReportPanel() {
         <div style={{ textAlign: "center", padding: 60, color: "#A1A1AA" }}>불러오는 중...</div>
       ) : error ? (
         <div style={{ textAlign: "center", padding: 60, color: "#DC2626", fontSize: 13 }}>
-          <div style={{ marginBottom: 8 }}>⚠️ 데이터를 불러오지 못했습니다</div>
+          <div style={{ marginBottom: 8 }}>데이터를 불러오지 못했습니다</div>
           <div style={{ color: "#A1A1AA", fontSize: 12 }}>{error}</div>
         </div>
       ) : (
