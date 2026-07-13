@@ -54,6 +54,7 @@ export default function DeclarationPage() {
       const next = !d;
       localStorage.setItem("portal-dark", next ? "1" : "0");
       document.documentElement.classList.toggle("portal-dark", next);
+      document.documentElement.classList.remove("admin-dark");
       window.dispatchEvent(new CustomEvent("portal-dark-change", { detail: next }));
       return next;
     });

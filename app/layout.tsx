@@ -19,10 +19,15 @@ const DARK_MODE_INIT_SCRIPT = `
       if (saved !== null) return saved === "1";
       return window.matchMedia("(prefers-color-scheme: dark)").matches;
     }
-    var cls = [];
-    if (isDark("portal-dark")) cls.push("portal-dark");
-    if (isDark("admin-dark")) cls.push("admin-dark");
-    if (cls.length) document.documentElement.classList.add.apply(document.documentElement.classList, cls);
+    // /admin과 포털(그 외 전체 경로)은 서로 독립된 다크모드 설정("admin-dark"/"portal-dark")을
+    // 갖는데, 두 클래스를 동시에 <html>에 적용하면 각 클래스에 대응하는 전역 오버라이드
+    // (.admin-dark .bg-white, .portal-dark .bg-white 등)가 서로 뒤섞여 매칭되어
+    // 현재 페이지와 무관한 팔레트가 섞여 보이는 문제가 있었음 — 현재 경로에 해당하는
+    // 클래스 하나만 적용해 두 다크모드 체계가 절대 동시에 활성화되지 않도록 함.
+    var isAdminRoute = location.pathname.indexOf("/admin") === 0;
+    var key = isAdminRoute ? "admin-dark" : "portal-dark";
+    var cls = isAdminRoute ? "admin-dark" : "portal-dark";
+    if (isDark(key)) document.documentElement.classList.add(cls);
   } catch (e) {}
 })();
 `;

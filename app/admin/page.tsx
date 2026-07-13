@@ -257,6 +257,7 @@ export default function AdminPage() {
       const next = !d;
       localStorage.setItem("admin-dark", next ? "1" : "0");
       document.documentElement.classList.toggle("admin-dark", next);
+      document.documentElement.classList.remove("portal-dark");
       window.dispatchEvent(new CustomEvent("admin-dark-change", { detail: next }));
       return next;
     });
