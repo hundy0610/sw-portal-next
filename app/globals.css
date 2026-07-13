@@ -29,10 +29,10 @@
   --admin-accent-hover: #B45F05;
   --admin-accent-soft: var(--brand-soft);
 
-  /* 라이트 모드 사이드바 — 브랜드 앰버를 그대로 채워 화사하게 (다크 모드는 아래 .admin-dark에서 별도 정의) */
-  --sidebar-bg: var(--brand);
-  --sidebar-hover: rgba(0,0,0,0.08);
-  --sidebar-active: rgba(0,0,0,0.16);
+  /* 라이트 모드 사이드바 — 밝은 인디고로 화사하게 (다크 모드는 아래 .admin-dark에서 별도 정의) */
+  --sidebar-bg: #6366F1;
+  --sidebar-hover: rgba(255,255,255,0.12);
+  --sidebar-active: rgba(255,255,255,0.20);
 
   /* 어드민 라이트 모드 (레거시 변수명 — Modern Neutral 토큰으로 alias) */
   --admin-content-bg: var(--admin-bg);
