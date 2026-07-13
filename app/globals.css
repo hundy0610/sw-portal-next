@@ -33,6 +33,12 @@
   --sidebar-bg: #81C784;
   --sidebar-hover: rgba(0,0,0,0.08);
   --sidebar-active: rgba(0,0,0,0.16);
+  /* 밝은 그린 배경 위에서는 흰 글자 대비가 부족해 가독성이 떨어짐 — 진한 그린 계열 텍스트로 대비 확보 */
+  --sidebar-text: rgba(11,31,15,0.72);
+  --sidebar-text-hover: rgba(11,31,15,0.92);
+  --sidebar-text-active: #0B1F0F;
+  --sidebar-section-text: rgba(11,31,15,0.48);
+  --sidebar-divider: rgba(11,31,15,0.14);
 
   /* 어드민 라이트 모드 (레거시 변수명 — Modern Neutral 토큰으로 alias) */
   --admin-content-bg: var(--admin-bg);
@@ -75,19 +81,19 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
 .sidenav-item {
   display: flex; align-items: center; gap: 10px;
   padding: 9px 16px; border-radius: 8px; cursor: pointer;
-  color: rgba(255,255,255,0.65); font-size: 13.5px; font-weight: 500;
+  color: var(--sidebar-text); font-size: 13.5px; font-weight: 500;
   transition: all 0.15s; margin: 0 8px 1px;
   border-left: 3px solid transparent;
 }
-.sidenav-item:hover { background: var(--sidebar-hover); color: rgba(255,255,255,0.92); }
-.sidenav-item.active { background: var(--sidebar-active); color: #fff; font-weight: 700; border-left-color: #fff; }
+.sidenav-item:hover { background: var(--sidebar-hover); color: var(--sidebar-text-hover); }
+.sidenav-item.active { background: var(--sidebar-active); color: var(--sidebar-text-active); font-weight: 700; border-left-color: var(--sidebar-text-active); }
 .sidenav-section {
   display: flex; align-items: center;
   font-size: 13px; font-weight: 700; letter-spacing: .04em;
-  color: rgba(255,255,255,0.35); padding: 16px 16px 4px; text-transform: uppercase;
+  color: var(--sidebar-section-text); padding: 16px 16px 4px; text-transform: uppercase;
 }
 .sidenav-divider {
-  margin: 4px 12px 0; border-top: 1px solid rgba(255,255,255,0.08);
+  margin: 4px 12px 0; border-top: 1px solid var(--sidebar-divider);
 }
 
 /* 데이터 테이블 */
@@ -301,6 +307,11 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
   --sidebar-bg:              #09090B;
   --sidebar-hover:           rgba(255,255,255,0.07);
   --sidebar-active:          rgba(240,169,78,0.20);
+  --sidebar-text:            rgba(255,255,255,0.65);
+  --sidebar-text-hover:      rgba(255,255,255,0.92);
+  --sidebar-text-active:     #fff;
+  --sidebar-section-text:    rgba(255,255,255,0.35);
+  --sidebar-divider:         rgba(255,255,255,0.08);
 }
 
 /* ── 포털 라이트/다크 서피스 토큰 (Modern Neutral과 동일 계층 구조를 포털에도 적용) ── */
