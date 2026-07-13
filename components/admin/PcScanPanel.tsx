@@ -144,6 +144,7 @@ export default function PcScanPanel() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [syncing, setSyncing]   = useState(false);
   const [warming, setWarming]   = useState(false);
+  const [filterOpen, setFilterOpen] = useState(true);
 
   useEffect(() => {
     fetch("/api/admin/pc-scan")
@@ -340,6 +341,13 @@ export default function PcScanPanel() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setFilterOpen(v => !v)}
+            className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg flex items-center gap-1"
+          >
+            <span style={{ display: "inline-block", transition: "transform .15s ease", transform: filterOpen ? "rotate(90deg)" : "rotate(0deg)" }}>▸</span>
+            필터
+          </button>
           {selected.size > 0 && (
             <button
               onClick={syncSelected}
@@ -400,7 +408,7 @@ export default function PcScanPanel() {
               </tr>
 
               {/* 필터 행 */}
-              <tr className="border-b border-gray-200 bg-gray-50/60">
+              {filterOpen && <tr className="border-b border-gray-200 bg-gray-50/60">
                 <td className="px-2 py-1.5" />
                 <td className="px-2 py-1.5 min-w-[90px]">
                   <input className={INPUT_CLS} placeholder="검색" value={filters.assetNo} onChange={e => sf("assetNo", e.target.value)} />
@@ -462,7 +470,7 @@ export default function PcScanPanel() {
                     <option value="false">불일치</option>
                   </select>
                 </td>
-              </tr>
+              </tr>}
             </thead>
 
             <tbody>

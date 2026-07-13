@@ -793,6 +793,7 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
   const [listFilter, setListFilter] = useState({
     status: "all", fault: "all", company: company || "all", priority: "all", search: "",
   });
+  const [filterOpen, setFilterOpen] = useState(true);
 
   const months = useMemo(() => last6Months(), []);
 
@@ -1439,7 +1440,12 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
       {tab === "list" && (
         <div className="space-y-3">
           {/* 필터 바 */}
-          <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-wrap gap-3 items-center">
+          <button onClick={() => setFilterOpen(v => !v)}
+            className="flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-gray-700">
+            <span style={{ display: "inline-block", transition: "transform .15s ease", transform: filterOpen ? "rotate(90deg)" : "rotate(0deg)" }}>▸</span>
+            필터 <span className="text-gray-400 font-normal">({filteredList.length}건)</span>
+          </button>
+          {filterOpen && <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-wrap gap-3 items-center">
             <input
               type="text"
               placeholder="티켓번호 / 증상 / 문의자 / 모니터 번호 검색..."
@@ -1492,7 +1498,7 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
               </button>
             )}
             <span className="text-xs text-gray-400 ml-auto">{filteredList.length}건</span>
-          </div>
+          </div>}
 
           {/* 테이블 */}
           <div className="bg-white border border-gray-200 rounded-xl overflow-auto">

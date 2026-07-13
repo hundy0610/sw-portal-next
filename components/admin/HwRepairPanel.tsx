@@ -979,6 +979,7 @@ export default function HwRepairPanel() {
   const [caseTab, setCaseTab] = useState<"open" | "closed">("open");
   const [stageFilter, setStageFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
+  const [filterOpen, setFilterOpen] = useState(true);
   const [selected, setSelected] = useState<HwRepairRecord | null>(null);
   const [assetModal, setAssetModal] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ url: string; name: string } | null>(null);
@@ -1211,6 +1212,14 @@ export default function HwRepairPanel() {
         })}
       </div>
 
+      {/* 필터 접기/펼치기 */}
+      <button onClick={() => setFilterOpen(v => !v)}
+        className="mb-2 flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-gray-700">
+        <span style={{ display: "inline-block", transition: "transform .15s ease", transform: filterOpen ? "rotate(90deg)" : "rotate(0deg)" }}>▸</span>
+        필터 {!filterOpen && search && <span className="text-gray-400 font-normal">(검색 중: {search})</span>}
+      </button>
+
+      {filterOpen && <>
       {/* 단계 필터 탭 — 닫힌 케이스는 모두 "완료"이므로 숨김 */}
       {caseTab === "open" && <div className="flex flex-wrap gap-1.5 mb-4">
         <button onClick={() => setStageFilter("all")}
@@ -1240,6 +1249,7 @@ export default function HwRepairPanel() {
         {search && <button onClick={() => setSearch("")} className="text-xs text-gray-400 hover:text-gray-600 underline">초기화</button>}
         <span className="text-xs text-gray-400 ml-1">{filtered.length}건</span>
       </div>
+      </>}
 
       {/* 테이블 */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-auto">

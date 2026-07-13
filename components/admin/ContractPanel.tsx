@@ -5,6 +5,7 @@ import type { Contract, ContractStage } from "@/types/contract";
 import { CONTRACT_STAGES } from "@/types/contract";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import { safeJson } from "@/lib/fetch-json";
+import FilterBar from "@/components/admin/shared/FilterBar";
 
 const UNIT_PRICE_DEFAULT = 6000;
 const MAX_PDF_MB = 4; // Vercel 서버리스 request body 한도 4.5MB 이내로 여유 설정
@@ -563,22 +564,17 @@ export default function ContractPanel() {
       {/* ══ 목록 뷰 ══ */}
       {view === "table" && (
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-          <div className="flex items-center gap-1">
-            {(["all", "active", "expired", "pending"] as const).map((f) => {
-              const cnt = f === "all" ? contracts.length : contracts.filter((c) => c.status === f).length;
-              const labels = { all: "전체", active: "진행중", expired: "만료", pending: "예정" };
-              return (
-                <button key={f}
-                  onClick={() => setFilter(f)}
-                  className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
-                    filter === f ? "bg-amber-600 text-white" : "text-gray-500 hover:bg-gray-100"
-                  }`}>
-                  {labels[f]} ({cnt})
-                </button>
-              );
-            })}
-          </div>
+        <div className="flex items-start justify-between gap-3 px-5 pt-3 pb-2 border-b border-gray-100">
+          <FilterBar
+            options={(["all", "active", "expired", "pending"] as const).map((f) => ({
+              key: f,
+              label: `${{ all: "전체", active: "진행중", expired: "만료", pending: "예정" }[f]} (${
+                f === "all" ? contracts.length : contracts.filter((c) => c.status === f).length
+              })`,
+            }))}
+            value={filter}
+            onChange={setFilter}
+          />
           <input
             className="form-input w-48"
             placeholder="법인명 · 담당자 검색"
