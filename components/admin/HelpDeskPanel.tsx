@@ -8,17 +8,17 @@ import { AssetModalInner, HwRecord, HW_STATUSES } from "@/components/admin/Asset
 import { safeJson } from "@/lib/fetch-json";
 import { useAdminDarkMode } from "@/lib/use-admin-dark-mode";
 
-// ── Color configs ────────────────────────────────────────────
+// ── Color configs ── 통합 토큰(--state-*) 참조: 긍정/진행/주의/위험/중립 5의미만 사용 ──
 const URGENCY: Record<string, { bg: string; text: string; bar: string }> = {
-  "매우 급합니다":    { bg: "#FEF2F2", text: "#DC2626", bar: "#EF4444" },
-  "조금 급합니다":   { bg: "#FFFBEB", text: "#B45309", bar: "#F59E0B" },
-  "기다릴 수 있어요": { bg: "#F0FDF4", text: "#059669", bar: "#10B981" },
+  "매우 급합니다":    { bg: "var(--state-risk-soft)",     text: "var(--state-risk)",     bar: "var(--state-risk)"     },
+  "조금 급합니다":     { bg: "var(--state-caution-soft)",  text: "var(--state-caution)",  bar: "var(--state-caution)"  },
+  "기다릴 수 있어요":  { bg: "var(--state-positive-soft)", text: "var(--state-positive)", bar: "var(--state-positive)" },
 };
 
 const STATUS: Record<string, { bg: string; text: string }> = {
-  "시작 전": { bg: "#FAFAFA", text: "#71717A" },
-  "진행 중": { bg: "#EEF2FF", text: "#4338CA" },
-  "완료":    { bg: "#F0FDF4", text: "#059669" },
+  "시작 전": { bg: "var(--state-neutral-soft)",  text: "var(--state-neutral)"  },
+  "진행 중": { bg: "var(--state-progress-soft)", text: "var(--state-progress)" },
+  "완료":    { bg: "var(--state-positive-soft)", text: "var(--state-positive)" },
 };
 
 const TYPE_COLORS = [
@@ -199,7 +199,7 @@ function InlineStatusCell({
         onChange={handleChange}
         disabled={saving}
         style={{ background: dark ? "#18181B" : c.bg, color: c.text }}
-        className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-transparent focus:outline-none focus:ring-1 focus:ring-violet-200 cursor-pointer disabled:opacity-50 appearance-none"
+        className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-transparent focus:outline-none focus:ring-1 focus:ring-amber-200 cursor-pointer disabled:opacity-50 appearance-none"
       >
         {/* 현재 상태가 목록에 없는 경우 fallback */}
         {ticket.status && !statuses.includes(ticket.status) && (
@@ -258,7 +258,7 @@ function InlineAssigneeCell({
         value={ticket.assignee ?? ""}
         onChange={handleChange}
         disabled={saving}
-        className="text-xs text-gray-600 border border-transparent hover:border-gray-200 bg-transparent focus:outline-none focus:ring-1 focus:ring-violet-200 rounded-lg px-1 py-0.5 cursor-pointer disabled:opacity-50 max-w-[96px]"
+        className="text-xs text-gray-600 border border-transparent hover:border-gray-200 bg-transparent focus:outline-none focus:ring-1 focus:ring-amber-200 rounded-lg px-1 py-0.5 cursor-pointer disabled:opacity-50 max-w-[96px]"
       >
         <option value="">미배정</option>
         {ticket.assignee && !assigneeList.find(u => u.name === ticket.assignee) && (
@@ -292,7 +292,7 @@ function IndeterminateCheckbox({ checked, indeterminate, onChange }: {
   useEffect(() => { if (ref.current) ref.current.indeterminate = indeterminate; }, [indeterminate]);
   return (
     <input ref={ref} type="checkbox" checked={checked} onChange={onChange}
-      className="rounded border-gray-300 text-violet-600 focus:ring-violet-200 cursor-pointer" />
+      className="rounded border-gray-300 text-amber-600 focus:ring-amber-200 cursor-pointer" />
   );
 }
 
@@ -332,7 +332,7 @@ function ActionCategoryTree({ selected, onChange }: { selected: string[]; onChan
                 </svg>
                 {group.label}
                 {selectedCount > 0 && (
-                  <span className="text-[10px] text-violet-600 font-bold bg-violet-50 px-1.5 py-0.5 rounded-full leading-none">{selectedCount}</span>
+                  <span className="text-[10px] text-amber-600 font-bold bg-amber-50 px-1.5 py-0.5 rounded-full leading-none">{selectedCount}</span>
                 )}
               </button>
             </div>
@@ -343,7 +343,7 @@ function ActionCategoryTree({ selected, onChange }: { selected: string[]; onChan
                   return (
                     <label key={key} className="flex items-center gap-2 py-1 cursor-pointer select-none group">
                       <input type="checkbox" checked={selected.includes(key)} onChange={() => toggleChild(group.label, child)}
-                        className="rounded border-gray-300 text-violet-600 focus:ring-violet-200" />
+                        className="rounded border-gray-300 text-amber-600 focus:ring-amber-200" />
                       <span className="text-sm text-gray-600 group-hover:text-gray-800">{child}</span>
                     </label>
                   );
@@ -684,7 +684,7 @@ function HelpDeskTicketFloating({
                   <span className="text-[11px] text-gray-400 block mb-0.5">문의자</span>
                   <div className="flex items-center gap-1.5">
                     <button onClick={copyRequester}
-                      className="text-sm font-medium text-gray-800 hover:text-blue-600 transition-colors flex items-center gap-1 group" title="클릭하여 복사">
+                      className="text-sm font-medium text-gray-800 hover:text-amber-600 transition-colors flex items-center gap-1 group" title="클릭하여 복사">
                       {ticket.requester || "—"}
                       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
                         className="opacity-30 group-hover:opacity-70">
@@ -699,7 +699,7 @@ function HelpDeskTicketFloating({
                   <span className="text-[11px] text-gray-400 block mb-0.5">자산번호</span>
                   {ticket.assetNo ? (
                     <button onClick={loadAsset}
-                      className="text-sm font-mono text-blue-600 hover:underline hover:text-blue-700 transition-colors">
+                      className="text-sm font-mono text-amber-600 hover:underline hover:text-amber-700 transition-colors">
                       {ticket.assetNo}
                     </button>
                   ) : (
@@ -748,7 +748,7 @@ function HelpDeskTicketFloating({
               {/* 2행: 유형 · 긴급도 · 상태 배지 + 접수일 */}
               <div className="flex items-center gap-2 flex-wrap">
                 {ticket.inquiryType && (
-                  <span className="text-[11px] font-semibold text-violet-700 bg-violet-50 px-2 py-0.5 rounded">
+                  <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
                     {ticket.inquiryType}
                   </span>
                 )}
@@ -781,7 +781,7 @@ function HelpDeskTicketFloating({
                   <button
                     onClick={() => assignAndStart(currentUserName)}
                     disabled={assignSaving || !myAssignee?.id}
-                    className="w-full max-w-xs py-4 rounded-xl bg-violet-600 text-white font-bold text-base hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                    className="w-full max-w-xs py-4 rounded-xl bg-amber-600 text-white font-bold text-base hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                   >
                     {assignSaving ? (
                       <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -814,7 +814,7 @@ function HelpDeskTicketFloating({
                       <select
                         value={selectedAssignee}
                         onChange={e => setSelectedAssignee(e.target.value)}
-                        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-violet-200"
+                        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-200"
                       >
                         <option value="">담당자 선택</option>
                         {assigneeList.map(u => <option key={u.id || u.name} value={u.name}>{u.name}</option>)}
@@ -891,8 +891,8 @@ function HelpDeskTicketFloating({
                               onClick={() => setSelectedMethod(selectedMethod === m ? "" : m)}
                               className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
                                 selectedMethod === m
-                                  ? "bg-violet-600 border-violet-600 text-white"
-                                  : "bg-white border-gray-200 text-gray-600 hover:border-violet-300 hover:text-violet-600"
+                                  ? "bg-amber-600 border-amber-600 text-white"
+                                  : "bg-white border-gray-200 text-gray-600 hover:border-amber-300 hover:text-amber-600"
                               }`}>
                               {m}
                             </button>
@@ -907,7 +907,7 @@ function HelpDeskTicketFloating({
                           ref={textareaRef}
                           defaultValue={noteValue}
                           rows={4}
-                          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-violet-200 resize-none"
+                          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-200 resize-none"
                           placeholder="조치 내역을 입력하세요"
                         />
                       </div>
@@ -973,7 +973,7 @@ function HelpDeskTicketFloating({
                           ref={textareaRef}
                           defaultValue={noteValue}
                           rows={4}
-                          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-violet-200 resize-none"
+                          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-200 resize-none"
                           autoFocus
                         />
                         <div className="flex items-center gap-2">
@@ -1013,7 +1013,7 @@ function HelpDeskTicketFloating({
                     <div className="flex items-center gap-2">
                       <select value={selectedStatus}
                         onChange={e => { setSelectedStatus(e.target.value); setSaveResult(p => ({ ...p, status: undefined as unknown as "done" })); }}
-                        className="text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-violet-200">
+                        className="text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-amber-200">
                         {allStatuses.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
                       <button onClick={() => saveField("status")} disabled={saving === "status" || selectedStatus === ticket.status}
@@ -1027,7 +1027,7 @@ function HelpDeskTicketFloating({
                     <div className="flex items-center gap-2">
                       <select value={selectedAssignee}
                         onChange={e => { setSelectedAssignee(e.target.value); setSaveResult(p => ({ ...p, assignee: undefined as unknown as "done" })); }}
-                        className="text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-violet-200">
+                        className="text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-amber-200">
                         <option value="">미배정</option>
                         {assigneeList.map(u => <option key={u.id || u.name} value={u.name}>{u.name}</option>)}
                       </select>
@@ -1048,7 +1048,7 @@ function HelpDeskTicketFloating({
           <div className="flex items-center gap-3">
             {ticket.notionUrl && (
               <a href={ticket.notionUrl} target="_blank" rel="noopener noreferrer"
-                className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                className="text-xs text-amber-600 hover:underline flex items-center gap-1">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
                   <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
@@ -1069,22 +1069,20 @@ function HelpDeskTicketFloating({
 
 // ── Sub-components ───────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
-  const dark = useAdminDarkMode();
-  const c = STATUS[status] ?? { bg: "#F4F4F5", text: "#71717A" };
+  const c = STATUS[status] ?? { bg: "var(--state-neutral-soft)", text: "var(--state-neutral)" };
   return (
     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap"
-      style={{ background: dark ? "#18181B" : c.bg, color: c.text }}>
+      style={{ background: c.bg, color: c.text }}>
       {status || "—"}
     </span>
   );
 }
 
 function UrgencyBadge({ urgency }: { urgency: string }) {
-  const dark = useAdminDarkMode();
-  const c = URGENCY[urgency] ?? { bg: "#F4F4F5", text: "#71717A", bar: "#A1A1AA" };
+  const c = URGENCY[urgency] ?? { bg: "var(--state-neutral-soft)", text: "var(--state-neutral)", bar: "var(--state-neutral)" };
   return (
     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap"
-      style={{ background: dark ? "#18181B" : c.bg, color: c.text }}>
+      style={{ background: c.bg, color: c.text }}>
       {urgency || "—"}
     </span>
   );
@@ -1121,8 +1119,8 @@ function MonthlyLineChart({ data }: { data: { month: string; count: number }[] }
     <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ overflow: "visible" }}>
       <defs>
         <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#7C3AED" stopOpacity="0.15" />
-          <stop offset="100%" stopColor="#7C3AED" stopOpacity="0" />
+          <stop offset="0%" stopColor="var(--brand)" stopOpacity="0.15" />
+          <stop offset="100%" stopColor="var(--brand)" stopOpacity="0" />
         </linearGradient>
       </defs>
 
@@ -1143,7 +1141,7 @@ function MonthlyLineChart({ data }: { data: { month: string; count: number }[] }
 
       {/* Line */}
       {n > 1 && (
-        <polyline points={points} fill="none" stroke="#7C3AED" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+        <polyline points={points} fill="none" stroke="var(--brand)" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
       )}
 
       {/* Dots + labels + x-axis */}
@@ -1151,7 +1149,7 @@ function MonthlyLineChart({ data }: { data: { month: string; count: number }[] }
         const cx = xOf(i), cy = yOf(d.count);
         return (
           <g key={d.month}>
-            <circle cx={cx} cy={cy} r={4} fill="white" stroke="#7C3AED" strokeWidth={2} />
+            <circle cx={cx} cy={cy} r={4} fill="white" stroke="var(--brand)" strokeWidth={2} />
             {d.count > 0 && (
               <text x={cx} y={cy - 9} textAnchor="middle" fontSize={10} fontWeight="700" fill="#5B21B6">
                 {d.count}
@@ -1196,7 +1194,7 @@ function Stars({ rating }: { rating: number }) {
   return (
     <span className="flex gap-0.5">
       {[1,2,3,4,5].map(s => (
-        <span key={s} style={{ color: s <= rating ? "#F59E0B" : "#D1D5DB", fontSize: 13 }}>★</span>
+        <span key={s} style={{ color: s <= rating ? "var(--brand)" : "#D1D5DB", fontSize: 13 }}>★</span>
       ))}
     </span>
   );
@@ -1291,12 +1289,12 @@ function generateReportHTML(opts: {
   .cover { text-align: center; padding: 60px 0 40px; border-bottom: 2px solid #E4E4E7; margin-bottom: 32px; }
   .cover h1 { font-size: 28px; font-weight: 800; color: #1E293B; margin-bottom: 8px; }
   .cover .meta { font-size: 14px; color: #71717A; margin-top: 6px; }
-  .cover .period { display: inline-block; background: #7C3AED; color: white; padding: 4px 16px; border-radius: 20px; font-size: 13px; font-weight: 700; margin-top: 12px; }
+  .cover .period { display: inline-block; background: var(--brand); color: white; padding: 4px 16px; border-radius: 20px; font-size: 13px; font-weight: 700; margin-top: 12px; }
   .section { margin-bottom: 32px; }
-  .section-title { font-size: 15px; font-weight: 700; color: #334155; border-left: 4px solid #7C3AED; padding-left: 10px; margin-bottom: 16px; }
+  .section-title { font-size: 15px; font-weight: 700; color: #334155; border-left: 4px solid var(--brand); padding-left: 10px; margin-bottom: 16px; }
   .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 24px; }
   .stat-card { background: white; border: 1px solid #E4E4E7; border-radius: 12px; padding: 16px; text-align: center; }
-  .stat-card .value { font-size: 26px; font-weight: 800; color: #7C3AED; }
+  .stat-card .value { font-size: 26px; font-weight: 800; color: var(--brand); }
   .stat-card .label { font-size: 11px; color: #A1A1AA; margin-top: 4px; }
   .chart-box { background: white; border: 1px solid #E4E4E7; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
   .chart-title { font-size: 13px; font-weight: 600; color: #52525B; margin-bottom: 12px; }
@@ -1328,10 +1326,10 @@ function generateReportHTML(opts: {
     <div class="section-title">요약 통계</div>
     <div class="stats">
       <div class="stat-card"><div class="value">${total}</div><div class="label">전체 접수</div></div>
-      <div class="stat-card"><div class="value" style="color:#4338CA">${inProg}</div><div class="label">진행 중</div></div>
-      <div class="stat-card"><div class="value" style="color:#059669">${done}</div><div class="label">완료</div></div>
+      <div class="stat-card"><div class="value" style="color:var(--state-progress)">${inProg}</div><div class="label">진행 중</div></div>
+      <div class="stat-card"><div class="value" style="color:var(--state-positive)">${done}</div><div class="label">완료</div></div>
       <div class="stat-card"><div class="value" style="color:#B45309">${avgDays !== null ? avgDays + "일" : "—"}</div><div class="label">평균 처리일</div></div>
-      <div class="stat-card"><div class="value" style="color:#F59E0B">${avgRating ? "★ " + avgRating : "—"}</div><div class="label">평균 만족도</div></div>
+      <div class="stat-card"><div class="value" style="color:var(--brand)">${avgRating ? "★ " + avgRating : "—"}</div><div class="label">평균 만족도</div></div>
     </div>
   </div>
 
@@ -1342,8 +1340,8 @@ function generateReportHTML(opts: {
       <svg viewBox="0 0 ${chartW} ${chartH}" width="100%" style="overflow:visible">
         <defs>
           <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#7C3AED" stop-opacity="0.15"/>
-            <stop offset="100%" stop-color="#7C3AED" stop-opacity="0"/>
+            <stop offset="0%" stop-color="var(--brand)" stop-opacity="0.15"/>
+            <stop offset="100%" stop-color="var(--brand)" stop-opacity="0"/>
           </linearGradient>
         </defs>
         ${[0,0.25,0.5,0.75,1].map(p => {
@@ -1352,10 +1350,10 @@ function generateReportHTML(opts: {
                   <text x="${padX - 5}" y="${y + 4}" text-anchor="end" font-size="9" fill="#A1A1AA">${Math.round(maxMonthly * p)}</text>`;
         }).join("")}
         ${n > 1 ? `<polygon points="${padX},${chartH - padY} ${linePoints} ${xOf(n-1)},${chartH - padY}" fill="url(#g)"/>` : ""}
-        ${n > 1 ? `<polyline points="${linePoints}" fill="none" stroke="#7C3AED" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>` : ""}
+        ${n > 1 ? `<polyline points="${linePoints}" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>` : ""}
         ${monthly.map((m, i) => {
           const cx = xOf(i), cy = yOf(m.count);
-          return `<circle cx="${cx}" cy="${cy}" r="4" fill="white" stroke="#7C3AED" stroke-width="2"/>
+          return `<circle cx="${cx}" cy="${cy}" r="4" fill="white" stroke="var(--brand)" stroke-width="2"/>
                   ${m.count > 0 ? `<text x="${cx}" y="${cy - 9}" text-anchor="middle" font-size="9" font-weight="700" fill="#5B21B6">${m.count}</text>` : ""}
                   <text x="${cx}" y="${chartH - 2}" text-anchor="middle" font-size="9" fill="#A1A1AA">${m.label}</text>`;
         }).join("")}
@@ -1376,7 +1374,7 @@ function generateReportHTML(opts: {
             <span style="color:#A1A1AA">${count}건 · ${Math.round(count/total*100)}%</span>
           </div>
           <div style="background:#F4F4F5;border-radius:6px;height:20px;overflow:hidden">
-            <div style="width:${pct}%;background:#7C3AED;height:100%;border-radius:6px;display:flex;align-items:center;padding-left:8px">
+            <div style="width:${pct}%;background:var(--brand);height:100%;border-radius:6px;display:flex;align-items:center;padding-left:8px">
               <span style="color:white;font-size:10px;font-weight:700">${count}</span>
             </div>
           </div>
@@ -1392,17 +1390,17 @@ function generateReportHTML(opts: {
 
     <div class="action-rate">
       <div class="rate-card">
-        <div class="rate" style="color:#6366F1">${completedFiltered.length > 0 ? Math.round(withMethod / completedFiltered.length * 100) : 0}%</div>
+        <div class="rate" style="color:var(--brand)">${completedFiltered.length > 0 ? Math.round(withMethod / completedFiltered.length * 100) : 0}%</div>
         <div class="rate-label">조치방법 입력률</div>
         <div class="rate-sub">${withMethod} / ${completedFiltered.length}건</div>
       </div>
       <div class="rate-card">
-        <div class="rate" style="color:#10B981">${completedFiltered.length > 0 ? Math.round(withCategory / completedFiltered.length * 100) : 0}%</div>
+        <div class="rate" style="color:var(--brand)">${completedFiltered.length > 0 ? Math.round(withCategory / completedFiltered.length * 100) : 0}%</div>
         <div class="rate-label">조치분류 입력률</div>
         <div class="rate-sub">${withCategory} / ${completedFiltered.length}건</div>
       </div>
       <div class="rate-card">
-        <div class="rate" style="color:#7C3AED">${completedFiltered.length > 0 ? Math.round(withNote / completedFiltered.length * 100) : 0}%</div>
+        <div class="rate" style="color:var(--brand)">${completedFiltered.length > 0 ? Math.round(withNote / completedFiltered.length * 100) : 0}%</div>
         <div class="rate-label">조치내용 입력률</div>
         <div class="rate-sub">${withNote} / ${completedFiltered.length}건</div>
       </div>
@@ -1413,7 +1411,7 @@ function generateReportHTML(opts: {
         <div class="chart-title">조치방법별 현황</div>
         ${methodRows.length > 0 ? methodRows.map(([method, count]) => {
           const pct = totalMethodCount > 0 ? Math.max((count / totalMethodCount) * 100, 2) : 0;
-          const color = ({ "원격": "#6366F1", "방문": "#F59E0B", "메신저/메일": "#0EA5E9", "기타": "#9CA3AF" } as Record<string,string>)[method] ?? "#7C3AED";
+          const color = ({ "원격": "#6366F1", "방문": "var(--brand)", "메신저/메일": "#0EA5E9", "기타": "#9CA3AF" } as Record<string,string>)[method] ?? "var(--brand)";
           return `<div style="margin-bottom:10px">
             <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
               <span style="color:#52525B;font-weight:600">${method}</span>
@@ -1438,7 +1436,7 @@ function generateReportHTML(opts: {
               <span style="color:#A1A1AA">${count}건</span>
             </div>
             <div style="background:#F4F4F5;border-radius:5px;height:16px;overflow:hidden">
-              <div style="width:${pct}%;background:#7C3AED;height:100%;border-radius:5px"></div>
+              <div style="width:${pct}%;background:var(--brand);height:100%;border-radius:5px"></div>
             </div>
           </div>`;
         }).join("") : '<p style="color:#CBD5E1;text-align:center;padding:20px;font-size:12px">데이터 없음</p>'}
@@ -1891,7 +1889,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
           onClick={() => setNotifyOpen(o => !o)}
           className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-sm font-semibold text-gray-700">
           <span className="flex items-center gap-2">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2.5">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5">
               <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/>
             </svg>
             신규 문의 알림 수신자 관리
@@ -1915,11 +1913,11 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                 onChange={e => setNotifyInput(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleNotifyAdd(); } }}
                 placeholder="알림 받을 이메일 입력"
-                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-300 transition"
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 transition"
               />
               <button
                 onClick={handleNotifyAdd}
-                className="px-3 py-2 bg-violet-600 text-white text-xs font-bold rounded-lg hover:bg-violet-700 transition-colors">
+                className="px-3 py-2 bg-amber-600 text-white text-xs font-bold rounded-lg hover:bg-amber-700 transition-colors">
                 추가
               </button>
             </div>
@@ -1928,10 +1926,10 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
             {notifyEmails.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {notifyEmails.map(email => (
-                  <span key={email} className="flex items-center gap-1.5 px-3 py-1 bg-violet-50 border border-violet-200 rounded-full text-xs text-violet-700 font-medium">
+                  <span key={email} className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-200 rounded-full text-xs text-amber-700 font-medium">
                     {email}
                     <button onClick={() => handleNotifyRemove(email)}
-                      className="text-violet-400 hover:text-violet-700 transition-colors leading-none">×</button>
+                      className="text-amber-500 hover:text-amber-700 transition-colors leading-none">×</button>
                   </span>
                 ))}
               </div>
@@ -1949,7 +1947,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
               <button
                 onClick={handleNotifySave}
                 disabled={notifySaving}
-                className="px-4 py-1.5 bg-violet-600 text-white text-xs font-bold rounded-lg hover:bg-violet-700 disabled:opacity-50 transition-colors">
+                className="px-4 py-1.5 bg-amber-600 text-white text-xs font-bold rounded-lg hover:bg-amber-700 disabled:opacity-50 transition-colors">
                 {notifySaving ? "저장 중..." : "저장"}
               </button>
             </div>
@@ -1992,7 +1990,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                   onChange={e => setAssigneeInput(e.target.value)}
                   onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleAssigneeAdd(); } }}
                   placeholder="담당자 이름 입력 또는 목록에서 선택"
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 transition"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 transition"
                 />
                 <datalist id="assignee-suggestions">
                   {tickets
@@ -2005,7 +2003,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
               <button
                 onClick={handleAssigneeAdd}
                 disabled={!assigneeInput.trim()}
-                className="px-3 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors">
+                className="px-3 py-2 bg-amber-600 text-white text-xs font-bold rounded-lg hover:bg-amber-700 disabled:opacity-40 transition-colors">
                 추가
               </button>
             </div>
@@ -2014,11 +2012,11 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
             {storedAssignees.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {storedAssignees.map(a => (
-                  <span key={a.name} className="flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-200 rounded-full text-xs text-blue-700 font-medium">
+                  <span key={a.name} className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-200 rounded-full text-xs text-amber-700 font-medium">
                     {a.name}
                     {!a.id && <span className="text-[9px] text-gray-400 font-normal">(ID 없음)</span>}
                     <button onClick={() => handleAssigneeRemove(a.name)}
-                      className="text-blue-400 hover:text-blue-700 transition-colors leading-none">×</button>
+                      className="text-amber-500 hover:text-amber-700 transition-colors leading-none">×</button>
                   </span>
                 ))}
               </div>
@@ -2036,7 +2034,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
               <button
                 onClick={handleAssigneeSave}
                 disabled={assigneeSaving}
-                className="px-4 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                className="px-4 py-1.5 bg-amber-600 text-white text-xs font-bold rounded-lg hover:bg-amber-700 disabled:opacity-50 transition-colors">
                 {assigneeSaving ? "저장 중..." : "저장"}
               </button>
             </div>
@@ -2046,11 +2044,11 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
 
       {/* ── Summary Cards ── */}
       <div className="grid grid-cols-5 gap-3 mb-6">
-        <StatCard label="전체 접수"  value={total}                                                    color="#1E40AF" />
-        <StatCard label="진행 중"    value={inProgress}                                               color="#4338CA" />
-        <StatCard label="완료"       value={done}                                                     color="#059669" />
-        <StatCard label="평균 처리일" value={avgProcessDays !== null ? `${avgProcessDays}일` : "—"}  color="#7C3AED" />
-        <StatCard label="평균 만족도" value={avgRating ? `★ ${avgRating}` : "—"}                     color="#F59E0B" />
+        <StatCard label="전체 접수"  value={total}                                                    color="var(--state-neutral)" />
+        <StatCard label="진행 중"    value={inProgress}                                               color="var(--state-progress)" />
+        <StatCard label="완료"       value={done}                                                     color="var(--state-positive)" />
+        <StatCard label="평균 처리일" value={avgProcessDays !== null ? `${avgProcessDays}일` : "—"}  color="var(--brand)" />
+        <StatCard label="평균 만족도" value={avgRating ? `★ ${avgRating}` : "—"}                     color="var(--brand)" />
       </div>
 
       {/* ── Tab Bar ── */}
@@ -2320,7 +2318,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
             <input type="text" placeholder="내용 · 요청자 · 부서 검색..."
               value={listFilter.search}
               onChange={e => setListFilter(f => ({ ...f, search: e.target.value }))}
-              className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-violet-400 w-52" />
+              className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 w-52" />
 
             {([
               { key: "status",  opts: ["all","진행 중","완료"],   label: "상태" },
@@ -2332,7 +2330,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
               <select key={key}
                 value={(listFilter as Record<string, string>)[key]}
                 onChange={e => setListFilter(f => ({ ...f, [key]: e.target.value }))}
-                className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-violet-400 bg-white text-gray-700">
+                className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white text-gray-700">
                 <option value="all">{label} 전체</option>
                 {opts.filter(o => o !== "all").map(o => <option key={o} value={o}>{o}</option>)}
               </select>
@@ -2355,10 +2353,10 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                 ) : filteredList.map(t => {
                   const fb = feedbacks[t.id];
                   return (
-                    <tr key={t.id} className="border-b border-gray-50 hover:bg-violet-50/20 transition-colors">
+                    <tr key={t.id} className="border-b border-gray-50 hover:bg-amber-50/20 transition-colors">
                       <td className="px-3 py-2.5"><StatusBadge status={t.status} /></td>
                       <td className="px-3 py-2.5">
-                        <span className="text-[10px] font-semibold text-violet-700 bg-violet-50 px-1.5 py-0.5 rounded whitespace-nowrap">
+                        <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded whitespace-nowrap">
                           {t.inquiryType}
                         </span>
                       </td>
@@ -2392,7 +2390,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                         <div className="flex items-center gap-1.5">
                           {t.notionUrl && (
                             <a href={t.notionUrl} target="_blank" rel="noopener noreferrer"
-                              className="text-blue-400 hover:text-blue-600 transition-colors" title="노션에서 보기">
+                              className="text-amber-500 hover:text-amber-600 transition-colors" title="노션에서 보기">
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
                                 <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
@@ -2402,7 +2400,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                           {t.status === "완료" && !fb && (
                             <button onClick={() => copyFeedbackLink(t.id)}
                               title="평가 링크 복사"
-                              className="text-violet-400 hover:text-violet-600 transition-colors text-[10px] font-medium whitespace-nowrap">
+                              className="text-amber-500 hover:text-amber-600 transition-colors text-[10px] font-medium whitespace-nowrap">
                               {copiedId === t.id ? "복사됨" : "평가링크"}
                             </button>
                           )}
@@ -2410,7 +2408,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                             <button onClick={() => sendFeedbackEmail(t)}
                               disabled={sendingEmail === t.id}
                               title={`만족도 평가 이메일 발송 → ${t.requesterEmail}`}
-                              className="text-blue-400 hover:text-blue-600 transition-colors text-[10px] font-medium whitespace-nowrap disabled:opacity-40 flex items-center gap-0.5">
+                              className="text-amber-500 hover:text-amber-600 transition-colors text-[10px] font-medium whitespace-nowrap disabled:opacity-40 flex items-center gap-0.5">
                               <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                                 <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
                                 <polyline points="22,6 12,13 2,6"/>
@@ -2449,7 +2447,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
               placeholder="내용 · 요청자 · 부서 검색..."
               value={listFilter.search}
               onChange={e => setListFilter(f => ({ ...f, search: e.target.value }))}
-              className="flex-1 min-w-48 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-violet-200"
+              className="flex-1 min-w-48 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-200"
             />
             {([
               { key: "status",  opts: ["all","진행 중","완료"],   label: "전체 상태" },
@@ -2503,7 +2501,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                     <td><InlineStatusCell ticket={t} statuses={uniqueStatuses} onUpdated={handleTicketUpdated} /></td>
                     {/* 유형 */}
                     <td>
-                      <span className="text-[10px] font-semibold text-violet-700 bg-violet-50 px-1.5 py-0.5 rounded whitespace-nowrap">
+                      <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded whitespace-nowrap">
                         {t.inquiryType || "—"}
                       </span>
                     </td>
@@ -2522,7 +2520,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                             setCopiedRequesterId(t.id);
                             setTimeout(() => setCopiedRequesterId(prev => prev === t.id ? null : prev), 2000);
                           }}
-                          className="text-sm text-gray-600 hover:text-violet-600 transition-colors flex items-center gap-1 group"
+                          className="text-sm text-gray-600 hover:text-amber-600 transition-colors flex items-center gap-1 group"
                           title="클릭하여 복사"
                         >
                           {t.requester}
@@ -2549,7 +2547,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                           <div className="relative flex items-center gap-1.5">
                             <button
                               onClick={() => setModalAssetId(t.assetNo)}
-                              className="text-blue-600 hover:underline hover:text-blue-700 transition-colors"
+                              className="text-amber-600 hover:underline hover:text-amber-700 transition-colors"
                             >
                               {t.assetNo}
                             </button>
@@ -2585,13 +2583,13 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                                   {[...history].sort((a, b) => (b.submittedAt || "").localeCompare(a.submittedAt || "")).map(h => (
                                     <button key={h.id}
                                       onClick={() => { setAssetHistoryOpen(null); setFloatingTicket(h); }}
-                                      className={`w-full text-left px-4 py-2.5 hover:bg-violet-50/40 transition-colors ${h.id === t.id ? "bg-violet-50/60" : ""}`}>
+                                      className={`w-full text-left px-4 py-2.5 hover:bg-amber-50/40 transition-colors ${h.id === t.id ? "bg-amber-50/60" : ""}`}>
                                       <div className="flex items-center gap-2 mb-1">
                                         <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
                                           style={{ background: dark ? "#18181B" : STATUS[h.status]?.bg || "#FAFAFA", color: STATUS[h.status]?.text || "#71717A" }}>
                                           {h.status}
                                         </span>
-                                        <span className="text-[10px] font-semibold text-violet-700 bg-violet-50 px-1.5 py-0.5 rounded">
+                                        <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
                                           {h.inquiryType || "—"}
                                         </span>
                                         <span className="text-[10px] text-gray-400 ml-auto">{(h.submittedAt || "").slice(0, 10)}</span>
@@ -2618,7 +2616,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                     <td className="max-w-xs">
                       <button
                         onClick={e => { e.stopPropagation(); setFloatingTicket(t); }}
-                        className="text-left w-full hover:text-violet-600 transition-colors"
+                        className="text-left w-full hover:text-amber-600 transition-colors"
                       >
                         <p className="truncate text-gray-700 text-sm underline decoration-dotted underline-offset-2" title={t.content || t.title}>
                           {t.content || t.title || "—"}
@@ -2738,11 +2736,11 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
           v !== null ? v.toFixed(1) : "—";
 
         const ratingColor = (v: number | null) => {
-          if (v === null) return "#D1D5DB";
-          if (v >= 4.5) return "#059669";
-          if (v >= 3.5) return "#7C3AED";
-          if (v >= 2.5) return "#F59E0B";
-          return "#EF4444";
+          if (v === null) return "var(--state-neutral)";
+          if (v >= 4.5) return "var(--state-positive)";
+          if (v >= 3.5) return "var(--state-progress)";
+          if (v >= 2.5) return "var(--state-caution)";
+          return "var(--state-risk)";
         };
 
         return (
@@ -2752,8 +2750,8 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
             <div className="grid grid-cols-1 gap-3">
               {assigneeStats.map(({ name, totalAvg, yearAvg, totalCount, allCount, doneCount, completionRate, avgDays }) => (
                 <div key={name} className="bg-white border border-gray-200 rounded-xl p-5 flex items-center gap-4 flex-wrap">
-                  <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center flex-shrink-0">
-                    <span className="text-sm font-bold text-violet-600">{name.slice(0, 1)}</span>
+                  <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                    <span className="text-sm font-bold text-amber-600">{name.slice(0, 1)}</span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-bold text-gray-800 text-sm">{name}</div>
@@ -2769,13 +2767,13 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                       <div className="text-[10px] text-gray-400 mt-0.5">완료</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-lg font-extrabold" style={{ color: completionRate >= 80 ? "#059669" : completionRate >= 50 ? "#F59E0B" : "#EF4444" }}>
+                      <div className="text-lg font-extrabold" style={{ color: completionRate >= 80 ? "var(--state-positive)" : completionRate >= 50 ? "var(--state-caution)" : "var(--state-risk)" }}>
                         {completionRate}%
                       </div>
                       <div className="text-[10px] text-gray-400 mt-0.5">완료율</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-lg font-extrabold text-violet-600">
+                      <div className="text-lg font-extrabold text-amber-600">
                         {avgDays !== null ? `${avgDays}일` : "—"}
                       </div>
                       <div className="text-[10px] text-gray-400 mt-0.5">평균 처리일</div>
@@ -2825,7 +2823,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                       <tr key={name} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                         <td className="py-2.5 pr-4">
                           <span className="flex items-center gap-1.5">
-                            <span className="w-6 h-6 rounded-full bg-violet-100 inline-flex items-center justify-center text-[10px] font-bold text-violet-600 flex-shrink-0">
+                            <span className="w-6 h-6 rounded-full bg-amber-100 inline-flex items-center justify-center text-[10px] font-bold text-amber-600 flex-shrink-0">
                               {name.slice(0, 1)}
                             </span>
                             <span className="font-medium text-gray-700">{name}</span>
@@ -2833,13 +2831,13 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                         </td>
                         <td className="text-center py-2.5 px-3 font-bold text-gray-800">{allCount}</td>
                         <td className="text-center py-2.5 px-3 font-bold text-green-600">{doneCount}</td>
-                        <td className="text-center py-2.5 px-3 text-blue-600 font-medium">{allCount - doneCount}</td>
+                        <td className="text-center py-2.5 px-3 text-amber-600 font-medium">{allCount - doneCount}</td>
                         <td className="text-center py-2.5 px-3">
-                          <span className="font-bold" style={{ color: completionRate >= 80 ? "#059669" : completionRate >= 50 ? "#F59E0B" : "#EF4444" }}>
+                          <span className="font-bold" style={{ color: completionRate >= 80 ? "var(--state-positive)" : completionRate >= 50 ? "var(--state-caution)" : "var(--state-risk)" }}>
                             {completionRate}%
                           </span>
                         </td>
-                        <td className="text-center py-2.5 px-3 text-violet-600 font-medium">
+                        <td className="text-center py-2.5 px-3 text-amber-600 font-medium">
                           {avgDays !== null ? `${avgDays}일` : "—"}
                         </td>
                         <td className="text-center py-2.5 px-3">
@@ -2878,7 +2876,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                     {assigneeStats.map(({ name, monthlyAvg, yearAvg, totalAvg, yearCount, yearDoneCount, totalCount, doneCount }) => (
                       <tr key={name} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                         <td className="py-3 pr-6 font-semibold text-gray-700 whitespace-nowrap flex items-center gap-2">
-                          <span className="w-6 h-6 rounded-full bg-violet-100 inline-flex items-center justify-center text-[10px] font-bold text-violet-600 flex-shrink-0">
+                          <span className="w-6 h-6 rounded-full bg-amber-100 inline-flex items-center justify-center text-[10px] font-bold text-amber-600 flex-shrink-0">
                             {name.slice(0, 1)}
                           </span>
                           {name}
@@ -2936,7 +2934,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                       const fb = feedbacks[t.id];
                       return (
                         <div key={t.id} className="flex gap-3 py-3 border-b border-gray-50 last:border-0">
-                          <div className="w-7 h-7 rounded-full bg-violet-100 flex items-center justify-center text-[10px] font-bold text-violet-600 flex-shrink-0 mt-0.5">
+                          <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center text-[10px] font-bold text-amber-600 flex-shrink-0 mt-0.5">
                             {t.assignee.slice(0, 1)}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -2967,7 +2965,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
       {tab === "analysis" && (() => {
         // ── 조치 분석 변수 ────────────────────────────────────
         const METHOD_COLORS: Record<string, string> = {
-          "원격": "#6366F1", "방문": "#F59E0B", "메신저/메일": "#0EA5E9", "기타": "#9CA3AF",
+          "원격": "#6366F1", "방문": "var(--brand)", "메신저/메일": "#0EA5E9", "기타": "#9CA3AF",
         };
         const METHODS = ["원격", "방문", "메신저/메일", "기타"];
 
@@ -3107,9 +3105,9 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
             {/* 입력률 카드 */}
             <div className="grid grid-cols-3 gap-3">
               {([
-                { label: "조치방법 입력률 (완료)", filled: withMethod,   color: "#6366F1" },
-                { label: "조치분류 입력률 (완료)", filled: withCategory, color: "#10B981" },
-                { label: "조치내용 입력률 (완료)", filled: withNote,     color: "#7C3AED" },
+                { label: "조치방법 입력률 (완료)", filled: withMethod,   color: "var(--brand)" },
+                { label: "조치분류 입력률 (완료)", filled: withCategory, color: "var(--brand)" },
+                { label: "조치내용 입력률 (완료)", filled: withNote,     color: "var(--brand)" },
               ] as { label: string; filled: number; color: string }[]).map(({ label, filled, color }) => (
                 <div key={label} className="bg-white border border-gray-200 rounded-xl p-4">
                   <div className="text-2xl font-extrabold" style={{ color }}>
@@ -3355,7 +3353,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                 <input type="month" value={reportStartMonth}
                   onChange={e => setReportStartMonth(e.target.value)}
                   max={reportEndMonth}
-                  className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-violet-400" />
+                  className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-amber-500" />
               </div>
 
               <div className="flex flex-col gap-1.5">
@@ -3364,13 +3362,13 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                   onChange={e => setReportEndMonth(e.target.value)}
                   min={reportStartMonth}
                   max={nowYearMonth()}
-                  className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-violet-400" />
+                  className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-amber-500" />
               </div>
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-gray-600">법인</label>
                 <select value={reportCompany} onChange={e => setReportCompany(e.target.value)}
-                  className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-violet-400 bg-white text-gray-700">
+                  className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white text-gray-700">
                   <option value="all">전체 법인</option>
                   {uniqueCompanies.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
@@ -3396,7 +3394,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                   }},
                 ].map(({ label, fn }) => (
                   <button key={label} onClick={fn}
-                    className="text-[10px] font-medium px-2.5 py-1.5 rounded-lg border border-gray-200 bg-gray-50 text-gray-500 hover:border-violet-300 hover:text-violet-600 transition-colors">
+                    className="text-[10px] font-medium px-2.5 py-1.5 rounded-lg border border-gray-200 bg-gray-50 text-gray-500 hover:border-amber-300 hover:text-amber-600 transition-colors">
                     {label}
                   </button>
                 ))}
@@ -3419,27 +3417,27 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
               : null;
 
             return (
-              <div className="bg-violet-50 border border-violet-200 rounded-xl p-5">
-                <h3 className="text-sm font-bold text-violet-800 mb-3">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
+                <h3 className="text-sm font-bold text-amber-800 mb-3">
                   보고서 미리보기
-                  <span className="text-xs font-normal text-violet-500 ml-2">
+                  <span className="text-xs font-normal text-amber-600 ml-2">
                     {reportCompany === "all" ? "전체 법인" : reportCompany} · {monthLabel(reportStartMonth)}~{monthLabel(reportEndMonth)}
                   </span>
                 </h3>
                 <div className="grid grid-cols-4 gap-3">
                   {[
-                    { label: "접수 건수", value: previewTickets.length, color: "#7C3AED" },
-                    { label: "완료",      value: previewDone,            color: "#059669" },
-                    { label: "진행 중",   value: previewTickets.length - previewDone, color: "#4338CA" },
-                    { label: "평균 만족도", value: previewAvgR ? `★ ${previewAvgR}` : "—", color: "#F59E0B" },
+                    { label: "접수 건수", value: previewTickets.length, color: "var(--brand)" },
+                    { label: "완료",      value: previewDone,            color: "var(--state-positive)" },
+                    { label: "진행 중",   value: previewTickets.length - previewDone, color: "var(--state-progress)" },
+                    { label: "평균 만족도", value: previewAvgR ? `★ ${previewAvgR}` : "—", color: "var(--brand)" },
                   ].map(item => (
-                    <div key={item.label} className="bg-white rounded-lg p-3 text-center border border-violet-100">
+                    <div key={item.label} className="bg-white rounded-lg p-3 text-center border border-amber-100">
                       <div className="text-xl font-extrabold" style={{ color: item.color }}>{item.value}</div>
                       <div className="text-[10px] text-gray-400 mt-0.5">{item.label}</div>
                     </div>
                   ))}
                 </div>
-                <p className="mt-3 text-xs text-violet-600">
+                <p className="mt-3 text-xs text-amber-600">
                   {previewTickets.length > 0
                     ? `총 ${previewTickets.length}건의 데이터가 포함된 HTML 보고서를 생성합니다.`
                     : "선택한 조건에 해당하는 데이터가 없습니다."}
@@ -3450,7 +3448,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
 
           <button onClick={downloadReport}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90"
-            style={{ background: "#7C3AED" }}>
+            style={{ background: "var(--brand)" }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
               <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
@@ -3462,9 +3460,9 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
           <div className="bg-white border border-gray-200 rounded-xl p-5">
             <h3 className="text-sm font-bold text-gray-800 mb-3">만족도 평가 링크 안내</h3>
             <p className="text-xs text-gray-500 mb-3">
-              문의 처리 완료 후 <strong>목록 탭</strong>에서 완료된 티켓의 <span className="text-violet-600 font-semibold">평가링크</span> 버튼을 눌러 링크를 복사한 뒤 사용자에게 전달하세요.
+              문의 처리 완료 후 <strong>목록 탭</strong>에서 완료된 티켓의 <span className="text-amber-600 font-semibold">평가링크</span> 버튼을 눌러 링크를 복사한 뒤 사용자에게 전달하세요.
             </p>
-            <div className="bg-violet-50 border border-violet-100 rounded-lg px-4 py-3 font-mono text-[11px] text-violet-700 break-all">
+            <div className="bg-amber-50 border border-amber-100 rounded-lg px-4 py-3 font-mono text-[11px] text-amber-700 break-all">
               {typeof window !== "undefined" ? window.location.origin : ""}/inquiry/feedback/[티켓ID]
             </div>
           </div>
