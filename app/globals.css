@@ -29,9 +29,10 @@
   --admin-accent-hover: #B45F05;
   --admin-accent-soft: var(--brand-soft);
 
-  --sidebar-bg: #18181B;
-  --sidebar-hover: rgba(255,255,255,0.08);
-  --sidebar-active: rgba(217,119,6,0.28);
+  /* 라이트 모드 사이드바 — 브랜드 앰버를 그대로 채워 화사하게 (다크 모드는 아래 .admin-dark에서 별도 정의) */
+  --sidebar-bg: var(--brand);
+  --sidebar-hover: rgba(0,0,0,0.08);
+  --sidebar-active: rgba(0,0,0,0.16);
 
   /* 어드민 라이트 모드 (레거시 변수명 — Modern Neutral 토큰으로 alias) */
   --admin-content-bg: var(--admin-bg);
@@ -79,7 +80,7 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
   border-left: 3px solid transparent;
 }
 .sidenav-item:hover { background: var(--sidebar-hover); color: rgba(255,255,255,0.92); }
-.sidenav-item.active { background: var(--sidebar-active); color: #fff; font-weight: 700; border-left-color: var(--brand); }
+.sidenav-item.active { background: var(--sidebar-active); color: #fff; font-weight: 700; border-left-color: #fff; }
 .sidenav-section {
   display: flex; align-items: center;
   font-size: 13px; font-weight: 700; letter-spacing: .04em;
