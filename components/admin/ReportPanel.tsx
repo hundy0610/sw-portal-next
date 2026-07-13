@@ -69,23 +69,13 @@ function convertedKrw(annualKrw: number, annualUsd: number, rate: number, mode: 
   return krw + Math.round(usd * rate);
 }
 
-// ─── KPI 카드 ────────────────────────────────────────────────────────────
-function KpiCard({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
-  return (
-    <div className={`rounded-xl border border-indigo-100 bg-white p-4 shadow-sm ${color || ""}`}>
-      <p className="text-xs font-medium text-indigo-400 uppercase tracking-wide">{label}</p>
-      <p className="mt-1 text-2xl font-bold text-indigo-900">{value}</p>
-      {sub && <p className="mt-0.5 text-xs text-indigo-300">{sub}</p>}
-    </div>
-  );
-}
-
 // ─── Notion 링크 버튼 ────────────────────────────────────────────────────
 function NotionBtn({ url }: { url: string }) {
   if (!url) return null;
   return (
     <a href={url} target="_blank" rel="noopener noreferrer"
-      className="ml-1 inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium bg-indigo-50 text-indigo-500 hover:bg-indigo-100 transition-colors">
+      className="ml-1 inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium hover:opacity-80 transition-opacity"
+      style={{ background: "var(--brand-soft)", color: "var(--brand)" }}>
       <svg className="w-2.5 h-2.5" viewBox="0 0 16 16" fill="currentColor">
         <path d="M2.5 1A1.5 1.5 0 0 0 1 2.5v11A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-11A1.5 1.5 0 0 0 13.5 1h-11zm5.5 2.5h3.5v1.5H8V3.5zm-4 3h11v1.5h-11V6.5zm0 3h8v1.5h-8V9.5z"/>
       </svg>
@@ -145,13 +135,14 @@ function DeptRowUnified({
     <>
       {/* 부서 행 */}
       <tr
-        className="cursor-pointer border-b border-indigo-100 hover:bg-indigo-50 transition-colors"
+        className="cursor-pointer border-b border-gray-100 hover:bg-gray-50 transition-colors"
         onClick={() => setOpen(o => !o)}
       >
-        <td className="px-4 py-3 font-medium text-indigo-800 whitespace-nowrap">
-          <span className="mr-2 text-indigo-300">{open ? "▼" : "▶"}</span>
+        <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">
+          <span className="mr-2 text-gray-300">{open ? "▼" : "▶"}</span>
           {dept}
-          <span className="ml-2 inline-flex items-center justify-center w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 text-[10px] font-bold">
+          <span className="ml-2 inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold"
+            style={{ background: "var(--brand-soft)", color: "var(--brand)" }}>
             {rows.length}
           </span>
         </td>
@@ -193,10 +184,10 @@ function DeptRowUnified({
       {open && (
         <tr>
           <td colSpan={3} className="p-0">
-            <div className="bg-indigo-50 border-b border-indigo-200">
+            <div className="bg-gray-50 border-b border-gray-200">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-indigo-100 text-indigo-600 text-xs">
+                  <tr className="bg-gray-100 text-gray-500 text-xs">
                     <th className="px-6 py-2 text-left font-semibold w-40">사용자</th>
                     <th className="px-4 py-2 text-left font-semibold">SW</th>
                     <th className="px-4 py-2 text-left font-semibold">카테고리</th>
@@ -218,9 +209,9 @@ function DeptRowUnified({
                     const conv = convertedKrw(r.annualKrw, r.annualUsd, rate, mode);
                     const shared = isShared(r);
                     return (
-                      <tr key={r.id} className={`border-t border-indigo-100 ${shared ? "bg-amber-50/50" : "bg-white/70"} hover:bg-indigo-100/50`}>
-                        <td className="px-6 py-2 text-indigo-700 truncate max-w-[140px]">{r.user || "—"}</td>
-                        <td className="px-4 py-2 font-medium text-indigo-900">
+                      <tr key={r.id} className={`border-t border-gray-100 ${shared ? "bg-amber-50/50" : "bg-white/70"} hover:bg-gray-100/50`}>
+                        <td className="px-6 py-2 text-gray-700 truncate max-w-[140px]">{r.user || "—"}</td>
+                        <td className="px-4 py-2 font-medium text-gray-900">
                           {r.swName}
                           {shared && <SharedBadge label={r.billingType} />}
                         </td>
@@ -229,17 +220,17 @@ function DeptRowUnified({
                             {r.category}
                           </span>
                         </td>
-                        <td className="px-4 py-2 text-right text-indigo-800 font-mono">
-                          {pKrw > 0 ? fmt(pKrw) : <span className="text-indigo-200">—</span>}
+                        <td className="px-4 py-2 text-right text-gray-800 font-mono">
+                          {pKrw > 0 ? fmt(pKrw) : <span className="text-gray-300">—</span>}
                         </td>
                         <td className="px-4 py-2 text-right text-emerald-700 font-mono">
-                          {pUsd > 0 ? `$${pUsd.toFixed(2)}` : <span className="text-indigo-200">—</span>}
+                          {pUsd > 0 ? `$${pUsd.toFixed(2)}` : <span className="text-gray-300">—</span>}
                         </td>
                         <td className="px-4 py-2 text-right font-bold text-amber-700">
-                          {conv > 0 ? `${fmt(conv)}원` : <span className="text-indigo-200">—</span>}
+                          {conv > 0 ? `${fmt(conv)}원` : <span className="text-gray-300">—</span>}
                         </td>
-                        <td className="px-4 py-2 text-center text-xs text-indigo-500">
-                          {r.renewalDate || <span className="text-indigo-200">—</span>}
+                        <td className="px-4 py-2 text-center text-xs text-gray-500">
+                          {r.renewalDate || <span className="text-gray-300">—</span>}
                         </td>
                         <td className="px-4 py-2 text-center">
                           <NotionBtn url={r.notionUrl} />
@@ -284,7 +275,7 @@ function DeptDetail({
         </div>
         <span className="text-xs text-slate-400 flex-shrink-0 hidden sm:block">{users.length}명</span>
         <div className="flex-shrink-0 ml-auto text-right">
-          <div className="text-sm font-bold text-blue-700">
+          <div className="text-sm font-bold" style={{ color: "var(--brand)" }}>
             ₩{fmt(dTotal)}<span className="text-xs font-normal text-slate-400 ml-0.5">/{periodLabel}</span>
           </div>
           {dHas && (
@@ -370,7 +361,7 @@ function DeptDetail({
                 </td>
                 {/* 원화환산 */}
                 <td className="px-4 py-2.5 text-right">
-                  <span className={`text-xs font-bold ${isSharedSection ? "text-slate-400" : "text-blue-700"}`}>
+                  <span className="text-xs font-bold" style={{ color: isSharedSection ? "#94A3B8" : "var(--brand)" }}>
                     {g.totalConv > 0 ? fmt(Math.round(g.totalConv)) : "—"}
                   </span>
                 </td>
@@ -462,7 +453,7 @@ function CompanyBlock({
           )}
         </div>
         <div className="text-right">
-          <div className="text-xl font-bold text-blue-300">₩{fmt(coTotal)}</div>
+          <div className="text-xl font-bold" style={{ color: "var(--brand)" }}>₩{fmt(coTotal)}</div>
           <div className="text-xs text-slate-400">/ {periodLabel}</div>
         </div>
       </div>
@@ -478,8 +469,8 @@ function CompanyBlock({
               <div key={dept} className="flex items-center gap-3">
                 <div className="w-24 text-xs font-medium text-slate-700 text-right flex-shrink-0 truncate">{dept}</div>
                 <div className="flex-1 relative h-7 bg-slate-200 rounded-md overflow-hidden">
-                  <div className={`h-full rounded-md transition-all duration-500 ${isHigh?"bg-blue-700":"bg-blue-500"}`}
-                    style={{ width: `${pct}%` }} />
+                  <div className="h-full rounded-md transition-all duration-500"
+                    style={{ width: `${pct}%`, background: isHigh ? "var(--brand)" : "#94A3B8" }} />
                   <div className="absolute inset-0 flex items-center px-2">
                     <span className={`text-[10px] font-semibold ${pct>25?"text-white":"text-slate-500"}`}>
                       {users.length}명 · {sws.length}개 SW
@@ -487,7 +478,7 @@ function CompanyBlock({
                   </div>
                 </div>
                 <div className="w-36 text-right flex-shrink-0">
-                  <span className={`text-xs font-bold ${isHigh?"text-blue-700":"text-slate-700"}`}>₩{fmt(dTotal)}</span>
+                  <span className="text-xs font-bold" style={{ color: isHigh ? "var(--brand)" : "#334155" }}>₩{fmt(dTotal)}</span>
                   {dHas && (
                     <div className="text-[10px] text-gray-400">
                       쉐어드 ₩{fmt(dShared)} 포함
@@ -500,8 +491,8 @@ function CompanyBlock({
         </div>
         <div className="mt-3 pt-3 border-t border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-4 text-xs text-slate-400">
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-blue-700 rounded inline-block"/>최고 지출</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-blue-500 rounded inline-block"/>일반</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded inline-block" style={{ background: "var(--brand)" }}/>최고 지출</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded inline-block" style={{ background: "#94A3B8" }}/>일반</span>
           </div>
           <span className="text-xs text-slate-400">최대: {deptList[0]?.dept} ₩{fmt(deptList[0]?.dTotal||0)}</span>
         </div>
@@ -599,8 +590,8 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
 
   if (loading) return (
     <div className="flex items-center justify-center py-24">
-      <div className="animate-spin rounded-full h-8 w-8 border-2 border-indigo-400 border-t-transparent"/>
-      <span className="ml-3 text-indigo-500 font-medium">데이터 로드 중...</span>
+      <div className="animate-spin rounded-full h-8 w-8 border-2 border-t-transparent" style={{ borderColor: "var(--brand)", borderTopColor: "transparent" }}/>
+      <span className="ml-3 font-medium" style={{ color: "var(--brand)" }}>데이터 로드 중...</span>
     </div>
   );
   if (missingEnv) return <EnvVarMissing varName={missingEnv} />;
@@ -687,11 +678,13 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
           {/* 기간 토글 */}
           <div className="inline-flex rounded-md border border-slate-200 overflow-hidden bg-white shadow-sm">
             <button onClick={() => setMode("monthly")}
-              className={`px-3 py-1.5 text-xs font-semibold transition-colors ${mode==="monthly" ? "bg-blue-700 text-white" : "text-slate-500 hover:bg-slate-50"}`}>
+              className={`px-3 py-1.5 text-xs font-semibold transition-colors ${mode==="monthly" ? "text-white" : "text-slate-500 hover:bg-slate-50"}`}
+              style={mode==="monthly" ? { background: "var(--brand)" } : undefined}>
               월간
             </button>
             <button onClick={() => setMode("annual")}
-              className={`px-3 py-1.5 text-xs font-semibold transition-colors ${mode==="annual" ? "bg-blue-700 text-white" : "text-slate-500 hover:bg-slate-50"}`}>
+              className={`px-3 py-1.5 text-xs font-semibold transition-colors ${mode==="annual" ? "text-white" : "text-slate-500 hover:bg-slate-50"}`}
+              style={mode==="annual" ? { background: "var(--brand)" } : undefined}>
               연간
             </button>
           </div>
@@ -767,7 +760,7 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
             전체 합계 · {coMap.size}개 법인 · {totalLicenses}건
           </span>
           <div className="text-right">
-            <div className="text-xl font-bold text-blue-300">₩{fmt(grandTotal)}<span className="text-sm ml-1">/{mode==="monthly"?"월":"년"}</span></div>
+            <div className="text-xl font-bold" style={{ color: "var(--brand)" }}>₩{fmt(grandTotal)}<span className="text-sm ml-1">/{mode==="monthly"?"월":"년"}</span></div>
             {hasShared && <div className="text-xs text-slate-500 mt-0.5">쉐어드 ₩{fmt(sharedTotal)} 포함</div>}
           </div>
         </div>
