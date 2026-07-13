@@ -897,7 +897,7 @@ function ItemDetailPanel({
           <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
             <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">구역</div>
             <div className="flex flex-wrap gap-1.5">
-              <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-semibold border border-blue-100">
+              <span className="text-xs bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full font-semibold border border-amber-100">
                 {zone.name}
               </span>
               {(zone.tags as string[] | undefined)?.map((tag: string) => (
@@ -1015,7 +1015,7 @@ function ItemDetailPanel({
         <div className="bg-white border border-gray-100 rounded-xl p-3">
           <div className="flex items-center justify-between mb-2">
             <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">이력</div>
-            <button onClick={loadHistory} className="text-[10px] text-blue-400 hover:text-blue-600">↻ 새로고침</button>
+            <button onClick={loadHistory} className="text-[10px] text-amber-500 hover:text-amber-600">↻ 새로고침</button>
           </div>
           {histLoading ? (
             <div className="text-[11px] text-gray-400 text-center py-3">불러오는 중…</div>
@@ -1056,7 +1056,7 @@ function ItemDetailPanel({
                           <button
                             disabled={statusUpdating === entry.id}
                             onClick={() => updateStatus(entry.id, "in_progress")}
-                            className="text-[9px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 disabled:opacity-50">
+                            className="text-[9px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 disabled:opacity-50">
                             처리 중으로
                           </button>
                         )}
@@ -1896,8 +1896,8 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
                 onClick={() => handleFloorChange(f.id)}
                 className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all ${
                   f.id === floorId
-                    ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                    : "bg-white text-slate-500 border-gray-200 hover:border-blue-300 hover:text-blue-600"
+                    ? "bg-amber-600 text-white border-amber-600 shadow-sm"
+                    : "bg-white text-slate-500 border-gray-200 hover:border-amber-300 hover:text-amber-600"
                 }`}>{f.label.replace("층","F")}</button>
             ))}
           </div>
@@ -1956,7 +1956,7 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
                             <span className="font-semibold text-sm text-gray-800">{b.label}</span>
                             {isHardcoded
                               ? <span className="text-[10px] bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded">기본</span>
-                              : <span className="text-[10px] bg-blue-50 text-blue-500 px-1.5 py-0.5 rounded">추가됨</span>}
+                              : <span className="text-[10px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded">추가됨</span>}
                           </div>
                           {!isHardcoded && (
                             <button type="button" onClick={() => deleteBuilding(b.id)}
@@ -1987,7 +1987,7 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
                                 }}
                                 onDragEnd={() => setBldMgr(s => ({ ...s, dragFloorBldId: null, dragFloorId: null, dragOverFloorId: null }))}
                                 className={`flex items-center gap-2 px-2 py-1.5 rounded-lg border transition-all cursor-grab active:cursor-grabbing ${
-                                  isDragOver  ? "border-blue-400 bg-blue-50" :
+                                  isDragOver  ? "border-amber-500 bg-amber-50" :
                                   isDragging  ? "border-gray-300 bg-gray-50 opacity-50" :
                                   "border-gray-100 bg-gray-50 hover:border-gray-300"
                                 }`}>
@@ -2000,14 +2000,14 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
                                 {isEditingThis ? (
                                   <div className="flex-1 flex flex-col gap-1">
                                     <input autoFocus
-                                      className="text-xs bg-white border border-blue-300 rounded px-1.5 py-0.5 focus:outline-none w-full"
+                                      className="text-xs bg-white border border-amber-300 rounded px-1.5 py-0.5 focus:outline-none w-full"
                                       placeholder="층 이름"
                                       value={bldMgr.editFloorLabel}
                                       onChange={e => setBldMgr(s => ({ ...s, editFloorLabel: e.target.value }))}
                                       onKeyDown={e => { if (e.key === "Escape") setBldMgr(s => ({ ...s, editFloorBldId: null, editFloorId: null })); }}
                                     />
                                     <input
-                                      className="text-xs bg-white border border-blue-200 rounded px-1.5 py-0.5 focus:outline-none w-full text-gray-400"
+                                      className="text-xs bg-white border border-amber-200 rounded px-1.5 py-0.5 focus:outline-none w-full text-gray-400"
                                       placeholder="설명 (선택)"
                                       value={bldMgr.editFloorNote}
                                       onChange={e => setBldMgr(s => ({ ...s, editFloorNote: e.target.value }))}
@@ -2015,7 +2015,7 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
                                     />
                                     <div className="flex gap-1">
                                       <button type="button"
-                                        className="text-[11px] px-2 py-0.5 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                        className="text-[11px] px-2 py-0.5 bg-amber-600 text-white rounded hover:bg-amber-700"
                                         onClick={() => { saveFloor(b.id, f.id, bldMgr.editFloorLabel, bldMgr.editFloorNote); setBldMgr(s => ({ ...s, editFloorBldId: null, editFloorId: null })); }}>
                                         저장
                                       </button>
@@ -2047,21 +2047,21 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
                         {bldMgr.newFloorTarget === b.id ? (
                           <div className="flex gap-1 mt-1">
                             <input
-                              className="flex-1 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-blue-400"
+                              className="flex-1 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-amber-500"
                               placeholder="층 이름 (예: 10층)"
                               value={bldMgr.newFloorLabel}
                               onChange={e => setBldMgr(s => ({ ...s, newFloorLabel: e.target.value }))}
                               onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addFloor(); } }}
                             />
                             <input
-                              className="w-28 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-blue-400"
+                              className="w-28 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-amber-500"
                               placeholder="설명 (선택)"
                               value={bldMgr.newFloorNote}
                               onChange={e => setBldMgr(s => ({ ...s, newFloorNote: e.target.value }))}
                               onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addFloor(); } }}
                             />
                             <button type="button" onClick={addFloor}
-                              className="px-3 py-1 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-colors">
+                              className="px-3 py-1 bg-amber-600 text-white text-xs rounded-lg hover:bg-amber-700 transition-colors">
                               추가
                             </button>
                             <button onClick={() => setBldMgr(s => ({ ...s, newFloorTarget: "", newFloorLabel: "", newFloorNote: "" }))}
@@ -2070,7 +2070,7 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
                         ) : (
                           <button
                             onClick={() => setBldMgr(s => ({ ...s, newFloorTarget: b.id, newFloorLabel: "", newFloorNote: "" }))}
-                            className="text-[11px] text-blue-500 hover:text-blue-700 mt-1">
+                            className="text-[11px] text-amber-600 hover:text-amber-700 mt-1">
                             + 층 추가
                           </button>
                         )}
@@ -2111,10 +2111,10 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
                 )}
                 <div className="space-y-4">
                   {(bldConfig.groups ?? []).map(g => (
-                    <div key={g.id} className={`border rounded-xl overflow-hidden ${bldMgr.editGrpId === g.id ? "border-blue-300" : "border-gray-200"}`}>
+                    <div key={g.id} className={`border rounded-xl overflow-hidden ${bldMgr.editGrpId === g.id ? "border-amber-300" : "border-gray-200"}`}>
                       {/* 그룹 헤더 */}
                       <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-b border-gray-200">
-                        <button className="text-sm font-bold text-gray-800 hover:text-blue-600 text-left"
+                        <button className="text-sm font-bold text-gray-800 hover:text-amber-600 text-left"
                           onClick={() => setBldMgr(s => ({ ...s, editGrpId: s.editGrpId === g.id ? null : g.id }))}>
                           {g.label}
                           <span className="ml-2 text-[10px] font-normal text-gray-400">
@@ -2158,12 +2158,12 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
                                 const checked = g.allowedUserIds.includes(a.userId);
                                 return (
                                   <label key={a.userId} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs cursor-pointer transition-all ${
-                                    checked ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-200 hover:border-blue-300"
+                                    checked ? "bg-amber-600 text-white border-amber-600" : "bg-white text-gray-600 border-gray-200 hover:border-amber-300"
                                   }`}>
                                     <input type="checkbox" className="hidden" checked={checked}
                                       onChange={() => toggleGroupUser(g.id, a.userId)} />
                                     <span>{a.name}</span>
-                                    <span className={`${checked ? "text-blue-200" : "text-gray-400"} text-[10px]`}>({a.userId})</span>
+                                    <span className={`${checked ? "text-amber-200" : "text-gray-400"} text-[10px]`}>({a.userId})</span>
                                   </label>
                                 );
                               })}
@@ -2249,7 +2249,7 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
               <button
                 onClick={handleSaveToNotion}
                 disabled={isSaving}
-                className="px-3 py-1 rounded-lg text-[11px] font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm">
+                className="px-3 py-1 rounded-lg text-[11px] font-semibold bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm">
                 {isSaving ? "저장 중…" : "노션 저장"}
               </button>
               <span className="text-[10px] text-amber-500">{building?.label ?? ""} {floor?.label ?? ""}</span>
@@ -2267,7 +2267,7 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
           {/* 탭 헤더 */}
           <div className="flex items-center gap-1 mb-3">
             <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
-              <span className="px-3 py-1.5 font-medium bg-blue-600 text-white">
+              <span className="px-3 py-1.5 font-medium bg-amber-600 text-white">
                 시트 배치도
               </span>
             </div>
@@ -2287,7 +2287,7 @@ export default function AssetMapPanel({ session }: { session?: SessionInfo | nul
               />
             : <div className="flex flex-col items-center justify-center py-20 text-center text-gray-400">
                 <div className="text-sm font-medium text-gray-500">저장된 도면이 없습니다</div>
-                <div className="text-xs mt-1">편집 모드에서 도면을 작성하고 <span className="font-semibold text-blue-500">노션 저장</span>을 눌러주세요.</div>
+                <div className="text-xs mt-1">편집 모드에서 도면을 작성하고 <span className="font-semibold text-amber-600">노션 저장</span>을 눌러주세요.</div>
               </div>
           }
         </div>
