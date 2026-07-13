@@ -2950,21 +2950,25 @@ export default function HwPanel({ company = "", initialStats, isSuperAdmin = fal
   // shipment/return은 자체 fetch → 공유 records 불필요
   const isRecordsTab = tab === "label" || tab === "stock";
 
-  // ── Notion 동기화 (GitHub Actions 즉시 트리거) ─────────────────────────────
+  // ── Notion 증분 동기화 (최근 수정분만 즉시 반영) ────────────────────────────
   const [syncing,     setSyncing]     = useState(false);
   const [syncDone,    setSyncDone]    = useState(false);
+  const [syncMsg,     setSyncMsg]     = useState("");
   const [syncError,   setSyncError]   = useState("");
   const handleSync = useCallback(async () => {
-    setSyncing(true); setSyncDone(false); setSyncError("");
+    setSyncing(true); setSyncDone(false); setSyncError(""); setSyncMsg("");
     try {
       const res  = await fetch("/api/hw/sync", { method: "POST" });
       const json = await safeJson(res);
       if (!json.ok) throw new Error(json.error);
       setSyncDone(true);
+      setSyncMsg(json.updatedCount > 0 ? `${json.updatedCount}건 반영됨` : "변경 사항 없음");
       setTimeout(() => setSyncDone(false), 5000);
+      loadStats();
+      if (recordsReady) loadAll();
     } catch (e) { setSyncError(String(e)); setTimeout(() => setSyncError(""), 5000); }
     finally { setSyncing(false); }
-  }, []);
+  }, [loadStats, loadAll, recordsReady]);
 
   if (missingEnv) return <EnvVarMissing varName={missingEnv} />;
 
@@ -2989,7 +2993,7 @@ export default function HwPanel({ company = "", initialStats, isSuperAdmin = fal
           <button
             onClick={handleSync}
             disabled={syncing}
-            title="Notion에서 직접 수정한 내용을 즉시 반영합니다 (약 1~2분 소요)"
+            title="Notion에서 직접 수정한 내용을 최근 변경분만 즉시 반영합니다"
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
               syncDone
                 ? "bg-green-50 border-green-200 text-green-700"
@@ -3006,7 +3010,7 @@ export default function HwPanel({ company = "", initialStats, isSuperAdmin = fal
                 동기화 중…
               </>
             ) : syncDone ? (
-              <>동기화 시작됨</>
+              <>{syncMsg || "동기화 완료"}</>
             ) : syncError ? (
               <>실패</>
             ) : (

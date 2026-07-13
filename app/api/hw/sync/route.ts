@@ -1,46 +1,31 @@
 import { NextResponse } from "next/server";
-import { triggerWarmHw } from "@/lib/trigger-warm-hw";
+import { fetchHwUpdatedSince, mergeHwRecords, getHwLastSyncedAt, setHwLastSyncedAt, SYNC_OVERLAP_MS } from "@/lib/hw";
 import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
 
 /**
  * POST /api/hw/sync
- * GitHub Actions warm-hw.yml 워크플로우를 즉시 디스패치.
- * Notion 직접 수정 후 포털에서 수동 동기화할 때 사용.
+ * Notion에서 last_edited_time 기준 최근 수정분만 조회해 KV 캐시에 즉시 반영.
+ * 전체 재스캔(warm-hw GitHub Actions) 대신 증분 동기화로 몇 초 내 완료됨.
  */
 export async function POST() {
-  const token = process.env.GITHUB_DISPATCH_TOKEN;
-  const repo  = process.env.GITHUB_REPO;
-
-  if (!token || !repo) {
-    return NextResponse.json(
-      { ok: false, error: "GITHUB_DISPATCH_TOKEN 또는 GITHUB_REPO 미설정" },
-      { status: 503 }
-    );
-  }
+  const startedAt = new Date();
 
   try {
-    // 디바운스 우회: 직접 디스패치 (수동 트리거이므로 항상 실행)
-    const res = await fetch(
-      `https://api.github.com/repos/${repo}/actions/workflows/warm-hw.yml/dispatches`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `token ${token}`,
-          Accept: "application/vnd.github.v3+json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ ref: "master" }),
-      }
-    );
+    const since = await getHwLastSyncedAt();
+    const updated = await fetchHwUpdatedSince(since);
+    const stats = await mergeHwRecords(updated);
+    await setHwLastSyncedAt(new Date(startedAt.getTime() - SYNC_OVERLAP_MS).toISOString());
 
-    if (!res.ok) {
-      const text = await res.text();
-      return NextResponse.json({ ok: false, error: `GitHub API ${res.status}: ${text}` }, { status: 500 });
-    }
-
-    return NextResponse.json({ ok: true, message: "Notion 동기화 시작됨 (약 1~2분 소요)" });
+    return NextResponse.json({
+      ok: true,
+      updatedCount: updated.length,
+      total: stats.total,
+      message: updated.length > 0
+        ? `Notion 동기화 완료 (${updated.length}건 반영)`
+        : "Notion 동기화 완료 (변경 사항 없음)",
+    });
   } catch (e) {
     return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }

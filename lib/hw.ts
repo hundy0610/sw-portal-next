@@ -406,3 +406,82 @@ export async function fetchAllHwRecords(): Promise<HwRecord[]> {
 
   return records;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 증분 동기화 — "Notion 동기화" 버튼용. 전체 재조회 대신 최근 수정분만 가져온다.
+// ─────────────────────────────────────────────────────────────────────────────
+const LAST_SYNCED_KEY = "hw:lastSyncedAt";
+// Notion last_edited_time은 분 단위 정밀도라, 직전 동기화 시각 그대로 필터하면
+// 같은 시각에 걸친 수정 건을 놓칠 수 있음 — 여유를 두고 겹쳐서 조회한다.
+const SYNC_OVERLAP_MS = 3 * 60 * 1000;
+
+/**
+ * Notion에서 last_edited_time 기준으로 최근 수정된 레코드만 조회.
+ * (전체 스캔 대비 몇 건~수십 건 규모라 1~2초 내 완료됨)
+ */
+export async function fetchHwUpdatedSince(sinceIso: string): Promise<HwRecord[]> {
+  if (isMock()) return [];
+
+  const records: HwRecord[] = [];
+  let cursor: string | undefined;
+
+  do {
+    const res = await queryWithRetry({
+      database_id: DB_ID,
+      page_size: 100,
+      start_cursor: cursor,
+      filter: { timestamp: "last_edited_time", last_edited_time: { on_or_after: sinceIso } },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    for (const page of res.results) {
+      if (page.object === "page" && "properties" in page) {
+        records.push(mapPage(page as PageObjectResponse));
+      }
+    }
+
+    cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined;
+  } while (cursor);
+
+  return records;
+}
+
+/**
+ * 방금 Notion에서 새로 조회한 레코드들을 hw:all 캐시에 id 기준으로 upsert하고
+ * hw:stats를 재계산한다. 신규 생성된 페이지도 자연히 추가됨(id가 없던 항목).
+ */
+export async function mergeHwRecords(updated: HwRecord[]): Promise<HwStats> {
+  const existing = (await kvGet<HwRecord[]>("hw:all")) ?? [];
+  const byId = new Map(existing.map(r => [r.id, r]));
+  for (const r of updated) byId.set(r.id, r);
+  const merged = Array.from(byId.values());
+  merged.sort((a, b) => (b.purchaseDate || "") > (a.purchaseDate || "") ? 1 : -1);
+
+  const stats = computeHwStats(merged);
+  await kvSetPermanent("hw:all", merged);
+  await kvSetPermanent("hw:stats", stats);
+
+  // 방금 Notion에서 새로 받아온 값이 최신이므로, 해당 id에 남아있던 로컬 patch 델타는 정리
+  if (updated.length > 0) {
+    const deltas = await kvGet<Record<string, Record<string, unknown>>>("hw:deltas");
+    if (deltas) {
+      let changed = false;
+      for (const r of updated) { if (deltas[r.id]) { delete deltas[r.id]; changed = true; } }
+      if (changed) await kvSet("hw:deltas", deltas, 3600);
+    }
+  }
+
+  return stats;
+}
+
+/** 마지막 증분 동기화 시각 조회 (없으면 24시간 전을 기본값으로) */
+export async function getHwLastSyncedAt(): Promise<string> {
+  const saved = await kvGet<string>(LAST_SYNCED_KEY);
+  return saved ?? new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+}
+
+export async function setHwLastSyncedAt(iso: string): Promise<void> {
+  await kvSetPermanent(LAST_SYNCED_KEY, iso);
+}
+
+export { SYNC_OVERLAP_MS };
