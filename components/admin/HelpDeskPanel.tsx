@@ -370,6 +370,53 @@ function ActionCategoryTree({ selected, onChange }: { selected: string[]; onChan
 
 // ── HelpDesk Ticket Detail Modal ─────────────────────────────
 const HELPDESK_EDIT_STATUSES = ["시작 전", "진행 중", "완료"] as const;
+const ACTION_NOTE_MIN_LEN = 10;
+
+// ── 조치내용 작성 가이드 팝업 ──────────────────────────────────
+function ActionNoteGuideModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center" style={{ background: "rgba(0,0,0,0.4)" }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4" onClick={e => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="text-base font-bold text-gray-900">조치내용 작성 가이드</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+        </div>
+        <div className="px-6 py-5 space-y-4">
+          <p className="text-sm text-gray-600">
+            나중에 같은 문제가 재발했을 때 바로 참고할 수 있도록, 아래 4가지를 포함해 구체적으로 작성해주세요.
+            (최소 {ACTION_NOTE_MIN_LEN}자 이상)
+          </p>
+          <div className="space-y-3">
+            {[
+              { label: "① 증상/현상", desc: "사용자가 겪은 문제를 구체적으로 (에러 메시지, 발생 시점 등)" },
+              { label: "② 원인", desc: "확인된 원인 (파악되지 않았다면 그 사실도 기재)" },
+              { label: "③ 조치 방법", desc: "실제로 수행한 조치 (설정 변경, 재설치, 교체 등)" },
+              { label: "④ 결과 확인", desc: "조치 후 정상 동작을 확인했는지, 사용자에게 안내했는지" },
+            ].map(item => (
+              <div key={item.label} className="flex gap-3">
+                <span className="text-xs font-bold shrink-0 mt-0.5" style={{ color: "var(--brand)" }}>{item.label}</span>
+                <span className="text-xs text-gray-500">{item.desc}</span>
+              </div>
+            ))}
+          </div>
+          <div className="rounded-lg p-3" style={{ background: "var(--brand-soft)" }}>
+            <div className="text-[11px] font-semibold mb-1" style={{ color: "var(--brand)" }}>예시</div>
+            <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-wrap">
+              {"outlook 메일 수신 오류(0x8004xxx) 발생. 계정 프로필 손상이 원인으로 확인됨. 프로필 재생성 후 재설정 진행. 사용자 확인 하에 정상 수신 확인 완료."}
+            </p>
+          </div>
+        </div>
+        <div className="px-6 py-4 border-t border-gray-100 flex justify-end">
+          <button onClick={onClose}
+            className="px-4 py-2 rounded-lg text-white text-sm font-semibold" style={{ background: "var(--brand)" }}>
+            확인
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function HelpDeskTicketFloating({
   ticket,
@@ -395,6 +442,8 @@ function HelpDeskTicketFloating({
   const [noteValue,         setNoteValue]         = useState(ticket.actionNote ?? "");
   const [noteSaving,        setNoteSaving]        = useState(false);
   const [noteSaveResult,    setNoteSaveResult]    = useState<"idle" | "done" | "error">("idle");
+  const [showNoteGuide,     setShowNoteGuide]     = useState(false);
+  const noteGuideShownRef = useRef(false);
   const [selectedCategories, setSelectedCategories] = useState<string[]>(ticket.actionCategory ?? []);
   const [categorySaving,     setCategorySaving]     = useState(false);
   const [categorySaveResult, setCategorySaveResult] = useState<"idle" | "done" | "error">("idle");
@@ -445,7 +494,7 @@ function HelpDeskTicketFloating({
     setAllSaving(true); setAllSaveResult("idle");
     try {
       const found = assigneeList.find(u => u.name === selectedAssignee);
-      const noteText = textareaRef.current?.value ?? noteValue;
+      const noteText = noteValue;
       const res = await fetch("/api/helpdesk/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -472,7 +521,7 @@ function HelpDeskTicketFloating({
     finally { setAllSaving(false); }
   };
 
-  const canComplete = selectedCategories.length > 0 && selectedMethod !== "" && (textareaRef.current?.value ?? noteValue) !== "";
+  const canComplete = selectedCategories.length > 0 && selectedMethod !== "" && noteValue.trim().length >= ACTION_NOTE_MIN_LEN;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -531,7 +580,8 @@ function HelpDeskTicketFloating({
   };
 
   const saveNote = async () => {
-    const value = textareaRef.current?.value ?? noteValue;
+    const value = noteValue;
+    if (value.trim().length < ACTION_NOTE_MIN_LEN) { setNoteSaveResult("error"); return; }
     setNoteSaving(true); setNoteSaveResult("idle");
     try {
       const res = await fetch("/api/helpdesk/update", {
@@ -651,6 +701,7 @@ function HelpDeskTicketFloating({
       style={{ background: "rgba(0,0,0,0.4)" }}
       onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
     >
+      {showNoteGuide && <ActionNoteGuideModal onClose={() => setShowNoteGuide(false)} />}
       <div
         className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl mx-4 flex flex-col"
         style={{ maxHeight: "90vh" }}
@@ -902,14 +953,32 @@ function HelpDeskTicketFloating({
 
                       {/* 조치내용 */}
                       <div>
-                        <span className="text-xs text-gray-500 font-semibold block mb-1.5">조치내용</span>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs text-gray-500 font-semibold">조치내용</span>
+                          <button type="button" onClick={() => setShowNoteGuide(true)}
+                            className="text-[11px] font-semibold hover:underline" style={{ color: "var(--brand)" }}>
+                            작성 가이드 보기
+                          </button>
+                        </div>
                         <textarea
                           ref={textareaRef}
-                          defaultValue={noteValue}
+                          value={noteValue}
+                          onChange={e => setNoteValue(e.target.value)}
+                          onFocus={() => {
+                            if (!noteGuideShownRef.current && noteValue.trim().length === 0) {
+                              noteGuideShownRef.current = true;
+                              setShowNoteGuide(true);
+                            }
+                          }}
                           rows={4}
                           className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-200 resize-none"
-                          placeholder="조치 내역을 입력하세요"
+                          placeholder="조치 내역을 입력하세요 (최소 10자)"
                         />
+                        <div className="flex justify-end mt-1">
+                          <span className={`text-[11px] ${noteValue.trim().length < ACTION_NOTE_MIN_LEN ? "text-gray-400" : "text-emerald-600"}`}>
+                            {noteValue.trim().length}자 {noteValue.trim().length < ACTION_NOTE_MIN_LEN && `(최소 ${ACTION_NOTE_MIN_LEN}자)`}
+                          </span>
+                        </div>
                       </div>
 
                       {/* 완료 처리 버튼 */}
@@ -929,7 +998,9 @@ function HelpDeskTicketFloating({
                         </button>
                       </div>
                       {!canComplete && (
-                        <p className="text-xs text-amber-600">조치분류, 조치방법, 조치내용을 모두 입력해주세요.</p>
+                        <p className="text-xs text-amber-600">
+                          조치분류, 조치방법을 선택하고 조치내용을 {ACTION_NOTE_MIN_LEN}자 이상 작성해주세요.
+                        </p>
                       )}
                       {allSaveResult === "error" && <p className="text-xs text-red-500">완료 처리 실패</p>}
                     </div>
@@ -966,18 +1037,28 @@ function HelpDeskTicketFloating({
                   )}
                   {/* 조치내용 */}
                   <div>
-                    <span className="text-[11px] text-gray-400 block mb-1">조치내용</span>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[11px] text-gray-400">조치내용</span>
+                      {editingNote && (
+                        <button type="button" onClick={() => setShowNoteGuide(true)}
+                          className="text-[11px] font-semibold hover:underline" style={{ color: "var(--brand)" }}>
+                          작성 가이드 보기
+                        </button>
+                      )}
+                    </div>
                     {editingNote ? (
                       <div className="space-y-2">
                         <textarea
                           ref={textareaRef}
-                          defaultValue={noteValue}
+                          value={noteValue}
+                          onChange={e => setNoteValue(e.target.value)}
                           rows={4}
                           className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-200 resize-none"
+                          placeholder="조치 내역을 입력하세요 (최소 10자)"
                           autoFocus
                         />
                         <div className="flex items-center gap-2">
-                          <button onClick={saveNote} disabled={noteSaving}
+                          <button onClick={saveNote} disabled={noteSaving || noteValue.trim().length < ACTION_NOTE_MIN_LEN}
                             className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                             {noteSaving ? "저장 중…" : "저장"}
                           </button>
@@ -985,7 +1066,10 @@ function HelpDeskTicketFloating({
                             className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
                             취소
                           </button>
-                          {noteSaveResult === "error" && <span className="text-xs text-red-500">실패</span>}
+                          <span className={`text-[11px] ${noteValue.trim().length < ACTION_NOTE_MIN_LEN ? "text-gray-400" : "text-emerald-600"}`}>
+                            {noteValue.trim().length}자{noteValue.trim().length < ACTION_NOTE_MIN_LEN && ` (최소 ${ACTION_NOTE_MIN_LEN}자)`}
+                          </span>
+                          {noteSaveResult === "error" && <span className="text-xs text-red-500">저장 실패 — {ACTION_NOTE_MIN_LEN}자 이상 입력했는지 확인해주세요</span>}
                         </div>
                       </div>
                     ) : (
@@ -1099,8 +1183,9 @@ function StatCard({ label, value, color }: { label: string; value: string | numb
 
 // ── Monthly Line Chart (SVG) ─────────────────────────────────
 function MonthlyLineChart({ data }: { data: { month: string; count: number }[] }) {
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const max = Math.max(...data.map(d => d.count), 1);
-  const W = 600, H = 170, PAD_X = 40, PAD_TOP = 20, PAD_BOT = 28;
+  const W = 760, H = 240, PAD_X = 44, PAD_TOP = 24, PAD_BOT = 32;
   const chartH = H - PAD_TOP - PAD_BOT;
   const chartW = W - PAD_X * 2;
   const n = data.length;
@@ -1115,53 +1200,81 @@ function MonthlyLineChart({ data }: { data: { month: string; count: number }[] }
     `${xOf(n - 1)},${PAD_TOP + chartH}`,
   ].join(" ");
 
+  const hovered = hoverIdx !== null ? data[hoverIdx] : null;
+
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ overflow: "visible" }}>
-      <defs>
-        <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="var(--brand)" stopOpacity="0.15" />
-          <stop offset="100%" stopColor="var(--brand)" stopOpacity="0" />
-        </linearGradient>
-      </defs>
+    <div style={{ height: H, position: "relative" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="100%" preserveAspectRatio="xMidYMid meet" style={{ overflow: "visible" }}>
+        <defs>
+          <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--brand)" stopOpacity="0.18" />
+            <stop offset="100%" stopColor="var(--brand)" stopOpacity="0" />
+          </linearGradient>
+        </defs>
 
-      {/* Grid lines */}
-      {[0, 0.25, 0.5, 0.75, 1].map(pct => {
-        const y = PAD_TOP + chartH * (1 - pct);
-        const val = Math.round(max * pct);
-        return (
-          <g key={pct}>
-            <line x1={PAD_X} y1={y} x2={W - PAD_X} y2={y} stroke="#F4F4F5" strokeWidth={1} />
-            <text x={PAD_X - 6} y={y + 4} textAnchor="end" fontSize={9} fill="#A1A1AA">{val}</text>
-          </g>
-        );
-      })}
+        {/* Grid lines */}
+        {[0, 0.25, 0.5, 0.75, 1].map(pct => {
+          const y = PAD_TOP + chartH * (1 - pct);
+          const val = Math.round(max * pct);
+          return (
+            <g key={pct}>
+              <line x1={PAD_X} y1={y} x2={W - PAD_X} y2={y} stroke="#F1F1F2" strokeWidth={1} />
+              <text x={PAD_X - 8} y={y + 4} textAnchor="end" fontSize={11} fill="#A1A1AA">{val}</text>
+            </g>
+          );
+        })}
 
-      {/* Area fill */}
-      {n > 1 && <polygon points={areaPoints} fill="url(#lineGrad)" />}
+        {/* Area fill */}
+        {n > 1 && <polygon points={areaPoints} fill="url(#lineGrad)" />}
 
-      {/* Line */}
-      {n > 1 && (
-        <polyline points={points} fill="none" stroke="var(--brand)" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
-      )}
+        {/* Line */}
+        {n > 1 && (
+          <polyline points={points} fill="none" stroke="var(--brand)" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+        )}
 
-      {/* Dots + labels + x-axis */}
-      {data.map((d, i) => {
-        const cx = xOf(i), cy = yOf(d.count);
-        return (
-          <g key={d.month}>
-            <circle cx={cx} cy={cy} r={4} fill="white" stroke="var(--brand)" strokeWidth={2} />
-            {d.count > 0 && (
-              <text x={cx} y={cy - 9} textAnchor="middle" fontSize={10} fontWeight="700" fill="#5B21B6">
-                {d.count}
+        {/* Hover crosshair */}
+        {hovered && (
+          <line x1={xOf(hoverIdx!)} y1={PAD_TOP} x2={xOf(hoverIdx!)} y2={PAD_TOP + chartH}
+            stroke="var(--brand)" strokeWidth={1} strokeDasharray="3 3" opacity={0.5} />
+        )}
+
+        {/* Dots + x-axis + hit targets */}
+        {data.map((d, i) => {
+          const cx = xOf(i), cy = yOf(d.count);
+          const isLast = i === n - 1;
+          const isHover = hoverIdx === i;
+          return (
+            <g key={d.month}>
+              <circle cx={cx} cy={cy} r={isHover ? 6 : 4} fill="white" stroke="var(--brand)" strokeWidth={2} style={{ transition: "r .1s" }} />
+              {(isLast || isHover) && (
+                <text x={cx} y={cy - 12} textAnchor="middle" fontSize={12} fontWeight="700" fill="var(--brand)">
+                  {d.count}
+                </text>
+              )}
+              <text x={cx} y={H - 8} textAnchor="middle" fontSize={11} fill="#8A8A8E">
+                {monthLabel(d.month)}
               </text>
-            )}
-            <text x={cx} y={H - 4} textAnchor="middle" fontSize={10} fill="#A1A1AA">
-              {monthLabel(d.month)}
-            </text>
-          </g>
-        );
-      })}
-    </svg>
+              {/* invisible wider hit area for hover */}
+              <rect x={cx - chartW / Math.max(n, 1) / 2} y={PAD_TOP} width={chartW / Math.max(n, 1)} height={chartH}
+                fill="transparent"
+                onMouseEnter={() => setHoverIdx(i)}
+                onMouseLeave={() => setHoverIdx(null)}
+                style={{ cursor: "pointer" }} />
+            </g>
+          );
+        })}
+      </svg>
+      {hovered && (
+        <div style={{
+          position: "absolute", top: 4, right: 4, background: "var(--admin-surface, #fff)",
+          border: "1px solid var(--admin-border, #E4E4E7)", borderRadius: 8, padding: "6px 10px",
+          fontSize: 12, boxShadow: "0 2px 8px rgba(0,0,0,.08)", pointerEvents: "none",
+        }}>
+          <div style={{ fontWeight: 700, color: "var(--admin-text-primary, #18181B)" }}>{monthLabel(hovered.month)}</div>
+          <div style={{ color: "var(--brand)", fontWeight: 700 }}>{hovered.count}건</div>
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -89,11 +89,13 @@ function PriorityBadge({ priority }: { priority: string }) {
 
 // ── Monthly Line Chart (SVG) ─────────────────────────────────
 function MonthlyLineChart({ data }: { data: { month: string; count: number }[] }) {
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const max = Math.max(...data.map(d => d.count), 1);
-  const W = 600, H = 170, PAD_X = 40, PAD_TOP = 20, PAD_BOT = 28;
+  const W = 760, H = 240, PAD_X = 44, PAD_TOP = 24, PAD_BOT = 32;
   const chartH = H - PAD_TOP - PAD_BOT;
   const chartW = W - PAD_X * 2;
   const n = data.length;
+  const ACCENT = "#F97316";
 
   const xOf = (i: number) => PAD_X + (i / Math.max(n - 1, 1)) * chartW;
   const yOf = (v: number) => PAD_TOP + chartH * (1 - v / max);
@@ -105,45 +107,70 @@ function MonthlyLineChart({ data }: { data: { month: string; count: number }[] }
     `${xOf(n - 1)},${PAD_TOP + chartH}`,
   ].join(" ");
 
+  const hovered = hoverIdx !== null ? data[hoverIdx] : null;
+
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ overflow: "visible" }}>
-      <defs>
-        <linearGradient id="repairLineGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#F97316" stopOpacity="0.15" />
-          <stop offset="100%" stopColor="#F97316" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      {[0, 0.25, 0.5, 0.75, 1].map(pct => {
-        const y = PAD_TOP + chartH * (1 - pct);
-        const val = Math.round(max * pct);
-        return (
-          <g key={pct}>
-            <line x1={PAD_X} y1={y} x2={W - PAD_X} y2={y} stroke="#F4F4F5" strokeWidth={1} />
-            <text x={PAD_X - 6} y={y + 4} textAnchor="end" fontSize={9} fill="#A1A1AA">{val}</text>
-          </g>
-        );
-      })}
-      {n > 1 && <polygon points={areaPoints} fill="url(#repairLineGrad)" />}
-      {n > 1 && (
-        <polyline points={points} fill="none" stroke="#F97316" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
-      )}
-      {data.map((d, i) => {
-        const cx = xOf(i), cy = yOf(d.count);
-        return (
-          <g key={d.month}>
-            <circle cx={cx} cy={cy} r={4} fill="white" stroke="#F97316" strokeWidth={2} />
-            {d.count > 0 && (
-              <text x={cx} y={cy - 9} textAnchor="middle" fontSize={10} fontWeight="700" fill="#C2410C">
-                {d.count}
+    <div style={{ height: H, position: "relative" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="100%" preserveAspectRatio="xMidYMid meet" style={{ overflow: "visible" }}>
+        <defs>
+          <linearGradient id="repairLineGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={ACCENT} stopOpacity="0.18" />
+            <stop offset="100%" stopColor={ACCENT} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {[0, 0.25, 0.5, 0.75, 1].map(pct => {
+          const y = PAD_TOP + chartH * (1 - pct);
+          const val = Math.round(max * pct);
+          return (
+            <g key={pct}>
+              <line x1={PAD_X} y1={y} x2={W - PAD_X} y2={y} stroke="#F1F1F2" strokeWidth={1} />
+              <text x={PAD_X - 8} y={y + 4} textAnchor="end" fontSize={11} fill="#A1A1AA">{val}</text>
+            </g>
+          );
+        })}
+        {n > 1 && <polygon points={areaPoints} fill="url(#repairLineGrad)" />}
+        {n > 1 && (
+          <polyline points={points} fill="none" stroke={ACCENT} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+        )}
+        {hovered && (
+          <line x1={xOf(hoverIdx!)} y1={PAD_TOP} x2={xOf(hoverIdx!)} y2={PAD_TOP + chartH}
+            stroke={ACCENT} strokeWidth={1} strokeDasharray="3 3" opacity={0.5} />
+        )}
+        {data.map((d, i) => {
+          const cx = xOf(i), cy = yOf(d.count);
+          const isLast = i === n - 1;
+          const isHover = hoverIdx === i;
+          return (
+            <g key={d.month}>
+              <circle cx={cx} cy={cy} r={isHover ? 6 : 4} fill="white" stroke={ACCENT} strokeWidth={2} style={{ transition: "r .1s" }} />
+              {(isLast || isHover) && (
+                <text x={cx} y={cy - 12} textAnchor="middle" fontSize={12} fontWeight="700" fill={ACCENT}>
+                  {d.count}
+                </text>
+              )}
+              <text x={cx} y={H - 8} textAnchor="middle" fontSize={11} fill="#8A8A8E">
+                {monthLabel(d.month)}
               </text>
-            )}
-            <text x={cx} y={H - 4} textAnchor="middle" fontSize={10} fill="#A1A1AA">
-              {monthLabel(d.month)}
-            </text>
-          </g>
-        );
-      })}
-    </svg>
+              <rect x={cx - chartW / Math.max(n, 1) / 2} y={PAD_TOP} width={chartW / Math.max(n, 1)} height={chartH}
+                fill="transparent"
+                onMouseEnter={() => setHoverIdx(i)}
+                onMouseLeave={() => setHoverIdx(null)}
+                style={{ cursor: "pointer" }} />
+            </g>
+          );
+        })}
+      </svg>
+      {hovered && (
+        <div style={{
+          position: "absolute", top: 4, right: 4, background: "#fff",
+          border: "1px solid #E4E4E7", borderRadius: 8, padding: "6px 10px",
+          fontSize: 12, boxShadow: "0 2px 8px rgba(0,0,0,.08)", pointerEvents: "none",
+        }}>
+          <div style={{ fontWeight: 700, color: "#18181B" }}>{monthLabel(hovered.month)}</div>
+          <div style={{ color: ACCENT, fontWeight: 700 }}>{hovered.count}건</div>
+        </div>
+      )}
+    </div>
   );
 }
 
