@@ -21,6 +21,8 @@ export interface PcScanPayload {
   gpu?: string;
   storage?: string;
   corp?: string;
+  isDualOrShared?: boolean;
+  originalCorp?: string;
   collectedAt?: string;
   programsFileBase64?: string;
   programsFileName?: string;
@@ -91,6 +93,10 @@ function buildProperties(
   addRt("GPU", data.gpu);
   addRt("저장장치", data.storage);
   if (data.corp) props["법인명"] = { select: { name: data.corp } };
+  props["겸직/쉐어드"] = { checkbox: !!data.isDualOrShared };
+  props["원소속법인"] = data.originalCorp
+    ? { select: { name: data.originalCorp } }
+    : { select: null };
   if (data.collectedAt) props["수집일시"] = { date: { start: data.collectedAt } };
   if (fileUploadId && data.programsFileName) {
     props["설치프로그램"] = {
@@ -109,6 +115,8 @@ export interface PcScanRecord {
   manufacturer: string;
   model: string;
   corp: string;
+  isDualOrShared: boolean;
+  originalCorp: string;
   dept: string;
   userName: string;
   email: string;
@@ -212,6 +220,8 @@ export async function fetchPcScans(): Promise<PcScanRecord[]> {
         manufacturer: rt("제조사"),
         model:        rt("모델명"),
         corp:         (p["법인명"]?.type === "select" ? (p["법인명"].select as { name?: string } | null)?.name : "") ?? "",
+        isDualOrShared: p["겸직/쉐어드"]?.type === "checkbox" ? (p["겸직/쉐어드"].checkbox as boolean) : false,
+        originalCorp: (p["원소속법인"]?.type === "select" ? (p["원소속법인"].select as { name?: string } | null)?.name : "") ?? "",
         dept:         rt("부서"),
         userName:     rt("사용자"),
         email:        (p["이메일"]?.type === "email" ? p["이메일"].email as string | null : "") ?? "",

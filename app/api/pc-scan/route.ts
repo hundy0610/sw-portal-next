@@ -48,8 +48,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const isDualOrShared = typeof body.isDualOrShared === "boolean" ? body.isDualOrShared : false;
+  const originalCorp = typeof body.originalCorp === "string" ? body.originalCorp.trim() : "";
+
   try {
-    const result = await upsertPcScan({ ...body, serial, pcName });
+    const result = await upsertPcScan({ ...body, serial, pcName, isDualOrShared, originalCorp });
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {
     console.error("[POST /api/pc-scan]", e);

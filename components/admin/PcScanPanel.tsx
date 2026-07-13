@@ -34,6 +34,8 @@ function DetailModal({ record, onClose }: { record: PcScanRecordWithMatch; onClo
     ["PC이름",   record.pcName],
     ["시리얼 넘버", record.serial],
     ["법인명",   record.corp],
+    ["겸직/쉐어드", record.isDualOrShared ? "예" : "아니오"],
+    ["원소속법인", record.originalCorp],
     ["부서",     record.dept],
     ["사용자",   record.userName],
     ["이메일",   record.email],
@@ -111,6 +113,8 @@ function DetailModal({ record, onClose }: { record: PcScanRecordWithMatch; onClo
 interface Filters {
   assetNo: string;
   corp: string;
+  isDualOrShared: string; // "" | "true" | "false"
+  originalCorp: string;
   dept: string;
   userName: string;
   email: string;
@@ -123,7 +127,7 @@ interface Filters {
   masterExists: string; // "" | "true" | "false"
 }
 const EMPTY: Filters = {
-  assetNo: "", corp: "", dept: "", userName: "", email: "",
+  assetNo: "", corp: "", isDualOrShared: "", originalCorp: "", dept: "", userName: "", email: "",
   pcName: "", cpu: "", ram: "", gpu: "", os: "", hasFile: "", masterExists: "",
 };
 
@@ -161,9 +165,17 @@ export default function PcScanPanel() {
     [records]
   );
 
+  const originalCorpOptions = useMemo(
+    () => [...new Set(records.map(r => r.originalCorp).filter(Boolean))].sort(),
+    [records]
+  );
+
   const filtered = useMemo(() => records.filter(r => {
     if (filters.assetNo    && !r.assetNo.toLowerCase().includes(filters.assetNo.toLowerCase()))     return false;
     if (filters.corp       && r.corp !== filters.corp)                                               return false;
+    if (filters.isDualOrShared === "true"  && !r.isDualOrShared) return false;
+    if (filters.isDualOrShared === "false" &&  r.isDualOrShared) return false;
+    if (filters.originalCorp && r.originalCorp !== filters.originalCorp)                             return false;
     if (filters.dept       && !r.dept.toLowerCase().includes(filters.dept.toLowerCase()))           return false;
     if (filters.userName   && !r.userName.toLowerCase().includes(filters.userName.toLowerCase()))   return false;
     if (filters.email      && !r.email.toLowerCase().includes(filters.email.toLowerCase()))         return false;
@@ -188,6 +200,8 @@ export default function PcScanPanel() {
     const rows = filtered.map(r => ({
       자산번호:        r.assetNo,
       법인:            r.corp,
+      "겸직/쉐어드":   r.isDualOrShared ? "예" : "",
+      원소속법인:      r.originalCorp,
       부서:            r.dept,
       사용자:          r.userName,
       이메일:          r.email,
@@ -369,7 +383,7 @@ export default function PcScanPanel() {
         <div className="text-center py-12 text-red-400 text-sm">{error}</div>
       ) : (
         <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
-          <table className="w-full text-xs border-collapse min-w-[1300px]">
+          <table className="w-full text-xs border-collapse min-w-[1500px]">
             <thead>
               {/* 컬럼 헤더 */}
               <tr className="border-b border-gray-200 bg-gray-50 text-gray-500">
@@ -380,7 +394,7 @@ export default function PcScanPanel() {
                     onChange={toggleSelectAll}
                   />
                 </th>
-                {["자산번호","법인","부서","사용자","이메일","PC이름","CPU","RAM","GPU","OS","설치프로그램","마스터"].map(h => (
+                {["자산번호","법인","겸직/쉐어드","원소속법인","부서","사용자","이메일","PC이름","CPU","RAM","GPU","OS","설치프로그램","마스터"].map(h => (
                   <th key={h} className="text-left px-3 py-2.5 font-semibold whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -395,6 +409,19 @@ export default function PcScanPanel() {
                   <select className={INPUT_CLS} value={filters.corp} onChange={e => sf("corp", e.target.value)}>
                     <option value="">전체</option>
                     {corpOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </td>
+                <td className="px-2 py-1.5 min-w-[80px]">
+                  <select className={INPUT_CLS} value={filters.isDualOrShared} onChange={e => sf("isDualOrShared", e.target.value)}>
+                    <option value="">전체</option>
+                    <option value="true">예</option>
+                    <option value="false">아니오</option>
+                  </select>
+                </td>
+                <td className="px-2 py-1.5 min-w-[90px]">
+                  <select className={INPUT_CLS} value={filters.originalCorp} onChange={e => sf("originalCorp", e.target.value)}>
+                    <option value="">전체</option>
+                    {originalCorpOptions.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </td>
                 <td className="px-2 py-1.5 min-w-[80px]">
@@ -441,7 +468,7 @@ export default function PcScanPanel() {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="text-center py-12 text-gray-400">
+                  <td colSpan={15} className="text-center py-12 text-gray-400">
                     {hasFilter ? "필터에 맞는 결과가 없습니다." : "수집된 데이터가 없습니다."}
                   </td>
                 </tr>
@@ -466,6 +493,16 @@ export default function PcScanPanel() {
                   <td className="px-3 py-2.5 whitespace-nowrap">
                     {r.corp
                       ? <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-medium">{r.corp}</span>
+                      : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-3 py-2.5 whitespace-nowrap">
+                    {r.isDualOrShared
+                      ? <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-medium">겸직/쉐어드</span>
+                      : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-3 py-2.5 whitespace-nowrap">
+                    {r.originalCorp
+                      ? <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-medium">{r.originalCorp}</span>
                       : <span className="text-gray-300">—</span>}
                   </td>
                   <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{r.dept || <span className="text-gray-300">—</span>}</td>
