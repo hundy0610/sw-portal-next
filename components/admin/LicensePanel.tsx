@@ -82,24 +82,24 @@ function getSwMacroCategory(swName: string) {
   return EXTRA_CAT;
 }
 
-// ── 상태 스타일 ─────────────────────────────────────────────────────────
+// ── 상태 스타일 ── 통합 토큰(--state-*) 참조: 긍정/진행/주의/위험/중립 5의미만 사용 ──
 const STATUS_STYLE: Record<string, { bg: string; text: string; dot: string }> = {
-  "사용중":     { bg: "bg-blue-50",   text: "text-blue-700",   dot: "bg-blue-500"   },
-  "재고":       { bg: "bg-green-50",  text: "text-green-700",  dot: "bg-green-500"  },
-  "갱신필요":   { bg: "bg-orange-50", text: "text-orange-700", dot: "bg-orange-400" },
-  "만료":       { bg: "bg-gray-100",  text: "text-gray-500",   dot: "bg-gray-400"   },
-  "신규등록":   { bg: "bg-purple-50", text: "text-purple-700", dot: "bg-purple-500" },
-  "반납예정":   { bg: "bg-yellow-50", text: "text-yellow-700", dot: "bg-yellow-400" },
-  "출고준비중": { bg: "bg-cyan-50",   text: "text-cyan-700",   dot: "bg-cyan-400"   },
-  "임시지급":   { bg: "bg-sky-50",    text: "text-sky-700",    dot: "bg-sky-400"    },
-  "미확인":     { bg: "bg-gray-50",   text: "text-gray-400",   dot: "bg-gray-300"   },
+  "사용중":     { bg: "var(--state-positive-soft)", text: "var(--state-positive)", dot: "var(--state-positive)" },
+  "신규등록":   { bg: "var(--state-positive-soft)", text: "var(--state-positive)", dot: "var(--state-positive)" },
+  "재고":       { bg: "var(--state-neutral-soft)",  text: "var(--state-neutral)",  dot: "var(--state-neutral)"  },
+  "미확인":     { bg: "var(--state-neutral-soft)",  text: "var(--state-neutral)",  dot: "var(--state-neutral)"  },
+  "출고준비중": { bg: "var(--state-progress-soft)", text: "var(--state-progress)", dot: "var(--state-progress)" },
+  "임시지급":   { bg: "var(--state-progress-soft)", text: "var(--state-progress)", dot: "var(--state-progress)" },
+  "갱신필요":   { bg: "var(--state-caution-soft)",  text: "var(--state-caution)",  dot: "var(--state-caution)"  },
+  "반납예정":   { bg: "var(--state-caution-soft)",  text: "var(--state-caution)",  dot: "var(--state-caution)"  },
+  "만료":       { bg: "var(--state-risk-soft)",     text: "var(--state-risk)",     dot: "var(--state-risk)"     },
 };
 
 function StatusBadge({ status }: { status: string }) {
-  const s = STATUS_STYLE[status] ?? { bg: "bg-gray-100", text: "text-gray-500", dot: "bg-gray-400" };
+  const s = STATUS_STYLE[status] ?? { bg: "var(--state-neutral-soft)", text: "var(--state-neutral)", dot: "var(--state-neutral)" };
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${s.bg} ${s.text}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: s.bg, color: s.text }}>
+      <span className="w-1.5 h-1.5 rounded-full" style={{ background: s.dot }} />
       {status || "—"}
     </span>
   );
@@ -203,7 +203,7 @@ function Pagination({ total, page, size, onChange }: {
         {pages.map((p, i) => p === "…"
           ? <span key={`e${i}`} className="w-8 text-center text-xs text-gray-400">…</span>
           : <button key={p} onClick={() => onChange(p as number)}
-              className={`${btn} ${page === p ? "bg-blue-600 text-white" : "border border-gray-200 hover:bg-gray-100 text-gray-600"}`}>
+              className={`${btn} ${page === p ? "bg-amber-600 text-white" : "border border-gray-200 hover:bg-gray-100 text-gray-600"}`}>
               {p}
             </button>
         )}
@@ -400,7 +400,7 @@ function SwEditModal({
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden"
         onClick={e => e.stopPropagation()}>
         {/* 헤더 */}
-        <div className="px-5 py-4 bg-blue-600 text-white flex items-start justify-between shrink-0">
+        <div className="px-5 py-4 bg-amber-600 text-white flex items-start justify-between shrink-0">
           <div>
             <div className="font-bold text-base">SW 정보 수정</div>
             <div className="text-xs opacity-80 mt-0.5">{record.swCategory} · {record.user || "재고"}</div>
@@ -568,7 +568,7 @@ function SwEditModal({
         <div className="px-5 py-4 border-t flex gap-2 shrink-0">
           <button onClick={onClose} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50">취소</button>
           <button onClick={handleSave} disabled={saving}
-            className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 transition-colors">
+            className="flex-1 py-2.5 bg-amber-600 text-white rounded-xl text-sm font-semibold hover:bg-amber-700 disabled:opacity-60 transition-colors">
             {saving ? "저장 중…" : "Notion에 저장"}
           </button>
         </div>
@@ -785,7 +785,7 @@ function AddableSelect({ value, initOptions, onChange, placeholder }: {
   return (
     <div ref={ref} className="relative">
       <button type="button" onClick={() => setOpen(o => !o)}
-        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-indigo-300">
+        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-amber-300">
         <span className={value ? "text-gray-900" : "text-gray-400"}>{value || placeholder || "선택"}</span>
         <span className="text-gray-400 text-xs">▾</span>
       </button>
@@ -794,14 +794,14 @@ function AddableSelect({ value, initOptions, onChange, placeholder }: {
           <div className="p-2 border-b border-gray-100">
             <input ref={inputRef} value={search} onChange={e => setSearch(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter" && canCreate) createNew(); }}
-              className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-300"
+              className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-300"
               placeholder="검색..." />
           </div>
           <div className="max-h-44 overflow-y-auto">
             {filtered.length === 0 && !canCreate && <p className="px-3 py-2 text-xs text-gray-400">일치하는 항목 없음</p>}
             {filtered.map(o => (
               <button key={o} type="button"
-                className={`w-full px-3 py-2 text-sm text-left hover:bg-indigo-50 transition-colors ${value === o ? "bg-indigo-50 text-indigo-700 font-medium" : "text-gray-700"}`}
+                className={`w-full px-3 py-2 text-sm text-left hover:bg-amber-50 transition-colors ${value === o ? "bg-amber-50 text-amber-700 font-medium" : "text-gray-700"}`}
                 onClick={() => select(o)}>
                 {o}
               </button>
@@ -810,7 +810,7 @@ function AddableSelect({ value, initOptions, onChange, placeholder }: {
           {canCreate && (
             <div className="border-t border-gray-100 p-1.5">
               <button type="button" onClick={createNew}
-                className="w-full px-3 py-2 text-xs text-left text-indigo-600 font-medium hover:bg-indigo-50 rounded-lg transition-colors">
+                className="w-full px-3 py-2 text-xs text-left text-amber-600 font-medium hover:bg-amber-50 rounded-lg transition-colors">
                 + 새로운 항목 만들기 &ldquo;{search.trim()}&rdquo;
               </button>
             </div>
@@ -862,12 +862,12 @@ function AddableMultiSelect({ value, initOptions, onChange }: {
   return (
     <div ref={ref} className="relative">
       <button type="button" onClick={() => setOpen(o => !o)}
-        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white flex items-start justify-between gap-2 focus:outline-none focus:ring-2 focus:ring-indigo-300 min-h-[38px]">
+        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white flex items-start justify-between gap-2 focus:outline-none focus:ring-2 focus:ring-amber-300 min-h-[38px]">
         <div className="flex flex-wrap gap-1 flex-1">
           {value.length === 0
             ? <span className="text-gray-400">버전 선택</span>
             : value.map(v => (
-              <span key={v} className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs rounded-full font-medium">
+              <span key={v} className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full font-medium">
                 {v}
                 <button type="button" onClick={e => { e.stopPropagation(); toggle(v); }}
                   className="hover:text-red-500 leading-none">✕</button>
@@ -882,17 +882,17 @@ function AddableMultiSelect({ value, initOptions, onChange }: {
           <div className="p-2 border-b border-gray-100">
             <input ref={inputRef} value={search} onChange={e => setSearch(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter" && canCreate) createNew(); }}
-              className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-300"
+              className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-300"
               placeholder="검색..." />
           </div>
           <div className="max-h-44 overflow-y-auto">
             {filtered.length === 0 && !canCreate && <p className="px-3 py-2 text-xs text-gray-400">일치하는 항목 없음</p>}
             {filtered.map(o => (
               <button key={o} type="button"
-                className={`w-full px-3 py-2 text-sm text-left flex items-center gap-2 hover:bg-indigo-50 transition-colors ${value.includes(o) ? "text-indigo-700" : "text-gray-700"}`}
+                className={`w-full px-3 py-2 text-sm text-left flex items-center gap-2 hover:bg-amber-50 transition-colors ${value.includes(o) ? "text-amber-700" : "text-gray-700"}`}
                 onClick={() => toggle(o)}>
                 <span className={`w-3.5 h-3.5 rounded border flex-shrink-0 flex items-center justify-center text-xs font-bold
-                  ${value.includes(o) ? "bg-indigo-600 border-indigo-600 text-white" : "border-gray-300"}`}>
+                  ${value.includes(o) ? "bg-amber-600 border-amber-600 text-white" : "border-gray-300"}`}>
                   {value.includes(o) && "✓"}
                 </span>
                 {o}
@@ -902,7 +902,7 @@ function AddableMultiSelect({ value, initOptions, onChange }: {
           {canCreate && (
             <div className="border-t border-gray-100 p-1.5">
               <button type="button" onClick={createNew}
-                className="w-full px-3 py-2 text-xs text-left text-indigo-600 font-medium hover:bg-indigo-50 rounded-lg transition-colors">
+                className="w-full px-3 py-2 text-xs text-left text-amber-600 font-medium hover:bg-amber-50 rounded-lg transition-colors">
                 + 새로운 항목 만들기 &ldquo;{search.trim()}&rdquo;
               </button>
             </div>
@@ -1004,7 +1004,7 @@ function SwManualAdd({ onClose, onSuccess, swCategoryOptions, versionOptions, co
     }
   }
 
-  const inputCls = "w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300";
+  const inputCls = "w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-300";
   const selectCls = inputCls + " bg-white";
 
   return (
@@ -1012,7 +1012,7 @@ function SwManualAdd({ onClose, onSuccess, swCategoryOptions, versionOptions, co
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
         onClick={e => e.stopPropagation()}>
 
-        <div className="px-6 py-4 bg-indigo-600 text-white flex items-center justify-between shrink-0">
+        <div className="px-6 py-4 bg-amber-600 text-white flex items-center justify-between shrink-0">
           <div>
             <div className="font-bold text-base">SW 자산 직접 등록</div>
             <div className="text-xs opacity-80 mt-0.5">항목을 직접 입력하여 Notion에 등록합니다</div>
@@ -1113,14 +1113,14 @@ function SwManualAdd({ onClose, onSuccess, swCategoryOptions, versionOptions, co
                   accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
                   onChange={e => setCertFile(e.target.files?.[0] ?? null)} />
                 {certFile ? (
-                  <div className="flex items-center gap-2 px-3 py-2 text-sm border border-indigo-300 bg-indigo-50 rounded-lg">
-                    <span className="flex-1 truncate text-indigo-700 font-medium">{certFile.name}</span>
+                  <div className="flex items-center gap-2 px-3 py-2 text-sm border border-amber-300 bg-amber-50 rounded-lg">
+                    <span className="flex-1 truncate text-amber-700 font-medium">{certFile.name}</span>
                     <button type="button" onClick={() => { setCertFile(null); if (certFileRef.current) certFileRef.current.value = ""; }}
                       className="text-gray-400 hover:text-red-500 text-xs font-bold">✕</button>
                   </div>
                 ) : (
                   <button type="button" onClick={() => certFileRef.current?.click()}
-                    className="w-full px-3 py-2 text-sm border border-dashed border-gray-300 rounded-lg text-gray-400 hover:border-indigo-400 hover:text-indigo-500 hover:bg-indigo-50/30 transition-colors text-left">
+                    className="w-full px-3 py-2 text-sm border border-dashed border-gray-300 rounded-lg text-gray-400 hover:border-amber-500 hover:text-amber-600 hover:bg-amber-50/30 transition-colors text-left">
                     파일 선택 (PDF, 이미지)
                   </button>
                 )}
@@ -1134,14 +1134,14 @@ function SwManualAdd({ onClose, onSuccess, swCategoryOptions, versionOptions, co
                   accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
                   onChange={e => setDraftFile(e.target.files?.[0] ?? null)} />
                 {draftFile ? (
-                  <div className="flex items-center gap-2 px-3 py-2 text-sm border border-indigo-300 bg-indigo-50 rounded-lg">
-                    <span className="flex-1 truncate text-indigo-700 font-medium">{draftFile.name}</span>
+                  <div className="flex items-center gap-2 px-3 py-2 text-sm border border-amber-300 bg-amber-50 rounded-lg">
+                    <span className="flex-1 truncate text-amber-700 font-medium">{draftFile.name}</span>
                     <button type="button" onClick={() => { setDraftFile(null); if (draftFileRef.current) draftFileRef.current.value = ""; }}
                       className="text-gray-400 hover:text-red-500 text-xs font-bold">✕</button>
                   </div>
                 ) : (
                   <button type="button" onClick={() => draftFileRef.current?.click()}
-                    className="w-full px-3 py-2 text-sm border border-dashed border-gray-300 rounded-lg text-gray-400 hover:border-indigo-400 hover:text-indigo-500 hover:bg-indigo-50/30 transition-colors text-left">
+                    className="w-full px-3 py-2 text-sm border border-dashed border-gray-300 rounded-lg text-gray-400 hover:border-amber-500 hover:text-amber-600 hover:bg-amber-50/30 transition-colors text-left">
                     파일 선택 (PDF, 이미지)
                   </button>
                 )}
@@ -1162,7 +1162,7 @@ function SwManualAdd({ onClose, onSuccess, swCategoryOptions, versionOptions, co
             취소
           </button>
           <button onClick={handleSubmit} disabled={submitting}
-            className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 disabled:opacity-60 transition-colors shadow-sm">
+            className="flex-1 py-2.5 rounded-xl bg-amber-600 text-white text-sm font-bold hover:bg-amber-700 disabled:opacity-60 transition-colors shadow-sm">
             {submitting ? (submitStatus || "등록 중…") : "Notion에 등록"}
           </button>
         </div>
@@ -1240,7 +1240,7 @@ function SwExcelUpload({ onClose, onSuccess }: { onClose: () => void; onSuccess:
         onClick={e => e.stopPropagation()}>
 
         {/* 헤더 */}
-        <div className="px-6 py-4 bg-indigo-600 text-white flex items-center justify-between shrink-0">
+        <div className="px-6 py-4 bg-amber-600 text-white flex items-center justify-between shrink-0">
           <div>
             <div className="font-bold text-base">SW 자산 엑셀 등록</div>
             <div className="text-xs opacity-80 mt-0.5">양식을 다운로드 후 작성하여 업로드하세요</div>
@@ -1252,14 +1252,14 @@ function SwExcelUpload({ onClose, onSuccess }: { onClose: () => void; onSuccess:
         <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
 
           {/* 안내 + 양식 다운로드 */}
-          <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex items-start gap-4">
-            <div className="flex-1 text-xs text-indigo-700 space-y-1">
-              <p className="font-semibold text-sm text-indigo-800">업로드 순서</p>
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-4">
+            <div className="flex-1 text-xs text-amber-700 space-y-1">
+              <p className="font-semibold text-sm text-amber-800">업로드 순서</p>
               <p>① 아래 <strong>양식 다운로드</strong> → ② 엑셀에 데이터 입력 → ③ 파일 업로드 → ④ Notion 자동 등록</p>
-              <p className="text-indigo-500">필수 컬럼: <strong>사용자</strong> · <strong>SW대분류</strong> / 최대 200건</p>
+              <p className="text-amber-600">필수 컬럼: <strong>사용자</strong> · <strong>SW대분류</strong> / 최대 200건</p>
             </div>
             <button onClick={downloadTemplate}
-              className="shrink-0 flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm">
+              className="shrink-0 flex items-center gap-2 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm">
               양식 다운로드
             </button>
           </div>
@@ -1267,7 +1267,7 @@ function SwExcelUpload({ onClose, onSuccess }: { onClose: () => void; onSuccess:
           {/* 파일 업로드 영역 */}
           {rows.length === 0 && !parseErr && (
             <div
-              className="bg-white border-2 border-dashed border-gray-300 rounded-xl p-12 text-center hover:border-indigo-400 hover:bg-indigo-50/30 transition-colors cursor-pointer"
+              className="bg-white border-2 border-dashed border-gray-300 rounded-xl p-12 text-center hover:border-amber-500 hover:bg-amber-50/30 transition-colors cursor-pointer"
               onClick={() => fileRef.current?.click()}
               onDragOver={e => e.preventDefault()}
               onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}>
@@ -1294,7 +1294,7 @@ function SwExcelUpload({ onClose, onSuccess }: { onClose: () => void; onSuccess:
               <div className="flex items-center justify-between">
                 <p className="text-sm font-semibold text-gray-700">
                   <span className="text-gray-500 font-normal">{fileName}</span> —
-                  <span className="text-indigo-600 font-bold ml-1">{rows.length}건</span> 파싱됨
+                  <span className="text-amber-600 font-bold ml-1">{rows.length}건</span> 파싱됨
                 </p>
                 <button onClick={() => { setRows([]); setFileName(""); }}
                   className="text-xs text-gray-400 hover:text-red-500 border border-gray-200 px-2.5 py-1 rounded-lg transition-colors">
@@ -1314,7 +1314,7 @@ function SwExcelUpload({ onClose, onSuccess }: { onClose: () => void; onSuccess:
                   </thead>
                   <tbody>
                     {rows.slice(0, 50).map((r, i) => (
-                      <tr key={i} className="border-b border-gray-50 hover:bg-indigo-50/30">
+                      <tr key={i} className="border-b border-gray-50 hover:bg-amber-50/30">
                         <td className="px-3 py-2 text-gray-400">{i + 1}</td>
                         <td className="px-3 py-2 font-medium text-gray-900 whitespace-nowrap">{r.user}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{r.swCategory || <span className="text-gray-300">—</span>}</td>
@@ -1338,7 +1338,7 @@ function SwExcelUpload({ onClose, onSuccess }: { onClose: () => void; onSuccess:
               {/* 업로드 버튼 */}
               {!uploading && (
                 <button onClick={doUpload}
-                  className="w-full py-3 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition-colors shadow-sm">
+                  className="w-full py-3 rounded-xl bg-amber-600 text-white text-sm font-bold hover:bg-amber-700 transition-colors shadow-sm">
                   Notion에 {rows.length}건 등록
                 </button>
               )}
@@ -1350,7 +1350,7 @@ function SwExcelUpload({ onClose, onSuccess }: { onClose: () => void; onSuccess:
             <div className="bg-white rounded-xl border border-gray-200 p-5">
               <p className="text-sm font-semibold text-gray-700 mb-3">Notion 등록 중… {Math.round(progress)}%</p>
               <div className="w-full bg-gray-100 rounded-full h-2.5">
-                <div className="bg-indigo-500 h-2.5 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
+                <div className="bg-amber-600 h-2.5 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
               </div>
               <p className="text-xs text-gray-400 mt-2">Notion API 속도 제한으로 건당 약 0.35초 소요됩니다.</p>
             </div>
@@ -1670,13 +1670,13 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
           </button>
           <button
             onClick={() => setShowManualAdd(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-indigo-300 text-indigo-600 text-sm font-semibold rounded-lg hover:bg-indigo-50 transition-colors shadow-sm"
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-amber-300 text-amber-600 text-sm font-semibold rounded-lg hover:bg-amber-50 transition-colors shadow-sm"
           >
             직접 등록
           </button>
           <button
             onClick={() => setShowUpload(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
+            className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white text-sm font-semibold rounded-lg hover:bg-amber-700 transition-colors shadow-sm"
           >
             엑셀 등록
           </button>

@@ -188,7 +188,7 @@ export default function SwDbPanel() {
         </div>
         <button
           onClick={() => openRequest()}
-          className="flex items-center gap-1.5 text-sm font-semibold bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+          className="flex items-center gap-1.5 text-sm font-semibold bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 transition-colors shadow-sm"
         >
           SW 사용 신청
         </button>
@@ -207,7 +207,7 @@ export default function SwDbPanel() {
           <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
         </svg>
         <input
-          className="w-full pl-11 pr-10 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+          className="w-full pl-11 pr-10 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white"
           placeholder="소프트웨어명 검색... (예: Photoshop, 한컴, Zoom, GitHub)"
           value={query}
           onChange={e => setQuery(e.target.value)}
@@ -227,21 +227,15 @@ export default function SwDbPanel() {
       <div className="flex gap-2 mb-5">
         <button
           onClick={() => setTab("white")}
-          className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all border-2 ${
-            tab === "white"
-              ? "bg-green-600 text-white border-green-600"
-              : "bg-white text-gray-600 border-gray-200 hover:border-green-300 hover:text-green-700"
-          }`}
+          className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all border-2 bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+          style={tab === "white" ? { background: "var(--state-positive)", color: "#fff", borderColor: "var(--state-positive)" } : undefined}
         >
           화이트리스트 ({whitelist.length})
         </button>
         <button
           onClick={() => setTab("black")}
-          className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all border-2 ${
-            tab === "black"
-              ? "bg-red-600 text-white border-red-600"
-              : "bg-white text-gray-600 border-gray-200 hover:border-red-300 hover:text-red-700"
-          }`}
+          className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all border-2 bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+          style={tab === "black" ? { background: "var(--state-risk)", color: "#fff", borderColor: "var(--state-risk)" } : undefined}
         >
           블랙리스트 ({blacklist.length})
         </button>
@@ -258,7 +252,7 @@ export default function SwDbPanel() {
                 onClick={() => { setCategoryFilter(cat); setQuery(""); }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                   categoryFilter === cat
-                    ? "bg-blue-600 text-white"
+                    ? "bg-amber-600 text-white"
                     : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
                 }`}
               >
@@ -288,7 +282,7 @@ export default function SwDbPanel() {
                   <button
                     key={cat}
                     onClick={() => setCategoryFilter(cat)}
-                    className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                    className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 transition-colors"
                   >
                     {cat}
                   </button>
@@ -296,7 +290,7 @@ export default function SwDbPanel() {
               </div>
               <div className="text-xs text-gray-400">
                 찾는 SW가 목록에 없다면{" "}
-                <button onClick={() => openRequest()} className="text-blue-600 font-semibold hover:underline">
+                <button onClick={() => openRequest()} className="text-amber-600 font-semibold hover:underline">
                   사용 신청하기 →
                 </button>
               </div>
@@ -313,7 +307,7 @@ export default function SwDbPanel() {
               </p>
               <button
                 onClick={() => openRequest()}
-                className="inline-flex items-center gap-2 bg-blue-600 text-white text-sm font-semibold px-5 py-2.5 rounded-lg hover:bg-blue-700 transition-colors"
+                className="inline-flex items-center gap-2 bg-amber-600 text-white text-sm font-semibold px-5 py-2.5 rounded-lg hover:bg-amber-700 transition-colors"
               >
                 SW 사용 신청하기
               </button>
@@ -347,7 +341,7 @@ export default function SwDbPanel() {
                           <a
                             href={w.downloadUrl}
                             target="_blank" rel="noopener noreferrer"
-                            className="text-xs font-semibold text-blue-600 hover:text-blue-800 border border-blue-200 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
+                            className="text-xs font-semibold text-amber-600 hover:text-amber-800 border border-amber-200 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
                             onClick={e => e.stopPropagation()}
                           >
                             다운로드
@@ -363,7 +357,7 @@ export default function SwDbPanel() {
                 <p className="text-sm text-gray-400 mb-1.5">찾는 SW가 없으신가요?</p>
                 <button
                   onClick={() => openRequest()}
-                  className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 font-semibold"
+                  className="inline-flex items-center gap-1.5 text-sm text-amber-600 hover:text-amber-800 font-semibold"
                 >
                   SW 사용 신청하기 →
                 </button>
@@ -468,7 +462,7 @@ function RequestModal({
         onClick={e => e.stopPropagation()}
       >
         {/* 모달 헤더 */}
-        <div className="px-6 py-4 bg-blue-600 text-white flex items-center justify-between">
+        <div className="px-6 py-4 bg-amber-600 text-white flex items-center justify-between">
           <div>
             <div className="font-bold text-base">SW 사용 승인 신청</div>
             <div className="text-xs opacity-80 mt-0.5">IT팀 검토 후 3영업일 이내 회신드립니다.</div>
@@ -482,7 +476,7 @@ function RequestModal({
             <p className="text-sm text-gray-500 mb-6">IT팀에서 검토 후 이메일 또는 메신저로 회신드리겠습니다.</p>
             <button
               onClick={onClose}
-              className="bg-blue-600 text-white px-8 py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700"
+              className="bg-amber-600 text-white px-8 py-2.5 rounded-xl text-sm font-semibold hover:bg-amber-700"
             >
               닫기
             </button>
@@ -498,7 +492,7 @@ function RequestModal({
                 onChange={e => setSwName(e.target.value)}
                 required
                 placeholder="예: Adobe Photoshop, Slack, Zoom..."
-                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
             </div>
             <div>
@@ -510,7 +504,7 @@ function RequestModal({
                 onChange={e => setPurpose(e.target.value)}
                 placeholder="어떤 업무에 사용하실 예정인지 간략히 적어주세요."
                 rows={3}
-                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
             </div>
             <div className="text-xs text-gray-500 bg-gray-50 rounded-lg p-3 leading-relaxed">
@@ -526,7 +520,7 @@ function RequestModal({
               </button>
               <button
                 type="submit"
-                className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors"
+                className="flex-1 py-2.5 bg-amber-600 text-white rounded-lg text-sm font-semibold hover:bg-amber-700 transition-colors"
               >
                 신청하기
               </button>
