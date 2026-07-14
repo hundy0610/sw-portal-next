@@ -144,7 +144,7 @@ export interface PcScanRecordWithMatch extends PcScanRecord {
   mismatch: PcScanMismatch | null; // masterExists === true일 때만 값이 존재
   master?: { corp: string; dept: string; userName: string };
   /** 자산번호는 마스터와 다르지만 시리얼은 일치하는 레코드가 있는 경우 (자산번호 오기입 의심 경고용, 자동 반영 안 함) */
-  serialOnlyMatch: { masterId: string; masterAssetNo: string } | null;
+  serialOnlyMatch: { masterId: string; masterAssetNo: string; masterCorp: string; masterDept: string; masterUser: string } | null;
 }
 
 /**
@@ -173,7 +173,9 @@ export function matchPcScansWithHw(
         masterExists: false,
         masterId: null,
         mismatch: null,
-        serialOnlyMatch: bySerial ? { masterId: bySerial.id, masterAssetNo: bySerial.assetNo } : null,
+        serialOnlyMatch: bySerial
+          ? { masterId: bySerial.id, masterAssetNo: bySerial.assetNo, masterCorp: bySerial.company, masterDept: bySerial.dept, masterUser: bySerial.user }
+          : null,
       };
     }
 

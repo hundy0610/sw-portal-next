@@ -297,6 +297,113 @@ function RegisterMasterModal({
   );
 }
 
+// ── 동기화 확인 모달 (⚠ 불일치 / ? 시리얼만 일치 공통) ─────────────
+function SyncConfirmModal({
+  record,
+  onClose,
+  onSynced,
+}: {
+  record: PcScanRecordWithMatch;
+  onClose: () => void;
+  onSynced: (id: string) => void;
+}) {
+  const masterId   = record.masterId ?? record.serialOnlyMatch?.masterId ?? null;
+  const masterCorp = record.master?.corp     ?? record.serialOnlyMatch?.masterCorp ?? "";
+  const masterDept = record.master?.dept     ?? record.serialOnlyMatch?.masterDept ?? "";
+  const masterUser = record.master?.userName ?? record.serialOnlyMatch?.masterUser ?? "";
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const rows: [string, string, string][] = [
+    ["법인", masterCorp, record.corp],
+    ["부서", masterDept, record.dept],
+    ["사용자", masterUser, record.userName],
+  ];
+
+  async function handleSync() {
+    if (!masterId) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      const res = await fetch("/api/hw/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: masterId,
+          fields: { company: record.corp, dept: record.dept, user: record.userName, status: "사용중", verified: true },
+        }),
+      });
+      const json = await safeJson(res);
+      if (!json?.ok) throw new Error(json?.error || "동기화 실패");
+      onSynced(record.id);
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "동기화 중 오류가 발생했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="font-bold text-gray-900 text-base">마스터 정보 동기화</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+        </div>
+
+        <div className="px-6 py-4 space-y-3">
+          {record.serialOnlyMatch && (
+            <p className="text-xs bg-sky-50 text-sky-700 rounded-lg px-3 py-2">
+              자산번호 불일치 — 마스터: <strong>{record.serialOnlyMatch.masterAssetNo || "(없음)"}</strong> / 스캔: <strong>{record.assetNo || "(없음)"}</strong>
+              <br />자산번호는 여기서 고칠 수 없으며, 아래 정보만 스캔값으로 동기화됩니다.
+            </p>
+          )}
+
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-[10px] text-gray-400 uppercase tracking-wide">
+                <th className="text-left font-semibold py-1">항목</th>
+                <th className="text-left font-semibold py-1">마스터(현재)</th>
+                <th className="text-left font-semibold py-1">스캔값</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(([label, masterVal, scanVal]) => (
+                <tr key={label} className="border-t border-gray-100">
+                  <td className="py-1.5 text-gray-500">{label}</td>
+                  <td className={`py-1.5 ${masterVal !== scanVal ? "text-amber-600 font-medium" : "text-gray-700"}`}>{masterVal || "—"}</td>
+                  <td className="py-1.5 text-gray-900">{scanVal || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <p className="text-[11px] text-gray-400">동기화 시 마스터 상태는 &quot;사용중&quot; · 실사확인 ✓ 로 함께 반영됩니다.</p>
+
+          {error && <p className="text-xs text-red-500">{error}</p>}
+        </div>
+
+        <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700">
+            취소
+          </button>
+          <button
+            onClick={handleSync}
+            disabled={submitting || !masterId}
+            className="px-4 py-1.5 text-sm font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg disabled:opacity-40"
+          >
+            {submitting ? "동기화 중…" : "동기화 적용"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── 필터 상태 ──────────────────────────────────────────────────
 interface Filters {
   assetNo: string;
@@ -329,6 +436,7 @@ export default function PcScanPanel() {
   const [filters, setFilters]   = useState<Filters>(EMPTY);
   const [detail, setDetail]     = useState<PcScanRecordWithMatch | null>(null);
   const [register, setRegister] = useState<PcScanRecordWithMatch | null>(null);
+  const [syncTarget, setSyncTarget] = useState<PcScanRecordWithMatch | null>(null);
   const [zipping, setZipping]   = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [syncing, setSyncing]   = useState(false);
@@ -376,6 +484,14 @@ export default function PcScanPanel() {
     setRecords(prev => prev.map(r =>
       r.id === id
         ? { ...r, masterExists: true, mismatch: { corp: false, dept: false, userName: false }, serialOnlyMatch: null }
+        : r
+    ));
+  }
+
+  function handleSynced(id: string) {
+    setRecords(prev => prev.map(r =>
+      r.id === id && r.mismatch
+        ? { ...r, mismatch: { corp: false, dept: false, userName: false } }
         : r
     ));
   }
@@ -542,6 +658,13 @@ export default function PcScanPanel() {
           makerOptions={makerOptions}
           onClose={() => setRegister(null)}
           onRegistered={handleRegistered}
+        />
+      )}
+      {syncTarget && (
+        <SyncConfirmModal
+          record={syncTarget}
+          onClose={() => setSyncTarget(null)}
+          onSynced={handleSynced}
         />
       )}
 
@@ -759,12 +882,13 @@ export default function PcScanPanel() {
                   <td className="px-3 py-2.5 text-center">
                     {!r.masterExists ? (
                       r.serialOnlyMatch ? (
-                        <span
-                          className="text-sky-600 font-bold text-sm cursor-help"
-                          title={`시리얼은 일치하지만 자산번호가 다름 — 마스터 자산번호: ${r.serialOnlyMatch.masterAssetNo || "(없음)"} (자산번호 오기입 의심)`}
+                        <button
+                          onClick={() => setSyncTarget(r)}
+                          className="text-sky-600 font-bold text-sm hover:text-sky-700"
+                          title={`시리얼은 일치하지만 자산번호가 다름 — 마스터 자산번호: ${r.serialOnlyMatch.masterAssetNo || "(없음)"} (자산번호 오기입 의심, 클릭 시 동기화)`}
                         >
                           ?
-                        </span>
+                        </button>
                       ) : (
                         <button
                           onClick={() => setRegister(r)}
@@ -774,16 +898,17 @@ export default function PcScanPanel() {
                         </button>
                       )
                     ) : hasMismatch(r) ? (
-                      <span
-                        className="text-amber-600 font-bold text-sm cursor-help"
+                      <button
+                        onClick={() => setSyncTarget(r)}
+                        className="text-amber-600 font-bold text-sm hover:text-amber-700"
                         title={`불일치: ${[
                           r.mismatch!.corp && "법인",
                           r.mismatch!.dept && "부서",
                           r.mismatch!.userName && "사용자",
-                        ].filter(Boolean).join(", ")}`}
+                        ].filter(Boolean).join(", ")} (클릭 시 동기화)`}
                       >
                         ⚠
-                      </span>
+                      </button>
                     ) : (
                       <span className="text-emerald-600 font-bold text-sm">✓</span>
                     )}
