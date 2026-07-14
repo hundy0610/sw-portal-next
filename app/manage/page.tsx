@@ -677,7 +677,7 @@ function SwResourcesPanel() {
   const [verSearch,    setVerSearch]    = useState("");
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
 
-  const BLANK_VER = { name: "", version: "", category: "", os: "", description: "", visible: true, order: 0 };
+  const BLANK_VER = { name: "", version: "", category: "", tier: "업무용" as SwVersion["tier"], os: "", description: "", visible: true, order: 0 };
   const BLANK_DOC = { name: "", type: "설치파일", description: "", visible: true, order: 0, externalFileUrl: "" };
   const [verForm, setVerForm] = useState(BLANK_VER);
   const [docForm, setDocForm] = useState(BLANK_DOC);
@@ -837,6 +837,14 @@ function SwResourcesPanel() {
               <Field label="카테고리"><input style={iStyle} value={verForm.category} onChange={e => setVerForm(f => ({ ...f, category: e.target.value }))} placeholder="예: 오피스" /></Field>
               <Field label="OS (쉼표 구분)"><input style={iStyle} value={verForm.os} onChange={e => setVerForm(f => ({ ...f, os: e.target.value }))} placeholder="예: Windows, macOS" /></Field>
             </div>
+            <div style={grid2}>
+              <Field label="구분">
+                <select style={iStyle} value={verForm.tier} onChange={e => setVerForm(f => ({ ...f, tier: e.target.value as SwVersion["tier"] }))}>
+                  <option value="업무용">업무용</option>
+                  <option value="무료프로그램">무료프로그램 (신청 없이 바로 다운로드)</option>
+                </select>
+              </Field>
+            </div>
             <Field label="설명"><input style={iStyle} value={verForm.description} onChange={e => setVerForm(f => ({ ...f, description: e.target.value }))} placeholder="간단한 설명" /></Field>
             <div style={{ display: "flex", gap: 20 }}>
               <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: C.text2, cursor: "pointer" }}>
@@ -874,10 +882,15 @@ function SwResourcesPanel() {
                             <div>
                               <div style={{ fontWeight: 700, fontSize: 13, color: C.text1 }}>{ver.name}</div>
                               <div style={{ fontSize: 11, color: C.text3 }}>v{ver.version} · {ver.category}</div>
-                              <div style={{ fontSize: 11, color: ver.visible ? "var(--state-positive)" : C.text4, marginTop: 2 }}>{ver.visible ? "공개" : "숨김"}</div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+                                <span style={{ fontSize: 11, color: ver.visible ? "var(--state-positive)" : C.text4 }}>{ver.visible ? "공개" : "숨김"}</span>
+                                {ver.tier === "무료프로그램" && (
+                                  <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 999, background: "var(--state-positive-soft)", color: "var(--state-positive)" }}>무료</span>
+                                )}
+                              </div>
                             </div>
                             <div style={{ display: "flex", gap: 4 }} onClick={e => e.stopPropagation()}>
-                              <button onClick={() => { setEditVer(ver); setAddingVer(false); setVerForm({ name: ver.name, version: ver.version, category: ver.category, os: ver.os.join(", "), description: ver.description, visible: ver.visible, order: ver.order }); }}
+                              <button onClick={() => { setEditVer(ver); setAddingVer(false); setVerForm({ name: ver.name, version: ver.version, category: ver.category, tier: ver.tier, os: ver.os.join(", "), description: ver.description, visible: ver.visible, order: ver.order }); }}
                                 style={{ padding: "3px 8px", borderRadius: 6, border: "none", fontSize: 10, fontWeight: 700, cursor: "pointer", background: "var(--state-progress-soft)", color: "var(--state-progress)" }}>수정</button>
                               <button onClick={() => delVer(ver)}
                                 style={{ padding: "3px 8px", borderRadius: 6, border: "none", fontSize: 10, fontWeight: 700, cursor: "pointer", background: C.dangerSoft, color: C.danger }}>삭제</button>

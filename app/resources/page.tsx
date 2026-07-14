@@ -76,6 +76,15 @@ export default function ResourcesPage() {
   const [catFilter, setCatFilter]             = useState("전체");
   const [searchQ, setSearchQ]                 = useState("");
   const [regulationConfirmed, setRegulationConfirmed] = useState(false);
+  const [activeTier, setActiveTier]           = useState<SwVersion["tier"]>("업무용");
+
+  function switchTier(tier: SwVersion["tier"]) {
+    setActiveTier(tier);
+    setCatFilter("전체");
+    setSearchQ("");
+    setSelectedSwName(null);
+    setSelectedVersion(null);
+  }
 
   useEffect(() => {
     fetch("/api/sw-versions").then(r => safeJson(r)).then(res => setVersions(res.data ?? []));
@@ -98,20 +107,22 @@ export default function ResourcesPage() {
       });
   }, [selectedVersion]);
 
+  const tierVersions = useMemo(() => versions.filter(v => v.tier === activeTier), [versions, activeTier]);
+
   const swGroups = useMemo(() => {
     const map = new Map<string, SwVersion[]>();
-    for (const v of versions) {
+    for (const v of tierVersions) {
       if (!map.has(v.name)) map.set(v.name, []);
       map.get(v.name)!.push(v);
     }
     return map;
-  }, [versions]);
+  }, [tierVersions]);
 
   const categories = useMemo(() => {
     const cats = new Set<string>();
-    for (const v of versions) if (v.category) cats.add(v.category);
+    for (const v of tierVersions) if (v.category) cats.add(v.category);
     return ["전체", ...Array.from(cats)];
-  }, [versions]);
+  }, [tierVersions]);
 
   const filteredSwNames = useMemo(() => {
     return Array.from(swGroups.keys()).filter(name => {
@@ -230,6 +241,23 @@ export default function ResourcesPage() {
               </div>
             </div>
 
+            {/* 업무용/무료 프로그램 탭 */}
+            <div className="flex gap-1 p-1 mb-5 w-fit" style={{ background: "var(--portal-surface)", borderRadius: 10, border: `1px solid ${C.border}` }}>
+              {(["업무용", "무료프로그램"] as const).map(tier => (
+                <button key={tier} onClick={() => switchTier(tier)}
+                  className="px-4 py-1.5 text-sm font-semibold rounded-lg transition-colors"
+                  style={{
+                    background: activeTier === tier ? C.brand : "transparent",
+                    color: activeTier === tier ? "#fff" : C.text3,
+                  }}>
+                  {tier === "업무용" ? "업무용" : "무료 프로그램"}
+                </button>
+              ))}
+            </div>
+            {activeTier === "무료프로그램" && (
+              <p className="text-xs mb-5" style={{ color: C.text3 }}>승인 절차 없이 바로 다운로드할 수 있는 무료 프로그램입니다.</p>
+            )}
+
             {/* 카테고리 필터 */}
             <div className="flex gap-2 py-1 mb-7 overflow-x-auto" style={{ scrollbarWidth: "none", borderBottom: `1px solid ${C.border}` }}>
               {categories.map(cat => (
@@ -248,7 +276,7 @@ export default function ResourcesPage() {
             {/* SW 카드 그리드 */}
             {filteredSwNames.length === 0 ? (
               <div className="text-center py-20" style={{ color: C.text4 }}>
-                {searchQ ? `"${searchQ}" 검색 결과가 없습니다.` : "등록된 SW가 없습니다."}
+                {searchQ ? `"${searchQ}" 검색 결과가 없습니다.` : activeTier === "무료프로그램" ? "등록된 무료 프로그램이 없습니다." : "등록된 SW가 없습니다."}
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -268,7 +296,15 @@ export default function ResourcesPage() {
                         <span className="text-[11px] font-medium" style={{ color: C.text4 }}>{cat}</span>
                       </div>
                       <div className="font-semibold text-base mb-0.5" style={{ color: C.text1 }}>{name}</div>
-                      <div className="text-xs mb-3" style={{ color: C.text3 }}>{vers.length}개 버전 제공</div>
+                      <div className="flex items-center gap-1.5 text-xs mb-3" style={{ color: C.text3 }}>
+                        <span>{vers.length}개 버전 제공</span>
+                        {activeTier === "무료프로그램" && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                            style={{ background: "var(--state-positive-soft)", color: "var(--state-positive)" }}>
+                            바로 다운로드
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center justify-between">
                         <div className="flex gap-1 flex-wrap">
                           {allOs.slice(0, 3).map(os => (

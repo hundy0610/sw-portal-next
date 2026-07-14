@@ -462,7 +462,7 @@ function CompanyBlock({
       <div className="px-5 py-4 border-b border-slate-100 bg-slate-50">
         <div className="text-xs font-semibold text-slate-500 mb-3 uppercase tracking-wide">부서별 지출 현황</div>
         <div className="flex flex-col gap-2">
-          {deptList.map(({ dept, dTotal, dNet, dHas, users, sws }) => {
+          {deptList.map(({ dept, dTotal, dShared, dNet, dHas, users, sws }) => {
             const pct = maxDept > 0 ? (dTotal / maxDept * 100) : 0;
             const isHigh = pct > 60;
             return (
@@ -809,7 +809,7 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
             if (swMap.has(key)) { const g=swMap.get(key)!; g.count++; g.mKrw+=Math.round((r.annualKrw||0)/12); g.mUsd+=(r.annualUsd||0)/12; }
             else swMap.set(key,{count:1,mKrw:Math.round((r.annualKrw||0)/12),mUsd:(r.annualUsd||0)/12,billing:r.billingType||""});
           }
-          const swList = [...swMap.entries()].map(([k,g])=>({swName:k.split("||")[0],billing:g.billing,...g}));
+          const swList = [...swMap.entries()].map(([k,g])=>({swName:k.split("||")[0],...g}));
           return { dept, dRows, dTotal, dShared, dNet, dHas, swList };
         }).sort((a,b) => b.dTotal - a.dTotal);
 

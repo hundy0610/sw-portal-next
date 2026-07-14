@@ -39,7 +39,7 @@ const SW_WORKTYPE_HINT: Record<string, string> = {
 
 const WORK_TYPES     = ["사무","정부","개발","설계","디자인","협업","AI","원격","RPA","기타"];
 const LICENSE_TYPES  = ["구독(웹)","구독(업체)","영구"];
-const BILLING_TYPES  = ["법인카드","개인지불 후 청구","쉐어드 청구","기타"];
+const BILLING_TYPES  = ["법인카드","개인지불 후 청구","쉐어드 청구","개인부담(회사청구없음)","기타"];
 const ACCOUNT_TYPES  = ["개인","법인","공용"];
 const RENEWAL_CYCLES = ["월","연"];
 const COMMON_VERSIONS = [
@@ -60,6 +60,13 @@ const ACCOUNT_TYPE_TOOLTIP =
   "개인: 개인 이메일(Gmail, Naver 등)로 등록된 계정\n" +
   "법인: 회사 도메인 이메일(예: @daewoong.co.kr)로 등록된 계정\n" +
   "공용: 여러 팀원이 함께 사용하는 공유 계정";
+
+// 결재방식 설명 — "개인부담(회사청구없음)"은 회사에 비용 청구 없이
+// IT 가시성 확보 목적으로만 등록되는 개인 구독 SW임을 안내
+const BILLING_TYPE_TOOLTIP =
+  "개인부담(회사청구없음): 본인이 직접 결제하고 회사에 비용을 청구하지 않는\n" +
+  "개인 구독 SW입니다. 회사 비용 집계에서 제외되며, IT팀의 사내 SaaS 현황\n" +
+  "파악을 위해서만 사용됩니다. (예: 개인 ChatGPT Plus, 개인 Notion 등)";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 타입
@@ -370,7 +377,8 @@ function AddSwForm({ userInfo, onAdd, onCancel }: {
                 if (v === "쉐어드 청구" && !form.billingCompany) {
                   set("billingCompany", userInfo.company);
                 }
-              }} />
+              }}
+              tooltip={BILLING_TYPE_TOOLTIP} />
             {form.billingType === "쉐어드 청구" && (
               <div>
                 <Sel label="쉐어드 청구 법인" required value={form.billingCompany}
@@ -713,10 +721,12 @@ function Step3({ userInfo, records, added, onReset }: {
     ...records.filter(r => r.status === "사용중"),
     ...added,
   ];
-  const isShared = (r: SwRecord) => !!r.billingType?.includes("쉐어드");
+  const isShared       = (r: SwRecord) => !!r.billingType?.includes("쉐어드");
+  const isPersonalOnly = (r: SwRecord) => r.billingType === "개인부담(회사청구없음)";
 
-  const ownItems    = allActive.filter(r => !isShared(r));
-  const sharedItems = allActive.filter(r =>  isShared(r));
+  const ownItems         = allActive.filter(r => !isShared(r) && !isPersonalOnly(r));
+  const sharedItems      = allActive.filter(r =>  isShared(r));
+  const personalOnlyItems = allActive.filter(isPersonalOnly);
 
   const ownKrw    = ownItems.reduce((s, r)    => s + (r.monthlyKrw || 0), 0);
   const ownUsd    = ownItems.reduce((s, r)    => s + (r.monthlyUsd || 0), 0);
@@ -817,6 +827,19 @@ function Step3({ userInfo, records, added, onReset }: {
               </div>
             )}
 
+          </div>
+        )}
+
+        {/* ── 개인 구독 신고 (회사 비용 제외) ── */}
+        {personalOnlyItems.length > 0 && (
+          <div className="mt-5 text-left">
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+              <div className="flex items-center gap-1.5 mb-1">
+                <p className="text-xs font-semibold text-gray-600">개인 구독 신고 {personalOnlyItems.length}건 (회사 비용 제외)</p>
+                <Tooltip text={"회사에 비용을 청구하지 않는 개인 구독 SW로 신고된 항목입니다.\n비용 집계에는 포함되지 않으며, IT팀의 사내 SaaS 현황 파악에만 사용됩니다."} />
+              </div>
+              <p className="text-[11px] text-gray-400">신고해주셔서 감사합니다. IT팀이 참고용으로만 확인합니다.</p>
+            </div>
           </div>
         )}
 

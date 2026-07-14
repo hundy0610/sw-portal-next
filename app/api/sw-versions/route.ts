@@ -57,6 +57,7 @@ export async function POST(req: NextRequest) {
       name:        body.name        ?? "",
       version:     body.version     ?? "",
       category:    body.category    ?? "",
+      tier:        body.tier        ?? "업무용",
       os:          body.os          ?? [],
       description: body.description ?? "",
       visible:     body.visible     ?? true,
