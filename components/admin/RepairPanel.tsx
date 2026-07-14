@@ -90,8 +90,21 @@ function PriorityBadge({ priority }: { priority: string }) {
 // ── Monthly Line Chart (SVG) ─────────────────────────────────
 function MonthlyLineChart({ data }: { data: { month: string; count: number }[] }) {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(760);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(entries => {
+      const w = entries[0]?.contentRect.width;
+      if (w) setWidth(w);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const max = Math.max(...data.map(d => d.count), 1);
-  const W = 760, H = 240, PAD_X = 44, PAD_TOP = 24, PAD_BOT = 32;
+  const W = width, H = 240, PAD_X = 44, PAD_TOP = 24, PAD_BOT = 32;
   const chartH = H - PAD_TOP - PAD_BOT;
   const chartW = W - PAD_X * 2;
   const n = data.length;
@@ -110,8 +123,8 @@ function MonthlyLineChart({ data }: { data: { month: string; count: number }[] }
   const hovered = hoverIdx !== null ? data[hoverIdx] : null;
 
   return (
-    <div style={{ height: H, position: "relative" }}>
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="100%" preserveAspectRatio="xMidYMid meet" style={{ overflow: "visible" }}>
+    <div ref={containerRef} style={{ height: H, position: "relative" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="100%" preserveAspectRatio="none" style={{ overflow: "visible" }}>
         <defs>
           <linearGradient id="repairLineGrad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={ACCENT} stopOpacity="0.18" />
