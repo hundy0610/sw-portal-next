@@ -15,7 +15,7 @@ type OsKind = "windows" | "mac";
 
 export default function AssetAuditSettingsPanel() {
   const [cfg, setCfg]         = useState<AssetAuditConfig | null>(null);
-  const [draft, setDraft]     = useState({ title: "", description: "", guide: "", version: "", dataCollectionNotice: "" });
+  const [draft, setDraft]     = useState({ title: "", description: "", guide: "", version: "", dataCollectionNotice: "", deadline: "" });
   const [saving, setSaving]   = useState(false);
   const [saved, setSaved]     = useState(false);
   const [toggling, setToggling] = useState(false);
@@ -31,7 +31,7 @@ export default function AssetAuditSettingsPanel() {
       .then(r => safeJson(r))
       .then((data: AssetAuditConfig) => {
         setCfg(data);
-        setDraft({ title: data.title, description: data.description, guide: data.guide, version: data.version, dataCollectionNotice: data.dataCollectionNotice });
+        setDraft({ title: data.title, description: data.description, guide: data.guide, version: data.version, dataCollectionNotice: data.dataCollectionNotice, deadline: data.deadline ?? "" });
       });
   }, []);
 
@@ -162,6 +162,16 @@ export default function AssetAuditSettingsPanel() {
                 className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-semibold text-gray-500 mb-1">참여 마감일 (선택 — 비워두면 상시 진행으로 표시)</label>
+            <input
+              type="date"
+              value={draft.deadline}
+              onChange={e => setDraft(d => ({ ...d, deadline: e.target.value }))}
+              className="px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg"
+            />
           </div>
 
           <div>

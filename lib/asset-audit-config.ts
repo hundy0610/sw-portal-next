@@ -10,6 +10,7 @@ export interface AssetAuditConfig {
   version: string;
   // 협조문 — 어떤 데이터가 수집되는지 직원에게 반드시 고지 (줄바꿈으로 구분되는 목록)
   dataCollectionNotice: string;
+  deadline: string | null; // 참여 마감일 (YYYY-MM-DD), 없으면 상시 진행
   windowsFileUrl: string | null;
   windowsFileName: string | null;
   windowsFileSize: number | null;
@@ -28,15 +29,19 @@ interface LegacyFileFields {
 
 const DEFAULT_CONFIG: AssetAuditConfig = {
   open: false,
-  title: "자산실사 프로그램",
-  description: "PC에 설치하면 자산 정보를 자동으로 수집해 서버로 보고합니다.",
-  guide: "1. 아래 다운로드 버튼을 눌러 설치 파일을 받습니다.\n2. 다운로드한 파일을 실행합니다.\n3. 완료되면 자동으로 자산 정보가 등록됩니다.",
+  title: "자산 실사",
+  description: "임직원 여러분의 소중한 시간을 아끼기 위해, 프로그램 실행만으로 간단히 참여할 수 있도록 준비했습니다.",
+  guide:
+    "1. 아래 내용에 동의 후, 사용 중인 운영체제에 맞는 프로그램을 다운로드합니다.\n" +
+    "2. 다운로드한 파일을 실행합니다.\n" +
+    "3. 실행이 완료되면 자산 정보가 자동으로 수집되어 등록됩니다. 별도로 입력하실 내용은 없습니다.",
   version: "",
   dataCollectionNotice:
     "CPU/GPU/메모리/저장장치/네트워크/배터리 정보\n" +
     "설치된 프로그램 목록\n" +
     "PC 자산번호, 시리얼번호, 모델명 등 하드웨어 사양\n" +
     "사용자 이름 및 소속 부서 정보",
+  deadline: null,
   windowsFileUrl: null,
   windowsFileName: null,
   windowsFileSize: null,
