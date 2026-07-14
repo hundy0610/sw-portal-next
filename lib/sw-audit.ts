@@ -35,11 +35,36 @@ const KNOWN_FREE_SOFTWARE = [
 // Application Verifier 등 순수 Microsoft/Windows 부속 컴포넌트 판별용 게시자 키워드
 const KNOWN_FREE_PUBLISHERS = ["mozilla", "the document foundation", "python software foundation", "openjs foundation"];
 
+// ─────────────────────────────────────────────────────────────────────────────
+// "회사(상업용) 사용 시 별도 라이선스 확인 필요" 힌트용 큐레이션 목록 — 개인 사용은
+// 무료지만 기업/상업적 사용에는 유료 라이선스가 필요하다고 널리 알려진 프리웨어만
+// 포함한다(예: WinRAR 셰어웨어 정책, 백신/최적화 툴의 가정용 무료 정책 등).
+// 실제 라이선스 조건은 버전·배포처에 따라 바뀔 수 있으므로 확정 판단이 아닌
+// "확인 권장" 힌트다 — 최종 판단은 관리자가 한다.
+// ─────────────────────────────────────────────────────────────────────────────
+const COMMERCIAL_USE_RESTRICTED = [
+  "winrar", "irfanview", "ccleaner",
+  "avast free antivirus", "avast antivirus", "avg antivirus free", "avg antivirus",
+  "malwarebytes", "advanced systemcare", "driver booster", "picpick",
+];
+
+export type CommercialUseHint = "generally-safe" | "verify-required" | "unknown";
+
 export function likelyFree(name: string, publisher: string): boolean {
+  return commercialUseHint(name, publisher) === "generally-safe";
+}
+
+// 상업용(회사) 환경에서 별도 라이선스 구매 없이 사용해도 무방하다고 추정되는지에
+// 대한 힌트. "generally-safe"=오픈소스/기업배포 허용 프리웨어, "verify-required"=
+// 개인용은 무료지만 기업 사용 시 유료 라이선스가 필요하다고 알려진 SW,
+// "unknown"=자동으로 판단할 근거가 없어 관리자 확인이 필요한 나머지 전부.
+export function commercialUseHint(name: string, publisher: string): CommercialUseHint {
   const n = normalize(name);
-  if (KNOWN_FREE_SOFTWARE.some(k => n.includes(normalize(k)))) return true;
   const pub = publisher.toLowerCase();
-  return KNOWN_FREE_PUBLISHERS.some(k => pub.includes(k));
+  if (KNOWN_FREE_SOFTWARE.some(k => n.includes(normalize(k)))) return "generally-safe";
+  if (KNOWN_FREE_PUBLISHERS.some(k => pub.includes(k))) return "generally-safe";
+  if (COMMERCIAL_USE_RESTRICTED.some(k => n.includes(normalize(k)))) return "verify-required";
+  return "unknown";
 }
 
 // 관리 중인 SW DB(화이트리스트=approved/conditional, 블랙리스트=banned)와 대조해
@@ -64,6 +89,7 @@ export interface UnknownAggregateEntry {
   count: number;
   pcNames: string[];
   likelyFree: boolean; // 힌트일 뿐, 최종 판단은 관리자가 함
+  commercialUseHint: CommercialUseHint; // 힌트일 뿐, 최종 판단은 관리자가 함
 }
 
 // 여러 PC의 "미확인" 목록을 프로그램명 기준으로 합쳐서 몇 대에서 발견됐는지 집계
@@ -78,7 +104,11 @@ export function aggregateUnknownPrograms(perPc: { pcName: string; entries: SwAud
       if (existing) {
         if (!existing.pcNames.includes(pcName)) { existing.pcNames.push(pcName); existing.count++; }
       } else {
-        map.set(key, { name: e.name, publisher: e.publisher, count: 1, pcNames: [pcName], likelyFree: likelyFree(e.name, e.publisher) });
+        map.set(key, {
+          name: e.name, publisher: e.publisher, count: 1, pcNames: [pcName],
+          likelyFree: likelyFree(e.name, e.publisher),
+          commercialUseHint: commercialUseHint(e.name, e.publisher),
+        });
       }
     }
   }

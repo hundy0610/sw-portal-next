@@ -17,7 +17,7 @@ const TARGET_LABEL: Record<AuditLog["target"], string> = {
   exchangeReturn: "자산 흐름", hw: "노트북/데스크탑", hwRepair: "수리/과실청구",
   rentalHw: "임대노트북", credentials: "계정 관리", repairTicket: "모니터 수리",
   meetingRental: "회의실 대여", meetingEquipment: "회의실 장비", contract: "계약",
-  account: "계정 권한",
+  account: "계정 권한", orgChart: "조직도",
 };
 
 function formatTime(iso: string): string {

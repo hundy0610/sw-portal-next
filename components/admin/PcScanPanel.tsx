@@ -430,7 +430,7 @@ const INPUT_CLS = "w-full px-2 py-1 text-[11px] border border-gray-200 rounded f
 
 // ── SW 목록 대조 (블랙리스트 후보 추출) ──────────────────────────
 interface SwAuditFileTarget { recordId: string; pcName: string; fileUrl: string }
-interface UnknownAggregateEntry { name: string; publisher: string; count: number; pcNames: string[]; likelyFree: boolean }
+interface UnknownAggregateEntry { name: string; publisher: string; count: number; pcNames: string[]; likelyFree: boolean; commercialUseHint: "generally-safe" | "verify-required" | "unknown" }
 interface SwAuditResult {
   checked: number;
   failed: { recordId: string; pcName: string; error: string }[];
@@ -541,7 +541,8 @@ function SwAuditModal({ files, onClose }: { files: SwAuditFileTarget[]; onClose:
                   </div>
                   <p className="text-[11px] text-gray-400 mb-2">
                     <span className="inline-block px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-semibold mr-1">무료 추정</span>
-                    배지는 일반적으로 잘 알려진 무료/오픈소스 SW에 대한 참고 힌트일 뿐, 최종 라이선스 판단은 직접 확인해주세요.
+                    <span className="inline-block px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 font-semibold mr-1">상업용 라이선스 확인 필요</span>
+                    배지는 일반적으로 잘 알려진 SW에 대한 참고 힌트일 뿐, 최종 라이선스 판단은 직접 확인해주세요.
                   </p>
                   <div className="border border-gray-200 rounded-xl overflow-hidden">
                     <table className="w-full text-xs">
@@ -561,8 +562,11 @@ function SwAuditModal({ files, onClose }: { files: SwAuditFileTarget[]; onClose:
                             </td>
                             <td className="px-3 py-2 text-gray-800">
                               {u.name}
-                              {u.likelyFree && (
+                              {u.commercialUseHint === "generally-safe" && (
                                 <span className="ml-1.5 inline-block px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 text-[10px] font-semibold">무료 추정</span>
+                              )}
+                              {u.commercialUseHint === "verify-required" && (
+                                <span className="ml-1.5 inline-block px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 text-[10px] font-semibold">상업용 라이선스 확인 필요</span>
                               )}
                             </td>
                             <td className="px-3 py-2 text-gray-500">{u.publisher || "—"}</td>

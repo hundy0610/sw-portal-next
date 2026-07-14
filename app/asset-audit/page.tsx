@@ -111,7 +111,14 @@ export default function AssetAuditProgramPage() {
     <div className="min-h-screen px-4 sm:px-6 lg:px-10 py-10 lg:py-14" style={{ background: C.bgPage }}>
       <div className="max-w-5xl mx-auto">
         {/* ── 헤더 ── */}
-        <div className="text-center mb-8 lg:mb-10">
+        <div className="text-center mb-8 lg:mb-10 relative">
+          <a
+            href="/asset-audit/manager"
+            className="absolute right-0 top-0 text-xs font-semibold hover:underline hidden sm:inline-block"
+            style={{ color: C.text4 }}
+          >
+            직책자이신가요? 조직 현황 조회 →
+          </a>
           <h1 className="text-[26px] sm:text-3xl font-extrabold mb-2" style={{ color: C.text1 }}>
             {loading ? " " : cfg?.title}
           </h1>

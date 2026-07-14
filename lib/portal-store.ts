@@ -25,7 +25,8 @@ export interface AuditLog {
   target:
     | "notices" | "courses" | "swdb" | "swresources" | "manuals"
     | "exchangeReturn" | "hw" | "hwRepair" | "rentalHw" | "credentials"
-    | "repairTicket" | "meetingRental" | "meetingEquipment" | "contract" | "account";
+    | "repairTicket" | "meetingRental" | "meetingEquipment" | "contract" | "account"
+    | "orgChart";
   itemTitle: string;
   detail?: string;
   timestamp: string; // ISO
