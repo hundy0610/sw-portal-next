@@ -279,6 +279,19 @@ export async function patchHwCacheBulk(ids: string[], fields: Record<string, unk
   await Promise.all([kvPatchPromise, deltaPromise]);
 }
 
+// 삭제(archive)용 — hw:all 캐시에서 해당 id들을 제거 (Notion 쿼리는 archived 페이지를 자동 제외하므로 동일하게 맞춤)
+export async function removeFromHwCache(ids: string[]): Promise<void> {
+  const idSet = new Set(ids);
+  const all = await kvGet<HwRecord[]>("hw:all");
+  if (!all) return; // KV 미스 — warm 시 자연히 반영됨
+  const updated = all.filter(r => !idSet.has(r.id));
+  const stats   = computeHwStats(updated);
+  await Promise.all([
+    kvSetPermanent("hw:all",   updated),
+    kvSetPermanent("hw:stats", stats),
+  ]);
+}
+
 /**
  * PC 실사 스캔이 마스터값과 완전히 일치할 때 자동 호출 — 해당 자산을
  * 사용중 상태로, 실사확인 체크박스를 true로 표시한다.

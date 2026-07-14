@@ -1078,6 +1078,8 @@ function SearchTab({ companyLock = "", onUpdate, onBulkUpdate, isSuperAdmin = fa
   const [searched, setSearched] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   const bulkFieldOptions: BulkFieldOption[] = useMemo(() => [
     { key: "status",   label: "상태",   type: "select", options: STATUSES },
@@ -1086,6 +1088,27 @@ function SearchTab({ companyLock = "", onUpdate, onBulkUpdate, isSuperAdmin = fa
     { key: "location", label: "위치",   type: "text" },
     { key: "note",     label: "기타",   type: "text" },
   ], []);
+
+  const handleDelete = useCallback(async (ids: string[]) => {
+    if (!window.confirm(`선택한 ${ids.length}건을 삭제하시겠습니까?\n삭제된 데이터는 Notion에서 보관 처리됩니다.`)) return;
+    setDeleting(true); setDeleteError("");
+    try {
+      const res  = await fetch("/api/hw/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      const json = await safeJson(res);
+      if (!json.ok) throw new Error(json.error ?? "삭제 실패");
+      if (json.failed > 0) setDeleteError(`${json.failed}건 삭제 실패`);
+      setRecords(prev => prev.filter(r => !ids.includes(r.id)));
+      setSelectedIds(new Set());
+    } catch (e) {
+      setDeleteError(String(e));
+    } finally {
+      setDeleting(false);
+    }
+  }, []);
 
   const handleExport = useCallback(async () => {
     if (records.length === 0) return;
@@ -1248,8 +1271,18 @@ function SearchTab({ companyLock = "", onUpdate, onBulkUpdate, isSuperAdmin = fa
                     setSelectedIds(new Set());
                     return res;
                   }}
+                  extraActions={
+                    <button
+                      onClick={() => handleDelete(Array.from(selectedIds))}
+                      disabled={deleting}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-xs font-semibold rounded-lg transition-colors"
+                    >
+                      {deleting ? "삭제 중…" : `${selectedIds.size}건 삭제`}
+                    </button>
+                  }
                 />
               )}
+              {deleteError && <span className="text-xs text-red-500">{deleteError}</span>}
               <span className="text-xs text-gray-400">{records.length}건</span>
               <button
                 onClick={handleExport}
