@@ -143,11 +143,15 @@ export interface PcScanRecordWithMatch extends PcScanRecord {
   masterId: string | null;
   mismatch: PcScanMismatch | null; // masterExists === true일 때만 값이 존재
   master?: { corp: string; dept: string; userName: string };
+  /** 자산번호는 마스터와 다르지만 시리얼은 일치하는 레코드가 있는 경우 (자산번호 오기입 의심 경고용, 자동 반영 안 함) */
+  serialOnlyMatch: { masterId: string; masterAssetNo: string; masterCorp: string; masterDept: string; masterUser: string } | null;
 }
 
 /**
  * PC 스캔 기록을 마스터(HW) DB와 대조: 자산번호로 마스터 레코드를 찾고,
  * 시리얼 넘버가 대조(뒷자리 누락 허용)되면 일치로 보고 법인/부서/사용자를 비교한다.
+ * 자산번호로 못 찾거나 시리얼이 안 맞으면, 자산번호 오기입 여부를 알려주기 위해
+ * 시리얼만으로 마스터 전체를 보조 검색한다 (경고 표시용, masterExists/mismatch에는 반영하지 않음).
  */
 export function matchPcScansWithHw(
   scans: PcScanRecord[],
@@ -163,7 +167,16 @@ export function matchPcScansWithHw(
     const matched = !!master && serialFuzzyMatch(s.serial, master.serial);
 
     if (!matched || !master) {
-      return { ...s, masterExists: false, masterId: null, mismatch: null };
+      const bySerial = s.serial ? hwRecords.find(r => serialFuzzyMatch(s.serial, r.serial)) : undefined;
+      return {
+        ...s,
+        masterExists: false,
+        masterId: null,
+        mismatch: null,
+        serialOnlyMatch: bySerial
+          ? { masterId: bySerial.id, masterAssetNo: bySerial.assetNo, masterCorp: bySerial.company, masterDept: bySerial.dept, masterUser: bySerial.user }
+          : null,
+      };
     }
 
     return {
@@ -176,6 +189,7 @@ export function matchPcScansWithHw(
         userName: master.user    !== s.userName,
       },
       master: { corp: master.company, dept: master.dept, userName: master.user },
+      serialOnlyMatch: null,
     };
   });
 }

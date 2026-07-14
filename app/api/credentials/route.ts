@@ -4,6 +4,7 @@ import { kvGet, kvSet, kvDel } from "@/lib/kv-store";
 import { memGet, memSet, memDel } from "@/lib/mem-cache";
 import { resolveAuditActor } from "@/lib/session";
 import { appendAdminAuditLog } from "@/lib/portal-store";
+import { encryptSecret, decryptSecret } from "@/lib/crypto";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
@@ -22,7 +23,7 @@ function mapPage(page: any) {
     id:        page.id,
     swName:    p["이름"]?.title?.map((t: any) => t.plain_text).join("") ?? "",
     accountId: getText(p["ID"]),
-    password:  getText(p["PW"]),
+    password:  decryptSecret(getText(p["PW"])),
     siteUrl:   p["URL"]?.url ?? "",
     memo:      getText(p["유형"]),
   };
@@ -84,7 +85,7 @@ export async function POST(req: NextRequest) {
       properties: {
         이름: { title: [{ text: { content: String(swName).trim() } }] },
         ID:   { rich_text: [{ text: { content: String(accountId).trim() } }] },
-        PW:   { rich_text: [{ text: { content: String(password).trim() } }] },
+        PW:   { rich_text: [{ text: { content: encryptSecret(String(password).trim()) } }] },
         URL:  { url: siteUrl.trim() || null },
         유형: { rich_text: [{ text: { content: String(memo).trim() } }] },
       },
@@ -113,7 +114,7 @@ export async function PUT(req: NextRequest) {
     const properties: Record<string, any> = {};
     if (swName    !== undefined) properties["이름"] = { title:     [{ text: { content: String(swName).trim() } }] };
     if (accountId !== undefined) properties["ID"]   = { rich_text: [{ text: { content: String(accountId).trim() } }] };
-    if (password  !== undefined) properties["PW"]   = { rich_text: [{ text: { content: String(password).trim() } }] };
+    if (password  !== undefined) properties["PW"]   = { rich_text: [{ text: { content: encryptSecret(String(password).trim()) } }] };
     if (siteUrl   !== undefined) properties["URL"]  = { url: String(siteUrl).trim() || null };
     if (memo      !== undefined) properties["유형"] = { rich_text: [{ text: { content: String(memo).trim() } }] };
 

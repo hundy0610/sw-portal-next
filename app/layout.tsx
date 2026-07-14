@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
+// TEST 브랜치 Vercel 배포에서만 탭 제목 뒤에 "테스트"를 붙여 프로덕션과 구분한다.
+const isTestDeploy = process.env.VERCEL_GIT_COMMIT_REF === "TEST";
+
 export const metadata: Metadata = {
-  title: "IdsTrust 자산 관리 포털",
+  title: isTestDeploy ? "IdsTrust 자산 관리 포털 테스트" : "IdsTrust 자산 관리 포털",
   description: "전사 소프트웨어 자산 관리 시스템",
   icons: {
     icon: "/favicon.svg",
