@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
-import { type HwRecord, type HwChangeLogEvent, buildUpdatedChangeLog, patchHwCache } from "@/lib/hw";
+import { type HwRecord, type HwChangeLogEvent, buildUpdatedChangeLog, patchHwCache, buildHwProperties } from "@/lib/hw";
 import { kvGet } from "@/lib/kv-store";
 import { memDel } from "@/lib/mem-cache";
 import { autoCompleteReturnsByAssetId, autoSyncUseDateByAssetId } from "@/lib/exchange-return";
@@ -28,48 +28,7 @@ async function getRecordCompany(id: string): Promise<string | null> {
 
 // HwRecord 필드 → Notion 프로퍼티 매핑
 type FieldMap = Record<string, unknown>;
-
-function buildProperties(fields: FieldMap) {
-  const props: Record<string, unknown> = {};
-
-  const sel = (name: string, val: string) => {
-    props[name] = val ? { select: { name: val } } : { select: null };
-  };
-  const txt = (name: string, val: string, isTitle = false) => {
-    const block = [{ text: { content: val ?? "" } }];
-    props[name] = isTitle ? { title: block } : { rich_text: block };
-  };
-  const dt = (name: string, val: string) => {
-    props[name] = val ? { date: { start: val } } : { date: null };
-  };
-
-  if (fields.status      !== undefined) sel("사용/재고/폐기/기타",  String(fields.status));
-  if (fields.company     !== undefined) sel("법인명",                String(fields.company));
-
-  if (fields.user        !== undefined) txt("사용자",       String(fields.user),  true);
-  if (fields.assetNo     !== undefined) txt("자산번호",     String(fields.assetNo));
-  if (fields.serial      !== undefined) txt("시리얼 넘버",  String(fields.serial));
-  if (fields.dept        !== undefined) txt("부서",         String(fields.dept));
-  if (fields.location    !== undefined) txt("위치",         String(fields.location));
-  if (fields.note        !== undefined) txt("기타",         String(fields.note));
-  if (fields.email       !== undefined) {
-    const emailVal = String(fields.email ?? "");
-    props["이메일"] = emailVal ? { email: emailVal } : { email: null };
-  }
-
-  if (fields.returnDue   !== undefined) dt("반납예정일", String(fields.returnDue  ?? ""));
-  if (fields.returnDate  !== undefined) dt("반납일자",   String(fields.returnDate ?? ""));
-  if (fields.useDate     !== undefined) dt("사용일자",   String(fields.useDate    ?? ""));
-
-  if (fields.verified !== undefined) {
-    props["실사확인"] = { checkbox: !!fields.verified };
-  }
-
-  if (fields.lastModifiedBy !== undefined) txt("마지막수정자",   String(fields.lastModifiedBy));
-  if (fields.lastModifiedAt !== undefined) txt("마지막수정일시", String(fields.lastModifiedAt));
-
-  return props;
-}
+const buildProperties = buildHwProperties;
 
 // 변경이력에 기록할 필드 목록 — 전역 감사로그(8개)보다 넓게 전체 수정가능 필드 포함
 const HW_LOG_FIELDS: { key: keyof HwRecord; label: string }[] = [

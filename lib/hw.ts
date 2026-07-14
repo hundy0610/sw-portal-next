@@ -187,6 +187,51 @@ export function computeHwStats(records: HwRecord[]): HwStats {
   };
 }
 
+// HwRecord 필드 → Notion 프로퍼티 매핑 (hw/update, hw/bulk-update 공용)
+export type FieldMap = Record<string, unknown>;
+
+export function buildHwProperties(fields: FieldMap) {
+  const props: Record<string, unknown> = {};
+
+  const sel = (name: string, val: string) => {
+    props[name] = val ? { select: { name: val } } : { select: null };
+  };
+  const txt = (name: string, val: string, isTitle = false) => {
+    const block = [{ text: { content: val ?? "" } }];
+    props[name] = isTitle ? { title: block } : { rich_text: block };
+  };
+  const dt = (name: string, val: string) => {
+    props[name] = val ? { date: { start: val } } : { date: null };
+  };
+
+  if (fields.status      !== undefined) sel("사용/재고/폐기/기타",  String(fields.status));
+  if (fields.company     !== undefined) sel("법인명",                String(fields.company));
+
+  if (fields.user        !== undefined) txt("사용자",       String(fields.user),  true);
+  if (fields.assetNo     !== undefined) txt("자산번호",     String(fields.assetNo));
+  if (fields.serial      !== undefined) txt("시리얼 넘버",  String(fields.serial));
+  if (fields.dept        !== undefined) txt("부서",         String(fields.dept));
+  if (fields.location    !== undefined) txt("위치",         String(fields.location));
+  if (fields.note        !== undefined) txt("기타",         String(fields.note));
+  if (fields.email       !== undefined) {
+    const emailVal = String(fields.email ?? "");
+    props["이메일"] = emailVal ? { email: emailVal } : { email: null };
+  }
+
+  if (fields.returnDue   !== undefined) dt("반납예정일", String(fields.returnDue  ?? ""));
+  if (fields.returnDate  !== undefined) dt("반납일자",   String(fields.returnDate ?? ""));
+  if (fields.useDate     !== undefined) dt("사용일자",   String(fields.useDate    ?? ""));
+
+  if (fields.verified !== undefined) {
+    props["실사확인"] = { checkbox: !!fields.verified };
+  }
+
+  if (fields.lastModifiedBy !== undefined) txt("마지막수정자",   String(fields.lastModifiedBy));
+  if (fields.lastModifiedAt !== undefined) txt("마지막수정일시", String(fields.lastModifiedAt));
+
+  return props;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // hw:all/hw:stats/hw:deltas KV 캐시 in-place 패치 — Notion 페이지 업데이트 후 호출
 // ─────────────────────────────────────────────────────────────────────────────
@@ -208,6 +253,43 @@ export async function patchHwCache(id: string, fields: Record<string, unknown>):
   })();
 
   await Promise.all([kvPatchPromise, deltaPromise]);
+}
+
+// 일괄수정용 — 동일한 fields를 여러 id에 적용, KV 읽기/쓰기를 1회로 묶어서 처리
+export async function patchHwCacheBulk(ids: string[], fields: Record<string, unknown>): Promise<void> {
+  const kvPatchPromise = (async () => {
+    const all = await kvGet<HwRecord[]>("hw:all");
+    if (!all) return; // KV 미스 — warm 시 자연히 반영됨
+    const idSet = new Set(ids);
+    const updated = all.map(r => idSet.has(r.id) ? { ...r, ...fields } : r);
+    const stats   = computeHwStats(updated);
+    await Promise.all([
+      kvSetPermanent("hw:all",   updated),
+      kvSetPermanent("hw:stats", stats),
+    ]);
+  })();
+
+  const deltaPromise = (async () => {
+    const existing = await kvGet<Record<string, Record<string, unknown>>>("hw:deltas") ?? {};
+    const next = { ...existing };
+    for (const id of ids) next[id] = fields;
+    await kvSet("hw:deltas", next, 3600);
+  })();
+
+  await Promise.all([kvPatchPromise, deltaPromise]);
+}
+
+// 삭제(archive)용 — hw:all 캐시에서 해당 id들을 제거 (Notion 쿼리는 archived 페이지를 자동 제외하므로 동일하게 맞춤)
+export async function removeFromHwCache(ids: string[]): Promise<void> {
+  const idSet = new Set(ids);
+  const all = await kvGet<HwRecord[]>("hw:all");
+  if (!all) return; // KV 미스 — warm 시 자연히 반영됨
+  const updated = all.filter(r => !idSet.has(r.id));
+  const stats   = computeHwStats(updated);
+  await Promise.all([
+    kvSetPermanent("hw:all",   updated),
+    kvSetPermanent("hw:stats", stats),
+  ]);
 }
 
 /**

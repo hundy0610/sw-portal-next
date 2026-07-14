@@ -518,6 +518,7 @@ function AuditPanel() {
     create: { label: "등록", bg: "var(--state-positive-soft)", color: "var(--state-positive)" },
     update: { label: "수정", bg: "var(--state-caution-soft)", color: "var(--state-caution)" },
     delete: { label: "삭제", bg: C.dangerSoft, color: C.danger },
+    "bulk-update": { label: "일괄수정", bg: "var(--state-caution-soft)", color: "var(--state-caution)" },
   };
 
   const TARGET_LABEL: Partial<Record<AuditLog["target"], string>> = {

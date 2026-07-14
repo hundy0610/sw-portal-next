@@ -1030,7 +1030,7 @@ function ReturnRegModal({
                 <label className="text-xs text-gray-500 font-medium block mb-1.5">자산번호</label>
                 <div className="flex gap-2">
                   <input
-                    className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white form-field-white focus:outline-none focus:ring-2 focus:ring-blue-200"
                     placeholder="자산번호 입력"
                     value={assetInput}
                     onChange={e => { setAssetInput(e.target.value); setSearchResult(null); }}
@@ -1678,7 +1678,7 @@ function DetailModal({
     </Row>
   );
 
-  const selectCls = "text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-blue-200";
+  const selectCls = "text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white form-field-white focus:outline-none focus:ring-2 focus:ring-blue-200";
   const saveBtnCls = (field: string, cur: string, orig: string) =>
     `text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed ${saving === field || cur === orig ? "opacity-40 cursor-not-allowed" : ""}`;
 
@@ -1806,7 +1806,7 @@ function DetailModal({
               <div className="flex items-center gap-2">
                 {stage === "요청기안" ? (
                   <button onClick={() => setShowAssetPicker(true)}
-                    className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white hover:border-blue-300 hover:bg-blue-50 text-left min-w-[10rem] transition-colors">
+                    className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white form-field-white hover:border-blue-300 hover:bg-blue-50 text-left min-w-[10rem] transition-colors">
                     {newAssetId
                       ? <span className="font-mono text-gray-800">{newAssetId}</span>
                       : <span className="text-gray-400">재고에서 선택...</span>
@@ -2079,7 +2079,7 @@ function DetailModal({
               <textarea ref={noteRef}
                 defaultValue={note}
                 rows={3}
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 resize-none"
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white form-field-white focus:outline-none focus:ring-2 focus:ring-blue-200 resize-none"
                 placeholder={record.type === "임대" ? "지급사유 입력" : "비고 입력"} />
               <div className="flex items-center gap-2">
                 <button onClick={() => save("note", { note: noteRef.current?.value ?? "" })} disabled={saving === "note"}
@@ -2588,7 +2588,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
     } catch (e) { setErr(String(e)); } finally { setSaving(false); }
   };
 
-  const inputCls = "w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-200 bg-white";
+  const inputCls = "w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-200 bg-white form-field-white";
   const labelCls = "text-xs text-gray-400 mb-1 block";
 
   const PHASE_TITLE: Record<CreatePhase, string> = {
@@ -3043,7 +3043,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-gray-500 font-medium">법인 <span className="text-red-500">*</span></label>
                 <select value={rtCompany} onChange={e => setRtCompany(e.target.value)}
-                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-200 w-full bg-white">
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-200 w-full bg-white form-field-white">
                   <option value="">선택...</option>
                   {COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
@@ -3054,7 +3054,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
                   placeholder="이름 입력"
                   autoFocus
                   onKeyDown={e => { if (e.key === "Enter" && rtCompany && rtUserName.trim()) handleRtSearch(); }}
-                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-200 w-full" />
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-200 w-full bg-white form-field-white" />
               </div>
             </div>
             <div className="shrink-0 px-6 py-4 border-t border-gray-100 flex gap-2 justify-between">
@@ -3175,7 +3175,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-gray-500 font-medium">법인 <span className="text-red-500">*</span></label>
                 <select value={exCompany} onChange={e => setExCompany(e.target.value)}
-                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full bg-white">
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full bg-white form-field-white">
                   <option value="">선택...</option>
                   {COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
@@ -3186,7 +3186,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
                   placeholder="이름 입력"
                   autoFocus
                   onKeyDown={e => { if (e.key === "Enter" && exCompany && exUserName.trim()) handleExSearch(); }}
-                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full" />
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full bg-white form-field-white" />
               </div>
             </div>
             <div className="shrink-0 px-6 py-4 border-t border-gray-100 flex gap-2 justify-between">
@@ -3314,18 +3314,18 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
                 <label className="text-xs text-gray-500 font-medium">기안자 이메일</label>
                 <input type="email" value={exEmail} onChange={e => setExEmail(e.target.value)}
                   placeholder="example@company.com"
-                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full" />
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full bg-white form-field-white" />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-gray-500 font-medium">신청사유</label>
                 <input value={exReason} onChange={e => setExReason(e.target.value)}
                   placeholder="신청사유를 입력하세요"
-                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full" />
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full bg-white form-field-white" />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-gray-500 font-medium">배송지</label>
                 <select value={exDelivery} onChange={e => setExDelivery(e.target.value)}
-                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full bg-white">
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full bg-white form-field-white">
                   {DELIVERY_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
                 </select>
               </div>
@@ -3333,7 +3333,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
                 <label className="text-xs text-gray-500 font-medium">비고</label>
                 <textarea value={exNote} onChange={e => setExNote(e.target.value)} rows={3}
                   placeholder="기타 특이사항 등..."
-                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full resize-none" />
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full resize-none bg-white form-field-white" />
               </div>
               {err && <p className="text-xs text-red-600">{err}</p>}
             </div>
@@ -3365,7 +3365,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
                 <label className="text-xs text-gray-500 font-medium">반납예정일</label>
                 <div className="flex items-center gap-1">
                   <input type="date" value={rtReturnDue} onChange={e => setRtReturnDue(e.target.value)}
-                    className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-200 flex-1" />
+                    className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-200 flex-1 bg-white form-field-white" />
                   {rtReturnDue && <button type="button" onClick={() => setRtReturnDue("")} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
                 </div>
               </div>
@@ -3373,19 +3373,19 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
                 <label className="text-xs text-gray-500 font-medium">기안자 이메일</label>
                 <input type="email" value={rtEmail} onChange={e => setRtEmail(e.target.value)}
                   placeholder="example@company.com"
-                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-200 w-full" />
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-200 w-full bg-white form-field-white" />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-gray-500 font-medium">신청사유</label>
                 <input value={rtReason} onChange={e => setRtReason(e.target.value)}
                   placeholder="신청사유를 입력하세요"
-                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-200 w-full" />
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-200 w-full bg-white form-field-white" />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-gray-500 font-medium">비고</label>
                 <textarea value={rtNote} onChange={e => setRtNote(e.target.value)} rows={3}
                   placeholder="비고 메모..."
-                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-200 w-full resize-none" />
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-200 w-full resize-none bg-white form-field-white" />
               </div>
               {err && <p className="text-xs text-red-600">{err}</p>}
             </div>
