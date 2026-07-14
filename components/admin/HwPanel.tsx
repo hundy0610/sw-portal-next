@@ -4,6 +4,7 @@ import type { HwStats, HwChangeLogEvent } from "@/lib/hw";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import { LabelPrintTab } from "@/components/admin/LabelPrintTab";
 import { safeJson } from "@/lib/fetch-json";
+import BulkEditBar, { type BulkFieldOption } from "@/components/admin/shared/BulkEditBar";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 타입
@@ -1062,7 +1063,7 @@ function ReturnTab({ onUpdate, companyLock = "", isSuperAdmin = false }: { onUpd
 // ─────────────────────────────────────────────────────────────────────────────
 // 자산 검색 탭 (자체 on-demand fetch)
 // ─────────────────────────────────────────────────────────────────────────────
-function SearchTab({ companyLock = "", onUpdate, isSuperAdmin = false }: { companyLock?: string; onUpdate?: (id: string, fields: Partial<HwRecord>) => Promise<void>; isSuperAdmin?: boolean }) {
+function SearchTab({ companyLock = "", onUpdate, onBulkUpdate, isSuperAdmin = false }: { companyLock?: string; onUpdate?: (id: string, fields: Partial<HwRecord>) => Promise<void>; onBulkUpdate?: (ids: string[], fieldKey: string, value: string) => Promise<{ success: number; failed: number; results?: { id: string; ok: boolean; error?: string }[] }>; isSuperAdmin?: boolean }) {
   const [records,     setRecords]     = useState<HwRecord[]>([]);
   const [loading,     setLoading]     = useState(false);
   const [error,       setError]       = useState("");
@@ -1076,6 +1077,15 @@ function SearchTab({ companyLock = "", onUpdate, isSuperAdmin = false }: { compa
   const [location, setLocation] = useState("");
   const [searched, setSearched] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const bulkFieldOptions: BulkFieldOption[] = useMemo(() => [
+    { key: "status",   label: "상태",   type: "select", options: STATUSES },
+    { key: "company",  label: "법인명", type: "select", options: COMPANIES },
+    { key: "dept",     label: "부서",   type: "text" },
+    { key: "location", label: "위치",   type: "text" },
+    { key: "note",     label: "기타",   type: "text" },
+  ], []);
 
   const handleExport = useCallback(async () => {
     if (records.length === 0) return;
@@ -1158,7 +1168,7 @@ function SearchTab({ companyLock = "", onUpdate, isSuperAdmin = false }: { compa
   }, [records, companyLock]);
 
   const load = useCallback(async () => {
-    setLoading(true); setError(""); setSearched(true);
+    setLoading(true); setError(""); setSearched(true); setSelectedIds(new Set());
     try {
       const q = new URLSearchParams();
       if (search)   q.set("search",   search);
@@ -1224,9 +1234,22 @@ function SearchTab({ companyLock = "", onUpdate, isSuperAdmin = false }: { compa
       {error && <div className="px-4 py-3 bg-red-50 rounded-xl text-sm text-red-600">{error}</div>}
       {searched && !loading && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+          <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
             <span className="text-sm font-semibold text-gray-700">검색 결과</span>
             <div className="flex items-center gap-3">
+              {onBulkUpdate && (
+                <BulkEditBar
+                  count={selectedIds.size}
+                  fieldOptions={bulkFieldOptions}
+                  onClear={() => setSelectedIds(new Set())}
+                  onApply={async (fieldKey, value) => {
+                    const ids = Array.from(selectedIds);
+                    const res = await onBulkUpdate(ids, fieldKey, value);
+                    setSelectedIds(new Set());
+                    return res;
+                  }}
+                />
+              )}
               <span className="text-xs text-gray-400">{records.length}건</span>
               <button
                 onClick={handleExport}
@@ -1245,11 +1268,39 @@ function SearchTab({ companyLock = "", onUpdate, isSuperAdmin = false }: { compa
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead className="bg-gray-50 text-gray-500 font-semibold">
-                  <tr>{["상태","자산번호","사용자","법인명","부서","모델명","제조사","사용일자","반납일자","반납예정일","잔존가치","단가","최종수정"].map(h=><th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}</tr>
+                  <tr>
+                    {onBulkUpdate && (
+                      <th className="px-3 py-2.5 w-8">
+                        <input
+                          type="checkbox"
+                          className="rounded border-gray-300 text-blue-600 cursor-pointer"
+                          checked={records.length > 0 && records.every(r => selectedIds.has(r.id))}
+                          onChange={e => setSelectedIds(e.target.checked ? new Set(records.map(r => r.id)) : new Set())}
+                        />
+                      </th>
+                    )}
+                    {["상태","자산번호","사용자","법인명","부서","모델명","제조사","사용일자","반납일자","반납예정일","잔존가치","단가","최종수정"].map(h=><th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}
+                  </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {records.map(r => (
                     <tr key={r.id} className="hover:bg-gray-50 transition-colors">
+                      {onBulkUpdate && (
+                        <td className="px-3 py-2.5">
+                          <input
+                            type="checkbox"
+                            className="rounded border-gray-300 text-blue-600 cursor-pointer"
+                            checked={selectedIds.has(r.id)}
+                            onChange={e => {
+                              setSelectedIds(prev => {
+                                const next = new Set(prev);
+                                e.target.checked ? next.add(r.id) : next.delete(r.id);
+                                return next;
+                              });
+                            }}
+                          />
+                        </td>
+                      )}
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         {statusPickerId === r.id ? (
                           <div className="flex items-center gap-1">
@@ -2936,6 +2987,20 @@ export default function HwPanel({ company = "", initialStats, isSuperAdmin = fal
     setRecords(prev => prev.map(r => r.id === id ? { ...r, ...effectiveFields } : r));
   }, []);
 
+  // 일괄 수정 — 여러 id에 동일 필드값 적용
+  const handleBulkUpdate = useCallback(async (ids: string[], fieldKey: string, value: string) => {
+    const res = await fetch("/api/hw/bulk-update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids, fields: { [fieldKey]: value } }),
+    });
+    const json = await safeJson(res);
+    if (!json.ok) throw new Error(json.error ?? "일괄 수정 실패");
+    const idSet = new Set(ids);
+    setRecords(prev => prev.map(r => idSet.has(r.id) ? { ...r, [fieldKey]: value } : r));
+    return { success: json.success, failed: json.failed, results: json.results };
+  }, []);
+
   const TABS: { id: Tab; label: string; icon: string }[] = [
     { id: "dashboard", label: "대시보드",    icon: "📊" },
     { id: "shipment",  label: "출고 현황",   icon: "📤" },
@@ -3058,7 +3123,7 @@ export default function HwPanel({ company = "", initialStats, isSuperAdmin = fal
       {tab === "dashboard" && <DashboardTab  stats={stats} loading={statsLoading} onRefresh={handleRefreshStats} />}
       {tab === "shipment"  && <ShipmentTab onUpdate={handleUpdate} companyLock={company} isSuperAdmin={isSuperAdmin} />}
       {tab === "return"    && <ReturnTab   onUpdate={handleUpdate} companyLock={company} isSuperAdmin={isSuperAdmin} />}
-      {tab === "search"    && <SearchTab companyLock={company} onUpdate={handleUpdate} isSuperAdmin={isSuperAdmin} />}
+      {tab === "search"    && <SearchTab companyLock={company} onUpdate={handleUpdate} onBulkUpdate={handleBulkUpdate} isSuperAdmin={isSuperAdmin} />}
       {tab === "history"   && <ChangeHistoryTab companyLock={company} onUpdate={handleUpdate} isSuperAdmin={isSuperAdmin} />}
       {tab === "upload"    && <ExcelUploadTab />}
       {tab === "dispatch"  && <DispatchHistoryTab />}

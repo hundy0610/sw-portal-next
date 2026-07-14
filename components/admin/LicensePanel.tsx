@@ -6,6 +6,7 @@ import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import { scGet, scSet, scDel } from "@/lib/session-cache";
 import { safeJson } from "@/lib/fetch-json";
 import { downloadSwTemplate, parseSwExcelFile, downloadSwRecordsExcel, type SwExcelRow } from "@/lib/sw-template";
+import BulkEditBar, { type BulkFieldOption } from "@/components/admin/shared/BulkEditBar";
 
 const LC_KEY    = (co: string) => `lc:lp:swrec${co ? `:${co}` : ""}`;
 const LC_TTL_MS = 30 * 60 * 1000; // localStorage 30분
@@ -1408,6 +1409,17 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
   const maWorkTypeOptions    = useMemo(() => [...new Set(records.map(r => r.workType).filter(Boolean))], [records]);
   const maBillingTypeOptions = useMemo(() => [...new Set(records.map(r => r.billingType).filter((v): v is string => !!v))], [records]);
 
+  const bulkFieldOptions: BulkFieldOption[] = useMemo(() => [
+    { key: "status",       label: "상태",       type: "select", options: SW_STATUS_OPTIONS },
+    { key: "company",      label: "법인명",     type: "select", options: maCompanyOptions },
+    { key: "department",   label: "부서",       type: "text" },
+    { key: "workType",     label: "SW사용직군", type: "select", options: maWorkTypeOptions },
+    { key: "billingType",  label: "결재방식",   type: "select", options: maBillingTypeOptions },
+    { key: "accountType",  label: "계정유형",   type: "select", options: maAccountTypeOptions },
+    { key: "renewalCycle", label: "갱신주기",   type: "select", options: ["연", "월"] },
+    { key: "licenseType",  label: "라이선스유형", type: "select", options: SW_LICENSE_OPTIONS },
+  ], [maCompanyOptions, maWorkTypeOptions, maBillingTypeOptions, maAccountTypeOptions]);
+
   const handleUploadSuccess = useCallback(() => {
     const url = company ? `/api/sw-records?company=${encodeURIComponent(company)}` : "/api/sw-records";
     lcDel(LC_KEY(company));
@@ -1434,6 +1446,23 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
     if (!json.ok) throw new Error(json.error ?? "Notion 업데이트 실패");
     setRecords(prev => prev.map(r => r.id === id ? { ...r, ...recordFields } : r));
   }, []);
+
+  const handleBulkUpdate = useCallback(async (fieldKey: string, value: string) => {
+    const ids = Array.from(selectedIds);
+    const res  = await fetch("/api/sw/bulk-update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids, fields: { [fieldKey]: value } }),
+    });
+    const json = await safeJson(res);
+    if (!json.ok) throw new Error(json.error ?? "일괄 수정 실패");
+    const idSet = new Set(ids);
+    const next = records.map(r => idSet.has(r.id) ? { ...r, [fieldKey]: value } : r);
+    setRecords(next);
+    lcSet(LC_KEY(company), next);
+    setSelectedIds(new Set());
+    return { success: json.success, failed: json.failed, results: json.results };
+  }, [company, records, selectedIds]);
 
   const handleDelete = useCallback(async (ids: string[]) => {
     if (!window.confirm(`선택한 ${ids.length}건을 삭제하시겠습니까?\n삭제된 데이터는 Notion에서 보관 처리됩니다.`)) return;
@@ -1809,9 +1838,12 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
           ))}
         </div>
         <div className="flex items-center gap-3">
-          {selectedIds.size > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500">{selectedIds.size}건 선택됨</span>
+          <BulkEditBar
+            count={selectedIds.size}
+            fieldOptions={bulkFieldOptions}
+            onClear={() => setSelectedIds(new Set())}
+            onApply={handleBulkUpdate}
+            extraActions={
               <button
                 onClick={() => handleDelete(Array.from(selectedIds))}
                 disabled={deleting}
@@ -1819,12 +1851,8 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
               >
                 {deleting ? "삭제 중…" : `${selectedIds.size}건 삭제`}
               </button>
-              <button
-                onClick={() => setSelectedIds(new Set())}
-                className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 px-2 py-1.5 rounded-lg transition-colors"
-              >× 선택 해제</button>
-            </div>
-          )}
+            }
+          />
           {deleteError && (
             <span className="text-xs text-red-500">{deleteError}</span>
           )}

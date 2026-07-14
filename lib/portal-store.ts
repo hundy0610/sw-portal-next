@@ -21,7 +21,7 @@ export interface AuditLog {
   id: string;
   adminId: string;
   adminName: string;
-  action: "create" | "update" | "delete";
+  action: "create" | "update" | "delete" | "bulk-update";
   target:
     | "notices" | "courses" | "swdb" | "swresources" | "manuals"
     | "exchangeReturn" | "hw" | "hwRepair" | "rentalHw" | "credentials"

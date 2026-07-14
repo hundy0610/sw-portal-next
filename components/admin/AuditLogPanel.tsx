@@ -8,6 +8,7 @@ const ACTION_STYLE: Record<AuditLog["action"], { label: string; bg: string; text
   create: { label: "등록", bg: "bg-emerald-100", text: "text-emerald-700" },
   update: { label: "수정", bg: "bg-amber-100",   text: "text-amber-700" },
   delete: { label: "삭제", bg: "bg-red-100",     text: "text-red-700" },
+  "bulk-update": { label: "일괄수정", bg: "bg-blue-100", text: "text-blue-700" },
 };
 
 const TARGET_LABEL: Record<AuditLog["target"], string> = {
