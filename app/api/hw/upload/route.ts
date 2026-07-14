@@ -30,6 +30,8 @@ interface ExcelRow {
   purchaseDate:string;  // 구매년도(일자)
   price:       number;  // 구매가격
   useDate:     string;  // 사용일자
+  mac?:        string;  // MAC (PC 실사 스캔 등록 시에만 사용)
+  email?:      string;  // 이메일 (PC 실사 스캔 등록 시에만 사용)
 }
 
 // ISO 날짜 문자열로 정규화 (다양한 형식 지원)
@@ -181,6 +183,14 @@ async function createHwPage(row: ExcelRow, modifiedBy: string, modifiedAt: strin
       // 사용일자
       ...(useDate ? {
         "사용일자": { date: { start: useDate } },
+      } : {}),
+      // MAC (PC 실사 스캔 등록 시에만 값이 있음)
+      ...(row.mac ? {
+        "MAC": { rich_text: [{ text: { content: row.mac } }] },
+      } : {}),
+      // 이메일 (PC 실사 스캔 등록 시에만 값이 있음)
+      ...(row.email ? {
+        "이메일": { email: row.email },
       } : {}),
       // 마지막수정자/일시 (신규 등록 시점 = 최초 수정으로 기록)
       "마지막수정자": {

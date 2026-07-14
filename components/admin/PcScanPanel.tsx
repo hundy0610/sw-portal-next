@@ -112,6 +112,13 @@ function DetailModal({ record, onClose }: { record: PcScanRecordWithMatch; onClo
 // ── 신규 등록 모달 ──────────────────────────────────────────────
 const MODAL_INPUT_CLS = "w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400";
 
+// 마스터 DB에 이미 등록된 제조사 표기와 대소문자 무시하고 정확히 일치할 때만 채택
+// (스캔이 보내는 "SAMSUNG ELECTRONICS CO., LTD." 같은 원본값은 마스터 표기와 다른 경우가 많아 그대로 쓰지 않음)
+function bestMakerMatch(raw: string, options: string[]): string {
+  if (!raw) return "";
+  return options.find(o => o.toLowerCase() === raw.toLowerCase()) ?? "";
+}
+
 function RegisterMasterModal({
   record,
   makerOptions,
@@ -124,7 +131,7 @@ function RegisterMasterModal({
   onRegistered: (id: string) => void;
 }) {
   const [assetNo, setAssetNo] = useState(record.assetNo);
-  const [maker, setMaker]     = useState(record.manufacturer);
+  const [maker, setMaker]     = useState(() => bestMakerMatch(record.manufacturer, makerOptions));
   const [model, setModel]     = useState(record.model);
   const [serial, setSerial]   = useState(record.serial);
   const [company, setCompany] = useState(record.corp);
@@ -132,6 +139,8 @@ function RegisterMasterModal({
   const [dept, setDept]       = useState(record.dept);
   const [cpu, setCpu]         = useState(record.cpu);
   const [ram, setRam]         = useState(record.ram);
+  const [mac, setMac]         = useState(record.mac);
+  const [email, setEmail]     = useState(record.email);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]     = useState("");
 
@@ -149,6 +158,7 @@ function RegisterMasterModal({
           rows: [{
             assetNo: assetNo.trim(), model: model.trim(), serial: serial.trim(), maker: maker.trim(),
             cpu: cpu.trim(), ram: ram.trim(), company: company.trim(), user: user.trim(), dept: dept.trim(),
+            mac: mac.trim(), email: email.trim(),
             location: "", purchaseDate: "", price: 0, useDate: "",
           }],
         }),
@@ -192,6 +202,11 @@ function RegisterMasterModal({
             <datalist id="pc-scan-maker-options">
               {makerOptions.map(m => <option key={m} value={m} />)}
             </datalist>
+            {record.manufacturer && maker !== record.manufacturer && (
+              <p className="text-[11px] text-gray-400 mt-1">
+                스캔값: {record.manufacturer} — 마스터 DB에서 쓰는 제조사명을 목록에서 선택하세요.
+              </p>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -221,6 +236,14 @@ function RegisterMasterModal({
             <div>
               <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">RAM</label>
               <input className={MODAL_INPUT_CLS} value={ram} onChange={e => setRam(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">MAC</label>
+              <input className={MODAL_INPUT_CLS} value={mac} onChange={e => setMac(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">이메일</label>
+              <input className={MODAL_INPUT_CLS} value={email} onChange={e => setEmail(e.target.value)} />
             </div>
           </div>
 
@@ -281,6 +304,18 @@ export default function PcScanPanel() {
   const [syncing, setSyncing]   = useState(false);
   const [warming, setWarming]   = useState(false);
   const [filterOpen, setFilterOpen] = useState(true);
+  const [makerOptions, setMakerOptions] = useState<string[]>([]);
+
+  useEffect(() => {
+    // 신규 등록 모달의 "제조사" 목록 — 마스터 DB에 이미 쓰이고 있는 제조사 표기를 그대로 재사용
+    fetch("/api/hw/stats")
+      .then(r => safeJson(r))
+      .then(res => {
+        const byMaker = res?.ok ? res.stats?.byMaker : null;
+        if (byMaker) setMakerOptions(Object.keys(byMaker).filter(m => m !== "기타").sort());
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetch("/api/admin/pc-scan")
@@ -304,11 +339,6 @@ export default function PcScanPanel() {
 
   const originalCorpOptions = useMemo(
     () => [...new Set(records.map(r => r.originalCorp).filter(Boolean))].sort(),
-    [records]
-  );
-
-  const makerOptions = useMemo(
-    () => [...new Set(records.map(r => r.manufacturer).filter(Boolean))].sort(),
     [records]
   );
 
