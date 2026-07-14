@@ -8,6 +8,7 @@ import { Tooltip } from "@/components/ui/Tooltip";
 import { LabelPrintTab, PrintQueueSection } from "@/components/admin/LabelPrintTab";
 import { safeJson } from "@/lib/fetch-json";
 import { useAdminDarkMode } from "@/lib/use-admin-dark-mode";
+import { exportRowsToExcel } from "@/lib/xlsx-export";
 
 // 단계 필터 칩 색상 — 다크모드에서는 옅은 파스텔 배경 대신 중립 다크 서피스 +
 // dot 색상 텍스트로, 0건인 칩은 더 옅은 회색으로 표시한다.
@@ -3677,6 +3678,19 @@ export default function ExchangeReturnPanel() {
     return [...arr].sort((a, b) => (b.lastEditedAt ?? "").localeCompare(a.lastEditedAt ?? ""));
   }, [records, caseTab, stageFilter, typeFilter, search]);
 
+  async function handleExport() {
+    const rows = filtered.map(r => ({
+      "진행단계": r.stage, "유형": r.type,
+      "자산번호": r.assetId || "", "교체 자산번호": r.newAssetId || "",
+      "법인": r.company || "", "부서": r.department || "", "사용자": r.user || "",
+      "배송지/반납예정": r.address || r.returnDue || "",
+      "메모": r.note || "", "사용일자": r.useDate || "",
+      "최종수정": r.lastEditedAt ? new Date(r.lastEditedAt).toISOString().slice(0, 10) : "",
+    }));
+    const today = new Date().toISOString().slice(0, 10);
+    await exportRowsToExcel(rows, `자산흐름관리_${caseTab === "open" ? "진행중" : "완료"}_${today}.xlsx`, "자산흐름");
+  }
+
   if (missingEnv) return <EnvVarMissing varName={missingEnv} />;
 
   if (loading) {
@@ -3855,6 +3869,10 @@ export default function ExchangeReturnPanel() {
         />
         {search && <button onClick={() => setSearch("")} className="text-xs text-gray-400 hover:text-gray-600 underline">초기화</button>}
         <span className="text-xs text-gray-400 ml-1">{filtered.length}건</span>
+        <button onClick={handleExport} disabled={filtered.length === 0}
+          className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors">
+          엑셀 다운로드
+        </button>
       </div>
 
       {/* 테이블 */}

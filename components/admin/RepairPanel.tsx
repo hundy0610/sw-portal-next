@@ -6,6 +6,7 @@ import { AssetModalInner, HwRecord, HW_STATUSES } from "@/components/admin/Asset
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import { safeJson } from "@/lib/fetch-json";
 import { useAdminDarkMode } from "@/lib/use-admin-dark-mode";
+import { exportRowsToExcel } from "@/lib/xlsx-export";
 
 // ── Color configs ────────────────────────────────────────────
 const PRIORITY_COLORS: Record<string, { bg: string; text: string; bar: string }> = {
@@ -924,6 +925,18 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
     return true;
   }), [tickets, listFilter]);
 
+  async function handleExport() {
+    const rows = filteredList.map(t => ({
+      "티켓번호": t.ticketNumber || "", "상태": t.status,
+      "법인": t.company || "", "부서": t.department || "",
+      "모니터 번호": t.assetId || "", "문의자": t.requester || "",
+      "고장유형": t.faultTypes.join(", "), "고장증상": t.title || t.detail || "",
+      "담당자": t.assignee || "", "접수일": (t.createdAt || "").slice(0, 10),
+    }));
+    const today = new Date().toISOString().slice(0, 10);
+    await exportRowsToExcel(rows, `모니터수리접수내역_${today}.xlsx`, "수리접수");
+  }
+
   // ── Render ───────────────────────────────────────────────
   if (missingEnv) return <EnvVarMissing varName={missingEnv} />;
   if (loading) {
@@ -1480,11 +1493,17 @@ export default function RepairPanel({ company = "" }: { company?: string }) {
       {tab === "list" && (
         <div className="space-y-3">
           {/* 필터 바 */}
-          <button onClick={() => setFilterOpen(v => !v)}
-            className="flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-gray-700">
-            <span style={{ display: "inline-block", transition: "transform .15s ease", transform: filterOpen ? "rotate(90deg)" : "rotate(0deg)" }}>▸</span>
-            필터 <span className="text-gray-400 font-normal">({filteredList.length}건)</span>
-          </button>
+          <div className="flex items-center justify-between">
+            <button onClick={() => setFilterOpen(v => !v)}
+              className="flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-gray-700">
+              <span style={{ display: "inline-block", transition: "transform .15s ease", transform: filterOpen ? "rotate(90deg)" : "rotate(0deg)" }}>▸</span>
+              필터 <span className="text-gray-400 font-normal">({filteredList.length}건)</span>
+            </button>
+            <button onClick={handleExport} disabled={filteredList.length === 0}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors">
+              엑셀 다운로드
+            </button>
+          </div>
           {filterOpen && <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-wrap gap-3 items-center">
             <input
               type="text"

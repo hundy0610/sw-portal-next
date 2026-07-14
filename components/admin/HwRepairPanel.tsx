@@ -5,6 +5,7 @@ import type { HwRepairRecord } from "@/types";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import { safeJson } from "@/lib/fetch-json";
 import { useAdminDarkMode } from "@/lib/use-admin-dark-mode";
+import { exportRowsToExcel } from "@/lib/xlsx-export";
 
 // 단계 필터 칩 색상 — 다크모드에서는 옅은 파스텔 배경 대신 중립 다크 서피스 +
 // dot 색상 텍스트로, 0건인 칩은 더 옅은 회색으로 표시한다.
@@ -1115,6 +1116,18 @@ export default function HwRepairPanel() {
     return true;
   }), [tabRecords, stageFilter, search]);
 
+  async function handleExport() {
+    const rows = filtered.map(r => ({
+      "진행단계": r.stage, "자산번호": r.assetId || "", "대분류": r.assetStatus || "",
+      "법인": r.company || "", "부서": r.department || "", "사용자": r.user || "",
+      "접수일": r.receivedAt || "", "완료일": r.completedAt || "",
+      "과실여부": r.faultType || "", "수리업체": r.vendor || "", "수리비용": r.repairCost || 0,
+      "수리내용": r.note || "", "담당자": r.assignee || "",
+    }));
+    const today = new Date().toISOString().slice(0, 10);
+    await exportRowsToExcel(rows, `수리과실청구_${today}.xlsx`, "수리과실청구");
+  }
+
   if (missingEnv) return <EnvVarMissing varName={missingEnv} />;
   if (loading) {
     return (
@@ -1144,6 +1157,10 @@ export default function HwRepairPanel() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={handleExport} disabled={filtered.length === 0}
+            className="text-xs font-semibold px-3 py-1.5 rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-1.5 transition-colors">
+            엑셀 다운로드
+          </button>
           <button onClick={() => setCreateOpen(true)}
             className="text-xs font-semibold px-3 py-1.5 rounded bg-gray-900 text-white hover:bg-gray-700 flex items-center gap-1.5 transition-colors">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

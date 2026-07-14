@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import type { RentalRecord } from "@/lib/rental-hw";
 import { AssetModalInner } from "@/components/admin/AssetModal";
 import { safeJson } from "@/lib/fetch-json";
+import { exportRowsToExcel } from "@/lib/xlsx-export";
 
 const COMPANIES = [
   "대웅","대웅제약","대웅바이오","대웅개발","대웅펫",
@@ -380,6 +381,18 @@ export default function RentalHwPanel() {
   const paginated = useMemo(() =>
     filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE), [filtered, currentPage]);
 
+  async function handleExport() {
+    const rows = filtered.map(r => ({
+      "자산번호": r.assetNo || "", "출고자산번호(기존)": r.assetNoOld || "",
+      "상태": r.inStock ? "재고" : "임대중",
+      "사용시작일": r.startDate || "", "반납예정일": r.returnDue || "",
+      "법인": r.company || "", "부서": r.dept || "", "요청인": r.requester || "",
+      "지급사유": r.userAndReason || "", "DLP 계정": r.dlpAccount || "",
+    }));
+    const today = new Date().toISOString().slice(0, 10);
+    await exportRowsToExcel(rows, `임대노트북현황_${today}.xlsx`, "임대노트북");
+  }
+
   if (loading) return <div className="text-center py-20 text-gray-400">데이터 로딩 중…</div>;
 
   if (missingEnv) return (
@@ -466,7 +479,13 @@ export default function RentalHwPanel() {
             반납 초과만
           </button>
         </div>
-        <div className="text-right text-xs text-gray-400">{filtered.length}건 조회됨</div>
+        <div className="flex items-center gap-3 ml-auto">
+          <span className="text-xs text-gray-400">{filtered.length}건 조회됨</span>
+          <button onClick={handleExport} disabled={filtered.length === 0}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors">
+            엑셀 다운로드
+          </button>
+        </div>
       </div>
 
       {/* 테이블 */}
