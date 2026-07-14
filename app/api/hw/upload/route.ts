@@ -195,7 +195,7 @@ async function createHwPage(row: ExcelRow, modifiedBy: string, modifiedAt: strin
 
 export async function POST(req: NextRequest) {
   try {
-    const { rows }: { rows: ExcelRow[] } = await req.json();
+    const { rows, source }: { rows: ExcelRow[]; source?: string } = await req.json();
 
     if (!Array.isArray(rows) || rows.length === 0) {
       return NextResponse.json({ ok: false, error: "등록할 데이터가 없습니다." }, { status: 400 });
@@ -281,9 +281,12 @@ export async function POST(req: NextRequest) {
       }
 
       // 행별 기록 대신 일괄 등록 1건으로 요약 (감사 로그 500건 cap 보호)
+      const itemTitle = source === "pc-scan"
+        ? `PC 실사 스캔 신규 등록 ${success}건`
+        : `엑셀 일괄 등록 ${success}건`;
       await appendAdminAuditLog({
         adminId: session.userId, adminName, action: "create", target: "hw",
-        itemTitle: `엑셀 일괄 등록 ${success}건`, detail: failed > 0 ? `실패 ${failed}건` : undefined,
+        itemTitle, detail: failed > 0 ? `실패 ${failed}건` : undefined,
         timestamp: modifiedAt,
       });
     }
