@@ -236,6 +236,7 @@ export default function CredentialsPanel() {
   const [saving,   setSaving]   = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [toast,    setToast]    = useState<{ msg: string; type: "success"|"error" } | null>(null);
+  const [migrating, setMigrating] = useState(false);
 
   function toggleGroup(groupName: string) {
     setExpandedGroups(prev => {
@@ -248,6 +249,22 @@ export default function CredentialsPanel() {
   function showToast(msg: string, type: "success"|"error" = "success") {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
+  }
+
+  async function handleMigrateEncrypt() {
+    if (!window.confirm("기존에 평문으로 저장된 비밀번호를 전부 암호화합니다. 계속할까요?")) return;
+    setMigrating(true);
+    try {
+      const res = await fetch("/api/credentials/migrate-encrypt", { method: "POST" });
+      const json = await safeJson(res);
+      if (!json.ok) throw new Error(json.error ?? "암호화 실패");
+      showToast(`${json.migrated}건 암호화 완료 (이미 암호화됨 ${json.skipped}건)`);
+      loadCreds();
+    } catch (e) {
+      showToast(String(e), "error");
+    } finally {
+      setMigrating(false);
+    }
   }
 
   function loadCreds() {
@@ -392,11 +409,19 @@ export default function CredentialsPanel() {
       </div>
 
       {/* ── 보안 배너 ── */}
-      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-5 flex items-start gap-3">
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-5 flex items-start justify-between gap-3">
         <div className="text-xs text-amber-800">
           <strong>관리자 전용 페이지입니다.</strong> 이 화면의 계정 정보는 로그인된 관리자에게만 표시됩니다.
-          비밀번호는 클릭 시 잠깐만 표시되며, 복사 후 바로 가려집니다.
+          비밀번호는 클릭 시 잠깐만 표시되며, 복사 후 바로 가려집니다. 저장 시 비밀번호는 암호화되어 보관됩니다.
         </div>
+        <button
+          onClick={handleMigrateEncrypt}
+          disabled={migrating}
+          title="아직 암호화되지 않은 기존 비밀번호를 일괄 암호화합니다 (여러 번 실행해도 안전)"
+          className="shrink-0 text-xs font-semibold text-amber-700 border border-amber-300 rounded-lg px-3 py-1.5 hover:bg-amber-100 disabled:opacity-50 transition-colors whitespace-nowrap"
+        >
+          {migrating ? "암호화 중…" : "기존 비밀번호 일괄 암호화"}
+        </button>
       </div>
 
       {loading && (

@@ -30,6 +30,8 @@ interface ExcelRow {
   purchaseDate:string;  // 구매년도(일자)
   price:       number;  // 구매가격
   useDate:     string;  // 사용일자
+  mac?:        string;  // MAC (PC 실사 스캔 등록 시에만 사용)
+  email?:      string;  // 이메일 (PC 실사 스캔 등록 시에만 사용)
 }
 
 // ISO 날짜 문자열로 정규화 (다양한 형식 지원)
@@ -182,6 +184,14 @@ async function createHwPage(row: ExcelRow, modifiedBy: string, modifiedAt: strin
       ...(useDate ? {
         "사용일자": { date: { start: useDate } },
       } : {}),
+      // MAC (PC 실사 스캔 등록 시에만 값이 있음)
+      ...(row.mac ? {
+        "MAC": { rich_text: [{ text: { content: row.mac } }] },
+      } : {}),
+      // 이메일 (PC 실사 스캔 등록 시에만 값이 있음)
+      ...(row.email ? {
+        "이메일": { email: row.email },
+      } : {}),
       // 마지막수정자/일시 (신규 등록 시점 = 최초 수정으로 기록)
       "마지막수정자": {
         rich_text: [{ text: { content: modifiedBy } }],
@@ -195,7 +205,7 @@ async function createHwPage(row: ExcelRow, modifiedBy: string, modifiedAt: strin
 
 export async function POST(req: NextRequest) {
   try {
-    const { rows }: { rows: ExcelRow[] } = await req.json();
+    const { rows, source }: { rows: ExcelRow[]; source?: string } = await req.json();
 
     if (!Array.isArray(rows) || rows.length === 0) {
       return NextResponse.json({ ok: false, error: "등록할 데이터가 없습니다." }, { status: 400 });
@@ -281,9 +291,12 @@ export async function POST(req: NextRequest) {
       }
 
       // 행별 기록 대신 일괄 등록 1건으로 요약 (감사 로그 500건 cap 보호)
+      const itemTitle = source === "pc-scan"
+        ? `PC 실사 스캔 신규 등록 ${success}건`
+        : `엑셀 일괄 등록 ${success}건`;
       await appendAdminAuditLog({
         adminId: session.userId, adminName, action: "create", target: "hw",
-        itemTitle: `엑셀 일괄 등록 ${success}건`, detail: failed > 0 ? `실패 ${failed}건` : undefined,
+        itemTitle, detail: failed > 0 ? `실패 ${failed}건` : undefined,
         timestamp: modifiedAt,
       });
     }

@@ -92,6 +92,19 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // /manage(포털 콘텐츠 관리)도 super 전용
+  if (pathname.startsWith("/manage")) {
+    const session = await getSession(request);
+    if (!session) {
+      return NextResponse.redirect(new URL("/admin/login?redirect=/manage", request.url));
+    }
+    const role = await resolveCurrentRole(session.userId, session.role);
+    if (role !== "super") {
+      return NextResponse.redirect(new URL("/admin/login?redirect=/manage", request.url));
+    }
+    return NextResponse.next();
+  }
+
   // /admin/* 인증 보호
   if (pathname.startsWith("/admin")) {
     if (!(await isAuthenticated(request))) {
@@ -109,5 +122,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/event/admin/:path*"],
+  matcher: ["/admin/:path*", "/event/admin/:path*", "/manage/:path*"],
 };

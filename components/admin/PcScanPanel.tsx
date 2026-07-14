@@ -109,6 +109,301 @@ function DetailModal({ record, onClose }: { record: PcScanRecordWithMatch; onClo
   );
 }
 
+// ── 신규 등록 모달 ──────────────────────────────────────────────
+const MODAL_INPUT_CLS = "w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white form-field-white";
+
+// 마스터 DB에 이미 등록된 제조사 표기와 대소문자 무시하고 정확히 일치할 때만 채택
+// (스캔이 보내는 "SAMSUNG ELECTRONICS CO., LTD." 같은 원본값은 마스터 표기와 다른 경우가 많아 그대로 쓰지 않음)
+function bestMakerMatch(raw: string, options: string[]): string {
+  if (!raw) return "";
+  return options.find(o => o.toLowerCase() === raw.toLowerCase()) ?? "";
+}
+
+const CUSTOM_MAKER = "__custom__";
+
+function RegisterMasterModal({
+  record,
+  makerOptions,
+  onClose,
+  onRegistered,
+}: {
+  record: PcScanRecordWithMatch;
+  makerOptions: string[];
+  onClose: () => void;
+  onRegistered: (id: string) => void;
+}) {
+  const [assetNo, setAssetNo] = useState(record.assetNo);
+  const [maker, setMaker]     = useState(() => bestMakerMatch(record.manufacturer, makerOptions));
+  const [makerCustom, setMakerCustom] = useState(false);
+  const [model, setModel]     = useState(record.model);
+  const [serial, setSerial]   = useState(record.serial);
+  const [company, setCompany] = useState(record.corp);
+  const [user, setUser]       = useState(record.userName);
+  const [dept, setDept]       = useState(record.dept);
+  const [cpu, setCpu]         = useState(record.cpu);
+  const [ram, setRam]         = useState(record.ram);
+  const [mac, setMac]         = useState(record.mac);
+  const [email, setEmail]     = useState(record.email);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError]     = useState("");
+
+  const canSubmit = assetNo.trim() !== "" && maker.trim() !== "" && !submitting;
+
+  async function handleSubmit() {
+    setSubmitting(true);
+    setError("");
+    try {
+      const res = await fetch("/api/hw/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          source: "pc-scan",
+          rows: [{
+            assetNo: assetNo.trim(), model: model.trim(), serial: serial.trim(), maker: maker.trim(),
+            cpu: cpu.trim(), ram: ram.trim(), company: company.trim(), user: user.trim(), dept: dept.trim(),
+            mac: mac.trim(), email: email.trim(),
+            location: "", purchaseDate: "", price: 0, useDate: "",
+          }],
+        }),
+      });
+      const json = await safeJson(res);
+      if (!json?.ok || (json.success ?? 0) < 1) {
+        throw new Error(json?.error || json?.results?.[0]?.error || "등록 실패");
+      }
+      onRegistered(record.id);
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "등록 중 오류가 발생했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="font-bold text-gray-900 text-base">HW 마스터 신규 등록</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+        </div>
+
+        <div className="px-6 py-4 max-h-[65vh] overflow-y-auto space-y-3">
+          <p className="text-xs text-gray-400">
+            스캔값으로 자동 채워졌습니다. 등록 전 내용을 확인·수정하세요. 자산번호·제조사는 필수입니다.
+          </p>
+
+          <div>
+            <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">자산번호 *</label>
+            <input className={MODAL_INPUT_CLS} value={assetNo} onChange={e => setAssetNo(e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">제조사 *</label>
+            {makerCustom ? (
+              <div className="flex items-center gap-2">
+                <input
+                  className={MODAL_INPUT_CLS}
+                  value={maker}
+                  onChange={e => setMaker(e.target.value)}
+                  placeholder="제조사명 입력"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={() => { setMakerCustom(false); setMaker(bestMakerMatch(record.manufacturer, makerOptions)); }}
+                  className="text-[11px] text-gray-400 hover:text-gray-600 whitespace-nowrap"
+                >
+                  목록에서 선택
+                </button>
+              </div>
+            ) : (
+              <select
+                className={MODAL_INPUT_CLS}
+                value={maker}
+                onChange={e => {
+                  if (e.target.value === CUSTOM_MAKER) { setMakerCustom(true); setMaker(""); }
+                  else setMaker(e.target.value);
+                }}
+              >
+                <option value="">— 선택 —</option>
+                {makerOptions.map(m => <option key={m} value={m}>{m}</option>)}
+                <option value={CUSTOM_MAKER}>+ 직접 입력</option>
+              </select>
+            )}
+            {record.manufacturer && maker !== record.manufacturer && (
+              <p className="text-[11px] text-gray-400 mt-1">
+                스캔값: {record.manufacturer} — 마스터 DB에서 쓰는 제조사명을 목록에서 선택하세요.
+              </p>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">모델명</label>
+              <input className={MODAL_INPUT_CLS} value={model} onChange={e => setModel(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">시리얼 넘버</label>
+              <input className={MODAL_INPUT_CLS} value={serial} onChange={e => setSerial(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">법인명</label>
+              <input className={MODAL_INPUT_CLS} value={company} onChange={e => setCompany(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">사용자</label>
+              <input className={MODAL_INPUT_CLS} value={user} onChange={e => setUser(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">부서</label>
+              <input className={MODAL_INPUT_CLS} value={dept} onChange={e => setDept(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">CPU</label>
+              <input className={MODAL_INPUT_CLS} value={cpu} onChange={e => setCpu(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">RAM</label>
+              <input className={MODAL_INPUT_CLS} value={ram} onChange={e => setRam(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">MAC</label>
+              <input className={MODAL_INPUT_CLS} value={mac} onChange={e => setMac(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">이메일</label>
+              <input className={MODAL_INPUT_CLS} value={email} onChange={e => setEmail(e.target.value)} />
+            </div>
+          </div>
+
+          {error && <p className="text-xs text-red-500">{error}</p>}
+        </div>
+
+        <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700">
+            취소
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+            className="px-4 py-1.5 text-sm font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg disabled:opacity-40"
+          >
+            {submitting ? "등록 중…" : "신규 등록"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 동기화 확인 모달 (⚠ 불일치 / ? 시리얼만 일치 공통) ─────────────
+function SyncConfirmModal({
+  record,
+  onClose,
+  onSynced,
+}: {
+  record: PcScanRecordWithMatch;
+  onClose: () => void;
+  onSynced: (id: string) => void;
+}) {
+  const masterId   = record.masterId ?? record.serialOnlyMatch?.masterId ?? null;
+  const masterCorp = record.master?.corp     ?? record.serialOnlyMatch?.masterCorp ?? "";
+  const masterDept = record.master?.dept     ?? record.serialOnlyMatch?.masterDept ?? "";
+  const masterUser = record.master?.userName ?? record.serialOnlyMatch?.masterUser ?? "";
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const rows: [string, string, string][] = [
+    ["법인", masterCorp, record.corp],
+    ["부서", masterDept, record.dept],
+    ["사용자", masterUser, record.userName],
+  ];
+
+  async function handleSync() {
+    if (!masterId) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      const res = await fetch("/api/hw/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: masterId,
+          fields: { company: record.corp, dept: record.dept, user: record.userName, status: "사용중", verified: true },
+        }),
+      });
+      const json = await safeJson(res);
+      if (!json?.ok) throw new Error(json?.error || "동기화 실패");
+      onSynced(record.id);
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "동기화 중 오류가 발생했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="font-bold text-gray-900 text-base">마스터 정보 동기화</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+        </div>
+
+        <div className="px-6 py-4 space-y-3">
+          {record.serialOnlyMatch && (
+            <p className="text-xs bg-sky-50 text-sky-700 rounded-lg px-3 py-2">
+              자산번호 불일치 — 마스터: <strong>{record.serialOnlyMatch.masterAssetNo || "(없음)"}</strong> / 스캔: <strong>{record.assetNo || "(없음)"}</strong>
+              <br />자산번호는 여기서 고칠 수 없으며, 아래 정보만 스캔값으로 동기화됩니다.
+            </p>
+          )}
+
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-[10px] text-gray-400 uppercase tracking-wide">
+                <th className="text-left font-semibold py-1">항목</th>
+                <th className="text-left font-semibold py-1">마스터(현재)</th>
+                <th className="text-left font-semibold py-1">스캔값</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(([label, masterVal, scanVal]) => (
+                <tr key={label} className="border-t border-gray-100">
+                  <td className="py-1.5 text-gray-500">{label}</td>
+                  <td className={`py-1.5 ${masterVal !== scanVal ? "text-amber-600 font-medium" : "text-gray-700"}`}>{masterVal || "—"}</td>
+                  <td className="py-1.5 text-gray-900">{scanVal || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <p className="text-[11px] text-gray-400">동기화 시 마스터 상태는 &quot;사용중&quot; · 실사확인 ✓ 로 함께 반영됩니다.</p>
+
+          {error && <p className="text-xs text-red-500">{error}</p>}
+        </div>
+
+        <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700">
+            취소
+          </button>
+          <button
+            onClick={handleSync}
+            disabled={submitting || !masterId}
+            className="px-4 py-1.5 text-sm font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg disabled:opacity-40"
+          >
+            {submitting ? "동기화 중…" : "동기화 적용"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── 필터 상태 ──────────────────────────────────────────────────
 interface Filters {
   assetNo: string;
@@ -124,11 +419,11 @@ interface Filters {
   gpu: string;
   os: string;
   hasFile: string;      // "" | "yes" | "no"
-  masterExists: string; // "" | "true" | "false"
+  masterStatus: string; // "" | "match" | "mismatch" | "serialOnly" | "none"
 }
 const EMPTY: Filters = {
   assetNo: "", corp: "", isDualOrShared: "", originalCorp: "", dept: "", userName: "", email: "",
-  pcName: "", cpu: "", ram: "", gpu: "", os: "", hasFile: "", masterExists: "",
+  pcName: "", cpu: "", ram: "", gpu: "", os: "", hasFile: "", masterStatus: "",
 };
 
 const INPUT_CLS = "w-full px-2 py-1 text-[11px] border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white";
@@ -140,11 +435,25 @@ export default function PcScanPanel() {
   const [error, setError]       = useState("");
   const [filters, setFilters]   = useState<Filters>(EMPTY);
   const [detail, setDetail]     = useState<PcScanRecordWithMatch | null>(null);
+  const [register, setRegister] = useState<PcScanRecordWithMatch | null>(null);
+  const [syncTarget, setSyncTarget] = useState<PcScanRecordWithMatch | null>(null);
   const [zipping, setZipping]   = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [syncing, setSyncing]   = useState(false);
   const [warming, setWarming]   = useState(false);
   const [filterOpen, setFilterOpen] = useState(true);
+  const [makerOptions, setMakerOptions] = useState<string[]>([]);
+
+  useEffect(() => {
+    // 신규 등록 모달의 "제조사" 목록 — 마스터 DB에 이미 쓰이고 있는 제조사 표기를 그대로 재사용
+    fetch("/api/hw/stats")
+      .then(r => safeJson(r))
+      .then(res => {
+        const byMaker = res?.ok ? res.stats?.byMaker : null;
+        if (byMaker) setMakerOptions(Object.keys(byMaker).filter(m => m !== "기타").sort());
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetch("/api/admin/pc-scan")
@@ -171,6 +480,22 @@ export default function PcScanPanel() {
     [records]
   );
 
+  function handleRegistered(id: string) {
+    setRecords(prev => prev.map(r =>
+      r.id === id
+        ? { ...r, masterExists: true, mismatch: { corp: false, dept: false, userName: false }, serialOnlyMatch: null }
+        : r
+    ));
+  }
+
+  function handleSynced(id: string) {
+    setRecords(prev => prev.map(r =>
+      r.id === id && r.mismatch
+        ? { ...r, mismatch: { corp: false, dept: false, userName: false } }
+        : r
+    ));
+  }
+
   const filtered = useMemo(() => records.filter(r => {
     if (filters.assetNo    && !r.assetNo.toLowerCase().includes(filters.assetNo.toLowerCase()))     return false;
     if (filters.corp       && r.corp !== filters.corp)                                               return false;
@@ -187,8 +512,10 @@ export default function PcScanPanel() {
     if (filters.os         && !r.os.toLowerCase().includes(filters.os.toLowerCase()))               return false;
     if (filters.hasFile === "yes" && !r.programFileUrl)  return false;
     if (filters.hasFile === "no"  &&  r.programFileUrl)  return false;
-    if (filters.masterExists === "true"  && !r.masterExists) return false;
-    if (filters.masterExists === "false" &&  r.masterExists) return false;
+    if (filters.masterStatus === "match"      && !(r.masterExists && !hasMismatch(r)))          return false;
+    if (filters.masterStatus === "mismatch"   && !(r.masterExists && hasMismatch(r)))            return false;
+    if (filters.masterStatus === "serialOnly" && !(!r.masterExists && r.serialOnlyMatch))        return false;
+    if (filters.masterStatus === "none"       && !(!r.masterExists && !r.serialOnlyMatch))       return false;
     return true;
   }), [records, filters]);
 
@@ -325,6 +652,21 @@ export default function PcScanPanel() {
   return (
     <div className="fade-in">
       {detail && <DetailModal record={detail} onClose={() => setDetail(null)} />}
+      {register && (
+        <RegisterMasterModal
+          record={register}
+          makerOptions={makerOptions}
+          onClose={() => setRegister(null)}
+          onRegistered={handleRegistered}
+        />
+      )}
+      {syncTarget && (
+        <SyncConfirmModal
+          record={syncTarget}
+          onClose={() => setSyncTarget(null)}
+          onSynced={handleSynced}
+        />
+      )}
 
       {/* 헤더 */}
       <div className="mb-4 flex items-end justify-between gap-3 flex-wrap">
@@ -464,10 +806,12 @@ export default function PcScanPanel() {
                   </select>
                 </td>
                 <td className="px-2 py-1.5 min-w-[80px]">
-                  <select className={INPUT_CLS} value={filters.masterExists} onChange={e => sf("masterExists", e.target.value)}>
+                  <select className={INPUT_CLS} value={filters.masterStatus} onChange={e => sf("masterStatus", e.target.value)}>
                     <option value="">전체</option>
-                    <option value="true">일치</option>
-                    <option value="false">불일치</option>
+                    <option value="match">✓ 일치</option>
+                    <option value="mismatch">⚠ 불일치</option>
+                    <option value="serialOnly">? 시리얼만 일치</option>
+                    <option value="none">— 미매칭</option>
                   </select>
                 </td>
               </tr>}
@@ -537,18 +881,34 @@ export default function PcScanPanel() {
                   </td>
                   <td className="px-3 py-2.5 text-center">
                     {!r.masterExists ? (
-                      <span className="text-gray-300">—</span>
+                      r.serialOnlyMatch ? (
+                        <button
+                          onClick={() => setSyncTarget(r)}
+                          className="text-sky-600 font-bold text-sm hover:text-sky-700"
+                          title={`시리얼은 일치하지만 자산번호가 다름 — 마스터 자산번호: ${r.serialOnlyMatch.masterAssetNo || "(없음)"} (자산번호 오기입 의심, 클릭 시 동기화)`}
+                        >
+                          ?
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setRegister(r)}
+                          className="text-[10px] font-medium text-emerald-600 hover:text-emerald-700 hover:underline whitespace-nowrap"
+                        >
+                          신규 등록
+                        </button>
+                      )
                     ) : hasMismatch(r) ? (
-                      <span
-                        className="text-amber-600 font-bold text-sm cursor-help"
+                      <button
+                        onClick={() => setSyncTarget(r)}
+                        className="text-amber-600 font-bold text-sm hover:text-amber-700"
                         title={`불일치: ${[
                           r.mismatch!.corp && "법인",
                           r.mismatch!.dept && "부서",
                           r.mismatch!.userName && "사용자",
-                        ].filter(Boolean).join(", ")}`}
+                        ].filter(Boolean).join(", ")} (클릭 시 동기화)`}
                       >
                         ⚠
-                      </span>
+                      </button>
                     ) : (
                       <span className="text-emerald-600 font-bold text-sm">✓</span>
                     )}
