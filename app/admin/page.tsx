@@ -30,6 +30,7 @@ const NotificationBell        = dynamic(() => import("@/components/admin/Notific
 const AuditLogPanel           = dynamic(() => import("@/components/admin/AuditLogPanel"),           { ssr: false });
 const SurveyDemandPanel       = dynamic(() => import("@/components/admin/SurveyDemandPanel"),       { ssr: false });
 const PcScanPanel             = dynamic(() => import("@/components/admin/PcScanPanel"),             { ssr: false });
+const AssetAuditSettingsPanel = dynamic(() => import("@/components/admin/AssetAuditSettingsPanel"), { ssr: false });
 
 // ── 세션 타입 ──────────────────────────────────────────────────
 interface SessionInfo {
@@ -40,10 +41,10 @@ interface SessionInfo {
   mustChangePassword?: boolean;
 }
 
-type PageId = "home" | "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "rental-hw" | "accounts" | "assetmap" | "helpdesk" | "contracts" | "repair" | "hw-repair" | "exchange-return" | "work-feedback" | "worktracker" | "meeting-rental" | "audit" | "survey-demand" | "pc-scan";
+type PageId = "home" | "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "rental-hw" | "accounts" | "assetmap" | "helpdesk" | "contracts" | "repair" | "hw-repair" | "exchange-return" | "work-feedback" | "bugreport" | "worktracker" | "meeting-rental" | "audit" | "survey-demand" | "pc-scan" | "asset-audit-settings";
 
 // 슈퍼어드민 전용 페이지 (company 계정은 접근 불가)
-const SUPER_ONLY_PAGES = new Set<PageId>(["credentials", "swdb", "accounts", "contracts", "rental-hw", "hw-repair", "exchange-return", "work-feedback", "worktracker", "meeting-rental", "audit", "pc-scan"]);
+const SUPER_ONLY_PAGES = new Set<PageId>(["credentials", "swdb", "accounts", "contracts", "rental-hw", "hw-repair", "exchange-return", "work-feedback", "worktracker", "meeting-rental", "audit", "pc-scan", "asset-audit-settings"]);
 
 // ── 메뉴 정의 ──────────────────────────────────────────────────
 type MenuItem = { id: PageId; icon: string; label: string; desc: string };
@@ -65,6 +66,7 @@ const SUPER_GROUPS: MenuGroup[] = [
       { id: "rental-hw",       icon: "",   label: "임대노트북 현황 관리",     desc: "임시 PC 대여 · 반납 관리"   },
       { id: "assetmap",        icon: "",   label: "스마트오피스 모니터 관리", desc: "인터랙티브 자산 맵"         },
       { id: "pc-scan",         icon: "",   label: "온라인 자산 실사",         desc: "WPF 에이전트 PC 수집 데이터" },
+      { id: "asset-audit-settings", icon: "", label: "실사 프로그램 배포 설정", desc: "실사 프로그램 안내문·버전·공개 여부" },
     ],
   },
   {
@@ -248,6 +250,7 @@ export default function AdminPage() {
       case "bugreport":     return <BugReportPanel />;
       case "worktracker":   return canAccess("worktracker") ? <WorkTrackerPanel session={{ userId: session.userId, name: session.name }} /> : <AccessDenied />;
       case "pc-scan":       return canAccess("pc-scan") ? <PcScanPanel /> : <AccessDenied />;
+      case "asset-audit-settings": return canAccess("asset-audit-settings") ? <AssetAuditSettingsPanel /> : <AccessDenied />;
       default:            return null;
     }
   }
