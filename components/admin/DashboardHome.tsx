@@ -287,7 +287,7 @@ export default function DashboardHome({ company, initialHwStats, onNavigate }: P
             <button onClick={() => onNavigate("hw")} className="text-xs font-medium hover:opacity-75 transition-opacity" style={{ color: "var(--brand)" }}>전체 보기 →</button>
           </div>
           {!hwLoading && (
-            <div className="flex items-baseline gap-1.5 mb-3" style={{ fontFamily: "var(--mono, monospace)" }}>
+            <div className="flex items-baseline gap-1.5 mb-3">
               <span className="text-3xl font-extrabold text-gray-900" style={{ fontVariantNumeric: "tabular-nums" }}>
                 {hwSegs.reduce((s, d) => s + d.value, 0).toLocaleString()}
               </span>
