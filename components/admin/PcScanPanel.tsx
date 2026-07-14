@@ -430,7 +430,7 @@ const INPUT_CLS = "w-full px-2 py-1 text-[11px] border border-gray-200 rounded f
 
 // ── SW 목록 대조 (블랙리스트 후보 추출) ──────────────────────────
 interface SwAuditFileTarget { recordId: string; pcName: string; fileUrl: string }
-interface UnknownAggregateEntry { name: string; publisher: string; count: number; pcNames: string[] }
+interface UnknownAggregateEntry { name: string; publisher: string; count: number; pcNames: string[]; likelyFree: boolean }
 interface SwAuditResult {
   checked: number;
   failed: { recordId: string; pcName: string; error: string }[];
@@ -539,6 +539,10 @@ function SwAuditModal({ files, onClose }: { files: SwAuditFileTarget[]; onClose:
                     <p className="text-xs font-semibold text-gray-600">미확인 SW 목록 (발견 PC수 순)</p>
                     <p className="text-xs text-gray-400">{selected.size}개 선택됨</p>
                   </div>
+                  <p className="text-[11px] text-gray-400 mb-2">
+                    <span className="inline-block px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-semibold mr-1">무료 추정</span>
+                    배지는 일반적으로 잘 알려진 무료/오픈소스 SW에 대한 참고 힌트일 뿐, 최종 라이선스 판단은 직접 확인해주세요.
+                  </p>
                   <div className="border border-gray-200 rounded-xl overflow-hidden">
                     <table className="w-full text-xs">
                       <thead className="bg-gray-50">
@@ -555,7 +559,12 @@ function SwAuditModal({ files, onClose }: { files: SwAuditFileTarget[]; onClose:
                             <td className="px-3 py-2">
                               <input type="checkbox" checked={selected.has(u.name)} onChange={() => toggle(u.name)} />
                             </td>
-                            <td className="px-3 py-2 text-gray-800">{u.name}</td>
+                            <td className="px-3 py-2 text-gray-800">
+                              {u.name}
+                              {u.likelyFree && (
+                                <span className="ml-1.5 inline-block px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 text-[10px] font-semibold">무료 추정</span>
+                              )}
+                            </td>
                             <td className="px-3 py-2 text-gray-500">{u.publisher || "—"}</td>
                             <td className="px-3 py-2 text-right text-gray-600" title={u.pcNames.join(", ")}>{u.count}대</td>
                           </tr>
