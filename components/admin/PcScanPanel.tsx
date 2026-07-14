@@ -428,6 +428,165 @@ const EMPTY: Filters = {
 
 const INPUT_CLS = "w-full px-2 py-1 text-[11px] border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white";
 
+// ── SW 목록 대조 (블랙리스트 후보 추출) ──────────────────────────
+interface SwAuditFileTarget { recordId: string; pcName: string; fileUrl: string }
+interface UnknownAggregateEntry { name: string; publisher: string; count: number; pcNames: string[] }
+interface SwAuditResult {
+  checked: number;
+  failed: { recordId: string; pcName: string; error: string }[];
+  perPcSummary: { recordId: string; pcName: string; total: number; whitelist: number; blacklist: number; unknown: number }[];
+  unknownAggregate: UnknownAggregateEntry[];
+}
+
+function SwAuditModal({ files, onClose }: { files: SwAuditFileTarget[]; onClose: () => void }) {
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState("");
+  const [result, setResult]   = useState<SwAuditResult | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [registering, setRegistering] = useState(false);
+  const [registeredCount, setRegisteredCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch("/api/admin/pc-scan/sw-audit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ files }),
+    })
+      .then(r => safeJson(r))
+      .then(res => {
+        if (!res.ok) { setError(res.error ?? "검사 실패"); return; }
+        setResult(res);
+      })
+      .catch(() => setError("네트워크 오류"))
+      .finally(() => setLoading(false));
+  }, [files]);
+
+  function toggle(name: string) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(name) ? next.delete(name) : next.add(name);
+      return next;
+    });
+  }
+
+  async function handleBlacklist() {
+    if (selected.size === 0) return;
+    setRegistering(true);
+    try {
+      const res = await fetch("/api/sw-db", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ _action: "bulkCreate", names: Array.from(selected), status: "banned" }),
+      });
+      const json = await safeJson(res);
+      if (json.ok) {
+        setRegisteredCount(json.created);
+        setSelected(new Set());
+      } else {
+        alert(json.error ?? "등록 실패");
+      }
+    } finally {
+      setRegistering(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="px-6 py-4 bg-gray-900 text-white flex items-center justify-between shrink-0">
+          <div>
+            <div className="font-bold text-base">설치 SW 일괄 검사</div>
+            <div className="text-xs opacity-80 mt-0.5">{files.length}대 대상 · 관리 중인 SW DB와 대조해 미확인 SW를 추출합니다</div>
+          </div>
+          <button onClick={onClose} className="text-white/70 hover:text-white text-2xl leading-none">✕</button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 px-6 py-5">
+          {loading && <div className="text-center py-16 text-gray-400 text-sm">{files.length}대 설치 프로그램 목록 분석 중…</div>}
+          {error && <div className="px-3 py-2 bg-red-50 rounded-lg text-sm text-red-600">{error}</div>}
+
+          {result && (
+            <>
+              <div className="grid grid-cols-3 gap-3 mb-5">
+                <div className="bg-gray-50 rounded-xl p-3 text-center">
+                  <div className="text-xl font-bold text-gray-800">{result.checked}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">검사 완료 PC</div>
+                </div>
+                <div className="bg-red-50 rounded-xl p-3 text-center">
+                  <div className="text-xl font-bold text-red-600">{result.unknownAggregate.length}</div>
+                  <div className="text-xs text-red-500 mt-0.5">미확인 SW 종류</div>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-3 text-center">
+                  <div className="text-xl font-bold text-gray-800">{result.failed.length}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">분석 실패</div>
+                </div>
+              </div>
+
+              {result.failed.length > 0 && (
+                <details className="mb-4 text-xs text-gray-500">
+                  <summary className="cursor-pointer hover:text-gray-700">분석 실패 {result.failed.length}건 보기</summary>
+                  <ul className="mt-2 space-y-1 pl-4">
+                    {result.failed.map(f => <li key={f.recordId}>{f.pcName}: {f.error}</li>)}
+                  </ul>
+                </details>
+              )}
+
+              {result.unknownAggregate.length === 0 ? (
+                <div className="text-center py-10 text-gray-400 text-sm">미확인 SW가 없습니다 — 전부 관리 목록에 있습니다.</div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-semibold text-gray-600">미확인 SW 목록 (발견 PC수 순)</p>
+                    <p className="text-xs text-gray-400">{selected.size}개 선택됨</p>
+                  </div>
+                  <div className="border border-gray-200 rounded-xl overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="w-8 px-3 py-2"></th>
+                          <th className="text-left px-3 py-2 font-semibold text-gray-500">SW명</th>
+                          <th className="text-left px-3 py-2 font-semibold text-gray-500">게시자</th>
+                          <th className="text-right px-3 py-2 font-semibold text-gray-500">발견 PC수</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {result.unknownAggregate.map(u => (
+                          <tr key={u.name} className="border-t border-gray-100 hover:bg-gray-50">
+                            <td className="px-3 py-2">
+                              <input type="checkbox" checked={selected.has(u.name)} onChange={() => toggle(u.name)} />
+                            </td>
+                            <td className="px-3 py-2 text-gray-800">{u.name}</td>
+                            <td className="px-3 py-2 text-gray-500">{u.publisher || "—"}</td>
+                            <td className="px-3 py-2 text-right text-gray-600" title={u.pcNames.join(", ")}>{u.count}대</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+
+              {registeredCount !== null && (
+                <p className="mt-3 text-xs text-green-600">{registeredCount}건이 블랙리스트에 등록되었습니다.</p>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-100 shrink-0 flex gap-3">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">닫기</button>
+          {result && result.unknownAggregate.length > 0 && (
+            <button onClick={handleBlacklist} disabled={selected.size === 0 || registering}
+              className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-bold hover:bg-red-700 disabled:opacity-40 transition-colors">
+              {registering ? "등록 중…" : `선택 ${selected.size}건 블랙리스트 등록`}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── 패널 본체 ──────────────────────────────────────────────────
 export default function PcScanPanel() {
   const [records, setRecords]   = useState<PcScanRecordWithMatch[]>([]);
@@ -443,6 +602,7 @@ export default function PcScanPanel() {
   const [warming, setWarming]   = useState(false);
   const [filterOpen, setFilterOpen] = useState(true);
   const [makerOptions, setMakerOptions] = useState<string[]>([]);
+  const [swAuditOpen, setSwAuditOpen] = useState(false);
 
   useEffect(() => {
     // 신규 등록 모달의 "제조사" 목록 — 마스터 DB에 이미 쓰이고 있는 제조사 표기를 그대로 재사용
@@ -648,6 +808,10 @@ export default function PcScanPanel() {
   }, [records, selected]);
 
   const hasFilter = Object.values(filters).some(Boolean);
+  const swAuditFiles = useMemo(
+    () => filtered.filter(r => r.programFileUrl).map(r => ({ recordId: r.id, pcName: r.pcName, fileUrl: r.programFileUrl })),
+    [filtered]
+  );
 
   return (
     <div className="fade-in">
@@ -666,6 +830,9 @@ export default function PcScanPanel() {
           onClose={() => setSyncTarget(null)}
           onSynced={handleSynced}
         />
+      )}
+      {swAuditOpen && (
+        <SwAuditModal files={swAuditFiles.slice(0, 50)} onClose={() => setSwAuditOpen(false)} />
       )}
 
       {/* 헤더 */}
@@ -707,6 +874,14 @@ export default function PcScanPanel() {
               필터 초기화
             </button>
           )}
+          <button
+            onClick={() => setSwAuditOpen(true)}
+            disabled={swAuditFiles.length === 0}
+            title={swAuditFiles.length > 50 ? "50건 초과 시 앞 50건만 검사됩니다. 필터로 범위를 좁혀보세요." : undefined}
+            className="px-4 py-1.5 text-xs font-medium bg-red-600 hover:bg-red-700 text-white rounded-lg disabled:opacity-40"
+          >
+            설치 SW 일괄 검사 ({swAuditFiles.length})
+          </button>
           <button
             onClick={downloadExcel}
             disabled={filtered.length === 0}

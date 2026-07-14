@@ -1,9 +1,43 @@
 import { Client } from "@notionhq/client";
+import * as XLSX from "xlsx";
 import { isMock } from "./mock";
 import { findHwByAssetNo, serialFuzzyMatch, markHwVerifiedByScanMatch, type HwRecord } from "./hw";
 import { uploadFileToNotion } from "./notion";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 설치 프로그램 목록 (자산실사 수집 에이전트가 첨부한 "설치 프로그램" xlsx) 파싱
+// 시트 컬럼: 이름 | 게시자 | 버전 | 설치일
+// ─────────────────────────────────────────────────────────────────────────────
+export interface InstalledProgram {
+  name: string;
+  publisher: string;
+  version: string;
+  installDate: string;
+}
+
+export async function parseInstalledPrograms(fileUrl: string): Promise<InstalledProgram[]> {
+  const res = await fetch(fileUrl);
+  if (!res.ok) throw new Error(`파일을 가져올 수 없습니다 (HTTP ${res.status})`);
+  const buf = await res.arrayBuffer();
+  const wb = XLSX.read(buf, { type: "array" });
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  if (!sheet) return [];
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1 });
+  const programs: InstalledProgram[] = [];
+  for (const row of rows.slice(1)) { // 첫 행(헤더) 제외
+    const [name, publisher, version, installDate] = row as unknown[];
+    if (!name) continue;
+    programs.push({
+      name: String(name).trim(),
+      publisher: publisher ? String(publisher).trim() : "",
+      version: version ? String(version).trim() : "",
+      installDate: installDate ? String(installDate).trim() : "",
+    });
+  }
+  return programs;
+}
 
 export interface PcScanPayload {
   pcName: string;

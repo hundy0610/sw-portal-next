@@ -32,6 +32,31 @@ export async function POST(req: NextRequest) {
   const items = await getSwItems();
   const adminName = await resolveCurrentName(session);
 
+  // 일괄 등록 — 온라인 자산실사에서 감지된 미확인 SW를 블랙리스트로 일괄 등록
+  if (body._action === "bulkCreate") {
+    const names: string[] = (body.names ?? []).filter((n: unknown) => typeof n === "string" && n.trim());
+    if (names.length === 0) {
+      return NextResponse.json({ error: "등록할 SW명이 없습니다." }, { status: 400 });
+    }
+    const status: SwItem["status"] = body.status === "conditional" ? "conditional" : "banned";
+    const newItems: SwItem[] = names.map((name, i) => ({
+      id: `sw_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 7)}`,
+      name: name.trim(),
+      vendor: "",
+      category: "",
+      status,
+      alternatives: [],
+      mandatory: false,
+      description: "온라인 자산실사에서 미확인 SW로 감지되어 일괄 등록됨",
+    }));
+    await saveSwItems([...items, ...newItems]);
+    await appendAuditLog({
+      adminId: session.userId, adminName, action: "create", target: "swdb",
+      itemTitle: `${newItems.length}건 일괄등록`, detail: names.join(", "), timestamp: new Date().toISOString(),
+    });
+    return NextResponse.json({ ok: true, created: newItems.length });
+  }
+
   // 삭제
   if (body._action === "delete") {
     const target = items.find(i => i.id === body.id);
