@@ -424,6 +424,12 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
 .admin-dark .bg-gray-50  { background: #111111 !important; }
 .admin-dark .bg-gray-100 { background: #1f1f1f !important; }
 
+/* 폼 입력 필드(인풋/셀렉트/텍스트영역)는 다크모드에서도 가독성을 위해 흰 배경 유지 */
+.admin-dark .form-field-white {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+}
+
 /* 텍스트 */
 .admin-dark .text-gray-900 { color: #e5e5e5 !important; }
 .admin-dark .text-gray-800 { color: #d4d4d4 !important; }

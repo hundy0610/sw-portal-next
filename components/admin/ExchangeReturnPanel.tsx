@@ -2835,7 +2835,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-gray-500 font-medium">법인 <span className="text-red-500">*</span></label>
                 <select value={niCompany} onChange={e => setNiCompany(e.target.value)}
-                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-200 w-full bg-white">
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-200 w-full bg-white form-field-white">
                   <option value="">선택...</option>
                   {COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
@@ -2845,20 +2845,20 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
                   <label className="text-xs text-gray-500 font-medium">사용자</label>
                   <input value={niUser} onChange={e => setNiUser(e.target.value)}
                     placeholder="사용자 이름" autoFocus
-                    className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-200 w-full" />
+                    className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-200 w-full bg-white form-field-white" />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs text-gray-500 font-medium">부서</label>
                   <input value={niDept} onChange={e => setNiDept(e.target.value)}
                     placeholder="부서명"
-                    className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-200 w-full" />
+                    className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-200 w-full bg-white form-field-white" />
                 </div>
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-gray-500 font-medium">사용일자</label>
                 <div className="flex items-center gap-1">
                   <input type="date" value={niUseDate} onChange={e => setNiUseDate(e.target.value)}
-                    className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-200 flex-1" />
+                    className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-200 flex-1 bg-white form-field-white" />
                   {niUseDate && <button type="button" onClick={() => setNiUseDate("")} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
                 </div>
               </div>
@@ -2866,18 +2866,18 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
                 <label className="text-xs text-gray-500 font-medium">기안자 이메일</label>
                 <input type="email" value={niEmail} onChange={e => setNiEmail(e.target.value)}
                   placeholder="example@company.com"
-                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-200 w-full" />
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-200 w-full bg-white form-field-white" />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-gray-500 font-medium">신청사유</label>
                 <input value={niReason} onChange={e => setNiReason(e.target.value)}
                   placeholder="신청사유 (선택)"
-                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-200 w-full" />
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-200 w-full bg-white form-field-white" />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-gray-500 font-medium">배송지</label>
                 <select value={niDelivery} onChange={e => setNiDelivery(e.target.value)}
-                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-200 w-full bg-white">
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-200 w-full bg-white form-field-white">
                   {DELIVERY_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
                 </select>
               </div>
@@ -2885,7 +2885,7 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
                 <label className="text-xs text-gray-500 font-medium">메모</label>
                 <textarea value={niMemo} onChange={e => setNiMemo(e.target.value)} rows={3}
                   placeholder="기타 특이사항 등..."
-                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-200 w-full resize-none" />
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-200 w-full resize-none bg-white form-field-white" />
               </div>
             </div>
             <div className="shrink-0 px-6 py-4 border-t border-gray-100 flex gap-2 justify-between">
