@@ -263,6 +263,62 @@ export async function fetchPcScans(): Promise<PcScanRecord[]> {
   return records;
 }
 
+// 관리자가 수정 가능한 필드 — PC이름/시리얼 넘버는 upsertPcScan의 기기 식별 키라서
+// 여기서 바꾸면 다음 스캔이 별개 레코드로 새로 생성되므로 제외한다.
+export interface PcScanEditFields {
+  assetNo?: string;
+  manufacturer?: string;
+  model?: string;
+  corp?: string;
+  isDualOrShared?: boolean;
+  originalCorp?: string;
+  dept?: string;
+  userName?: string;
+  email?: string;
+  cpu?: string;
+  ram?: string;
+  os?: string;
+  gpu?: string;
+  storage?: string;
+  mac?: string;
+}
+
+function buildEditProperties(fields: PcScanEditFields): Record<string, unknown> {
+  const props: Record<string, unknown> = {};
+  const txt = (name: string, val: string) => { props[name] = { rich_text: [{ text: { content: val } }] }; };
+
+  if (fields.assetNo        !== undefined) txt("자산번호", fields.assetNo);
+  if (fields.manufacturer   !== undefined) txt("제조사", fields.manufacturer);
+  if (fields.model          !== undefined) txt("모델명", fields.model);
+  if (fields.dept           !== undefined) txt("부서", fields.dept);
+  if (fields.userName       !== undefined) txt("사용자", fields.userName);
+  if (fields.cpu            !== undefined) txt("CPU", fields.cpu);
+  if (fields.ram            !== undefined) txt("RAM", fields.ram);
+  if (fields.os             !== undefined) txt("OS", fields.os);
+  if (fields.gpu            !== undefined) txt("GPU", fields.gpu);
+  if (fields.storage        !== undefined) txt("저장장치", fields.storage);
+  if (fields.mac            !== undefined) txt("MAC", fields.mac);
+  if (fields.email          !== undefined) props["이메일"] = fields.email ? { email: fields.email } : { email: null };
+  if (fields.corp           !== undefined) props["법인명"] = fields.corp ? { select: { name: fields.corp } } : { select: null };
+  if (fields.originalCorp   !== undefined) props["원소속법인"] = fields.originalCorp ? { select: { name: fields.originalCorp } } : { select: null };
+  if (fields.isDualOrShared !== undefined) props["겸직/쉐어드"] = { checkbox: !!fields.isDualOrShared };
+
+  return props;
+}
+
+export async function updatePcScan(id: string, fields: PcScanEditFields): Promise<void> {
+  const properties = buildEditProperties(fields);
+  if (Object.keys(properties).length === 0) return;
+  await notion.pages.update({
+    page_id: id,
+    properties: properties as Parameters<typeof notion.pages.update>[0]["properties"],
+  });
+}
+
+export async function deletePcScan(id: string): Promise<void> {
+  await notion.pages.update({ page_id: id, archived: true });
+}
+
 export async function upsertPcScan(data: PcScanPayload): Promise<UpsertResult> {
   if (isMock()) {
     console.log("[MOCK] upsertPcScan", data.serial);

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import * as XLSX from "xlsx";
-import type { PcScanRecordWithMatch } from "@/lib/pc-scan";
+import type { PcScanRecordWithMatch, PcScanEditFields } from "@/lib/pc-scan";
 import { safeJson } from "@/lib/fetch-json";
 
 function hasMismatch(r: PcScanRecordWithMatch): boolean {
@@ -297,6 +297,157 @@ function RegisterMasterModal({
   );
 }
 
+// ── 수정 모달 ──────────────────────────────────────────────────
+function EditScanModal({
+  record,
+  onClose,
+  onSaved,
+}: {
+  record: PcScanRecordWithMatch;
+  onClose: () => void;
+  onSaved: (id: string, fields: PcScanEditFields) => void;
+}) {
+  const [assetNo, setAssetNo]           = useState(record.assetNo);
+  const [manufacturer, setManufacturer] = useState(record.manufacturer);
+  const [model, setModel]               = useState(record.model);
+  const [corp, setCorp]                 = useState(record.corp);
+  const [isDualOrShared, setIsDualOrShared] = useState(record.isDualOrShared);
+  const [originalCorp, setOriginalCorp] = useState(record.originalCorp);
+  const [dept, setDept]                 = useState(record.dept);
+  const [userName, setUserName]         = useState(record.userName);
+  const [email, setEmail]               = useState(record.email);
+  const [cpu, setCpu]                   = useState(record.cpu);
+  const [ram, setRam]                   = useState(record.ram);
+  const [gpu, setGpu]                   = useState(record.gpu);
+  const [storage, setStorage]           = useState(record.storage);
+  const [mac, setMac]                   = useState(record.mac);
+  const [submitting, setSubmitting]     = useState(false);
+  const [error, setError]               = useState("");
+
+  async function handleSubmit() {
+    setSubmitting(true);
+    setError("");
+    try {
+      const fields: PcScanEditFields = {
+        assetNo: assetNo.trim(), manufacturer: manufacturer.trim(), model: model.trim(),
+        corp: corp.trim(), isDualOrShared, originalCorp: originalCorp.trim(),
+        dept: dept.trim(), userName: userName.trim(), email: email.trim(),
+        cpu: cpu.trim(), ram: ram.trim(), gpu: gpu.trim(), storage: storage.trim(), mac: mac.trim(),
+      };
+      const res = await fetch("/api/admin/pc-scan", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: record.id, fields }),
+      });
+      const json = await safeJson(res);
+      if (!json?.ok) throw new Error(json?.error || "수정 실패");
+      onSaved(record.id, fields);
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "수정 중 오류가 발생했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="font-bold text-gray-900 text-base">스캔 정보 수정</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+        </div>
+
+        <div className="px-6 py-4 max-h-[65vh] overflow-y-auto space-y-3">
+          <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
+            PC이름({record.pcName || "—"}) · 시리얼({record.serial || "—"})은 다음 스캔 매칭 키라 여기서 바꿀 수 없습니다.
+            이 PC가 계속 스캔되고 있다면 아래 값도 다음 스캔 시 자동으로 덮어써질 수 있습니다.
+          </p>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">자산번호</label>
+              <input className={MODAL_INPUT_CLS} value={assetNo} onChange={e => setAssetNo(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">제조사</label>
+              <input className={MODAL_INPUT_CLS} value={manufacturer} onChange={e => setManufacturer(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">모델명</label>
+              <input className={MODAL_INPUT_CLS} value={model} onChange={e => setModel(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">법인명</label>
+              <input className={MODAL_INPUT_CLS} value={corp} onChange={e => setCorp(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">원소속법인</label>
+              <input className={MODAL_INPUT_CLS} value={originalCorp} onChange={e => setOriginalCorp(e.target.value)} />
+            </div>
+            <div className="flex items-end pb-1.5">
+              <label className="flex items-center gap-1.5 text-xs text-gray-600">
+                <input type="checkbox" checked={isDualOrShared} onChange={e => setIsDualOrShared(e.target.checked)} />
+                겸직/쉐어드
+              </label>
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">부서</label>
+              <input className={MODAL_INPUT_CLS} value={dept} onChange={e => setDept(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">사용자</label>
+              <input className={MODAL_INPUT_CLS} value={userName} onChange={e => setUserName(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">이메일</label>
+              <input className={MODAL_INPUT_CLS} value={email} onChange={e => setEmail(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">CPU</label>
+              <input className={MODAL_INPUT_CLS} value={cpu} onChange={e => setCpu(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">RAM</label>
+              <input className={MODAL_INPUT_CLS} value={ram} onChange={e => setRam(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">GPU</label>
+              <input className={MODAL_INPUT_CLS} value={gpu} onChange={e => setGpu(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">저장장치</label>
+              <input className={MODAL_INPUT_CLS} value={storage} onChange={e => setStorage(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">MAC</label>
+              <input className={MODAL_INPUT_CLS} value={mac} onChange={e => setMac(e.target.value)} />
+            </div>
+          </div>
+
+          {error && <p className="text-xs text-red-500">{error}</p>}
+        </div>
+
+        <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700">
+            취소
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="px-4 py-1.5 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-40"
+          >
+            {submitting ? "저장 중…" : "저장"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── 동기화 확인 모달 (⚠ 불일치 / ? 시리얼만 일치 공통) ─────────────
 function SyncConfirmModal({
   record,
@@ -437,6 +588,8 @@ export default function PcScanPanel() {
   const [detail, setDetail]     = useState<PcScanRecordWithMatch | null>(null);
   const [register, setRegister] = useState<PcScanRecordWithMatch | null>(null);
   const [syncTarget, setSyncTarget] = useState<PcScanRecordWithMatch | null>(null);
+  const [editing, setEditing]   = useState<PcScanRecordWithMatch | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [zipping, setZipping]   = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [syncing, setSyncing]   = useState(false);
@@ -494,6 +647,31 @@ export default function PcScanPanel() {
         ? { ...r, mismatch: { corp: false, dept: false, userName: false } }
         : r
     ));
+  }
+
+  function handleEdited(id: string, fields: PcScanEditFields) {
+    setRecords(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r));
+  }
+
+  async function handleDelete(record: PcScanRecordWithMatch) {
+    if (!window.confirm(`"${record.pcName || record.assetNo || "이 기록"}" 스캔 데이터를 삭제하시겠습니까?\n해당 PC가 다시 스캔되면 새 레코드로 다시 생성됩니다.`)) return;
+    setDeletingId(record.id);
+    try {
+      const res = await fetch(`/api/admin/pc-scan?id=${encodeURIComponent(record.id)}`, { method: "DELETE" });
+      const json = await safeJson(res);
+      if (!json?.ok) throw new Error(json?.error || "삭제 실패");
+      setRecords(prev => prev.filter(r => r.id !== record.id));
+      setSelected(s => {
+        if (!s.has(record.id)) return s;
+        const next = new Set(s);
+        next.delete(record.id);
+        return next;
+      });
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "삭제 중 오류가 발생했습니다.");
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   const filtered = useMemo(() => records.filter(r => {
@@ -667,6 +845,13 @@ export default function PcScanPanel() {
           onSynced={handleSynced}
         />
       )}
+      {editing && (
+        <EditScanModal
+          record={editing}
+          onClose={() => setEditing(null)}
+          onSaved={handleEdited}
+        />
+      )}
 
       {/* 헤더 */}
       <div className="mb-4 flex items-end justify-between gap-3 flex-wrap">
@@ -744,7 +929,7 @@ export default function PcScanPanel() {
                     onChange={toggleSelectAll}
                   />
                 </th>
-                {["자산번호","법인","겸직/쉐어드","원소속법인","부서","사용자","이메일","PC이름","CPU","RAM","GPU","OS","설치프로그램","마스터"].map(h => (
+                {["자산번호","법인","겸직/쉐어드","원소속법인","부서","사용자","이메일","PC이름","CPU","RAM","GPU","OS","설치프로그램","마스터","관리"].map(h => (
                   <th key={h} className="text-left px-3 py-2.5 font-semibold whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -814,13 +999,14 @@ export default function PcScanPanel() {
                     <option value="none">— 미매칭</option>
                   </select>
                 </td>
+                <td className="px-2 py-1.5" />
               </tr>}
             </thead>
 
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={15} className="text-center py-12 text-gray-400">
+                  <td colSpan={16} className="text-center py-12 text-gray-400">
                     {hasFilter ? "필터에 맞는 결과가 없습니다." : "수집된 데이터가 없습니다."}
                   </td>
                 </tr>
@@ -912,6 +1098,23 @@ export default function PcScanPanel() {
                     ) : (
                       <span className="text-emerald-600 font-bold text-sm">✓</span>
                     )}
+                  </td>
+                  <td className="px-3 py-2.5 whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setEditing(r)}
+                        className="text-[11px] font-medium text-blue-600 hover:underline"
+                      >
+                        수정
+                      </button>
+                      <button
+                        onClick={() => handleDelete(r)}
+                        disabled={deletingId === r.id}
+                        className="text-[11px] font-medium text-gray-400 hover:text-red-500 disabled:opacity-40"
+                      >
+                        {deletingId === r.id ? "삭제 중…" : "삭제"}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
