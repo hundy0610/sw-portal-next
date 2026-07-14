@@ -7,12 +7,12 @@ import type {
 } from "@notionhq/client/build/src/api-endpoints";
 import type { SwItem, SwDbRecord, Subscription, LicenseItem, LicenseRecord, Ticket, RepairTicket, HwRepairRecord } from "@/types";
 import type { SwCredential } from "@/components/admin/CredentialsPanel";
-import type { SwFile, SwVersion, SwDoc, Manual } from "@/types/portal";
+import type { SwVersion, SwDoc, Manual } from "@/types/portal";
 import {
   isMock,
   mockSwItems, mockSwDatabase, mockSubscriptions, mockLicenses,
   mockLicenseRecords, mockHelpDeskTickets, mockTickets, mockRepairTickets,
-  mockHwRepairs, mockMonitorHistory, mockMonitorAssets, mockCredentials, mockSwFiles,
+  mockHwRepairs, mockMonitorHistory, mockMonitorAssets, mockCredentials,
 } from "./mock";
 
 // ────────────────────────────────────────────────────────────
@@ -1229,6 +1229,8 @@ export async function fetchSwVersions(onlyVisible = true): Promise<SwVersion[]> 
       name: getPropText(p, "SW명"),
       version: getPropText(p, "버전"),
       category: getPropSelect(p, "카테고리"),
+      // 기존에 "구분" 값이 없는 레코드는 업무용으로 취급 (하위호환)
+      tier: (getPropSelect(p, "구분") || "업무용") as SwVersion["tier"],
       os: getPropMultiSelect(p, "OS"),
       description: getPropText(p, "설명"),
       visible: getPropCheckbox(p, "공개여부"),
@@ -1294,6 +1296,7 @@ export async function createSwVersion(data: Omit<SwVersion, "id">): Promise<stri
     "순서":    { number:      data.order },
   };
   if (data.category) props["카테고리"] = { select: { name: data.category } };
+  props["구분"] = { select: { name: data.tier || "업무용" } };
   if (data.os.length) props["OS"] = { multi_select: data.os.map(o => ({ name: o })) };
   const res = await notion.pages.create({ parent: { database_id: dbId }, properties: props as Parameters<typeof notion.pages.create>[0]["properties"] });
   return res.id;
@@ -1305,6 +1308,7 @@ export async function updateSwVersion(id: string, data: Partial<Omit<SwVersion, 
   if (data.version     !== undefined) props["버전"]    = { rich_text:   [{ text: { content: data.version } }] };
   if (data.description !== undefined) props["설명"]    = { rich_text:   [{ text: { content: data.description } }] };
   if (data.category    !== undefined) props["카테고리"] = { select:      { name: data.category } };
+  if (data.tier        !== undefined) props["구분"]    = { select:      { name: data.tier } };
   if (data.os          !== undefined) props["OS"]      = { multi_select: data.os.map(o => ({ name: o })) };
   if (data.visible     !== undefined) props["공개여부"] = { checkbox:    data.visible };
   if (data.order       !== undefined) props["순서"]    = { number:      data.order };
@@ -1464,34 +1468,6 @@ export async function updateManual(
 
 export async function archiveManual(id: string): Promise<void> {
   await notion.pages.update({ page_id: id, archived: true });
-}
-
-export async function fetchSwFiles(): Promise<SwFile[]> {
-  if (isMock()) return mockSwFiles as SwFile[];
-  const dbId = process.env.NOTION_DB_SW_FILES;
-  if (!dbId) throw new Error("NOTION_DB_SW_FILES 환경변수가 설정되지 않았습니다.");
-
-  const pages = await queryAllPages(
-    dbId,
-    { property: "공개 여부", checkbox: { equals: true } },
-    [{ property: "SW명", direction: "ascending" }]
-  );
-
-  return pages.map((page) => {
-    const p = page.properties;
-    return {
-      id: page.id,
-      name: getPropText(p, "SW명"),
-      category: getPropSelect(p, "카테고리"),
-      version: getPropText(p, "버전"),
-      description: getPropText(p, "설명"),
-      downloadUrl: getPropText(p, "다운로드 URL"),
-      fileSize: getPropText(p, "파일 크기"),
-      os: getPropMultiSelect(p, "OS"),
-      visible: getPropCheckbox(p, "공개 여부"),
-      updatedAt: getPropDate(p, "수정일") || page.last_edited_time.slice(0, 10),
-    };
-  });
 }
 
 // ────────────────────────────────────────────────────────────

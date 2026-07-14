@@ -23,24 +23,12 @@ export interface Course {
   createdAt: string;
 }
 
-export interface SwFile {
-  id: string;
-  name: string;
-  category: string;
-  version: string;
-  description: string;
-  downloadUrl: string;
-  fileSize: string;
-  os: string[];          // ["Windows", "macOS", "Linux"]
-  visible: boolean;
-  updatedAt: string;
-}
-
 export interface SwVersion {
   id: string;
   name: string;        // SW명
   version: string;     // 버전
   category: string;    // 카테고리
+  tier: "업무용" | "무료프로그램"; // 구분 — 신청 없이 바로 다운로드 가능한 무료 프로그램인지
   os: string[];        // ["Windows", "macOS", "Linux"]
   description: string;
   visible: boolean;
