@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
           "application/x-msi",
           "application/zip",
           "application/vnd.microsoft.portable-executable",
+          "application/x-apple-diskimage", // macOS .dmg
         ],
         addRandomSuffix: true,
         maximumSizeInBytes: 300 * 1024 * 1024,

@@ -11,24 +11,27 @@ function formatBytes(bytes: number | null): string {
   return mb >= 1 ? `${mb.toFixed(1)}MB` : `${(bytes / 1024).toFixed(0)}KB`;
 }
 
+type OsKind = "windows" | "mac";
+
 export default function AssetAuditSettingsPanel() {
   const [cfg, setCfg]         = useState<AssetAuditConfig | null>(null);
-  const [draft, setDraft]     = useState({ title: "", description: "", guide: "", version: "" });
+  const [draft, setDraft]     = useState({ title: "", description: "", guide: "", version: "", dataCollectionNotice: "" });
   const [saving, setSaving]   = useState(false);
   const [saved, setSaved]     = useState(false);
   const [toggling, setToggling] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const [uploading, setUploading] = useState<OsKind | null>(null);
   const [uploadPct, setUploadPct] = useState(0);
   const [uploadError, setUploadError] = useState("");
   const [expanded, setExpanded] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const windowsInputRef = useRef<HTMLInputElement>(null);
+  const macInputRef     = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetch("/api/asset-audit/config")
       .then(r => safeJson(r))
       .then((data: AssetAuditConfig) => {
         setCfg(data);
-        setDraft({ title: data.title, description: data.description, guide: data.guide, version: data.version });
+        setDraft({ title: data.title, description: data.description, guide: data.guide, version: data.version, dataCollectionNotice: data.dataCollectionNotice });
       });
   }, []);
 
@@ -68,10 +71,10 @@ export default function AssetAuditSettingsPanel() {
     }
   }
 
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileChange(os: OsKind, e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setUploading(true);
+    setUploading(os);
     setUploadPct(0);
     setUploadError("");
     try {
@@ -80,23 +83,22 @@ export default function AssetAuditSettingsPanel() {
         handleUploadUrl: "/api/asset-audit/upload",
         onUploadProgress: ({ percentage }) => setUploadPct(percentage),
       });
+      const patch = os === "windows"
+        ? { windowsFileUrl: blob.url, windowsFileName: file.name, windowsFileSize: file.size }
+        : { macFileUrl: blob.url, macFileName: file.name, macFileSize: file.size };
       const res = await fetch("/api/asset-audit/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileUrl: blob.url,
-          fileName: file.name,
-          fileSize: file.size,
-          updatedAt: new Date().toISOString(),
-        }),
+        body: JSON.stringify({ ...patch, updatedAt: new Date().toISOString() }),
       });
       const json = await safeJson(res);
       if (json?.config) setCfg(json.config);
     } catch {
       setUploadError("업로드 중 오류가 발생했습니다.");
     } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      setUploading(null);
+      const ref = os === "windows" ? windowsInputRef : macInputRef;
+      if (ref.current) ref.current.value = "";
     }
   }
 
@@ -181,6 +183,18 @@ export default function AssetAuditSettingsPanel() {
             />
           </div>
 
+          <div>
+            <label className="block text-[11px] font-semibold text-gray-500 mb-1">
+              수집 데이터 고지 (직원에게 반드시 안내 — 줄바꿈으로 구분)
+            </label>
+            <textarea
+              value={draft.dataCollectionNotice}
+              onChange={e => setDraft(d => ({ ...d, dataCollectionNotice: e.target.value }))}
+              rows={4}
+              className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg font-mono"
+            />
+          </div>
+
           <div className="flex items-center gap-2">
             <button
               onClick={saveDraft}
@@ -192,28 +206,54 @@ export default function AssetAuditSettingsPanel() {
             {saved && <span className="text-xs text-green-600">저장됨</span>}
           </div>
 
-          <div className="border-t border-gray-100 pt-4">
-            <label className="block text-[11px] font-semibold text-gray-500 mb-1.5">설치 파일</label>
-            {cfg.fileUrl ? (
-              <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 mb-2">
-                <div className="text-xs text-gray-700">
-                  {cfg.fileName} ({formatBytes(cfg.fileSize)})
-                  {cfg.updatedAt && <span className="text-gray-400"> · {new Date(cfg.updatedAt).toLocaleDateString("ko-KR")} 업로드</span>}
+          <div className="border-t border-gray-100 pt-4 grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-500 mb-1.5">Windows 설치 파일</label>
+              {cfg.windowsFileUrl ? (
+                <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 mb-2">
+                  <div className="text-xs text-gray-700 truncate">
+                    {cfg.windowsFileName} ({formatBytes(cfg.windowsFileSize)})
+                  </div>
+                  <a href={cfg.windowsFileUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline shrink-0 ml-2">확인</a>
                 </div>
-                <a href={cfg.fileUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline">다운로드 확인</a>
-              </div>
-            ) : (
-              <p className="text-xs text-gray-400 mb-2">아직 업로드된 파일이 없습니다.</p>
+              ) : (
+                <p className="text-xs text-gray-400 mb-2">아직 업로드된 파일이 없습니다.</p>
+              )}
+              <input
+                ref={windowsInputRef}
+                type="file"
+                onChange={e => handleFileChange("windows", e)}
+                disabled={uploading !== null}
+                className="text-xs"
+              />
+              {uploading === "windows" && <p className="text-xs text-blue-600 mt-1">업로드 중… {uploadPct}%</p>}
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-500 mb-1.5">macOS 설치 파일</label>
+              {cfg.macFileUrl ? (
+                <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 mb-2">
+                  <div className="text-xs text-gray-700 truncate">
+                    {cfg.macFileName} ({formatBytes(cfg.macFileSize)})
+                  </div>
+                  <a href={cfg.macFileUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline shrink-0 ml-2">확인</a>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 mb-2">아직 업로드된 파일이 없습니다.</p>
+              )}
+              <input
+                ref={macInputRef}
+                type="file"
+                onChange={e => handleFileChange("mac", e)}
+                disabled={uploading !== null}
+                className="text-xs"
+              />
+              {uploading === "mac" && <p className="text-xs text-blue-600 mt-1">업로드 중… {uploadPct}%</p>}
+            </div>
+            {cfg.updatedAt && (
+              <p className="col-span-2 text-[11px] text-gray-400">최종 업로드: {new Date(cfg.updatedAt).toLocaleDateString("ko-KR")}</p>
             )}
-            <input
-              ref={fileInputRef}
-              type="file"
-              onChange={handleFileChange}
-              disabled={uploading}
-              className="text-xs"
-            />
-            {uploading && <p className="text-xs text-blue-600 mt-1">업로드 중… {uploadPct}%</p>}
-            {uploadError && <p className="text-xs text-red-600 mt-1">{uploadError}</p>}
+            {uploadError && <p className="col-span-2 text-xs text-red-600">{uploadError}</p>}
           </div>
         </div>
       )}
