@@ -109,6 +109,141 @@ function DetailModal({ record, onClose }: { record: PcScanRecordWithMatch; onClo
   );
 }
 
+// ── 신규 등록 모달 ──────────────────────────────────────────────
+const MODAL_INPUT_CLS = "w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400";
+
+function RegisterMasterModal({
+  record,
+  makerOptions,
+  onClose,
+  onRegistered,
+}: {
+  record: PcScanRecordWithMatch;
+  makerOptions: string[];
+  onClose: () => void;
+  onRegistered: (id: string) => void;
+}) {
+  const [assetNo, setAssetNo] = useState(record.assetNo);
+  const [maker, setMaker]     = useState(record.manufacturer);
+  const [model, setModel]     = useState(record.model);
+  const [serial, setSerial]   = useState(record.serial);
+  const [company, setCompany] = useState(record.corp);
+  const [user, setUser]       = useState(record.userName);
+  const [dept, setDept]       = useState(record.dept);
+  const [cpu, setCpu]         = useState(record.cpu);
+  const [ram, setRam]         = useState(record.ram);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError]     = useState("");
+
+  const canSubmit = assetNo.trim() !== "" && maker.trim() !== "" && !submitting;
+
+  async function handleSubmit() {
+    setSubmitting(true);
+    setError("");
+    try {
+      const res = await fetch("/api/hw/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          source: "pc-scan",
+          rows: [{
+            assetNo: assetNo.trim(), model: model.trim(), serial: serial.trim(), maker: maker.trim(),
+            cpu: cpu.trim(), ram: ram.trim(), company: company.trim(), user: user.trim(), dept: dept.trim(),
+            location: "", purchaseDate: "", price: 0, useDate: "",
+          }],
+        }),
+      });
+      const json = await safeJson(res);
+      if (!json?.ok || (json.success ?? 0) < 1) {
+        throw new Error(json?.error || json?.results?.[0]?.error || "등록 실패");
+      }
+      onRegistered(record.id);
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "등록 중 오류가 발생했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="font-bold text-gray-900 text-base">HW 마스터 신규 등록</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+        </div>
+
+        <div className="px-6 py-4 max-h-[65vh] overflow-y-auto space-y-3">
+          <p className="text-xs text-gray-400">
+            스캔값으로 자동 채워졌습니다. 등록 전 내용을 확인·수정하세요. 자산번호·제조사는 필수입니다.
+          </p>
+
+          <div>
+            <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">자산번호 *</label>
+            <input className={MODAL_INPUT_CLS} value={assetNo} onChange={e => setAssetNo(e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">제조사 *</label>
+            <input className={MODAL_INPUT_CLS} value={maker} onChange={e => setMaker(e.target.value)} list="pc-scan-maker-options" />
+            <datalist id="pc-scan-maker-options">
+              {makerOptions.map(m => <option key={m} value={m} />)}
+            </datalist>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">모델명</label>
+              <input className={MODAL_INPUT_CLS} value={model} onChange={e => setModel(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">시리얼 넘버</label>
+              <input className={MODAL_INPUT_CLS} value={serial} onChange={e => setSerial(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">법인명</label>
+              <input className={MODAL_INPUT_CLS} value={company} onChange={e => setCompany(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">사용자</label>
+              <input className={MODAL_INPUT_CLS} value={user} onChange={e => setUser(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">부서</label>
+              <input className={MODAL_INPUT_CLS} value={dept} onChange={e => setDept(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">CPU</label>
+              <input className={MODAL_INPUT_CLS} value={cpu} onChange={e => setCpu(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">RAM</label>
+              <input className={MODAL_INPUT_CLS} value={ram} onChange={e => setRam(e.target.value)} />
+            </div>
+          </div>
+
+          {error && <p className="text-xs text-red-500">{error}</p>}
+        </div>
+
+        <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700">
+            취소
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+            className="px-4 py-1.5 text-sm font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg disabled:opacity-40"
+          >
+            {submitting ? "등록 중…" : "신규 등록"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── 필터 상태 ──────────────────────────────────────────────────
 interface Filters {
   assetNo: string;
@@ -140,6 +275,7 @@ export default function PcScanPanel() {
   const [error, setError]       = useState("");
   const [filters, setFilters]   = useState<Filters>(EMPTY);
   const [detail, setDetail]     = useState<PcScanRecordWithMatch | null>(null);
+  const [register, setRegister] = useState<PcScanRecordWithMatch | null>(null);
   const [zipping, setZipping]   = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [syncing, setSyncing]   = useState(false);
@@ -170,6 +306,19 @@ export default function PcScanPanel() {
     () => [...new Set(records.map(r => r.originalCorp).filter(Boolean))].sort(),
     [records]
   );
+
+  const makerOptions = useMemo(
+    () => [...new Set(records.map(r => r.manufacturer).filter(Boolean))].sort(),
+    [records]
+  );
+
+  function handleRegistered(id: string) {
+    setRecords(prev => prev.map(r =>
+      r.id === id
+        ? { ...r, masterExists: true, mismatch: { corp: false, dept: false, userName: false }, serialOnlyMatch: null }
+        : r
+    ));
+  }
 
   const filtered = useMemo(() => records.filter(r => {
     if (filters.assetNo    && !r.assetNo.toLowerCase().includes(filters.assetNo.toLowerCase()))     return false;
@@ -325,6 +474,14 @@ export default function PcScanPanel() {
   return (
     <div className="fade-in">
       {detail && <DetailModal record={detail} onClose={() => setDetail(null)} />}
+      {register && (
+        <RegisterMasterModal
+          record={register}
+          makerOptions={makerOptions}
+          onClose={() => setRegister(null)}
+          onRegistered={handleRegistered}
+        />
+      )}
 
       {/* 헤더 */}
       <div className="mb-4 flex items-end justify-between gap-3 flex-wrap">
@@ -537,7 +694,21 @@ export default function PcScanPanel() {
                   </td>
                   <td className="px-3 py-2.5 text-center">
                     {!r.masterExists ? (
-                      <span className="text-gray-300">—</span>
+                      r.serialOnlyMatch ? (
+                        <span
+                          className="text-sky-600 font-bold text-sm cursor-help"
+                          title={`시리얼은 일치하지만 자산번호가 다름 — 마스터 자산번호: ${r.serialOnlyMatch.masterAssetNo || "(없음)"} (자산번호 오기입 의심)`}
+                        >
+                          ?
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => setRegister(r)}
+                          className="text-[10px] font-medium text-emerald-600 hover:text-emerald-700 hover:underline whitespace-nowrap"
+                        >
+                          신규 등록
+                        </button>
+                      )
                     ) : hasMismatch(r) ? (
                       <span
                         className="text-amber-600 font-bold text-sm cursor-help"
