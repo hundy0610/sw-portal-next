@@ -312,11 +312,11 @@ interface Filters {
   gpu: string;
   os: string;
   hasFile: string;      // "" | "yes" | "no"
-  masterExists: string; // "" | "true" | "false"
+  masterStatus: string; // "" | "match" | "mismatch" | "serialOnly" | "none"
 }
 const EMPTY: Filters = {
   assetNo: "", corp: "", isDualOrShared: "", originalCorp: "", dept: "", userName: "", email: "",
-  pcName: "", cpu: "", ram: "", gpu: "", os: "", hasFile: "", masterExists: "",
+  pcName: "", cpu: "", ram: "", gpu: "", os: "", hasFile: "", masterStatus: "",
 };
 
 const INPUT_CLS = "w-full px-2 py-1 text-[11px] border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white";
@@ -396,8 +396,10 @@ export default function PcScanPanel() {
     if (filters.os         && !r.os.toLowerCase().includes(filters.os.toLowerCase()))               return false;
     if (filters.hasFile === "yes" && !r.programFileUrl)  return false;
     if (filters.hasFile === "no"  &&  r.programFileUrl)  return false;
-    if (filters.masterExists === "true"  && !r.masterExists) return false;
-    if (filters.masterExists === "false" &&  r.masterExists) return false;
+    if (filters.masterStatus === "match"      && !(r.masterExists && !hasMismatch(r)))          return false;
+    if (filters.masterStatus === "mismatch"   && !(r.masterExists && hasMismatch(r)))            return false;
+    if (filters.masterStatus === "serialOnly" && !(!r.masterExists && r.serialOnlyMatch))        return false;
+    if (filters.masterStatus === "none"       && !(!r.masterExists && !r.serialOnlyMatch))       return false;
     return true;
   }), [records, filters]);
 
@@ -681,10 +683,12 @@ export default function PcScanPanel() {
                   </select>
                 </td>
                 <td className="px-2 py-1.5 min-w-[80px]">
-                  <select className={INPUT_CLS} value={filters.masterExists} onChange={e => sf("masterExists", e.target.value)}>
+                  <select className={INPUT_CLS} value={filters.masterStatus} onChange={e => sf("masterStatus", e.target.value)}>
                     <option value="">전체</option>
-                    <option value="true">일치</option>
-                    <option value="false">불일치</option>
+                    <option value="match">✓ 일치</option>
+                    <option value="mismatch">⚠ 불일치</option>
+                    <option value="serialOnly">? 시리얼만 일치</option>
+                    <option value="none">— 미매칭</option>
                   </select>
                 </td>
               </tr>}
