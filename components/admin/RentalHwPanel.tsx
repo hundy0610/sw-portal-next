@@ -101,7 +101,7 @@ function CreateModal({ onSave, onClose }: {
   }
 
   const labelCls = "block text-xs font-semibold text-gray-500 mb-1";
-  const inputCls = "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400";
+  const inputCls = "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white form-field-white focus:outline-none focus:ring-2 focus:ring-blue-400";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
@@ -196,7 +196,7 @@ function EditModal({ record, onSave, onClose }: {
   }
 
   const lbl = "block text-xs font-semibold text-gray-500 mb-1";
-  const inp = "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400";
+  const inp = "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white form-field-white focus:outline-none focus:ring-2 focus:ring-blue-400";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
