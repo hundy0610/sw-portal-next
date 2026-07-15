@@ -96,8 +96,9 @@ export default function AssetAuditSettingsPanel() {
       });
       const json = await safeJson(res);
       if (json?.config) setCfg(json.config);
-    } catch {
-      setUploadError("업로드 중 오류가 발생했습니다.");
+    } catch (e) {
+      console.error("[asset-audit upload]", e);
+      setUploadError(e instanceof Error ? e.message : "업로드 중 오류가 발생했습니다.");
     } finally {
       setUploading(null);
       const ref = os === "windows" ? windowsInputRef : macInputRef;
