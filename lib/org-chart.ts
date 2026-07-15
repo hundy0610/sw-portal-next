@@ -75,83 +75,25 @@ export function serializeMembers(members: OrgMember[]): string {
 }
 
 // ── 샘플 데이터 — NOTION_DB_ORG_CHART 연결 전, 화면 구성 미리보기용.
-// 4단계(사업부/본부/센터/팀) 깊이와 진행률 편차(0%~100%)를 함께 보여준다.
+// 실제 조직 구조(경영지원팀 산하 자산관리파트)로 구성하되, 실사 제출 여부는
+// 조작하지 않는다 — 실제로 각자 프로그램을 실행해 제출하면 그 시점부터
+// PC 실사 제출 기록을 통해 정확히 반영된다(현재는 0/4로 시작).
 const MOCK_ORG_UNITS: OrgUnit[] = [
   {
-    id: "mock-biz-it", name: "IT 사업부", company: "대웅제약", level: "사업부", parentId: null,
-    managerEmail: "hong.gd@example.com", managerName: "홍길동", members: [], notionUrl: "#",
+    id: "mock-mgmt-support", name: "경영지원팀", company: "idsTrust", level: "본부", parentId: null,
+    managerEmail: "", managerName: "", members: [], notionUrl: "#",
   },
   {
-    id: "mock-hq-dev", name: "개발본부", company: "대웅제약", level: "본부", parentId: "mock-biz-it",
-    managerEmail: "kim.dev0@example.com", managerName: "김본부", members: [], notionUrl: "#",
-  },
-  {
-    id: "mock-team-be", name: "백엔드팀", company: "대웅제약", level: "팀", parentId: "mock-hq-dev",
-    managerEmail: "kim.dev1@example.com", managerName: "김개발",
+    id: "mock-asset-part", name: "자산관리파트", company: "idsTrust", level: "팀", parentId: "mock-mgmt-support",
+    managerEmail: "jeokwon94@idstrust.com", managerName: "권정훈",
     members: [
-      { name: "김개발", email: "kim.dev1@example.com" },
-      { name: "이백엔드", email: "kim.dev2@example.com" },
-      { name: "박신입", email: "kim.dev3@example.com" },
+      { name: "권용관", email: "kyk3146@idstrust.com" },
+      { name: "백승윤", email: "qortmddbs33@idstrust.com" },
+      { name: "이동경", email: "dongkyeong@idstrust.com" },
+      { name: "권정훈", email: "jeokwon94@idstrust.com" },
     ],
     notionUrl: "#",
   },
-  {
-    id: "mock-team-fe", name: "프론트팀", company: "대웅제약", level: "팀", parentId: "mock-hq-dev",
-    managerEmail: "park.fe1@example.com", managerName: "박프론트",
-    members: [
-      { name: "박프론트", email: "park.fe1@example.com" },
-      { name: "최화면", email: "park.fe2@example.com" },
-    ],
-    notionUrl: "#",
-  },
-  {
-    id: "mock-center-plan", name: "IT기획센터", company: "대웅제약", level: "센터", parentId: "mock-biz-it",
-    managerEmail: "jung.plan@example.com", managerName: "정기획",
-    members: [
-      { name: "정기획", email: "plan1@example.com" },
-      { name: "한전략", email: "plan2@example.com" },
-      { name: "오예산", email: "plan3@example.com" },
-      { name: "서관리", email: "plan4@example.com" },
-    ],
-    notionUrl: "#",
-  },
-  {
-    id: "mock-biz-prod", name: "생산 사업부", company: "대웅바이오", level: "사업부", parentId: null,
-    managerEmail: "yoon.biz@example.com", managerName: "윤사업", members: [], notionUrl: "#",
-  },
-  {
-    id: "mock-hq-prod", name: "생산본부", company: "대웅바이오", level: "본부", parentId: "mock-biz-prod",
-    managerEmail: "shin.hq@example.com", managerName: "신본부", members: [], notionUrl: "#",
-  },
-  {
-    id: "mock-team-prod1", name: "생산1팀", company: "대웅바이오", level: "팀", parentId: "mock-hq-prod",
-    managerEmail: "prod1@example.com", managerName: "장생산",
-    members: [
-      { name: "장생산", email: "prod1@example.com" },
-      { name: "임공정", email: "prod2@example.com" },
-      { name: "노설비", email: "prod3@example.com" },
-    ],
-    notionUrl: "#",
-  },
-  {
-    id: "mock-team-prod2", name: "생산2팀", company: "대웅바이오", level: "팀", parentId: "mock-hq-prod",
-    managerEmail: "prod4@example.com", managerName: "문품질",
-    members: [
-      { name: "문품질", email: "prod4@example.com" },
-      { name: "구검사", email: "prod5@example.com" },
-    ],
-    notionUrl: "#",
-  },
-];
-
-// 위 샘플 인원 중 "실사 제출 완료"로 간주할 이메일 — 진행률 0%/33%/67%/100%가
-// 고르게 나타나도록 고정 구성한다.
-const MOCK_SUBMITTED_EMAILS = [
-  "kim.dev1@example.com", "kim.dev2@example.com", // 백엔드팀 2/3
-  "park.fe1@example.com", "park.fe2@example.com", // 프론트팀 2/2
-  "prod1@example.com",                            // 생산1팀 1/3
-  "prod4@example.com", "prod5@example.com",       // 생산2팀 2/2
-  // IT기획센터는 전원 미제출 — 0/4
 ];
 
 export async function fetchOrgUnits(): Promise<OrgUnit[]> {
@@ -225,16 +167,11 @@ export async function archiveOrgUnit(id: string): Promise<void> {
 
 // 실사 제출 완료 여부 판단용 이메일 집합 — PC 실사 프로그램이 실행되면 그 시점의
 // 실행자 이메일이 그대로 수집되므로, HW 자산 마스터(부서/사용자)와 무관하게
-// "제출했는지"를 정확히 알 수 있다.
-// 조직도 DB가 아직 연결되지 않은 샘플 모드에서는, 트리가 MOCK_ORG_UNITS이므로
-// 진행률도 함께 고르게(0%~100%) 보이도록 샘플 제출 이메일을 섞어준다.
+// "제출했는지"를 정확히 알 수 있다. 샘플 모드 여부와 무관하게 항상 실제
+// PC 실사 제출 기록만 반영한다 — 제출 여부를 임의로 만들어내지 않는다.
 export async function fetchSubmittedEmails(): Promise<Set<string>> {
   const scans = await fetchPcScans();
-  const emails = new Set(scans.map(s => s.email.toLowerCase()).filter(Boolean));
-  if (!isOrgChartConfigured()) {
-    for (const e of MOCK_SUBMITTED_EMAILS) emails.add(e);
-  }
-  return emails;
+  return new Set(scans.map(s => s.email.toLowerCase()).filter(Boolean));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
