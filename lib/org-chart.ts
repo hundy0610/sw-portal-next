@@ -98,10 +98,11 @@ export async function archiveOrgUnit(id: string): Promise<void> {
 
 // 실사 제출 완료 여부 판단용 이메일 집합 — PC 실사 프로그램이 실행되면 그 시점의
 // 실행자 이메일이 그대로 수집되므로, HW 자산 마스터(부서/사용자)와 무관하게
-// "제출했는지"를 정확히 알 수 있다.
+// "제출했는지"를 정확히 알 수 있다. 데스크톱 프로그램이 보낸 값에 앞뒤 공백이
+// 섞여 들어와도 매칭이 깨지지 않도록 trim까지 함께 정규화한다.
 export async function fetchSubmittedEmails(): Promise<Set<string>> {
   const scans = await fetchPcScans();
-  return new Set(scans.map(s => s.email.toLowerCase()).filter(Boolean));
+  return new Set(scans.map(s => s.email.trim().toLowerCase()).filter(Boolean));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -110,23 +111,26 @@ export async function fetchSubmittedEmails(): Promise<Set<string>> {
 // parentId 기반으로만 구성되므로 계열사마다 구조가 달라도 그대로 반영된다.
 // ─────────────────────────────────────────────────────────────────────────────
 export interface OrgProgress { total: number; verified: number }
+export interface MemberStatus extends OrgMember { submitted: boolean }
 export interface OrgTreeNode extends OrgUnit {
   children: OrgTreeNode[];
   ownProgress: OrgProgress;   // 이 단위에 직접 등록된 인원만
   rollupProgress: OrgProgress; // 이 단위 + 모든 하위 단위 합산
+  memberStatus: MemberStatus[]; // 이 단위에 직접 등록된 인원 각각의 제출 여부(진행률 상세 표시용)
 }
 
 // submittedEmails: PC 실사 제출 기록(PcScanRecord)에서 수집된 이메일 집합(소문자 정규화)
 export function computeUnitProgress(unit: OrgUnit, submittedEmails: Set<string>): OrgProgress {
   if (unit.members.length === 0) return { total: 0, verified: 0 };
-  const verified = unit.members.filter(m => submittedEmails.has(m.email.toLowerCase())).length;
+  const verified = unit.members.filter(m => submittedEmails.has(m.email.trim().toLowerCase())).length;
   return { total: unit.members.length, verified };
 }
 
 export function buildOrgTree(units: OrgUnit[], submittedEmails: Set<string>): OrgTreeNode[] {
   const byId = new Map<string, OrgTreeNode>();
   for (const u of units) {
-    byId.set(u.id, { ...u, children: [], ownProgress: computeUnitProgress(u, submittedEmails), rollupProgress: { total: 0, verified: 0 } });
+    const memberStatus = u.members.map(m => ({ ...m, submitted: submittedEmails.has(m.email.trim().toLowerCase()) }));
+    byId.set(u.id, { ...u, children: [], ownProgress: computeUnitProgress(u, submittedEmails), rollupProgress: { total: 0, verified: 0 }, memberStatus });
   }
   const roots: OrgTreeNode[] = [];
   for (const node of byId.values()) {

@@ -31,14 +31,16 @@ function TreeRow({ node, depth, expanded, onToggle }: {
 }) {
   const isOpen = expanded.has(node.id);
   const hasChildren = node.children.length > 0;
+  const hasMembers = node.memberStatus.length > 0;
+  const canExpand = hasChildren || hasMembers;
   const value = pct(node);
   const complete = node.rollupProgress.total > 0 && node.rollupProgress.verified === node.rollupProgress.total;
 
   return (
     <div>
       <div className="flex items-center gap-2.5 py-2 rounded-lg hover:bg-gray-50" style={{ paddingLeft: 4 + depth * 20 }}>
-        <button onClick={() => hasChildren && onToggle(node.id)} className="w-4 text-xs text-gray-400 shrink-0" disabled={!hasChildren}>
-          {hasChildren ? (isOpen ? "▼" : "▶") : ""}
+        <button onClick={() => canExpand && onToggle(node.id)} className="w-4 text-xs text-gray-400 shrink-0" disabled={!canExpand}>
+          {canExpand ? (isOpen ? "▼" : "▶") : ""}
         </button>
         <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-gray-100 text-gray-600 shrink-0">{node.level}</span>
         <span className="text-sm font-medium text-gray-900 truncate">{node.name}</span>
@@ -50,6 +52,20 @@ function TreeRow({ node, depth, expanded, onToggle }: {
         <ProgressBar value={value} />
         <span className="text-xs font-bold shrink-0 w-9 text-right" style={{ color: complete ? "var(--state-positive)" : "#374151", fontVariantNumeric: "tabular-nums" }}>{value}%</span>
       </div>
+      {isOpen && hasMembers && (
+        <div className="rounded-lg bg-gray-50 my-1 py-1" style={{ marginLeft: 24 + depth * 20 }}>
+          {node.memberStatus.map(m => (
+            <div key={m.email} className="flex items-center gap-2 px-2.5 py-1 text-xs">
+              <span className="shrink-0 rounded-full" style={{ width: 6, height: 6, background: m.submitted ? "var(--state-positive)" : "#D1D5DB" }} />
+              <span className={m.submitted ? "text-gray-700 font-medium" : "text-gray-400"}>{m.name || m.email}</span>
+              <span className="text-gray-300 truncate">{m.email}</span>
+              <span className="ml-auto shrink-0 font-semibold" style={{ color: m.submitted ? "var(--state-positive)" : "#9CA3AF" }}>
+                {m.submitted ? "완료" : "미제출"}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
       {isOpen && node.children.map(child => (
         <TreeRow key={child.id} node={child} depth={depth + 1} expanded={expanded} onToggle={onToggle} />
       ))}
