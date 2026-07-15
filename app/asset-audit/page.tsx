@@ -47,15 +47,6 @@ function formatBytes(bytes: number | null): string {
   return mb >= 1 ? `${mb.toFixed(1)}MB` : `${(bytes / 1024).toFixed(0)}KB`;
 }
 
-const codeStyle = {
-  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-  fontSize: 12.5,
-  background: C.bg,
-  padding: "2px 6px",
-  borderRadius: 4,
-  wordBreak: "break-all" as const,
-};
-
 // ── OS별 실행 방법 — 서명되지 않은 사내 프로그램이라 보안 경고가 뜨는 게
 // 정상이라는 점과, 그걸 우회하는 정확한 방법, 그리고 실행 후 실제 등록까지
 // 마치는 절차를 안내한다. OS마다 절차가 달라 캠페인과 무관하게 고정된
@@ -79,9 +70,11 @@ const INSTALL_STEPS: Record<"windows" | "mac", React.ReactNode[]> = {
     "다운로드한 파일을 더블클릭하면 설치 창이 열립니다.",
     "열린 창에서 앱 아이콘을 Applications 폴더로 드래그합니다.",
     <>
-      Applications에서 처음 실행하면 "확인되지 않은 개발자" 경고가 뜰 수 있습니다. 아이콘 우클릭(또는 Control+클릭) 후 "열기"를 선택하면 실행됩니다.
-      그래도 안 열리면 터미널에서 아래 명령어를 입력한 뒤 다시 실행해주세요:{" "}
-      <span style={codeStyle}>xattr -dr com.apple.quarantine "/Applications/대웅그룹 MAC OS 전용 자산실사 프로그램.app"</span>
+      실행 시 "확인되지 않은 개발자" 경고가 뜰 수 있습니다. macOS 버전에 맞는 방법으로 진행해주세요.
+      <br />
+      <strong>방법 1</strong> (macOS 13 Ventura 이하) — Applications에서 앱 아이콘을 Control(⌃) 키를 누른 채 클릭(우클릭) → "열기" → 경고창에서 다시 "열기" 버튼을 클릭합니다.
+      <br />
+      <strong>방법 2</strong> (macOS 14 Sonoma ~ 15 Sequoia) — 앱을 한 번 더블클릭해 경고를 닫은 뒤, 시스템 설정 → 개인정보 보호 및 보안 → 맨 아래로 스크롤 → "확인 없이 열기(Open Anyway)"를 클릭합니다.
     </>,
     "등록 정보를 입력한 후, 하단의 \"자산실사\" 버튼을 클릭해주세요.",
   ],
