@@ -52,13 +52,13 @@ function formatBytes(bytes: number | null): string {
 // 고정된 기술적 절차라 관리자 편집 항목이 아닌 코드에 고정한다.
 const INSTALL_STEPS: Record<"windows" | "mac", string[]> = {
   windows: [
-    "위 다운로드 버튼을 눌러 설치 파일(.exe)을 받습니다.",
+    "위 버튼을 누르면 새 탭에서 다운로드 페이지가 열립니다. 그 페이지에서 다운로드 버튼을 눌러 설치 파일(.exe)을 받습니다.",
     "다운로드한 파일을 더블클릭해서 실행합니다.",
     "\"Windows에서 PC를 보호했습니다\" 화면이 뜨면 \"추가 정보\"를 누른 뒤 \"실행\" 버튼을 눌러주세요.",
     "실행이 완료되면 자동으로 자산 정보가 수집되어 등록됩니다.",
   ],
   mac: [
-    "위 다운로드 버튼을 눌러 설치 파일(.dmg)을 받습니다.",
+    "위 버튼을 누르면 새 탭에서 다운로드 페이지가 열립니다. 그 페이지에서 다운로드 버튼을 눌러 설치 파일(.dmg)을 받습니다.",
     "다운로드한 파일을 더블클릭하면 설치 창이 열립니다.",
     "열린 창에서 앱 아이콘을 Applications 폴더로 드래그합니다.",
     "Applications 폴더에서 앱을 실행합니다. \"확인되지 않은 개발자\" 경고가 뜨면 아이콘을 우클릭한 뒤 \"열기\"를 선택해주세요.",
@@ -145,12 +145,15 @@ export default function AssetAuditProgramPage() {
     .map(s => s.trim())
     .filter(Boolean);
 
+  // 파일이 사내 클라우드(네이버웍스 드라이브 등) 공유 링크인 경우, 클릭 시 바로
+  // 받아지지 않고 미리보기 페이지가 한 번 뜬 뒤 거기서 다시 다운로드해야 한다.
+  // 버튼 문구를 그에 맞게 "다운로드 페이지로 이동"으로 표현한다.
   const primaryFile = os === "mac"
-    ? { url: cfg?.macFileUrl, name: cfg?.macFileName, size: cfg?.macFileSize, label: "macOS용 다운로드" }
-    : { url: cfg?.windowsFileUrl, name: cfg?.windowsFileName, size: cfg?.windowsFileSize, label: "Windows용 다운로드" };
+    ? { url: cfg?.macFileUrl, name: cfg?.macFileName, size: cfg?.macFileSize, label: "macOS용 다운로드 페이지로 이동" }
+    : { url: cfg?.windowsFileUrl, name: cfg?.windowsFileName, size: cfg?.windowsFileSize, label: "Windows용 다운로드 페이지로 이동" };
   const otherFile = os === "mac"
-    ? { url: cfg?.windowsFileUrl, label: "Windows용 다운로드" }
-    : { url: cfg?.macFileUrl, label: "macOS용 다운로드" };
+    ? { url: cfg?.windowsFileUrl, label: "Windows용 다운로드 페이지로 이동" }
+    : { url: cfg?.macFileUrl, label: "macOS용 다운로드 페이지로 이동" };
 
   const deadlineLabel = cfg?.deadline
     ? new Date(cfg.deadline).toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" })
