@@ -49,7 +49,7 @@ type PageId = "home" | "overview" | "license" | "credentials" | "swdb" | "report
 const SUPER_ONLY_PAGES = new Set<PageId>(["credentials", "swdb", "accounts", "contracts", "rental-hw", "hw-repair", "exchange-return", "work-feedback", "worktracker", "meeting-rental", "audit", "pc-scan", "asset-audit-settings", "org-chart", "asset-audit-dashboard"]);
 
 // ── 메뉴 정의 ──────────────────────────────────────────────────
-type MenuItem = { id: PageId; icon: string; label: string; desc: string };
+type MenuItem = { id: PageId; icon: string; label: string; desc: string; children?: MenuItem[] };
 type MenuGroup = { label: string; items: MenuItem[] };
 
 const SUPER_GROUPS: MenuGroup[] = [
@@ -67,10 +67,14 @@ const SUPER_GROUPS: MenuGroup[] = [
       { id: "hw-repair",       icon: "",   label: "수리/과실청구 트래커",     desc: "외부 수리 · 과실 청구 관리" },
       { id: "rental-hw",       icon: "",   label: "임대노트북 현황 관리",     desc: "임시 PC 대여 · 반납 관리"   },
       { id: "assetmap",        icon: "",   label: "스마트오피스 모니터 관리", desc: "인터랙티브 자산 맵"         },
-      { id: "pc-scan",         icon: "",   label: "온라인 자산 실사",         desc: "WPF 에이전트 PC 수집 데이터" },
-      { id: "asset-audit-settings", icon: "", label: "실사 프로그램 배포 설정", desc: "실사 프로그램 안내문·버전·공개 여부" },
-      { id: "org-chart",       icon: "",   label: "조직도 관리",             desc: "사업부/본부/센터/팀 및 직책자 관리" },
-      { id: "asset-audit-dashboard", icon: "", label: "실사 진행률 대시보드",  desc: "계약 수량 대비 달성률 · 조직별 진행 현황" },
+      {
+        id: "pc-scan", icon: "", label: "온라인 자산 실사", desc: "WPF 에이전트 PC 수집 데이터",
+        children: [
+          { id: "asset-audit-settings", icon: "", label: "실사 프로그램 배포 설정", desc: "실사 프로그램 안내문·버전·공개 여부" },
+          { id: "org-chart",            icon: "", label: "조직도 관리",            desc: "사업부/본부/센터/팀 및 직책자 관리" },
+          { id: "asset-audit-dashboard", icon: "", label: "실사 진행률 대시보드",   desc: "계약 수량 대비 달성률 · 조직별 진행 현황" },
+        ],
+      },
     ],
   },
   {
@@ -411,7 +415,7 @@ export default function AdminPage() {
           {groups.map((group, gi) => {
             const groupKey = group.label || "__home";
             const hasLabel = !!group.label;
-            const isActiveGroup = group.items.some(m => m.id === page);
+            const isActiveGroup = group.items.some(m => m.id === page || m.children?.some(c => c.id === page));
             const isExpanded = !hasLabel || isActiveGroup || hoveredGroup === groupKey;
             return (
               <div
@@ -430,35 +434,50 @@ export default function AdminPage() {
                   </div>
                 )}
                 <div style={{
-                  maxHeight: isExpanded ? `${group.items.length * 60}px` : "0px",
+                  maxHeight: isExpanded ? `${group.items.reduce((sum, m) => sum + 60 + (m.children?.length ?? 0) * 52, 0)}px` : "0px",
                   overflow: "hidden",
                   transition: "max-height 0.22s ease",
                 }}>
                   {group.items.map((m) => {
                     const accessible = canAccess(m.id);
                     return (
-                      <div
-                        key={m.id}
-                        className={`sidenav-item${page === m.id ? " active" : ""}${!accessible ? " opacity-40" : ""}`}
-                        title={accessible ? m.label : "접근권한이 없습니다"}
-                        style={{ cursor: accessible ? "pointer" : "default" }}
-                        onClick={() => {
-                          setPage(m.id);
-                          if (m.id === "assetmap") setPendingMonitorCount(0);
-                        }}
-                      >
-                        <span style={{ fontSize: 14, flexShrink: 0 }}>{accessible ? m.icon : ""}</span>
-                        <div className="flex flex-col leading-tight flex-1 min-w-0">
-                          <span className="truncate">{m.label}</span>
-                          <span className="text-xs opacity-50 truncate">
-                            {accessible ? m.desc : "접근권한이 없습니다"}
-                          </span>
+                      <div key={m.id}>
+                        <div
+                          className={`sidenav-item${page === m.id ? " active" : ""}${!accessible ? " opacity-40" : ""}`}
+                          title={accessible ? m.label : "접근권한이 없습니다"}
+                          style={{ cursor: accessible ? "pointer" : "default" }}
+                          onClick={() => {
+                            setPage(m.id);
+                            if (m.id === "assetmap") setPendingMonitorCount(0);
+                          }}
+                        >
+                          <span style={{ fontSize: 14, flexShrink: 0 }}>{accessible ? m.icon : ""}</span>
+                          <div className="flex flex-col leading-tight flex-1 min-w-0">
+                            <span className="truncate">{m.label}</span>
+                            <span className="text-xs opacity-50 truncate">
+                              {accessible ? m.desc : "접근권한이 없습니다"}
+                            </span>
+                          </div>
+                          {accessible && m.id === "assetmap" && pendingMonitorCount > 0 && (
+                            <span className="ml-auto flex-shrink-0 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1 animate-pulse">
+                              {pendingMonitorCount > 99 ? "99+" : pendingMonitorCount}
+                            </span>
+                          )}
                         </div>
-                        {accessible && m.id === "assetmap" && pendingMonitorCount > 0 && (
-                          <span className="ml-auto flex-shrink-0 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1 animate-pulse">
-                            {pendingMonitorCount > 99 ? "99+" : pendingMonitorCount}
-                          </span>
-                        )}
+                        {m.children?.map(child => {
+                          const childAccessible = canAccess(child.id);
+                          return (
+                            <div
+                              key={child.id}
+                              className={`sidenav-item${page === child.id ? " active" : ""}${!childAccessible ? " opacity-40" : ""}`}
+                              title={childAccessible ? child.label : "접근권한이 없습니다"}
+                              style={{ cursor: childAccessible ? "pointer" : "default", paddingLeft: 34, minHeight: 44 }}
+                              onClick={() => setPage(child.id)}
+                            >
+                              <span className="truncate text-[13px]">{child.label}</span>
+                            </div>
+                          );
+                        })}
                       </div>
                     );
                   })}

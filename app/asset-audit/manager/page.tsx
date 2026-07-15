@@ -99,22 +99,11 @@ export default function AssetAuditManagerPage() {
   const [reminding, setReminding] = useState(false);
   const [remindResult, setRemindResult] = useState<{ targetCount: number; sent: number } | null>(null);
 
-  const [darkMode, setDarkMode] = useState(() => {
-    if (typeof window === "undefined") return false;
-    const saved = localStorage.getItem("portal-dark");
-    if (saved !== null) return saved === "1";
-    return window.matchMedia("(prefers-color-scheme: dark)").matches;
-  });
-  function toggleDark() {
-    setDarkMode(d => {
-      const next = !d;
-      localStorage.setItem("portal-dark", next ? "1" : "0");
-      document.documentElement.classList.toggle("portal-dark", next);
-      document.documentElement.classList.remove("admin-dark");
-      window.dispatchEvent(new CustomEvent("portal-dark-change", { detail: next }));
-      return next;
-    });
-  }
+  // 실사 페이지는 다크모드를 지원하지 않음 — 다른 포털 페이지에서 다크모드를
+  // 켜둔 상태로 넘어와도 이 페이지에서는 항상 라이트 모드로 표시한다.
+  useEffect(() => {
+    document.documentElement.classList.remove("portal-dark");
+  }, []);
 
   // 새로고침 시 세션 저장된 토큰으로 자동 재조회 (8시간 유효)
   useEffect(() => {
@@ -216,15 +205,12 @@ export default function AssetAuditManagerPage() {
   const overallComplete = unit ? unit.rollupProgress.total > 0 && unit.rollupProgress.verified === unit.rollupProgress.total : false;
 
   return (
-    <div className={`min-h-screen${darkMode ? " portal-dark" : ""}`} style={{ background: C.bgPage }}>
+    <div className="min-h-screen" style={{ background: C.bgPage }}>
       <header className="flex items-center justify-between px-4 sm:px-6 lg:px-10 h-16 bg-white" style={{ borderBottom: `1px solid ${C.border}` }}>
         <div className="flex items-center gap-3 min-w-0">
           <img src="/logo.png" alt="로고" className="shrink-0" style={{ height: 26, width: "auto", maxWidth: 160, objectFit: "contain" }} />
           <span className="hidden sm:inline text-sm font-semibold truncate" style={{ color: C.text3 }}>자산 실사 · 직책자</span>
         </div>
-        <button onClick={toggleDark} className="shrink-0 text-xs font-semibold hover:underline" style={{ color: C.text4 }}>
-          {darkMode ? "라이트 모드" : "다크 모드"}
-        </button>
       </header>
 
       <div className="px-4 sm:px-6 lg:px-10 py-10 lg:py-14">

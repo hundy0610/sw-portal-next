@@ -83,22 +83,11 @@ export default function AssetAuditProgramPage() {
   const [consented, setConsented] = useState(false);
   const os = useMemo(detectOS, []);
 
-  const [darkMode, setDarkMode] = useState(() => {
-    if (typeof window === "undefined") return false;
-    const saved = localStorage.getItem("portal-dark");
-    if (saved !== null) return saved === "1";
-    return window.matchMedia("(prefers-color-scheme: dark)").matches;
-  });
-  function toggleDark() {
-    setDarkMode(d => {
-      const next = !d;
-      localStorage.setItem("portal-dark", next ? "1" : "0");
-      document.documentElement.classList.toggle("portal-dark", next);
-      document.documentElement.classList.remove("admin-dark");
-      window.dispatchEvent(new CustomEvent("portal-dark-change", { detail: next }));
-      return next;
-    });
-  }
+  // 실사 페이지는 다크모드를 지원하지 않음 — 다른 포털 페이지에서 다크모드를
+  // 켜둔 상태로 넘어와도 이 페이지에서는 항상 라이트 모드로 표시한다.
+  useEffect(() => {
+    document.documentElement.classList.remove("portal-dark");
+  }, []);
 
   useEffect(() => {
     fetch("/api/asset-audit/config", { cache: "no-store" })
@@ -129,21 +118,18 @@ export default function AssetAuditProgramPage() {
     : null;
 
   return (
-    <div className={`min-h-screen${darkMode ? " portal-dark" : ""}`} style={{ background: C.bgPage }}>
-      <header className="flex items-center justify-between px-4 sm:px-6 lg:px-10 h-16 bg-white" style={{ borderBottom: `1px solid ${C.border}` }}>
+    <div className="min-h-screen" style={{ background: C.bgPage }}>
+      <header className="flex items-center justify-between px-4 sm:px-6 md:px-10 h-16 bg-white" style={{ borderBottom: `1px solid ${C.border}` }}>
         <div className="flex items-center gap-3 min-w-0">
           <img src="/logo.png" alt="로고" className="shrink-0" style={{ height: 26, width: "auto", maxWidth: 160, objectFit: "contain" }} />
           <span className="hidden sm:inline text-sm font-semibold truncate" style={{ color: C.text3 }}>자산 실사</span>
         </div>
-        <button onClick={toggleDark} className="shrink-0 text-xs font-semibold hover:underline" style={{ color: C.text4 }}>
-          {darkMode ? "라이트 모드" : "다크 모드"}
-        </button>
       </header>
 
-      <div className="px-4 sm:px-6 lg:px-10 py-10 lg:py-14">
+      <div className="px-4 sm:px-6 md:px-10 py-10 md:py-14">
         <div className="max-w-5xl mx-auto">
           {/* ── 헤더 ── */}
-          <div className="text-center mb-8 lg:mb-10">
+          <div className="text-center mb-8 md:mb-10">
             <h1 className="text-[28px] sm:text-[34px] font-bold mb-2.5" style={{ color: C.text1, letterSpacing: "-0.01em" }}>
               {loading ? " " : cfg?.title}
             </h1>
@@ -167,10 +153,10 @@ export default function AssetAuditProgramPage() {
           )}
 
           {!loading && cfg?.open && (
-            <div className="grid lg:grid-cols-[1.05fr_1fr] gap-6 lg:gap-8 items-start">
+            <div className="grid md:grid-cols-[1.05fr_1fr] gap-6 md:gap-8 items-start">
               {/* ══ 왼쪽: 목적/취지 + 양해 말씀 ══ */}
               <div className="space-y-5">
-                <div className="bg-white rounded-3xl p-6 lg:p-8 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
+                <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
                   <h2 className="text-[17px] font-bold mb-1" style={{ color: C.text1 }}>왜 자산실사를 진행하나요?</h2>
                   <p className="text-[13px] mb-5" style={{ color: C.text4 }}>이번 실사가 만들어내는 실질적인 운영상의 이점입니다.</p>
                   <div className="grid sm:grid-cols-2 gap-4">
@@ -189,7 +175,7 @@ export default function AssetAuditProgramPage() {
                   </div>
                 </div>
 
-                <div className="rounded-2xl p-5 lg:p-6" style={{ background: C.brandSoft, border: `1px solid ${C.border}` }}>
+                <div className="rounded-2xl p-5 md:p-6" style={{ background: C.brandSoft, border: `1px solid ${C.border}` }}>
                   <p className="text-[13.5px] leading-relaxed" style={{ color: C.text2 }}>
                     바쁘신 업무 중에도 잠시 시간을 내어 협조해 주셔서 진심으로 감사드립니다.
                     이번 실사는 여러분의 업무에 최대한 부담을 드리지 않도록, 프로그램 실행만으로 간단히 완료되게 준비했습니다.
@@ -199,9 +185,9 @@ export default function AssetAuditProgramPage() {
               </div>
 
               {/* ══ 오른쪽: 데이터 고지 + 절차 + 동의 / 다운로드 ══ */}
-              <div className="lg:sticky lg:top-10">
+              <div className="md:sticky md:top-10">
                 {!consented ? (
-                  <div className="bg-white rounded-3xl p-6 lg:p-8 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
+                  <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
                     <h2 className="text-[16px] font-bold mb-4" style={{ color: C.text1 }}>참여 안내 및 동의</h2>
 
                     {noticeItems.length > 0 && (
@@ -252,7 +238,7 @@ export default function AssetAuditProgramPage() {
                     </button>
                   </div>
                 ) : (
-                  <div className="bg-white rounded-3xl p-6 lg:p-8 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
+                  <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
                     <h2 className="text-[16px] font-bold mb-4" style={{ color: C.text1 }}>프로그램 다운로드</h2>
 
                     {(cfg.version || cfg.updatedAt || primaryFile.size) && (
