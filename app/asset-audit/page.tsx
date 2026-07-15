@@ -180,9 +180,11 @@ export default function AssetAuditProgramPage() {
                 </p>
               )}
 
-              {/* ── 자산실사 목적 — "수집되는 정보" 박스와 동일한 형태(라벨+강조선 박스) ── */}
+              {/* ── 자산실사 목적/취지 — 참여 동의와 동일한 섹션 헤더 + 강조선 박스 형태 ── */}
+              <h2 className="mb-4 pb-2.5" style={{ ...T.h3, color: C.text1, borderBottom: `1px solid ${C.border}` }}>
+                목적/취지
+              </h2>
               <div className="rounded-lg p-4 mb-6" style={{ background: C.bg, borderLeft: `3px solid ${C.brand}` }}>
-                <p className="mb-1.5" style={{ ...T.label, color: C.text1 }}>목적</p>
                 <ul className="space-y-1">
                   {PURPOSE_LINES.map(line => (
                     <li key={line.label} style={{ ...T.body, ...pretty, color: C.text2 }}>
