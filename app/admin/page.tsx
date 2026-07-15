@@ -137,6 +137,7 @@ export default function AdminPage() {
     return false;
   });
   const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
+  const [expandedItems, setExpandedItems] = useState<Set<PageId>>(new Set());
   // HW 통계 백그라운드 prefetch (경량 stats, ~수 KB)
   const [hwStatsPrefetch, setHwStatsPrefetch] = useState<any | null>(null);
   const hwFetchedRef = useRef(false);
@@ -440,6 +441,8 @@ export default function AdminPage() {
                 }}>
                   {group.items.map((m) => {
                     const accessible = canAccess(m.id);
+                    const hasChildren = !!m.children?.length;
+                    const childrenOpen = hasChildren && (expandedItems.has(m.id) || (m.children?.some(c => c.id === page) ?? false));
                     return (
                       <div key={m.id}>
                         <div
@@ -449,6 +452,13 @@ export default function AdminPage() {
                           onClick={() => {
                             setPage(m.id);
                             if (m.id === "assetmap") setPendingMonitorCount(0);
+                            if (hasChildren) {
+                              setExpandedItems(prev => {
+                                const next = new Set(prev);
+                                if (next.has(m.id)) next.delete(m.id); else next.add(m.id);
+                                return next;
+                              });
+                            }
                           }}
                         >
                           <span style={{ fontSize: 14, flexShrink: 0 }}>{accessible ? m.icon : ""}</span>
@@ -463,8 +473,14 @@ export default function AdminPage() {
                               {pendingMonitorCount > 99 ? "99+" : pendingMonitorCount}
                             </span>
                           )}
+                          {hasChildren && (
+                            <span className="flex-shrink-0 text-[10px] opacity-50 transition-transform duration-200"
+                              style={{ transform: childrenOpen ? "rotate(0deg)" : "rotate(-90deg)" }}>
+                              ▾
+                            </span>
+                          )}
                         </div>
-                        {m.children?.map(child => {
+                        {childrenOpen && m.children?.map(child => {
                           const childAccessible = canAccess(child.id);
                           return (
                             <div
