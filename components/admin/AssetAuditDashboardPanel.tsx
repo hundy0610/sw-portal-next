@@ -152,6 +152,9 @@ export default function AssetAuditDashboardPanel() {
                 style={{ width: `${Math.min(data.achievementRate, 100)}%`, background: achievementComplete ? "var(--state-positive)" : "var(--brand)" }}
               />
             </div>
+            <p className="text-[11px] text-gray-300 mt-2">
+              "실사 확인"은 자산 실사 현황(PC 실사 프로그램 제출)에 실제로 자산번호·시리얼이 매칭된 자산 기준으로 집계됩니다.
+            </p>
           </div>
 
           {/* ── 법인별 요약 ── */}
