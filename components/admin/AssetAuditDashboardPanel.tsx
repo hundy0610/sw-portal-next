@@ -209,7 +209,7 @@ export default function AssetAuditDashboardPanel() {
               ) : (
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {data.byCompany.map(c => {
-                    const rate = c.hwTotal > 0 ? Math.round((c.hwVerified / c.hwTotal) * 100) : 0;
+                    const rate = c.contractQty > 0 ? Math.round((c.hwVerified / c.contractQty) * 100) : 0;
                     return (
                       <div key={c.company} className="border border-gray-100 rounded-xl p-3.5">
                         <p className="text-sm font-semibold text-gray-900 mb-1 truncate">{c.company}</p>
