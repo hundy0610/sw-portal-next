@@ -149,7 +149,6 @@ export default function AssetAuditProgramPage() {
       <header className="flex items-center justify-between px-4 sm:px-6 md:px-10 h-16 bg-white" style={{ borderBottom: `1px solid ${C.border}` }}>
         <div className="flex items-center gap-3 min-w-0">
           <img src="/logo.png" alt="로고" className="shrink-0" style={{ height: 26, width: "auto", maxWidth: 160, objectFit: "contain" }} />
-          <span className="hidden sm:inline truncate" style={{ ...T.label, color: C.text3 }}>자산 실사</span>
         </div>
       </header>
 
