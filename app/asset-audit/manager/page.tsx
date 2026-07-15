@@ -54,6 +54,8 @@ function TreeRow({ node, depth, expanded, onToggle }: {
 }) {
   const isOpen = expanded.has(node.id);
   const hasChildren = node.children.length > 0;
+  const hasMembers = node.memberStatus.length > 0;
+  const canExpand = hasChildren || hasMembers;
   const value = pct(node);
   const complete = node.rollupProgress.total > 0 && node.rollupProgress.verified === node.rollupProgress.total;
 
@@ -66,12 +68,12 @@ function TreeRow({ node, depth, expanded, onToggle }: {
         onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
       >
         <button
-          onClick={() => hasChildren && onToggle(node.id)}
+          onClick={() => canExpand && onToggle(node.id)}
           className="w-4 shrink-0"
           style={{ ...T.caption, color: C.text3 }}
-          disabled={!hasChildren}
+          disabled={!canExpand}
         >
-          {hasChildren ? (isOpen ? "▼" : "▶") : ""}
+          {canExpand ? (isOpen ? "▼" : "▶") : ""}
         </button>
         <span className="px-1.5 py-0.5 rounded shrink-0" style={{ ...T.caption, fontWeight: 600, background: C.brandSoft, color: C.text2 }}>
           {node.level}
@@ -87,6 +89,22 @@ function TreeRow({ node, depth, expanded, onToggle }: {
         <ProgressBar value={value} />
         <span className="shrink-0 w-9 text-right" style={{ ...T.label, color: complete ? C.good : C.text2 }}>{value}%</span>
       </div>
+      {isOpen && hasMembers && (
+        <div className="rounded-lg my-1 py-1" style={{ background: C.bg, marginLeft: 24 + depth * 20 }}>
+          {node.memberStatus.map(m => (
+            <div key={m.email} className="flex items-center gap-2 px-2.5 py-1.5">
+              <span className="shrink-0 rounded-full" style={{ width: 6, height: 6, background: m.submitted ? C.good : C.border }} />
+              <span style={{ ...T.body, fontSize: 14, fontWeight: m.submitted ? 600 : 400, color: m.submitted ? C.text1 : C.text3 }}>
+                {m.name || m.email}
+              </span>
+              <span className="truncate" style={{ ...T.caption, color: C.text3, opacity: 0.7 }}>{m.email}</span>
+              <span className="ml-auto shrink-0" style={{ ...T.caption, fontWeight: 700, color: m.submitted ? C.good : C.text3 }}>
+                {m.submitted ? "완료" : "미제출"}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
       {isOpen && node.children.map(child => (
         <TreeRow key={child.id} node={child} depth={depth + 1} expanded={expanded} onToggle={onToggle} />
       ))}
