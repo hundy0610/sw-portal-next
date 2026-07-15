@@ -42,7 +42,6 @@ export default function OrgChartPanel() {
   const [units, setUnits]     = useState<OrgUnit[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState("");
-  const [sample, setSample]   = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   const [modalOpen, setModalOpen]   = useState(false);
@@ -58,7 +57,7 @@ export default function OrgChartPanel() {
     try {
       const res = await fetch("/api/org-chart");
       const json = await safeJson(res);
-      if (json?.ok) { setUnits(json.data ?? []); setSample(!!json.sample); }
+      if (json?.ok) setUnits(json.data ?? []);
       else setError(json?.error ?? "조회 실패");
     } catch {
       setError("조회 중 오류가 발생했습니다.");
@@ -176,12 +175,12 @@ export default function OrgChartPanel() {
             <span className="text-[11px] text-gray-400 shrink-0">인원 {unit.members.length}명</span>
           )}
           <div className="flex-1" />
-          <button onClick={() => openCreate(unit.id)} disabled={sample} className="text-xs text-blue-600 hover:underline shrink-0 disabled:opacity-30 disabled:no-underline">+ 하위추가</button>
-          <button onClick={() => openEdit(unit)} disabled={sample} className="text-xs text-gray-500 hover:underline shrink-0 disabled:opacity-30 disabled:no-underline">수정</button>
+          <button onClick={() => openCreate(unit.id)} className="text-xs text-blue-600 hover:underline shrink-0">+ 하위추가</button>
+          <button onClick={() => openEdit(unit)} className="text-xs text-gray-500 hover:underline shrink-0">수정</button>
           <button
             onClick={() => handleDelete(unit.id)}
-            disabled={sample || deletingId === unit.id}
-            className="text-xs text-red-500 hover:underline shrink-0 disabled:opacity-30 disabled:no-underline"
+            disabled={deletingId === unit.id}
+            className="text-xs text-red-500 hover:underline shrink-0 disabled:opacity-40"
           >
             {deletingId === unit.id ? "삭제 중…" : "삭제"}
           </button>
@@ -200,19 +199,11 @@ export default function OrgChartPanel() {
         </div>
         <button
           onClick={() => openCreate(null)}
-          disabled={sample}
-          title={sample ? "샘플 데이터 모드에서는 편집할 수 없습니다" : undefined}
-          className="px-3 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-40"
+          className="px-3 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
         >
           + 최상위 조직 추가
         </button>
       </div>
-
-      {sample && (
-        <div className="rounded-lg px-3 py-2.5 text-xs" style={{ background: "#fffbeb", color: "#92400e", border: "1px solid #fde68a" }}>
-          샘플 데이터입니다 — 실제 조직도 Notion DB(NOTION_DB_ORG_CHART)가 아직 연결되지 않아, 화면 구성 확인용 예시 데이터를 보여주고 있습니다. 실제 데이터 연결 전까지 편집은 비활성화됩니다.
-        </div>
-      )}
 
       {error && <p className="text-xs text-red-600">{error}</p>}
 

@@ -1,18 +1,10 @@
-import { Client } from "@notionhq/client";
+import { kvGet, kvSetPermanent } from "./kv-store";
 import { fetchPcScans } from "./pc-scan";
 
-const notion = new Client({ auth: process.env.NOTION_TOKEN });
-
-// 조직도 Notion DB는 아직 실제 워크스페이스에 생성되지 않은 경우가 있다(Phase 3
-// 신규 생성 항목). DB가 연결되기 전까지는 에러를 던지는 대신 샘플 데이터로
-// 화면 구성을 미리 확인할 수 있게 하고, 편집 요청만 명확한 안내와 함께 막는다.
-export function isOrgChartConfigured(): boolean {
-  return !!process.env.NOTION_DB_ORG_CHART;
-}
-
-function getDbId(): string | null {
-  return process.env.NOTION_DB_ORG_CHART ?? null;
-}
+// 조직도는 Notion 대신 KV(Upstash Redis)에 저장한다 — 계층형 relation을 Notion
+// 스키마로 새로 만드는 대신, 이미 쓰고 있는 KV 저장소에 트리 전체를 하나의
+// 값으로 두어 바로 편집 가능하게 한다.
+const KV_KEY = "orgChart:units";
 
 export type OrgLevel = "사업부" | "본부" | "센터" | "팀";
 
@@ -33,30 +25,7 @@ export interface OrgUnit {
   // 이메일이 PC 실사 제출 기록(PcScanRecord.email)에 존재하는지로 계산한다.
   // HW 자산 마스터 데이터(부서/사용자 필드)는 정확도가 보장되지 않아 기준으로 쓰지 않는다.
   members: OrgMember[];
-  notionUrl: string;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function text(p: any, key: string): string {
-  const v = p?.[key];
-  if (!v) return "";
-  if (v.type === "title")     return (v.title as { plain_text: string }[]).map(t => t.plain_text).join("");
-  if (v.type === "rich_text") return (v.rich_text as { plain_text: string }[]).map(t => t.plain_text).join("");
-  return "";
-}
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function select(p: any, key: string): string {
-  return p?.[key]?.type === "select" ? (p[key].select?.name ?? "") : "";
-}
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function email(p: any, key: string): string {
-  return p?.[key]?.type === "email" ? (p[key].email ?? "") : "";
-}
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function relationFirst(p: any, key: string): string | null {
-  const rel = p?.[key];
-  if (rel?.type !== "relation" || !Array.isArray(rel.relation) || rel.relation.length === 0) return null;
-  return rel.relation[0].id as string;
+  notionUrl: string; // KV 저장 방식에서는 사용하지 않음(항상 빈 문자열) — 기존 UI 타입 호환용
 }
 
 // "이름:이메일, 이름:이메일" 형식 텍스트 ↔ OrgMember[] 변환.
@@ -74,17 +43,16 @@ export function serializeMembers(members: OrgMember[]): string {
   return members.map(m => (m.name ? `${m.name}:${m.email}` : m.email)).join(", ");
 }
 
-// ── 샘플 데이터 — NOTION_DB_ORG_CHART 연결 전, 화면 구성 미리보기용.
-// 실제 조직 구조(경영지원팀 산하 자산관리파트)로 구성하되, 실사 제출 여부는
-// 조작하지 않는다 — 실제로 각자 프로그램을 실행해 제출하면 그 시점부터
-// PC 실사 제출 기록을 통해 정확히 반영된다(현재는 0/4로 시작).
-const MOCK_ORG_UNITS: OrgUnit[] = [
+// ── 초기값 — idsTrust 경영지원팀 산하 자산관리파트 실제 구성.
+// KV에 아직 아무 것도 저장되지 않은 최초 상태에서만 사용되며, 관리자 화면에서
+// 조직을 추가/수정하는 순간부터는 KV에 저장된 값이 그대로 기준이 된다.
+const DEFAULT_UNITS: OrgUnit[] = [
   {
-    id: "mock-mgmt-support", name: "경영지원팀", company: "idsTrust", level: "본부", parentId: null,
-    managerEmail: "", managerName: "", members: [], notionUrl: "#",
+    id: "org-mgmt-support", name: "경영지원팀", company: "idsTrust", level: "본부", parentId: null,
+    managerEmail: "", managerName: "", members: [], notionUrl: "",
   },
   {
-    id: "mock-asset-part", name: "자산관리파트", company: "idsTrust", level: "팀", parentId: "mock-mgmt-support",
+    id: "org-asset-part", name: "자산관리파트", company: "idsTrust", level: "팀", parentId: "org-mgmt-support",
     managerEmail: "jeokwon94@idstrust.com", managerName: "권정훈",
     members: [
       { name: "권용관", email: "kyk3146@idstrust.com" },
@@ -92,83 +60,45 @@ const MOCK_ORG_UNITS: OrgUnit[] = [
       { name: "이동경", email: "dongkyeong@idstrust.com" },
       { name: "권정훈", email: "jeokwon94@idstrust.com" },
     ],
-    notionUrl: "#",
+    notionUrl: "",
   },
 ];
 
+async function loadUnits(): Promise<OrgUnit[]> {
+  const stored = await kvGet<OrgUnit[]>(KV_KEY);
+  return stored ?? DEFAULT_UNITS;
+}
+
 export async function fetchOrgUnits(): Promise<OrgUnit[]> {
-  const dbId = getDbId();
-  if (!dbId) return MOCK_ORG_UNITS;
-
-  const units: OrgUnit[] = [];
-  let cursor: string | undefined;
-
-  do {
-    const res = await notion.databases.query({
-      database_id: dbId,
-      page_size: 100,
-      start_cursor: cursor,
-    });
-
-    for (const page of res.results) {
-      if (page.object !== "page" || !("properties" in page)) continue;
-      const p = page.properties as Record<string, unknown>;
-      units.push({
-        id: page.id,
-        name: text(p, "이름"),
-        company: select(p, "법인"),
-        level: (select(p, "레벨") || "팀") as OrgLevel,
-        parentId: relationFirst(p, "상위조직"),
-        managerEmail: email(p, "직책자이메일"),
-        managerName: text(p, "직책자이름"),
-        members: parseMembers(text(p, "소속인원")),
-        notionUrl: (page as { url: string }).url,
-      });
-    }
-    cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined;
-  } while (cursor);
-
-  return units;
+  return loadUnits();
 }
 
 export async function createOrgUnit(data: Omit<OrgUnit, "id" | "notionUrl">): Promise<string> {
-  const dbId = getDbId();
-  if (!dbId) throw new Error("샘플 데이터 모드입니다 — 실제 조직도 Notion DB(NOTION_DB_ORG_CHART) 연결 후 편집할 수 있습니다.");
-  const props: Record<string, unknown> = {
-    "이름":       { title: [{ text: { content: data.name } }] },
-    "법인":       { select: data.company ? { name: data.company } : null },
-    "레벨":       { select: { name: data.level } },
-    "직책자이메일": { email: data.managerEmail || null },
-    "직책자이름":  { rich_text: [{ text: { content: data.managerName } }] },
-    "소속인원":    { rich_text: [{ text: { content: serializeMembers(data.members) } }] },
-  };
-  if (data.parentId) props["상위조직"] = { relation: [{ id: data.parentId }] };
-  const res = await notion.pages.create({ parent: { database_id: dbId }, properties: props as Parameters<typeof notion.pages.create>[0]["properties"] });
-  return res.id;
+  const units = await loadUnits();
+  const id = `org_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  await kvSetPermanent(KV_KEY, [...units, { ...data, id, notionUrl: "" }]);
+  return id;
 }
 
 export async function updateOrgUnit(id: string, data: Partial<Omit<OrgUnit, "id" | "notionUrl">>): Promise<void> {
-  if (!isOrgChartConfigured()) throw new Error("샘플 데이터 모드입니다 — 실제 조직도 Notion DB(NOTION_DB_ORG_CHART) 연결 후 편집할 수 있습니다.");
-  const props: Record<string, unknown> = {};
-  if (data.name         !== undefined) props["이름"] = { title: [{ text: { content: data.name } }] };
-  if (data.company      !== undefined) props["법인"] = { select: data.company ? { name: data.company } : null };
-  if (data.level        !== undefined) props["레벨"] = { select: { name: data.level } };
-  if (data.managerEmail !== undefined) props["직책자이메일"] = { email: data.managerEmail || null };
-  if (data.managerName  !== undefined) props["직책자이름"]  = { rich_text: [{ text: { content: data.managerName } }] };
-  if (data.members      !== undefined) props["소속인원"]    = { rich_text: [{ text: { content: serializeMembers(data.members) } }] };
-  if (data.parentId     !== undefined) props["상위조직"]    = { relation: data.parentId ? [{ id: data.parentId }] : [] };
-  await notion.pages.update({ page_id: id, properties: props as Parameters<typeof notion.pages.update>[0]["properties"] });
+  const units = await loadUnits();
+  const idx = units.findIndex(u => u.id === id);
+  if (idx === -1) throw new Error("조직을 찾을 수 없습니다.");
+  const next = [...units];
+  next[idx] = { ...next[idx], ...data };
+  await kvSetPermanent(KV_KEY, next);
 }
 
+// 삭제된 조직을 상위조직으로 참조하던 하위 조직은 buildOrgTree에서 자동으로
+// 최상위 취급되므로(부모 id가 존재하지 않으면 root) 별도 정리가 필요 없다.
 export async function archiveOrgUnit(id: string): Promise<void> {
-  if (!isOrgChartConfigured()) throw new Error("샘플 데이터 모드입니다 — 실제 조직도 Notion DB(NOTION_DB_ORG_CHART) 연결 후 편집할 수 있습니다.");
-  await notion.pages.update({ page_id: id, archived: true });
+  const units = await loadUnits();
+  await kvSetPermanent(KV_KEY, units.filter(u => u.id !== id));
 }
 
 // 실사 제출 완료 여부 판단용 이메일 집합 — PC 실사 프로그램이 실행되면 그 시점의
 // 실행자 이메일이 그대로 수집되므로, HW 자산 마스터(부서/사용자)와 무관하게
-// "제출했는지"를 정확히 알 수 있다. 샘플 모드 여부와 무관하게 항상 실제
-// PC 실사 제출 기록만 반영한다 — 제출 여부를 임의로 만들어내지 않는다.
+// "제출했는지"를 정확히 알 수 있다.
 export async function fetchSubmittedEmails(): Promise<Set<string>> {
   const scans = await fetchPcScans();
   return new Set(scans.map(s => s.email.toLowerCase()).filter(Boolean));

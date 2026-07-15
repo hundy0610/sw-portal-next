@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";
-import { fetchOrgUnits, buildOrgTree, fetchSubmittedEmails, isOrgChartConfigured, type OrgTreeNode } from "@/lib/org-chart";
+import { fetchOrgUnits, buildOrgTree, fetchSubmittedEmails, type OrgTreeNode } from "@/lib/org-chart";
 import { fetchAllHwRecords } from "@/lib/hw";
 import { fetchContracts } from "@/lib/contract-notion";
 import { errorMessage } from "@/lib/api-error";
@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
     }).sort((a, b) => b.hwTotal - a.hwTotal);
 
     const data: AssetAuditDashboardData = { tree, contractQtyTotal, hwTotal, hwVerified, achievementRate, byCompany };
-    return NextResponse.json({ ok: true, data, sample: !isOrgChartConfigured() });
+    return NextResponse.json({ ok: true, data });
   } catch (e) {
     console.error("[asset-audit dashboard GET]", e);
     return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
