@@ -47,12 +47,28 @@ function formatBytes(bytes: number | null): string {
   return mb >= 1 ? `${mb.toFixed(1)}MB` : `${(bytes / 1024).toFixed(0)}KB`;
 }
 
+const codeStyle = {
+  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+  fontSize: 12.5,
+  background: C.bg,
+  padding: "2px 6px",
+  borderRadius: 4,
+  wordBreak: "break-all" as const,
+};
+
 // ── OS별 실행 방법 — 서명되지 않은 사내 프로그램이라 보안 경고가 뜨는 게
 // 정상이라는 점과, 그걸 우회하는 정확한 방법, 그리고 실행 후 실제 등록까지
 // 마치는 절차를 안내한다. OS마다 절차가 달라 캠페인과 무관하게 고정된
 // 기술적 안내이므로 관리자 편집 항목이 아닌 코드에 고정한다.
-const INSTALL_STEPS: Record<"windows" | "mac", string[]> = {
+const INSTALL_STEPS: Record<"windows" | "mac", React.ReactNode[]> = {
   windows: [
+    <>
+      프로그램 실행에는 <strong>.NET 8 Desktop Runtime</strong>이 필요합니다. 아직 설치하지 않았다면{" "}
+      <a href="https://dotnet.microsoft.com/download/dotnet/8.0/runtime" target="_blank" rel="noreferrer" className="underline" style={{ color: C.brand }}>
+        이 링크
+      </a>
+      에서 "Desktop Runtime"을 받아 설치해주세요 (이미 설치되어 있다면 건너뛰어도 됩니다).
+    </>,
     "위 버튼을 누르면 새 탭에서 다운로드 페이지가 열립니다. 그 페이지에서 다운로드 버튼을 눌러 설치 파일(.exe)을 받습니다.",
     "다운로드한 파일을 더블클릭해서 실행합니다.",
     "\"Windows에서 PC를 보호했습니다\" 화면이 뜨면 \"추가 정보\"를 누른 뒤 \"실행\" 버튼을 눌러주세요.",
@@ -62,7 +78,11 @@ const INSTALL_STEPS: Record<"windows" | "mac", string[]> = {
     "위 버튼을 누르면 새 탭에서 다운로드 페이지가 열립니다. 그 페이지에서 다운로드 버튼을 눌러 설치 파일(.dmg)을 받습니다.",
     "다운로드한 파일을 더블클릭하면 설치 창이 열립니다.",
     "열린 창에서 앱 아이콘을 Applications 폴더로 드래그합니다.",
-    "Applications 폴더에서 앱을 실행합니다. \"확인되지 않은 개발자\" 경고가 뜨면 아이콘을 우클릭한 뒤 \"열기\"를 선택해주세요.",
+    <>
+      Applications에서 처음 실행하면 "확인되지 않은 개발자" 경고가 뜰 수 있습니다. 아이콘 우클릭(또는 Control+클릭) 후 "열기"를 선택하면 실행됩니다.
+      그래도 안 열리면 터미널에서 아래 명령어를 입력한 뒤 다시 실행해주세요:{" "}
+      <span style={codeStyle}>xattr -dr com.apple.quarantine "/Applications/대웅그룹 MAC OS 전용 자산실사 프로그램.app"</span>
+    </>,
     "등록 정보를 입력한 후, 하단의 \"자산실사\" 버튼을 클릭해주세요.",
   ],
 };
@@ -333,6 +353,7 @@ export default function AssetAuditProgramPage() {
                       <div className="rounded-xl p-3.5" style={{ background: C.bg, border: `1px solid ${C.border}` }}>
                         <p style={{ ...T.body, ...pretty, color: C.text3 }}>
                           보안 경고 화면이 뜨는 건 정상입니다 — 사내에서 자체 제작한 프로그램이라 별도 인증서가 없어 나타나는 안내이며, 위 방법대로 진행하시면 안전하게 실행됩니다.
+                          일부 백신 프로그램이 오탐으로 차단할 수도 있는데, 안전한 파일이니 예외 처리 후 진행해주세요.
                         </p>
                       </div>
                     </div>
