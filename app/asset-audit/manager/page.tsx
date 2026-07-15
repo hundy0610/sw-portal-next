@@ -17,14 +17,14 @@ const C = {
   danger:     "var(--state-risk)",
 } as const;
 
-// ── 타입 스케일 (사용자 페이지와 동일한 단계) ──
+// ── 타입 스케일 (사용자 페이지와 동일한 단계 — 가독성을 위해 한 단계 상향) ──
 const T = {
-  h1: { fontSize: 26, fontWeight: 700 },
-  h2: { fontSize: 18, fontWeight: 700 },
-  h3: { fontSize: 15, fontWeight: 700 },
-  body: { fontSize: 14, lineHeight: 1.7 },
-  label: { fontSize: 13, fontWeight: 600 },
-  caption: { fontSize: 12 },
+  h1: { fontSize: 28, fontWeight: 700 },
+  h2: { fontSize: 20, fontWeight: 700 },
+  h3: { fontSize: 16, fontWeight: 700 },
+  body: { fontSize: 15, lineHeight: 1.7 },
+  label: { fontSize: 14, fontWeight: 600 },
+  caption: { fontSize: 13 },
 } as const;
 
 const balance = { textWrap: "balance" as const };
@@ -76,7 +76,7 @@ function TreeRow({ node, depth, expanded, onToggle }: {
         <span className="px-1.5 py-0.5 rounded shrink-0" style={{ ...T.caption, fontWeight: 600, background: C.brandSoft, color: C.text2 }}>
           {node.level}
         </span>
-        <span className="truncate" style={{ fontSize: 14.5, fontWeight: 500, color: C.text1 }}>{node.name}</span>
+        <span className="truncate" style={{ fontSize: 15.5, fontWeight: 500, color: C.text1 }}>{node.name}</span>
         {node.managerName && (
           <span className="shrink-0" style={{ ...T.label, fontWeight: 500, color: C.text3 }}>담당: {node.managerName}</span>
         )}
@@ -229,12 +229,12 @@ export default function AssetAuditManagerPage() {
       <div className="px-4 sm:px-6 md:px-10 py-10 md:py-14">
         <div className="max-w-3xl mx-auto">
           <div className="text-center mb-8">
-            <h1 className="text-[26px] sm:text-[30px] font-bold mb-2.5" style={{ ...balance, color: C.text1, letterSpacing: "-0.01em" }}>직책자 실사 현황 조회</h1>
-            <p style={{ ...T.body, ...pretty, fontSize: 15, color: C.text3 }}>담당 조직의 자산 실사 진행률을 확인하고, 미완료 인원에게 독려 메일을 보낼 수 있습니다.</p>
+            <h1 className="text-[28px] sm:text-[34px] font-bold mb-3" style={{ ...balance, color: C.text1, letterSpacing: "-0.01em" }}>직책자 실사 현황 조회</h1>
+            <p style={{ ...T.body, ...pretty, fontSize: 16, color: C.text3 }}>담당 조직의 자산 실사 진행률을 확인하고, 미완료 인원에게 독려 메일을 보낼 수 있습니다.</p>
           </div>
 
           {!token ? (
-            <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm max-w-md mx-auto" style={{ border: `1px solid ${C.border}` }}>
+            <div className="bg-white rounded-3xl p-7 md:p-9 shadow-sm max-w-md mx-auto" style={{ border: `1px solid ${C.border}` }}>
               <h2 className="mb-4" style={{ ...T.h2, color: C.text1 }}>이메일 인증</h2>
 
               <div className="mb-4">
@@ -246,7 +246,7 @@ export default function AssetAuditManagerPage() {
                   disabled={step === "code"}
                   placeholder="name@company.com"
                   className="w-full px-3 py-2 rounded-lg disabled:bg-gray-50"
-                  style={{ fontSize: 14.5, border: `1px solid ${C.border}` }}
+                  style={{ fontSize: 15.5, border: `1px solid ${C.border}` }}
                 />
               </div>
 
@@ -258,7 +258,7 @@ export default function AssetAuditManagerPage() {
                     onChange={e => setCode(e.target.value)}
                     placeholder="123456"
                     className="w-full px-3 py-2 rounded-lg tracking-widest"
-                    style={{ fontSize: 14.5, border: `1px solid ${C.border}` }}
+                    style={{ fontSize: 15.5, border: `1px solid ${C.border}` }}
                   />
                   <p className="mt-1" style={{ ...T.caption, color: C.text3 }}>{email}로 발송된 인증코드를 입력해주세요.</p>
                 </div>
@@ -269,8 +269,8 @@ export default function AssetAuditManagerPage() {
               <button
                 onClick={step === "email" ? requestCode : verifyCode}
                 disabled={sending || (step === "email" ? !email.trim() : !code.trim()) || loadingTree}
-                className="w-full h-11 rounded-xl text-white disabled:opacity-40"
-                style={{ fontSize: 15, fontWeight: 700, background: C.brand }}
+                className="w-full h-12 rounded-xl text-white disabled:opacity-40"
+                style={{ fontSize: 16, fontWeight: 700, background: C.brand }}
               >
                 {sending || loadingTree ? "처리 중…" : step === "email" ? "인증코드 받기" : "확인하고 조회하기"}
               </button>
@@ -283,10 +283,10 @@ export default function AssetAuditManagerPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="bg-white rounded-3xl p-6 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
+              <div className="bg-white rounded-3xl p-7 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
                 <div className="flex items-center justify-between mb-1">
                   <h2 style={{ ...T.h2, color: C.text1 }}>{unit?.name ?? ""} 전체 진행률</h2>
-                  <span style={{ fontSize: 19, fontWeight: 700, color: overallComplete ? C.good : C.text1 }}>{overallPct}%</span>
+                  <span style={{ fontSize: 21, fontWeight: 700, color: overallComplete ? C.good : C.text1 }}>{overallPct}%</span>
                 </div>
                 <p className="mb-3" style={{ ...T.body, color: C.text3 }}>
                   총 {unit?.rollupProgress.total ?? 0}건 중 {unit?.rollupProgress.verified ?? 0}건 실사 확인 완료
@@ -315,7 +315,7 @@ export default function AssetAuditManagerPage() {
                 </div>
               </div>
 
-              <div className="bg-white rounded-3xl p-4 md:p-6 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
+              <div className="bg-white rounded-3xl p-5 md:p-7 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
                 <div className="flex items-center justify-between mb-2 px-1">
                   <h3 style={{ ...T.h3, color: C.text1 }}>조직별 상세 현황</h3>
                   <div className="flex items-center gap-2">

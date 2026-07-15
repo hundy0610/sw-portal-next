@@ -18,14 +18,14 @@ const C = {
   dangerSoft:   "var(--state-risk-soft)",
 } as const;
 
-// ── 타입 스케일 (임의 픽셀값 대신 고정된 단계만 사용) ──
+// ── 타입 스케일 (임의 픽셀값 대신 고정된 단계만 사용 — 가독성을 위해 한 단계 상향) ──
 const T = {
-  h1: { fontSize: 28, fontWeight: 700 },
-  h2: { fontSize: 18, fontWeight: 700 },
-  h3: { fontSize: 15, fontWeight: 700 },
-  body: { fontSize: 14, lineHeight: 1.7 },
-  label: { fontSize: 13, fontWeight: 600 },
-  caption: { fontSize: 12 },
+  h1: { fontSize: 30, fontWeight: 700 },
+  h2: { fontSize: 20, fontWeight: 700 },
+  h3: { fontSize: 16, fontWeight: 700 },
+  body: { fontSize: 15, lineHeight: 1.7 },
+  label: { fontSize: 14, fontWeight: 600 },
+  caption: { fontSize: 13 },
 } as const;
 
 const balance = { textWrap: "balance" as const };
@@ -72,7 +72,7 @@ const PURPOSE_ITEMS: { title: string; desc: string; icon: React.ReactNode }[] = 
     title: "신속한 업무 지원",
     desc: "장애나 불편사항 접수 시, 자산 현황을 미리 파악하고 있으면 더 빠르고 정확하게 도와드릴 수 있습니다.",
     icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" />
       </svg>
     ),
@@ -81,7 +81,7 @@ const PURPOSE_ITEMS: { title: string; desc: string; icon: React.ReactNode }[] = 
     title: "보안 관리 강화",
     desc: "회사 IT 자산의 위치와 사용 현황을 정확히 파악해 보안 사고를 예방하고, 발생 시에도 신속하게 조치합니다.",
     icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" /><path d="M9.5 12l1.8 1.8L14.5 10" />
       </svg>
     ),
@@ -90,7 +90,7 @@ const PURPOSE_ITEMS: { title: string; desc: string; icon: React.ReactNode }[] = 
     title: "업무 환경 개선",
     desc: "실제 사용 현황을 파악해, 여러분이 더 나은 환경에서 일하실 수 있도록 개선점을 찾는 데 활용합니다.",
     icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M14.5 3.5a3 3 0 1 1 3 5.2L9 17.2l-4.5 1.3 1.3-4.5 8.7-8.7z" />
       </svg>
     ),
@@ -99,7 +99,7 @@ const PURPOSE_ITEMS: { title: string; desc: string; icon: React.ReactNode }[] = 
     title: "불필요한 지출 방지",
     desc: "실제 사용 중인 자산을 정확히 파악해 중복 구매나 불필요한 계약을 줄이고, 예산을 효율적으로 운영합니다.",
     icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18" /><circle cx="16" cy="14.5" r="1.4" fill="currentColor" stroke="none" />
       </svg>
     ),
@@ -108,7 +108,7 @@ const PURPOSE_ITEMS: { title: string; desc: string; icon: React.ReactNode }[] = 
     title: "라이선스 사용 규정 준수",
     desc: "웹 구독형 SW는 제외하고 PC에 설치된 SW만 확인합니다. 제조사의 라이선스 위반 공문이 늘고 있어, 규정 위반 사용을 사전에 예방하기 위함입니다.",
     icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M9 15l2 2 4-4" />
       </svg>
     ),
@@ -169,10 +169,10 @@ export default function AssetAuditProgramPage() {
         <div className="max-w-2xl mx-auto">
           {/* ── 헤더 ── */}
           <div className="text-center mb-8 md:mb-10">
-            <h1 className="text-[28px] sm:text-[34px] font-bold mb-2.5" style={{ ...balance, color: C.text1, letterSpacing: "-0.01em" }}>
+            <h1 className="text-[30px] sm:text-[38px] font-bold mb-3" style={{ ...balance, color: C.text1, letterSpacing: "-0.01em" }}>
               {loading ? " " : cfg?.title}
             </h1>
-            <p className="max-w-xl mx-auto" style={{ ...T.body, ...pretty, fontSize: 15, color: C.text3 }}>
+            <p className="max-w-xl mx-auto" style={{ ...T.body, ...pretty, fontSize: 16, color: C.text3 }}>
               {loading ? "" : cfg?.description}
             </p>
             {!loading && deadlineLabel && (
@@ -196,7 +196,7 @@ export default function AssetAuditProgramPage() {
               {/* ══ 참여 안내 및 동의 / 다운로드 — 실제로 해야 할 일을 최상단에 ══ */}
               <div>
                 {!consented ? (
-                  <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
+                  <div className="bg-white rounded-3xl p-7 md:p-9 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
                     <h2 className="mb-4" style={{ ...T.h2, color: C.text1 }}>참여 안내 및 동의</h2>
 
                     {noticeItems.length > 0 && (
@@ -219,7 +219,7 @@ export default function AssetAuditProgramPage() {
                         <ol className="space-y-2">
                           {steps.map((step, i) => (
                             <li key={i} className="flex items-start gap-2.5">
-                              <span className="shrink-0 w-5 h-5 rounded-full text-white flex items-center justify-center"
+                              <span className="shrink-0 w-6 h-6 rounded-full text-white flex items-center justify-center"
                                 style={{ ...T.caption, fontWeight: 700, background: C.brand }}>{i + 1}</span>
                               <span className="pt-0.5" style={{ ...T.body, ...pretty, color: C.text2 }}>{step.replace(/^\d+[.)]\s*/, "")}</span>
                             </li>
@@ -231,7 +231,7 @@ export default function AssetAuditProgramPage() {
                     <label className="flex items-start gap-2.5 mb-5 cursor-pointer">
                       <input type="checkbox" checked={consentChecked}
                         onChange={e => setConsentChecked(e.target.checked)}
-                        className="mt-0.5 shrink-0 w-4 h-4 accent-current"
+                        className="mt-0.5 shrink-0 w-5 h-5 accent-current"
                         style={{ color: C.brand }} />
                       <span style={{ ...T.body, ...pretty, color: C.text2 }}>
                         위 수집 항목과 진행 절차를 확인했으며, 자산실사를 위한 정보 수집에 동의합니다.
@@ -241,14 +241,14 @@ export default function AssetAuditProgramPage() {
                     <button
                       onClick={() => setConsented(true)}
                       disabled={!consentChecked}
-                      className="w-full h-12 rounded-xl text-white flex items-center justify-center transition-opacity hover:opacity-90 disabled:opacity-40"
-                      style={{ fontSize: 15, fontWeight: 700, background: C.brand }}
+                      className="w-full h-14 rounded-xl text-white flex items-center justify-center transition-opacity hover:opacity-90 disabled:opacity-40"
+                      style={{ fontSize: 16, fontWeight: 700, background: C.brand }}
                     >
                       동의하고 계속하기
                     </button>
                   </div>
                 ) : (
-                  <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
+                  <div className="bg-white rounded-3xl p-7 md:p-9 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
                     <h2 className="mb-4" style={{ ...T.h2, color: C.text1 }}>프로그램 다운로드</h2>
 
                     {(cfg.version || cfg.updatedAt || primaryFile.size) && (
@@ -272,14 +272,14 @@ export default function AssetAuditProgramPage() {
                       <a
                         href={primaryFile.url}
                         download={primaryFile.name ?? undefined}
-                        className="w-full h-12 rounded-xl text-white flex items-center justify-center transition-opacity hover:opacity-90"
-                        style={{ fontSize: 15, fontWeight: 700, background: C.brand, textDecoration: "none" }}
+                        className="w-full h-14 rounded-xl text-white flex items-center justify-center transition-opacity hover:opacity-90"
+                        style={{ fontSize: 16, fontWeight: 700, background: C.brand, textDecoration: "none" }}
                       >
                         {primaryFile.label}
                       </a>
                     ) : (
-                      <div className="w-full h-12 rounded-xl flex items-center justify-center"
-                        style={{ fontSize: 15, fontWeight: 700, background: C.bg, color: C.text3 }}>
+                      <div className="w-full h-14 rounded-xl flex items-center justify-center"
+                        style={{ fontSize: 16, fontWeight: 700, background: C.bg, color: C.text3 }}>
                         아직 업로드된 파일이 없습니다
                       </div>
                     )}
@@ -297,7 +297,7 @@ export default function AssetAuditProgramPage() {
                       <ol className="space-y-2 mb-4">
                         {(os === "mac" ? INSTALL_STEPS.mac : INSTALL_STEPS.windows).map((step, i) => (
                           <li key={i} className="flex items-start gap-2.5">
-                            <span className="shrink-0 w-5 h-5 rounded-full text-white flex items-center justify-center"
+                            <span className="shrink-0 w-6 h-6 rounded-full text-white flex items-center justify-center"
                               style={{ ...T.caption, fontWeight: 700, background: C.brand }}>{i + 1}</span>
                             <span className="pt-0.5" style={{ ...T.body, ...pretty, color: C.text2 }}>{step}</span>
                           </li>
@@ -319,13 +319,13 @@ export default function AssetAuditProgramPage() {
 
               {/* ══ 왜 자산실사를 진행하나요 + 양해 말씀 — 참고용 설명은 행동 카드 다음에 ══ */}
               <div className="space-y-5">
-                <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
+                <div className="bg-white rounded-3xl p-7 md:p-9 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
                   <h2 className="mb-1" style={{ ...T.h2, color: C.text1 }}>왜 자산실사를 진행하나요?</h2>
                   <p className="mb-5" style={{ ...T.label, fontWeight: 500, color: C.text3 }}>이번 실사가 만들어내는 실질적인 운영상의 이점입니다.</p>
                   <div className="grid sm:grid-cols-2 gap-4">
                     {PURPOSE_ITEMS.map(item => (
                       <div key={item.title} className="flex gap-3">
-                        <div className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
+                        <div className="shrink-0 w-11 h-11 rounded-xl flex items-center justify-center"
                           style={{ background: C.brandSoft, color: C.brand }}>
                           {item.icon}
                         </div>
