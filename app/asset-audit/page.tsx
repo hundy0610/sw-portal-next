@@ -234,7 +234,7 @@ export default function AssetAuditProgramPage() {
               {loading ? " " : cfg?.title}
             </h1>
             <p className="max-w-xl mx-auto" style={{ ...T.body, ...pretty, fontSize: 15.5, color: C.text3 }}>
-              {loading ? "" : cfg?.description}{" "}바쁘신 중에 시간 내어 협조해 주셔서 감사드리며, 업무에 부담 없도록 간단히 준비했습니다.
+              {loading ? "" : cfg?.description}{" "}바쁘신 중에 시간 내어 협조해 주셔서 감사드리며, 업무에 부담 없도록 간단히{" "}준비했습니다.
             </p>
             {!loading && deadlineLabel && (
               <span className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 rounded-full whitespace-nowrap"
