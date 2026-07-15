@@ -78,9 +78,12 @@ export default function AssetAuditSettingsPanel() {
     setUploadPct(0);
     setUploadError("");
     try {
+      // 브라우저가 .exe/.dmg의 file.type을 신뢰할 수 없게(대부분 빈 문자열로) 보고하는
+      // 경우가 많아, 서버 허용 목록에 있는 범용 바이너리 타입으로 명시적으로 고정한다.
       const blob = await upload(file.name, file, {
         access: "public",
         handleUploadUrl: "/api/asset-audit/upload",
+        contentType: "application/octet-stream",
         onUploadProgress: ({ percentage }) => setUploadPct(percentage),
       });
       const patch = os === "windows"
