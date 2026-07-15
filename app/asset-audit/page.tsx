@@ -173,18 +173,18 @@ export default function AssetAuditProgramPage() {
         </div>
       </header>
 
-      <div className="px-4 sm:px-6 md:px-10 py-10 md:py-14">
-        <div className="max-w-2xl mx-auto">
+      <div className="px-4 sm:px-6 md:px-10 py-8 md:py-10">
+        <div className="max-w-5xl mx-auto">
           {/* ── 헤더 ── */}
-          <div className="text-center mb-8 md:mb-10">
-            <h1 className="text-[30px] sm:text-[38px] font-bold mb-3" style={{ ...balance, color: C.text1, letterSpacing: "-0.01em" }}>
+          <div className="text-center mb-5 md:mb-6">
+            <h1 className="text-[26px] sm:text-[32px] font-bold mb-2" style={{ ...balance, color: C.text1, letterSpacing: "-0.01em" }}>
               {loading ? " " : cfg?.title}
             </h1>
-            <p className="max-w-xl mx-auto" style={{ ...T.body, ...pretty, fontSize: 16, color: C.text3 }}>
+            <p className="max-w-xl mx-auto" style={{ ...T.body, ...pretty, fontSize: 15, color: C.text3 }}>
               {loading ? "" : cfg?.description}
             </p>
             {!loading && deadlineLabel && (
-              <span className="inline-flex items-center gap-1.5 mt-4 px-3 py-1.5 rounded-full whitespace-nowrap"
+              <span className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 rounded-full whitespace-nowrap"
                 style={{ ...T.label, background: C.brandSoft, color: C.text2 }}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
                 {deadlineLabel}까지 참여 부탁드립니다
@@ -200,12 +200,12 @@ export default function AssetAuditProgramPage() {
           )}
 
           {!loading && cfg?.open && (
-            <div className="space-y-6">
-              {/* ══ 참여 안내 및 동의 / 다운로드 — 실제로 해야 할 일을 최상단에 ══ */}
+            <div className="grid md:grid-cols-2 gap-5 items-start">
+              {/* ══ 왼쪽: 참여 안내 및 동의 / 다운로드 — 실제로 해야 할 일 ══ */}
               <div>
                 {!consented ? (
-                  <div className="bg-white rounded-3xl p-7 md:p-9 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
-                    <h2 className="mb-4" style={{ ...T.h2, color: C.text1 }}>참여 안내 및 동의</h2>
+                  <div className="bg-white rounded-3xl p-6 md:p-7 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
+                    <h2 className="mb-3" style={{ ...T.h2, color: C.text1 }}>참여 안내 및 동의</h2>
 
                     {noticeItems.length > 0 && (
                       <div className="rounded-xl p-4 mb-4" style={{ background: C.bg, border: `1px solid ${C.border}` }}>
@@ -222,9 +222,9 @@ export default function AssetAuditProgramPage() {
                     )}
 
                     {steps.length > 0 && (
-                      <div className="mb-5">
+                      <div className="mb-4">
                         <p className="mb-2" style={{ ...T.label, color: C.text2 }}>진행 절차</p>
-                        <ol className="space-y-2">
+                        <ol className="space-y-1.5">
                           {steps.map((step, i) => (
                             <li key={i} className="flex items-start gap-2.5">
                               <span className="shrink-0 w-6 h-6 rounded-full text-white flex items-center justify-center"
@@ -236,7 +236,7 @@ export default function AssetAuditProgramPage() {
                       </div>
                     )}
 
-                    <label className="flex items-start gap-2.5 mb-5 cursor-pointer">
+                    <label className="flex items-start gap-2.5 mb-4 cursor-pointer">
                       <input type="checkbox" checked={consentChecked}
                         onChange={e => setConsentChecked(e.target.checked)}
                         className="mt-0.5 shrink-0 w-5 h-5 accent-current"
@@ -249,18 +249,18 @@ export default function AssetAuditProgramPage() {
                     <button
                       onClick={() => setConsented(true)}
                       disabled={!consentChecked}
-                      className="w-full h-14 rounded-xl text-white flex items-center justify-center transition-opacity hover:opacity-90 disabled:opacity-40"
+                      className="w-full h-12 rounded-xl text-white flex items-center justify-center transition-opacity hover:opacity-90 disabled:opacity-40"
                       style={{ fontSize: 16, fontWeight: 700, background: C.brand }}
                     >
                       동의하고 계속하기
                     </button>
                   </div>
                 ) : (
-                  <div className="bg-white rounded-3xl p-7 md:p-9 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
-                    <h2 className="mb-4" style={{ ...T.h2, color: C.text1 }}>프로그램 다운로드</h2>
+                  <div className="bg-white rounded-3xl p-6 md:p-7 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
+                    <h2 className="mb-3" style={{ ...T.h2, color: C.text1 }}>프로그램 다운로드</h2>
 
                     {(cfg.version || cfg.updatedAt || primaryFile.size) && (
-                      <div className="flex flex-wrap items-center gap-2 mb-5" style={{ ...T.label, fontWeight: 500, color: C.text3 }}>
+                      <div className="flex flex-wrap items-center gap-2 mb-4" style={{ ...T.label, fontWeight: 500, color: C.text3 }}>
                         {cfg.version && (
                           <span className="px-2 py-0.5 rounded-full whitespace-nowrap"
                             style={{ fontWeight: 600, background: C.brandSoft, color: C.text2 }}>{cfg.version}</span>
@@ -299,13 +299,13 @@ export default function AssetAuditProgramPage() {
                         download={primaryFile.name ?? undefined}
                         target="_blank"
                         rel="noreferrer"
-                        className="w-full h-14 rounded-xl text-white flex items-center justify-center transition-opacity hover:opacity-90"
+                        className="w-full h-12 rounded-xl text-white flex items-center justify-center transition-opacity hover:opacity-90"
                         style={{ fontSize: 16, fontWeight: 700, background: C.brand, textDecoration: "none" }}
                       >
                         {primaryFile.label}
                       </a>
                     ) : (
-                      <div className="w-full h-14 rounded-xl flex items-center justify-center"
+                      <div className="w-full h-12 rounded-xl flex items-center justify-center"
                         style={{ fontSize: 16, fontWeight: 700, background: C.bg, color: C.text3 }}>
                         아직 업로드된 파일이 없습니다
                       </div>
@@ -319,9 +319,9 @@ export default function AssetAuditProgramPage() {
                       </a>
                     )}
 
-                    <div className="mt-6 pt-6" style={{ borderTop: `1px solid ${C.border}` }}>
-                      <p className="mb-3" style={{ ...T.label, color: C.text2 }}>다운로드 후 실행 방법</p>
-                      <ol className="space-y-2 mb-4">
+                    <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${C.border}` }}>
+                      <p className="mb-2" style={{ ...T.label, color: C.text2 }}>다운로드 후 실행 방법</p>
+                      <ol className="space-y-1.5 mb-3">
                         {(os === "mac" ? INSTALL_STEPS.mac : INSTALL_STEPS.windows).map((step, i) => (
                           <li key={i} className="flex items-start gap-2.5">
                             <span className="shrink-0 w-6 h-6 rounded-full text-white flex items-center justify-center"
@@ -330,29 +330,29 @@ export default function AssetAuditProgramPage() {
                           </li>
                         ))}
                       </ol>
-                      <div className="rounded-xl p-4" style={{ background: C.bg, border: `1px solid ${C.border}` }}>
+                      <div className="rounded-xl p-3.5" style={{ background: C.bg, border: `1px solid ${C.border}` }}>
                         <p style={{ ...T.body, ...pretty, color: C.text3 }}>
                           보안 경고 화면이 뜨는 건 정상입니다 — 사내에서 자체 제작한 프로그램이라 별도 인증서가 없어 나타나는 안내이며, 위 방법대로 진행하시면 안전하게 실행됩니다.
                         </p>
                       </div>
                     </div>
 
-                    <p className="text-center mt-4" style={{ ...T.caption, ...pretty, color: C.text3 }}>
+                    <p className="text-center mt-3" style={{ ...T.caption, ...pretty, color: C.text3 }}>
                       문의사항은 자산관리파트로 연락 주세요.
                     </p>
                   </div>
                 )}
               </div>
 
-              {/* ══ 왜 자산실사를 진행하나요 + 양해 말씀 — 참고용 설명은 행동 카드 다음에 ══ */}
-              <div className="space-y-5">
-                <div className="bg-white rounded-3xl p-7 md:p-9 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
+              {/* ══ 오른쪽: 왜 자산실사를 진행하나요 + 양해 말씀 — 참고 설명, 세로 공간을 아끼기 위해 1열 목록으로 ══ */}
+              <div className="space-y-4">
+                <div className="bg-white rounded-3xl p-6 md:p-7 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
                   <h2 className="mb-1" style={{ ...T.h2, color: C.text1 }}>왜 자산실사를 진행하나요?</h2>
-                  <p className="mb-5" style={{ ...T.label, fontWeight: 500, color: C.text3 }}>이번 실사가 만들어내는 실질적인 운영상의 이점입니다.</p>
-                  <div className="grid sm:grid-cols-2 gap-4">
+                  <p className="mb-3" style={{ ...T.label, fontWeight: 500, color: C.text3 }}>이번 실사가 만들어내는 실질적인 운영상의 이점입니다.</p>
+                  <div className="space-y-3">
                     {PURPOSE_ITEMS.map(item => (
                       <div key={item.title} className="flex gap-3">
-                        <div className="shrink-0 w-11 h-11 rounded-xl flex items-center justify-center"
+                        <div className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center"
                           style={{ background: C.brandSoft, color: C.brand }}>
                           {item.icon}
                         </div>
@@ -365,7 +365,7 @@ export default function AssetAuditProgramPage() {
                   </div>
                 </div>
 
-                <div className="rounded-2xl p-5 md:p-6" style={{ background: C.brandSoft, border: `1px solid ${C.border}` }}>
+                <div className="rounded-2xl p-4 md:p-5" style={{ background: C.brandSoft, border: `1px solid ${C.border}` }}>
                   <p style={{ ...T.body, ...pretty, color: C.text2 }}>
                     바쁘신 업무 중에도 잠시 시간을 내어 협조해 주셔서 진심으로 감사드립니다.
                     이번 실사는 여러분의 업무에 최대한 부담을 드리지 않도록, 프로그램 실행만으로 간단히 완료되게 준비했습니다.
