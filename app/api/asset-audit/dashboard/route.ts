@@ -5,8 +5,7 @@ import { type HwRecord } from "@/lib/hw";
 import { kvGet } from "@/lib/kv-store";
 import { triggerWarmHw } from "@/lib/trigger-warm-hw";
 import { fetchPcScans, matchPcScansWithHw } from "@/lib/pc-scan";
-import { fetchContracts } from "@/lib/contract-notion";
-import { COMPANIES, normalizeCompany, EXCLUDED_FROM_AUDIT_DASHBOARD } from "@/lib/companies";
+import { COMPANIES, normalizeCompany, EXCLUDED_FROM_AUDIT_DASHBOARD, AUDIT_CONTRACT_QTY } from "@/lib/companies";
 import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
@@ -41,8 +40,8 @@ export async function GET(req: NextRequest) {
     // HW 자산은 전사 전체를 매번 Notion에서 라이브로 페이지네이션하면(수십 초 소요)
     // 응답이 지나치게 느려지므로, 30분마다 갱신되는 KV 캐시(hw:all — /api/hw,
     // /api/admin/pc-scan 등 다른 화면들도 동일하게 이 캐시를 사용한다)를 사용한다.
-    const [units, hwAll, contracts, scans] = await Promise.all([
-      fetchOrgUnits(), kvGet<HwRecord[]>("hw:all"), fetchContracts(), fetchPcScans(),
+    const [units, hwAll, scans] = await Promise.all([
+      fetchOrgUnits(), kvGet<HwRecord[]>("hw:all"), fetchPcScans(),
     ]);
     if (!hwAll) triggerWarmHw().catch(console.warn);
     const hwRecords = hwAll ?? [];
@@ -63,9 +62,10 @@ export async function GET(req: NextRequest) {
     const matches = matchPcScansWithHw(scans, hwRecords);
     const verifiedAssetIds = new Set(matches.filter(m => m.masterExists && m.masterId).map(m => m.masterId as string));
 
-    // 만료되지 않은(active + pending) 계약만 "현재 계약 수량"으로 집계
-    const liveContracts = contracts.filter(c => c.status !== "expired");
-    const contractQtyTotal = liveContracts.reduce((sum, c) => sum + c.quantity, 0);
+    // 계약 수량은 관리 기능의 "계약 관리"(실제 계약 레코드)와는 별개로, 관리자가
+    // 직접 전달한 고정 수치(AUDIT_CONTRACT_QTY)를 사용한다 — 계약 관리 쪽 수량이
+    // 바뀌어도 이 대시보드의 달성률에는 영향을 주지 않는다.
+    const contractQtyTotal = Object.values(AUDIT_CONTRACT_QTY).reduce((sum, q) => sum + q, 0);
     const hwTotal = hwRecords.length;
     const hwVerified = verifiedAssetIds.size;
     const achievementRate = contractQtyTotal > 0 ? Math.round((hwVerified / contractQtyTotal) * 100) : 0;
@@ -76,12 +76,10 @@ export async function GET(req: NextRequest) {
     const byCompany: CompanyAchievement[] = COMPANIES
       .filter(company => !EXCLUDED_FROM_AUDIT_DASHBOARD.includes(company))
       .map(company => {
-      const contractQty = liveContracts
-        .filter(c => normalizeCompany(c.company) === company)
-        .reduce((sum, c) => sum + c.quantity, 0);
-      const companyHw = hwRecords.filter(r => normalizeCompany(r.company) === company);
-      return { company, contractQty, hwTotal: companyHw.length, hwVerified: companyHw.filter(r => verifiedAssetIds.has(r.id)).length };
-    })
+        const contractQty = AUDIT_CONTRACT_QTY[company] ?? 0;
+        const companyHw = hwRecords.filter(r => normalizeCompany(r.company) === company);
+        return { company, contractQty, hwTotal: companyHw.length, hwVerified: companyHw.filter(r => verifiedAssetIds.has(r.id)).length };
+      })
       .filter(c => c.contractQty > 0 || c.hwTotal > 0)
       .sort((a, b) => b.hwTotal - a.hwTotal);
 
