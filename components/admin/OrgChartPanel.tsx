@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { safeJson } from "@/lib/fetch-json";
-import type { OrgUnit, OrgLevel } from "@/lib/org-chart";
+import { parseMembers, serializeMembers, type OrgUnit, type OrgLevel } from "@/lib/org-chart";
 
 const LEVELS: OrgLevel[] = ["사업부", "본부", "센터", "팀"];
 
@@ -13,15 +13,15 @@ type FormState = {
   parentId: string;
   managerEmail: string;
   managerName: string;
-  deptMapping: string;
+  membersText: string;
 };
 
-const EMPTY_FORM: FormState = { name: "", company: "", level: "팀", parentId: "", managerEmail: "", managerName: "", deptMapping: "" };
+const EMPTY_FORM: FormState = { name: "", company: "", level: "팀", parentId: "", managerEmail: "", managerName: "", membersText: "" };
 
 function unitToForm(u: OrgUnit): FormState {
   return {
     name: u.name, company: u.company, level: u.level, parentId: u.parentId ?? "",
-    managerEmail: u.managerEmail, managerName: u.managerName, deptMapping: u.deptMapping.join(", "),
+    managerEmail: u.managerEmail, managerName: u.managerName, membersText: serializeMembers(u.members),
   };
 }
 
@@ -114,7 +114,7 @@ export default function OrgChartPanel() {
         parentId: form.parentId || null,
         managerEmail: form.managerEmail.trim(),
         managerName: form.managerName.trim(),
-        deptMapping: form.deptMapping.split(",").map(s => s.trim()).filter(Boolean),
+        members: parseMembers(form.membersText),
       };
       const body = editingId ? { _action: "update", id: editingId, data } : data;
       const res = await fetch("/api/org-chart", {
@@ -171,8 +171,8 @@ export default function OrgChartPanel() {
           <span className="text-sm font-medium text-gray-900 truncate">{unit.name}</span>
           {unit.company && <span className="text-xs text-gray-400 shrink-0">· {unit.company}</span>}
           {unit.managerName && <span className="text-xs text-gray-500 shrink-0">담당: {unit.managerName}{unit.managerEmail ? ` (${unit.managerEmail})` : ""}</span>}
-          {unit.deptMapping.length > 0 && (
-            <span className="text-[11px] text-gray-400 shrink-0">부서 {unit.deptMapping.length}개 매핑</span>
+          {unit.members.length > 0 && (
+            <span className="text-[11px] text-gray-400 shrink-0">인원 {unit.members.length}명</span>
           )}
           <div className="flex-1" />
           <button onClick={() => openCreate(unit.id)} className="text-xs text-blue-600 hover:underline shrink-0">+ 하위추가</button>
@@ -195,7 +195,7 @@ export default function OrgChartPanel() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-bold text-gray-900">조직도 관리</h2>
-          <p className="text-xs text-gray-400 mt-0.5">사업부/본부/센터/팀 계층과 직책자, 실사 진행률 집계용 부서 매핑을 관리합니다.</p>
+          <p className="text-xs text-gray-400 mt-0.5">사업부/본부/센터/팀 계층과 직책자, 실사 진행률 집계용 소속 인원 명단을 관리합니다.</p>
         </div>
         <button
           onClick={() => openCreate(null)}
@@ -288,15 +288,17 @@ export default function OrgChartPanel() {
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-gray-500 mb-1">매핑 부서명 (콤마로 구분)</label>
+              <label className="block text-[11px] font-semibold text-gray-500 mb-1">소속 인원 명단 (콤마로 구분, &quot;이름:이메일&quot;)</label>
               <textarea
-                value={form.deptMapping}
-                onChange={e => setForm(f => ({ ...f, deptMapping: e.target.value }))}
-                rows={2}
-                placeholder="예: 개발1팀, 개발2팀"
-                className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg"
+                value={form.membersText}
+                onChange={e => setForm(f => ({ ...f, membersText: e.target.value }))}
+                rows={3}
+                placeholder="예: 김철수:kim@company.com, 이영희:lee@company.com"
+                className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg font-mono"
               />
-              <p className="text-[10px] text-gray-400 mt-1">하드웨어 자산관리의 &quot;부서&quot; 값과 일치해야 실사 진행률에 반영됩니다.</p>
+              <p className="text-[10px] text-gray-400 mt-1">
+                진행률은 이 명단의 이메일이 PC 실사 프로그램 제출 기록에 있는지로 계산합니다(하드웨어 자산 마스터 데이터와 무관). 이름 없이 이메일만 적어도 됩니다.
+              </p>
             </div>
 
             {saveError && <p className="text-xs text-red-600">{saveError}</p>}

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyManagerToken } from "@/lib/asset-audit-token";
-import { fetchOrgUnits, buildOrgTree, findSubtree } from "@/lib/org-chart";
-import { fetchAllHwRecords } from "@/lib/hw";
+import { fetchOrgUnits, buildOrgTree, findSubtree, fetchSubmittedEmails } from "@/lib/org-chart";
 import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
@@ -21,8 +20,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "인증이 만료되었습니다. 다시 로그인해주세요." }, { status: 401 });
     }
 
-    const [units, hwRecords] = await Promise.all([fetchOrgUnits(), fetchAllHwRecords()]);
-    const tree = buildOrgTree(units, hwRecords);
+    const [units, submittedEmails] = await Promise.all([fetchOrgUnits(), fetchSubmittedEmails()]);
+    const tree = buildOrgTree(units, submittedEmails);
     const subtree = findSubtree(tree, payload.unitId);
     if (!subtree) {
       return NextResponse.json({ ok: false, error: "조직 정보를 찾을 수 없습니다." }, { status: 404 });

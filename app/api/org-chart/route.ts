@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
       parentId: body.parentId ?? null,
       managerEmail: body.managerEmail ?? "",
       managerName: body.managerName ?? "",
-      deptMapping: body.deptMapping ?? [],
+      members: body.members ?? [],
     });
     await appendAdminAuditLog({ adminId: session.userId, adminName, action: "create", target: "orgChart", itemTitle: `조직도: ${body.name ?? ""}`, timestamp: new Date().toISOString() });
     return NextResponse.json({ ok: true, id });

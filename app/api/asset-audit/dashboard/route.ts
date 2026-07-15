@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";
-import { fetchOrgUnits, buildOrgTree, type OrgTreeNode } from "@/lib/org-chart";
+import { fetchOrgUnits, buildOrgTree, fetchSubmittedEmails, type OrgTreeNode } from "@/lib/org-chart";
 import { fetchAllHwRecords } from "@/lib/hw";
 import { fetchContracts } from "@/lib/contract-notion";
 import { errorMessage } from "@/lib/api-error";
@@ -31,11 +31,13 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [units, hwRecords, contracts] = await Promise.all([
-      fetchOrgUnits(), fetchAllHwRecords(), fetchContracts(),
+    const [units, submittedEmails, hwRecords, contracts] = await Promise.all([
+      fetchOrgUnits(), fetchSubmittedEmails(), fetchAllHwRecords(), fetchContracts(),
     ]);
 
-    const tree = buildOrgTree(units, hwRecords);
+    // 조직별 실사 진행률(트리)은 실제 소속 인원 명단 vs PC 실사 제출 기록으로 계산한다.
+    // 계약 수량 대비 달성률(아래)은 이와 별개로 하드웨어 자산 대수 기준 지표라 그대로 둔다.
+    const tree = buildOrgTree(units, submittedEmails);
 
     // 만료되지 않은(active + pending) 계약만 "현재 계약 수량"으로 집계
     const liveContracts = contracts.filter(c => c.status !== "expired");
