@@ -272,6 +272,8 @@ export default function AssetAuditProgramPage() {
                       <a
                         href={primaryFile.url}
                         download={primaryFile.name ?? undefined}
+                        target="_blank"
+                        rel="noreferrer"
                         className="w-full h-14 rounded-xl text-white flex items-center justify-center transition-opacity hover:opacity-90"
                         style={{ fontSize: 16, fontWeight: 700, background: C.brand, textDecoration: "none" }}
                       >
@@ -285,7 +287,7 @@ export default function AssetAuditProgramPage() {
                     )}
 
                     {otherFile.url && (
-                      <a href={otherFile.url} download
+                      <a href={otherFile.url} download target="_blank" rel="noreferrer"
                         className="block text-center mt-3 hover:underline"
                         style={{ ...T.label, fontWeight: 500, color: C.text3, textDecoration: "none" }}>
                         {otherFile.label}

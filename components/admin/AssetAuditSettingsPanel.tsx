@@ -23,6 +23,8 @@ export default function AssetAuditSettingsPanel() {
   const [uploadPct, setUploadPct] = useState(0);
   const [uploadError, setUploadError] = useState("");
   const [expanded, setExpanded] = useState(false);
+  const [linkDraft, setLinkDraft] = useState({ windows: "", mac: "" });
+  const [savingLink, setSavingLink] = useState<OsKind | null>(null);
   const windowsInputRef = useRef<HTMLInputElement>(null);
   const macInputRef     = useRef<HTMLInputElement>(null);
 
@@ -32,8 +34,32 @@ export default function AssetAuditSettingsPanel() {
       .then((data: AssetAuditConfig) => {
         setCfg(data);
         setDraft({ title: data.title, description: data.description, guide: data.guide, version: data.version, dataCollectionNotice: data.dataCollectionNotice, deadline: data.deadline ?? "" });
+        setLinkDraft({ windows: data.windowsFileUrl ?? "", mac: data.macFileUrl ?? "" });
       });
   }, []);
+
+  // 사내 네트워크에서 Vercel Blob 업로드가 막히는 경우(SSL 검사 프록시 등)를 위한
+  // 대안 — 사내 클라우드(네이버웍스 드라이브 등)에 올린 파일의 공유 링크를 직접 등록한다.
+  async function saveLink(os: OsKind) {
+    const url = linkDraft[os].trim();
+    if (!url) return;
+    setSavingLink(os);
+    try {
+      const name = decodeURIComponent(url.split("/").pop()?.split("?")[0] || (os === "windows" ? "설치파일.exe" : "설치파일.dmg"));
+      const patch = os === "windows"
+        ? { windowsFileUrl: url, windowsFileName: name, windowsFileSize: null }
+        : { macFileUrl: url, macFileName: name, macFileSize: null };
+      const res = await fetch("/api/asset-audit/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...patch, updatedAt: new Date().toISOString() }),
+      });
+      const json = await safeJson(res);
+      if (json?.config) setCfg(json.config);
+    } finally {
+      setSavingLink(null);
+    }
+  }
 
   async function saveDraft() {
     setSaving(true);
@@ -241,6 +267,24 @@ export default function AssetAuditSettingsPanel() {
                 className="text-xs"
               />
               {uploading === "windows" && <p className="text-xs text-blue-600 mt-1">업로드 중… {uploadPct}%</p>}
+              <div className="mt-2 pt-2 border-t border-gray-100">
+                <p className="text-[10px] text-gray-400 mb-1">또는 사내 클라우드(네이버웍스 드라이브 등) 공유 링크 직접 등록</p>
+                <div className="flex gap-1.5">
+                  <input
+                    value={linkDraft.windows}
+                    onChange={e => setLinkDraft(d => ({ ...d, windows: e.target.value }))}
+                    placeholder="https://..."
+                    className="flex-1 min-w-0 px-2 py-1 text-xs border border-gray-200 rounded-lg"
+                  />
+                  <button
+                    onClick={() => saveLink("windows")}
+                    disabled={savingLink !== null || !linkDraft.windows.trim()}
+                    className="px-2.5 py-1 text-xs font-medium bg-gray-700 hover:bg-gray-800 text-white rounded-lg disabled:opacity-40 shrink-0"
+                  >
+                    {savingLink === "windows" ? "저장 중…" : "등록"}
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div>
@@ -263,6 +307,24 @@ export default function AssetAuditSettingsPanel() {
                 className="text-xs"
               />
               {uploading === "mac" && <p className="text-xs text-blue-600 mt-1">업로드 중… {uploadPct}%</p>}
+              <div className="mt-2 pt-2 border-t border-gray-100">
+                <p className="text-[10px] text-gray-400 mb-1">또는 사내 클라우드(네이버웍스 드라이브 등) 공유 링크 직접 등록</p>
+                <div className="flex gap-1.5">
+                  <input
+                    value={linkDraft.mac}
+                    onChange={e => setLinkDraft(d => ({ ...d, mac: e.target.value }))}
+                    placeholder="https://..."
+                    className="flex-1 min-w-0 px-2 py-1 text-xs border border-gray-200 rounded-lg"
+                  />
+                  <button
+                    onClick={() => saveLink("mac")}
+                    disabled={savingLink !== null || !linkDraft.mac.trim()}
+                    className="px-2.5 py-1 text-xs font-medium bg-gray-700 hover:bg-gray-800 text-white rounded-lg disabled:opacity-40 shrink-0"
+                  >
+                    {savingLink === "mac" ? "저장 중…" : "등록"}
+                  </button>
+                </div>
+              </div>
             </div>
             {cfg.updatedAt && (
               <p className="col-span-2 text-[11px] text-gray-400">최종 업로드: {new Date(cfg.updatedAt).toLocaleDateString("ko-KR")}</p>
