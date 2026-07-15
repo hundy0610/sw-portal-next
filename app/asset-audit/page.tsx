@@ -181,18 +181,14 @@ export default function AssetAuditProgramPage() {
                 </p>
               )}
 
-              {/* ── 자산실사 목적 (공문 스타일 좌측 강조선 박스) ── */}
-              <div className="rounded-lg p-5 mb-6" style={{ background: C.bg, borderLeft: `4px solid ${C.brand}` }}>
-                <ul className="space-y-2">
-                  {PURPOSE_LINES.map(line => (
-                    <li key={line.label} style={{ ...T.body, ...pretty, color: C.text2 }}>
-                      <strong style={{ color: C.text1 }}>{line.label}</strong>
-                      <span style={{ color: C.text4 }}> · </span>
-                      {line.desc}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              {/* ── 자산실사 목적 — 참여 동의 섹션과 동일한 폰트/색상/크기로 통일 ── */}
+              <ul className="mb-6 space-y-2">
+                {PURPOSE_LINES.map(line => (
+                  <li key={line.label} style={{ ...T.body, ...pretty, color: C.text2 }}>
+                    {line.label} · {line.desc}
+                  </li>
+                ))}
+              </ul>
 
               {/* ── 참여 동의 ── */}
               <h2 className="mb-4 pb-2.5" style={{ ...T.h3, color: C.text1, borderBottom: `1px solid ${C.border}` }}>
