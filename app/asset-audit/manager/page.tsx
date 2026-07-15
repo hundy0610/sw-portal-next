@@ -10,14 +10,25 @@ const C = {
   text1:      "var(--portal-text)",
   text2:      "var(--portal-text-2)",
   text3:      "var(--portal-text-3)",
-  text4:      "var(--portal-text-4)",
   border:     "var(--portal-border)",
   bg:         "var(--portal-bg)",
   bgPage:     "var(--portal-bg-page)",
   good:       "var(--state-positive)",
-  goodSoft:   "var(--state-positive-soft)",
   danger:     "var(--state-risk)",
 } as const;
+
+// ── 타입 스케일 (사용자 페이지와 동일한 단계) ──
+const T = {
+  h1: { fontSize: 26, fontWeight: 700 },
+  h2: { fontSize: 18, fontWeight: 700 },
+  h3: { fontSize: 15, fontWeight: 700 },
+  body: { fontSize: 14, lineHeight: 1.7 },
+  label: { fontSize: 13, fontWeight: 600 },
+  caption: { fontSize: 12 },
+} as const;
+
+const balance = { textWrap: "balance" as const };
+const pretty = { textWrap: "pretty" as const };
 
 const TOKEN_KEY = "asset-audit-manager-token";
 
@@ -49,30 +60,32 @@ function TreeRow({ node, depth, expanded, onToggle }: {
   return (
     <div>
       <div
-        className="flex items-center gap-2.5 py-2.5 rounded-lg hover:bg-gray-50"
+        className="flex items-center gap-2.5 py-2.5 rounded-lg"
         style={{ paddingLeft: 4 + depth * 20 }}
+        onMouseEnter={e => (e.currentTarget.style.background = C.bg)}
+        onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
       >
         <button
           onClick={() => hasChildren && onToggle(node.id)}
-          className="w-4 text-[13px] shrink-0"
-          style={{ color: C.text4 }}
+          className="w-4 shrink-0"
+          style={{ ...T.caption, color: C.text3 }}
           disabled={!hasChildren}
         >
           {hasChildren ? (isOpen ? "▼" : "▶") : ""}
         </button>
-        <span className="px-1.5 py-0.5 text-[11px] font-semibold rounded shrink-0" style={{ background: C.brandSoft, color: C.text2 }}>
+        <span className="px-1.5 py-0.5 rounded shrink-0" style={{ ...T.caption, fontWeight: 600, background: C.brandSoft, color: C.text2 }}>
           {node.level}
         </span>
-        <span className="text-[14.5px] font-medium truncate" style={{ color: C.text1 }}>{node.name}</span>
+        <span className="truncate" style={{ fontSize: 14.5, fontWeight: 500, color: C.text1 }}>{node.name}</span>
         {node.managerName && (
-          <span className="text-[13px] shrink-0" style={{ color: C.text4 }}>담당: {node.managerName}</span>
+          <span className="shrink-0" style={{ ...T.label, fontWeight: 500, color: C.text3 }}>담당: {node.managerName}</span>
         )}
         <div className="flex-1" />
-        <span className="text-[13px] font-semibold shrink-0" style={{ color: complete ? C.good : C.text3 }}>
+        <span className="shrink-0" style={{ ...T.label, color: complete ? C.good : C.text3 }}>
           {node.rollupProgress.verified}/{node.rollupProgress.total}
         </span>
         <ProgressBar value={value} />
-        <span className="text-[13px] font-bold shrink-0 w-9 text-right" style={{ color: complete ? C.good : C.text2 }}>{value}%</span>
+        <span className="shrink-0 w-9 text-right" style={{ ...T.label, color: complete ? C.good : C.text2 }}>{value}%</span>
       </div>
       {isOpen && node.children.map(child => (
         <TreeRow key={child.id} node={child} depth={depth + 1} expanded={expanded} onToggle={onToggle} />
@@ -206,64 +219,64 @@ export default function AssetAuditManagerPage() {
 
   return (
     <div className="min-h-screen" style={{ background: C.bgPage }}>
-      <header className="flex items-center justify-between px-4 sm:px-6 lg:px-10 h-16 bg-white" style={{ borderBottom: `1px solid ${C.border}` }}>
+      <header className="flex items-center justify-between px-4 sm:px-6 md:px-10 h-16 bg-white" style={{ borderBottom: `1px solid ${C.border}` }}>
         <div className="flex items-center gap-3 min-w-0">
           <img src="/logo.png" alt="로고" className="shrink-0" style={{ height: 26, width: "auto", maxWidth: 160, objectFit: "contain" }} />
-          <span className="hidden sm:inline text-sm font-semibold truncate" style={{ color: C.text3 }}>자산 실사 · 직책자</span>
+          <span className="hidden sm:inline truncate" style={{ ...T.label, color: C.text3 }}>자산 실사 · 직책자</span>
         </div>
       </header>
 
-      <div className="px-4 sm:px-6 lg:px-10 py-10 lg:py-14">
+      <div className="px-4 sm:px-6 md:px-10 py-10 md:py-14">
         <div className="max-w-3xl mx-auto">
           <div className="text-center mb-8">
-            <h1 className="text-[26px] sm:text-[30px] font-bold mb-2.5" style={{ color: C.text1, letterSpacing: "-0.01em" }}>직책자 실사 현황 조회</h1>
-            <p className="text-[15px] leading-relaxed" style={{ color: C.text3 }}>담당 조직의 자산 실사 진행률을 확인하고, 미완료 인원에게 독려 메일을 보낼 수 있습니다.</p>
+            <h1 className="text-[26px] sm:text-[30px] font-bold mb-2.5" style={{ ...balance, color: C.text1, letterSpacing: "-0.01em" }}>직책자 실사 현황 조회</h1>
+            <p style={{ ...T.body, ...pretty, fontSize: 15, color: C.text3 }}>담당 조직의 자산 실사 진행률을 확인하고, 미완료 인원에게 독려 메일을 보낼 수 있습니다.</p>
           </div>
 
           {!token ? (
-            <div className="bg-white rounded-3xl p-6 lg:p-8 shadow-sm max-w-md mx-auto" style={{ border: `1px solid ${C.border}` }}>
-              <h2 className="text-[16px] font-bold mb-4" style={{ color: C.text1 }}>이메일 인증</h2>
+            <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm max-w-md mx-auto" style={{ border: `1px solid ${C.border}` }}>
+              <h2 className="mb-4" style={{ ...T.h2, color: C.text1 }}>이메일 인증</h2>
 
               <div className="mb-4">
-                <label className="block text-[13px] font-semibold mb-1" style={{ color: C.text4 }}>직책자 이메일</label>
+                <label className="block mb-1" style={{ ...T.label, color: C.text3 }}>직책자 이메일</label>
                 <input
                   type="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   disabled={step === "code"}
                   placeholder="name@company.com"
-                  className="w-full px-3 py-2 text-[14.5px] rounded-lg disabled:bg-gray-50"
-                  style={{ border: `1px solid ${C.border}` }}
+                  className="w-full px-3 py-2 rounded-lg disabled:bg-gray-50"
+                  style={{ fontSize: 14.5, border: `1px solid ${C.border}` }}
                 />
               </div>
 
               {step === "code" && (
                 <div className="mb-4">
-                  <label className="block text-[13px] font-semibold mb-1" style={{ color: C.text4 }}>인증코드 (6자리)</label>
+                  <label className="block mb-1" style={{ ...T.label, color: C.text3 }}>인증코드 (6자리)</label>
                   <input
                     value={code}
                     onChange={e => setCode(e.target.value)}
                     placeholder="123456"
-                    className="w-full px-3 py-2 text-[14.5px] rounded-lg tracking-widest"
-                    style={{ border: `1px solid ${C.border}` }}
+                    className="w-full px-3 py-2 rounded-lg tracking-widest"
+                    style={{ fontSize: 14.5, border: `1px solid ${C.border}` }}
                   />
-                  <p className="text-[12.5px] mt-1" style={{ color: C.text4 }}>{email}로 발송된 인증코드를 입력해주세요.</p>
+                  <p className="mt-1" style={{ ...T.caption, color: C.text3 }}>{email}로 발송된 인증코드를 입력해주세요.</p>
                 </div>
               )}
 
-              {error && <p className="text-[13px] mb-3" style={{ color: C.danger }}>{error}</p>}
+              {error && <p className="mb-3" style={{ ...T.label, fontWeight: 500, color: C.danger }}>{error}</p>}
 
               <button
                 onClick={step === "email" ? requestCode : verifyCode}
                 disabled={sending || (step === "email" ? !email.trim() : !code.trim()) || loadingTree}
-                className="w-full h-11 rounded-xl font-bold text-[15px] text-white disabled:opacity-40"
-                style={{ background: C.brand }}
+                className="w-full h-11 rounded-xl text-white disabled:opacity-40"
+                style={{ fontSize: 15, fontWeight: 700, background: C.brand }}
               >
                 {sending || loadingTree ? "처리 중…" : step === "email" ? "인증코드 받기" : "확인하고 조회하기"}
               </button>
 
               {step === "code" && (
-                <button onClick={() => { setStep("email"); setCode(""); setError(""); }} className="w-full text-[13px] mt-3" style={{ color: C.text4 }}>
+                <button onClick={() => { setStep("email"); setCode(""); setError(""); }} className="w-full mt-3" style={{ ...T.label, fontWeight: 500, color: C.text3 }}>
                   이메일 다시 입력
                 </button>
               )}
@@ -272,10 +285,10 @@ export default function AssetAuditManagerPage() {
             <div className="space-y-4">
               <div className="bg-white rounded-3xl p-6 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
                 <div className="flex items-center justify-between mb-1">
-                  <h2 className="text-[16px] font-bold" style={{ color: C.text1 }}>{unit?.name ?? ""} 전체 진행률</h2>
-                  <span className="text-[19px] font-bold" style={{ color: overallComplete ? C.good : C.text1 }}>{overallPct}%</span>
+                  <h2 style={{ ...T.h2, color: C.text1 }}>{unit?.name ?? ""} 전체 진행률</h2>
+                  <span style={{ fontSize: 19, fontWeight: 700, color: overallComplete ? C.good : C.text1 }}>{overallPct}%</span>
                 </div>
-                <p className="text-[13.5px] mb-3" style={{ color: C.text3 }}>
+                <p className="mb-3" style={{ ...T.body, color: C.text3 }}>
                   총 {unit?.rollupProgress.total ?? 0}건 중 {unit?.rollupProgress.verified ?? 0}건 실사 확인 완료
                 </p>
                 <div className="h-2 rounded-full overflow-hidden" style={{ background: C.border }}>
@@ -286,34 +299,34 @@ export default function AssetAuditManagerPage() {
                   <button
                     onClick={sendReminders}
                     disabled={reminding || overallComplete}
-                    className="px-4 py-2 rounded-lg text-[13.5px] font-bold text-white disabled:opacity-40"
-                    style={{ background: C.brand }}
+                    className="px-4 py-2 rounded-lg text-white disabled:opacity-40"
+                    style={{ ...T.label, background: C.brand }}
                   >
                     {reminding ? "발송 중…" : "미완료 대상자에게 독려 메일 발송"}
                   </button>
                   {overallComplete && (
-                    <span className="text-[13.5px] font-semibold" style={{ color: C.good }}>모든 대상자가 실사를 완료했습니다.</span>
+                    <span style={{ ...T.label, color: C.good }}>모든 대상자가 실사를 완료했습니다.</span>
                   )}
                   {remindResult && (
-                    <span className="text-[13.5px]" style={{ color: C.text3 }}>
+                    <span style={{ ...T.label, fontWeight: 500, color: C.text3 }}>
                       대상 {remindResult.targetCount}명 중 {remindResult.sent}건 발송 완료
                     </span>
                   )}
                 </div>
               </div>
 
-              <div className="bg-white rounded-3xl p-4 lg:p-6 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
+              <div className="bg-white rounded-3xl p-4 md:p-6 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
                 <div className="flex items-center justify-between mb-2 px-1">
-                  <h3 className="text-[15px] font-bold" style={{ color: C.text1 }}>조직별 상세 현황</h3>
+                  <h3 style={{ ...T.h3, color: C.text1 }}>조직별 상세 현황</h3>
                   <div className="flex items-center gap-2">
-                    <button onClick={() => setExpanded(new Set(allIds))} className="text-[13px] hover:underline" style={{ color: C.brand }}>모두 펼치기</button>
-                    <button onClick={() => setExpanded(new Set(unit ? [unit.id] : []))} className="text-[13px] hover:underline" style={{ color: C.text4 }}>모두 접기</button>
+                    <button onClick={() => setExpanded(new Set(allIds))} className="hover:underline" style={{ ...T.label, fontWeight: 500, color: C.brand }}>모두 펼치기</button>
+                    <button onClick={() => setExpanded(new Set(unit ? [unit.id] : []))} className="hover:underline" style={{ ...T.label, fontWeight: 500, color: C.text3 }}>모두 접기</button>
                   </div>
                 </div>
                 {unit && <TreeRow node={unit} depth={0} expanded={expanded} onToggle={toggle} />}
               </div>
 
-              {error && <p className="text-[13px] text-center" style={{ color: C.danger }}>{error}</p>}
+              {error && <p className="text-center" style={{ ...T.label, fontWeight: 500, color: C.danger }}>{error}</p>}
             </div>
           )}
         </div>
