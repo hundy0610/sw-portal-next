@@ -127,7 +127,7 @@ export default function AssetAuditProgramPage() {
       </header>
 
       <div className="px-4 sm:px-6 md:px-10 py-10 md:py-14">
-        <div className="max-w-5xl mx-auto">
+        <div className="max-w-2xl mx-auto">
           {/* ── 헤더 ── */}
           <div className="text-center mb-8 md:mb-10">
             <h1 className="text-[28px] sm:text-[34px] font-bold mb-2.5" style={{ color: C.text1, letterSpacing: "-0.01em" }}>
@@ -153,8 +153,8 @@ export default function AssetAuditProgramPage() {
           )}
 
           {!loading && cfg?.open && (
-            <div className="grid md:grid-cols-[1.05fr_1fr] gap-6 md:gap-8 items-start">
-              {/* ══ 왼쪽: 목적/취지 + 양해 말씀 ══ */}
+            <div className="space-y-6">
+              {/* ══ 목적/취지 + 양해 말씀 ══ */}
               <div className="space-y-5">
                 <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
                   <h2 className="text-[17px] font-bold mb-1" style={{ color: C.text1 }}>왜 자산실사를 진행하나요?</h2>
@@ -184,8 +184,8 @@ export default function AssetAuditProgramPage() {
                 </div>
               </div>
 
-              {/* ══ 오른쪽: 데이터 고지 + 절차 + 동의 / 다운로드 ══ */}
-              <div className="md:sticky md:top-10">
+              {/* ══ 데이터 고지 + 절차 + 동의 / 다운로드 ══ */}
+              <div>
                 {!consented ? (
                   <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
                     <h2 className="text-[16px] font-bold mb-4" style={{ color: C.text1 }}>참여 안내 및 동의</h2>
