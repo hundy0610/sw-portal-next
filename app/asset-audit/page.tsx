@@ -48,21 +48,22 @@ function formatBytes(bytes: number | null): string {
 }
 
 // ── OS별 실행 방법 — 서명되지 않은 사내 프로그램이라 보안 경고가 뜨는 게
-// 정상이라는 점과, 그걸 우회하는 정확한 방법을 안내한다. 캠페인과 무관하게
-// 고정된 기술적 절차라 관리자 편집 항목이 아닌 코드에 고정한다.
+// 정상이라는 점과, 그걸 우회하는 정확한 방법, 그리고 실행 후 실제 등록까지
+// 마치는 절차를 안내한다. OS마다 절차가 달라 캠페인과 무관하게 고정된
+// 기술적 안내이므로 관리자 편집 항목이 아닌 코드에 고정한다.
 const INSTALL_STEPS: Record<"windows" | "mac", string[]> = {
   windows: [
     "위 버튼을 누르면 새 탭에서 다운로드 페이지가 열립니다. 그 페이지에서 다운로드 버튼을 눌러 설치 파일(.exe)을 받습니다.",
     "다운로드한 파일을 더블클릭해서 실행합니다.",
     "\"Windows에서 PC를 보호했습니다\" 화면이 뜨면 \"추가 정보\"를 누른 뒤 \"실행\" 버튼을 눌러주세요.",
-    "실행이 완료되면 자동으로 자산 정보가 수집되어 등록됩니다.",
+    "프로그램 좌측의 \"자산실사\" 탭으로 들어가 등록 정보를 입력한 후, 하단의 \"자산실사\" 버튼을 클릭해주세요.",
   ],
   mac: [
     "위 버튼을 누르면 새 탭에서 다운로드 페이지가 열립니다. 그 페이지에서 다운로드 버튼을 눌러 설치 파일(.dmg)을 받습니다.",
     "다운로드한 파일을 더블클릭하면 설치 창이 열립니다.",
     "열린 창에서 앱 아이콘을 Applications 폴더로 드래그합니다.",
     "Applications 폴더에서 앱을 실행합니다. \"확인되지 않은 개발자\" 경고가 뜨면 아이콘을 우클릭한 뒤 \"열기\"를 선택해주세요.",
-    "실행이 완료되면 자동으로 자산 정보가 수집되어 등록됩니다.",
+    "등록 정보를 입력한 후, 하단의 \"자산실사\" 버튼을 클릭해주세요.",
   ],
 };
 
@@ -120,7 +121,11 @@ export default function AssetAuditProgramPage() {
   const [loading, setLoading] = useState(true);
   const [consentChecked, setConsentChecked] = useState(false);
   const [consented, setConsented] = useState(false);
-  const os = useMemo(detectOS, []);
+  // 자동 감지된 OS를 기본값으로 쓰되, 사용자가 직접 선택해서 바꿀 수 있게 한다
+  // (자동 감지가 틀리거나, 동료 PC를 대신 설정해주는 경우 등).
+  const detectedOs = useMemo(detectOS, []);
+  const [os, setOs] = useState<OsKind>("unknown");
+  useEffect(() => { setOs(detectedOs); }, [detectedOs]);
 
   // 실사 페이지는 다크모드를 지원하지 않음 — 다른 포털 페이지에서 다크모드를
   // 켜둔 상태로 넘어와도 이 페이지에서는 항상 라이트 모드로 표시한다.
@@ -265,11 +270,28 @@ export default function AssetAuditProgramPage() {
                       </div>
                     )}
 
-                    {os === "unknown" && (
-                      <p className="text-center mb-3" style={{ ...T.label, fontWeight: 500, ...pretty, color: C.text3 }}>
-                        운영체제를 자동으로 인식하지 못했습니다. 아래에서 사용 중인 OS를 선택해주세요.
+                    <div className="mb-4">
+                      <p className="mb-2 text-center" style={{ ...T.caption, color: C.text3 }}>
+                        {os === "unknown" ? "운영체제를 자동으로 인식하지 못했습니다 — 사용 중인 PC를 선택해주세요." : "다운로드할 운영체제를 선택하세요."}
                       </p>
-                    )}
+                      <div className="flex gap-2">
+                        {(["windows", "mac"] as const).map(kind => (
+                          <button
+                            key={kind}
+                            onClick={() => setOs(kind)}
+                            className="flex-1 h-10 rounded-lg transition-colors"
+                            style={{
+                              fontSize: 14, fontWeight: 700,
+                              background: os === kind ? C.brand : C.bg,
+                              color: os === kind ? "#fff" : C.text3,
+                              border: `1px solid ${os === kind ? C.brand : C.border}`,
+                            }}
+                          >
+                            {kind === "windows" ? "Windows" : "macOS"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
 
                     {primaryFile.url ? (
                       <a
