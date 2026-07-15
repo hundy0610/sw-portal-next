@@ -96,13 +96,20 @@ export async function archiveOrgUnit(id: string): Promise<void> {
   await kvSetPermanent(KV_KEY, units.filter(u => u.id !== id));
 }
 
+// PC 실사 제출 기록에서 이메일 집합만 뽑아내는 순수 함수 — 이미 scans를 다른 목적으로
+// 함께 조회하는 호출부(예: 대시보드)는 fetchPcScans()를 중복 호출하지 않고 이 함수로
+// 바로 변환할 수 있다. 데스크톱 프로그램이 보낸 값에 앞뒤 공백이 섞여 들어와도
+// 매칭이 깨지지 않도록 trim까지 함께 정규화한다.
+export function submittedEmailsFromScans(scans: { email: string }[]): Set<string> {
+  return new Set(scans.map(s => s.email.trim().toLowerCase()).filter(Boolean));
+}
+
 // 실사 제출 완료 여부 판단용 이메일 집합 — PC 실사 프로그램이 실행되면 그 시점의
 // 실행자 이메일이 그대로 수집되므로, HW 자산 마스터(부서/사용자)와 무관하게
-// "제출했는지"를 정확히 알 수 있다. 데스크톱 프로그램이 보낸 값에 앞뒤 공백이
-// 섞여 들어와도 매칭이 깨지지 않도록 trim까지 함께 정규화한다.
+// "제출했는지"를 정확히 알 수 있다.
 export async function fetchSubmittedEmails(): Promise<Set<string>> {
   const scans = await fetchPcScans();
-  return new Set(scans.map(s => s.email.trim().toLowerCase()).filter(Boolean));
+  return submittedEmailsFromScans(scans);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

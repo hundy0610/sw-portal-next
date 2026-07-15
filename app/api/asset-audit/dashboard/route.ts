@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";
-import { fetchOrgUnits, buildOrgTree, fetchSubmittedEmails, type OrgTreeNode } from "@/lib/org-chart";
+import { fetchOrgUnits, buildOrgTree, submittedEmailsFromScans, type OrgTreeNode } from "@/lib/org-chart";
 import { fetchAllHwRecords } from "@/lib/hw";
 import { fetchPcScans, matchPcScansWithHw } from "@/lib/pc-scan";
 import { fetchContracts } from "@/lib/contract-notion";
@@ -32,9 +32,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [units, submittedEmails, hwRecords, contracts, scans] = await Promise.all([
-      fetchOrgUnits(), fetchSubmittedEmails(), fetchAllHwRecords(), fetchContracts(), fetchPcScans(),
+    // PC 실사 제출 기록(scans)은 이메일 집합 계산과 HW 매칭 양쪽에 필요하지만,
+    // 같은 데이터를 두 번 조회하면 Notion 호출이 불필요하게 늘어나므로 한 번만 가져온다.
+    const [units, hwRecords, contracts, scans] = await Promise.all([
+      fetchOrgUnits(), fetchAllHwRecords(), fetchContracts(), fetchPcScans(),
     ]);
+    const submittedEmails = submittedEmailsFromScans(scans);
 
     // 조직별 실사 진행률(트리)은 실제 소속 인원 명단 vs PC 실사 제출 기록으로 계산한다.
     const tree = buildOrgTree(units, submittedEmails);
