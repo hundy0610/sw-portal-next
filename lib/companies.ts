@@ -18,3 +18,9 @@ export function normalizeCompany(raw: string): string | null {
   const match = COMPANIES.find(c => c.toLowerCase() === trimmed.toLowerCase());
   return match ?? null;
 }
+
+// 실사 진행률 대시보드(법인별/조직별 현황)에서 제외할 법인 — 요청에 따라
+// 화면에 노출하지 않는다(전사 합계 지표에는 영향 없음, 세부 목록 표시만 제외).
+export const EXCLUDED_FROM_AUDIT_DASHBOARD = [
+  "유와이즈원", "DNC", "석천나눔재단", "대웅이엔지", "시지바이오", "시지메드텍", "대웅", "대웅제약",
+];

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { safeJson } from "@/lib/fetch-json";
 import type { OrgTreeNode } from "@/lib/org-chart";
 import type { AssetAuditDashboardData } from "@/app/api/asset-audit/dashboard/route";
+import { normalizeCompany } from "@/lib/companies";
 
 function pct(node: OrgTreeNode): number {
   const { total, verified } = node.rollupProgress;
@@ -44,7 +45,6 @@ function TreeRow({ node, depth, expanded, onToggle }: {
         </button>
         <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-gray-100 text-gray-600 shrink-0">{node.level}</span>
         <span className="text-sm font-medium text-gray-900 truncate">{node.name}</span>
-        {node.company && <span className="text-xs text-gray-400 shrink-0">· {node.company}</span>}
         <div className="flex-1" />
         <span className="text-xs font-semibold shrink-0" style={{ color: complete ? "var(--state-positive)" : "#4b5563" }}>
           {node.rollupProgress.verified}/{node.rollupProgress.total}
@@ -78,6 +78,7 @@ export default function AssetAuditDashboardPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError]   = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<"company" | "org">("company");
 
   useEffect(() => {
     fetch("/api/asset-audit/dashboard", { cache: "no-store" })
@@ -107,6 +108,18 @@ export default function AssetAuditDashboardPanel() {
       return [node.id, ...node.children.flatMap(collect)];
     }
     return data ? data.tree.flatMap(collect) : [];
+  }, [data]);
+
+  // 조직별 보기 — 같은 법인 소속 조직끼리 법인명 아래로 묶는다.
+  const groupedByCompany = useMemo(() => {
+    if (!data) return [];
+    const map = new Map<string, OrgTreeNode[]>();
+    for (const root of data.tree) {
+      const key = normalizeCompany(root.company) ?? root.company ?? "(미지정)";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(root);
+    }
+    return Array.from(map.entries());
   }, [data]);
 
   const achievementComplete = !!data && data.contractQtyTotal > 0 && data.hwVerified >= data.contractQtyTotal;
@@ -163,41 +176,64 @@ export default function AssetAuditDashboardPanel() {
             </p>
           </div>
 
-          {/* ── 법인별 요약 ── */}
-          {data.byCompany.length > 0 && (
-            <div className="rounded-2xl border border-gray-200 bg-white p-5">
-              <h3 className="text-sm font-bold text-gray-900 mb-3">법인별 현황</h3>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {data.byCompany.map(c => {
-                  const rate = c.hwTotal > 0 ? Math.round((c.hwVerified / c.hwTotal) * 100) : 0;
-                  return (
-                    <div key={c.company} className="border border-gray-100 rounded-xl p-3.5">
-                      <p className="text-sm font-semibold text-gray-900 mb-1 truncate">{c.company || "(미지정)"}</p>
-                      <p className="text-xs text-gray-400 mb-2">계약 {c.contractQty.toLocaleString()}대 · 자산 {c.hwTotal.toLocaleString()}대</p>
-                      <div className="flex items-center gap-2">
-                        <ProgressBar value={rate} />
-                        <span className="text-xs font-bold text-gray-700" style={{ fontVariantNumeric: "tabular-nums" }}>{rate}%</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* ── 조직별 상세 트리 ── */}
+          {/* ── 법인별/조직별 진행률 (상단 토글) ── */}
           <div className="rounded-2xl border border-gray-200 bg-white p-4 lg:p-5">
-            <div className="flex items-center justify-between mb-2 px-1">
-              <h3 className="text-sm font-bold text-gray-900">조직별 상세 진행률</h3>
-              <div className="flex items-center gap-2">
-                <button onClick={() => setExpanded(new Set(allIds))} className="text-xs hover:underline" style={{ color: "var(--brand)" }}>모두 펼치기</button>
-                <button onClick={() => setExpanded(new Set(data.tree.map(n => n.id)))} className="text-xs text-gray-400 hover:underline">모두 접기</button>
+            <div className="flex items-center justify-between mb-3 px-1">
+              <div className="flex items-center gap-1 rounded-lg bg-gray-100 p-1">
+                <button
+                  onClick={() => setViewMode("company")}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-md transition-colors"
+                  style={viewMode === "company" ? { background: "#fff", color: "var(--brand)", boxShadow: "0 1px 2px rgba(0,0,0,0.06)" } : { color: "#9CA3AF" }}
+                >
+                  법인별
+                </button>
+                <button
+                  onClick={() => setViewMode("org")}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-md transition-colors"
+                  style={viewMode === "org" ? { background: "#fff", color: "var(--brand)", boxShadow: "0 1px 2px rgba(0,0,0,0.06)" } : { color: "#9CA3AF" }}
+                >
+                  조직별
+                </button>
               </div>
+              {viewMode === "org" && (
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setExpanded(new Set(allIds))} className="text-xs hover:underline" style={{ color: "var(--brand)" }}>모두 펼치기</button>
+                  <button onClick={() => setExpanded(new Set(data.tree.map(n => n.id)))} className="text-xs text-gray-400 hover:underline">모두 접기</button>
+                </div>
+              )}
             </div>
-            {data.tree.length === 0 ? (
+
+            {viewMode === "company" ? (
+              data.byCompany.length === 0 ? (
+                <p className="text-xs text-gray-400 px-1 py-4">표시할 법인 데이터가 없습니다.</p>
+              ) : (
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {data.byCompany.map(c => {
+                    const rate = c.hwTotal > 0 ? Math.round((c.hwVerified / c.hwTotal) * 100) : 0;
+                    return (
+                      <div key={c.company} className="border border-gray-100 rounded-xl p-3.5">
+                        <p className="text-sm font-semibold text-gray-900 mb-1 truncate">{c.company}</p>
+                        <p className="text-xs text-gray-400 mb-2">계약 {c.contractQty.toLocaleString()}대 · 자산 {c.hwTotal.toLocaleString()}대</p>
+                        <div className="flex items-center gap-2">
+                          <ProgressBar value={rate} />
+                          <span className="text-xs font-bold text-gray-700" style={{ fontVariantNumeric: "tabular-nums" }}>{rate}%</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )
+            ) : data.tree.length === 0 ? (
               <p className="text-xs text-gray-400 px-1 py-4">등록된 조직이 없습니다. &quot;조직도 관리&quot;에서 먼저 조직을 등록해주세요.</p>
             ) : (
-              data.tree.map(node => <TreeRow key={node.id} node={node} depth={0} expanded={expanded} onToggle={toggle} />)
+              <div className="space-y-4">
+                {groupedByCompany.map(([company, roots]) => (
+                  <div key={company}>
+                    <p className="text-xs font-bold px-1 mb-1" style={{ color: "var(--brand)" }}>{company}</p>
+                    {roots.map(node => <TreeRow key={node.id} node={node} depth={0} expanded={expanded} onToggle={toggle} />)}
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </>

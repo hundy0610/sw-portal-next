@@ -6,7 +6,7 @@ import { kvGet } from "@/lib/kv-store";
 import { triggerWarmHw } from "@/lib/trigger-warm-hw";
 import { fetchPcScans, matchPcScansWithHw } from "@/lib/pc-scan";
 import { fetchContracts } from "@/lib/contract-notion";
-import { COMPANIES, normalizeCompany } from "@/lib/companies";
+import { COMPANIES, normalizeCompany, EXCLUDED_FROM_AUDIT_DASHBOARD } from "@/lib/companies";
 import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
@@ -49,7 +49,12 @@ export async function GET(req: NextRequest) {
     const submittedEmails = submittedEmailsFromScans(scans);
 
     // 조직별 실사 진행률(트리)은 실제 소속 인원 명단 vs PC 실사 제출 기록으로 계산한다.
-    const tree = buildOrgTree(units, submittedEmails);
+    // 대시보드에서 제외하기로 한 법인 소속 조직은 트리에서도 함께 제외한다.
+    const visibleUnits = units.filter(u => {
+      const normalized = normalizeCompany(u.company);
+      return !normalized || !EXCLUDED_FROM_AUDIT_DASHBOARD.includes(normalized);
+    });
+    const tree = buildOrgTree(visibleUnits, submittedEmails);
 
     // 계약 수량 대비 달성률의 "확인됨" 기준 — HW 마스터의 실사확인 체크박스는 구매 등록
     // 시 일괄 체크되거나 관리자가 수동으로 토글할 수 있어 실제 실사 여부와 무관하게 켜져
@@ -68,7 +73,9 @@ export async function GET(req: NextRequest) {
     // 법인명은 HW 자산관리 화면의 표준 목록(COMPANIES)을 그대로 사용한다 — 원본
     // 레코드의 문자열을 그대로 라벨로 쓰면 표기 흔들림(영문/국문, 대소문자 등)으로
     // 같은 법인이 여러 줄로 나뉘어 보일 수 있어, 표준 표기로 정규화해 매칭한다.
-    const byCompany: CompanyAchievement[] = COMPANIES.map(company => {
+    const byCompany: CompanyAchievement[] = COMPANIES
+      .filter(company => !EXCLUDED_FROM_AUDIT_DASHBOARD.includes(company))
+      .map(company => {
       const contractQty = liveContracts
         .filter(c => normalizeCompany(c.company) === company)
         .reduce((sum, c) => sum + c.quantity, 0);
