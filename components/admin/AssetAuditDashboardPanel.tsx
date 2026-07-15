@@ -118,6 +118,12 @@ export default function AssetAuditDashboardPanel() {
         <p className="text-xs text-gray-400 mt-0.5">계약 수량 대비 실사 확인 달성률과 조직별 진행 현황을 확인합니다.</p>
       </div>
 
+      {data?.masterCacheWarming && !loading && !error && (
+        <div className="rounded-lg px-3 py-2.5 text-xs" style={{ background: "#fffbeb", color: "#92400e", border: "1px solid #fde68a" }}>
+          하드웨어 자산 캐시를 준비하는 중입니다 — 잠시 후 새로고침하면 정상적인 수치가 표시됩니다.
+        </div>
+      )}
+
       {loading ? (
         <p className="text-xs text-gray-400">불러오는 중…</p>
       ) : error ? (

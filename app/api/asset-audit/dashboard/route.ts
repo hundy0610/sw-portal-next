@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";
 import { fetchOrgUnits, buildOrgTree, submittedEmailsFromScans, type OrgTreeNode } from "@/lib/org-chart";
-import { fetchAllHwRecords } from "@/lib/hw";
+import { type HwRecord } from "@/lib/hw";
+import { kvGet } from "@/lib/kv-store";
+import { triggerWarmHw } from "@/lib/trigger-warm-hw";
 import { fetchPcScans, matchPcScansWithHw } from "@/lib/pc-scan";
 import { fetchContracts } from "@/lib/contract-notion";
 import { errorMessage } from "@/lib/api-error";
@@ -22,6 +24,7 @@ export interface AssetAuditDashboardData {
   hwVerified: number;
   achievementRate: number; // hwVerified / contractQtyTotal * 100 (계약 수량 대비 달성률)
   byCompany: CompanyAchievement[];
+  masterCacheWarming: boolean; // true면 HW 자산 캐시가 아직 준비 중 — 잠시 후 새로고침 안내
 }
 
 // GET /api/asset-audit/dashboard — 슈퍼어드민 전용, 실사 진행률 + 계약 달성률 집계
@@ -34,9 +37,14 @@ export async function GET(req: NextRequest) {
   try {
     // PC 실사 제출 기록(scans)은 이메일 집합 계산과 HW 매칭 양쪽에 필요하지만,
     // 같은 데이터를 두 번 조회하면 Notion 호출이 불필요하게 늘어나므로 한 번만 가져온다.
-    const [units, hwRecords, contracts, scans] = await Promise.all([
-      fetchOrgUnits(), fetchAllHwRecords(), fetchContracts(), fetchPcScans(),
+    // HW 자산은 전사 전체를 매번 Notion에서 라이브로 페이지네이션하면(수십 초 소요)
+    // 응답이 지나치게 느려지므로, 30분마다 갱신되는 KV 캐시(hw:all — /api/hw,
+    // /api/admin/pc-scan 등 다른 화면들도 동일하게 이 캐시를 사용한다)를 사용한다.
+    const [units, hwAll, contracts, scans] = await Promise.all([
+      fetchOrgUnits(), kvGet<HwRecord[]>("hw:all"), fetchContracts(), fetchPcScans(),
     ]);
+    if (!hwAll) triggerWarmHw().catch(console.warn);
+    const hwRecords = hwAll ?? [];
     const submittedEmails = submittedEmailsFromScans(scans);
 
     // 조직별 실사 진행률(트리)은 실제 소속 인원 명단 vs PC 실사 제출 기록으로 계산한다.
@@ -67,7 +75,7 @@ export async function GET(req: NextRequest) {
       return { company, contractQty, hwTotal: companyHw.length, hwVerified: companyHw.filter(r => verifiedAssetIds.has(r.id)).length };
     }).sort((a, b) => b.hwTotal - a.hwTotal);
 
-    const data: AssetAuditDashboardData = { tree, contractQtyTotal, hwTotal, hwVerified, achievementRate, byCompany };
+    const data: AssetAuditDashboardData = { tree, contractQtyTotal, hwTotal, hwVerified, achievementRate, byCompany, masterCacheWarming: !hwAll };
     return NextResponse.json({ ok: true, data });
   } catch (e) {
     console.error("[asset-audit dashboard GET]", e);
