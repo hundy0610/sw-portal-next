@@ -204,6 +204,15 @@ export default function AssetAuditProgramPage() {
                       </div>
                     )}
 
+                    <div className="rounded-xl p-4 mb-4" style={{ background: C.cautionSoft, border: `1px solid ${C.border}` }}>
+                      <p className="text-[13px] font-semibold mb-1.5" style={{ color: C.text2 }}>설치 프로그램 목록을 확인하는 이유</p>
+                      <p className="text-[13.5px] leading-relaxed" style={{ color: C.text2 }}>
+                        웹에서 구독 형태로 이용하는 SW는 대상에서 제외되며, PC에 직접 설치된 SW만 확인합니다.
+                        최근 제조사로부터 라이선스 위반 사용에 대한 공문이 잦아지고 있어, 회사도 모르는 사이
+                        사용 규정에 맞지 않게 설치된 SW가 있는지 미리 확인하고 예방하기 위한 목적입니다.
+                      </p>
+                    </div>
+
                     {steps.length > 0 && (
                       <div className="mb-5">
                         <p className="text-[13px] font-semibold mb-2" style={{ color: C.text2 }}>진행 절차</p>

@@ -29,7 +29,7 @@ interface LegacyFileFields {
 
 const DEFAULT_CONFIG: AssetAuditConfig = {
   open: false,
-  title: "자산 실사",
+  title: "대웅 그룹사 노트북/데스크탑 자산실사",
   description: "임직원 여러분의 소중한 시간을 아끼기 위해, 프로그램 실행만으로 간단히 참여할 수 있도록 준비했습니다.",
   guide:
     "1. 아래 내용에 동의 후, 사용 중인 운영체제에 맞는 프로그램을 다운로드합니다.\n" +
