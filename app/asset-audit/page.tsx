@@ -87,13 +87,15 @@ const INSTALL_STEPS: Record<"windows" | "mac", React.ReactNode[]> = {
   ],
 };
 
-// ── 자산실사를 진행하는 이유 — 캠페인과 무관하게 고정된 안내 문구 ──
+// ── 자산실사를 진행하는 이유 — 캠페인과 무관하게 고정된 안내 문구.
+// 칩 형태로 짧게 보여주고, 클릭하면 설명이 펼쳐지는 방식(항상 펼쳐진 5개 카드보다
+// 화면을 훨씬 적게 차지한다).
 const PURPOSE_ITEMS: { title: string; desc: string; icon: React.ReactNode }[] = [
   {
     title: "신속한 업무 지원",
     desc: "장애나 불편사항 접수 시, 자산 현황을 미리 파악하고 있으면 더 빠르고 정확하게 도와드릴 수 있습니다.",
     icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" />
       </svg>
     ),
@@ -102,7 +104,7 @@ const PURPOSE_ITEMS: { title: string; desc: string; icon: React.ReactNode }[] = 
     title: "보안 관리 강화",
     desc: "회사 IT 자산의 위치와 사용 현황을 정확히 파악해 보안 사고를 예방하고, 발생 시에도 신속하게 조치합니다.",
     icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" /><path d="M9.5 12l1.8 1.8L14.5 10" />
       </svg>
     ),
@@ -111,7 +113,7 @@ const PURPOSE_ITEMS: { title: string; desc: string; icon: React.ReactNode }[] = 
     title: "업무 환경 개선",
     desc: "실제 사용 현황을 파악해, 여러분이 더 나은 환경에서 일하실 수 있도록 개선점을 찾는 데 활용합니다.",
     icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M14.5 3.5a3 3 0 1 1 3 5.2L9 17.2l-4.5 1.3 1.3-4.5 8.7-8.7z" />
       </svg>
     ),
@@ -120,7 +122,7 @@ const PURPOSE_ITEMS: { title: string; desc: string; icon: React.ReactNode }[] = 
     title: "불필요한 지출 방지",
     desc: "실제 사용 중인 자산을 정확히 파악해 중복 구매나 불필요한 계약을 줄이고, 예산을 효율적으로 운영합니다.",
     icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18" /><circle cx="16" cy="14.5" r="1.4" fill="currentColor" stroke="none" />
       </svg>
     ),
@@ -129,18 +131,49 @@ const PURPOSE_ITEMS: { title: string; desc: string; icon: React.ReactNode }[] = 
     title: "라이선스 사용 규정 준수",
     desc: "웹 구독형 SW는 제외하고 PC에 설치된 SW만 확인합니다. 제조사의 라이선스 위반 공문이 늘고 있어, 규정 위반 사용을 사전에 예방하기 위함입니다.",
     icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M9 15l2 2 4-4" />
       </svg>
     ),
   },
 ];
 
+// ── 진행 단계 표시 — 지금 뭘 하고 있는지 한눈에 보여준다 ──
+function StepIndicator({ step }: { step: 1 | 2 }) {
+  const STEPS: { n: 1 | 2; label: string }[] = [
+    { n: 1, label: "참여 동의" },
+    { n: 2, label: "다운로드 · 실행" },
+  ];
+  return (
+    <div className="flex items-center justify-center gap-2 mb-5">
+      {STEPS.map((s, i) => (
+        <div key={s.n} className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <span className="w-5 h-5 rounded-full flex items-center justify-center shrink-0" style={{
+              fontSize: 11, fontWeight: 700,
+              background: step >= s.n ? C.brand : C.bg,
+              color: step >= s.n ? "#fff" : C.text3,
+              border: `1px solid ${step >= s.n ? C.brand : C.border}`,
+            }}>
+              {step > s.n ? "✓" : s.n}
+            </span>
+            <span style={{ fontSize: 13, fontWeight: step === s.n ? 700 : 500, color: step === s.n ? C.text1 : C.text3 }}>
+              {s.label}
+            </span>
+          </div>
+          {i === 0 && <span style={{ width: 28, height: 1, background: C.border }} />}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function AssetAuditProgramPage() {
   const [cfg, setCfg]     = useState<AssetAuditConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [consentChecked, setConsentChecked] = useState(false);
   const [consented, setConsented] = useState(false);
+  const [expandedReason, setExpandedReason] = useState<string | null>(null);
   // 자동 감지된 OS를 기본값으로 쓰되, 사용자가 직접 선택해서 바꿀 수 있게 한다
   // (자동 감지가 틀리거나, 동료 PC를 대신 설정해주는 경우 등).
   const detectedOs = useMemo(detectOS, []);
@@ -193,15 +226,15 @@ export default function AssetAuditProgramPage() {
         </div>
       </header>
 
-      <div className="px-4 sm:px-6 md:px-10 py-8 md:py-10">
-        <div className="max-w-5xl mx-auto">
-          {/* ── 헤더 ── */}
-          <div className="text-center mb-5 md:mb-6">
-            <h1 className="text-[26px] sm:text-[32px] font-bold mb-2" style={{ ...balance, color: C.text1, letterSpacing: "-0.01em" }}>
+      <div className="px-4 sm:px-6 md:px-10 py-10 md:py-14">
+        <div className="max-w-2xl mx-auto">
+          {/* ── 헤더: 제목 + 소개 + 양해 인사(자연스럽게 이어붙임) ── */}
+          <div className="text-center mb-6">
+            <h1 className="text-[28px] sm:text-[34px] font-bold mb-2.5" style={{ ...balance, color: C.text1, letterSpacing: "-0.01em" }}>
               {loading ? " " : cfg?.title}
             </h1>
-            <p className="max-w-xl mx-auto" style={{ ...T.body, ...pretty, fontSize: 15, color: C.text3 }}>
-              {loading ? "" : cfg?.description}
+            <p className="max-w-xl mx-auto" style={{ ...T.body, ...pretty, fontSize: 15.5, color: C.text3 }}>
+              {loading ? "" : cfg?.description}{" "}바쁘신 중에 시간 내어 협조해 주셔서 감사드리며, 업무에 부담 없도록 간단히 준비했습니다.
             </p>
             {!loading && deadlineLabel && (
               <span className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 rounded-full whitespace-nowrap"
@@ -220,181 +253,180 @@ export default function AssetAuditProgramPage() {
           )}
 
           {!loading && cfg?.open && (
-            <div className="grid md:grid-cols-2 gap-5 items-start">
-              {/* ══ 왼쪽: 참여 안내 및 동의 / 다운로드 — 실제로 해야 할 일 ══ */}
-              <div>
-                {!consented ? (
-                  <div className="bg-white rounded-3xl p-6 md:p-7 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
-                    <h2 className="mb-3" style={{ ...T.h2, color: C.text1 }}>참여 안내 및 동의</h2>
-
-                    {noticeItems.length > 0 && (
-                      <div className="rounded-xl p-4 mb-4" style={{ background: C.bg, border: `1px solid ${C.border}` }}>
-                        <p className="mb-2" style={{ ...T.label, color: C.text2 }}>수집되는 정보</p>
-                        <ul className="space-y-1.5">
-                          {noticeItems.map((item, i) => (
-                            <li key={i} className="flex items-start gap-1.5" style={{ ...T.body, color: C.text2 }}>
-                              <span className="shrink-0" style={{ color: C.brand }}>•</span>
-                              <span style={pretty}>{item}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {steps.length > 0 && (
-                      <div className="mb-4">
-                        <p className="mb-2" style={{ ...T.label, color: C.text2 }}>진행 절차</p>
-                        <ol className="space-y-1.5">
-                          {steps.map((step, i) => (
-                            <li key={i} className="flex items-start gap-2.5">
-                              <span className="shrink-0 w-6 h-6 rounded-full text-white flex items-center justify-center"
-                                style={{ ...T.caption, fontWeight: 700, background: C.brand }}>{i + 1}</span>
-                              <span className="pt-0.5" style={{ ...T.body, ...pretty, color: C.text2 }}>{step.replace(/^\d+[.)]\s*/, "")}</span>
-                            </li>
-                          ))}
-                        </ol>
-                      </div>
-                    )}
-
-                    <label className="flex items-start gap-2.5 mb-4 cursor-pointer">
-                      <input type="checkbox" checked={consentChecked}
-                        onChange={e => setConsentChecked(e.target.checked)}
-                        className="mt-0.5 shrink-0 w-5 h-5 accent-current"
-                        style={{ color: C.brand }} />
-                      <span style={{ ...T.body, ...pretty, color: C.text2 }}>
-                        위 수집 항목과 진행 절차를 확인했으며, 자산실사를 위한 정보 수집에 동의합니다.
-                      </span>
-                    </label>
-
-                    <button
-                      onClick={() => setConsented(true)}
-                      disabled={!consentChecked}
-                      className="w-full h-12 rounded-xl text-white flex items-center justify-center transition-opacity hover:opacity-90 disabled:opacity-40"
-                      style={{ fontSize: 16, fontWeight: 700, background: C.brand }}
-                    >
-                      동의하고 계속하기
-                    </button>
-                  </div>
-                ) : (
-                  <div className="bg-white rounded-3xl p-6 md:p-7 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
-                    <h2 className="mb-3" style={{ ...T.h2, color: C.text1 }}>프로그램 다운로드</h2>
-
-                    {(cfg.version || cfg.updatedAt || primaryFile.size) && (
-                      <div className="flex flex-wrap items-center gap-2 mb-4" style={{ ...T.label, fontWeight: 500, color: C.text3 }}>
-                        {cfg.version && (
-                          <span className="px-2 py-0.5 rounded-full whitespace-nowrap"
-                            style={{ fontWeight: 600, background: C.brandSoft, color: C.text2 }}>{cfg.version}</span>
-                        )}
-                        {primaryFile.size ? <span className="whitespace-nowrap">{formatBytes(primaryFile.size)}</span> : null}
-                        {cfg.updatedAt && <span className="whitespace-nowrap">{new Date(cfg.updatedAt).toLocaleDateString("ko-KR")} 업데이트</span>}
-                      </div>
-                    )}
-
-                    <div className="mb-4">
-                      <p className="mb-2 text-center" style={{ ...T.caption, color: C.text3 }}>
-                        {os === "unknown" ? "운영체제를 자동으로 인식하지 못했습니다 — 사용 중인 PC를 선택해주세요." : "다운로드할 운영체제를 선택하세요."}
-                      </p>
-                      <div className="flex gap-2">
-                        {(["windows", "mac"] as const).map(kind => (
-                          <button
-                            key={kind}
-                            onClick={() => setOs(kind)}
-                            className="flex-1 h-10 rounded-lg transition-colors"
-                            style={{
-                              fontSize: 14, fontWeight: 700,
-                              background: os === kind ? C.brand : C.bg,
-                              color: os === kind ? "#fff" : C.text3,
-                              border: `1px solid ${os === kind ? C.brand : C.border}`,
-                            }}
-                          >
-                            {kind === "windows" ? "Windows" : "macOS"}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {primaryFile.url ? (
-                      <a
-                        href={primaryFile.url}
-                        download={primaryFile.name ?? undefined}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="w-full h-12 rounded-xl text-white flex items-center justify-center transition-opacity hover:opacity-90"
-                        style={{ fontSize: 16, fontWeight: 700, background: C.brand, textDecoration: "none" }}
+            <>
+              {/* ── 왜 자산실사를 진행하나요 — 칩으로 축약, 눌러야 설명이 펼쳐짐 ── */}
+              <div className="mb-6">
+                <div className="flex flex-wrap justify-center gap-2">
+                  {PURPOSE_ITEMS.map(item => {
+                    const isOpen = expandedReason === item.title;
+                    return (
+                      <button
+                        key={item.title}
+                        onClick={() => setExpandedReason(isOpen ? null : item.title)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-colors"
+                        style={{
+                          fontSize: 13, fontWeight: 600,
+                          background: isOpen ? C.brand : C.brandSoft,
+                          color: isOpen ? "#fff" : C.brand,
+                        }}
                       >
-                        {primaryFile.label}
-                      </a>
-                    ) : (
-                      <div className="w-full h-12 rounded-xl flex items-center justify-center"
-                        style={{ fontSize: 16, fontWeight: 700, background: C.bg, color: C.text3 }}>
-                        아직 업로드된 파일이 없습니다
-                      </div>
-                    )}
-
-                    {otherFile.url && (
-                      <a href={otherFile.url} download target="_blank" rel="noreferrer"
-                        className="block text-center mt-3 hover:underline"
-                        style={{ ...T.label, fontWeight: 500, color: C.text3, textDecoration: "none" }}>
-                        {otherFile.label}
-                      </a>
-                    )}
-
-                    <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${C.border}` }}>
-                      <p className="mb-2" style={{ ...T.label, color: C.text2 }}>다운로드 후 실행 방법</p>
-                      <ol className="space-y-1.5 mb-3">
-                        {(os === "mac" ? INSTALL_STEPS.mac : INSTALL_STEPS.windows).map((step, i) => (
-                          <li key={i} className="flex items-start gap-2.5">
-                            <span className="shrink-0 w-6 h-6 rounded-full text-white flex items-center justify-center"
-                              style={{ ...T.caption, fontWeight: 700, background: C.brand }}>{i + 1}</span>
-                            <span className="pt-0.5" style={{ ...T.body, ...pretty, color: C.text2 }}>{step}</span>
-                          </li>
-                        ))}
-                      </ol>
-                      <div className="rounded-xl p-3.5" style={{ background: C.bg, border: `1px solid ${C.border}` }}>
-                        <p style={{ ...T.body, ...pretty, color: C.text3 }}>
-                          보안 경고 화면이 뜨는 건 정상입니다 — 사내에서 자체 제작한 프로그램이라 별도 인증서가 없어 나타나는 안내이며, 위 방법대로 진행하시면 안전하게 실행됩니다.
-                          일부 백신 프로그램이 오탐으로 차단할 수도 있는데, 안전한 파일이니 예외 처리 후 진행해주세요.
-                        </p>
-                      </div>
-                    </div>
-
-                    <p className="text-center mt-3" style={{ ...T.caption, ...pretty, color: C.text3 }}>
-                      문의사항은 자산관리파트로 연락 주세요.
-                    </p>
-                  </div>
+                        {item.icon}
+                        {item.title}
+                      </button>
+                    );
+                  })}
+                </div>
+                {expandedReason && (
+                  <p className="mt-3 text-center max-w-md mx-auto" style={{ ...T.body, ...pretty, color: C.text3 }}>
+                    {PURPOSE_ITEMS.find(i => i.title === expandedReason)?.desc}
+                  </p>
                 )}
               </div>
 
-              {/* ══ 오른쪽: 왜 자산실사를 진행하나요 + 양해 말씀 — 참고 설명, 세로 공간을 아끼기 위해 1열 목록으로 ══ */}
-              <div className="space-y-4">
-                <div className="bg-white rounded-3xl p-6 md:p-7 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
-                  <h2 className="mb-1" style={{ ...T.h2, color: C.text1 }}>왜 자산실사를 진행하나요?</h2>
-                  <p className="mb-3" style={{ ...T.label, fontWeight: 500, color: C.text3 }}>이번 실사가 만들어내는 실질적인 운영상의 이점입니다.</p>
-                  <div className="space-y-3">
-                    {PURPOSE_ITEMS.map(item => (
-                      <div key={item.title} className="flex gap-3">
-                        <div className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center"
-                          style={{ background: C.brandSoft, color: C.brand }}>
-                          {item.icon}
-                        </div>
-                        <div>
-                          <p className="mb-0.5" style={{ ...T.h3, ...balance, color: C.text2 }}>{item.title}</p>
-                          <p style={{ ...T.body, ...pretty, color: C.text3 }}>{item.desc}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+              <StepIndicator step={consented ? 2 : 1} />
 
-                <div className="rounded-2xl p-4 md:p-5" style={{ background: C.brandSoft, border: `1px solid ${C.border}` }}>
-                  <p style={{ ...T.body, ...pretty, color: C.text2 }}>
-                    바쁘신 업무 중에도 잠시 시간을 내어 협조해 주셔서 진심으로 감사드립니다.
-                    이번 실사는 여러분의 업무에 최대한 부담을 드리지 않도록, 프로그램 실행만으로 간단히 완료되게 준비했습니다.
-                    위 목적을 위해 꼭 필요한 절차이니 너그러운 양해와 협조를 부탁드립니다.
+              {/* ── 참여 안내 및 동의 / 다운로드 — 실제로 해야 할 일 ── */}
+              {!consented ? (
+                <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
+                  <h2 className="mb-4" style={{ ...T.h2, color: C.text1 }}>참여 안내 및 동의</h2>
+
+                  {noticeItems.length > 0 && (
+                    <div className="rounded-xl p-4 mb-4" style={{ background: C.bg, border: `1px solid ${C.border}` }}>
+                      <p className="mb-2" style={{ ...T.label, color: C.text2 }}>수집되는 정보</p>
+                      <ul className="space-y-1.5">
+                        {noticeItems.map((item, i) => (
+                          <li key={i} className="flex items-start gap-1.5" style={{ ...T.body, color: C.text2 }}>
+                            <span className="shrink-0" style={{ color: C.brand }}>•</span>
+                            <span style={pretty}>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {steps.length > 0 && (
+                    <div className="mb-5">
+                      <p className="mb-2" style={{ ...T.label, color: C.text2 }}>진행 절차</p>
+                      <ol className="space-y-2">
+                        {steps.map((step, i) => (
+                          <li key={i} className="flex items-start gap-2.5">
+                            <span className="shrink-0 w-6 h-6 rounded-full text-white flex items-center justify-center"
+                              style={{ ...T.caption, fontWeight: 700, background: C.brand }}>{i + 1}</span>
+                            <span className="pt-0.5" style={{ ...T.body, ...pretty, color: C.text2 }}>{step.replace(/^\d+[.)]\s*/, "")}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  )}
+
+                  <label className="flex items-start gap-2.5 mb-5 cursor-pointer">
+                    <input type="checkbox" checked={consentChecked}
+                      onChange={e => setConsentChecked(e.target.checked)}
+                      className="mt-0.5 shrink-0 w-5 h-5 accent-current"
+                      style={{ color: C.brand }} />
+                    <span style={{ ...T.body, ...pretty, color: C.text2 }}>
+                      위 수집 항목과 진행 절차를 확인했으며, 자산실사를 위한 정보 수집에 동의합니다.
+                    </span>
+                  </label>
+
+                  <button
+                    onClick={() => setConsented(true)}
+                    disabled={!consentChecked}
+                    className="w-full h-14 rounded-xl text-white flex items-center justify-center transition-opacity hover:opacity-90 disabled:opacity-40"
+                    style={{ fontSize: 16, fontWeight: 700, background: C.brand }}
+                  >
+                    동의하고 계속하기
+                  </button>
+                </div>
+              ) : (
+                <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
+                  <h2 className="mb-4" style={{ ...T.h2, color: C.text1 }}>프로그램 다운로드</h2>
+
+                  {(cfg.version || cfg.updatedAt || primaryFile.size) && (
+                    <div className="flex flex-wrap items-center gap-2 mb-5" style={{ ...T.label, fontWeight: 500, color: C.text3 }}>
+                      {cfg.version && (
+                        <span className="px-2 py-0.5 rounded-full whitespace-nowrap"
+                          style={{ fontWeight: 600, background: C.brandSoft, color: C.text2 }}>{cfg.version}</span>
+                      )}
+                      {primaryFile.size ? <span className="whitespace-nowrap">{formatBytes(primaryFile.size)}</span> : null}
+                      {cfg.updatedAt && <span className="whitespace-nowrap">{new Date(cfg.updatedAt).toLocaleDateString("ko-KR")} 업데이트</span>}
+                    </div>
+                  )}
+
+                  <div className="mb-4">
+                    <p className="mb-2 text-center" style={{ ...T.caption, color: C.text3 }}>
+                      {os === "unknown" ? "운영체제를 자동으로 인식하지 못했습니다 — 사용 중인 PC를 선택해주세요." : "다운로드할 운영체제를 선택하세요."}
+                    </p>
+                    <div className="flex gap-2">
+                      {(["windows", "mac"] as const).map(kind => (
+                        <button
+                          key={kind}
+                          onClick={() => setOs(kind)}
+                          className="flex-1 h-10 rounded-lg transition-colors"
+                          style={{
+                            fontSize: 14, fontWeight: 700,
+                            background: os === kind ? C.brand : C.bg,
+                            color: os === kind ? "#fff" : C.text3,
+                            border: `1px solid ${os === kind ? C.brand : C.border}`,
+                          }}
+                        >
+                          {kind === "windows" ? "Windows" : "macOS"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {primaryFile.url ? (
+                    <a
+                      href={primaryFile.url}
+                      download={primaryFile.name ?? undefined}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="w-full h-14 rounded-xl text-white flex items-center justify-center transition-opacity hover:opacity-90"
+                      style={{ fontSize: 16, fontWeight: 700, background: C.brand, textDecoration: "none" }}
+                    >
+                      {primaryFile.label}
+                    </a>
+                  ) : (
+                    <div className="w-full h-14 rounded-xl flex items-center justify-center"
+                      style={{ fontSize: 16, fontWeight: 700, background: C.bg, color: C.text3 }}>
+                      아직 업로드된 파일이 없습니다
+                    </div>
+                  )}
+
+                  {otherFile.url && (
+                    <a href={otherFile.url} download target="_blank" rel="noreferrer"
+                      className="block text-center mt-3 hover:underline"
+                      style={{ ...T.label, fontWeight: 500, color: C.text3, textDecoration: "none" }}>
+                      {otherFile.label}
+                    </a>
+                  )}
+
+                  <div className="mt-6 pt-6" style={{ borderTop: `1px solid ${C.border}` }}>
+                    <p className="mb-3" style={{ ...T.label, color: C.text2 }}>다운로드 후 실행 방법</p>
+                    <ol className="space-y-2 mb-4">
+                      {(os === "mac" ? INSTALL_STEPS.mac : INSTALL_STEPS.windows).map((step, i) => (
+                        <li key={i} className="flex items-start gap-2.5">
+                          <span className="shrink-0 w-6 h-6 rounded-full text-white flex items-center justify-center"
+                            style={{ ...T.caption, fontWeight: 700, background: C.brand }}>{i + 1}</span>
+                          <span className="pt-0.5" style={{ ...T.body, ...pretty, color: C.text2 }}>{step}</span>
+                        </li>
+                      ))}
+                    </ol>
+                    <div className="rounded-xl p-4" style={{ background: C.bg, border: `1px solid ${C.border}` }}>
+                      <p style={{ ...T.body, ...pretty, color: C.text3 }}>
+                        보안 경고 화면이 뜨는 건 정상입니다 — 사내에서 자체 제작한 프로그램이라 별도 인증서가 없어 나타나는 안내이며, 위 방법대로 진행하시면 안전하게 실행됩니다.
+                        일부 백신 프로그램이 오탐으로 차단할 수도 있는데, 안전한 파일이니 예외 처리 후 진행해주세요.
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="text-center mt-4" style={{ ...T.caption, ...pretty, color: C.text3 }}>
+                    문의사항은 자산관리파트로 연락 주세요.
                   </p>
                 </div>
-              </div>
-            </div>
+              )}
+            </>
           )}
         </div>
       </div>
