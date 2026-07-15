@@ -256,25 +256,27 @@ export default function AssetAuditProgramPage() {
             <>
               {/* ── 왜 자산실사를 진행하나요 — 칩으로 축약, 눌러야 설명이 펼쳐짐 ── */}
               <div className="mb-6">
-                <div className="flex flex-wrap justify-center gap-2">
-                  {PURPOSE_ITEMS.map(item => {
-                    const isOpen = expandedReason === item.title;
-                    return (
-                      <button
-                        key={item.title}
-                        onClick={() => setExpandedReason(isOpen ? null : item.title)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-colors"
-                        style={{
-                          fontSize: 13, fontWeight: 600,
-                          background: isOpen ? C.brand : C.brandSoft,
-                          color: isOpen ? "#fff" : C.brand,
-                        }}
-                      >
-                        {item.icon}
-                        {item.title}
-                      </button>
-                    );
-                  })}
+                <div className="overflow-x-auto">
+                  <div className="flex flex-nowrap justify-center gap-2 w-max mx-auto">
+                    {PURPOSE_ITEMS.map(item => {
+                      const isOpen = expandedReason === item.title;
+                      return (
+                        <button
+                          key={item.title}
+                          onClick={() => setExpandedReason(isOpen ? null : item.title)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 transition-colors"
+                          style={{
+                            fontSize: 13, fontWeight: 600,
+                            background: isOpen ? C.brand : C.brandSoft,
+                            color: isOpen ? "#fff" : C.brand,
+                          }}
+                        >
+                          {item.icon}
+                          {item.title}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
                 {expandedReason && (
                   <p className="mt-3 text-center max-w-md mx-auto" style={{ ...T.body, ...pretty, color: C.text3 }}>
@@ -342,14 +344,13 @@ export default function AssetAuditProgramPage() {
                 <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
                   <h2 className="mb-4" style={{ ...T.h2, color: C.text1 }}>프로그램 다운로드</h2>
 
-                  {(cfg.version || cfg.updatedAt || primaryFile.size) && (
+                  {(cfg.version || primaryFile.size) && (
                     <div className="flex flex-wrap items-center gap-2 mb-5" style={{ ...T.label, fontWeight: 500, color: C.text3 }}>
                       {cfg.version && (
                         <span className="px-2 py-0.5 rounded-full whitespace-nowrap"
                           style={{ fontWeight: 600, background: C.brandSoft, color: C.text2 }}>{cfg.version}</span>
                       )}
                       {primaryFile.size ? <span className="whitespace-nowrap">{formatBytes(primaryFile.size)}</span> : null}
-                      {cfg.updatedAt && <span className="whitespace-nowrap">{new Date(cfg.updatedAt).toLocaleDateString("ko-KR")} 업데이트</span>}
                     </div>
                   )}
 
