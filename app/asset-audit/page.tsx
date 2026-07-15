@@ -74,7 +74,7 @@ const INSTALL_STEPS: Record<"windows" | "mac", React.ReactNode[]> = {
       <br />
       <strong>방법 1</strong> (macOS 13 Ventura 이하) — Applications에서 앱 아이콘을 Control(⌃) 키를 누른 채 클릭(우클릭) → "열기" → 경고창에서 다시 "열기" 버튼을 클릭합니다.
       <br />
-      <strong>방법 2</strong> (macOS 14 Sonoma ~ 15 Sequoia) — 앱을 한 번 더블클릭해 경고를 닫은 뒤, 시스템 설정 → 개인정보 보호 및 보안 → 맨 아래로 스크롤 → "확인 없이 열기(Open Anyway)"를 클릭합니다.
+      <strong>방법 2</strong> (macOS 15 Sequoia 이상) — 앱을 한 번 더블클릭해 경고를 닫은 뒤, 시스템 설정 → 개인정보 보호 및 보안 → 맨 아래로 스크롤 → "확인 없이 열기(Open Anyway)"를 클릭합니다.
     </>,
     "등록 정보를 입력한 후, 하단의 \"자산실사\" 버튼을 클릭해주세요.",
   ],
