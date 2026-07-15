@@ -5,6 +5,7 @@ import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import { LabelPrintTab } from "@/components/admin/LabelPrintTab";
 import { safeJson } from "@/lib/fetch-json";
 import BulkEditBar, { type BulkFieldOption } from "@/components/admin/shared/BulkEditBar";
+import { COMPANIES } from "@/lib/companies";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 타입
@@ -35,14 +36,6 @@ interface TabProps {
 // ─────────────────────────────────────────────────────────────────────────────
 // 상수
 // ─────────────────────────────────────────────────────────────────────────────
-const COMPANIES = [
-  "대웅제약","대웅바이오","대웅","대웅개발","대웅이엔지","대웅펫",
-  "한올바이오파마","시지바이오","시지메드텍","IdsTrust","디엔컴퍼니",
-  "디엔코스메틱스","더편한샵","페이지원","엠서클","애디테라","노바메디텍",
-  "에이하나","다나아데이터","클리슈어리서치","유와이즈원","DNC",
-  "석천나눔재단","HR코리아","힐코","블루넷",
-];
-
 // 자산번호 자동 채번용 법인 코드 (형식: YY+법인코드-MM+일련번호, 예: 2601-06101)
 const COMPANY_ASSET_CODES: Record<string,string> = {
   "대웅제약":"01", "대웅":"02", "대웅개발":"03", "대웅바이오":"04", "엠서클":"05",

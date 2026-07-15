@@ -1,0 +1,20 @@
+// 그룹사 법인명 표준 목록 — HW 자산관리 화면(자산번호 채번, 필터, 엑셀 등)의
+// 기준 테이블. 다른 화면에서 법인명을 나열할 때는 원본 레코드의 문자열을
+// 그대로 쓰지 말고 반드시 이 목록을 기준으로 표시해, 표기 흔들림(영문/국문,
+// 대소문자 등)으로 같은 법인이 두 줄로 갈라지는 일을 막는다.
+export const COMPANIES: string[] = [
+  "대웅제약","대웅바이오","대웅","대웅개발","대웅이엔지","대웅펫",
+  "한올바이오파마","시지바이오","시지메드텍","IdsTrust","디엔컴퍼니",
+  "디엔코스메틱스","더편한샵","페이지원","엠서클","애디테라","노바메디텍",
+  "에이하나","다나아데이터","클리슈어리서치","유와이즈원","DNC",
+  "석천나눔재단","HR코리아","힐코","블루넷",
+];
+
+// 원본 데이터의 법인명 문자열(대소문자/공백 표기가 다를 수 있음)을 위 표준
+// 목록의 정확한 표기로 정규화한다. 표준 목록에 없는 값이면 null을 반환한다.
+export function normalizeCompany(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const match = COMPANIES.find(c => c.toLowerCase() === trimmed.toLowerCase());
+  return match ?? null;
+}

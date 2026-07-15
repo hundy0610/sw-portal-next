@@ -6,6 +6,7 @@ import { kvGet } from "@/lib/kv-store";
 import { triggerWarmHw } from "@/lib/trigger-warm-hw";
 import { fetchPcScans, matchPcScansWithHw } from "@/lib/pc-scan";
 import { fetchContracts } from "@/lib/contract-notion";
+import { COMPANIES, normalizeCompany } from "@/lib/companies";
 import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
@@ -64,16 +65,18 @@ export async function GET(req: NextRequest) {
     const hwVerified = verifiedAssetIds.size;
     const achievementRate = contractQtyTotal > 0 ? Math.round((hwVerified / contractQtyTotal) * 100) : 0;
 
-    const companies = Array.from(new Set([
-      ...liveContracts.map(c => c.company),
-      ...hwRecords.map(r => r.company),
-    ].filter(Boolean)));
-
-    const byCompany: CompanyAchievement[] = companies.map(company => {
-      const contractQty = liveContracts.filter(c => c.company === company).reduce((sum, c) => sum + c.quantity, 0);
-      const companyHw = hwRecords.filter(r => r.company === company);
+    // 법인명은 HW 자산관리 화면의 표준 목록(COMPANIES)을 그대로 사용한다 — 원본
+    // 레코드의 문자열을 그대로 라벨로 쓰면 표기 흔들림(영문/국문, 대소문자 등)으로
+    // 같은 법인이 여러 줄로 나뉘어 보일 수 있어, 표준 표기로 정규화해 매칭한다.
+    const byCompany: CompanyAchievement[] = COMPANIES.map(company => {
+      const contractQty = liveContracts
+        .filter(c => normalizeCompany(c.company) === company)
+        .reduce((sum, c) => sum + c.quantity, 0);
+      const companyHw = hwRecords.filter(r => normalizeCompany(r.company) === company);
       return { company, contractQty, hwTotal: companyHw.length, hwVerified: companyHw.filter(r => verifiedAssetIds.has(r.id)).length };
-    }).sort((a, b) => b.hwTotal - a.hwTotal);
+    })
+      .filter(c => c.contractQty > 0 || c.hwTotal > 0)
+      .sort((a, b) => b.hwTotal - a.hwTotal);
 
     const data: AssetAuditDashboardData = { tree, contractQtyTotal, hwTotal, hwVerified, achievementRate, byCompany, masterCacheWarming: !hwAll };
     return NextResponse.json({ ok: true, data });
