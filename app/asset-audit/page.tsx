@@ -47,6 +47,25 @@ function formatBytes(bytes: number | null): string {
   return mb >= 1 ? `${mb.toFixed(1)}MB` : `${(bytes / 1024).toFixed(0)}KB`;
 }
 
+// ── OS별 실행 방법 — 서명되지 않은 사내 프로그램이라 보안 경고가 뜨는 게
+// 정상이라는 점과, 그걸 우회하는 정확한 방법을 안내한다. 캠페인과 무관하게
+// 고정된 기술적 절차라 관리자 편집 항목이 아닌 코드에 고정한다.
+const INSTALL_STEPS: Record<"windows" | "mac", string[]> = {
+  windows: [
+    "위 다운로드 버튼을 눌러 설치 파일(.exe)을 받습니다.",
+    "다운로드한 파일을 더블클릭해서 실행합니다.",
+    "\"Windows에서 PC를 보호했습니다\" 화면이 뜨면 \"추가 정보\"를 누른 뒤 \"실행\" 버튼을 눌러주세요.",
+    "실행이 완료되면 자동으로 자산 정보가 수집되어 등록됩니다.",
+  ],
+  mac: [
+    "위 다운로드 버튼을 눌러 설치 파일(.dmg)을 받습니다.",
+    "다운로드한 파일을 더블클릭하면 설치 창이 열립니다.",
+    "열린 창에서 앱 아이콘을 Applications 폴더로 드래그합니다.",
+    "Applications 폴더에서 앱을 실행합니다. \"확인되지 않은 개발자\" 경고가 뜨면 아이콘을 우클릭한 뒤 \"열기\"를 선택해주세요.",
+    "실행이 완료되면 자동으로 자산 정보가 수집되어 등록됩니다.",
+  ],
+};
+
 // ── 자산실사를 진행하는 이유 — 캠페인과 무관하게 고정된 안내 문구 ──
 const PURPOSE_ITEMS: { title: string; desc: string; icon: React.ReactNode }[] = [
   {
@@ -273,8 +292,26 @@ export default function AssetAuditProgramPage() {
                       </a>
                     )}
 
+                    <div className="mt-6 pt-6" style={{ borderTop: `1px solid ${C.border}` }}>
+                      <p className="mb-3" style={{ ...T.label, color: C.text2 }}>다운로드 후 실행 방법</p>
+                      <ol className="space-y-2 mb-4">
+                        {(os === "mac" ? INSTALL_STEPS.mac : INSTALL_STEPS.windows).map((step, i) => (
+                          <li key={i} className="flex items-start gap-2.5">
+                            <span className="shrink-0 w-5 h-5 rounded-full text-white flex items-center justify-center"
+                              style={{ ...T.caption, fontWeight: 700, background: C.brand }}>{i + 1}</span>
+                            <span className="pt-0.5" style={{ ...T.body, ...pretty, color: C.text2 }}>{step}</span>
+                          </li>
+                        ))}
+                      </ol>
+                      <div className="rounded-xl p-4" style={{ background: C.bg, border: `1px solid ${C.border}` }}>
+                        <p style={{ ...T.body, ...pretty, color: C.text3 }}>
+                          보안 경고 화면이 뜨는 건 정상입니다 — 사내에서 자체 제작한 프로그램이라 별도 인증서가 없어 나타나는 안내이며, 위 방법대로 진행하시면 안전하게 실행됩니다.
+                        </p>
+                      </div>
+                    </div>
+
                     <p className="text-center mt-4" style={{ ...T.caption, ...pretty, color: C.text3 }}>
-                      실행 후 별도 입력 없이 자동으로 자산 정보가 등록됩니다. 문의사항은 자산관리파트로 연락 주세요.
+                      문의사항은 자산관리파트로 연락 주세요.
                     </p>
                   </div>
                 )}
