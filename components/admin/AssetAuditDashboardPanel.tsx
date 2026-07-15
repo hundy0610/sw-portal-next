@@ -61,6 +61,7 @@ export default function AssetAuditDashboardPanel() {
   const [data, setData]     = useState<AssetAuditDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]   = useState("");
+  const [sample, setSample] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -69,6 +70,7 @@ export default function AssetAuditDashboardPanel() {
       .then(json => {
         if (json?.ok) {
           setData(json.data);
+          setSample(!!json.sample);
           setExpanded(new Set(json.data.tree.map((n: OrgTreeNode) => n.id)));
         } else {
           setError(json?.error ?? "조회 실패");
@@ -101,6 +103,12 @@ export default function AssetAuditDashboardPanel() {
         <h2 className="text-lg font-bold text-gray-900">자산 실사 진행률 대시보드</h2>
         <p className="text-xs text-gray-400 mt-0.5">계약 수량 대비 실사 확인 달성률과 조직별 진행 현황을 확인합니다.</p>
       </div>
+
+      {sample && !loading && !error && (
+        <div className="rounded-lg px-3 py-2.5 text-xs" style={{ background: "#fffbeb", color: "#92400e", border: "1px solid #fde68a" }}>
+          샘플 데이터입니다 — 실제 조직도 Notion DB가 아직 연결되지 않아, 아래 &quot;조직별 상세 진행률&quot;은 화면 구성 확인용 예시 데이터입니다. 상단 달성률/자산 수치는 실제 데이터입니다.
+        </div>
+      )}
 
       {loading ? (
         <p className="text-xs text-gray-400">불러오는 중…</p>

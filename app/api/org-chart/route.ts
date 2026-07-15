@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchOrgUnits, createOrgUnit, updateOrgUnit, archiveOrgUnit, type OrgUnit } from "@/lib/org-chart";
+import { fetchOrgUnits, createOrgUnit, updateOrgUnit, archiveOrgUnit, isOrgChartConfigured, type OrgUnit } from "@/lib/org-chart";
 import { getSessionFromCookieHeader, resolveCurrentRole, resolveCurrentName } from "@/lib/session";
 import { appendAdminAuditLog } from "@/lib/portal-store";
 import { errorMessage } from "@/lib/api-error";
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   try {
     const data = await fetchOrgUnits();
-    return NextResponse.json({ ok: true, data });
+    return NextResponse.json({ ok: true, data, sample: !isOrgChartConfigured() });
   } catch (e) {
     return NextResponse.json({ ok: false, data: [], error: errorMessage(e) }, { status: 500 });
   }
@@ -26,6 +26,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await getSuperSession(req);
   if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  if (!isOrgChartConfigured()) {
+    return NextResponse.json({ ok: false, error: "샘플 데이터 모드입니다 — 실제 조직도 Notion DB 연결 후 편집할 수 있습니다." }, { status: 409 });
+  }
 
   try {
     const body = await req.json();
