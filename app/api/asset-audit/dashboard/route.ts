@@ -73,12 +73,18 @@ export async function GET(req: NextRequest) {
     // 법인명은 HW 자산관리 화면의 표준 목록(COMPANIES)을 그대로 사용한다 — 원본
     // 레코드의 문자열을 그대로 라벨로 쓰면 표기 흔들림(영문/국문, 대소문자 등)으로
     // 같은 법인이 여러 줄로 나뉘어 보일 수 있어, 표준 표기로 정규화해 매칭한다.
+    //
+    // 법인별 "자산 수량"은 HW 마스터에 등록된 전체 자산 대수가 아니라, "자산 실사
+    // 현황"(PC 실사 제출 기록)에 실제로 넘어온 건수로 집계한다 — 전체 보유 자산 대수
+    // 대비 비율을 보여주면 이번 실사 캠페인과 무관한 분모가 되어 의미가 없어진다.
     const byCompany: CompanyAchievement[] = COMPANIES
       .filter(company => !EXCLUDED_FROM_AUDIT_DASHBOARD.includes(company))
       .map(company => {
         const contractQty = AUDIT_CONTRACT_QTY[company] ?? 0;
-        const companyHw = hwRecords.filter(r => normalizeCompany(r.company) === company);
-        return { company, contractQty, hwTotal: companyHw.length, hwVerified: companyHw.filter(r => verifiedAssetIds.has(r.id)).length };
+        const companyScans = matches.filter(m => normalizeCompany(m.corp ?? "") === company);
+        const hwTotal = companyScans.length;
+        const hwVerified = companyScans.filter(m => m.masterExists).length;
+        return { company, contractQty, hwTotal, hwVerified };
       })
       .filter(c => c.contractQty > 0 || c.hwTotal > 0)
       .sort((a, b) => b.hwTotal - a.hwTotal);
