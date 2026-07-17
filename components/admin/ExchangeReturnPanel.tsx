@@ -1143,7 +1143,7 @@ function ReturnRegModal({
                 <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 space-y-1">
                   <p className="text-xs font-semibold text-yellow-800">반납요청 트래커 연결됨</p>
                   <p className="text-xs text-yellow-700">
-                    {searchResult.matchedRecord.flowType} · {searchResult.matchedRecord.company} · {searchResult.matchedRecord.department} · {searchResult.matchedRecord.user}
+                    {searchResult.matchedRecord.type} · {searchResult.matchedRecord.company} · {searchResult.matchedRecord.department} · {searchResult.matchedRecord.user}
                   </p>
                 </div>
               )}
