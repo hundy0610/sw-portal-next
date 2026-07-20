@@ -8,7 +8,7 @@ const SENT_KEY = (id: string) => `helpdesk:manual-reply-sent:${id}`;
 const SENT_TTL = 60 * 60 * 24 * 365; // 1년
 
 // POST /api/helpdesk/send-manual-reply
-// Body: { ticketId, requesterEmail, requesterName, ticketContent, category, manualTitle, manualBody, assignee }
+// Body: { ticketId, requesterEmail, requesterName, ticketContent, category, manualId, manualTitle, assignee }
 export async function POST(req: NextRequest) {
   const transporter = createMailTransporter();
   if (!transporter) {
@@ -17,23 +17,26 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { ticketId, requesterEmail, requesterName, ticketContent, category, manualTitle, manualBody, assignee } = await req.json() as {
+    const { ticketId, requesterEmail, requesterName, ticketContent, category, manualId, manualTitle, assignee } = await req.json() as {
       ticketId?: string; requesterEmail?: string; requesterName?: string;
-      ticketContent?: string; category?: string; manualTitle?: string; manualBody?: string; assignee?: string;
+      ticketContent?: string; category?: string; manualId?: string; manualTitle?: string; assignee?: string;
     };
 
-    if (!ticketId || !requesterEmail || !manualBody) {
-      return NextResponse.json({ ok: false, error: "ticketId, requesterEmail, manualBody 필수", code: "MANUAL_MAIL_INVALID_INPUT" }, { status: 400 });
+    if (!ticketId || !requesterEmail || !manualId) {
+      return NextResponse.json({ ok: false, error: "ticketId, requesterEmail, manualId 필수", code: "MANUAL_MAIL_INVALID_INPUT" }, { status: 400 });
     }
 
     const alreadySent = await kvGet<boolean>(SENT_KEY(ticketId));
     if (alreadySent) return NextResponse.json({ ok: true, skipped: true, reason: "이미 발송됨" });
 
+    const origin = process.env.NEXT_PUBLIC_APP_URL || "https://assetify-desk-main.vercel.app";
+    const manualUrl = `${origin}/api/helpdesk/manuals/view?id=${encodeURIComponent(manualId)}`;
+
     const html = buildHelpdeskManualReplyEmail({
       requesterName: requesterName || "고객",
       category: category || "",
       manualTitle: manualTitle || category || "안내",
-      manualBody,
+      manualUrl,
       ticketContent: ticketContent || "",
       assignee: assignee || "담당자",
     });

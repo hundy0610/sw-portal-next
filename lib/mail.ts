@@ -466,11 +466,11 @@ export function buildHelpdeskManualReplyEmail(opts: {
   requesterName: string;
   category: string;
   manualTitle: string;
-  manualBody: string;
+  manualUrl: string;
   ticketContent: string;
   assignee: string;
 }): string {
-  const { requesterName, category, manualTitle, manualBody, ticketContent, assignee } = opts;
+  const { requesterName, category, manualTitle, manualUrl, ticketContent, assignee } = opts;
 
   return `<!DOCTYPE html>
 <html lang="ko">
@@ -485,7 +485,7 @@ export function buildHelpdeskManualReplyEmail(opts: {
     <p style="font-size:15px;color:#1E293B;margin:0 0 16px;">안녕하세요, <strong>${requesterName}</strong>님</p>
     <p style="font-size:14px;color:#475569;line-height:1.7;margin:0 0 18px;">
       문의하신 내용은 <strong>동일한 방식으로 이미 여러 차례 해결된 사례</strong>가 있어, 담당자 배정을 기다리지 않고
-      바로 확인해 조치하실 수 있도록 안내 자료를 준비했습니다.
+      바로 확인해 조치하실 수 있도록 안내 매뉴얼을 준비했습니다.
     </p>
     <div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:10px;padding:16px 18px;margin-bottom:20px;">
       <div style="font-size:11px;color:#059669;margin-bottom:8px;font-weight:700;letter-spacing:0.3px;">직접 지원 대신 안내로 도와드리는 이유</div>
@@ -499,10 +499,13 @@ export function buildHelpdeskManualReplyEmail(opts: {
       <div style="font-size:11px;color:#94A3B8;margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">문의하신 내용</div>
       <p style="font-size:13px;color:#334155;margin:0;line-height:1.5;white-space:pre-wrap;">${ticketContent}</p>
     </div>
-    <div style="background:#EFF6FF;border:1.5px solid #93C5FD;border-radius:12px;padding:18px 20px;margin-bottom:20px;">
+    <div style="background:#EFF6FF;border:1.5px solid #93C5FD;border-radius:12px;padding:18px 20px;margin-bottom:20px;text-align:center;">
       <div style="font-size:11px;color:#2563EB;margin-bottom:4px;font-weight:600;letter-spacing:0.5px;">${category}</div>
-      <div style="font-size:15px;color:#1E3A8A;font-weight:700;margin-bottom:10px;">${manualTitle}</div>
-      <p style="font-size:14px;color:#1E293B;margin:0;line-height:1.8;white-space:pre-wrap;">${manualBody}</p>
+      <div style="font-size:15px;color:#1E3A8A;font-weight:700;margin-bottom:14px;">${manualTitle}</div>
+      <a href="${manualUrl}" target="_blank"
+        style="display:inline-block;background:#2563EB;color:white;font-size:14px;font-weight:700;padding:12px 28px;border-radius:10px;text-decoration:none;">
+        📋 매뉴얼 확인하기
+      </a>
     </div>
     <p style="font-size:13px;color:#475569;line-height:1.7;margin:0 0 20px;">
       안내드린 방법대로 진행하신 후에도 해결되지 않는다면, 이 메일에 그대로 회신해 주시거나

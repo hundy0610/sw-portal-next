@@ -375,8 +375,11 @@ function ManualsTab({
   presetCategory?: string | null;
   onConsumePreset?: () => void;
 }) {
+  const MAX_MANUAL_FILE_BYTES = 5 * 1024 * 1024; // 5MB
   const blankForm = () => ({ id: null as string | null, categories: [] as string[], keywords: "", title: "", body: "" });
   const [form,    setForm]    = useState(blankForm);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
   const [saving,  setSaving]  = useState(false);
   const [saveResult, setSaveResult] = useState<"idle" | "done" | "error">("idle");
   const [saveErrorCode, setSaveErrorCode] = useState<string | null>(null);
@@ -386,6 +389,7 @@ function ManualsTab({
   useEffect(() => {
     if (!presetCategory) return;
     setForm({ id: null, categories: [presetCategory], keywords: "", title: presetCategory, body: "" });
+    setFileName(null); setFileError(null);
     setSaveResult("idle");
     onConsumePreset?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -393,7 +397,36 @@ function ManualsTab({
 
   const loadForEdit = (m: HelpDeskManual) => {
     setForm({ id: m.id, categories: m.categories, keywords: m.keywords.join(", "), title: m.title, body: m.body });
+    setFileName(null); setFileError(null);
     setSaveResult("idle");
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setFileError(null);
+    if (file.size > MAX_MANUAL_FILE_BYTES) {
+      setFileError(`파일이 너무 큽니다 (최대 ${MAX_MANUAL_FILE_BYTES / 1024 / 1024}MB)`);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setForm(f => ({ ...f, body: String(reader.result ?? "") }));
+      setFileName(file.name);
+    };
+    reader.onerror = () => setFileError("파일을 읽지 못했습니다.");
+    reader.readAsText(file);
+  };
+
+  // 저장된 매뉴얼은 실제 발송용 URL로, 아직 저장 전인 첨부 파일은 임시 Blob URL로 미리보기
+  const previewManual = () => {
+    if (form.id) {
+      window.open(`/api/helpdesk/manuals/view?id=${encodeURIComponent(form.id)}`, "_blank");
+    } else if (form.body) {
+      const url = URL.createObjectURL(new Blob([form.body], { type: "text/html" }));
+      window.open(url, "_blank");
+    }
   };
 
   const matchingCounts = useMemo(
@@ -473,9 +506,9 @@ function ManualsTab({
       {/* 좌: 작성 폼 */}
       <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-gray-800">{form.id ? "매뉴얼 수정" : "새 매뉴얼 작성"}</h3>
+          <h3 className="text-sm font-bold text-gray-800">{form.id ? "매뉴얼 수정" : "새 매뉴얼 등록"}</h3>
           {form.id && (
-            <button onClick={() => setForm(blankForm())} className="text-xs text-gray-400 hover:text-gray-600">
+            <button onClick={() => { setForm(blankForm()); setFileName(null); setFileError(null); }} className="text-xs text-gray-400 hover:text-gray-600">
               + 새로 작성
             </button>
           )}
@@ -520,10 +553,22 @@ function ManualsTab({
             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-200" />
         </div>
         <div>
-          <span className="text-xs text-gray-500 font-semibold block mb-1.5">매뉴얼 본문 (문의자에게 그대로 발송됩니다)</span>
-          <textarea value={form.body} onChange={e => setForm(f => ({ ...f, body: e.target.value }))} rows={8}
-            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-200 resize-none"
-            placeholder="예: 1) 한글 실행 → 2) 도움말 > 사용자 등록 → 3) 라이선스 키 입력 순으로 안내해주세요." />
+          <span className="text-xs text-gray-500 font-semibold block mb-1.5">매뉴얼 HTML 파일 (문의자에게 이 내용이 그대로 발송됩니다)</span>
+          <input
+            type="file"
+            accept=".html,.htm,text/html"
+            onChange={handleFileChange}
+            className="w-full text-sm text-gray-600 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-amber-50 file:text-amber-700 file:text-xs file:font-semibold hover:file:bg-amber-100"
+          />
+          {fileError && <p className="text-xs text-red-500 mt-1">{fileError}</p>}
+          {form.body && (
+            <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+              <span>{fileName ?? "첨부된 HTML 파일 있음"}</span>
+              <button type="button" onClick={previewManual} className="font-semibold hover:underline" style={{ color: "var(--brand)" }}>
+                미리보기
+              </button>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button onClick={handleSave} disabled={saving || !form.body.trim() || form.categories.length === 0}
@@ -670,7 +715,6 @@ function HelpDeskTicketFloating({
   const [manualQuery,     setManualQuery]     = useState("");
   const [selectedManual,  setSelectedManual]  = useState<HelpDeskManual | null>(null);
   const [manualEditTitle, setManualEditTitle] = useState("");
-  const [manualEditBody,  setManualEditBody]  = useState("");
   const [manualReplyState, setManualReplyState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [manualReplyErrorCode, setManualReplyErrorCode] = useState<string | null>(null);
 
@@ -703,11 +747,15 @@ function HelpDeskTicketFloating({
   const selectManual = (m: HelpDeskManual) => {
     setSelectedManual(m);
     setManualEditTitle(m.title);
-    setManualEditBody(m.body);
+  };
+
+  const previewSelectedManual = () => {
+    if (!selectedManual) return;
+    window.open(`/api/helpdesk/manuals/view?id=${encodeURIComponent(selectedManual.id)}`, "_blank");
   };
 
   const sendManualReply = async () => {
-    if (!ticket.requesterEmail || !manualEditBody.trim()) return;
+    if (!ticket.requesterEmail || !selectedManual) return;
     setManualReplyState("sending"); setManualReplyErrorCode(null);
     try {
       const res = await fetch("/api/helpdesk/send-manual-reply", {
@@ -718,9 +766,9 @@ function HelpDeskTicketFloating({
           requesterEmail: ticket.requesterEmail,
           requesterName: ticket.requester || "고객",
           ticketContent: ticket.content || ticket.title || "",
-          category: selectedManual?.categories.join(", ") || "",
+          category: selectedManual.categories.join(", ") || "",
+          manualId: selectedManual.id,
           manualTitle: manualEditTitle,
-          manualBody: manualEditBody,
           assignee: selectedAssignee || "담당자",
         }),
       });
@@ -736,7 +784,7 @@ function HelpDeskTicketFloating({
     }
   };
 
-  // 매뉴얼 회신 발송 시 조치분류/조치내용을 매뉴얼 내용으로 채워 완료 처리 폼 열기
+  // 매뉴얼 회신 발송 시 조치분류를 채우고, 조치내용엔 어떤 매뉴얼을 안내했는지 남겨 완료 처리 폼 열기
   const applyManualToCompleteForm = () => {
     if (!selectedManual) return;
     setSelectedCategories(prev => {
@@ -744,7 +792,7 @@ function HelpDeskTicketFloating({
       selectedManual.categories.forEach(c => merged.add(c));
       return [...merged];
     });
-    setNoteValue(prev => prev.trim().length > 0 ? prev : manualEditBody);
+    setNoteValue(prev => prev.trim().length > 0 ? prev : `매뉴얼 "${manualEditTitle}" 안내 발송`);
     setShowCompleteForm(true);
   };
 
@@ -1243,24 +1291,24 @@ function HelpDeskTicketFloating({
 
                     {selectedManual && (
                       <div className="space-y-2 pt-1 border-t border-sky-200">
-                        <input
-                          value={manualEditTitle}
-                          onChange={e => setManualEditTitle(e.target.value)}
-                          className="w-full text-sm font-semibold border border-sky-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-sky-200"
-                        />
-                        <textarea
-                          value={manualEditBody}
-                          onChange={e => setManualEditBody(e.target.value)}
-                          rows={4}
-                          className="w-full text-sm border border-sky-200 rounded-lg px-2.5 py-1.5 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-sky-200 resize-none"
-                        />
+                        <div className="flex items-center gap-2">
+                          <input
+                            value={manualEditTitle}
+                            onChange={e => setManualEditTitle(e.target.value)}
+                            className="flex-1 text-sm font-semibold border border-sky-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-sky-200"
+                          />
+                          <button type="button" onClick={previewSelectedManual}
+                            className="text-xs px-2.5 py-1.5 rounded-lg border border-sky-300 text-sky-700 font-medium hover:bg-sky-100 transition-colors whitespace-nowrap">
+                            미리보기
+                          </button>
+                        </div>
                         {!ticket.requesterEmail && (
                           <p className="text-[11px] text-amber-600">문의자 이메일이 없어 회신을 보낼 수 없습니다.</p>
                         )}
                         <div className="flex items-center gap-2">
                           <button
                             onClick={sendManualReply}
-                            disabled={!ticket.requesterEmail || manualReplyState === "sending" || manualReplyState === "sent" || !manualEditBody.trim()}
+                            disabled={!ticket.requesterEmail || manualReplyState === "sending" || manualReplyState === "sent"}
                             className="text-xs px-3 py-1.5 rounded-lg bg-sky-600 text-white font-semibold hover:bg-sky-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                           >
                             {manualReplyState === "sending" ? "발송 중…" : manualReplyState === "sent" ? "발송됨 ✓" : "메일로 회신 보내기"}
