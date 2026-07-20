@@ -7,6 +7,8 @@ const manualKey = (id: string) => `helpdesk:manual:${id}`;
 export interface HelpDeskManual {
   id: string;
   title: string;
+  // "html"이면 body에 첨부된 HTML 원문, "url"이면 body에 외부 URL이 들어있음
+  contentType: "html" | "url";
   body: string;
   // 이 매뉴얼로 처리 가능한 조치분류(소분류). 하나의 매뉴얼이 여러 소분류를 커버할 수 있음
   categories: string[];
@@ -30,6 +32,7 @@ export async function getManual(id: string): Promise<HelpDeskManual | null> {
 export async function saveManual(data: {
   id?: string;
   title: string;
+  contentType: "html" | "url";
   body: string;
   categories: string[];
   keywords: string[];
@@ -39,6 +42,7 @@ export async function saveManual(data: {
   const manual: HelpDeskManual = {
     id,
     title: data.title,
+    contentType: data.contentType,
     body: data.body,
     categories: data.categories,
     keywords: data.keywords,

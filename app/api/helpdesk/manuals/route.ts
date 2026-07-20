@@ -15,13 +15,17 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { id, title, body, categories, keywords, updatedBy } = await req.json() as {
-      id?: string; title?: string; body?: string; categories?: string[]; keywords?: string[]; updatedBy?: string;
+    const { id, title, contentType, body, categories, keywords, updatedBy } = await req.json() as {
+      id?: string; title?: string; contentType?: "html" | "url"; body?: string;
+      categories?: string[]; keywords?: string[]; updatedBy?: string;
     };
-    if (!title || !body || !categories || categories.length === 0) {
-      return NextResponse.json({ ok: false, error: "title, body, categories 필수", code: "MANUAL_SAVE_INVALID_INPUT" }, { status: 400 });
+    if (!title || !body || !categories || categories.length === 0 || (contentType !== "html" && contentType !== "url")) {
+      return NextResponse.json({ ok: false, error: "title, body, categories, contentType 필수", code: "MANUAL_SAVE_INVALID_INPUT" }, { status: 400 });
     }
-    const manual = await saveManual({ id, title, body, categories, keywords: keywords ?? [], updatedBy: updatedBy || "" });
+    if (contentType === "url" && !/^https?:\/\//.test(body)) {
+      return NextResponse.json({ ok: false, error: "올바른 URL이 아닙니다 (http:// 또는 https://로 시작해야 함)", code: "MANUAL_SAVE_INVALID_URL" }, { status: 400 });
+    }
+    const manual = await saveManual({ id, title, contentType, body, categories, keywords: keywords ?? [], updatedBy: updatedBy || "" });
     return NextResponse.json({ ok: true, manual });
   } catch (e) {
     console.error("[API /helpdesk/manuals POST] MANUAL_SAVE_FAILED", e);

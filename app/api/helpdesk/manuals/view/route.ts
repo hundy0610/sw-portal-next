@@ -17,6 +17,9 @@ export async function GET(req: NextRequest) {
       console.error("[GET /api/helpdesk/manuals/view] MANUAL_VIEW_NOT_FOUND", id);
       return new NextResponse("매뉴얼을 찾을 수 없습니다. 담당자에게 문의해주세요.", { status: 404 });
     }
+    if (manual.contentType === "url") {
+      return NextResponse.redirect(manual.body);
+    }
     return new NextResponse(manual.body, {
       status: 200,
       headers: { "Content-Type": "text/html; charset=utf-8" },

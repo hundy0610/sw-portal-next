@@ -376,7 +376,7 @@ function ManualsTab({
   onConsumePreset?: () => void;
 }) {
   const MAX_MANUAL_FILE_BYTES = 5 * 1024 * 1024; // 5MB
-  const blankForm = () => ({ id: null as string | null, categories: [] as string[], keywords: "", title: "", body: "" });
+  const blankForm = () => ({ id: null as string | null, categories: [] as string[], keywords: "", title: "", contentType: "html" as "html" | "url", body: "" });
   const [form,    setForm]    = useState(blankForm);
   const [fileName, setFileName] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -388,7 +388,7 @@ function ManualsTab({
   // 반복 문의 알림에서 "매뉴얼 만들기"로 넘어온 경우 새 매뉴얼 폼에 소분류를 미리 채워줌
   useEffect(() => {
     if (!presetCategory) return;
-    setForm({ id: null, categories: [presetCategory], keywords: "", title: presetCategory, body: "" });
+    setForm({ id: null, categories: [presetCategory], keywords: "", title: presetCategory, contentType: "html", body: "" });
     setFileName(null); setFileError(null);
     setSaveResult("idle");
     onConsumePreset?.();
@@ -396,9 +396,15 @@ function ManualsTab({
   }, [presetCategory]);
 
   const loadForEdit = (m: HelpDeskManual) => {
-    setForm({ id: m.id, categories: m.categories, keywords: m.keywords.join(", "), title: m.title, body: m.body });
+    setForm({ id: m.id, categories: m.categories, keywords: m.keywords.join(", "), title: m.title, contentType: m.contentType, body: m.body });
     setFileName(null); setFileError(null);
     setSaveResult("idle");
+  };
+
+  const switchContentType = (contentType: "html" | "url") => {
+    if (contentType === form.contentType) return;
+    setForm(f => ({ ...f, contentType, body: "" }));
+    setFileName(null); setFileError(null);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -419,8 +425,13 @@ function ManualsTab({
     reader.readAsText(file);
   };
 
-  // 저장된 매뉴얼은 실제 발송용 URL로, 아직 저장 전인 첨부 파일은 임시 Blob URL로 미리보기
+  // 저장된 HTML 매뉴얼은 실제 발송용 URL로, 아직 저장 전인 첨부 파일은 임시 Blob URL로,
+  // URL 링크 매뉴얼은 입력된 주소를 그대로 새 탭에서 미리보기
   const previewManual = () => {
+    if (form.contentType === "url") {
+      if (form.body) window.open(form.body, "_blank");
+      return;
+    }
     if (form.id) {
       window.open(`/api/helpdesk/manuals/view?id=${encodeURIComponent(form.id)}`, "_blank");
     } else if (form.body) {
@@ -453,6 +464,7 @@ function ManualsTab({
         body: JSON.stringify({
           id: form.id ?? undefined,
           title: form.title || form.categories[0],
+          contentType: form.contentType,
           body: form.body,
           categories: form.categories,
           keywords: form.keywords.split(",").map(k => k.trim()).filter(Boolean),
@@ -562,25 +574,59 @@ function ManualsTab({
             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-200" />
         </div>
         <div>
-          <span className="text-xs text-gray-500 font-semibold block mb-1.5">매뉴얼 HTML 파일 (문의자에게 이 내용이 그대로 발송됩니다)</span>
-          <input
-            type="file"
-            accept=".html,.htm,text/html"
-            onChange={handleFileChange}
-            className="w-full text-sm text-gray-600 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-amber-50 file:text-amber-700 file:text-xs file:font-semibold hover:file:bg-amber-100"
-          />
-          {fileError && <p className="text-xs text-red-500 mt-1">{fileError}</p>}
-          {form.body && (
-            <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
-              <span>{fileName ?? "첨부된 HTML 파일 있음"}</span>
-              <button type="button" onClick={previewManual} className="font-semibold hover:underline" style={{ color: "var(--brand)" }}>
-                미리보기
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs text-gray-500 font-semibold">매뉴얼 (문의자에게 이 내용이 그대로 발송됩니다)</span>
+            <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+              <button type="button" onClick={() => switchContentType("html")}
+                className={`text-[11px] font-semibold px-2.5 py-1 transition-colors ${form.contentType === "html" ? "bg-amber-600 text-white" : "bg-white text-gray-500 hover:text-gray-700"}`}>
+                HTML 첨부
+              </button>
+              <button type="button" onClick={() => switchContentType("url")}
+                className={`text-[11px] font-semibold px-2.5 py-1 transition-colors ${form.contentType === "url" ? "bg-amber-600 text-white" : "bg-white text-gray-500 hover:text-gray-700"}`}>
+                URL 링크
               </button>
             </div>
+          </div>
+
+          {form.contentType === "html" ? (
+            <>
+              <input
+                type="file"
+                accept=".html,.htm,text/html"
+                onChange={handleFileChange}
+                className="w-full text-sm text-gray-600 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-amber-50 file:text-amber-700 file:text-xs file:font-semibold hover:file:bg-amber-100"
+              />
+              {fileError && <p className="text-xs text-red-500 mt-1">{fileError}</p>}
+              {form.body && (
+                <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                  <span>{fileName ?? "첨부된 HTML 파일 있음"}</span>
+                  <button type="button" onClick={previewManual} className="font-semibold hover:underline" style={{ color: "var(--brand)" }}>
+                    미리보기
+                  </button>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <input
+                value={form.body}
+                onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
+                placeholder="https://..."
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-200"
+              />
+              {form.body && !/^https?:\/\//.test(form.body) && (
+                <p className="text-xs text-red-500 mt-1">http:// 또는 https:// 로 시작하는 주소여야 합니다.</p>
+              )}
+              {form.body && /^https?:\/\//.test(form.body) && (
+                <button type="button" onClick={previewManual} className="text-xs font-semibold hover:underline mt-2" style={{ color: "var(--brand)" }}>
+                  미리보기
+                </button>
+              )}
+            </>
           )}
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={handleSave} disabled={saving || !form.body.trim() || form.categories.length === 0}
+          <button onClick={handleSave} disabled={saving || !form.body.trim() || form.categories.length === 0 || (form.contentType === "url" && !/^https?:\/\//.test(form.body))}
             className="text-sm px-4 py-2 rounded-lg bg-amber-600 text-white font-semibold hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
             {saving ? "저장 중…" : form.id ? "매뉴얼 수정" : "매뉴얼 등록"}
           </button>
@@ -603,7 +649,12 @@ function ManualsTab({
               <div key={m.id} className="border border-gray-100 rounded-lg p-3 hover:border-amber-200 transition-colors">
                 <div className="flex items-center justify-between gap-2">
                   <button onClick={() => loadForEdit(m)} className="text-left flex-1 min-w-0">
-                    <div className="text-sm font-medium text-gray-800 truncate">{m.title}</div>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${m.contentType === "url" ? "bg-sky-50 text-sky-700" : "bg-gray-100 text-gray-500"}`}>
+                        {m.contentType === "url" ? "URL" : "HTML"}
+                      </span>
+                      <div className="text-sm font-medium text-gray-800 truncate">{m.title}</div>
+                    </div>
                     <div className="flex flex-wrap gap-1 mt-1">
                       {m.categories.map(c => (
                         <span key={c} className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">{c}</span>
@@ -775,7 +826,6 @@ function HelpDeskTicketFloating({
           requesterEmail: ticket.requesterEmail,
           requesterName: ticket.requester || "고객",
           ticketContent: ticket.content || ticket.title || "",
-          category: selectedManual.categories.join(", ") || "",
           manualId: selectedManual.id,
           manualTitle: manualEditTitle,
           assignee: selectedAssignee || "담당자",
