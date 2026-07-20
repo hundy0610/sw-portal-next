@@ -462,6 +462,65 @@ export function buildHelpdeskEscalationEmail(opts: {
 </html>`;
 }
 
+export function buildHelpdeskManualReplyEmail(opts: {
+  requesterName: string;
+  category: string;
+  manualTitle: string;
+  manualBody: string;
+  ticketContent: string;
+  assignee: string;
+}): string {
+  const { requesterName, category, manualTitle, manualBody, ticketContent, assignee } = opts;
+
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F8FAFC;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;">
+<div style="max-width:560px;margin:40px auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+  <div style="background:#0EA5E9;padding:28px 32px;">
+    <div style="color:white;font-size:18px;font-weight:800;">IDS 자산관리파트 Help Desk</div>
+    <div style="color:rgba(255,255,255,0.75);font-size:13px;margin-top:4px;">지금 바로 확인 가능한 처리 안내를 보내드립니다</div>
+  </div>
+  <div style="padding:28px 32px;">
+    <p style="font-size:15px;color:#1E293B;margin:0 0 16px;">안녕하세요, <strong>${requesterName}</strong>님</p>
+    <p style="font-size:14px;color:#475569;line-height:1.7;margin:0 0 18px;">
+      문의하신 내용은 <strong>동일한 방식으로 이미 여러 차례 해결된 사례</strong>가 있어, 담당자 배정을 기다리지 않고
+      바로 확인해 조치하실 수 있도록 안내 자료를 준비했습니다.
+    </p>
+    <div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:10px;padding:16px 18px;margin-bottom:20px;">
+      <div style="font-size:11px;color:#059669;margin-bottom:8px;font-weight:700;letter-spacing:0.3px;">직접 지원 대신 안내로 도와드리는 이유</div>
+      <ul style="margin:0;padding-left:18px;font-size:13px;color:#065F46;line-height:1.9;">
+        <li>담당자의 방문·원격 접속을 기다리지 않고 <strong>지금 바로</strong> 해결할 수 있습니다.</li>
+        <li>이미 다른 동료들도 같은 방법으로 정상적으로 해결한, <strong>검증된 절차</strong>입니다.</li>
+        <li>업무 시간 외에도 확인하실 수 있어 <strong>더 빠르게</strong> 정상 업무로 복귀하실 수 있습니다.</li>
+      </ul>
+    </div>
+    <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:14px 16px;margin-bottom:16px;">
+      <div style="font-size:11px;color:#94A3B8;margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">문의하신 내용</div>
+      <p style="font-size:13px;color:#334155;margin:0;line-height:1.5;white-space:pre-wrap;">${ticketContent}</p>
+    </div>
+    <div style="background:#EFF6FF;border:1.5px solid #93C5FD;border-radius:12px;padding:18px 20px;margin-bottom:20px;">
+      <div style="font-size:11px;color:#2563EB;margin-bottom:4px;font-weight:600;letter-spacing:0.5px;">${category}</div>
+      <div style="font-size:15px;color:#1E3A8A;font-weight:700;margin-bottom:10px;">${manualTitle}</div>
+      <p style="font-size:14px;color:#1E293B;margin:0;line-height:1.8;white-space:pre-wrap;">${manualBody}</p>
+    </div>
+    <p style="font-size:13px;color:#475569;line-height:1.7;margin:0 0 20px;">
+      안내드린 방법대로 진행하신 후에도 해결되지 않는다면, 이 메일에 그대로 회신해 주시거나
+      담당자 <strong>${assignee}</strong>에게 다시 알려주세요. 이어서 직접 지원해 드리겠습니다.
+    </p>
+    <p style="font-size:12px;color:#94A3B8;text-align:center;margin:0;">
+      본 메일은 발신 전용입니다. 추가 문의는
+      <a href="https://assetify-desk-main.vercel.app/inquiry" style="color:#0EA5E9;">문의 접수 페이지</a>를 이용해 주세요.
+    </p>
+  </div>
+  <div style="background:#F8FAFC;border-top:1px solid #E2E8F0;padding:16px 32px;text-align:center;">
+    <p style="font-size:11px;color:#CBD5E1;margin:0;">IDS 자산관리파트 · PC/OA 관리팀</p>
+  </div>
+</div>
+</body>
+</html>`;
+}
+
 export function createMailTransporter() {
   const user = process.env.GMAIL_USER;
   const pass = process.env.GMAIL_APP_PASSWORD;

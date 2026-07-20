@@ -1,0 +1,42 @@
+import { NextRequest, NextResponse } from "next/server";
+import { listManuals, saveManual, deleteManual } from "@/lib/helpdesk-manuals";
+
+export const dynamic = "force-dynamic";
+
+export async function GET() {
+  try {
+    const manuals = await listManuals();
+    return NextResponse.json({ ok: true, manuals });
+  } catch (e) {
+    console.error("[API /helpdesk/manuals GET] MANUAL_LIST_FAILED", e);
+    return NextResponse.json({ ok: false, error: "서버 오류", code: "MANUAL_LIST_FAILED" }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const { id, title, body, categories, keywords, updatedBy } = await req.json() as {
+      id?: string; title?: string; body?: string; categories?: string[]; keywords?: string[]; updatedBy?: string;
+    };
+    if (!title || !body || !categories || categories.length === 0) {
+      return NextResponse.json({ ok: false, error: "title, body, categories 필수", code: "MANUAL_SAVE_INVALID_INPUT" }, { status: 400 });
+    }
+    const manual = await saveManual({ id, title, body, categories, keywords: keywords ?? [], updatedBy: updatedBy || "" });
+    return NextResponse.json({ ok: true, manual });
+  } catch (e) {
+    console.error("[API /helpdesk/manuals POST] MANUAL_SAVE_FAILED", e);
+    return NextResponse.json({ ok: false, error: "서버 오류", code: "MANUAL_SAVE_FAILED" }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { id } = await req.json() as { id?: string };
+    if (!id) return NextResponse.json({ ok: false, error: "id 필수", code: "MANUAL_DELETE_INVALID_INPUT" }, { status: 400 });
+    await deleteManual(id);
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    console.error("[API /helpdesk/manuals DELETE] MANUAL_DELETE_FAILED", e);
+    return NextResponse.json({ ok: false, error: "서버 오류", code: "MANUAL_DELETE_FAILED" }, { status: 500 });
+  }
+}

@@ -7,6 +7,9 @@ import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import { AssetModalInner, HwRecord, HW_STATUSES } from "@/components/admin/AssetModal";
 import { safeJson } from "@/lib/fetch-json";
 import { useAdminDarkMode } from "@/lib/use-admin-dark-mode";
+import { ACTION_TREE, ALL_TREE_KEYS } from "@/lib/action-categories";
+import { classifyActionCategory } from "@/lib/helpdesk-action-classifier";
+import type { HelpDeskManual } from "@/lib/helpdesk-manuals";
 
 // ── Color configs ── 통합 토큰(--state-*) 참조: 긍정/진행/주의/위험/중립 5의미만 사용 ──
 const URGENCY: Record<string, { bg: string; text: string; bar: string }> = {
@@ -278,13 +281,6 @@ function InlineAssigneeCell({
 }
 
 // ── Action Category Tree ─────────────────────────────────────
-const ACTION_TREE = [
-  { label: "하드웨어", children: ["단순 점검", "청소 및 정비", "부품 교체", "외부업체 수리", "자산 교체(노후화)", "자산 교체(고장 및 파손)", "기타"] },
-  { label: "소프트웨어", children: ["OS 점검", "OS 재설치", "드라이버 업데이트", "악성코드 점검", "충돌 보안프로그램 점검", "라이선스 재고 지급", "라이선스 신규구매 안내", "라이선스 갱신 안내", "라이선스 설치", "라이선스 계정 관리", "기타"] },
-  { label: "기타", children: ["단순 안내", "자산 반납", "자산 이관", "타부서 이관", "해결 불가"] },
-];
-const ALL_TREE_KEYS = ACTION_TREE.flatMap(g => g.children.map(c => `${g.label} > ${c}`));
-
 function IndeterminateCheckbox({ checked, indeterminate, onChange }: {
   checked: boolean; indeterminate: boolean; onChange: () => void;
 }) {
@@ -368,6 +364,211 @@ function ActionCategoryTree({ selected, onChange }: { selected: string[]; onChan
   );
 }
 
+// ── 매뉴얼 관리 탭 ─────────────────────────────────────────────
+function ManualsTab({
+  tickets, manuals, manualsError, onSaved, presetCategory, onConsumePreset,
+}: {
+  tickets: HelpDeskTicket[];
+  manuals: HelpDeskManual[];
+  manualsError?: string | null;
+  onSaved: () => void;
+  presetCategory?: string | null;
+  onConsumePreset?: () => void;
+}) {
+  const blankForm = () => ({ id: null as string | null, categories: [] as string[], keywords: "", title: "", body: "" });
+  const [form,    setForm]    = useState(blankForm);
+  const [saving,  setSaving]  = useState(false);
+  const [saveResult, setSaveResult] = useState<"idle" | "done" | "error">("idle");
+  const [saveErrorCode, setSaveErrorCode] = useState<string | null>(null);
+  const [deleteErrorCode, setDeleteErrorCode] = useState<string | null>(null);
+
+  // 반복 문의 알림에서 "매뉴얼 만들기"로 넘어온 경우 새 매뉴얼 폼에 소분류를 미리 채워줌
+  useEffect(() => {
+    if (!presetCategory) return;
+    setForm({ id: null, categories: [presetCategory], keywords: "", title: presetCategory, body: "" });
+    setSaveResult("idle");
+    onConsumePreset?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presetCategory]);
+
+  const loadForEdit = (m: HelpDeskManual) => {
+    setForm({ id: m.id, categories: m.categories, keywords: m.keywords.join(", "), title: m.title, body: m.body });
+    setSaveResult("idle");
+  };
+
+  const matchingCounts = useMemo(
+    () => form.categories.map(cat => ({
+      category: cat,
+      count: tickets.filter(t => t.actionCategory?.includes(cat)).length,
+    })),
+    [tickets, form.categories]
+  );
+  const sampleNotes = useMemo(
+    () => tickets.filter(t => t.actionNote && form.categories.some(cat => t.actionCategory?.includes(cat))).slice(0, 2),
+    [tickets, form.categories]
+  );
+
+  const handleSave = async () => {
+    if (!form.body.trim() || form.categories.length === 0) return;
+    setSaving(true); setSaveResult("idle"); setSaveErrorCode(null);
+    try {
+      const res = await fetch("/api/helpdesk/manuals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: form.id ?? undefined,
+          title: form.title || form.categories[0],
+          body: form.body,
+          categories: form.categories,
+          keywords: form.keywords.split(",").map(k => k.trim()).filter(Boolean),
+        }),
+      });
+      const json = await safeJson(res);
+      if (json.ok) {
+        setSaveResult("done");
+        if (!form.id) setForm(f => ({ ...f, id: json.manual.id }));
+        onSaved();
+      } else {
+        console.error("[ManualsTab.handleSave]", json.code, json);
+        setSaveResult("error"); setSaveErrorCode(json.code || "MANUAL_SAVE_FAILED");
+      }
+    } catch (e) {
+      console.error("[ManualsTab.handleSave] MANUAL_SAVE_FETCH_ERROR", e);
+      setSaveResult("error"); setSaveErrorCode("MANUAL_SAVE_FETCH_ERROR");
+    }
+    finally { setSaving(false); }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("이 매뉴얼을 삭제할까요?")) return;
+    setDeleteErrorCode(null);
+    try {
+      const res = await fetch("/api/helpdesk/manuals", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const json = await safeJson(res);
+      if (json.ok) {
+        if (form.id === id) setForm(blankForm());
+        onSaved();
+      } else {
+        console.error("[ManualsTab.handleDelete]", json.code, json);
+        setDeleteErrorCode(json.code || "MANUAL_DELETE_FAILED");
+      }
+    } catch (e) {
+      console.error("[ManualsTab.handleDelete] MANUAL_DELETE_FETCH_ERROR", e);
+      setDeleteErrorCode("MANUAL_DELETE_FETCH_ERROR");
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      {manualsError && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700">
+          매뉴얼 목록을 불러오지 못했습니다. (코드: {manualsError})
+        </div>
+      )}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      {/* 좌: 작성 폼 */}
+      <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-gray-800">{form.id ? "매뉴얼 수정" : "새 매뉴얼 작성"}</h3>
+          {form.id && (
+            <button onClick={() => setForm(blankForm())} className="text-xs text-gray-400 hover:text-gray-600">
+              + 새로 작성
+            </button>
+          )}
+        </div>
+        <div>
+          <span className="text-xs text-gray-500 font-semibold block mb-1.5">
+            이 매뉴얼로 처리 가능한 조치분류 <span className="font-normal text-gray-400">(복수 선택 가능)</span>
+          </span>
+          <div className="border border-gray-200 rounded-lg px-3 py-2 max-h-40 overflow-y-auto">
+            <ActionCategoryTree selected={form.categories} onChange={v => setForm(f => ({ ...f, categories: v }))} />
+          </div>
+        </div>
+
+        {form.categories.length > 0 && (
+          <div className="bg-gray-50 rounded-lg p-3 space-y-1.5">
+            <span className="text-[11px] text-gray-400 font-semibold">참고: 과거 처리 건수</span>
+            {matchingCounts.map(({ category, count }) => (
+              <p key={category} className="text-xs text-gray-600">{category} — <strong>{count}건</strong></p>
+            ))}
+            {sampleNotes.length > 0 && (
+              <div className="pt-1.5 space-y-1.5 border-t border-gray-200">
+                <span className="text-[11px] text-gray-400 font-semibold">과거 조치내용 샘플</span>
+                {sampleNotes.map(t => (
+                  <p key={t.id} className="text-xs text-gray-600 leading-relaxed line-clamp-2">{t.actionNote}</p>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div>
+          <span className="text-xs text-gray-500 font-semibold block mb-1.5">제목</span>
+          <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-200" />
+        </div>
+        <div>
+          <span className="text-xs text-gray-500 font-semibold block mb-1.5">
+            검색 키워드 <span className="font-normal text-gray-400">(쉼표로 구분, 담당자가 검색할 때 사용됨)</span>
+          </span>
+          <input value={form.keywords} onChange={e => setForm(f => ({ ...f, keywords: e.target.value }))}
+            placeholder="예: 한글, hwp, 라이선스 인증"
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-200" />
+        </div>
+        <div>
+          <span className="text-xs text-gray-500 font-semibold block mb-1.5">매뉴얼 본문 (문의자에게 그대로 발송됩니다)</span>
+          <textarea value={form.body} onChange={e => setForm(f => ({ ...f, body: e.target.value }))} rows={8}
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-200 resize-none"
+            placeholder="예: 1) 한글 실행 → 2) 도움말 > 사용자 등록 → 3) 라이선스 키 입력 순으로 안내해주세요." />
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={handleSave} disabled={saving || !form.body.trim() || form.categories.length === 0}
+            className="text-sm px-4 py-2 rounded-lg bg-amber-600 text-white font-semibold hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+            {saving ? "저장 중…" : form.id ? "매뉴얼 수정" : "매뉴얼 등록"}
+          </button>
+          {saveResult === "done"  && <span className="text-xs text-green-600">저장됨 ✓</span>}
+          {saveResult === "error" && <span className="text-xs text-red-500">저장 실패{saveErrorCode ? ` (코드: ${saveErrorCode})` : ""}</span>}
+        </div>
+      </div>
+
+      {/* 우: 등록된 매뉴얼 목록 */}
+      <div className="bg-white border border-gray-200 rounded-xl p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-bold text-gray-800">등록된 매뉴얼 ({manuals.length}건)</h3>
+          {deleteErrorCode && <span className="text-xs text-red-500">삭제 실패 (코드: {deleteErrorCode})</span>}
+        </div>
+        {manuals.length === 0 ? (
+          <p className="text-xs text-gray-400">아직 등록된 매뉴얼이 없습니다.</p>
+        ) : (
+          <div className="space-y-2 max-h-[560px] overflow-y-auto">
+            {manuals.map(m => (
+              <div key={m.id} className="border border-gray-100 rounded-lg p-3 hover:border-amber-200 transition-colors">
+                <div className="flex items-center justify-between gap-2">
+                  <button onClick={() => loadForEdit(m)} className="text-left flex-1 min-w-0">
+                    <div className="text-sm font-medium text-gray-800 truncate">{m.title}</div>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {m.categories.map(c => (
+                        <span key={c} className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">{c}</span>
+                      ))}
+                    </div>
+                  </button>
+                  <button onClick={() => handleDelete(m.id)}
+                    className="text-xs text-gray-400 hover:text-red-500 shrink-0">삭제</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+    </div>
+  );
+}
+
 // ── HelpDesk Ticket Detail Modal ─────────────────────────────
 const HELPDESK_EDIT_STATUSES = ["시작 전", "진행 중", "완료"] as const;
 const ACTION_NOTE_MIN_LEN = 10;
@@ -422,6 +623,7 @@ function HelpDeskTicketFloating({
   ticket,
   assigneeList,
   statuses,
+  manuals,
   onClose,
   onUpdated,
   currentUserName = "",
@@ -429,6 +631,7 @@ function HelpDeskTicketFloating({
   ticket: HelpDeskTicket;
   assigneeList: { id: string; name: string }[];
   statuses: string[];
+  manuals: HelpDeskManual[];
   onClose: () => void;
   onUpdated?: (id: string, fields: Partial<HelpDeskTicket>) => void;
   currentUserName?: string;
@@ -458,6 +661,92 @@ function HelpDeskTicketFloating({
   const [assetStatus,     setAssetStatus]     = useState("");
   const [assetSaving,     setAssetSaving]     = useState(false);
   const [assetSaveResult, setAssetSaveResult] = useState<"idle" | "done" | "error">("idle");
+
+  // 매뉴얼 검색 (담당자가 문의 내용을 보고 직접 검색해서 선택)
+  const suggestedCategory = useMemo(
+    () => classifyActionCategory(ticket.content || "", ticket.title || "", ticket.inquiryType || ""),
+    [ticket.content, ticket.title, ticket.inquiryType]
+  );
+  const [manualQuery,     setManualQuery]     = useState("");
+  const [selectedManual,  setSelectedManual]  = useState<HelpDeskManual | null>(null);
+  const [manualEditTitle, setManualEditTitle] = useState("");
+  const [manualEditBody,  setManualEditBody]  = useState("");
+  const [manualReplyState, setManualReplyState] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [manualReplyErrorCode, setManualReplyErrorCode] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/helpdesk/send-manual-reply?id=${encodeURIComponent(ticket.id)}`)
+      .then(r => safeJson(r))
+      .then(json => {
+        if (json.sent) setManualReplyState("sent");
+        else if (!json.ok) console.error("[HelpDeskTicketFloating] MANUAL_MAIL_STATUS_CHECK", json.code, json);
+      })
+      .catch(e => console.error("[HelpDeskTicketFloating] MANUAL_MAIL_STATUS_FETCH_ERROR", e));
+  }, [ticket.id]);
+
+  // 검색어 매칭 + 예상 조치분류(참고용 제안) 우선순위로 정렬
+  const manualResults = useMemo(() => {
+    const q = manualQuery.trim().toLowerCase();
+    const scored = manuals
+      .map(m => {
+        const haystack = [m.title, ...m.categories, ...m.keywords].join(" ").toLowerCase();
+        if (q && !haystack.includes(q)) return null;
+        const score = suggestedCategory && m.categories.includes(suggestedCategory.category) ? 1 : 0;
+        return { manual: m, score };
+      })
+      .filter((x): x is { manual: HelpDeskManual; score: number } => !!x)
+      .sort((a, b) => b.score - a.score)
+      .map(x => x.manual);
+    return scored.slice(0, 8);
+  }, [manuals, manualQuery, suggestedCategory]);
+
+  const selectManual = (m: HelpDeskManual) => {
+    setSelectedManual(m);
+    setManualEditTitle(m.title);
+    setManualEditBody(m.body);
+  };
+
+  const sendManualReply = async () => {
+    if (!ticket.requesterEmail || !manualEditBody.trim()) return;
+    setManualReplyState("sending"); setManualReplyErrorCode(null);
+    try {
+      const res = await fetch("/api/helpdesk/send-manual-reply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ticketId: ticket.id,
+          requesterEmail: ticket.requesterEmail,
+          requesterName: ticket.requester || "고객",
+          ticketContent: ticket.content || ticket.title || "",
+          category: selectedManual?.categories.join(", ") || "",
+          manualTitle: manualEditTitle,
+          manualBody: manualEditBody,
+          assignee: selectedAssignee || "담당자",
+        }),
+      });
+      const json = await safeJson(res);
+      if (json.ok) setManualReplyState("sent");
+      else {
+        console.error("[HelpDeskTicketFloating.sendManualReply]", json.code, json);
+        setManualReplyState("error"); setManualReplyErrorCode(json.code || "MANUAL_MAIL_SEND_FAILED");
+      }
+    } catch (e) {
+      console.error("[HelpDeskTicketFloating.sendManualReply] MANUAL_MAIL_FETCH_ERROR", e);
+      setManualReplyState("error"); setManualReplyErrorCode("MANUAL_MAIL_FETCH_ERROR");
+    }
+  };
+
+  // 매뉴얼 회신 발송 시 조치분류/조치내용을 매뉴얼 내용으로 채워 완료 처리 폼 열기
+  const applyManualToCompleteForm = () => {
+    if (!selectedManual) return;
+    setSelectedCategories(prev => {
+      const merged = new Set(prev);
+      selectedManual.categories.forEach(c => merged.add(c));
+      return [...merged];
+    });
+    setNoteValue(prev => prev.trim().length > 0 ? prev : manualEditBody);
+    setShowCompleteForm(true);
+  };
 
   // 워크플로우 UI 상태
   const [showOtherAssignee, setShowOtherAssignee] = useState(false);
@@ -908,6 +1197,86 @@ function HelpDeskTicketFloating({
                       )}
                       {assigneeList.map(u => <option key={u.id || u.name} value={u.name}>{u.name}</option>)}
                     </select>
+                  </div>
+
+                  {/* 매뉴얼 검색 → 선택 → 회신 */}
+                  <div className="rounded-xl border border-sky-200 bg-sky-50 p-3.5 space-y-2.5">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-sky-700">
+                      📋 매뉴얼로 안내 회신하기
+                    </div>
+                    {manuals.length === 0 ? (
+                      <p className="text-[11px] text-sky-700/70">등록된 매뉴얼이 아직 없습니다. "매뉴얼 관리" 탭에서 먼저 등록해주세요.</p>
+                    ) : (
+                      <>
+                        <input
+                          value={manualQuery}
+                          onChange={e => { setManualQuery(e.target.value); }}
+                          placeholder={suggestedCategory ? `검색 (예상 유형: ${suggestedCategory.category})` : "제목·조치분류·키워드로 검색"}
+                          className="w-full text-sm border border-sky-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-sky-200"
+                        />
+                        {manualResults.length > 0 && (
+                          <div className="space-y-1 max-h-40 overflow-y-auto">
+                            {manualResults.map(m => (
+                              <button
+                                type="button"
+                                key={m.id}
+                                onClick={() => selectManual(m)}
+                                className={`w-full text-left px-2.5 py-1.5 rounded-lg border transition-colors ${
+                                  selectedManual?.id === m.id ? "border-sky-400 bg-white" : "border-transparent bg-white/60 hover:bg-white"
+                                }`}
+                              >
+                                <div className="text-xs font-semibold text-gray-800 truncate">{m.title}</div>
+                                <div className="flex flex-wrap gap-1 mt-0.5">
+                                  {m.categories.map(c => (
+                                    <span key={c} className="text-[10px] text-sky-700 bg-sky-100 px-1.5 py-0.5 rounded">{c}</span>
+                                  ))}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {manualQuery.trim() && manualResults.length === 0 && (
+                          <p className="text-[11px] text-sky-700/70">검색 결과가 없습니다.</p>
+                        )}
+                      </>
+                    )}
+
+                    {selectedManual && (
+                      <div className="space-y-2 pt-1 border-t border-sky-200">
+                        <input
+                          value={manualEditTitle}
+                          onChange={e => setManualEditTitle(e.target.value)}
+                          className="w-full text-sm font-semibold border border-sky-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-sky-200"
+                        />
+                        <textarea
+                          value={manualEditBody}
+                          onChange={e => setManualEditBody(e.target.value)}
+                          rows={4}
+                          className="w-full text-sm border border-sky-200 rounded-lg px-2.5 py-1.5 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-sky-200 resize-none"
+                        />
+                        {!ticket.requesterEmail && (
+                          <p className="text-[11px] text-amber-600">문의자 이메일이 없어 회신을 보낼 수 없습니다.</p>
+                        )}
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={sendManualReply}
+                            disabled={!ticket.requesterEmail || manualReplyState === "sending" || manualReplyState === "sent" || !manualEditBody.trim()}
+                            className="text-xs px-3 py-1.5 rounded-lg bg-sky-600 text-white font-semibold hover:bg-sky-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          >
+                            {manualReplyState === "sending" ? "발송 중…" : manualReplyState === "sent" ? "발송됨 ✓" : "메일로 회신 보내기"}
+                          </button>
+                          <button
+                            onClick={applyManualToCompleteForm}
+                            className="text-xs px-3 py-1.5 rounded-lg border border-sky-300 text-sky-700 font-medium hover:bg-sky-100 transition-colors"
+                          >
+                            이 내용으로 완료 처리 열기
+                          </button>
+                          {manualReplyState === "error" && (
+                            <span className="text-[11px] text-red-500">발송 실패{manualReplyErrorCode ? ` (코드: ${manualReplyErrorCode})` : ""}</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {!showCompleteForm ? (
@@ -1579,7 +1948,7 @@ function generateReportHTML(opts: {
 }
 
 // ── Main Panel ───────────────────────────────────────────────
-type Tab = "overview" | "type" | "company" | "list" | "status_list" | "report" | "assignee" | "analysis";
+type Tab = "overview" | "type" | "company" | "list" | "status_list" | "report" | "assignee" | "analysis" | "manuals";
 
 export default function HelpDeskPanel({ company: companyFilter = "", typeFilter = "", currentUserName = "" }: { company?: string; typeFilter?: string; currentUserName?: string }) {
   const dark = useAdminDarkMode();
@@ -1597,6 +1966,39 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
   const [floatingTicket, setFloatingTicket] = useState<HelpDeskTicket | null>(null);
   const [sendingEmail, setSendingEmail] = useState<string | null>(null);
   const [emailSentIds, setEmailSentIds] = useState<Set<string>>(new Set());
+
+  // 반복 문의 매뉴얼 관리
+  const [manuals, setManuals] = useState<HelpDeskManual[]>([]);
+  const [manualsError, setManualsError] = useState<string | null>(null);
+  const [pendingManualCategory, setPendingManualCategory] = useState<string | null>(null);
+  const loadManuals = useCallback(() => {
+    fetch("/api/helpdesk/manuals")
+      .then(r => safeJson(r))
+      .then(res => {
+        if (res.ok) { setManuals(res.manuals ?? []); setManualsError(null); }
+        else { console.error("[loadManuals] MANUAL_LIST_FAILED", res); setManualsError(res.code || "MANUAL_LIST_FAILED"); }
+      })
+      .catch(e => { console.error("[loadManuals] MANUAL_LIST_FETCH_ERROR", e); setManualsError("MANUAL_LIST_FETCH_ERROR"); });
+  }, []);
+
+  // 완료 처리된 문의의 조치분류를 집계해 "반복되는데 아직 매뉴얼이 없는" 유형을 찾아냄
+  const REPEAT_ALERT_THRESHOLD = 3;
+  const repeatAlerts = useMemo(() => {
+    const counts = new Map<string, number>();
+    tickets.forEach(t => {
+      if (t.status !== "완료") return;
+      (t.actionCategory ?? []).forEach(cat => counts.set(cat, (counts.get(cat) ?? 0) + 1));
+    });
+    return [...counts.entries()]
+      .filter(([cat, count]) => count >= REPEAT_ALERT_THRESHOLD && !manuals.some(m => m.categories.includes(cat)))
+      .sort((a, b) => b[1] - a[1])
+      .map(([category, count]) => ({ category, count }));
+  }, [tickets, manuals]);
+
+  const goCreateManualFor = (category: string) => {
+    setPendingManualCategory(category);
+    setTab("manuals");
+  };
 
   // 신규 문의 알림 이메일 관리
   const [notifyEmails,    setNotifyEmails]    = useState<string[]>([]);
@@ -1726,6 +2128,9 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
       .then(res => { if (res.ok) setNotifyEmails(res.emails); })
       .catch(() => {});
   }, []);
+
+  // 매뉴얼 목록 로드
+  useEffect(() => { loadManuals(); }, [loadManuals]);
 
   const handleNotifyAdd = () => {
     const email = notifyInput.trim();
@@ -2185,15 +2590,21 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
           ["company",   "법인현황"],
           ["assignee",  "담당자"],
           ["analysis",  "분석"],
+          ["manuals",   "매뉴얼 관리"],
           ["list",      "목록"],
           ["status_list", "접수 현황"],
           ["report",    "보고서"],
         ] as [Tab, string][]).map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)}
-            className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+            className={`relative px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
               tab === id ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
             }`}>
             {label}
+            {id === "status_list" && repeatAlerts.length > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] font-bold flex items-center justify-center">
+                {repeatAlerts.length}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -2567,6 +2978,33 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
       {/* ════ Tab: 접수 현황 */}
       {tab === "status_list" && (
         <div className="space-y-3">
+          {manualsError && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700">
+              매뉴얼 데이터를 불러오지 못해 반복 문의 알림이 정확하지 않을 수 있습니다. (코드: {manualsError})
+            </div>
+          )}
+          {repeatAlerts.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2.5">
+              <div className="flex items-center gap-1.5 text-sm font-bold text-amber-800">
+                🔁 반복되는 문의 유형이 있습니다 — 매뉴얼 제작을 검토해주세요
+              </div>
+              <p className="text-xs text-amber-700/80">
+                완료 처리 시 등록된 조치분류를 기준으로, {REPEAT_ALERT_THRESHOLD}건 이상 반복됐지만 아직 매뉴얼이 없는 유형입니다.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {repeatAlerts.map(({ category, count }) => (
+                  <div key={category} className="flex items-center gap-2 bg-white border border-amber-200 rounded-lg pl-3 pr-1.5 py-1.5">
+                    <span className="text-xs text-gray-700">{category}</span>
+                    <span className="text-xs font-bold text-amber-700">{count}건</span>
+                    <button onClick={() => goCreateManualFor(category)}
+                      className="text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-md px-2 py-1 transition-colors">
+                      매뉴얼 만들기
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-wrap gap-3 items-center">
             <input
               type="text"
@@ -2776,6 +3214,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
           ticket={floatingTicket}
           assigneeList={assigneeList}
           statuses={uniqueStatuses}
+          manuals={manuals}
           onClose={() => setFloatingTicket(null)}
           onUpdated={handleTicketUpdated}
           currentUserName={currentUserName}
@@ -3125,6 +3564,15 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
         const withNote     = completedTickets.filter(t => !!t.actionNote).length;
         const completedCount = completedTickets.length;
 
+        // ── 반복 문의 매뉴얼 커버리지 ──────────────────────────
+        const manualCoveredCategories = new Set(manuals.flatMap(m => m.categories)).size;
+        const manualTotalCategories   = ALL_TREE_KEYS.length;
+        const manualMatchedOpenCount = tickets.filter(t => {
+          if (t.status === "완료") return false;
+          const matched = classifyActionCategory(t.content || "", t.title || "", t.inquiryType || "");
+          return !!matched && manuals.some(m => m.categories.includes(matched.category));
+        }).length;
+
         const recentCompleted = [...completedTickets]
           .sort((a, b) => new Date(b.lastEditedAt).getTime() - new Date(a.lastEditedAt).getTime())
           .slice(0, 10);
@@ -3243,6 +3691,20 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                   <div className="text-[10px] text-gray-400 mt-1">{filled} / {completedCount}건</div>
                 </div>
               ))}
+            </div>
+
+            {/* 반복 문의 매뉴얼 커버리지 */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-white border border-gray-200 rounded-xl p-4">
+                <div className="text-2xl font-extrabold" style={{ color: "#0EA5E9" }}>
+                  {manualCoveredCategories} / {manualTotalCategories}
+                </div>
+                <div className="text-xs font-medium text-gray-500 mt-0.5">매뉴얼 보유 조치분류 (소분류)</div>
+              </div>
+              <div className="bg-white border border-gray-200 rounded-xl p-4">
+                <div className="text-2xl font-extrabold" style={{ color: "#0EA5E9" }}>{manualMatchedOpenCount}건</div>
+                <div className="text-xs font-medium text-gray-500 mt-0.5">매뉴얼로 안내 가능할 것으로 추정되는 미해결 문의</div>
+              </div>
             </div>
 
             {/* 조치방법 + 조치분류 대분류 */}
@@ -3466,6 +3928,18 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
           </div>
         );
       })()}
+
+      {/* ════ Tab: 매뉴얼 관리 */}
+      {tab === "manuals" && (
+        <ManualsTab
+          tickets={tickets}
+          manuals={manuals}
+          manualsError={manualsError}
+          onSaved={loadManuals}
+          presetCategory={pendingManualCategory}
+          onConsumePreset={() => setPendingManualCategory(null)}
+        />
+      )}
 
       {/* ════ Tab: 보고서 */}
       {tab === "report" && (
