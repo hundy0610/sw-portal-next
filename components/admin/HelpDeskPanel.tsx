@@ -436,8 +436,10 @@ function ManualsTab({
     })),
     [tickets, form.categories]
   );
-  const sampleNotes = useMemo(
-    () => tickets.filter(t => t.actionNote && form.categories.some(cat => t.actionCategory?.includes(cat))).slice(0, 2),
+  const matchingNotes = useMemo(
+    () => tickets
+      .filter(t => t.actionNote && form.categories.some(cat => t.actionCategory?.includes(cat)))
+      .sort((a, b) => (b.submittedAt || "").localeCompare(a.submittedAt || "")),
     [tickets, form.categories]
   );
 
@@ -528,12 +530,19 @@ function ManualsTab({
             {matchingCounts.map(({ category, count }) => (
               <p key={category} className="text-xs text-gray-600">{category} — <strong>{count}건</strong></p>
             ))}
-            {sampleNotes.length > 0 && (
-              <div className="pt-1.5 space-y-1.5 border-t border-gray-200">
-                <span className="text-[11px] text-gray-400 font-semibold">과거 조치내용 샘플</span>
-                {sampleNotes.map(t => (
-                  <p key={t.id} className="text-xs text-gray-600 leading-relaxed line-clamp-2">{t.actionNote}</p>
-                ))}
+            {matchingNotes.length > 0 && (
+              <div className="pt-1.5 border-t border-gray-200">
+                <span className="text-[11px] text-gray-400 font-semibold">과거 처리결과 전체 ({matchingNotes.length}건)</span>
+                <div className="mt-1.5 space-y-2 max-h-64 overflow-y-auto pr-1">
+                  {matchingNotes.map(t => (
+                    <div key={t.id} className="bg-white rounded-lg border border-gray-100 p-2">
+                      <div className="text-[10px] text-gray-400 mb-1">
+                        {(t.submittedAt || "").slice(0, 10)} · {[t.company, t.requester].filter(Boolean).join(" · ")}
+                      </div>
+                      <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-wrap">{t.actionNote}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
