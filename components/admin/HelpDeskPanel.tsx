@@ -563,7 +563,7 @@ function ManualsTab({
         <div>
           <span className="text-xs text-gray-500 font-semibold block mb-1.5">제목</span>
           <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-200" />
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white form-field-white focus:outline-none focus:ring-2 focus:ring-amber-200" />
         </div>
         <div>
           <span className="text-xs text-gray-500 font-semibold block mb-1.5">
@@ -571,7 +571,7 @@ function ManualsTab({
           </span>
           <input value={form.keywords} onChange={e => setForm(f => ({ ...f, keywords: e.target.value }))}
             placeholder="예: 한글, hwp, 라이선스 인증"
-            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-200" />
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white form-field-white focus:outline-none focus:ring-2 focus:ring-amber-200" />
         </div>
         <div>
           <div className="flex items-center justify-between mb-1.5">
@@ -612,7 +612,7 @@ function ManualsTab({
                 value={form.body}
                 onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
                 placeholder="https://..."
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-200"
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white form-field-white focus:outline-none focus:ring-2 focus:ring-amber-200"
               />
               {form.body && !/^https?:\/\//.test(form.body) && (
                 <p className="text-xs text-red-500 mt-1">http:// 또는 https:// 로 시작하는 주소여야 합니다.</p>
@@ -1319,7 +1319,7 @@ function HelpDeskTicketFloating({
                           value={manualQuery}
                           onChange={e => { setManualQuery(e.target.value); }}
                           placeholder={suggestedCategory ? `검색 (예상 유형: ${suggestedCategory.category})` : "제목·조치분류·키워드로 검색"}
-                          className="w-full text-sm border border-sky-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-sky-200"
+                          className="w-full text-sm border border-sky-200 rounded-lg px-2.5 py-1.5 bg-white form-field-white focus:outline-none focus:ring-2 focus:ring-sky-200"
                         />
                         {manualResults.length > 0 && (
                           <div className="space-y-1 max-h-40 overflow-y-auto">
@@ -1354,7 +1354,7 @@ function HelpDeskTicketFloating({
                           <input
                             value={manualEditTitle}
                             onChange={e => setManualEditTitle(e.target.value)}
-                            className="flex-1 text-sm font-semibold border border-sky-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-sky-200"
+                            className="flex-1 text-sm font-semibold border border-sky-200 rounded-lg px-2.5 py-1.5 bg-white form-field-white focus:outline-none focus:ring-2 focus:ring-sky-200"
                           />
                           <button type="button" onClick={previewSelectedManual}
                             className="text-xs px-2.5 py-1.5 rounded-lg border border-sky-300 text-sky-700 font-medium hover:bg-sky-100 transition-colors whitespace-nowrap">
