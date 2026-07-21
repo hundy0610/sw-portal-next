@@ -14,6 +14,7 @@ import {
   InquiryTicket자산번호Atom,
 } from "@/app/request/inquiry/(atoms)/useInquiryTicketStore";
 import { useInquiryTicket } from "@/app/request/inquiry/(hooks)/useInquiryTicket";
+import ManualSuggestion from "@/app/request/inquiry/(components)/manualSuggestion";
 import Container from "@/shared/components/common/container";
 import ErrorComponent from "@/shared/components/common/errorComponent";
 import Header from "@/shared/components/common/header";
@@ -53,6 +54,7 @@ export default function InquiryTicket({ params }: { params: { ticketId: string }
         앞으로 이 링크로 문의 내용과 진행 상황을 확인할 수 있어요.
         <CopyLinkButton />
       </span>
+      <ManualSuggestion content={문의내용} status={상태} />
       <FormFieldList>
         <div className="grid w-full gap-spacing-400 md:grid-cols-2">
           <TicketDetailStatus label="상태" value={상태} />

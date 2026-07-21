@@ -9,6 +9,8 @@ import { safeJson } from "@/lib/fetch-json";
 import { useAdminDarkMode } from "@/lib/use-admin-dark-mode";
 import { ACTION_TREE, ALL_TREE_KEYS } from "@/lib/action-categories";
 import type { HelpDeskManual } from "@/lib/helpdesk-manuals";
+import { extractKeywords, clusterByActionNote } from "@/lib/helpdesk-manual-match";
+import type { RepeatCluster } from "@/lib/helpdesk-manual-match";
 
 // ── Color configs ── 통합 토큰(--state-*) 참조: 긍정/진행/주의/위험/중립 5의미만 사용 ──
 const URGENCY: Record<string, { bg: string; text: string; bar: string }> = {
@@ -62,79 +64,6 @@ function formatDateTime(iso: string): string {
   return `${Y}-${M}-${D} ${h}:${m}:${s}`;
 }
 
-// ── 조치내용 텍스트 기반 반복 문의 클러스터링 ──────────────────
-// 조치분류 태그가 아니라, 엔지니어가 실제로 작성한 조치내용의 키워드 겹침으로 반복 여부를 판단
-const HELPDESK_STOPWORDS = new Set([
-  "있습니다", "했습니다", "하였습니다", "되었습니다", "완료", "확인", "정상", "이후",
-  "진행", "안내", "처리", "문의", "것으로", "합니다", "되어", "위해", "통해", "경우",
-  "해결", "조치", "드립니다", "부탁드립니다", "확인함", "완료함", "관련", "문제",
-]);
-
-function extractKeywords(text: string): string[] {
-  return Array.from(new Set(
-    text
-      .replace(/[^\p{L}\p{N}\s]/gu, " ")
-      .split(/\s+/)
-      .map(w => w.trim())
-      .filter(w => w.length >= 2 && !HELPDESK_STOPWORDS.has(w))
-  ));
-}
-
-function keywordsSimilar(a: string[], b: string[]): boolean {
-  if (a.length === 0 || b.length === 0) return false;
-  const setB = new Set(b);
-  const shared = a.filter(k => setB.has(k));
-  if (shared.length < 2) return false;
-  const minLen = Math.min(a.length, b.length);
-  return shared.length / minLen >= 0.4;
-}
-
-interface RepeatCluster {
-  key: string;
-  label: string;
-  count: number;
-  topKeywords: string[];
-  tickets: HelpDeskTicket[];
-}
-
-// Union-Find로 조치내용 키워드가 겹치는 완료 티켓들을 그룹화
-function clusterByActionNote(tickets: HelpDeskTicket[], minCount: number): RepeatCluster[] {
-  const completed = tickets.filter(t => t.status === "완료" && t.actionNote && t.actionNote.trim().length >= 10);
-  const n = completed.length;
-  const kw = completed.map(t => extractKeywords(t.actionNote));
-  const parent = Array.from({ length: n }, (_, i) => i);
-  const find = (x: number): number => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
-  const union = (a: number, b: number) => { const ra = find(a), rb = find(b); if (ra !== rb) parent[ra] = rb; };
-
-  for (let i = 0; i < n; i++) {
-    for (let j = i + 1; j < n; j++) {
-      if (keywordsSimilar(kw[i], kw[j])) union(i, j);
-    }
-  }
-
-  const groups = new Map<number, number[]>();
-  for (let i = 0; i < n; i++) {
-    const r = find(i);
-    if (!groups.has(r)) groups.set(r, []);
-    groups.get(r)!.push(i);
-  }
-
-  const clusters: RepeatCluster[] = [];
-  for (const idxs of groups.values()) {
-    if (idxs.length < minCount) continue;
-    const freq = new Map<string, number>();
-    idxs.forEach(i => kw[i].forEach(k => freq.set(k, (freq.get(k) ?? 0) + 1)));
-    const topKeywords = [...freq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k]) => k);
-    clusters.push({
-      key: `cluster-${idxs[0]}`,
-      label: topKeywords.length > 0 ? topKeywords.join(" · ") : "기타 반복 유형",
-      count: idxs.length,
-      topKeywords,
-      tickets: idxs.map(i => completed[i]),
-    });
-  }
-  return clusters.sort((a, b) => b.count - a.count);
-}
 
 // ── 문의 내용 기반 세부 분류기 ────────────────────────────────
 interface SubCategory {
