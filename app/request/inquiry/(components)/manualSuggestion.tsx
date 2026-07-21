@@ -11,16 +11,16 @@ interface ManualMatch {
 
 interface ManualSuggestionProps {
   content: string;
-  status: string;
 }
 
 // 문의 접수가 끝나자마자, 작성한 문의 내용으로 바로 시도해볼 수 있는 매뉴얼이 있는지 확인해 보여준다.
+// 매칭되면 서버에서 이미 담당자 미배정 상태로 완료 처리해두므로(상태와 무관하게) 항상 확인해 보여준다.
 // 매칭이 안 되거나 요청이 실패해도 조용히 아무것도 렌더링하지 않는다 — 부가 기능이라 확인 화면 자체를 막으면 안 됨.
-export default function ManualSuggestion({ content, status }: ManualSuggestionProps) {
+export default function ManualSuggestion({ content }: ManualSuggestionProps) {
   const [match, setMatch] = useState<ManualMatch | null>(null);
 
   useEffect(() => {
-    if (!content || status === "완료") { setMatch(null); return; }
+    if (!content) { setMatch(null); return; }
     let cancelled = false;
     fetch("/api/helpdesk/manuals/suggest", {
       method: "POST",
@@ -31,7 +31,7 @@ export default function ManualSuggestion({ content, status }: ManualSuggestionPr
       .then(json => { if (!cancelled && json.ok) setMatch(json.match); })
       .catch(() => { /* 제안 실패는 조용히 무시 */ });
     return () => { cancelled = true; };
-  }, [content, status]);
+  }, [content]);
 
   if (!match) return null;
 
@@ -40,10 +40,10 @@ export default function ManualSuggestion({ content, status }: ManualSuggestionPr
       <div className="flex flex-col gap-spacing-100">
         <span className="text-core-accent text-label font-semibold">💡 바로 시도해볼 수 있어요</span>
         <span className="text-content-standard-primary text-body">
-          문의하신 내용은 <strong>&quot;{match.title}&quot;</strong> 매뉴얼로 담당자 확인 전에 먼저 해결해보실 수 있어요.
+          문의하신 내용은 <strong>&quot;{match.title}&quot;</strong> 매뉴얼로 해결해보실 수 있어요.
         </span>
         <span className="text-content-standard-tertiary text-label">
-          매뉴얼로 해결되지 않아도 괜찮아요 — 담당자가 확인 후 별도로 연락드립니다.
+          매뉴얼로 해결되지 않으면 언제든 다시 문의를 남겨주세요.
         </span>
       </div>
       <a

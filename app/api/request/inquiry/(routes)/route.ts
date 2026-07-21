@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { notionRequest } from "@/shared/lib/notion";
+import { listManuals } from "@/lib/helpdesk-manuals";
+import { matchManualForContent } from "@/lib/helpdesk-manual-match";
 
 export async function POST(request: Request) {
   try {
@@ -34,6 +36,29 @@ export async function POST(request: Request) {
       method: "POST",
       body,
     });
+
+    // 접수된 문의 내용이 등록된 매뉴얼과 매칭되면, 담당자 배정 없이 바로 완료 처리하고
+    // 조치내용에 어떤 매뉴얼로 안내됐는지 남겨 이력을 추적할 수 있게 한다.
+    // 이 단계가 실패해도 문의 접수 자체는 이미 완료된 것이므로 응답에는 영향을 주지 않는다.
+    try {
+      const manuals = await listManuals();
+      const matched = matchManualForContent(문의내용 || "", manuals);
+      if (matched) {
+        await notionRequest(`/pages/${notionResponse.id}`, {
+          method: "PATCH",
+          body: {
+            properties: {
+              상태: { status: { name: "완료" } },
+              "조치 내용": {
+                rich_text: [{ text: { content: `매뉴얼 "${matched.manual.title}" 자동 안내됨 (문의 접수 시 자동 매칭)` } }],
+              },
+            },
+          },
+        });
+      }
+    } catch (e) {
+      console.error("[POST /api/request/inquiry] INQUIRY_AUTO_COMPLETE_FAILED", e);
+    }
 
     const response = {
       ticketId: notionResponse.id,
