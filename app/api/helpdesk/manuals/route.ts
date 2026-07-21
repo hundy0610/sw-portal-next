@@ -14,20 +14,8 @@ async function resolveAllTickets(): Promise<HelpDeskTicket[]> {
   return fetchHelpDeskTickets();
 }
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
-    const debugKey = req.nextUrl.searchParams.get("_debugMgetKey");
-    if (debugKey) {
-      const { kvGet, kvMGet } = await import("@/lib/kv-store");
-      const single = await kvGet(debugKey);
-      let mgetResult: unknown, mgetError: string | null = null;
-      try {
-        mgetResult = await kvMGet([debugKey]);
-      } catch (e) {
-        mgetError = e instanceof Error ? e.message : String(e);
-      }
-      return NextResponse.json({ single: single ? "present" : null, mgetResult, mgetError });
-    }
     const manuals = await listManuals();
     return NextResponse.json({ ok: true, manuals });
   } catch (e) {
