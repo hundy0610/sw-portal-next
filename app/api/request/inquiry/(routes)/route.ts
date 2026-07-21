@@ -49,6 +49,7 @@ export async function POST(request: Request) {
           body: {
             properties: {
               상태: { status: { name: "완료" } },
+              조치방법: { select: { name: "매뉴얼" } },
               "조치 내용": {
                 rich_text: [{ text: { content: `매뉴얼 "${matched.manual.title}" 자동 안내됨 (문의 접수 시 자동 매칭)` } }],
               },

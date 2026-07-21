@@ -3672,9 +3672,9 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
       {tab === "analysis" && (() => {
         // ── 조치 분석 변수 ────────────────────────────────────
         const METHOD_COLORS: Record<string, string> = {
-          "원격": "#6366F1", "방문": "var(--brand)", "메신저/메일": "#0EA5E9", "기타": "#9CA3AF",
+          "원격": "#6366F1", "방문": "var(--brand)", "메신저/메일": "#0EA5E9", "매뉴얼": "#10B981", "기타": "#9CA3AF",
         };
-        const METHODS = ["원격", "방문", "메신저/메일", "기타"];
+        const METHODS = ["원격", "방문", "메신저/메일", "매뉴얼", "기타"];
 
         const methodCounts = new Map<string, number>();
         displayTickets.forEach(t => {
