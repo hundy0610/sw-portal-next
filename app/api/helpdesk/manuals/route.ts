@@ -1,7 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listManuals, saveManual, deleteManual } from "@/lib/helpdesk-manuals";
+import { extractPerTicketKeywordSets } from "@/lib/helpdesk-manual-match";
+import { fetchHelpDeskTickets, type HelpDeskTicket } from "@/lib/notion";
+import { kvGet } from "@/lib/kv-store";
 
 export const dynamic = "force-dynamic";
+
+// 관리자 목록 화면(/api/helpdesk)과 같은 캐시를 재사용 — 없으면 Notion에서 직접(회사 범위 제한 없이) 가져옴.
+// 매뉴얼에 연결된 티켓은 관리자 세션의 회사 범위와 무관하게 항상 전체 데이터 기준으로 계산해야 하므로,
+// 브라우저에 이미 로드된 티켓 목록(회사 범위로 필터링됐거나 아직 로딩 전일 수 있음)에 의존하지 않는다.
+const TICKETS_CACHE_KEY = "helpdesk:tickets";
+async function resolveAllTickets(): Promise<HelpDeskTicket[]> {
+  const cached = await kvGet<{ data: HelpDeskTicket[] }>(TICKETS_CACHE_KEY);
+  if (cached) return cached.data;
+  return fetchHelpDeskTickets();
+}
 
 export async function GET() {
   try {
@@ -15,9 +28,9 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { id, title, contentType, body, linkedTicketIds, matchKeywords, updatedBy } = await req.json() as {
+    const { id, title, contentType, body, linkedTicketIds, updatedBy } = await req.json() as {
       id?: string; title?: string; contentType?: "html" | "url"; body?: string;
-      linkedTicketIds?: string[]; matchKeywords?: string[][]; updatedBy?: string;
+      linkedTicketIds?: string[]; updatedBy?: string;
     };
     if (!title || !body || (contentType !== "html" && contentType !== "url")) {
       return NextResponse.json({ ok: false, error: "title, body, contentType 필수", code: "MANUAL_SAVE_INVALID_INPUT" }, { status: 400 });
@@ -25,11 +38,22 @@ export async function POST(req: NextRequest) {
     if (contentType === "url" && !/^https?:\/\//.test(body)) {
       return NextResponse.json({ ok: false, error: "올바른 URL이 아닙니다 (http:// 또는 https://로 시작해야 함)", code: "MANUAL_SAVE_INVALID_URL" }, { status: 400 });
     }
-    const cleanIds = Array.isArray(linkedTicketIds) ? linkedTicketIds.filter(k => typeof k === "string") : undefined;
-    const cleanKeywords = Array.isArray(matchKeywords)
-      ? matchKeywords.filter(set => Array.isArray(set)).map(set => set.filter(k => typeof k === "string"))
-      : undefined;
-    const manual = await saveManual({ id, title, contentType, body, linkedTicketIds: cleanIds, matchKeywords: cleanKeywords, updatedBy: updatedBy || "" });
+    const cleanIds = Array.isArray(linkedTicketIds) ? linkedTicketIds.filter(k => typeof k === "string") : [];
+
+    // 매칭 키워드는 클라이언트가 보낸 값을 신뢰하지 않고, 서버가 Notion 원본 데이터를 기준으로 직접 계산한다
+    let matchKeywords: string[][] = [];
+    if (cleanIds.length > 0) {
+      try {
+        const allTickets = await resolveAllTickets();
+        const linkedTickets = allTickets.filter(t => cleanIds.includes(t.id));
+        matchKeywords = extractPerTicketKeywordSets(linkedTickets);
+      } catch (e) {
+        console.error("[API /helpdesk/manuals POST] MANUAL_SAVE_KEYWORD_COMPUTE_FAILED", e);
+        return NextResponse.json({ ok: false, error: "연결된 이력을 불러오지 못해 저장에 실패했습니다", code: "MANUAL_SAVE_KEYWORD_COMPUTE_FAILED" }, { status: 500 });
+      }
+    }
+
+    const manual = await saveManual({ id, title, contentType, body, linkedTicketIds: cleanIds, matchKeywords, updatedBy: updatedBy || "" });
     return NextResponse.json({ ok: true, manual });
   } catch (e) {
     console.error("[API /helpdesk/manuals POST] MANUAL_SAVE_FAILED", e);

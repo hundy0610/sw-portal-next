@@ -9,7 +9,7 @@ import { safeJson } from "@/lib/fetch-json";
 import { useAdminDarkMode } from "@/lib/use-admin-dark-mode";
 import { ACTION_TREE, ALL_TREE_KEYS } from "@/lib/action-categories";
 import type { HelpDeskManual } from "@/lib/helpdesk-manuals";
-import { extractKeywords, clusterByActionNote, extractPerTicketKeywordSets } from "@/lib/helpdesk-manual-match";
+import { extractKeywords, clusterByActionNote } from "@/lib/helpdesk-manual-match";
 import type { RepeatCluster } from "@/lib/helpdesk-manual-match";
 
 // ── Color configs ── 통합 토큰(--state-*) 참조: 긍정/진행/주의/위험/중립 5의미만 사용 ──
@@ -374,12 +374,15 @@ function ManualsTab({
   manuals: HelpDeskManual[];
   manualsError?: string | null;
   onSaved: () => void;
-  presetDraft?: { title: string; referenceQuery: string; linkedTicketIds: string[]; matchKeywords: string[][] } | null;
+  presetDraft?: { title: string; referenceQuery: string; linkedTicketIds: string[] } | null;
   onConsumePreset?: () => void;
 }) {
   const MAX_MANUAL_FILE_BYTES = 5 * 1024 * 1024; // 5MB
-  const blankForm = () => ({ id: null as string | null, title: "", contentType: "html" as "html" | "url", body: "", linkedTicketIds: [] as string[], matchKeywords: [] as string[][] });
+  const blankForm = () => ({ id: null as string | null, title: "", contentType: "html" as "html" | "url", body: "", linkedTicketIds: [] as string[] });
   const [form,    setForm]    = useState(blankForm);
+  // 매칭 키워드는 더 이상 클라이언트가 계산하지 않는다 — 서버가 저장 시 Notion 원본 데이터로 직접 계산해
+  // 매뉴얼 객체에 담아 응답해주므로, 여기서는 그 결과를 그대로 보여주기만 한다 (마지막 저장 기준)
+  const [savedMatchKeywords, setSavedMatchKeywords] = useState<string[][]>([]);
   const [referenceQuery, setReferenceQuery] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -391,8 +394,9 @@ function ManualsTab({
   // 반복 문의 알림에서 "매뉴얼 만들기"로 넘어온 경우 제목과 참고 검색어를 미리 채워줌
   useEffect(() => {
     if (!presetDraft) return;
-    setForm({ id: null, title: presetDraft.title, contentType: "html", body: "", linkedTicketIds: presetDraft.linkedTicketIds, matchKeywords: presetDraft.matchKeywords });
+    setForm({ id: null, title: presetDraft.title, contentType: "html", body: "", linkedTicketIds: presetDraft.linkedTicketIds });
     setReferenceQuery(presetDraft.referenceQuery);
+    setSavedMatchKeywords([]);
     setFileName(null); setFileError(null);
     setSaveResult("idle");
     onConsumePreset?.();
@@ -400,11 +404,8 @@ function ManualsTab({
   }, [presetDraft]);
 
   const loadForEdit = (m: HelpDeskManual) => {
-    const linkedTicketIds = m.linkedTicketIds || [];
-    // 매칭 키워드는 저장된 값을 그대로 믿지 않고, 연결된 이력 목록 기준으로 항상 다시 계산한다
-    // (예전 방식으로 저장된 매뉴얼도 다음 저장 시 새 방식으로 자연스럽게 갱신됨)
-    const linked = tickets.filter(t => linkedTicketIds.includes(t.id));
-    setForm({ id: m.id, title: m.title, contentType: m.contentType, body: m.body, linkedTicketIds, matchKeywords: extractPerTicketKeywordSets(linked) });
+    setForm({ id: m.id, title: m.title, contentType: m.contentType, body: m.body, linkedTicketIds: m.linkedTicketIds || [] });
+    setSavedMatchKeywords(m.matchKeywords || []);
     setFileName(null); setFileError(null);
     setSaveResult("idle");
   };
@@ -463,16 +464,14 @@ function ManualsTab({
     [tickets, form.linkedTicketIds]
   );
 
-  // 이력 연결/해제 시, 연결된 티켓들의 문의내용+조치내용에서 매칭 키워드를 다시 계산 —
-  // 연결된 이력이 쌓일수록 이 매뉴얼의 매칭 근거(=사례 DB)가 함께 커짐
+  // 이력 연결/해제는 id만 바꾸고, 실제 매칭 키워드는 저장 시 서버가 계산한다 (아래 handleSave 참고)
   const toggleLinkedTicket = (ticketId: string) => {
-    setForm(f => {
-      const nextIds = f.linkedTicketIds.includes(ticketId)
+    setForm(f => ({
+      ...f,
+      linkedTicketIds: f.linkedTicketIds.includes(ticketId)
         ? f.linkedTicketIds.filter(id => id !== ticketId)
-        : [...f.linkedTicketIds, ticketId];
-      const nextTickets = tickets.filter(t => nextIds.includes(t.id));
-      return { ...f, linkedTicketIds: nextIds, matchKeywords: extractPerTicketKeywordSets(nextTickets) };
-    });
+        : [...f.linkedTicketIds, ticketId],
+    }));
   };
 
   const handleSave = async () => {
@@ -488,12 +487,12 @@ function ManualsTab({
           contentType: form.contentType,
           body: form.body,
           linkedTicketIds: form.linkedTicketIds,
-          matchKeywords: form.matchKeywords,
         }),
       });
       const json = await safeJson(res);
       if (json.ok) {
         setSaveResult("done");
+        setSavedMatchKeywords(json.manual.matchKeywords || []);
         if (!form.id) setForm(f => ({ ...f, id: json.manual.id }));
         onSaved();
       } else {
@@ -518,7 +517,7 @@ function ManualsTab({
       });
       const json = await safeJson(res);
       if (json.ok) {
-        if (form.id === id) setForm(blankForm());
+        if (form.id === id) { setForm(blankForm()); setSavedMatchKeywords([]); }
         onSaved();
       } else {
         console.error("[ManualsTab.handleDelete]", json.code, json);
@@ -543,7 +542,7 @@ function ManualsTab({
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold text-gray-800">{form.id ? "매뉴얼 수정" : "새 매뉴얼 등록"}</h3>
           {form.id && (
-            <button onClick={() => { setForm(blankForm()); setFileName(null); setFileError(null); }} className="text-xs text-gray-400 hover:text-gray-600">
+            <button onClick={() => { setForm(blankForm()); setSavedMatchKeywords([]); setFileName(null); setFileError(null); }} className="text-xs text-gray-400 hover:text-gray-600">
               + 새로 작성
             </button>
           )}
@@ -553,9 +552,10 @@ function ManualsTab({
           <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
             placeholder="예: 한글(HWP) 라이선스 재설치 안내"
             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white form-field-white focus:outline-none focus:ring-2 focus:ring-amber-200" />
-          {form.matchKeywords.length > 0 && (
+          {savedMatchKeywords.length > 0 && (
             <p className="text-[11px] text-gray-400 mt-1">
-              연결된 이력 {form.matchKeywords.length}건에서 학습된 키워드: {Array.from(new Set(form.matchKeywords.flat())).join(", ")}
+              마지막 저장 기준, 연결된 이력 {savedMatchKeywords.length}건에서 학습된 키워드: {Array.from(new Set(savedMatchKeywords.flat())).join(", ")}
+              {form.linkedTicketIds.length !== savedMatchKeywords.length && " (연결 상태가 바뀌었어요 — 저장하면 다시 계산됩니다)"}
             </p>
           )}
         </div>
@@ -2110,7 +2110,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
   // 반복 문의 매뉴얼 관리
   const [manuals, setManuals] = useState<HelpDeskManual[]>([]);
   const [manualsError, setManualsError] = useState<string | null>(null);
-  const [pendingManualDraft, setPendingManualDraft] = useState<{ title: string; referenceQuery: string; linkedTicketIds: string[]; matchKeywords: string[][] } | null>(null);
+  const [pendingManualDraft, setPendingManualDraft] = useState<{ title: string; referenceQuery: string; linkedTicketIds: string[] } | null>(null);
   const loadManuals = useCallback(() => {
     fetch("/api/helpdesk/manuals")
       .then(r => safeJson(r))
@@ -2135,10 +2135,9 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
     setPendingManualDraft({
       title: cluster.label,
       referenceQuery: cluster.topKeywords[0] || "",
-      // 클러스터에 속한 티켓들을 이 매뉴얼의 이력으로 미리 연결해둠 — 이후 매뉴얼 화면에서 계속 추가/해제 가능
+      // 클러스터에 속한 티켓들을 이 매뉴얼의 이력으로 미리 연결해둠 — 이후 매뉴얼 화면에서 계속 추가/해제 가능.
+      // 매칭 키워드는 저장 시 서버가 Notion 원본 데이터 기준으로 계산한다
       linkedTicketIds: cluster.tickets.map(t => t.id),
-      // 연결된 티켓 각각의 문의내용+조치내용에서 뽑은 키워드 세트 — 문의 접수 시 자동 매칭에 제목과 함께 참고됨
-      matchKeywords: extractPerTicketKeywordSets(cluster.tickets),
     });
     setTab("manuals");
   };
