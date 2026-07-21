@@ -7,6 +7,8 @@ const HELPDESK_STOPWORDS = new Set([
   "있습니다", "했습니다", "하였습니다", "되었습니다", "완료", "확인", "정상", "이후",
   "진행", "안내", "처리", "문의", "것으로", "합니다", "되어", "위해", "통해", "경우",
   "해결", "조치", "드립니다", "부탁드립니다", "확인함", "완료함", "관련", "문제",
+  // "됩니다"류는 정중체 문장 어디에나 흔히 붙는 어미라 주제와 무관하게 다른 문의와 우연히 겹치기 쉬움
+  "됩니다", "됐습니다", "됨", "되고", "되며", "않습니다",
 ]);
 
 export function extractKeywords(text: string): string[] {
@@ -15,7 +17,9 @@ export function extractKeywords(text: string): string[] {
       .replace(/[^\p{L}\p{N}\s]/gu, " ")
       .split(/\s+/)
       .map(w => w.trim())
-      .filter(w => w.length >= 2 && !HELPDESK_STOPWORDS.has(w))
+      // 2글자는 "되지"/"않아"처럼 문장 중간에 공백이 끼며 생긴 조사·어미 조각일 때가 많아,
+      // 부분 문자열 비교 시 무관한 문의와 우연히 겹쳐 오탐을 일으킨다. 3글자 이상만 키워드로 인정
+      .filter(w => w.length >= 3 && !HELPDESK_STOPWORDS.has(w))
   ));
 }
 
