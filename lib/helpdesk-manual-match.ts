@@ -86,11 +86,16 @@ export function extractPerTicketKeywordSets(tickets: HelpDeskTicket[]): string[]
     .filter(set => set.length > 0);
 }
 
-function overlapScore(normalizedContent: string, bank: string[]): number {
-  if (bank.length === 0) return 0;
+// bank.length로만 나누면, 연결된 이력 티켓의 원문이 길고 인사말·잡담이 섞여 있을수록(예: 조치내용에
+// "안녕하세요", "감사합니다" 같은 표현이 섞인 경우) 분모가 커져서 실제로 겹치는 핵심 단어가 있어도
+// 점수가 희석된다. 새로 들어온 문의는 보통 이력 원문보다 훨씬 짧으므로, 문의 쪽 키워드 수와 이력
+// 쪽 키워드 수 중 "더 작은 쪽"을 분모로 써서 — 문의에 있는 단어들이 이력과 얼마나 겹치는지로 판단한다.
+function overlapScore(normalizedContent: string, contentKwCount: number, bank: string[]): number {
+  if (bank.length === 0 || contentKwCount === 0) return 0;
   // 한국어는 "라이선스가"처럼 조사가 바로 붙으므로, 토큰 일치가 아니라 부분 문자열 포함으로 확인
   const hits = bank.filter(k => normalizedContent.includes(k.toLowerCase())).length;
-  return hits / bank.length;
+  if (hits === 0) return 0;
+  return hits / Math.min(bank.length, contentKwCount);
 }
 
 // 방금 접수된 문의 내용(긴 자유 서술문) ↔ 매뉴얼(제목 + 연결된 이력 티켓 각각)을 비대칭으로 비교.
@@ -101,6 +106,7 @@ export function matchManualForContent(
 ): { manual: HelpDeskManual; score: number } | null {
   const normalizedContent = content.toLowerCase();
   if (!normalizedContent.trim()) return null;
+  const contentKwCount = extractKeywords(content).length;
 
   let best: { manual: HelpDeskManual; score: number } | null = null;
   for (const m of manuals) {
@@ -108,13 +114,13 @@ export function matchManualForContent(
     const ticketSets = Array.isArray(m.matchKeywords) ? m.matchKeywords : [];
 
     // 이력이 전혀 없는 매뉴얼(수동 등록 등)은 기존처럼 제목만으로 매칭, 오탐 방지를 위해 기준을 엄격하게(50%) 유지
-    const titleScore = overlapScore(normalizedContent, titleKw);
+    const titleScore = overlapScore(normalizedContent, contentKwCount, titleKw);
     if (titleScore >= 0.5 && (!best || titleScore > best.score)) best = { manual: m, score: titleScore };
 
     // 연결된 이력 티켓들은 각각 독립적으로 평가 — 다른 이력이 아무리 많아도 이 한 건과의 비교에는 영향 없음
     for (const set of ticketSets) {
       const bank = Array.from(new Set([...titleKw, ...set]));
-      const score = overlapScore(normalizedContent, bank);
+      const score = overlapScore(normalizedContent, contentKwCount, bank);
       if (score >= 0.35 && (!best || score > best.score)) best = { manual: m, score };
     }
   }
