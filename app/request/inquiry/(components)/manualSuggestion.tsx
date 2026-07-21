@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { safeJson } from "@/lib/fetch-json";
 
 interface ManualMatch {
@@ -22,6 +23,7 @@ type Choice = "pending" | "manual" | "assignee";
 // 일반 문의와 동일하게 접수 시점에 이미 나간 담당자 알림 메일로 처리된다.
 // 매칭이 안 되거나 요청이 실패해도 조용히 아무것도 렌더링하지 않는다 — 부가 기능이라 확인 화면 자체를 막으면 안 됨.
 export default function ManualSuggestion({ ticketId, content }: ManualSuggestionProps) {
+  const queryClient = useQueryClient();
   const [match, setMatch] = useState<ManualMatch | null>(null);
   const [choice, setChoice] = useState<Choice>("pending");
   const [resolving, setResolving] = useState(false);
@@ -56,6 +58,7 @@ export default function ManualSuggestion({ ticketId, content }: ManualSuggestion
       const json = await safeJson(res);
       if (json.ok) {
         setChoice("manual");
+        queryClient.invalidateQueries({ queryKey: ["inquiryTicket", ticketId] });
       } else {
         setResolveErrorCode(json.code || "RESOLVE_WITH_MANUAL_FAILED");
       }
