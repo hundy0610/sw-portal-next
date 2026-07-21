@@ -228,11 +228,11 @@ export function matchPcScansWithHw(
   });
 }
 
-export async function fetchPcScans(): Promise<PcScanRecord[]> {
+export async function fetchPcScans(dbEnvVar: string = "NOTION_DB_PC_SCAN"): Promise<PcScanRecord[]> {
   if (isMock()) return [];
 
-  const rawDbId = process.env.NOTION_DB_PC_SCAN;
-  if (!rawDbId) throw new Error("NOTION_DB_PC_SCAN 환경변수가 설정되지 않았습니다.");
+  const rawDbId = process.env[dbEnvVar];
+  if (!rawDbId) throw new Error(`${dbEnvVar} 환경변수가 설정되지 않았습니다.`);
   const dbId = toNotionId(rawDbId);
 
   const records: PcScanRecord[] = [];
@@ -353,14 +353,14 @@ export async function deletePcScan(id: string): Promise<void> {
   await notion.pages.update({ page_id: id, archived: true });
 }
 
-export async function upsertPcScan(data: PcScanPayload): Promise<UpsertResult> {
+export async function upsertPcScan(data: PcScanPayload, dbEnvVar: string = "NOTION_DB_PC_SCAN"): Promise<UpsertResult> {
   if (isMock()) {
     console.log("[MOCK] upsertPcScan", data.serial);
     return { id: "mock-pc-scan-1", action: "created", masterExists: false };
   }
 
-  const rawDbId = process.env.NOTION_DB_PC_SCAN;
-  if (!rawDbId) throw new Error("NOTION_DB_PC_SCAN 환경변수가 설정되지 않았습니다.");
+  const rawDbId = process.env[dbEnvVar];
+  if (!rawDbId) throw new Error(`${dbEnvVar} 환경변수가 설정되지 않았습니다.`);
   const dbId = toNotionId(rawDbId);
 
   // 마스터 대조: 자산번호로 마스터 레코드를 찾고, 시리얼 넘버가 대조(뒷자리 누락 허용)되면 일치

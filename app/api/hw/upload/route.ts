@@ -293,6 +293,8 @@ export async function POST(req: NextRequest) {
       // 행별 기록 대신 일괄 등록 1건으로 요약 (감사 로그 500건 cap 보호)
       const itemTitle = source === "pc-scan"
         ? `PC 실사 스캔 신규 등록 ${success}건`
+        : source === "pc-register"
+        ? `PC 신규 등록(실사 수집) ${success}건`
         : `엑셀 일괄 등록 ${success}건`;
       await appendAdminAuditLog({
         adminId: session.userId, adminName, action: "create", target: "hw",
