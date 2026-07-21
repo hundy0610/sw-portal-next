@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { kvGet, kvSetPermanent, kvDel, kvMGet } from "@/lib/kv-store";
+import { kvGet, kvSetPermanent, kvDel } from "@/lib/kv-store";
 
 const INDEX_KEY = "helpdesk:manual:index";
 const manualKey = (id: string) => `helpdesk:manual:${id}`;
@@ -42,8 +42,9 @@ export async function listManuals(): Promise<HelpDeskManual[]> {
   }
   if (index.length === 0) return [];
 
-  // 건별 kvGet 대신 kvMGet 한 번으로 조회 (키가 몇 개든 명령 1개)
-  const manuals = (await kvMGet<HelpDeskManual>(index.map(manualKey)))
+  // kvMGet으로 바꿨더니 실제로는 계속 빈 값이 나오는 문제가 발견돼(getManual의 단일 kvGet은
+  // 정상 동작하는 것으로 확인됨 — kvMGet 자체의 문제로 추정), 검증 전까지 건별 조회로 되돌림
+  const manuals = (await Promise.all(index.map(id => kvGet<HelpDeskManual>(manualKey(id)))))
     .filter((m): m is HelpDeskManual => !!m);
   _cachedManuals = { data: manuals, expiresAt: Date.now() + MANUALS_CACHE_TTL_MS };
   return manuals;

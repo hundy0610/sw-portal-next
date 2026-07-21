@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchHelpDeskTickets } from "@/lib/notion";
-import { kvGet, kvSet, kvMGet } from "@/lib/kv-store";
+import { kvGet, kvSet } from "@/lib/kv-store";
 import { createMailTransporter, buildHelpdeskEscalationEmail } from "@/lib/mail";
 import { errorMessage } from "@/lib/api-error";
 
@@ -58,22 +58,15 @@ export async function GET(req: NextRequest) {
 
     const adminUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://swportal.vercel.app"}/admin`;
 
-    // 30분이 지나 실제로 알림 대상이 될 수 있는 티켓만 먼저 추려서, 그 티켓들의 발송 이력을
-    // 건별 kvGet 대신 kvMGet 한 번으로 조회한다 (명령 수 절감)
-    const candidates = pending
-      .map(ticket => {
+    // kvMGet으로 바꿨더니 항상 빈 값이 나와 중복발송 방지 자체가 무력화되는 문제가 발견돼
+    // (kvMGet 자체의 문제로 추정, 검증 전까지 되돌림) 건별 조회로 복원
+    for (const ticket of pending) {
+      try {
         const elapsedMin = Math.floor((Date.now() - new Date(ticket.submittedAt).getTime()) / 60000);
         const bucket = Math.floor(elapsedMin / BUCKET_MIN); // 30분 단위 구간 (30~59분=1, 60~89분=2, ...)
-        return { ticket, elapsedMin, bucket };
-      })
-      .filter(({ bucket }) => bucket >= 1); // 아직 30분 안 지난 건 제외
+        if (bucket < 1) continue; // 아직 30분 안 지남
 
-    const lastBuckets = await kvMGet<number>(candidates.map(({ ticket }) => ESCALATION_KEY(ticket.id)));
-
-    for (let i = 0; i < candidates.length; i++) {
-      const { ticket, elapsedMin, bucket } = candidates[i];
-      try {
-        const lastBucket = lastBuckets[i];
+        const lastBucket = await kvGet<number>(ESCALATION_KEY(ticket.id));
         if (lastBucket !== null && lastBucket >= bucket) continue; // 이 구간엔 이미 발송함
 
         // 담당자 이메일 매칭 (없으면 슈퍼관리자 전체에게 폴백)

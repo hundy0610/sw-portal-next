@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchHelpDeskTickets } from "@/lib/notion";
-import { kvMGet } from "@/lib/kv-store";
+import { kvGet } from "@/lib/kv-store";
 import { errorMessage } from "@/lib/api-error";
 
 /**
@@ -44,8 +44,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: true, sent: 0, elapsed: `${Date.now() - start}ms` });
     }
 
-    // 이미 발송된 티켓 필터링 — 건별 kvGet 대신 kvMGet 한 번으로 조회 (명령 수 절감)
-    const sentChecks = await kvMGet<boolean>(targets.map(t => SENT_KEY(t.id)));
+    // kvMGet으로 바꿨더니 항상 빈 값이 나와 중복발송 방지 자체가 무력화되는 문제가 발견돼
+    // (kvMGet 자체의 문제로 추정, 검증 전까지 되돌림) 건별 조회로 복원
+    const sentChecks = await Promise.all(
+      targets.map(t => kvGet<boolean>(SENT_KEY(t.id)))
+    );
     const pending = targets.filter((_, i) => !sentChecks[i]);
 
     if (pending.length === 0) {
