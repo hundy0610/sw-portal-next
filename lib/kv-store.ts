@@ -41,28 +41,37 @@ export async function kvGet<T>(key: string): Promise<T | null> {
 }
 
 /**
- * KV에 값 저장 (TTL 있음, 기본 24시간)
+ * KV에 값 저장 (TTL 있음, 기본 24시간). 읽기와 마찬가지로 쓰기도 간헐적으로 실패하는 것이
+ * 관측돼(매뉴얼 이력 자동 연결이 조용히 저장 안 되는 문제로 발견) 한 번 재시도한다.
  */
 export async function kvSet<T>(key: string, value: T, ttl = KV_TTL): Promise<void> {
   const client = getClient();
   if (!client) return;
-  try {
-    await client.set(key, value, { ex: ttl });
-  } catch (e) {
-    console.warn("[KV] set failed:", key, e);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      await client.set(key, value, { ex: ttl });
+      return;
+    } catch (e) {
+      if (attempt === 1) console.warn("[KV] set failed after retry:", key, e);
+    }
   }
 }
 
 /**
- * KV에 값 영구 저장 (TTL 없음). 공지사항/강의/자료 등 관리 데이터에 사용
+ * KV에 값 영구 저장 (TTL 없음). 공지사항/강의/자료/매뉴얼 등 관리 데이터에 사용.
+ * 쓰기도 간헐적으로 실패하는 것이 관측돼(매뉴얼 이력 자동 연결이 조용히 저장 안 되는 문제로
+ * 발견) 한 번 재시도한다.
  */
 export async function kvSetPermanent<T>(key: string, value: T): Promise<void> {
   const client = getClient();
   if (!client) return;
-  try {
-    await client.set(key, value);
-  } catch (e) {
-    console.warn("[KV] setPermanent failed:", key, e);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      await client.set(key, value);
+      return;
+    } catch (e) {
+      if (attempt === 1) console.warn("[KV] setPermanent failed after retry:", key, e);
+    }
   }
 }
 
