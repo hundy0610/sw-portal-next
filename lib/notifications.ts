@@ -1,7 +1,7 @@
 import { kvGet } from "@/lib/kv-store";
 import { memGet } from "@/lib/mem-cache";
 import { fetchExchangeReturns } from "@/lib/exchange-return";
-import { fetchHelpDeskTickets, type HelpDeskTicket } from "@/lib/notion";
+import { fetchHelpDeskTickets, getCachedHelpdeskTicketsRaw, type HelpDeskTicket } from "@/lib/notion";
 import type { SwDbRecord, ExchangeReturnRecord } from "@/types";
 import type { WorkFeedbackStore } from "@/types/work-feedback";
 import type { AdminSession } from "@/lib/session";
@@ -130,7 +130,7 @@ async function buildExchangeReturnNotifications(): Promise<NotificationItem[]> {
 }
 
 async function buildHelpdeskNotifications(): Promise<NotificationItem[]> {
-  const cached = await kvGet<{ data: HelpDeskTicket[] }>("helpdesk:tickets");
+  const cached = await getCachedHelpdeskTicketsRaw();
   let data = cached?.data;
   if (!data) data = await fetchHelpDeskTickets();
   if (!data) return [];
