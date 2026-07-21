@@ -2,10 +2,10 @@ name: HW Cache Warming (Direct Notion → Upstash)
 
 on:
   schedule:
-    # 2시간마다 실행 — Notion 직접 수정은 2시간 내 반영
-    # (Upstash Redis 무료 티어 월 명령 한도 초과가 확인돼 30분→2시간으로 되돌림 —
-    #  다른 코드/문서의 기존 주석도 2시간을 전제로 하고 있었음)
-    - cron: "0 */2 * * *"
+    # 30분마다 실행 — Notion 직접 수정도 30분 내 반영
+    # (Redis 명령 한도 절감을 위해 2시간으로 늘렸었으나, Notion 직접 수정분이
+    #  포털에 늦게 반영돼 업무 지장이 커서 30분으로 원복함)
+    - cron: "*/30 * * * *"
   workflow_dispatch:
 
 jobs:
