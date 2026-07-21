@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { kvGet, kvSetPermanent, kvDel } from "@/lib/kv-store";
+import { kvGet, kvSetPermanent, kvDel, kvMGet } from "@/lib/kv-store";
 
 const INDEX_KEY = "helpdesk:manual:index";
 const manualKey = (id: string) => `helpdesk:manual:${id}`;
@@ -42,7 +42,11 @@ export async function listManuals(): Promise<HelpDeskManual[]> {
   }
   if (index.length === 0) return [];
 
-  const manuals = (await Promise.all(index.map(id => kvGet<HelpDeskManual>(manualKey(id)))))
+  // 건별 kvGet 대신 kvMGet 한 번으로 조회 (키가 몇 개든 명령 1개).
+  // 이 경로는 읽기 전용이라 실패해도 그냥 "매칭 없음"으로 넘어가는 정도라 부담 없이 적용 —
+  // 반대로 크론의 이메일 중복발송 방지 체크는 배치 조회가 한 번에 실패하면 대상 전원에게
+  // 중복 발송될 위험이 있어(피해 범위가 큼) 그쪽은 건별 조회를 유지한다.
+  const manuals = (await kvMGet<HelpDeskManual>(index.map(manualKey)))
     .filter((m): m is HelpDeskManual => !!m);
   _cachedManuals = { data: manuals, expiresAt: Date.now() + MANUALS_CACHE_TTL_MS };
   return manuals;
