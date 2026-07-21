@@ -20,7 +20,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, match: null });
     }
 
-    const origin = process.env.NEXT_PUBLIC_APP_URL || "https://assetify-desk-main.vercel.app";
+    // 배포 환경(TEST/운영)마다 실제 접속 도메인이 다르므로, 요청이 들어온 origin을 그대로 사용한다.
+    // env 값에 의존하면 TEST에서 확인해도 링크가 운영 도메인을 가리켜 매뉴얼을 못 찾는 문제가 생긴다.
+    const origin = req.nextUrl.origin;
     const url = matched.manual.contentType === "url"
       ? matched.manual.body
       : `${origin}/api/helpdesk/manuals/view?id=${encodeURIComponent(matched.manual.id)}`;
