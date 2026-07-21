@@ -40,9 +40,11 @@ export async function POST(request: Request) {
     // 접수된 문의 내용이 등록된 매뉴얼과 매칭되면, 담당자 배정 없이 바로 완료 처리하고
     // 조치내용에 어떤 매뉴얼로 안내됐는지 남겨 이력을 추적할 수 있게 한다.
     // 이 단계가 실패해도 문의 접수 자체는 이미 완료된 것이므로 응답에는 영향을 주지 않는다.
+    let debugInfo: any = null;
     try {
       const manuals = await listManuals();
       const matched = matchManualForContent(문의내용 || "", manuals);
+      debugInfo = { manualsCount: manuals.length, matched: !!matched };
       if (matched) {
         await notionRequest(`/pages/${notionResponse.id}`, {
           method: "PATCH",
@@ -56,13 +58,16 @@ export async function POST(request: Request) {
             },
           },
         });
+        debugInfo.patched = true;
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("[POST /api/request/inquiry] INQUIRY_AUTO_COMPLETE_FAILED", e);
+      debugInfo = { ...debugInfo, error: e?.data || e?.message || String(e) };
     }
 
     const response = {
       ticketId: notionResponse.id,
+      _debug: debugInfo,
     };
 
     return NextResponse.json(response);
