@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
-import { computeHwStats, type HwRecord } from "@/lib/hw";
+import { computeHwStats, getHwAllForPatch, type HwRecord } from "@/lib/hw";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { getSessionFromCookieHeader, resolveCurrentName, companyScope } from "@/lib/session";
 import { appendAdminAuditLog } from "@/lib/portal-store";
@@ -250,7 +250,7 @@ export async function POST(req: NextRequest) {
           .filter(r => r.ok && r.page)
           .map(r => pageToHwRecord(r.page!));
 
-        const existing = await kvGet<HwRecord[]>("hw:all");
+        const existing = await getHwAllForPatch();
         if (existing) {
           // 새 레코드를 앞에 추가 (구매일자 내림차순 — 최신이 앞)
           const merged = [...newRecords, ...existing];
