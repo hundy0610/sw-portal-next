@@ -19,8 +19,7 @@ async function resolveAllTickets(): Promise<HelpDeskTicket[]> {
 export async function GET() {
   try {
     const manuals = await listManuals();
-    const _debugUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL || null;
-    return NextResponse.json({ ok: true, manuals, _debugUrl, _debugRegion: process.env.VERCEL_REGION || null });
+    return NextResponse.json({ ok: true, manuals });
   } catch (e) {
     console.error("[API /helpdesk/manuals GET] MANUAL_LIST_FAILED", e);
     return NextResponse.json({ ok: false, error: "서버 오류", code: "MANUAL_LIST_FAILED" }, { status: 500 });
