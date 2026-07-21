@@ -448,12 +448,12 @@ function CompanyBlock({
           </div>
           {coHas && (
             <div className="text-xs text-slate-500 mt-0.5">
-              쉐어드 ₩{fmt(coShared)} 포함
+              쉐어드 제외 · 부서 상세에서 확인
             </div>
           )}
         </div>
         <div className="text-right">
-          <div className="text-xl font-bold" style={{ color: "var(--brand)" }}>₩{fmt(coTotal)}</div>
+          <div className="text-xl font-bold" style={{ color: "var(--brand)" }}>₩{fmt(coNet)}</div>
           <div className="text-xs text-slate-400">/ {periodLabel}</div>
         </div>
       </div>
@@ -606,7 +606,7 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
   );
   if (!data) return null;
 
-  const { coMap, grandTotal, sharedTotal, netTotal, hasShared, totalLicenses, filtered } = buildView(
+  const { coMap, netTotal, hasShared, totalLicenses, filtered } = buildView(
     data.rows, rate, mode, filterCompany, filterDept, filterCat
   );
 
@@ -762,8 +762,8 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
             전체 합계 · {coMap.size}개 법인 · {totalLicenses}건
           </span>
           <div className="text-right">
-            <div className="text-xl font-bold" style={{ color: "var(--brand)" }}>₩{fmt(grandTotal)}<span className="text-sm ml-1">/{mode==="monthly"?"월":"년"}</span></div>
-            {hasShared && <div className="text-xs text-slate-500 mt-0.5">쉐어드 ₩{fmt(sharedTotal)} 포함</div>}
+            <div className="text-xl font-bold" style={{ color: "var(--brand)" }}>₩{fmt(netTotal)}<span className="text-sm ml-1">/{mode==="monthly"?"월":"년"}</span></div>
+            {hasShared && <div className="text-xs text-slate-500 mt-0.5">쉐어드 제외 · 부서 상세에서 확인</div>}
           </div>
         </div>
       )}
