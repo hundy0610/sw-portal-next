@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { fetchHelpDeskTickets } from "@/lib/notion";
-import { kvGet, kvSet } from "@/lib/kv-store";
+import { fetchHelpDeskTickets, getCachedHelpdeskTicketsRaw } from "@/lib/notion";
+import { kvSet } from "@/lib/kv-store";
 import type { HelpDeskTicket } from "@/lib/notion";
 import { getSessionFromCookieHeader, companyScope } from "@/lib/session";
 
@@ -28,7 +28,7 @@ export async function GET(req: Request) {
 
   try {
     if (!refresh) {
-      const cached = await kvGet<{ data: HelpDeskTicket[]; lastSynced: string }>(CACHE_KEY);
+      const cached = await getCachedHelpdeskTicketsRaw();
       if (cached) return NextResponse.json({ ...cached, data: applyFilter(cached.data), cached: true });
     }
 

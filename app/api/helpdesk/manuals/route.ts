@@ -1,17 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listManuals, saveManual, deleteManual } from "@/lib/helpdesk-manuals";
 import { extractPerTicketKeywordSets } from "@/lib/helpdesk-manual-match";
-import { fetchHelpDeskTickets, type HelpDeskTicket } from "@/lib/notion";
-import { kvGet } from "@/lib/kv-store";
+import { fetchHelpDeskTickets, getCachedHelpdeskTicketsRaw, type HelpDeskTicket } from "@/lib/notion";
 
 export const dynamic = "force-dynamic";
 
 // 관리자 목록 화면(/api/helpdesk)과 같은 캐시를 재사용 — 없으면 Notion에서 직접(회사 범위 제한 없이) 가져옴.
 // 매뉴얼에 연결된 티켓은 관리자 세션의 회사 범위와 무관하게 항상 전체 데이터 기준으로 계산해야 하므로,
 // 브라우저에 이미 로드된 티켓 목록(회사 범위로 필터링됐거나 아직 로딩 전일 수 있음)에 의존하지 않는다.
-const TICKETS_CACHE_KEY = "helpdesk:tickets";
 async function resolveAllTickets(): Promise<HelpDeskTicket[]> {
-  const cached = await kvGet<{ data: HelpDeskTicket[] }>(TICKETS_CACHE_KEY);
+  const cached = await getCachedHelpdeskTicketsRaw();
   if (cached) return cached.data;
   return fetchHelpDeskTickets();
 }

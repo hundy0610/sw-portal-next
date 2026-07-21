@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchHelpDeskTickets } from "@/lib/notion";
-import { kvGet, kvSet } from "@/lib/kv-store";
+import { kvMGet } from "@/lib/kv-store";
 import { errorMessage } from "@/lib/api-error";
 
 /**
@@ -44,10 +44,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: true, sent: 0, elapsed: `${Date.now() - start}ms` });
     }
 
-    // 이미 발송된 티켓 필터링
-    const sentChecks = await Promise.all(
-      targets.map(t => kvGet<boolean>(SENT_KEY(t.id)))
-    );
+    // 이미 발송된 티켓 필터링 — 건별 kvGet 대신 kvMGet 한 번으로 조회 (명령 수 절감)
+    const sentChecks = await kvMGet<boolean>(targets.map(t => SENT_KEY(t.id)));
     const pending = targets.filter((_, i) => !sentChecks[i]);
 
     if (pending.length === 0) {

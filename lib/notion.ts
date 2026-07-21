@@ -14,6 +14,8 @@ import {
   mockLicenseRecords, mockHelpDeskTickets, mockTickets, mockRepairTickets,
   mockHwRepairs, mockMonitorHistory, mockMonitorAssets, mockCredentials,
 } from "./mock";
+import { kvGet } from "@/lib/kv-store";
+import { memCached } from "@/lib/mem-cache";
 
 // ────────────────────────────────────────────────────────────
 // Notion 클라이언트 싱글톤
@@ -450,6 +452,20 @@ export async function fetchHelpDeskTickets(): Promise<HelpDeskTicket[]> {
       actionMethod: getPropSelect(p, "조치방법") || "",
     };
   });
+}
+
+const HELPDESK_TICKETS_CACHE_KEY = "helpdesk:tickets";
+
+// 문의 목록/매뉴얼 이력 연결/알림 등 여러 라우트가 각자 이 Redis 캐시 키를 조회하고 있어,
+// 서버 인스턴스가 살아있는 짧은 시간(20초) 동안은 재사용해 Redis 명령 수를 줄인다.
+// 이 키 자체가 이미 5분 TTL로 갱신되는 캐시라, 20초를 더 얹어도 기존보다 신선도가 나빠지지 않는다.
+export async function getCachedHelpdeskTicketsRaw(): Promise<{ data: HelpDeskTicket[]; lastSynced: string } | null> {
+  const { data } = await memCached(
+    HELPDESK_TICKETS_CACHE_KEY,
+    () => kvGet<{ data: HelpDeskTicket[]; lastSynced: string }>(HELPDESK_TICKETS_CACHE_KEY),
+    20
+  );
+  return data;
 }
 
 export async function fetchTickets(): Promise<Ticket[]> {
