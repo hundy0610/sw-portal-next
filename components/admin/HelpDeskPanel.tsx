@@ -8,7 +8,6 @@ import { AssetModalInner, HwRecord, HW_STATUSES } from "@/components/admin/Asset
 import { safeJson } from "@/lib/fetch-json";
 import { useAdminDarkMode } from "@/lib/use-admin-dark-mode";
 import { ACTION_TREE, ALL_TREE_KEYS } from "@/lib/action-categories";
-import { classifyActionCategory } from "@/lib/helpdesk-action-classifier";
 import type { HelpDeskManual } from "@/lib/helpdesk-manuals";
 
 // ── Color configs ── 통합 토큰(--state-*) 참조: 긍정/진행/주의/위험/중립 5의미만 사용 ──
@@ -61,6 +60,80 @@ function formatDateTime(iso: string): string {
   const m = String(d.getMinutes()).padStart(2, "0");
   const s = String(d.getSeconds()).padStart(2, "0");
   return `${Y}-${M}-${D} ${h}:${m}:${s}`;
+}
+
+// ── 조치내용 텍스트 기반 반복 문의 클러스터링 ──────────────────
+// 조치분류 태그가 아니라, 엔지니어가 실제로 작성한 조치내용의 키워드 겹침으로 반복 여부를 판단
+const HELPDESK_STOPWORDS = new Set([
+  "있습니다", "했습니다", "하였습니다", "되었습니다", "완료", "확인", "정상", "이후",
+  "진행", "안내", "처리", "문의", "것으로", "합니다", "되어", "위해", "통해", "경우",
+  "해결", "조치", "드립니다", "부탁드립니다", "확인함", "완료함", "관련", "문제",
+]);
+
+function extractKeywords(text: string): string[] {
+  return Array.from(new Set(
+    text
+      .replace(/[^\p{L}\p{N}\s]/gu, " ")
+      .split(/\s+/)
+      .map(w => w.trim())
+      .filter(w => w.length >= 2 && !HELPDESK_STOPWORDS.has(w))
+  ));
+}
+
+function keywordsSimilar(a: string[], b: string[]): boolean {
+  if (a.length === 0 || b.length === 0) return false;
+  const setB = new Set(b);
+  const shared = a.filter(k => setB.has(k));
+  if (shared.length < 2) return false;
+  const minLen = Math.min(a.length, b.length);
+  return shared.length / minLen >= 0.4;
+}
+
+interface RepeatCluster {
+  key: string;
+  label: string;
+  count: number;
+  topKeywords: string[];
+  tickets: HelpDeskTicket[];
+}
+
+// Union-Find로 조치내용 키워드가 겹치는 완료 티켓들을 그룹화
+function clusterByActionNote(tickets: HelpDeskTicket[], minCount: number): RepeatCluster[] {
+  const completed = tickets.filter(t => t.status === "완료" && t.actionNote && t.actionNote.trim().length >= 10);
+  const n = completed.length;
+  const kw = completed.map(t => extractKeywords(t.actionNote));
+  const parent = Array.from({ length: n }, (_, i) => i);
+  const find = (x: number): number => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
+  const union = (a: number, b: number) => { const ra = find(a), rb = find(b); if (ra !== rb) parent[ra] = rb; };
+
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      if (keywordsSimilar(kw[i], kw[j])) union(i, j);
+    }
+  }
+
+  const groups = new Map<number, number[]>();
+  for (let i = 0; i < n; i++) {
+    const r = find(i);
+    if (!groups.has(r)) groups.set(r, []);
+    groups.get(r)!.push(i);
+  }
+
+  const clusters: RepeatCluster[] = [];
+  for (const idxs of groups.values()) {
+    if (idxs.length < minCount) continue;
+    const freq = new Map<string, number>();
+    idxs.forEach(i => kw[i].forEach(k => freq.set(k, (freq.get(k) ?? 0) + 1)));
+    const topKeywords = [...freq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k]) => k);
+    clusters.push({
+      key: `cluster-${idxs[0]}`,
+      label: topKeywords.length > 0 ? topKeywords.join(" · ") : "기타 반복 유형",
+      count: idxs.length,
+      topKeywords,
+      tickets: idxs.map(i => completed[i]),
+    });
+  }
+  return clusters.sort((a, b) => b.count - a.count);
 }
 
 // ── 문의 내용 기반 세부 분류기 ────────────────────────────────
@@ -366,18 +439,19 @@ function ActionCategoryTree({ selected, onChange }: { selected: string[]; onChan
 
 // ── 매뉴얼 관리 탭 ─────────────────────────────────────────────
 function ManualsTab({
-  tickets, manuals, manualsError, onSaved, presetCategory, onConsumePreset,
+  tickets, manuals, manualsError, onSaved, presetDraft, onConsumePreset,
 }: {
   tickets: HelpDeskTicket[];
   manuals: HelpDeskManual[];
   manualsError?: string | null;
   onSaved: () => void;
-  presetCategory?: string | null;
+  presetDraft?: { title: string; referenceQuery: string } | null;
   onConsumePreset?: () => void;
 }) {
   const MAX_MANUAL_FILE_BYTES = 5 * 1024 * 1024; // 5MB
-  const blankForm = () => ({ id: null as string | null, categories: [] as string[], keywords: "", title: "", contentType: "html" as "html" | "url", body: "" });
+  const blankForm = () => ({ id: null as string | null, title: "", contentType: "html" as "html" | "url", body: "" });
   const [form,    setForm]    = useState(blankForm);
+  const [referenceQuery, setReferenceQuery] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [saving,  setSaving]  = useState(false);
@@ -385,18 +459,19 @@ function ManualsTab({
   const [saveErrorCode, setSaveErrorCode] = useState<string | null>(null);
   const [deleteErrorCode, setDeleteErrorCode] = useState<string | null>(null);
 
-  // 반복 문의 알림에서 "매뉴얼 만들기"로 넘어온 경우 새 매뉴얼 폼에 소분류를 미리 채워줌
+  // 반복 문의 알림에서 "매뉴얼 만들기"로 넘어온 경우 제목과 참고 검색어를 미리 채워줌
   useEffect(() => {
-    if (!presetCategory) return;
-    setForm({ id: null, categories: [presetCategory], keywords: "", title: presetCategory, contentType: "html", body: "" });
+    if (!presetDraft) return;
+    setForm({ id: null, title: presetDraft.title, contentType: "html", body: "" });
+    setReferenceQuery(presetDraft.referenceQuery);
     setFileName(null); setFileError(null);
     setSaveResult("idle");
     onConsumePreset?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [presetCategory]);
+  }, [presetDraft]);
 
   const loadForEdit = (m: HelpDeskManual) => {
-    setForm({ id: m.id, categories: m.categories, keywords: m.keywords.join(", "), title: m.title, contentType: m.contentType, body: m.body });
+    setForm({ id: m.id, title: m.title, contentType: m.contentType, body: m.body });
     setFileName(null); setFileError(null);
     setSaveResult("idle");
   };
@@ -440,22 +515,17 @@ function ManualsTab({
     }
   };
 
-  const matchingCounts = useMemo(
-    () => form.categories.map(cat => ({
-      category: cat,
-      count: tickets.filter(t => t.actionCategory?.includes(cat)).length,
-    })),
-    [tickets, form.categories]
-  );
-  const matchingNotes = useMemo(
-    () => tickets
-      .filter(t => t.actionNote && form.categories.some(cat => t.actionCategory?.includes(cat)))
-      .sort((a, b) => (b.submittedAt || "").localeCompare(a.submittedAt || "")),
-    [tickets, form.categories]
-  );
+  // 조치분류 대신, 과거 조치내용을 자유 키워드로 검색해 참고자료로 확인 (매뉴얼 작성 참고용)
+  const matchingNotes = useMemo(() => {
+    const q = referenceQuery.trim().toLowerCase();
+    if (!q) return [];
+    return tickets
+      .filter(t => t.actionNote && t.actionNote.toLowerCase().includes(q))
+      .sort((a, b) => (b.submittedAt || "").localeCompare(a.submittedAt || ""));
+  }, [tickets, referenceQuery]);
 
   const handleSave = async () => {
-    if (!form.body.trim() || form.categories.length === 0) return;
+    if (!form.title.trim() || !form.body.trim()) return;
     setSaving(true); setSaveResult("idle"); setSaveErrorCode(null);
     try {
       const res = await fetch("/api/helpdesk/manuals", {
@@ -463,11 +533,9 @@ function ManualsTab({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id: form.id ?? undefined,
-          title: form.title || form.categories[0],
+          title: form.title,
           contentType: form.contentType,
           body: form.body,
-          categories: form.categories,
-          keywords: form.keywords.split(",").map(k => k.trim()).filter(Boolean),
         }),
       });
       const json = await safeJson(res);
@@ -528,50 +596,37 @@ function ManualsTab({
           )}
         </div>
         <div>
-          <span className="text-xs text-gray-500 font-semibold block mb-1.5">
-            이 매뉴얼로 처리 가능한 조치분류 <span className="font-normal text-gray-400">(복수 선택 가능)</span>
-          </span>
-          <div className="border border-gray-200 rounded-lg px-3 py-2 max-h-40 overflow-y-auto">
-            <ActionCategoryTree selected={form.categories} onChange={v => setForm(f => ({ ...f, categories: v }))} />
-          </div>
-        </div>
-
-        {form.categories.length > 0 && (
-          <div className="bg-gray-50 rounded-lg p-3 space-y-1.5">
-            <span className="text-[11px] text-gray-400 font-semibold">참고: 과거 처리 건수</span>
-            {matchingCounts.map(({ category, count }) => (
-              <p key={category} className="text-xs text-gray-600">{category} — <strong>{count}건</strong></p>
-            ))}
-            {matchingNotes.length > 0 && (
-              <div className="pt-1.5 border-t border-gray-200">
-                <span className="text-[11px] text-gray-400 font-semibold">과거 처리결과 전체 ({matchingNotes.length}건)</span>
-                <div className="mt-1.5 space-y-2 max-h-64 overflow-y-auto pr-1">
-                  {matchingNotes.map(t => (
-                    <div key={t.id} className="bg-white rounded-lg border border-gray-100 p-2">
-                      <div className="text-[10px] text-gray-400 mb-1">
-                        {(t.submittedAt || "").slice(0, 10)} · {[t.company, t.requester].filter(Boolean).join(" · ")}
-                      </div>
-                      <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-wrap">{t.actionNote}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        <div>
           <span className="text-xs text-gray-500 font-semibold block mb-1.5">제목</span>
           <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+            placeholder="예: 한글(HWP) 라이선스 재설치 안내"
             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white form-field-white focus:outline-none focus:ring-2 focus:ring-amber-200" />
         </div>
+
         <div>
           <span className="text-xs text-gray-500 font-semibold block mb-1.5">
-            검색 키워드 <span className="font-normal text-gray-400">(쉼표로 구분, 담당자가 검색할 때 사용됨)</span>
+            과거 처리결과 검색 <span className="font-normal text-gray-400">(참고용 — 비슷한 사례를 찾아볼 때 사용)</span>
           </span>
-          <input value={form.keywords} onChange={e => setForm(f => ({ ...f, keywords: e.target.value }))}
-            placeholder="예: 한글, hwp, 라이선스 인증"
+          <input value={referenceQuery} onChange={e => setReferenceQuery(e.target.value)}
+            placeholder="예: 블루스크린"
             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white form-field-white focus:outline-none focus:ring-2 focus:ring-amber-200" />
+          {matchingNotes.length > 0 && (
+            <div className="mt-2 bg-gray-50 rounded-lg p-3">
+              <span className="text-[11px] text-gray-400 font-semibold">검색된 과거 처리결과 ({matchingNotes.length}건)</span>
+              <div className="mt-1.5 space-y-2 max-h-64 overflow-y-auto pr-1">
+                {matchingNotes.map(t => (
+                  <div key={t.id} className="bg-white rounded-lg border border-gray-100 p-2">
+                    <div className="text-[10px] text-gray-400 mb-1">
+                      {(t.submittedAt || "").slice(0, 10)} · {[t.company, t.requester].filter(Boolean).join(" · ")}
+                    </div>
+                    <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-wrap">{t.actionNote}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {referenceQuery.trim() && matchingNotes.length === 0 && (
+            <p className="text-xs text-gray-400 mt-1">검색 결과가 없습니다.</p>
+          )}
         </div>
         <div>
           <div className="flex items-center justify-between mb-1.5">
@@ -626,7 +681,7 @@ function ManualsTab({
           )}
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={handleSave} disabled={saving || !form.body.trim() || form.categories.length === 0 || (form.contentType === "url" && !/^https?:\/\//.test(form.body))}
+          <button onClick={handleSave} disabled={saving || !form.title.trim() || !form.body.trim() || (form.contentType === "url" && !/^https?:\/\//.test(form.body))}
             className="text-sm px-4 py-2 rounded-lg bg-amber-600 text-white font-semibold hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
             {saving ? "저장 중…" : form.id ? "매뉴얼 수정" : "매뉴얼 등록"}
           </button>
@@ -654,11 +709,6 @@ function ManualsTab({
                         {m.contentType === "url" ? "URL" : "HTML"}
                       </span>
                       <div className="text-sm font-medium text-gray-800 truncate">{m.title}</div>
-                    </div>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {m.categories.map(c => (
-                        <span key={c} className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">{c}</span>
-                      ))}
                     </div>
                   </button>
                   <button onClick={() => handleDelete(m.id)}
@@ -767,14 +817,12 @@ function HelpDeskTicketFloating({
   const [assetSaving,     setAssetSaving]     = useState(false);
   const [assetSaveResult, setAssetSaveResult] = useState<"idle" | "done" | "error">("idle");
 
-  // 매뉴얼 검색 (담당자가 문의 내용을 보고 직접 검색해서 선택)
-  const suggestedCategory = useMemo(
-    () => classifyActionCategory(ticket.content || "", ticket.title || "", ticket.inquiryType || ""),
-    [ticket.content, ticket.title, ticket.inquiryType]
-  );
-  const [manualQuery,     setManualQuery]     = useState("");
-  const [selectedManual,  setSelectedManual]  = useState<HelpDeskManual | null>(null);
-  const [manualEditTitle, setManualEditTitle] = useState("");
+  // 매뉴얼로 해결 — 조치내용을 직접 쓰는 대신 등록된 매뉴얼을 검색해 골라 안내 메일로 발송
+  const [manualMode,       setManualMode]       = useState(false);
+  const [manualQuery,      setManualQuery]      = useState("");
+  const [selectedManual,   setSelectedManual]   = useState<HelpDeskManual | null>(null);
+  const [manualEditTitle,  setManualEditTitle]  = useState("");
+  const [manualExtraNote,  setManualExtraNote]  = useState("");
   const [manualReplyState, setManualReplyState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [manualReplyErrorCode, setManualReplyErrorCode] = useState<string | null>(null);
 
@@ -788,24 +836,14 @@ function HelpDeskTicketFloating({
       .catch(e => console.error("[HelpDeskTicketFloating] MANUAL_MAIL_STATUS_FETCH_ERROR", e));
   }, [ticket.id]);
 
-  // 검색어 매칭 + 예상 조치분류(참고용 제안) 우선순위로 정렬
+  // 제목 검색 (조치분류/키워드는 매뉴얼에서 제거됨 — 제목만으로 검색)
   const manualResults = useMemo(() => {
     const q = manualQuery.trim().toLowerCase();
-    const scored = manuals
-      .map(m => {
-        const haystack = [m.title, ...m.categories, ...m.keywords].join(" ").toLowerCase();
-        if (q && !haystack.includes(q)) return null;
-        const score = suggestedCategory && m.categories.includes(suggestedCategory.category) ? 1 : 0;
-        return { manual: m, score };
-      })
-      .filter((x): x is { manual: HelpDeskManual; score: number } => !!x)
-      .sort((a, b) => b.score - a.score)
-      .map(x => x.manual);
-    return scored.slice(0, 8);
-  }, [manuals, manualQuery, suggestedCategory]);
+    return manuals.filter(m => !q || m.title.toLowerCase().includes(q)).slice(0, 8);
+  }, [manuals, manualQuery]);
 
   const selectManual = (m: HelpDeskManual) => {
-    setSelectedManual(m);
+    setSelectedManual(prev => (prev?.id === m.id ? null : m));
     setManualEditTitle(m.title);
   };
 
@@ -814,8 +852,13 @@ function HelpDeskTicketFloating({
     window.open(`/api/helpdesk/manuals/view?id=${encodeURIComponent(selectedManual.id)}`, "_blank");
   };
 
-  const sendManualReply = async () => {
-    if (!ticket.requesterEmail || !selectedManual) return;
+  // 매뉴얼 발송 후, Notion 조치내용에 남길 요약 텍스트를 반환 (실패 시 null)
+  const sendManualAndGetNote = async (): Promise<string | null> => {
+    if (!selectedManual) return null;
+    if (!ticket.requesterEmail) {
+      setManualReplyState("error"); setManualReplyErrorCode("MANUAL_MAIL_NO_EMAIL");
+      return null;
+    }
     setManualReplyState("sending"); setManualReplyErrorCode(null);
     try {
       const res = await fetch("/api/helpdesk/send-manual-reply", {
@@ -828,32 +871,80 @@ function HelpDeskTicketFloating({
           ticketContent: ticket.content || ticket.title || "",
           manualId: selectedManual.id,
           manualTitle: manualEditTitle,
+          extraNote: manualExtraNote,
           assignee: selectedAssignee || "담당자",
         }),
       });
       const json = await safeJson(res);
-      if (json.ok) setManualReplyState("sent");
-      else {
-        console.error("[HelpDeskTicketFloating.sendManualReply]", json.code, json);
+      if (!json.ok) {
+        console.error("[HelpDeskTicketFloating.sendManualAndGetNote]", json.code, json);
         setManualReplyState("error"); setManualReplyErrorCode(json.code || "MANUAL_MAIL_SEND_FAILED");
+        return null;
       }
+      setManualReplyState("sent");
+      return `매뉴얼 "${manualEditTitle}" 안내 발송${manualExtraNote.trim() ? `\n\n${manualExtraNote.trim()}` : ""}`;
     } catch (e) {
-      console.error("[HelpDeskTicketFloating.sendManualReply] MANUAL_MAIL_FETCH_ERROR", e);
+      console.error("[HelpDeskTicketFloating.sendManualAndGetNote] MANUAL_MAIL_FETCH_ERROR", e);
       setManualReplyState("error"); setManualReplyErrorCode("MANUAL_MAIL_FETCH_ERROR");
+      return null;
     }
   };
 
-  // 매뉴얼 회신 발송 시 조치분류를 채우고, 조치내용엔 어떤 매뉴얼을 안내했는지 남겨 완료 처리 폼 열기
-  const applyManualToCompleteForm = () => {
-    if (!selectedManual) return;
-    setSelectedCategories(prev => {
-      const merged = new Set(prev);
-      selectedManual.categories.forEach(c => merged.add(c));
-      return [...merged];
-    });
-    setNoteValue(prev => prev.trim().length > 0 ? prev : `매뉴얼 "${manualEditTitle}" 안내 발송`);
-    setShowCompleteForm(true);
-  };
+  // 완료 처리 폼과 완료 후 재작성 화면에서 공통으로 쓰는 매뉴얼 검색·선택 UI
+  const manualPickerBlock = (
+    <div className="rounded-xl border border-sky-200 bg-sky-50 p-3.5 space-y-2.5">
+      {manuals.length === 0 ? (
+        <p className="text-[11px] text-sky-700/70">등록된 매뉴얼이 아직 없습니다. &quot;매뉴얼 관리&quot; 탭에서 먼저 등록해주세요.</p>
+      ) : (
+        <>
+          <input
+            value={manualQuery}
+            onChange={e => setManualQuery(e.target.value)}
+            placeholder="제목으로 검색"
+            className="w-full text-sm border border-sky-200 rounded-lg px-2.5 py-1.5 bg-white form-field-white focus:outline-none focus:ring-2 focus:ring-sky-200"
+          />
+          <div className="space-y-1 max-h-32 overflow-y-auto">
+            {manualResults.map(m => (
+              <label key={m.id}
+                className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-transparent bg-white/60 hover:bg-white cursor-pointer transition-colors">
+                <input type="radio" checked={selectedManual?.id === m.id} onChange={() => selectManual(m)} />
+                <span className="text-xs font-semibold text-gray-800 truncate">{m.title}</span>
+              </label>
+            ))}
+            {manualResults.length === 0 && <p className="text-[11px] text-sky-700/70 px-1">검색 결과가 없습니다.</p>}
+          </div>
+        </>
+      )}
+      {selectedManual && (
+        <div className="space-y-2 pt-1 border-t border-sky-200">
+          <div className="flex items-center gap-2">
+            <input
+              value={manualEditTitle}
+              onChange={e => setManualEditTitle(e.target.value)}
+              className="flex-1 text-sm font-semibold border border-sky-200 rounded-lg px-2.5 py-1.5 bg-white form-field-white focus:outline-none focus:ring-2 focus:ring-sky-200"
+            />
+            <button type="button" onClick={previewSelectedManual}
+              className="text-xs px-2.5 py-1.5 rounded-lg border border-sky-300 text-sky-700 font-medium hover:bg-sky-100 transition-colors whitespace-nowrap">
+              미리보기
+            </button>
+          </div>
+          <textarea
+            value={manualExtraNote}
+            onChange={e => setManualExtraNote(e.target.value)}
+            rows={2}
+            placeholder="추가로 안내할 내용이 있다면 입력하세요 (선택)"
+            className="w-full text-sm border border-sky-200 rounded-lg px-2.5 py-1.5 bg-white form-field-white focus:outline-none focus:ring-2 focus:ring-sky-200 resize-none"
+          />
+        </div>
+      )}
+      {!ticket.requesterEmail && (
+        <p className="text-[11px] text-amber-600">문의자 이메일이 없어 매뉴얼 발송이 불가합니다.</p>
+      )}
+      {manualReplyState === "error" && (
+        <p className="text-[11px] text-red-500">발송 실패{manualReplyErrorCode ? ` (코드: ${manualReplyErrorCode})` : ""}</p>
+      )}
+    </div>
+  );
 
   // 워크플로우 UI 상태
   const [showOtherAssignee, setShowOtherAssignee] = useState(false);
@@ -885,12 +976,17 @@ function HelpDeskTicketFloating({
     finally { setAssignSaving(false); }
   };
 
-  // 완료 처리 통합 함수
+  // 완료 처리 통합 함수 — 매뉴얼로 해결 모드면 먼저 메일을 발송하고, 그 요약을 조치내용으로 저장
   const completeTicket = async () => {
     setAllSaving(true); setAllSaveResult("idle");
     try {
+      let noteText = noteValue;
+      if (manualMode) {
+        const built = await sendManualAndGetNote();
+        if (!built) { setAllSaveResult("error"); setAllSaving(false); return; }
+        noteText = built;
+      }
       const found = assigneeList.find(u => u.name === selectedAssignee);
-      const noteText = noteValue;
       const res = await fetch("/api/helpdesk/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -917,7 +1013,9 @@ function HelpDeskTicketFloating({
     finally { setAllSaving(false); }
   };
 
-  const canComplete = selectedCategories.length > 0 && selectedMethod !== "" && noteValue.trim().length >= ACTION_NOTE_MIN_LEN;
+  const canComplete = selectedCategories.length > 0 && selectedMethod !== "" && (
+    manualMode ? !!selectedManual && !!ticket.requesterEmail : noteValue.trim().length >= ACTION_NOTE_MIN_LEN
+  );
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -976,8 +1074,12 @@ function HelpDeskTicketFloating({
   };
 
   const saveNote = async () => {
-    const value = noteValue;
-    if (value.trim().length < ACTION_NOTE_MIN_LEN) { setNoteSaveResult("error"); return; }
+    let value = noteValue;
+    if (manualMode) {
+      const built = await sendManualAndGetNote();
+      if (!built) { setNoteSaveResult("error"); return; }
+      value = built;
+    } else if (value.trim().length < ACTION_NOTE_MIN_LEN) { setNoteSaveResult("error"); return; }
     setNoteSaving(true); setNoteSaveResult("idle");
     try {
       const res = await fetch("/api/helpdesk/update", {
@@ -990,6 +1092,7 @@ function HelpDeskTicketFloating({
         setNoteValue(value);
         setNoteSaveResult("done");
         setEditingNote(false);
+        setManualMode(false);
         onUpdated?.(ticket.id, { actionNote: value });
       } else setNoteSaveResult("error");
     } catch { setNoteSaveResult("error"); }
@@ -1306,86 +1409,6 @@ function HelpDeskTicketFloating({
                     </select>
                   </div>
 
-                  {/* 매뉴얼 검색 → 선택 → 회신 */}
-                  <div className="rounded-xl border border-sky-200 bg-sky-50 p-3.5 space-y-2.5">
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-sky-700">
-                      📋 매뉴얼로 안내 회신하기
-                    </div>
-                    {manuals.length === 0 ? (
-                      <p className="text-[11px] text-sky-700/70">등록된 매뉴얼이 아직 없습니다. "매뉴얼 관리" 탭에서 먼저 등록해주세요.</p>
-                    ) : (
-                      <>
-                        <input
-                          value={manualQuery}
-                          onChange={e => { setManualQuery(e.target.value); }}
-                          placeholder={suggestedCategory ? `검색 (예상 유형: ${suggestedCategory.category})` : "제목·조치분류·키워드로 검색"}
-                          className="w-full text-sm border border-sky-200 rounded-lg px-2.5 py-1.5 bg-white form-field-white focus:outline-none focus:ring-2 focus:ring-sky-200"
-                        />
-                        {manualResults.length > 0 && (
-                          <div className="space-y-1 max-h-40 overflow-y-auto">
-                            {manualResults.map(m => (
-                              <button
-                                type="button"
-                                key={m.id}
-                                onClick={() => selectManual(m)}
-                                className={`w-full text-left px-2.5 py-1.5 rounded-lg border transition-colors ${
-                                  selectedManual?.id === m.id ? "border-sky-400 bg-white" : "border-transparent bg-white/60 hover:bg-white"
-                                }`}
-                              >
-                                <div className="text-xs font-semibold text-gray-800 truncate">{m.title}</div>
-                                <div className="flex flex-wrap gap-1 mt-0.5">
-                                  {m.categories.map(c => (
-                                    <span key={c} className="text-[10px] text-sky-700 bg-sky-100 px-1.5 py-0.5 rounded">{c}</span>
-                                  ))}
-                                </div>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                        {manualQuery.trim() && manualResults.length === 0 && (
-                          <p className="text-[11px] text-sky-700/70">검색 결과가 없습니다.</p>
-                        )}
-                      </>
-                    )}
-
-                    {selectedManual && (
-                      <div className="space-y-2 pt-1 border-t border-sky-200">
-                        <div className="flex items-center gap-2">
-                          <input
-                            value={manualEditTitle}
-                            onChange={e => setManualEditTitle(e.target.value)}
-                            className="flex-1 text-sm font-semibold border border-sky-200 rounded-lg px-2.5 py-1.5 bg-white form-field-white focus:outline-none focus:ring-2 focus:ring-sky-200"
-                          />
-                          <button type="button" onClick={previewSelectedManual}
-                            className="text-xs px-2.5 py-1.5 rounded-lg border border-sky-300 text-sky-700 font-medium hover:bg-sky-100 transition-colors whitespace-nowrap">
-                            미리보기
-                          </button>
-                        </div>
-                        {!ticket.requesterEmail && (
-                          <p className="text-[11px] text-amber-600">문의자 이메일이 없어 회신을 보낼 수 없습니다.</p>
-                        )}
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={sendManualReply}
-                            disabled={!ticket.requesterEmail || manualReplyState === "sending" || manualReplyState === "sent"}
-                            className="text-xs px-3 py-1.5 rounded-lg bg-sky-600 text-white font-semibold hover:bg-sky-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                          >
-                            {manualReplyState === "sending" ? "발송 중…" : manualReplyState === "sent" ? "발송됨 ✓" : "메일로 회신 보내기"}
-                          </button>
-                          <button
-                            onClick={applyManualToCompleteForm}
-                            className="text-xs px-3 py-1.5 rounded-lg border border-sky-300 text-sky-700 font-medium hover:bg-sky-100 transition-colors"
-                          >
-                            이 내용으로 완료 처리 열기
-                          </button>
-                          {manualReplyState === "error" && (
-                            <span className="text-[11px] text-red-500">발송 실패{manualReplyErrorCode ? ` (코드: ${manualReplyErrorCode})` : ""}</span>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
                   {!showCompleteForm ? (
                     <div className="flex-1 flex items-center justify-center">
                       <button
@@ -1431,30 +1454,43 @@ function HelpDeskTicketFloating({
                       <div>
                         <div className="flex items-center justify-between mb-1.5">
                           <span className="text-xs text-gray-500 font-semibold">조치내용</span>
-                          <button type="button" onClick={() => setShowNoteGuide(true)}
-                            className="text-[11px] font-semibold hover:underline" style={{ color: "var(--brand)" }}>
-                            작성 가이드 보기
-                          </button>
+                          <div className="flex items-center gap-3">
+                            <label className="flex items-center gap-1.5 text-[11px] font-semibold text-sky-700 cursor-pointer select-none">
+                              <input type="checkbox" checked={manualMode}
+                                onChange={e => setManualMode(e.target.checked)} className="rounded" />
+                              📋 매뉴얼로 해결
+                            </label>
+                            {!manualMode && (
+                              <button type="button" onClick={() => setShowNoteGuide(true)}
+                                className="text-[11px] font-semibold hover:underline" style={{ color: "var(--brand)" }}>
+                                작성 가이드 보기
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        <textarea
-                          ref={textareaRef}
-                          value={noteValue}
-                          onChange={e => setNoteValue(e.target.value)}
-                          onFocus={() => {
-                            if (!noteGuideShownRef.current && noteValue.trim().length === 0) {
-                              noteGuideShownRef.current = true;
-                              setShowNoteGuide(true);
-                            }
-                          }}
-                          rows={4}
-                          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-200 resize-none"
-                          placeholder="조치 내역을 입력하세요 (최소 10자)"
-                        />
-                        <div className="flex justify-end mt-1">
-                          <span className={`text-[11px] ${noteValue.trim().length < ACTION_NOTE_MIN_LEN ? "text-gray-400" : "text-emerald-600"}`}>
-                            {noteValue.trim().length}자 {noteValue.trim().length < ACTION_NOTE_MIN_LEN && `(최소 ${ACTION_NOTE_MIN_LEN}자)`}
-                          </span>
-                        </div>
+                        {manualMode ? manualPickerBlock : (
+                          <>
+                            <textarea
+                              ref={textareaRef}
+                              value={noteValue}
+                              onChange={e => setNoteValue(e.target.value)}
+                              onFocus={() => {
+                                if (!noteGuideShownRef.current && noteValue.trim().length === 0) {
+                                  noteGuideShownRef.current = true;
+                                  setShowNoteGuide(true);
+                                }
+                              }}
+                              rows={4}
+                              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-200 resize-none"
+                              placeholder="조치 내역을 입력하세요 (최소 10자)"
+                            />
+                            <div className="flex justify-end mt-1">
+                              <span className={`text-[11px] ${noteValue.trim().length < ACTION_NOTE_MIN_LEN ? "text-gray-400" : "text-emerald-600"}`}>
+                                {noteValue.trim().length}자 {noteValue.trim().length < ACTION_NOTE_MIN_LEN && `(최소 ${ACTION_NOTE_MIN_LEN}자)`}
+                              </span>
+                            </div>
+                          </>
+                        )}
                       </div>
 
                       {/* 완료 처리 버튼 */}
@@ -1464,10 +1500,10 @@ function HelpDeskTicketFloating({
                           disabled={allSaving || !canComplete}
                           className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                         >
-                          {allSaving ? "처리 중…" : "완료 처리"}
+                          {allSaving ? (manualMode ? "발송 및 처리 중…" : "처리 중…") : "완료 처리"}
                         </button>
                         <button
-                          onClick={() => setShowCompleteForm(false)}
+                          onClick={() => { setShowCompleteForm(false); setManualMode(false); }}
                           className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm hover:bg-gray-50 transition-colors"
                         >
                           취소
@@ -1475,7 +1511,9 @@ function HelpDeskTicketFloating({
                       </div>
                       {!canComplete && (
                         <p className="text-xs text-amber-600">
-                          조치분류, 조치방법을 선택하고 조치내용을 {ACTION_NOTE_MIN_LEN}자 이상 작성해주세요.
+                          {manualMode
+                            ? "조치분류, 조치방법을 선택하고 매뉴얼을 하나 골라주세요 (문의자 이메일 필요)."
+                            : `조치분류, 조치방법을 선택하고 조치내용을 ${ACTION_NOTE_MIN_LEN}자 이상 작성해주세요.`}
                         </p>
                       )}
                       {allSaveResult === "error" && <p className="text-xs text-red-500">완료 처리 실패</p>}
@@ -1516,36 +1554,50 @@ function HelpDeskTicketFloating({
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[11px] text-gray-400">조치내용</span>
                       {editingNote && (
-                        <button type="button" onClick={() => setShowNoteGuide(true)}
-                          className="text-[11px] font-semibold hover:underline" style={{ color: "var(--brand)" }}>
-                          작성 가이드 보기
-                        </button>
+                        <div className="flex items-center gap-3">
+                          <label className="flex items-center gap-1.5 text-[11px] font-semibold text-sky-700 cursor-pointer select-none">
+                            <input type="checkbox" checked={manualMode}
+                              onChange={e => setManualMode(e.target.checked)} className="rounded" />
+                            📋 매뉴얼로 재안내
+                          </label>
+                          {!manualMode && (
+                            <button type="button" onClick={() => setShowNoteGuide(true)}
+                              className="text-[11px] font-semibold hover:underline" style={{ color: "var(--brand)" }}>
+                              작성 가이드 보기
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
                     {editingNote ? (
                       <div className="space-y-2">
-                        <textarea
-                          ref={textareaRef}
-                          value={noteValue}
-                          onChange={e => setNoteValue(e.target.value)}
-                          rows={4}
-                          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-200 resize-none"
-                          placeholder="조치 내역을 입력하세요 (최소 10자)"
-                          autoFocus
-                        />
-                        <div className="flex items-center gap-2">
-                          <button onClick={saveNote} disabled={noteSaving || noteValue.trim().length < ACTION_NOTE_MIN_LEN}
+                        {manualMode ? manualPickerBlock : (
+                          <textarea
+                            ref={textareaRef}
+                            value={noteValue}
+                            onChange={e => setNoteValue(e.target.value)}
+                            rows={4}
+                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-200 resize-none"
+                            placeholder="조치 내역을 입력하세요 (최소 10자)"
+                            autoFocus
+                          />
+                        )}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button onClick={saveNote}
+                            disabled={noteSaving || (manualMode ? !selectedManual || !ticket.requesterEmail : noteValue.trim().length < ACTION_NOTE_MIN_LEN)}
                             className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-white font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                             {noteSaving ? "저장 중…" : "저장"}
                           </button>
-                          <button onClick={() => { setEditingNote(false); setNoteSaveResult("idle"); }}
+                          <button onClick={() => { setEditingNote(false); setNoteSaveResult("idle"); setManualMode(false); }}
                             className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
                             취소
                           </button>
-                          <span className={`text-[11px] ${noteValue.trim().length < ACTION_NOTE_MIN_LEN ? "text-gray-400" : "text-emerald-600"}`}>
-                            {noteValue.trim().length}자{noteValue.trim().length < ACTION_NOTE_MIN_LEN && ` (최소 ${ACTION_NOTE_MIN_LEN}자)`}
-                          </span>
-                          {noteSaveResult === "error" && <span className="text-xs text-red-500">저장 실패 — {ACTION_NOTE_MIN_LEN}자 이상 입력했는지 확인해주세요</span>}
+                          {!manualMode && (
+                            <span className={`text-[11px] ${noteValue.trim().length < ACTION_NOTE_MIN_LEN ? "text-gray-400" : "text-emerald-600"}`}>
+                              {noteValue.trim().length}자{noteValue.trim().length < ACTION_NOTE_MIN_LEN && ` (최소 ${ACTION_NOTE_MIN_LEN}자)`}
+                            </span>
+                          )}
+                          {noteSaveResult === "error" && <span className="text-xs text-red-500">저장 실패{manualMode ? "" : ` — ${ACTION_NOTE_MIN_LEN}자 이상 입력했는지 확인해주세요`}</span>}
                         </div>
                       </div>
                     ) : (
@@ -2077,7 +2129,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
   // 반복 문의 매뉴얼 관리
   const [manuals, setManuals] = useState<HelpDeskManual[]>([]);
   const [manualsError, setManualsError] = useState<string | null>(null);
-  const [pendingManualCategory, setPendingManualCategory] = useState<string | null>(null);
+  const [pendingManualDraft, setPendingManualDraft] = useState<{ title: string; referenceQuery: string } | null>(null);
   const loadManuals = useCallback(() => {
     fetch("/api/helpdesk/manuals")
       .then(r => safeJson(r))
@@ -2088,22 +2140,18 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
       .catch(e => { console.error("[loadManuals] MANUAL_LIST_FETCH_ERROR", e); setManualsError("MANUAL_LIST_FETCH_ERROR"); });
   }, []);
 
-  // 완료 처리된 문의의 조치분류를 집계해 "반복되는데 아직 매뉴얼이 없는" 유형을 찾아냄
+  // 완료 처리된 문의의 "조치내용" 텍스트를 키워드 기준으로 묶어 반복되는데 아직 매뉴얼이 없는 유형을 찾아냄
   const REPEAT_ALERT_THRESHOLD = 3;
-  const repeatAlerts = useMemo(() => {
-    const counts = new Map<string, number>();
-    tickets.forEach(t => {
-      if (t.status !== "완료") return;
-      (t.actionCategory ?? []).forEach(cat => counts.set(cat, (counts.get(cat) ?? 0) + 1));
-    });
-    return [...counts.entries()]
-      .filter(([cat, count]) => count >= REPEAT_ALERT_THRESHOLD && !manuals.some(m => m.categories.includes(cat)))
-      .sort((a, b) => b[1] - a[1])
-      .map(([category, count]) => ({ category, count }));
+  const repeatClusters = useMemo(() => {
+    const all = clusterByActionNote(tickets, REPEAT_ALERT_THRESHOLD);
+    return all.filter(c => !manuals.some(m => {
+      const titleKw = extractKeywords(m.title);
+      return c.topKeywords.some(k => titleKw.includes(k));
+    }));
   }, [tickets, manuals]);
 
-  const goCreateManualFor = (category: string) => {
-    setPendingManualCategory(category);
+  const goCreateManualFor = (cluster: RepeatCluster) => {
+    setPendingManualDraft({ title: cluster.label, referenceQuery: cluster.topKeywords[0] || "" });
     setTab("manuals");
   };
 
@@ -2707,9 +2755,9 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
               tab === id ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
             }`}>
             {label}
-            {id === "status_list" && repeatAlerts.length > 0 && (
+            {id === "status_list" && repeatClusters.length > 0 && (
               <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] font-bold flex items-center justify-center">
-                {repeatAlerts.length}
+                {repeatClusters.length}
               </span>
             )}
           </button>
@@ -3090,20 +3138,20 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
               매뉴얼 데이터를 불러오지 못해 반복 문의 알림이 정확하지 않을 수 있습니다. (코드: {manualsError})
             </div>
           )}
-          {repeatAlerts.length > 0 && (
+          {repeatClusters.length > 0 && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2.5">
               <div className="flex items-center gap-1.5 text-sm font-bold text-amber-800">
                 🔁 반복되는 문의 유형이 있습니다 — 매뉴얼 제작을 검토해주세요
               </div>
               <p className="text-xs text-amber-700/80">
-                완료 처리 시 등록된 조치분류를 기준으로, {REPEAT_ALERT_THRESHOLD}건 이상 반복됐지만 아직 매뉴얼이 없는 유형입니다.
+                완료 처리 시 엔지니어가 작성한 조치내용의 핵심 키워드를 기준으로, {REPEAT_ALERT_THRESHOLD}건 이상 비슷한 방식으로 처리됐지만 아직 매뉴얼이 없는 유형입니다.
               </p>
               <div className="flex flex-wrap gap-2">
-                {repeatAlerts.map(({ category, count }) => (
-                  <div key={category} className="flex items-center gap-2 bg-white border border-amber-200 rounded-lg pl-3 pr-1.5 py-1.5">
-                    <span className="text-xs text-gray-700">{category}</span>
-                    <span className="text-xs font-bold text-amber-700">{count}건</span>
-                    <button onClick={() => goCreateManualFor(category)}
+                {repeatClusters.map(cluster => (
+                  <div key={cluster.key} className="flex items-center gap-2 bg-white border border-amber-200 rounded-lg pl-3 pr-1.5 py-1.5">
+                    <span className="text-xs text-gray-700">{cluster.label}</span>
+                    <span className="text-xs font-bold text-amber-700">{cluster.count}건</span>
+                    <button onClick={() => goCreateManualFor(cluster)}
                       className="text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-md px-2 py-1 transition-colors">
                       매뉴얼 만들기
                     </button>
@@ -3672,13 +3720,8 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
         const completedCount = completedTickets.length;
 
         // ── 반복 문의 매뉴얼 커버리지 ──────────────────────────
-        const manualCoveredCategories = new Set(manuals.flatMap(m => m.categories)).size;
-        const manualTotalCategories   = ALL_TREE_KEYS.length;
-        const manualMatchedOpenCount = tickets.filter(t => {
-          if (t.status === "완료") return false;
-          const matched = classifyActionCategory(t.content || "", t.title || "", t.inquiryType || "");
-          return !!matched && manuals.some(m => m.categories.includes(matched.category));
-        }).length;
+        const registeredManualCount = manuals.length;
+        const uncoveredRepeatClusterCount = repeatClusters.length;
 
         const recentCompleted = [...completedTickets]
           .sort((a, b) => new Date(b.lastEditedAt).getTime() - new Date(a.lastEditedAt).getTime())
@@ -3803,14 +3846,12 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
             {/* 반복 문의 매뉴얼 커버리지 */}
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-white border border-gray-200 rounded-xl p-4">
-                <div className="text-2xl font-extrabold" style={{ color: "#0EA5E9" }}>
-                  {manualCoveredCategories} / {manualTotalCategories}
-                </div>
-                <div className="text-xs font-medium text-gray-500 mt-0.5">매뉴얼 보유 조치분류 (소분류)</div>
+                <div className="text-2xl font-extrabold" style={{ color: "#0EA5E9" }}>{registeredManualCount}건</div>
+                <div className="text-xs font-medium text-gray-500 mt-0.5">등록된 매뉴얼 수</div>
               </div>
               <div className="bg-white border border-gray-200 rounded-xl p-4">
-                <div className="text-2xl font-extrabold" style={{ color: "#0EA5E9" }}>{manualMatchedOpenCount}건</div>
-                <div className="text-xs font-medium text-gray-500 mt-0.5">매뉴얼로 안내 가능할 것으로 추정되는 미해결 문의</div>
+                <div className="text-2xl font-extrabold" style={{ color: "#0EA5E9" }}>{uncoveredRepeatClusterCount}건</div>
+                <div className="text-xs font-medium text-gray-500 mt-0.5">매뉴얼이 아직 없는 반복 문의 유형</div>
               </div>
             </div>
 
@@ -4043,8 +4084,8 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
           manuals={manuals}
           manualsError={manualsError}
           onSaved={loadManuals}
-          presetCategory={pendingManualCategory}
-          onConsumePreset={() => setPendingManualCategory(null)}
+          presetDraft={pendingManualDraft}
+          onConsumePreset={() => setPendingManualDraft(null)}
         />
       )}
 

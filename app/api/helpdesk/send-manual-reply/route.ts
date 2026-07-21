@@ -9,7 +9,7 @@ const SENT_KEY = (id: string) => `helpdesk:manual-reply-sent:${id}`;
 const SENT_TTL = 60 * 60 * 24 * 365; // 1년
 
 // POST /api/helpdesk/send-manual-reply
-// Body: { ticketId, requesterEmail, requesterName, ticketContent, manualId, manualTitle, assignee }
+// Body: { ticketId, requesterEmail, requesterName, ticketContent, manualId, manualTitle, extraNote, assignee }
 export async function POST(req: NextRequest) {
   const transporter = createMailTransporter();
   if (!transporter) {
@@ -18,9 +18,9 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { ticketId, requesterEmail, requesterName, ticketContent, manualId, manualTitle, assignee } = await req.json() as {
+    const { ticketId, requesterEmail, requesterName, ticketContent, manualId, manualTitle, extraNote, assignee } = await req.json() as {
       ticketId?: string; requesterEmail?: string; requesterName?: string;
-      ticketContent?: string; manualId?: string; manualTitle?: string; assignee?: string;
+      ticketContent?: string; manualId?: string; manualTitle?: string; extraNote?: string; assignee?: string;
     };
 
     if (!ticketId || !requesterEmail || !manualId) {
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     const alreadySent = await kvGet<boolean>(SENT_KEY(ticketId));
     if (alreadySent) return NextResponse.json({ ok: true, skipped: true, reason: "이미 발송됨" });
 
-    // URL/제목/조치분류는 클라이언트 입력을 신뢰하지 않고 저장된 매뉴얼 원본에서 가져옴 (임의 링크 발송 방지)
+    // URL/제목은 클라이언트 입력을 신뢰하지 않고 저장된 매뉴얼 원본에서 가져옴 (임의 링크 발송 방지)
     const manual = await getManual(manualId);
     if (!manual) {
       console.error("[POST /api/helpdesk/send-manual-reply] MANUAL_MAIL_MANUAL_NOT_FOUND", manualId);
@@ -44,9 +44,9 @@ export async function POST(req: NextRequest) {
 
     const html = buildHelpdeskManualReplyEmail({
       requesterName: requesterName || "고객",
-      category: manual.categories.join(", "),
       manualTitle: manualTitle || manual.title,
       manualUrl,
+      extraNote: extraNote || "",
       ticketContent: ticketContent || "",
       assignee: assignee || "담당자",
     });

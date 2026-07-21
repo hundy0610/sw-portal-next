@@ -464,13 +464,13 @@ export function buildHelpdeskEscalationEmail(opts: {
 
 export function buildHelpdeskManualReplyEmail(opts: {
   requesterName: string;
-  category: string;
   manualTitle: string;
   manualUrl: string;
+  extraNote: string;
   ticketContent: string;
   assignee: string;
 }): string {
-  const { requesterName, category, manualTitle, manualUrl, ticketContent, assignee } = opts;
+  const { requesterName, manualTitle, manualUrl, extraNote, ticketContent, assignee } = opts;
 
   return `<!DOCTYPE html>
 <html lang="ko">
@@ -500,13 +500,16 @@ export function buildHelpdeskManualReplyEmail(opts: {
       <p style="font-size:13px;color:#334155;margin:0;line-height:1.5;white-space:pre-wrap;">${ticketContent}</p>
     </div>
     <div style="background:#EFF6FF;border:1.5px solid #93C5FD;border-radius:12px;padding:18px 20px;margin-bottom:20px;text-align:center;">
-      <div style="font-size:11px;color:#2563EB;margin-bottom:4px;font-weight:600;letter-spacing:0.5px;">${category}</div>
       <div style="font-size:15px;color:#1E3A8A;font-weight:700;margin-bottom:14px;">${manualTitle}</div>
       <a href="${manualUrl}" target="_blank"
         style="display:inline-block;background:#2563EB;color:white;font-size:14px;font-weight:700;padding:12px 28px;border-radius:10px;text-decoration:none;">
         📋 매뉴얼 확인하기
       </a>
     </div>
+    ${extraNote.trim() ? `<div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;padding:14px 16px;margin-bottom:20px;">
+      <div style="font-size:11px;color:#B45309;margin-bottom:6px;font-weight:600;letter-spacing:0.3px;">담당자 안내</div>
+      <p style="font-size:13px;color:#78350F;margin:0;line-height:1.6;white-space:pre-wrap;">${extraNote}</p>
+    </div>` : ""}
     <p style="font-size:13px;color:#475569;line-height:1.7;margin:0 0 20px;">
       안내드린 방법대로 진행하신 후에도 해결되지 않는다면, 이 메일에 그대로 회신해 주시거나
       담당자 <strong>${assignee}</strong>에게 다시 알려주세요. 이어서 직접 지원해 드리겠습니다.
