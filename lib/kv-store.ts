@@ -21,15 +21,23 @@ function getClient(): Redis | null {
 
 /**
  * KV에서 값 읽기. 미설정이거나 오류 시 null 반환 (Notion fallback으로 이어짐)
+ * Upstash REST 호출이 가끔 일시적으로 실패하는 경우가 있어(관측됨: 같은 키를 연속 조회해도
+ * 간헐적으로 null이 나옴), 한 번 더 재시도한 뒤에만 null로 처리한다.
  */
 export async function kvGet<T>(key: string): Promise<T | null> {
   const client = getClient();
   if (!client) return null;
-  try {
-    return await client.get<T>(key);
-  } catch {
-    return null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await client.get<T>(key);
+    } catch (e) {
+      if (attempt === 1) {
+        console.warn("[KV] get failed after retry:", key, e);
+        return null;
+      }
+    }
   }
+  return null;
 }
 
 /**
@@ -64,11 +72,17 @@ export async function kvSetPermanent<T>(key: string, value: T): Promise<void> {
 export async function kvMGet<T>(keys: string[]): Promise<(T | null)[]> {
   const client = getClient();
   if (!client || keys.length === 0) return keys.map(() => null);
-  try {
-    return await client.mget<T[]>(...keys);
-  } catch {
-    return keys.map(() => null);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await client.mget<T[]>(...keys);
+    } catch (e) {
+      if (attempt === 1) {
+        console.warn("[KV] mget failed after retry:", keys, e);
+        return keys.map(() => null);
+      }
+    }
   }
+  return keys.map(() => null);
 }
 
 /**
