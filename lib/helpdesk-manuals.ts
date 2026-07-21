@@ -21,7 +21,13 @@ export interface HelpDeskManual {
 }
 
 export async function listManuals(): Promise<HelpDeskManual[]> {
-  const index = (await kvGet<string[]>(INDEX_KEY)) ?? [];
+  let index = (await kvGet<string[]>(INDEX_KEY)) ?? [];
+  // Upstash 응답이 간헐적으로 비어 오는 경우가 관측돼(예외 없이 그냥 빈 값), 인덱스가 비어있으면
+  // 한 번 더 확인한다 — 매뉴얼이 실제로 등록돼 있는데도 빈 목록으로 취급되면 매칭 기능 전체가 조용히 죽는다
+  if (index.length === 0) {
+    await new Promise(r => setTimeout(r, 250));
+    index = (await kvGet<string[]>(INDEX_KEY)) ?? [];
+  }
   if (index.length === 0) return [];
   const manuals = await Promise.all(index.map(id => kvGet<HelpDeskManual>(manualKey(id))));
   return manuals.filter((m): m is HelpDeskManual => !!m);
