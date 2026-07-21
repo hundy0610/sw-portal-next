@@ -30,6 +30,7 @@ const NotificationBell        = dynamic(() => import("@/components/admin/Notific
 const AuditLogPanel           = dynamic(() => import("@/components/admin/AuditLogPanel"),           { ssr: false });
 const SurveyDemandPanel       = dynamic(() => import("@/components/admin/SurveyDemandPanel"),       { ssr: false });
 const PcScanPanel             = dynamic(() => import("@/components/admin/PcScanPanel"),             { ssr: false });
+const PcRegisterPanel         = dynamic(() => import("@/components/admin/PcRegisterPanel"),         { ssr: false });
 const AssetAuditSettingsPanel = dynamic(() => import("@/components/admin/AssetAuditSettingsPanel"), { ssr: false });
 const OrgChartPanel           = dynamic(() => import("@/components/admin/OrgChartPanel"),           { ssr: false });
 const AssetAuditDashboardPanel = dynamic(() => import("@/components/admin/AssetAuditDashboardPanel"), { ssr: false });
@@ -43,10 +44,10 @@ interface SessionInfo {
   mustChangePassword?: boolean;
 }
 
-type PageId = "home" | "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "rental-hw" | "accounts" | "assetmap" | "helpdesk" | "contracts" | "repair" | "hw-repair" | "exchange-return" | "work-feedback" | "bugreport" | "worktracker" | "meeting-rental" | "audit" | "survey-demand" | "pc-scan" | "asset-audit-settings" | "org-chart" | "asset-audit-dashboard";
+type PageId = "home" | "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "rental-hw" | "accounts" | "assetmap" | "helpdesk" | "contracts" | "repair" | "hw-repair" | "exchange-return" | "work-feedback" | "bugreport" | "worktracker" | "meeting-rental" | "audit" | "survey-demand" | "pc-scan" | "pc-register" | "asset-audit-settings" | "org-chart" | "asset-audit-dashboard";
 
 // 슈퍼어드민 전용 페이지 (company 계정은 접근 불가)
-const SUPER_ONLY_PAGES = new Set<PageId>(["credentials", "swdb", "accounts", "contracts", "rental-hw", "hw-repair", "exchange-return", "work-feedback", "worktracker", "meeting-rental", "audit", "pc-scan", "asset-audit-settings", "org-chart", "asset-audit-dashboard"]);
+const SUPER_ONLY_PAGES = new Set<PageId>(["credentials", "swdb", "accounts", "contracts", "rental-hw", "hw-repair", "exchange-return", "work-feedback", "worktracker", "meeting-rental", "audit", "pc-scan", "pc-register", "asset-audit-settings", "org-chart", "asset-audit-dashboard"]);
 
 // ── 메뉴 정의 ──────────────────────────────────────────────────
 type MenuItem = { id: PageId; icon: string; label: string; desc: string; children?: MenuItem[] };
@@ -64,6 +65,7 @@ const SUPER_GROUPS: MenuGroup[] = [
     items: [
       { id: "exchange-return", icon: "",   label: "자산 흐름 관리",           desc: "기기 교체 · 반납 처리 관리" },
       { id: "hw",              icon: "",   label: "노트북/데스크탑 자산관리", desc: "NT/DT 재고 · 반납 관리"     },
+      { id: "pc-register",     icon: "",   label: "PC 신규 등록",             desc: "자산 실사 방식 수집 데이터로 신규 등록" },
       { id: "hw-repair",       icon: "",   label: "수리/과실청구 트래커",     desc: "외부 수리 · 과실 청구 관리" },
       { id: "rental-hw",       icon: "",   label: "임대노트북 현황 관리",     desc: "임시 PC 대여 · 반납 관리"   },
       { id: "assetmap",        icon: "",   label: "스마트오피스 모니터 관리", desc: "인터랙티브 자산 맵"         },
@@ -259,6 +261,7 @@ export default function AdminPage() {
       case "bugreport":     return <BugReportPanel />;
       case "worktracker":   return canAccess("worktracker") ? <WorkTrackerPanel session={{ userId: session.userId, name: session.name }} /> : <AccessDenied />;
       case "pc-scan":       return canAccess("pc-scan") ? <PcScanPanel /> : <AccessDenied />;
+      case "pc-register":   return canAccess("pc-register") ? <PcRegisterPanel /> : <AccessDenied />;
       case "asset-audit-settings": return canAccess("asset-audit-settings") ? <AssetAuditSettingsPanel /> : <AccessDenied />;
       case "org-chart":    return canAccess("org-chart")    ? <OrgChartPanel />    : <AccessDenied />;
       case "asset-audit-dashboard": return canAccess("asset-audit-dashboard") ? <AssetAuditDashboardPanel /> : <AccessDenied />;
