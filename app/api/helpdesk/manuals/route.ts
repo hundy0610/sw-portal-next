@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
   try {
     const { id, title, contentType, body, linkedTicketIds, matchKeywords, updatedBy } = await req.json() as {
       id?: string; title?: string; contentType?: "html" | "url"; body?: string;
-      linkedTicketIds?: string[]; matchKeywords?: string[]; updatedBy?: string;
+      linkedTicketIds?: string[]; matchKeywords?: string[][]; updatedBy?: string;
     };
     if (!title || !body || (contentType !== "html" && contentType !== "url")) {
       return NextResponse.json({ ok: false, error: "title, body, contentType 필수", code: "MANUAL_SAVE_INVALID_INPUT" }, { status: 400 });
@@ -26,7 +26,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "올바른 URL이 아닙니다 (http:// 또는 https://로 시작해야 함)", code: "MANUAL_SAVE_INVALID_URL" }, { status: 400 });
     }
     const cleanIds = Array.isArray(linkedTicketIds) ? linkedTicketIds.filter(k => typeof k === "string") : undefined;
-    const cleanKeywords = Array.isArray(matchKeywords) ? matchKeywords.filter(k => typeof k === "string") : undefined;
+    const cleanKeywords = Array.isArray(matchKeywords)
+      ? matchKeywords.filter(set => Array.isArray(set)).map(set => set.filter(k => typeof k === "string"))
+      : undefined;
     const manual = await saveManual({ id, title, contentType, body, linkedTicketIds: cleanIds, matchKeywords: cleanKeywords, updatedBy: updatedBy || "" });
     return NextResponse.json({ ok: true, manual });
   } catch (e) {

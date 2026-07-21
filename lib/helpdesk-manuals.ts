@@ -13,9 +13,9 @@ export interface HelpDeskManual {
   // 매뉴얼에 연결해둔 과거 티켓 id 목록 — 매뉴얼 작성 화면에서 "과거 처리결과 검색"으로 찾아
   // 직접 연결한 이력. 시간이 지나며 계속 추가될 수 있어 사실상 이 매뉴얼의 사례 DB 역할을 함
   linkedTicketIds: string[];
-  // linkedTicketIds에 연결된 티켓들의 문의내용+조치내용에서 뽑은 이력 키워드
-  // (문의 접수 시 자동 매칭에 제목과 함께 참고됨). 연결된 이력이 없으면 비어있음
-  matchKeywords: string[];
+  // linkedTicketIds에 연결된 티켓들 각각의 문의내용+조치내용에서 뽑은 키워드 세트 (티켓 1건당 1개 배열).
+  // 여러 건을 하나로 합치지 않고 건별로 보관해, 매칭 시 이 중 한 건과라도 충분히 겹치면 매칭으로 인정한다
+  matchKeywords: string[][];
   updatedBy: string;
   updatedAt: string;
 }
@@ -37,7 +37,7 @@ export async function saveManual(data: {
   contentType: "html" | "url";
   body: string;
   linkedTicketIds?: string[];
-  matchKeywords?: string[];
+  matchKeywords?: string[][];
   updatedBy: string;
 }): Promise<HelpDeskManual> {
   const id = data.id || crypto.randomUUID();

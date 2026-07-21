@@ -9,7 +9,7 @@ import { safeJson } from "@/lib/fetch-json";
 import { useAdminDarkMode } from "@/lib/use-admin-dark-mode";
 import { ACTION_TREE, ALL_TREE_KEYS } from "@/lib/action-categories";
 import type { HelpDeskManual } from "@/lib/helpdesk-manuals";
-import { extractKeywords, clusterByActionNote, extractClusterKeywords } from "@/lib/helpdesk-manual-match";
+import { extractKeywords, clusterByActionNote, extractPerTicketKeywordSets } from "@/lib/helpdesk-manual-match";
 import type { RepeatCluster } from "@/lib/helpdesk-manual-match";
 
 // ── Color configs ── 통합 토큰(--state-*) 참조: 긍정/진행/주의/위험/중립 5의미만 사용 ──
@@ -374,11 +374,11 @@ function ManualsTab({
   manuals: HelpDeskManual[];
   manualsError?: string | null;
   onSaved: () => void;
-  presetDraft?: { title: string; referenceQuery: string; linkedTicketIds: string[]; matchKeywords: string[] } | null;
+  presetDraft?: { title: string; referenceQuery: string; linkedTicketIds: string[]; matchKeywords: string[][] } | null;
   onConsumePreset?: () => void;
 }) {
   const MAX_MANUAL_FILE_BYTES = 5 * 1024 * 1024; // 5MB
-  const blankForm = () => ({ id: null as string | null, title: "", contentType: "html" as "html" | "url", body: "", linkedTicketIds: [] as string[], matchKeywords: [] as string[] });
+  const blankForm = () => ({ id: null as string | null, title: "", contentType: "html" as "html" | "url", body: "", linkedTicketIds: [] as string[], matchKeywords: [] as string[][] });
   const [form,    setForm]    = useState(blankForm);
   const [referenceQuery, setReferenceQuery] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
@@ -400,7 +400,11 @@ function ManualsTab({
   }, [presetDraft]);
 
   const loadForEdit = (m: HelpDeskManual) => {
-    setForm({ id: m.id, title: m.title, contentType: m.contentType, body: m.body, linkedTicketIds: m.linkedTicketIds || [], matchKeywords: m.matchKeywords || [] });
+    const linkedTicketIds = m.linkedTicketIds || [];
+    // 매칭 키워드는 저장된 값을 그대로 믿지 않고, 연결된 이력 목록 기준으로 항상 다시 계산한다
+    // (예전 방식으로 저장된 매뉴얼도 다음 저장 시 새 방식으로 자연스럽게 갱신됨)
+    const linked = tickets.filter(t => linkedTicketIds.includes(t.id));
+    setForm({ id: m.id, title: m.title, contentType: m.contentType, body: m.body, linkedTicketIds, matchKeywords: extractPerTicketKeywordSets(linked) });
     setFileName(null); setFileError(null);
     setSaveResult("idle");
   };
@@ -467,7 +471,7 @@ function ManualsTab({
         ? f.linkedTicketIds.filter(id => id !== ticketId)
         : [...f.linkedTicketIds, ticketId];
       const nextTickets = tickets.filter(t => nextIds.includes(t.id));
-      return { ...f, linkedTicketIds: nextIds, matchKeywords: extractClusterKeywords(nextTickets) };
+      return { ...f, linkedTicketIds: nextIds, matchKeywords: extractPerTicketKeywordSets(nextTickets) };
     });
   };
 
@@ -551,7 +555,7 @@ function ManualsTab({
             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white form-field-white focus:outline-none focus:ring-2 focus:ring-amber-200" />
           {form.matchKeywords.length > 0 && (
             <p className="text-[11px] text-gray-400 mt-1">
-              과거 문의내용·조치내용에서 자동 학습된 이력 키워드: {form.matchKeywords.join(", ")}
+              연결된 이력 {form.matchKeywords.length}건에서 학습된 키워드: {Array.from(new Set(form.matchKeywords.flat())).join(", ")}
             </p>
           )}
         </div>
@@ -2106,7 +2110,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
   // 반복 문의 매뉴얼 관리
   const [manuals, setManuals] = useState<HelpDeskManual[]>([]);
   const [manualsError, setManualsError] = useState<string | null>(null);
-  const [pendingManualDraft, setPendingManualDraft] = useState<{ title: string; referenceQuery: string; linkedTicketIds: string[]; matchKeywords: string[] } | null>(null);
+  const [pendingManualDraft, setPendingManualDraft] = useState<{ title: string; referenceQuery: string; linkedTicketIds: string[]; matchKeywords: string[][] } | null>(null);
   const loadManuals = useCallback(() => {
     fetch("/api/helpdesk/manuals")
       .then(r => safeJson(r))
@@ -2133,8 +2137,8 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
       referenceQuery: cluster.topKeywords[0] || "",
       // 클러스터에 속한 티켓들을 이 매뉴얼의 이력으로 미리 연결해둠 — 이후 매뉴얼 화면에서 계속 추가/해제 가능
       linkedTicketIds: cluster.tickets.map(t => t.id),
-      // 연결된 티켓들의 문의내용+조치내용에서 뽑은 이력 키워드 — 문의 접수 시 자동 매칭에 제목과 함께 참고됨
-      matchKeywords: extractClusterKeywords(cluster.tickets),
+      // 연결된 티켓 각각의 문의내용+조치내용에서 뽑은 키워드 세트 — 문의 접수 시 자동 매칭에 제목과 함께 참고됨
+      matchKeywords: extractPerTicketKeywordSets(cluster.tickets),
     });
     setTab("manuals");
   };
