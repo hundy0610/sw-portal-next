@@ -374,11 +374,11 @@ function ManualsTab({
   manuals: HelpDeskManual[];
   manualsError?: string | null;
   onSaved: () => void;
-  presetDraft?: { title: string; referenceQuery: string; matchKeywords: string[] } | null;
+  presetDraft?: { title: string; referenceQuery: string; linkedTicketIds: string[]; matchKeywords: string[] } | null;
   onConsumePreset?: () => void;
 }) {
   const MAX_MANUAL_FILE_BYTES = 5 * 1024 * 1024; // 5MB
-  const blankForm = () => ({ id: null as string | null, title: "", contentType: "html" as "html" | "url", body: "", matchKeywords: [] as string[] });
+  const blankForm = () => ({ id: null as string | null, title: "", contentType: "html" as "html" | "url", body: "", linkedTicketIds: [] as string[], matchKeywords: [] as string[] });
   const [form,    setForm]    = useState(blankForm);
   const [referenceQuery, setReferenceQuery] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
@@ -391,7 +391,7 @@ function ManualsTab({
   // 반복 문의 알림에서 "매뉴얼 만들기"로 넘어온 경우 제목과 참고 검색어를 미리 채워줌
   useEffect(() => {
     if (!presetDraft) return;
-    setForm({ id: null, title: presetDraft.title, contentType: "html", body: "", matchKeywords: presetDraft.matchKeywords });
+    setForm({ id: null, title: presetDraft.title, contentType: "html", body: "", linkedTicketIds: presetDraft.linkedTicketIds, matchKeywords: presetDraft.matchKeywords });
     setReferenceQuery(presetDraft.referenceQuery);
     setFileName(null); setFileError(null);
     setSaveResult("idle");
@@ -400,7 +400,7 @@ function ManualsTab({
   }, [presetDraft]);
 
   const loadForEdit = (m: HelpDeskManual) => {
-    setForm({ id: m.id, title: m.title, contentType: m.contentType, body: m.body, matchKeywords: m.matchKeywords || [] });
+    setForm({ id: m.id, title: m.title, contentType: m.contentType, body: m.body, linkedTicketIds: m.linkedTicketIds || [], matchKeywords: m.matchKeywords || [] });
     setFileName(null); setFileError(null);
     setSaveResult("idle");
   };
@@ -444,14 +444,32 @@ function ManualsTab({
     }
   };
 
-  // 조치분류 대신, 과거 조치내용을 자유 키워드로 검색해 참고자료로 확인 (매뉴얼 작성 참고용)
+  // 조치분류 대신, 과거 문의내용·조치내용을 자유 키워드로 검색해 이 매뉴얼에 연결할 이력을 찾음
   const matchingNotes = useMemo(() => {
     const q = referenceQuery.trim().toLowerCase();
     if (!q) return [];
     return tickets
-      .filter(t => t.actionNote && t.actionNote.toLowerCase().includes(q))
+      .filter(t => (t.content && t.content.toLowerCase().includes(q)) || (t.actionNote && t.actionNote.toLowerCase().includes(q)))
       .sort((a, b) => (b.submittedAt || "").localeCompare(a.submittedAt || ""));
   }, [tickets, referenceQuery]);
+
+  // 현재 폼에 연결된 이력 티켓들(제목만으로 매칭하기보다, 실제 과거 사례를 계속 쌓아 매칭 근거로 삼음)
+  const linkedTickets = useMemo(
+    () => tickets.filter(t => form.linkedTicketIds.includes(t.id)),
+    [tickets, form.linkedTicketIds]
+  );
+
+  // 이력 연결/해제 시, 연결된 티켓들의 문의내용+조치내용에서 매칭 키워드를 다시 계산 —
+  // 연결된 이력이 쌓일수록 이 매뉴얼의 매칭 근거(=사례 DB)가 함께 커짐
+  const toggleLinkedTicket = (ticketId: string) => {
+    setForm(f => {
+      const nextIds = f.linkedTicketIds.includes(ticketId)
+        ? f.linkedTicketIds.filter(id => id !== ticketId)
+        : [...f.linkedTicketIds, ticketId];
+      const nextTickets = tickets.filter(t => nextIds.includes(t.id));
+      return { ...f, linkedTicketIds: nextIds, matchKeywords: extractClusterKeywords(nextTickets) };
+    });
+  };
 
   const handleSave = async () => {
     if (!form.title.trim() || !form.body.trim()) return;
@@ -465,6 +483,7 @@ function ManualsTab({
           title: form.title,
           contentType: form.contentType,
           body: form.body,
+          linkedTicketIds: form.linkedTicketIds,
           matchKeywords: form.matchKeywords,
         }),
       });
@@ -539,28 +558,51 @@ function ManualsTab({
 
         <div>
           <span className="text-xs text-gray-500 font-semibold block mb-1.5">
-            과거 처리결과 검색 <span className="font-normal text-gray-400">(참고용 — 비슷한 사례를 찾아볼 때 사용)</span>
+            과거 문의내용·처리결과 검색 <span className="font-normal text-gray-400">(비슷한 사례를 찾아 이 매뉴얼에 연결 — 제목을 길게 쓰는 대신 이력을 쌓아 매칭 정확도를 높임)</span>
           </span>
           <input value={referenceQuery} onChange={e => setReferenceQuery(e.target.value)}
             placeholder="예: 블루스크린"
             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white form-field-white focus:outline-none focus:ring-2 focus:ring-amber-200" />
           {matchingNotes.length > 0 && (
             <div className="mt-2 bg-gray-50 rounded-lg p-3">
-              <span className="text-[11px] text-gray-400 font-semibold">검색된 과거 처리결과 ({matchingNotes.length}건)</span>
+              <span className="text-[11px] text-gray-400 font-semibold">검색된 과거 이력 ({matchingNotes.length}건)</span>
               <div className="mt-1.5 space-y-2 max-h-64 overflow-y-auto pr-1">
-                {matchingNotes.map(t => (
-                  <div key={t.id} className="bg-white rounded-lg border border-gray-100 p-2">
-                    <div className="text-[10px] text-gray-400 mb-1">
-                      {(t.submittedAt || "").slice(0, 10)} · {[t.company, t.requester].filter(Boolean).join(" · ")}
+                {matchingNotes.map(t => {
+                  const isLinked = form.linkedTicketIds.includes(t.id);
+                  return (
+                    <div key={t.id} className={`bg-white rounded-lg border p-2 ${isLinked ? "border-amber-300" : "border-gray-100"}`}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] text-gray-400">
+                          {(t.submittedAt || "").slice(0, 10)} · {[t.company, t.requester].filter(Boolean).join(" · ")}
+                        </span>
+                        <button type="button" onClick={() => toggleLinkedTicket(t.id)}
+                          className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${isLinked ? "bg-amber-600 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
+                          {isLinked ? "연결됨 ✓" : "+ 연결"}
+                        </button>
+                      </div>
+                      {t.content && <p className="text-xs text-gray-500 leading-relaxed whitespace-pre-wrap"><span className="text-gray-400">[문의] </span>{t.content}</p>}
+                      {t.actionNote && <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-wrap mt-0.5"><span className="text-gray-400">[조치] </span>{t.actionNote}</p>}
                     </div>
-                    <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-wrap">{t.actionNote}</p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
           {referenceQuery.trim() && matchingNotes.length === 0 && (
             <p className="text-xs text-gray-400 mt-1">검색 결과가 없습니다.</p>
+          )}
+          {linkedTickets.length > 0 && (
+            <div className="mt-2 bg-amber-50 border border-amber-100 rounded-lg p-3">
+              <span className="text-[11px] text-amber-700 font-semibold">이 매뉴얼에 연결된 이력 ({linkedTickets.length}건)</span>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {linkedTickets.map(t => (
+                  <span key={t.id} className="inline-flex items-center gap-1 text-[11px] bg-white border border-amber-200 text-amber-800 rounded-full px-2 py-0.5">
+                    {(t.submittedAt || "").slice(0, 10)} {t.requester || t.company || "이력"}
+                    <button type="button" onClick={() => toggleLinkedTicket(t.id)} className="text-amber-400 hover:text-amber-700 leading-none">×</button>
+                  </span>
+                ))}
+              </div>
+            </div>
           )}
         </div>
         <div>
@@ -2064,7 +2106,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
   // 반복 문의 매뉴얼 관리
   const [manuals, setManuals] = useState<HelpDeskManual[]>([]);
   const [manualsError, setManualsError] = useState<string | null>(null);
-  const [pendingManualDraft, setPendingManualDraft] = useState<{ title: string; referenceQuery: string; matchKeywords: string[] } | null>(null);
+  const [pendingManualDraft, setPendingManualDraft] = useState<{ title: string; referenceQuery: string; linkedTicketIds: string[]; matchKeywords: string[] } | null>(null);
   const loadManuals = useCallback(() => {
     fetch("/api/helpdesk/manuals")
       .then(r => safeJson(r))
@@ -2089,7 +2131,9 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
     setPendingManualDraft({
       title: cluster.label,
       referenceQuery: cluster.topKeywords[0] || "",
-      // 클러스터 티켓들의 문의내용+조치내용에서 뽑은 이력 키워드 — 문의 접수 시 자동 매칭에 제목과 함께 참고됨
+      // 클러스터에 속한 티켓들을 이 매뉴얼의 이력으로 미리 연결해둠 — 이후 매뉴얼 화면에서 계속 추가/해제 가능
+      linkedTicketIds: cluster.tickets.map(t => t.id),
+      // 연결된 티켓들의 문의내용+조치내용에서 뽑은 이력 키워드 — 문의 접수 시 자동 매칭에 제목과 함께 참고됨
       matchKeywords: extractClusterKeywords(cluster.tickets),
     });
     setTab("manuals");
