@@ -280,7 +280,7 @@ function DeptDetail({
           </div>
           {dHas && (
             <div className="text-[10px] text-gray-400">
-              쉐어드 제외 (포함 시 ₩{fmt(dTotal)})
+              쉐어드 제외 · 펼쳐서 확인
             </div>
           )}
         </div>
@@ -462,7 +462,7 @@ function CompanyBlock({
       <div className="px-5 py-4 border-b border-slate-100 bg-slate-50">
         <div className="text-xs font-semibold text-slate-500 mb-3 uppercase tracking-wide">부서별 지출 현황</div>
         <div className="flex flex-col gap-2">
-          {deptList.map(({ dept, dTotal, dShared, dNet, dHas, users, sws }) => {
+          {deptList.map(({ dept, dNet, dHas, users, sws }) => {
             const pct = maxDept > 0 ? (dNet / maxDept * 100) : 0;
             const isHigh = pct > 60;
             return (
@@ -481,7 +481,7 @@ function CompanyBlock({
                   <span className="text-xs font-bold" style={{ color: isHigh ? "var(--brand)" : "#334155" }}>₩{fmt(dNet)}</span>
                   {dHas && (
                     <div className="text-[10px] text-gray-400">
-                      쉐어드 제외 (포함 시 ₩{fmt(dTotal)})
+                      쉐어드 제외 · 상세에서 확인
                     </div>
                   )}
                 </div>
