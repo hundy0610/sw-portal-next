@@ -2,9 +2,9 @@ name: Send Feedback Emails (Cron)
 
 on:
   schedule:
-    # 30분마다 실행 — Notion 웹훅이 주 트리거, 크론은 안전망
-    # 월 사용량: 1,440회 × ~30s ≈ 720분/월
-    - cron: '*/30 * * * *'
+    # 1시간마다 실행 — Notion 웹훅이 주 트리거, 크론은 어디까지나 안전망이라
+    # 완료 후 최대 1시간 지연은 사용자 경험에 영향 없음 (Redis 명령 절감)
+    - cron: '0 * * * *'
   workflow_dispatch:  # 수동 실행 가능
 
 jobs:
