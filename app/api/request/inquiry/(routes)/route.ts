@@ -42,9 +42,15 @@ export async function POST(request: Request) {
     // 이 단계가 실패해도 문의 접수 자체는 이미 완료된 것이므로 응답에는 영향을 주지 않는다.
     let debugInfo: any = null;
     try {
+      const kvEnv = {
+        hasUpstashUrl: !!process.env.UPSTASH_REDIS_REST_URL,
+        hasUpstashToken: !!process.env.UPSTASH_REDIS_REST_TOKEN,
+        hasKvUrl: !!process.env.KV_REST_API_URL,
+        hasKvToken: !!process.env.KV_REST_API_TOKEN,
+      };
       const manuals = await listManuals();
       const matched = matchManualForContent(문의내용 || "", manuals);
-      debugInfo = { manualsCount: manuals.length, matched: !!matched };
+      debugInfo = { manualsCount: manuals.length, matched: !!matched, kvEnv };
       if (matched) {
         await notionRequest(`/pages/${notionResponse.id}`, {
           method: "PATCH",
