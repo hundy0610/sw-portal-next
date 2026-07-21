@@ -18,6 +18,36 @@ export interface SyncMatch {
   erAssetId: string; newAssetNo: string; confirmed: boolean; confirming: boolean; error: string;
 }
 
+export interface AssetFlowCandidate {
+  id: string; type: string; company: string; user: string; dept: string; assetId: string;
+}
+
+/** 자산흐름관리(신규구매 대기) 후보 목록을 조회한다 — 등록 전 미리보기/등록 후 연동 매칭 공용. */
+export async function fetchAssetFlowCandidates(): Promise<AssetFlowCandidate[]> {
+  const erJson = await fetch("/api/exchange-return").then(r => safeJson(r));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (erJson.data ?? []).filter((r: any) =>
+    (r.type === "신규지급" || r.type === "교체") &&
+    (r.newAssetId ?? "").trim() === "신규구매로안내됨" &&
+    !r.isClosed &&
+    r.stage !== "사용자수령" && r.stage !== "반납요청" && r.stage !== "반납완료"
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ).map((r: any) => ({
+    id: r.id, type: r.type, company: r.company ?? "", user: r.user ?? "",
+    dept: r.department ?? r.dept ?? "", assetId: r.assetId ?? "",
+  }));
+}
+
+/** 법인·사용자가 일치하는 자산흐름관리 후보만 골라낸다. */
+export function matchAssetFlowCandidates(
+  row: { company: string; user: string },
+  candidates: AssetFlowCandidate[]
+): AssetFlowCandidate[] {
+  return candidates.filter(c =>
+    c.company.trim() === row.company.trim() && c.user.trim() === row.user.trim()
+  );
+}
+
 /** 신규 등록 성공 건에 대해 지급 이력을 기록한다. */
 export async function recordDispatchHistory(successRows: DispatchRow[]): Promise<void> {
   if (successRows.length === 0) return;
@@ -37,24 +67,14 @@ export async function findAssetFlowSyncMatches(
   successRows: DispatchRow[]
 ): Promise<{ matches: SyncMatch[]; warn: string }> {
   try {
-    const erJson = await fetch("/api/exchange-return").then(r => safeJson(r));
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const candidates = (erJson.data ?? []).filter((r: any) =>
-      (r.type === "신규지급" || r.type === "교체") &&
-      (r.newAssetId ?? "").trim() === "신규구매로안내됨" &&
-      !r.isClosed &&
-      r.stage !== "사용자수령" && r.stage !== "반납요청" && r.stage !== "반납완료"
-    );
+    const candidates = await fetchAssetFlowCandidates();
     const matches: SyncMatch[] = [];
     for (const row of successRows) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const matched = candidates.filter((r: any) =>
-        (r.company ?? "").trim() === (row.company ?? "").trim() && (r.user ?? "").trim() === (row.user ?? "").trim()
-      );
+      const matched = matchAssetFlowCandidates({ company: row.company, user: row.user }, candidates);
       for (const rec of matched) {
         matches.push({
           erId: rec.id, erType: rec.type, erCompany: rec.company, erUser: rec.user,
-          erDept: rec.department ?? rec.dept ?? "", erAssetId: rec.assetId ?? "",
+          erDept: rec.dept, erAssetId: rec.assetId,
           newAssetNo: row.assetNo, confirmed: false, confirming: false, error: "",
         });
       }

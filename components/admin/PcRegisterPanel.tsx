@@ -10,7 +10,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { safeJson } from "@/lib/fetch-json";
 import type { PcScanRecordWithMatch } from "@/lib/pc-scan";
+import type { HwRecord } from "@/lib/hw";
 import { useAssetFlowSync, AssetFlowSyncSection, type DispatchRow } from "@/components/admin/shared/AssetFlowSync";
+import { fetchAssetFlowCandidates, matchAssetFlowCandidates, type AssetFlowCandidate } from "@/lib/hw-register-flow";
 
 // 마스터 DB에 이미 쓰이는 제조사 표기와 대소문자 무시하고 정확히 일치할 때만 채택
 // (스캔값 원본은 마스터 표기와 다른 경우가 많아 그대로 쓰지 않음 — PcScanPanel과 동일 로직)
@@ -111,6 +113,12 @@ export default function PcRegisterPanel() {
   const [makerOptions, setMakerOptions] = useState<string[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // 등록 전 실시간 중복 체크 — 엑셀 등록(HwPanel handleCheckAndUpload)과 동일하게
+  // 마스터(HW DB)를 직접 조회해 시리얼·자산번호 중복이면 체크박스 자체를 막는다.
+  const [hwRecords, setHwRecords] = useState<HwRecord[]>([]);
+  // 자산흐름관리(신규구매 대기) 매칭 후보 — 등록 전 미리보기용 (가장 오른쪽 열에 표시)
+  const [flowCandidates, setFlowCandidates] = useState<AssetFlowCandidate[]>([]);
+
   const [regRows, setRegRows] = useState<RegRow[] | null>(null);
   const [registering, setRegistering] = useState(false);
   const [regError, setRegError] = useState("");
@@ -139,6 +147,41 @@ export default function PcRegisterPanel() {
       .finally(() => setLoading(false));
   }, []);
 
+  // HW 마스터 + 자산흐름관리 실시간 조회 (등록 직전 중복/매칭 확인용, 등록 후에도 재호출해 최신화)
+  async function loadLiveChecks() {
+    const [hwJson, candidates] = await Promise.all([
+      fetch("/api/hw").then(r => safeJson(r)).catch(() => null),
+      fetchAssetFlowCandidates().catch(() => []),
+    ]);
+    if (hwJson?.ok) setHwRecords(hwJson.records ?? []);
+    setFlowCandidates(candidates);
+  }
+  useEffect(() => { loadLiveChecks(); }, []);
+
+  const hwDupSets = useMemo(() => {
+    const serial = new Set<string>();
+    const assetNo = new Set<string>();
+    for (const r of hwRecords) {
+      if (r.serial)  serial.add(r.serial.trim().toLowerCase());
+      if (r.assetNo) assetNo.add(r.assetNo.trim().toLowerCase());
+    }
+    return { serial, assetNo };
+  }, [hwRecords]);
+
+  // 마스터에 동일 시리얼·자산번호가 이미 있는지 (엑셀 등록 중복 체크와 동일 기준)
+  function isHwDuplicate(r: PcScanRecordWithMatch): boolean {
+    const sk = r.serial?.trim().toLowerCase();
+    const ak = r.assetNo?.trim().toLowerCase();
+    return (!!sk && hwDupSets.serial.has(sk)) || (!!ak && hwDupSets.assetNo.has(ak));
+  }
+  // 서버가 준 masterExists(캐시 기반) + 방금 조회한 실시간 중복 여부를 함께 반영
+  function isAlreadyRegistered(r: PcScanRecordWithMatch): boolean {
+    return r.masterExists || isHwDuplicate(r);
+  }
+  function flowMatchesFor(r: PcScanRecordWithMatch): AssetFlowCandidate[] {
+    return matchAssetFlowCandidates({ company: r.corp, user: r.userName }, flowCandidates);
+  }
+
   const corpOptions = useMemo(
     () => [...new Set(records.map(r => r.corp).filter(Boolean))].sort(),
     [records]
@@ -160,12 +203,21 @@ export default function PcRegisterPanel() {
       return next;
     });
   }
+  const selectableFiltered = useMemo(
+    () => filtered.filter(r => !isAlreadyRegistered(r)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filtered, hwDupSets]
+  );
+
   function toggleSelectAll() {
-    setSelected(prev => prev.size === filtered.length && filtered.length > 0 ? new Set() : new Set(filtered.map(r => r.id)));
+    setSelected(prev => prev.size === selectableFiltered.length && selectableFiltered.length > 0
+      ? new Set()
+      : new Set(selectableFiltered.map(r => r.id)));
   }
 
   function openRegisterSelected() {
-    const chosen = filtered.filter(r => selected.has(r.id));
+    // 체크박스로 막아두지만, 그 사이 마스터에 등록된 경우까지 대비해 한 번 더 방어적으로 걸러낸다.
+    const chosen = filtered.filter(r => selected.has(r.id) && !isAlreadyRegistered(r));
     if (chosen.length === 0) return;
     setRegRows(chosen.map(r => ({
       id: r.id, assetNo: r.assetNo, model: r.model, serial: r.serial,
@@ -215,6 +267,8 @@ export default function PcRegisterPanel() {
 
       // 엑셀 일괄 등록과 동일한 후속 체인 (지급 이력 기록 + 자산흐름관리 연동)
       await sync.runPostRegistration(successRows);
+      // 방금 등록한 건이 마스터/자산흐름관리 실시간 체크에 즉시 반영되도록 재조회
+      await loadLiveChecks();
     } catch (e) {
       setRegError(e instanceof Error ? e.message : "등록 중 오류가 발생했습니다.");
     } finally {
@@ -297,15 +351,26 @@ export default function PcRegisterPanel() {
           <table className="w-full text-xs">
             <thead className="bg-gray-50 text-gray-500 font-semibold sticky top-0">
               <tr>
-                <th className="px-3 py-2.5"><input type="checkbox" checked={filtered.length > 0 && selected.size === filtered.length} onChange={toggleSelectAll} /></th>
-                {["PC이름","자산번호","시리얼","제조사","모델명","법인","부서","사용자","마스터"].map(h => <th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}
+                <th className="px-3 py-2.5">
+                  <input type="checkbox"
+                    checked={selectableFiltered.length > 0 && selected.size === selectableFiltered.length}
+                    onChange={toggleSelectAll} />
+                </th>
+                {["PC이름","자산번호","시리얼","제조사","모델명","법인","부서","사용자","마스터","자산흐름관리"].map(h => <th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}
                 <th className="px-3 py-2.5"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filtered.map(r => (
+              {filtered.map(r => {
+                const dup = isAlreadyRegistered(r);
+                const flowMatches = flowMatchesFor(r);
+                return (
                 <tr key={r.id} className="hover:bg-gray-50">
-                  <td className="px-3 py-2"><input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleSelect(r.id)} /></td>
+                  <td className="px-3 py-2">
+                    <input type="checkbox" checked={selected.has(r.id)} disabled={dup}
+                      title={dup ? "이미 마스터(HW DB)에 동일한 자산번호/시리얼이 등록되어 있습니다" : undefined}
+                      onChange={() => toggleSelect(r.id)} />
+                  </td>
                   <td className="px-3 py-2 font-medium text-gray-800 whitespace-nowrap">{r.pcName || "-"}</td>
                   <td className="px-3 py-2 font-mono text-gray-600 whitespace-nowrap">{r.assetNo || "-"}</td>
                   <td className="px-3 py-2 font-mono text-gray-400 text-[11px] whitespace-nowrap">{r.serial || "-"}</td>
@@ -315,17 +380,25 @@ export default function PcRegisterPanel() {
                   <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{r.dept || "-"}</td>
                   <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{r.userName || "-"}</td>
                   <td className="px-3 py-2">
-                    {r.masterExists
+                    {dup
                       ? <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-green-100 text-green-700">등록됨</span>
                       : <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-500">미등록</span>}
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    {flowMatches.length > 0
+                      ? <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-700">
+                          {flowMatches[0].type} 대기{flowMatches.length > 1 ? ` 외 ${flowMatches.length - 1}건` : ""}
+                        </span>
+                      : <span className="text-gray-300">-</span>}
                   </td>
                   <td className="px-3 py-2">
                     <button onClick={() => handleDelete(r.id)} disabled={deletingId === r.id} className="text-gray-300 hover:text-red-500 disabled:opacity-40">✕</button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
               {filtered.length === 0 && (
-                <tr><td colSpan={10} className="py-10 text-center text-gray-300">조건에 맞는 수집 데이터가 없습니다</td></tr>
+                <tr><td colSpan={11} className="py-10 text-center text-gray-300">조건에 맞는 수집 데이터가 없습니다</td></tr>
               )}
             </tbody>
           </table>
