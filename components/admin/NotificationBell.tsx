@@ -54,10 +54,36 @@ export default function NotificationBell({ onNavigate }: Props) {
     } catch { /* silent */ }
   }, []);
 
+  // 알림에 들어가는 항목(라이선스 만료·반납 기한·미처리 문의·주간 피드백)은 어차피 초 단위로
+  // 바뀌지 않고, 신규 문의는 별도 이메일로 이미 즉시 알림이 가므로 5분이면 충분하다.
+  // 탭이 백그라운드일 때는 아무도 안 보고 있으니 폴링 자체를 멈추고, 다시 돌아오면 바로 갱신한다.
   useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | null = null;
+
+    const startPolling = () => {
+      if (timer) return;
+      timer = setInterval(load, 300_000); // 5분
+    };
+    const stopPolling = () => {
+      if (timer) { clearInterval(timer); timer = null; }
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        load();
+        startPolling();
+      } else {
+        stopPolling();
+      }
+    };
+
     load();
-    const timer = setInterval(load, 60_000);
-    return () => clearInterval(timer);
+    if (document.visibilityState === "visible") startPolling();
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      stopPolling();
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, [load]);
 
   useEffect(() => {
