@@ -76,8 +76,20 @@ export function clusterByActionNote(tickets: HelpDeskTicket[], minCount: number)
   return clusters.sort((a, b) => b.count - a.count);
 }
 
-// 방금 접수된 문의 내용(긴 자유 서술문) ↔ 매뉴얼 제목(짧은 문구)을 비대칭으로 비교.
-// 매뉴얼 제목의 키워드 중 몇 %가 문의 내용에 그대로 등장하는지로 판단 — 문의 접수 완료 화면의 자동 제안에 사용
+// 반복 문의 클러스터를 매뉴얼로 만들 때, 그 클러스터에 속한 티켓들의 문의내용(사용자가 쓴 글)과
+// 조치내용(엔지니어가 쓴 처리결과)을 모두 참고해 매칭용 키워드를 자동으로 뽑아낸다.
+// 매뉴얼 제목 하나만으로는 실제 사용자들이 쓰는 표현을 다 담지 못하므로, 두 데이터를 함께 써서 매칭 정확도를 높인다.
+export function extractClusterKeywords(tickets: HelpDeskTicket[], limit = 8): string[] {
+  const freq = new Map<string, number>();
+  for (const t of tickets) {
+    const combined = new Set([...extractKeywords(t.content || ""), ...extractKeywords(t.actionNote || "")]);
+    combined.forEach(k => freq.set(k, (freq.get(k) ?? 0) + 1));
+  }
+  return [...freq.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit).map(([k]) => k);
+}
+
+// 방금 접수된 문의 내용(긴 자유 서술문) ↔ 매뉴얼(제목 + 이력 키워드)을 비대칭으로 비교.
+// 이력 키워드 중 몇 %가 문의 내용에 그대로 등장하는지로 판단 — 문의 접수 완료 화면의 자동 제안에 사용
 export function matchManualForContent(
   content: string,
   manuals: HelpDeskManual[]
@@ -88,13 +100,18 @@ export function matchManualForContent(
   let best: { manual: HelpDeskManual; score: number } | null = null;
   for (const m of manuals) {
     const titleKw = extractKeywords(m.title);
-    if (titleKw.length === 0) continue;
+    const historyKw = m.matchKeywords ?? [];
+    // 이력 키워드(과거 문의내용+조치내용)가 있으면 제목과 합쳐 더 넓은 근거로 매칭하고,
+    // 없는 매뉴얼(수동 등록 등)은 기존처럼 제목만으로 매칭해 기존 동작을 그대로 유지한다.
+    const bankKw = historyKw.length > 0 ? Array.from(new Set([...titleKw, ...historyKw])) : titleKw;
+    if (bankKw.length === 0) continue;
     // 한국어는 "라이선스가"처럼 조사가 바로 붙으므로, 토큰 일치가 아니라 부분 문자열 포함으로 확인
-    const hits = titleKw.filter(k => normalizedContent.includes(k.toLowerCase())).length;
+    const hits = bankKw.filter(k => normalizedContent.includes(k.toLowerCase())).length;
     if (hits === 0) continue;
-    const score = hits / titleKw.length;
-    // 제목 키워드의 절반 이상이 문의 내용에 등장해야 유의미한 매칭으로 인정 (오탐 방지)
-    if (score >= 0.5 && (!best || score > best.score)) {
+    const score = hits / bankKw.length;
+    // 이력 키워드가 섞인 경우 근거 자체가 풍부하므로 기준을 조금 낮추고, 제목뿐인 경우는 오탐 방지를 위해 기존 기준(50%)을 유지
+    const threshold = historyKw.length > 0 ? 0.35 : 0.5;
+    if (score >= threshold && (!best || score > best.score)) {
       best = { manual: m, score };
     }
   }

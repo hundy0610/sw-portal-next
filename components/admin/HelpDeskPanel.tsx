@@ -9,7 +9,7 @@ import { safeJson } from "@/lib/fetch-json";
 import { useAdminDarkMode } from "@/lib/use-admin-dark-mode";
 import { ACTION_TREE, ALL_TREE_KEYS } from "@/lib/action-categories";
 import type { HelpDeskManual } from "@/lib/helpdesk-manuals";
-import { extractKeywords, clusterByActionNote } from "@/lib/helpdesk-manual-match";
+import { extractKeywords, clusterByActionNote, extractClusterKeywords } from "@/lib/helpdesk-manual-match";
 import type { RepeatCluster } from "@/lib/helpdesk-manual-match";
 
 // ── Color configs ── 통합 토큰(--state-*) 참조: 긍정/진행/주의/위험/중립 5의미만 사용 ──
@@ -374,11 +374,11 @@ function ManualsTab({
   manuals: HelpDeskManual[];
   manualsError?: string | null;
   onSaved: () => void;
-  presetDraft?: { title: string; referenceQuery: string } | null;
+  presetDraft?: { title: string; referenceQuery: string; matchKeywords: string[] } | null;
   onConsumePreset?: () => void;
 }) {
   const MAX_MANUAL_FILE_BYTES = 5 * 1024 * 1024; // 5MB
-  const blankForm = () => ({ id: null as string | null, title: "", contentType: "html" as "html" | "url", body: "" });
+  const blankForm = () => ({ id: null as string | null, title: "", contentType: "html" as "html" | "url", body: "", matchKeywords: [] as string[] });
   const [form,    setForm]    = useState(blankForm);
   const [referenceQuery, setReferenceQuery] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
@@ -391,7 +391,7 @@ function ManualsTab({
   // 반복 문의 알림에서 "매뉴얼 만들기"로 넘어온 경우 제목과 참고 검색어를 미리 채워줌
   useEffect(() => {
     if (!presetDraft) return;
-    setForm({ id: null, title: presetDraft.title, contentType: "html", body: "" });
+    setForm({ id: null, title: presetDraft.title, contentType: "html", body: "", matchKeywords: presetDraft.matchKeywords });
     setReferenceQuery(presetDraft.referenceQuery);
     setFileName(null); setFileError(null);
     setSaveResult("idle");
@@ -400,7 +400,7 @@ function ManualsTab({
   }, [presetDraft]);
 
   const loadForEdit = (m: HelpDeskManual) => {
-    setForm({ id: m.id, title: m.title, contentType: m.contentType, body: m.body });
+    setForm({ id: m.id, title: m.title, contentType: m.contentType, body: m.body, matchKeywords: m.matchKeywords || [] });
     setFileName(null); setFileError(null);
     setSaveResult("idle");
   };
@@ -465,6 +465,7 @@ function ManualsTab({
           title: form.title,
           contentType: form.contentType,
           body: form.body,
+          matchKeywords: form.matchKeywords,
         }),
       });
       const json = await safeJson(res);
@@ -529,6 +530,11 @@ function ManualsTab({
           <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
             placeholder="예: 한글(HWP) 라이선스 재설치 안내"
             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white form-field-white focus:outline-none focus:ring-2 focus:ring-amber-200" />
+          {form.matchKeywords.length > 0 && (
+            <p className="text-[11px] text-gray-400 mt-1">
+              과거 문의내용·조치내용에서 자동 학습된 이력 키워드: {form.matchKeywords.join(", ")}
+            </p>
+          )}
         </div>
 
         <div>
@@ -2058,7 +2064,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
   // 반복 문의 매뉴얼 관리
   const [manuals, setManuals] = useState<HelpDeskManual[]>([]);
   const [manualsError, setManualsError] = useState<string | null>(null);
-  const [pendingManualDraft, setPendingManualDraft] = useState<{ title: string; referenceQuery: string } | null>(null);
+  const [pendingManualDraft, setPendingManualDraft] = useState<{ title: string; referenceQuery: string; matchKeywords: string[] } | null>(null);
   const loadManuals = useCallback(() => {
     fetch("/api/helpdesk/manuals")
       .then(r => safeJson(r))
@@ -2080,7 +2086,12 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
   }, [tickets, manuals]);
 
   const goCreateManualFor = (cluster: RepeatCluster) => {
-    setPendingManualDraft({ title: cluster.label, referenceQuery: cluster.topKeywords[0] || "" });
+    setPendingManualDraft({
+      title: cluster.label,
+      referenceQuery: cluster.topKeywords[0] || "",
+      // 클러스터 티켓들의 문의내용+조치내용에서 뽑은 이력 키워드 — 문의 접수 시 자동 매칭에 제목과 함께 참고됨
+      matchKeywords: extractClusterKeywords(cluster.tickets),
+    });
     setTab("manuals");
   };
 

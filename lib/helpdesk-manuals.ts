@@ -10,6 +10,9 @@ export interface HelpDeskManual {
   // "html"이면 body에 첨부된 HTML 원문, "url"이면 body에 외부 URL이 들어있음
   contentType: "html" | "url";
   body: string;
+  // 반복 문의 클러스터에서 생성된 경우, 해당 클러스터 티켓들의 문의내용+조치내용에서 뽑은 이력 키워드
+  // (문의 접수 시 자동 매칭에 제목과 함께 참고됨). 수동 등록 매뉴얼은 비어있을 수 있음
+  matchKeywords: string[];
   updatedBy: string;
   updatedAt: string;
 }
@@ -30,6 +33,7 @@ export async function saveManual(data: {
   title: string;
   contentType: "html" | "url";
   body: string;
+  matchKeywords?: string[];
   updatedBy: string;
 }): Promise<HelpDeskManual> {
   const id = data.id || crypto.randomUUID();
@@ -38,6 +42,7 @@ export async function saveManual(data: {
     title: data.title,
     contentType: data.contentType,
     body: data.body,
+    matchKeywords: data.matchKeywords ?? [],
     updatedBy: data.updatedBy,
     updatedAt: new Date().toISOString(),
   };
