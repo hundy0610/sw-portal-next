@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { notionRequest } from "@/shared/lib/notion";
-import { listManuals } from "@/lib/helpdesk-manuals";
-import { matchManualForContent } from "@/lib/helpdesk-manual-match";
+import { listManuals, saveManual } from "@/lib/helpdesk-manuals";
+import { matchManualForContent, extractKeywords } from "@/lib/helpdesk-manual-match";
 
 // listManuals()가 내부적으로 fetch(Upstash REST)를 쓰는데, force-dynamic이 없으면
 // Next.js가 이 라우트의 fetch 결과를 캐시해 매뉴얼이 새로 추가/변경돼도 반영되지 않는다.
@@ -60,6 +60,25 @@ export async function POST(request: Request) {
             },
           },
         });
+
+        // 이 문의도 실제로 이 매뉴얼로 자동 처리된 사례이므로 이력에 추가해, 비슷한 표현의
+        // 다음 문의를 더 잘 매칭할 수 있게 한다 (매뉴얼 화면에서 수동으로 연결하지 않아도 됨)
+        try {
+          const historyKw = extractKeywords(문의내용 || "");
+          if (historyKw.length > 0 && !matched.manual.linkedTicketIds.includes(notionResponse.id)) {
+            await saveManual({
+              id: matched.manual.id,
+              title: matched.manual.title,
+              contentType: matched.manual.contentType,
+              body: matched.manual.body,
+              linkedTicketIds: [...matched.manual.linkedTicketIds, notionResponse.id],
+              matchKeywords: [...matched.manual.matchKeywords, historyKw],
+              updatedBy: matched.manual.updatedBy,
+            });
+          }
+        } catch (e) {
+          console.error("[POST /api/request/inquiry] MANUAL_LINK_HISTORY_FAILED", e);
+        }
       }
     } catch (e) {
       console.error("[POST /api/request/inquiry] INQUIRY_AUTO_COMPLETE_FAILED", e);

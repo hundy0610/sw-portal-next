@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { kvGet, kvSet } from "@/lib/kv-store";
 import { createMailTransporter, buildHelpdeskManualReplyEmail } from "@/lib/mail";
-import { getManual } from "@/lib/helpdesk-manuals";
+import { getManual, saveManual } from "@/lib/helpdesk-manuals";
+import { extractKeywords } from "@/lib/helpdesk-manual-match";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +62,27 @@ export async function POST(req: NextRequest) {
     });
 
     await kvSet(SENT_KEY(ticketId), true, SENT_TTL);
+
+    // 담당자가 실제로 이 매뉴얼로 이 티켓을 처리했다고 확인한 것이므로, 매뉴얼의 이력에도 반영해
+    // 앞으로 비슷한 문의를 자동으로 더 잘 매칭할 수 있게 한다 (매뉴얼 화면에서 수동으로 검색해
+    // 연결하지 않아도 됨)
+    try {
+      if (!manual.linkedTicketIds.includes(ticketId)) {
+        const historyKw = extractKeywords(`${ticketContent || ""} ${extraNote || ""}`);
+        await saveManual({
+          id: manual.id,
+          title: manual.title,
+          contentType: manual.contentType,
+          body: manual.body,
+          linkedTicketIds: [...manual.linkedTicketIds, ticketId],
+          matchKeywords: historyKw.length > 0 ? [...manual.matchKeywords, historyKw] : manual.matchKeywords,
+          updatedBy: manual.updatedBy,
+        });
+      }
+    } catch (e) {
+      console.error("[POST /api/helpdesk/send-manual-reply] MANUAL_LINK_HISTORY_FAILED", e);
+    }
+
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[POST /api/helpdesk/send-manual-reply] MANUAL_MAIL_SEND_FAILED", e);
