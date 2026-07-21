@@ -235,9 +235,20 @@ export function buildHwProperties(fields: FieldMap) {
 // ─────────────────────────────────────────────────────────────────────────────
 // hw:all/hw:stats/hw:deltas KV 캐시 in-place 패치 — Notion 페이지 업데이트 후 호출
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Notion 갱신 직후라 hw:all이 있어야 정상인데, Redis 무료 티어 한도 초과로 인한 일시적
+// 실패로 null이 나오는 경우가 있다. 이때 패치를 그냥 포기하면 방금 반영한 변경사항이
+// 다음 warm-hw 실행(최대 30분)까지 검색 결과에서 안 보이게 되므로, 짧게 한 번 더 확인한다.
+export async function getHwAllForPatch(): Promise<HwRecord[] | null> {
+  const all = await kvGet<HwRecord[]>("hw:all");
+  if (all) return all;
+  await new Promise(r => setTimeout(r, 300));
+  return kvGet<HwRecord[]>("hw:all");
+}
+
 export async function patchHwCache(id: string, fields: Record<string, unknown>): Promise<void> {
   const kvPatchPromise = (async () => {
-    const all = await kvGet<HwRecord[]>("hw:all");
+    const all = await getHwAllForPatch();
     if (!all) return; // KV 미스 — warm 시 자연히 반영됨
     const updated = all.map(r => r.id === id ? { ...r, ...fields } : r);
     const stats   = computeHwStats(updated);
@@ -258,7 +269,7 @@ export async function patchHwCache(id: string, fields: Record<string, unknown>):
 // 일괄수정용 — 동일한 fields를 여러 id에 적용, KV 읽기/쓰기를 1회로 묶어서 처리
 export async function patchHwCacheBulk(ids: string[], fields: Record<string, unknown>): Promise<void> {
   const kvPatchPromise = (async () => {
-    const all = await kvGet<HwRecord[]>("hw:all");
+    const all = await getHwAllForPatch();
     if (!all) return; // KV 미스 — warm 시 자연히 반영됨
     const idSet = new Set(ids);
     const updated = all.map(r => idSet.has(r.id) ? { ...r, ...fields } : r);
@@ -282,7 +293,7 @@ export async function patchHwCacheBulk(ids: string[], fields: Record<string, unk
 // 삭제(archive)용 — hw:all 캐시에서 해당 id들을 제거 (Notion 쿼리는 archived 페이지를 자동 제외하므로 동일하게 맞춤)
 export async function removeFromHwCache(ids: string[]): Promise<void> {
   const idSet = new Set(ids);
-  const all = await kvGet<HwRecord[]>("hw:all");
+  const all = await getHwAllForPatch();
   if (!all) return; // KV 미스 — warm 시 자연히 반영됨
   const updated = all.filter(r => !idSet.has(r.id));
   const stats   = computeHwStats(updated);
