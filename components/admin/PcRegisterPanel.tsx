@@ -30,6 +30,27 @@ interface RegRow {
   company: string; user: string; dept: string; cpu: string; ram: string; mac: string; email: string;
 }
 
+// 마스터(HW DB)와 방금 수집된 스캔값을 필드별로 비교 — "업데이트" 모달·행 판정 공용
+interface FieldDiff { key: string; label: string; masterVal: string; scanVal: string; }
+
+function computeFieldDiffs(r: PcScanRecordWithMatch, master: HwRecord): FieldDiff[] {
+  return [
+    { key: "company", label: "법인",   masterVal: master.company ?? "", scanVal: r.corp ?? "" },
+    { key: "dept",    label: "부서",   masterVal: master.dept    ?? "", scanVal: r.dept ?? "" },
+    { key: "user",    label: "사용자", masterVal: master.user    ?? "", scanVal: r.userName ?? "" },
+    { key: "maker",   label: "제조사", masterVal: master.maker   ?? "", scanVal: r.manufacturer ?? "" },
+    { key: "model",   label: "모델명", masterVal: master.model   ?? "", scanVal: r.model ?? "" },
+    { key: "cpu",     label: "CPU",    masterVal: master.cpu     ?? "", scanVal: r.cpu ?? "" },
+    { key: "ram",     label: "RAM",    masterVal: master.ram     ?? "", scanVal: r.ram ?? "" },
+    { key: "mac",     label: "MAC",    masterVal: master.mac     ?? "", scanVal: r.mac ?? "" },
+    { key: "email",   label: "이메일", masterVal: master.email   ?? "", scanVal: r.email ?? "" },
+  ];
+}
+// 수집값이 있고, 마스터값과 다른 경우에만 "다름"으로 취급 (빈 수집값으로 기존 값을 지우지 않음)
+function isDiffField(f: FieldDiff): boolean {
+  return f.scanVal.trim() !== "" && f.scanVal.trim() !== f.masterVal.trim();
+}
+
 function RegisterSelectedModal({
   rows, makerOptions, registering, error, onChange, onSubmit, onClose,
 }: {
@@ -104,6 +125,119 @@ function RegisterSelectedModal({
   );
 }
 
+// 마스터와 값이 다른 항목만 선택해서 반영하는 업데이트 모달
+function UpdateMasterModal({
+  record, master, onClose, onUpdated,
+}: {
+  record: PcScanRecordWithMatch;
+  master: HwRecord;
+  onClose: () => void;
+  onUpdated: (masterId: string, fields: Record<string, string>) => void;
+}) {
+  const diffs = useMemo(() => computeFieldDiffs(record, master), [record, master]);
+  const [selected, setSelected] = useState<Record<string, boolean>>(() => {
+    const init: Record<string, boolean> = {};
+    for (const f of diffs) init[f.key] = isDiffField(f);
+    return init;
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const anySelected = diffs.some(f => isDiffField(f) && selected[f.key]);
+  const assetNoMismatch = record.assetNo.trim() !== master.assetNo.trim();
+
+  async function handleSubmit() {
+    const fields: Record<string, string> = {};
+    for (const f of diffs) {
+      if (isDiffField(f) && selected[f.key]) fields[f.key] = f.scanVal.trim();
+    }
+    if (Object.keys(fields).length === 0) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      const res = await fetch("/api/hw/update", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: master.id, fields }),
+      });
+      const json = await safeJson(res);
+      if (!json?.ok) throw new Error(json?.error || "업데이트 실패");
+      onUpdated(master.id, fields);
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "업데이트 중 오류가 발생했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="font-bold text-gray-900 text-base">마스터 정보 업데이트</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+        </div>
+
+        <div className="px-6 py-4 max-h-[65vh] overflow-y-auto space-y-3">
+          {assetNoMismatch && (
+            <p className="text-xs bg-sky-50 text-sky-700 rounded-lg px-3 py-2">
+              자산번호 불일치 — 마스터: <strong>{master.assetNo || "(없음)"}</strong> / 수집: <strong>{record.assetNo || "(없음)"}</strong>
+              <br />자산번호는 여기서 변경할 수 없으며, 아래 선택한 항목만 반영됩니다.
+            </p>
+          )}
+
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-[10px] text-gray-400 uppercase tracking-wide">
+                <th className="text-left font-semibold py-1 w-8"></th>
+                <th className="text-left font-semibold py-1">항목</th>
+                <th className="text-left font-semibold py-1">마스터(현재)</th>
+                <th className="text-left font-semibold py-1">수집된 값</th>
+              </tr>
+            </thead>
+            <tbody>
+              {diffs.map(f => {
+                const diff = isDiffField(f);
+                return (
+                  <tr key={f.key} className="border-t border-gray-100">
+                    <td className="py-1.5">
+                      <input type="checkbox" checked={!!selected[f.key]} disabled={!diff}
+                        onChange={e => setSelected(s => ({ ...s, [f.key]: e.target.checked }))} />
+                    </td>
+                    <td className="py-1.5 text-gray-500">{f.label}</td>
+                    <td className={`py-1.5 ${diff ? "text-amber-600 font-medium" : "text-gray-700"}`}>{f.masterVal || "—"}</td>
+                    <td className="py-1.5 text-gray-900">{f.scanVal || "—"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          <p className="text-[11px] text-gray-400">체크한 항목만 마스터에 반영됩니다. 값이 같거나 수집값이 비어있는 항목은 선택할 수 없습니다.</p>
+
+          {error && <p className="text-xs text-red-500">{error}</p>}
+        </div>
+
+        <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700">
+            취소
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting || !anySelected}
+            className="px-4 py-1.5 text-sm font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg disabled:opacity-40"
+          >
+            {submitting ? "업데이트 중…" : "선택 항목 업데이트"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function formatCollectedAt(iso: string) {
   if (!iso) return "—";
   return new Date(iso).toLocaleString("ko-KR", {
@@ -113,8 +247,8 @@ function formatCollectedAt(iso: string) {
 }
 
 // 자산번호 클릭 시 상세 정보 팝업 (PcScanPanel의 DetailModal과 동일한 구성)
-function DetailModal({ record, registered, onClose }: {
-  record: PcScanRecordWithMatch; registered: boolean; onClose: () => void;
+function DetailModal({ record, masterStatus, onClose }: {
+  record: PcScanRecordWithMatch; masterStatus: "registered" | "update" | "unregistered"; onClose: () => void;
 }) {
   const fields: [string, string][] = [
     ["자산번호",   record.assetNo],
@@ -135,7 +269,7 @@ function DetailModal({ record, registered, onClose }: {
     ["저장장치",  record.storage],
     ["MAC",       record.mac],
     ["수집일시",  formatCollectedAt(record.collectedAt)],
-    ["마스터존재", registered ? "✓ 일치" : "—"],
+    ["마스터존재", masterStatus === "registered" ? "✓ 일치" : masterStatus === "update" ? "△ 값 불일치 (업데이트 필요)" : "—"],
   ];
 
   return (
@@ -202,6 +336,7 @@ export default function PcRegisterPanel() {
   const [makerOptions, setMakerOptions] = useState<string[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [detail, setDetail] = useState<PcScanRecordWithMatch | null>(null);
+  const [updateTarget, setUpdateTarget] = useState<{ record: PcScanRecordWithMatch; master: HwRecord } | null>(null);
 
   // 등록 전 실시간 중복 체크 — 엑셀 등록(HwPanel handleCheckAndUpload)과 동일하게
   // 마스터(HW DB)를 직접 조회해 시리얼·자산번호 중복이면 체크박스 자체를 막는다.
@@ -248,28 +383,34 @@ export default function PcRegisterPanel() {
   }
   useEffect(() => { loadLiveChecks(); }, []);
 
-  const hwDupSets = useMemo(() => {
-    const serial = new Set<string>();
-    const assetNo = new Set<string>();
-    for (const r of hwRecords) {
-      if (r.serial)  serial.add(r.serial.trim().toLowerCase());
-      if (r.assetNo) assetNo.add(r.assetNo.trim().toLowerCase());
+  // 마스터 관계(자산번호/시리얼로 연결된 기존 HW 레코드) 탐색 — 서버가 준 masterId/serialOnlyMatch를
+  // 우선 쓰되, 방금 조회한 실시간 마스터 목록에서 자산번호·시리얼 정확 일치로 한 번 더 확인한다.
+  function findMasterMatch(r: PcScanRecordWithMatch): HwRecord | undefined {
+    const relId = r.masterId ?? r.serialOnlyMatch?.masterId;
+    if (relId) {
+      const found = hwRecords.find(h => h.id === relId);
+      if (found) return found;
     }
-    return { serial, assetNo };
-  }, [hwRecords]);
-
-  // 마스터에 동일 시리얼·자산번호가 이미 있는지 (엑셀 등록 중복 체크와 동일 기준)
-  function isHwDuplicate(r: PcScanRecordWithMatch): boolean {
     const sk = r.serial?.trim().toLowerCase();
     const ak = r.assetNo?.trim().toLowerCase();
-    return (!!sk && hwDupSets.serial.has(sk)) || (!!ak && hwDupSets.assetNo.has(ak));
+    return hwRecords.find(h =>
+      (!!ak && h.assetNo?.trim().toLowerCase() === ak) ||
+      (!!sk && h.serial?.trim().toLowerCase() === sk)
+    );
   }
-  // 서버가 준 masterExists(캐시 기반) + 방금 조회한 실시간 중복 여부를 함께 반영
-  function isAlreadyRegistered(r: PcScanRecordWithMatch): boolean {
-    return r.masterExists || isHwDuplicate(r);
+  // 마스터와 관계가 없으면 "미등록"(신규 등록 가능), 관계는 있지만 값이 달라진 곳이 있으면
+  // "업데이트"(선택 반영 필요), 전부 동일하면 "등록됨".
+  function rowMasterStatus(r: PcScanRecordWithMatch): { status: "registered" | "update" | "unregistered"; master?: HwRecord } {
+    const master = findMasterMatch(r);
+    if (!master) return { status: "unregistered" };
+    const hasDiff = computeFieldDiffs(r, master).some(isDiffField);
+    return { status: hasDiff ? "update" : "registered", master };
   }
   function flowMatchesFor(r: PcScanRecordWithMatch): AssetFlowCandidate[] {
     return matchAssetFlowCandidates({ company: r.corp, user: r.userName }, flowCandidates);
+  }
+  function handleMasterUpdated(masterId: string, fields: Record<string, string>) {
+    setHwRecords(prev => prev.map(h => h.id === masterId ? { ...h, ...fields } : h));
   }
 
   const corpOptions = useMemo(
@@ -278,13 +419,14 @@ export default function PcRegisterPanel() {
   );
 
   const filtered = useMemo(() => records.filter(r => {
-    if (filters.onlyUnregistered && r.masterExists) return false;
+    if (filters.onlyUnregistered && rowMasterStatus(r).status === "registered") return false;
     if (filters.assetNo   && !r.assetNo.toLowerCase().includes(filters.assetNo.toLowerCase())) return false;
     if (filters.corp      && r.corp !== filters.corp) return false;
     if (filters.dept      && !r.dept.toLowerCase().includes(filters.dept.toLowerCase())) return false;
     if (filters.userName  && !r.userName.toLowerCase().includes(filters.userName.toLowerCase())) return false;
     return true;
-  }), [records, filters]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [records, filters, hwRecords]);
 
   function toggleSelect(id: string) {
     setSelected(prev => {
@@ -294,9 +436,9 @@ export default function PcRegisterPanel() {
     });
   }
   const selectableFiltered = useMemo(
-    () => filtered.filter(r => !isAlreadyRegistered(r)),
+    () => filtered.filter(r => rowMasterStatus(r).status === "unregistered"),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filtered, hwDupSets]
+    [filtered, hwRecords]
   );
 
   function toggleSelectAll() {
@@ -307,7 +449,7 @@ export default function PcRegisterPanel() {
 
   function openRegisterSelected() {
     // 체크박스로 막아두지만, 그 사이 마스터에 등록된 경우까지 대비해 한 번 더 방어적으로 걸러낸다.
-    const chosen = filtered.filter(r => selected.has(r.id) && !isAlreadyRegistered(r));
+    const chosen = filtered.filter(r => selected.has(r.id) && rowMasterStatus(r).status === "unregistered");
     if (chosen.length === 0) return;
     setRegRows(chosen.map(r => ({
       id: r.id, assetNo: r.assetNo, model: r.model, serial: r.serial,
@@ -452,13 +594,18 @@ export default function PcRegisterPanel() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filtered.map(r => {
-                const dup = isAlreadyRegistered(r);
+                const { status: mStatus, master } = rowMasterStatus(r);
+                const checkboxDisabled = mStatus !== "unregistered";
                 const flowMatches = flowMatchesFor(r);
                 return (
                 <tr key={r.id} className="hover:bg-gray-50">
                   <td className="px-3 py-2">
-                    <input type="checkbox" checked={selected.has(r.id)} disabled={dup}
-                      title={dup ? "이미 마스터(HW DB)에 동일한 자산번호/시리얼이 등록되어 있습니다" : undefined}
+                    <input type="checkbox" checked={selected.has(r.id)} disabled={checkboxDisabled}
+                      title={checkboxDisabled
+                        ? (mStatus === "update"
+                          ? "마스터와 값이 달라 업데이트가 필요합니다. '업데이트' 버튼을 이용하세요."
+                          : "이미 마스터(HW DB)에 동일하게 등록되어 있습니다")
+                        : undefined}
                       onChange={() => toggleSelect(r.id)} />
                   </td>
                   <td className="px-3 py-2 font-mono whitespace-nowrap">
@@ -471,10 +618,17 @@ export default function PcRegisterPanel() {
                   <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{r.userName || "-"}</td>
                   <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{r.manufacturer || "-"}</td>
                   <td className="px-3 py-2 text-gray-600 whitespace-nowrap max-w-[120px] truncate">{r.model || "-"}</td>
-                  <td className="px-3 py-2">
-                    {dup
-                      ? <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-green-100 text-green-700">등록됨</span>
-                      : <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-500">미등록</span>}
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    {mStatus === "update" && master ? (
+                      <button onClick={() => setUpdateTarget({ record: r, master })}
+                        className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-700 hover:bg-amber-200">
+                        업데이트
+                      </button>
+                    ) : mStatus === "registered" ? (
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-green-100 text-green-700">등록됨</span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-500">미등록</span>
+                    )}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">
                     {flowMatches.length > 0
@@ -516,7 +670,16 @@ export default function PcRegisterPanel() {
       />
 
       {detail && (
-        <DetailModal record={detail} registered={isAlreadyRegistered(detail)} onClose={() => setDetail(null)} />
+        <DetailModal record={detail} masterStatus={rowMasterStatus(detail).status} onClose={() => setDetail(null)} />
+      )}
+
+      {updateTarget && (
+        <UpdateMasterModal
+          record={updateTarget.record}
+          master={updateTarget.master}
+          onClose={() => setUpdateTarget(null)}
+          onUpdated={handleMasterUpdated}
+        />
       )}
 
       {regRows && (
