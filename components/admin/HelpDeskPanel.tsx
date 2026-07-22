@@ -2348,10 +2348,23 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
     }
   };
 
-  // 30초마다 자동 새로고침 (Notion 최신 데이터 반영)
+  // 자동 새로고침 — warm-helpdesk 크론이 이제 5분 간격으로 캐시를 미리 채워두므로,
+  // 클라이언트가 30초마다 캐시를 건너뛰고 라이브 재조회할 필요가 없어졌다. 간격을
+  // 늘리고, 탭이 백그라운드일 때는 멈췄다가 돌아오면 즉시 갱신한다 (알림벨과 동일 패턴).
   useEffect(() => {
-    const id = setInterval(() => load(true), 30_000);
-    return () => clearInterval(id);
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const startPolling = () => { if (timer) return; timer = setInterval(() => load(true), 180_000); };
+    const stopPolling = () => { if (timer) { clearInterval(timer); timer = null; } };
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") { load(true); startPolling(); }
+      else { stopPolling(); }
+    };
+    if (document.visibilityState === "visible") startPolling();
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      stopPolling();
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, [load]);
 
   useEffect(() => {
