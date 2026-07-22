@@ -342,6 +342,35 @@ export async function markHwVerifiedByScanMatch(
   await patchHwCache(id, patch);
 }
 
+/**
+ * 법인/부서/사용자가 스캔값과 완전히 일치하지 않아 실사확인까지는 못 걸어도,
+ * 마스터에 MAC·이메일이 비어있으면 스캔값으로 채워 넣는다 (상태·실사확인은 건드리지 않음,
+ * 이미 값이 있는 필드는 덮어쓰지 않음).
+ */
+export async function fillMissingHwContactInfo(
+  id: string,
+  extra: { mac?: string; email?: string }
+): Promise<void> {
+  const properties: Record<string, unknown> = {};
+  const patch: Record<string, unknown> = {};
+
+  if (extra.mac) {
+    properties["MAC"] = { rich_text: [{ text: { content: extra.mac } }] };
+    patch.mac = extra.mac;
+  }
+  if (extra.email) {
+    properties["이메일"] = { email: extra.email };
+    patch.email = extra.email;
+  }
+  if (Object.keys(properties).length === 0) return;
+
+  await notion.pages.update({
+    page_id: id,
+    properties: properties as Parameters<typeof notion.pages.update>[0]["properties"],
+  });
+  await patchHwCache(id, patch);
+}
+
 async function queryWithRetry(params: Parameters<typeof notion.databases.query>[0], maxRetries = 3) {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
