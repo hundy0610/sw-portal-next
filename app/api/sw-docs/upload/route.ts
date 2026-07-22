@@ -18,9 +18,13 @@ function notionHeaders(token: string): Record<string, string> {
 
 // 응답 본문이 JSON이 아니라 Cloudflare 챌린지 등 HTML이면, 그 긴 원문을 그대로 사용자에게
 // 보여주는 대신 원인을 알 수 있는 짧은 메시지로 바꾼다.
-async function readNotionError(res: Response): Promise<string> {
+async function readNotionError(res: Response, step: string): Promise<string> {
   const text = await res.text();
   const trimmed = text.trim();
+  // 진단용: 정확한 차단 원인 확인을 위해 헤더 요약 + 원문 일부를 로그로 남긴다 (임시)
+  console.error(
+    `[sw-docs/upload] ${step} 실패 status=${res.status} cf-ray=${res.headers.get("cf-ray")} server=${res.headers.get("server")} content-type=${res.headers.get("content-type")} body=${trimmed.slice(0, 500)}`,
+  );
   if (trimmed.startsWith("<!DOCTYPE") || trimmed.startsWith("<html")) {
     return `Notion 업로드가 일시적으로 차단됐습니다 (HTTP ${res.status}). 잠시 후 다시 시도해주세요.`;
   }
@@ -69,7 +73,7 @@ export async function POST(req: NextRequest) {
     }),
   });
   if (!createRes.ok) {
-    return NextResponse.json({ error: await readNotionError(createRes) }, { status: 500 });
+    return NextResponse.json({ error: await readNotionError(createRes, "create") }, { status: 500 });
   }
   const { id: fileUploadId } = await createRes.json();
 
@@ -87,7 +91,7 @@ export async function POST(req: NextRequest) {
     if (attempt < 2) await new Promise(r => setTimeout(r, 800 * (attempt + 1)));
   }
   if (!sendRes || !sendRes.ok) {
-    return NextResponse.json({ error: await readNotionError(sendRes!) }, { status: 500 });
+    return NextResponse.json({ error: await readNotionError(sendRes!, "send") }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true, fileUploadId });
