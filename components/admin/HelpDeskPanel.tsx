@@ -377,7 +377,11 @@ function ManualsTab({
   presetDraft?: { title: string; referenceQuery: string; linkedTicketIds: string[] } | null;
   onConsumePreset?: () => void;
 }) {
-  const MAX_MANUAL_FILE_BYTES = 5 * 1024 * 1024; // 5MB
+  // Upstash Redis 무료 티어의 요청 크기 한도(1MB)보다 넉넉히 낮게 잡음 — 이전엔 5MB까지
+  // 허용해, 그 한도를 넘는 파일을 첨부하면 저장이 조용히 실패(그런데 화면엔 "성공"으로 표시)
+  // 하는 문제가 있었음. 지금은 실패 시 에러가 그대로 화면에 표시되지만, 애초에 넘는 파일을
+  // 못 고르게 막는 게 더 명확함.
+  const MAX_MANUAL_FILE_BYTES = 900 * 1024; // 900KB
   const blankForm = () => ({ id: null as string | null, title: "", contentType: "html" as "html" | "url", body: "", linkedTicketIds: [] as string[] });
   const [form,    setForm]    = useState(blankForm);
   // 매칭 키워드는 더 이상 클라이언트가 계산하지 않는다 — 서버가 저장 시 Notion 원본 데이터로 직접 계산해
@@ -389,6 +393,7 @@ function ManualsTab({
   const [saving,  setSaving]  = useState(false);
   const [saveResult, setSaveResult] = useState<"idle" | "done" | "error">("idle");
   const [saveErrorCode, setSaveErrorCode] = useState<string | null>(null);
+  const [saveErrorMsg,  setSaveErrorMsg]  = useState<string | null>(null);
   const [deleteErrorCode, setDeleteErrorCode] = useState<string | null>(null);
 
   // 반복 문의 알림에서 "매뉴얼 만들기"로 넘어온 경우 제목과 참고 검색어를 미리 채워줌
@@ -476,7 +481,7 @@ function ManualsTab({
 
   const handleSave = async () => {
     if (!form.title.trim() || !form.body.trim()) return;
-    setSaving(true); setSaveResult("idle"); setSaveErrorCode(null);
+    setSaving(true); setSaveResult("idle"); setSaveErrorCode(null); setSaveErrorMsg(null);
     try {
       const res = await fetch("/api/helpdesk/manuals", {
         method: "POST",
@@ -497,7 +502,7 @@ function ManualsTab({
         onSaved();
       } else {
         console.error("[ManualsTab.handleSave]", json.code, json);
-        setSaveResult("error"); setSaveErrorCode(json.code || "MANUAL_SAVE_FAILED");
+        setSaveResult("error"); setSaveErrorCode(json.code || "MANUAL_SAVE_FAILED"); setSaveErrorMsg(json.error || null);
       }
     } catch (e) {
       console.error("[ManualsTab.handleSave] MANUAL_SAVE_FETCH_ERROR", e);
@@ -667,7 +672,11 @@ function ManualsTab({
             {saving ? "저장 중…" : form.id ? "매뉴얼 수정" : "매뉴얼 등록"}
           </button>
           {saveResult === "done"  && <span className="text-xs text-green-600">저장됨 ✓</span>}
-          {saveResult === "error" && <span className="text-xs text-red-500">저장 실패{saveErrorCode ? ` (코드: ${saveErrorCode})` : ""}</span>}
+          {saveResult === "error" && (
+            <span className="text-xs text-red-500">
+              {saveErrorMsg || `저장 실패${saveErrorCode ? ` (코드: ${saveErrorCode})` : ""}`}
+            </span>
+          )}
         </div>
       </div>
 
@@ -2339,10 +2348,23 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
     }
   };
 
-  // 30초마다 자동 새로고침 (Notion 최신 데이터 반영)
+  // 자동 새로고침 — warm-helpdesk 크론이 이제 5분 간격으로 캐시를 미리 채워두므로,
+  // 클라이언트가 30초마다 캐시를 건너뛰고 라이브 재조회할 필요가 없어졌다. 간격을
+  // 늘리고, 탭이 백그라운드일 때는 멈췄다가 돌아오면 즉시 갱신한다 (알림벨과 동일 패턴).
   useEffect(() => {
-    const id = setInterval(() => load(true), 30_000);
-    return () => clearInterval(id);
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const startPolling = () => { if (timer) return; timer = setInterval(() => load(true), 180_000); };
+    const stopPolling = () => { if (timer) { clearInterval(timer); timer = null; } };
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") { load(true); startPolling(); }
+      else { stopPolling(); }
+    };
+    if (document.visibilityState === "visible") startPolling();
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      stopPolling();
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, [load]);
 
   useEffect(() => {

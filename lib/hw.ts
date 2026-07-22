@@ -235,9 +235,20 @@ export function buildHwProperties(fields: FieldMap) {
 // ─────────────────────────────────────────────────────────────────────────────
 // hw:all/hw:stats/hw:deltas KV 캐시 in-place 패치 — Notion 페이지 업데이트 후 호출
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Notion 갱신 직후라 hw:all이 있어야 정상인데, Redis 무료 티어 한도 초과로 인한 일시적
+// 실패로 null이 나오는 경우가 있다. 이때 패치를 그냥 포기하면 방금 반영한 변경사항이
+// 다음 warm-hw 실행(최대 30분)까지 검색 결과에서 안 보이게 되므로, 짧게 한 번 더 확인한다.
+export async function getHwAllForPatch(): Promise<HwRecord[] | null> {
+  const all = await kvGet<HwRecord[]>("hw:all");
+  if (all) return all;
+  await new Promise(r => setTimeout(r, 300));
+  return kvGet<HwRecord[]>("hw:all");
+}
+
 export async function patchHwCache(id: string, fields: Record<string, unknown>): Promise<void> {
   const kvPatchPromise = (async () => {
-    const all = await kvGet<HwRecord[]>("hw:all");
+    const all = await getHwAllForPatch();
     if (!all) return; // KV 미스 — warm 시 자연히 반영됨
     const updated = all.map(r => r.id === id ? { ...r, ...fields } : r);
     const stats   = computeHwStats(updated);
@@ -258,7 +269,7 @@ export async function patchHwCache(id: string, fields: Record<string, unknown>):
 // 일괄수정용 — 동일한 fields를 여러 id에 적용, KV 읽기/쓰기를 1회로 묶어서 처리
 export async function patchHwCacheBulk(ids: string[], fields: Record<string, unknown>): Promise<void> {
   const kvPatchPromise = (async () => {
-    const all = await kvGet<HwRecord[]>("hw:all");
+    const all = await getHwAllForPatch();
     if (!all) return; // KV 미스 — warm 시 자연히 반영됨
     const idSet = new Set(ids);
     const updated = all.map(r => idSet.has(r.id) ? { ...r, ...fields } : r);
@@ -282,7 +293,7 @@ export async function patchHwCacheBulk(ids: string[], fields: Record<string, unk
 // 삭제(archive)용 — hw:all 캐시에서 해당 id들을 제거 (Notion 쿼리는 archived 페이지를 자동 제외하므로 동일하게 맞춤)
 export async function removeFromHwCache(ids: string[]): Promise<void> {
   const idSet = new Set(ids);
-  const all = await kvGet<HwRecord[]>("hw:all");
+  const all = await getHwAllForPatch();
   if (!all) return; // KV 미스 — warm 시 자연히 반영됨
   const updated = all.filter(r => !idSet.has(r.id));
   const stats   = computeHwStats(updated);
@@ -357,18 +368,32 @@ export async function fetchHwFiltered({
   returnDue = false,
   company = "",
   assetNo = "",
+  search = "",
 }: {
   statuses?: string[];   // OR 조건 (예: ["출고준비중","출고준비완료"])
   returnDue?: boolean;   // 반납예정일이 있는 레코드만
   company?: string;
   assetNo?: string;      // 자산번호 정확히 일치 조회
+  // 검색창 입력값 — /api/hw가 KV 캐시 히트 시 사용자/자산번호/모델/시리얼/부서에 대해
+  // 부분 일치(대소문자 무시) OR 검색을 하는 것과 동일한 의미로 맞춘다. 이 함수는 KV 캐시가
+  // 비어있을 때의 라이브 폴백이라, 여기서 assetNo처럼 정확히 일치만 찾으면 캐시가 비어있는
+  // 순간에만 검색이 실패하는 것처럼 보이는 문제가 생긴다 — 실제로 "두 번 검색해야 나온다"는
+  // 증상의 원인이었음(첫 검색이 캐시 미스로 이 폴백을 타면서 정확 일치만 확인해 빈 결과를
+  // 반환하고, 다시 검색했을 때 캐시가 채워져 있으면 그제서야 부분 일치로 찾아졌음).
+  search?: string;
 }): Promise<HwRecord[]> {
+  const searchTerms = search ? search.split(",").map(s => s.trim().toLowerCase()).filter(Boolean) : [];
   if (isMock()) {
     return mockHwRecords.filter(r =>
       (statuses.length === 0 || statuses.includes(r.status)) &&
       (!returnDue || !!r.returnDue) &&
       (!company || r.company === company) &&
-      (!assetNo || r.assetNo === assetNo)
+      (!assetNo || r.assetNo === assetNo) &&
+      (searchTerms.length === 0 || searchTerms.some(q =>
+        r.user.toLowerCase().includes(q)   || r.assetNo.toLowerCase().includes(q) ||
+        r.model.toLowerCase().includes(q)  || r.serial.toLowerCase().includes(q) ||
+        r.dept.toLowerCase().includes(q)
+      ))
     ) as HwRecord[];
   }
   const andFilters: object[] = [];
@@ -389,6 +414,19 @@ export async function fetchHwFiltered({
 
   if (assetNo) {
     andFilters.push({ property: "자산번호", rich_text: { equals: assetNo } });
+  }
+
+  if (searchTerms.length > 0) {
+    const termFilters = searchTerms.map(term => ({
+      or: [
+        { property: "사용자",      title:     { contains: term } },
+        { property: "자산번호",    rich_text: { contains: term } },
+        { property: "모델명",      rich_text: { contains: term } },
+        { property: "시리얼 넘버", rich_text: { contains: term } },
+        { property: "부서",        rich_text: { contains: term } },
+      ],
+    }));
+    andFilters.push(termFilters.length === 1 ? termFilters[0] : { or: termFilters });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

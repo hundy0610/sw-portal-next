@@ -1,17 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listManuals, saveManual, deleteManual } from "@/lib/helpdesk-manuals";
 import { extractPerTicketKeywordSets } from "@/lib/helpdesk-manual-match";
-import { fetchHelpDeskTickets, type HelpDeskTicket } from "@/lib/notion";
-import { kvGet } from "@/lib/kv-store";
+import { fetchHelpDeskTickets, getCachedHelpdeskTicketsRaw, type HelpDeskTicket } from "@/lib/notion";
 
 export const dynamic = "force-dynamic";
 
 // 관리자 목록 화면(/api/helpdesk)과 같은 캐시를 재사용 — 없으면 Notion에서 직접(회사 범위 제한 없이) 가져옴.
 // 매뉴얼에 연결된 티켓은 관리자 세션의 회사 범위와 무관하게 항상 전체 데이터 기준으로 계산해야 하므로,
 // 브라우저에 이미 로드된 티켓 목록(회사 범위로 필터링됐거나 아직 로딩 전일 수 있음)에 의존하지 않는다.
-const TICKETS_CACHE_KEY = "helpdesk:tickets";
 async function resolveAllTickets(): Promise<HelpDeskTicket[]> {
-  const cached = await kvGet<{ data: HelpDeskTicket[] }>(TICKETS_CACHE_KEY);
+  const cached = await getCachedHelpdeskTicketsRaw();
   if (cached) return cached.data;
   return fetchHelpDeskTickets();
 }
@@ -56,6 +54,13 @@ export async function POST(req: NextRequest) {
     const manual = await saveManual({ id, title, contentType, body, linkedTicketIds: cleanIds, matchKeywords, updatedBy: updatedBy || "" });
     return NextResponse.json({ ok: true, manual });
   } catch (e) {
+    if (e instanceof Error && e.message === "MANUAL_SAVE_KV_WRITE_FAILED") {
+      console.error("[API /helpdesk/manuals POST] MANUAL_SAVE_KV_WRITE_FAILED");
+      return NextResponse.json(
+        { ok: false, error: "저장 공간에 쓰지 못했습니다. 첨부한 HTML 파일 용량을 줄여 다시 시도해주세요.", code: "MANUAL_SAVE_KV_WRITE_FAILED" },
+        { status: 500 }
+      );
+    }
     console.error("[API /helpdesk/manuals POST] MANUAL_SAVE_FAILED", e);
     return NextResponse.json({ ok: false, error: "서버 오류", code: "MANUAL_SAVE_FAILED" }, { status: 500 });
   }

@@ -276,11 +276,11 @@ function DeptDetail({
         <span className="text-xs text-slate-400 flex-shrink-0 hidden sm:block">{users.length}명</span>
         <div className="flex-shrink-0 ml-auto text-right">
           <div className="text-sm font-bold" style={{ color: "var(--brand)" }}>
-            ₩{fmt(dTotal)}<span className="text-xs font-normal text-slate-400 ml-0.5">/{periodLabel}</span>
+            ₩{fmt(dNet)}<span className="text-xs font-normal text-slate-400 ml-0.5">/{periodLabel}</span>
           </div>
           {dHas && (
             <div className="text-[10px] text-gray-400">
-              쉐어드 ₩{fmt(dShared)} 포함
+              쉐어드 제외 · 펼쳐서 확인
             </div>
           )}
         </div>
@@ -448,12 +448,12 @@ function CompanyBlock({
           </div>
           {coHas && (
             <div className="text-xs text-slate-500 mt-0.5">
-              쉐어드 ₩{fmt(coShared)} 포함
+              쉐어드 제외 · 부서 상세에서 확인
             </div>
           )}
         </div>
         <div className="text-right">
-          <div className="text-xl font-bold" style={{ color: "var(--brand)" }}>₩{fmt(coTotal)}</div>
+          <div className="text-xl font-bold" style={{ color: "var(--brand)" }}>₩{fmt(coNet)}</div>
           <div className="text-xs text-slate-400">/ {periodLabel}</div>
         </div>
       </div>
@@ -462,8 +462,8 @@ function CompanyBlock({
       <div className="px-5 py-4 border-b border-slate-100 bg-slate-50">
         <div className="text-xs font-semibold text-slate-500 mb-3 uppercase tracking-wide">부서별 지출 현황</div>
         <div className="flex flex-col gap-2">
-          {deptList.map(({ dept, dTotal, dShared, dNet, dHas, users, sws }) => {
-            const pct = maxDept > 0 ? (dTotal / maxDept * 100) : 0;
+          {deptList.map(({ dept, dNet, dHas, users, sws }) => {
+            const pct = maxDept > 0 ? (dNet / maxDept * 100) : 0;
             const isHigh = pct > 60;
             return (
               <div key={dept} className="flex items-center gap-3">
@@ -478,10 +478,10 @@ function CompanyBlock({
                   </div>
                 </div>
                 <div className="w-36 text-right flex-shrink-0">
-                  <span className="text-xs font-bold" style={{ color: isHigh ? "var(--brand)" : "#334155" }}>₩{fmt(dTotal)}</span>
+                  <span className="text-xs font-bold" style={{ color: isHigh ? "var(--brand)" : "#334155" }}>₩{fmt(dNet)}</span>
                   {dHas && (
                     <div className="text-[10px] text-gray-400">
-                      쉐어드 ₩{fmt(dShared)} 포함
+                      쉐어드 제외 · 상세에서 확인
                     </div>
                   )}
                 </div>
@@ -494,7 +494,7 @@ function CompanyBlock({
             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded inline-block" style={{ background: "var(--brand)" }}/>최고 지출</span>
             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded inline-block" style={{ background: "#94A3B8" }}/>일반</span>
           </div>
-          <span className="text-xs text-slate-400">최대: {deptList[0]?.dept} ₩{fmt(deptList[0]?.dTotal||0)}</span>
+          <span className="text-xs text-slate-400">최대: {deptList[0]?.dept} ₩{fmt(deptList[0]?.dNet||0)} (쉐어드 제외)</span>
         </div>
       </div>
 
@@ -606,7 +606,7 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
   );
   if (!data) return null;
 
-  const { coMap, grandTotal, sharedTotal, netTotal, hasShared, totalLicenses, filtered } = buildView(
+  const { coMap, netTotal, hasShared, totalLicenses, filtered } = buildView(
     data.rows, rate, mode, filterCompany, filterDept, filterCat
   );
 
@@ -731,7 +731,9 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
         const coHas    = coRows.some(isShared);
         const periodLabel = mode === "monthly" ? "월" : "연";
 
-        // 부서별 데이터 계산 (비용 내림차순) — 쉐어드 실부담 분리 포함
+        // 부서별 데이터 계산 (쉐어드 제외한 실부담 기준 내림차순) — 부서별 비교는 쉐어드 비용을
+        // 뺀 실부담으로 시각화한다(쉐어드는 부서 고유 지출이 아닌 회사 공통 비용이라 부서 비교를 왜곡함).
+        // 원본 합계(dTotal)는 그대로 계산해두고 "포함 시" 참고용으로만 노출한다.
         const deptList = [...deptMap.entries()].map(([dept, rows]) => {
           const dTotal  = rows.reduce((s,r) => s + convertedKrw(r.annualKrw, r.annualUsd, rate, mode), 0);
           const dShared = rows.filter(isShared).reduce((s,r) => s + convertedKrw(r.annualKrw, r.annualUsd, rate, mode), 0);
@@ -740,9 +742,9 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
           const users   = [...new Set(rows.map(r => r.user).filter(Boolean))];
           const sws     = [...new Set(rows.map(r => r.swName))];
           return { dept, rows, dTotal, dShared, dNet, dHas, users, sws };
-        }).sort((a, b) => b.dTotal - a.dTotal);
+        }).sort((a, b) => b.dNet - a.dNet);
 
-        const maxDept = deptList[0]?.dTotal || 1;
+        const maxDept = deptList[0]?.dNet || 1;
 
         return (
           <CompanyBlock
@@ -760,8 +762,8 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
             전체 합계 · {coMap.size}개 법인 · {totalLicenses}건
           </span>
           <div className="text-right">
-            <div className="text-xl font-bold" style={{ color: "var(--brand)" }}>₩{fmt(grandTotal)}<span className="text-sm ml-1">/{mode==="monthly"?"월":"년"}</span></div>
-            {hasShared && <div className="text-xs text-slate-500 mt-0.5">쉐어드 ₩{fmt(sharedTotal)} 포함</div>}
+            <div className="text-xl font-bold" style={{ color: "var(--brand)" }}>₩{fmt(netTotal)}<span className="text-sm ml-1">/{mode==="monthly"?"월":"년"}</span></div>
+            {hasShared && <div className="text-xs text-slate-500 mt-0.5">쉐어드 제외 · 부서 상세에서 확인</div>}
           </div>
         </div>
       )}
