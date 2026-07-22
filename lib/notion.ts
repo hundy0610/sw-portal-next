@@ -827,9 +827,13 @@ export async function uploadFileToNotion(buffer: Buffer, filename: string, conte
   const token = process.env.NOTION_TOKEN;
   if (!token) throw new Error("NOTION_TOKEN이 설정되지 않았습니다.");
 
+  // User-Agent가 없는 서버 간 요청은 Notion 앞단의 Cloudflare가 봇으로 의심해 JSON 대신
+  // "Attention Required" HTML 챌린지 페이지를 돌려주는 경우가 있었음(간헐적, 매뉴얼 업로드에서
+  // 확인됨) — 일반 API 클라이언트처럼 User-Agent를 명시해 차단 확률을 낮춘다.
   const headers = {
     Authorization: `Bearer ${token}`,
     "Notion-Version": "2026-03-11",
+    "User-Agent": "sw-portal-next/file-upload",
   };
 
   const createRes = await fetch("https://api.notion.com/v1/file_uploads", {
@@ -842,15 +846,23 @@ export async function uploadFileToNotion(buffer: Buffer, filename: string, conte
   }
   const { id: fileUploadId } = await createRes.json();
 
-  const formData = new FormData();
-  formData.append("file", new Blob([new Uint8Array(buffer)], { type: contentType }), filename);
-  const sendRes = await fetch(`https://api.notion.com/v1/file_uploads/${fileUploadId}/send`, {
-    method: "POST",
-    headers,
-    body: formData,
-  });
-  if (!sendRes.ok) {
-    throw new Error(`Notion 파일 전송 실패: ${await sendRes.text()}`);
+  // Cloudflare 챌린지처럼 일시적으로 막히는 경우가 있어 전송 단계는 한 번 재시도한다
+  let sendRes: Response | null = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const formData = new FormData();
+    formData.append("file", new Blob([new Uint8Array(buffer)], { type: contentType }), filename);
+    sendRes = await fetch(`https://api.notion.com/v1/file_uploads/${fileUploadId}/send`, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+    if (sendRes.ok) break;
+    if (attempt === 0) await new Promise(r => setTimeout(r, 1000));
+  }
+  if (!sendRes || !sendRes.ok) {
+    const text = await sendRes!.text();
+    const msg = text.trim().startsWith("<") ? `일시적으로 차단됨 (HTTP ${sendRes!.status})` : text;
+    throw new Error(`Notion 파일 전송 실패: ${msg}`);
   }
 
   return fileUploadId;
