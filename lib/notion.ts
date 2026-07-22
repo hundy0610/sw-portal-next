@@ -1457,7 +1457,7 @@ export async function fetchManualBySlug(slug: string, allowHidden = false): Prom
 
 export async function createManual(
   data: Omit<Manual, "id">,
-  opts?: { fileUploadId?: string }
+  opts?: { fileUploadId?: string; externalFileUrl?: string }
 ): Promise<string> {
   const dbId = process.env.NOTION_DB_MANUALS;
   if (!dbId) throw new Error("NOTION_DB_MANUALS not set");
@@ -1471,6 +1471,8 @@ export async function createManual(
   if (data.category) props["카테고리"] = { select: { name: data.category } };
   if (opts?.fileUploadId) {
     props["파일과 미디어"] = { files: [{ type: "file_upload", file_upload: { id: opts.fileUploadId } }] };
+  } else if (opts?.externalFileUrl) {
+    props["파일과 미디어"] = { files: [{ type: "external", name: data.title, external: { url: opts.externalFileUrl } }] };
   }
   const res = await notion.pages.create({ parent: { database_id: dbId }, properties: props as Parameters<typeof notion.pages.create>[0]["properties"] });
   return res.id;
@@ -1479,7 +1481,7 @@ export async function createManual(
 export async function updateManual(
   id: string,
   data: Partial<Omit<Manual, "id">>,
-  opts?: { fileUploadId?: string }
+  opts?: { fileUploadId?: string; externalFileUrl?: string }
 ): Promise<void> {
   const props: Record<string, unknown> = {};
   if (data.title       !== undefined) props["제목"]     = { title:     [{ text: { content: data.title } }] };
@@ -1490,6 +1492,8 @@ export async function updateManual(
   if (data.order       !== undefined) props["순서"]     = { number:    data.order };
   if (opts?.fileUploadId) {
     props["파일과 미디어"] = { files: [{ type: "file_upload", file_upload: { id: opts.fileUploadId } }] };
+  } else if (opts?.externalFileUrl) {
+    props["파일과 미디어"] = { files: [{ type: "external", name: data.title || "file", external: { url: opts.externalFileUrl } }] };
   }
   await notion.pages.update({ page_id: id, properties: props as Parameters<typeof notion.pages.update>[0]["properties"] });
 }

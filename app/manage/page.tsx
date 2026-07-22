@@ -810,7 +810,7 @@ function SwResourcesPanel() {
     if (!selVersion) return;
     setSaving(true);
     try {
-      let fileUploadId: string | undefined;
+      let externalFileUrl = docForm.externalFileUrl?.trim() || undefined;
 
       if (uploadFile) {
         setUploading(true);
@@ -824,24 +824,22 @@ function SwResourcesPanel() {
           throw new Error(errData.error || "업로드 실패");
         }
         const data = await res.json();
-        fileUploadId = data.fileUploadId;
+        externalFileUrl = data.url;
         setUploading(false);
       }
-
-      const externalFileUrl = docForm.externalFileUrl?.trim() || undefined;
 
       let createdId: string | undefined;
       if (editDoc) {
         await fetch("/api/sw-docs", { method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ _action: "update", id: editDoc.id, data: { ...docForm, fileUploadId, externalFileUrl } }) });
+          body: JSON.stringify({ _action: "update", id: editDoc.id, data: { ...docForm, externalFileUrl } }) });
       } else {
         const createRes = await fetch("/api/sw-docs", { method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...docForm, versionId: selVersion.id, fileUploadId, externalFileUrl }) });
+          body: JSON.stringify({ ...docForm, versionId: selVersion.id, externalFileUrl }) });
         const createData = await createRes.json();
         createdId = createData.id;
       }
 
-      if (createdId && !fileUploadId && !externalFileUrl) {
+      if (createdId && !externalFileUrl) {
         setLastCreatedDocId(createdId);
       }
     } catch (e) {
@@ -1073,7 +1071,7 @@ function SwResourcesPanel() {
                     )}
                     {uploading && (
                       <div style={{ marginTop: 8, fontSize: 11, color: C.primary, fontWeight: 600 }}>
-                        Notion에 업로드 중... {uploadFile?.name}
+                        업로드 중... {uploadFile?.name}
                       </div>
                     )}
                   </div>
@@ -1235,7 +1233,7 @@ function ManualsPanel() {
     if (!form.title.trim() || !form.slug.trim()) return;
     setSaving(true);
     try {
-      let fileUploadId: string | undefined;
+      let externalFileUrl: string | undefined;
       if (uploadFile) {
         setUploading(true);
         const fd = new FormData();
@@ -1246,13 +1244,13 @@ function ManualsPanel() {
           throw new Error(errData.error || "업로드 실패");
         }
         const data = await res.json();
-        fileUploadId = data.fileUploadId;
+        externalFileUrl = data.url;
         setUploading(false);
       }
 
       const body = editing
-        ? { _action: "update", id: editing.id, data: { ...form, fileUploadId } }
-        : { ...form, fileUploadId };
+        ? { _action: "update", id: editing.id, data: { ...form, externalFileUrl } }
+        : { ...form, externalFileUrl };
       const res = await fetch("/api/manuals", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       if (!res.ok) {
         const errData = await res.json().catch(() => ({ error: res.statusText }));

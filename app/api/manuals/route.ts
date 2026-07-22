@@ -62,14 +62,15 @@ export async function POST(req: NextRequest) {
       }
 
       await updateManual(body.id, { ...body.data, slug }, {
-        fileUploadId: body.data.fileUploadId ?? undefined,
+        fileUploadId:    body.data.fileUploadId    ?? undefined,
+        externalFileUrl: body.data.externalFileUrl ?? undefined,
       });
       const detail = summarizeChanges(target, body.data, [
         { key: "visible", label: "공개 여부", format: v => (v ? "공개" : "숨김") },
         { key: "title",   label: "제목" },
         { key: "slug",    label: "슬러그" },
       ]);
-      const fileNote = body.data.fileUploadId ? "파일 변경" : undefined;
+      const fileNote = (body.data.fileUploadId || body.data.externalFileUrl) ? "파일 변경" : undefined;
       const fullDetail = [detail, fileNote].filter(Boolean).join(", ") || undefined;
       await appendAuditLog({ adminId: session.userId, adminName, action: "update", target: "manuals", itemTitle: body.data?.title ?? target?.title ?? body.id, detail: fullDetail, timestamp: new Date().toISOString() });
       return NextResponse.json({ ok: true });
@@ -93,7 +94,8 @@ export async function POST(req: NextRequest) {
       visible:     body.visible     ?? true,
       order:       body.order       ?? 0,
     }, {
-      fileUploadId: body.fileUploadId ?? undefined,
+      fileUploadId:    body.fileUploadId    ?? undefined,
+      externalFileUrl: body.externalFileUrl ?? undefined,
     });
     await appendAuditLog({ adminId: session.userId, adminName, action: "create", target: "manuals", itemTitle: body.title ?? "", timestamp: new Date().toISOString() });
     return NextResponse.json({ ok: true, id });
