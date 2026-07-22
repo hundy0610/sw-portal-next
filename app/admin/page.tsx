@@ -26,8 +26,6 @@ const BugReportPanel         = dynamic(() => import("@/components/admin/BugRepor
 const WorkTrackerPanel        = dynamic(() => import("@/components/admin/WorkTrackerPanel"),       { ssr: false });
 const MeetingRentalPanel      = dynamic(() => import("@/components/admin/MeetingRentalPanel"),      { ssr: false });
 const RenewalAlertModal       = dynamic(() => import("@/components/admin/RenewalAlertModal"),       { ssr: false });
-const NotificationBell        = dynamic(() => import("@/components/admin/NotificationBell"),        { ssr: false });
-const AuditLogPanel           = dynamic(() => import("@/components/admin/AuditLogPanel"),           { ssr: false });
 const SurveyDemandPanel       = dynamic(() => import("@/components/admin/SurveyDemandPanel"),       { ssr: false });
 const PcScanPanel             = dynamic(() => import("@/components/admin/PcScanPanel"),             { ssr: false });
 const PcRegisterPanel         = dynamic(() => import("@/components/admin/PcRegisterPanel"),         { ssr: false });
@@ -44,10 +42,10 @@ interface SessionInfo {
   mustChangePassword?: boolean;
 }
 
-type PageId = "home" | "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "rental-hw" | "accounts" | "assetmap" | "helpdesk" | "contracts" | "repair" | "hw-repair" | "exchange-return" | "work-feedback" | "bugreport" | "worktracker" | "meeting-rental" | "audit" | "survey-demand" | "pc-scan" | "pc-register" | "asset-audit-settings" | "org-chart" | "asset-audit-dashboard";
+type PageId = "home" | "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "rental-hw" | "accounts" | "assetmap" | "helpdesk" | "contracts" | "repair" | "hw-repair" | "exchange-return" | "work-feedback" | "bugreport" | "worktracker" | "meeting-rental" | "survey-demand" | "pc-scan" | "pc-register" | "asset-audit-settings" | "org-chart" | "asset-audit-dashboard";
 
 // 슈퍼어드민 전용 페이지 (company 계정은 접근 불가)
-const SUPER_ONLY_PAGES = new Set<PageId>(["credentials", "swdb", "accounts", "contracts", "rental-hw", "hw-repair", "exchange-return", "work-feedback", "worktracker", "meeting-rental", "audit", "pc-scan", "pc-register", "asset-audit-settings", "org-chart", "asset-audit-dashboard"]);
+const SUPER_ONLY_PAGES = new Set<PageId>(["credentials", "swdb", "accounts", "contracts", "rental-hw", "hw-repair", "exchange-return", "work-feedback", "worktracker", "meeting-rental", "pc-scan", "pc-register", "asset-audit-settings", "org-chart", "asset-audit-dashboard"]);
 
 // ── 메뉴 정의 ──────────────────────────────────────────────────
 type MenuItem = { id: PageId; icon: string; label: string; desc: string; children?: MenuItem[] };
@@ -106,7 +104,6 @@ const SUPER_GROUPS: MenuGroup[] = [
       { id: "work-feedback", icon: "",   label: "업무 피드백",     desc: "연/월/주간 목표 관리" },
       { id: "bugreport",     icon: "",   label: "버그리포트",      desc: "버그 및 개선요청 관리" },
       { id: "worktracker",   icon: "",   label: "작업 트래커",     desc: "개인 작업 칸반 관리"   },
-      { id: "audit",         icon: "",   label: "감사 로그",       desc: "관리자 변경 이력"     },
     ],
   },
 ];
@@ -255,7 +252,6 @@ export default function AdminPage() {
       case "exchange-return":  return canAccess("exchange-return")  ? <ExchangeReturnPanel /> : <AccessDenied />;
       case "accounts":    return canAccess("accounts")    ? <AccountsPanel isSuperAdmin={session?.role === "super"} />   : <AccessDenied />;
       case "contracts":     return canAccess("contracts")   ? <ContractPanel />   : <AccessDenied />;
-      case "audit":         return canAccess("audit")       ? <AuditLogPanel />   : <AccessDenied />;
       case "survey-demand": return <SurveyDemandPanel />;
       case "work-feedback": return canAccess("work-feedback") ? <WorkFeedbackPanel session={{ role: session.role, userId: session.userId, name: session.name }} /> : <AccessDenied />;
       case "bugreport":     return <BugReportPanel />;
@@ -359,9 +355,6 @@ export default function AdminPage() {
               </span>
             )}
           </button>
-
-          {/* 알림센터 (슈퍼어드민 전용) */}
-          {isSuper && <NotificationBell onNavigate={(p) => setPage(p as PageId)} />}
 
           {/* 다크모드 토글 */}
           <button

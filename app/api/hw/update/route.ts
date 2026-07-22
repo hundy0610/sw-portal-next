@@ -5,7 +5,6 @@ import { kvGet } from "@/lib/kv-store";
 import { memDel } from "@/lib/mem-cache";
 import { autoCompleteReturnsByAssetId, autoSyncUseDateByAssetId } from "@/lib/exchange-return";
 import { getSessionFromCookieHeader, resolveCurrentName, companyScope } from "@/lib/session";
-import { appendAdminAuditLog, summarizeChanges } from "@/lib/portal-store";
 import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
@@ -110,21 +109,6 @@ export async function POST(req: NextRequest) {
     await notion.pages.update({
       page_id: id,
       properties: properties as Parameters<typeof notion.pages.update>[0]["properties"],
-    });
-
-    const detail = summarizeChanges(before, rawFields as Partial<HwRecord>, [
-      { key: "status",   label: "상태" },
-      { key: "company",  label: "법인" },
-      { key: "user",     label: "사용자" },
-      { key: "assetNo",  label: "자산번호" },
-      { key: "dept",     label: "부서" },
-      { key: "location", label: "위치" },
-      { key: "returnDue", label: "반납예정일" },
-      { key: "useDate",   label: "사용일자" },
-    ]);
-    await appendAdminAuditLog({
-      adminId: session.userId, adminName, action: "update", target: "hw",
-      itemTitle: String(rawFields.assetNo ?? before?.assetNo ?? id), detail, timestamp: modifiedAt,
     });
 
     // KV 캐시 in-place 패치 (삭제하지 않고 해당 레코드만 수정)

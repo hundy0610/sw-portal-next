@@ -10,73 +10,9 @@ import { DEFAULT_WORK_STAGES } from "@/types/work-tracker";
 const KV_NOTICES    = "portal:notices";
 const KV_COURSES    = "portal:courses";
 const KV_SWDB       = "portal:swdb";
-const KV_AUDIT      = "portal:audit_log";
-const KV_ADMIN_AUDIT = "portal:admin_audit_log";
 const KV_BUG_STAGES = "portal:bug_stages";
 const KV_WORK_STAGES = "portal:work_stages";
 const KV_DECLARATION_LOG = "portal:declaration_log";
-
-// ─── Audit Log ──────────────────────────────────────────
-export interface AuditLog {
-  id: string;
-  adminId: string;
-  adminName: string;
-  action: "create" | "update" | "delete" | "bulk-update";
-  target:
-    | "notices" | "courses" | "swdb" | "swresources" | "manuals"
-    | "exchangeReturn" | "hw" | "hwRepair" | "rentalHw" | "credentials"
-    | "repairTicket" | "meetingRental" | "meetingEquipment" | "contract" | "account"
-    | "orgChart";
-  itemTitle: string;
-  detail?: string;
-  timestamp: string; // ISO
-}
-
-// update 시 변경된 필드를 "필드명: 이전값 → 이후값" 형태로 요약 (지정한 필드만 비교)
-export function summarizeChanges<T>(
-  before: T | undefined,
-  after: Partial<T>,
-  fields: { key: keyof T; label: string; format?: (v: unknown) => string }[],
-): string | undefined {
-  if (!before) return undefined;
-  const fmtDefault = (v: unknown) => (v === undefined || v === null || v === "" ? "(없음)" : String(v));
-  const parts: string[] = [];
-  for (const f of fields) {
-    if (!(f.key in (after as object))) continue;
-    const oldV = before[f.key];
-    const newV = (after as T)[f.key];
-    if (JSON.stringify(oldV) === JSON.stringify(newV)) continue;
-    const fmt = f.format ?? fmtDefault;
-    parts.push(`${f.label}: ${fmt(oldV)} → ${fmt(newV)}`);
-  }
-  return parts.length ? parts.join(", ") : undefined;
-}
-
-export async function appendAuditLog(entry: Omit<AuditLog, "id">, key = KV_AUDIT): Promise<void> {
-  if (!process.env.REDIS_URL) return;
-  try {
-    const logs = (await kvGet<AuditLog[]>(key)) ?? [];
-    const newLog: AuditLog = { id: `al_${Date.now()}`, ...entry };
-    // 최대 500건 유지
-    const trimmed = [newLog, ...logs].slice(0, 500);
-    await kvSetPermanent(key, trimmed);
-  } catch (e) {
-    console.warn("[audit] log failed:", e);
-  }
-}
-
-export async function getAuditLogs(limit = 100, key = KV_AUDIT): Promise<AuditLog[]> {
-  if (!process.env.REDIS_URL) return [];
-  try {
-    const logs = (await kvGet<AuditLog[]>(key)) ?? [];
-    return logs.slice(0, limit);
-  } catch {
-    return [];
-  }
-}
-
-export const appendAdminAuditLog = (entry: Omit<AuditLog, "id">) => appendAuditLog(entry, KV_ADMIN_AUDIT);
-export const getAdminAuditLogs = (limit = 100) => getAuditLogs(limit, KV_ADMIN_AUDIT);
 
 // ─── 실사 제출 이력 (개인/팀 실사 완료 기록) ──────────────────
 export async function appendDeclarationLog(entry: Omit<DeclarationLog, "id">): Promise<void> {

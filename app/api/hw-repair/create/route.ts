@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
-import { resolveAuditActor } from "@/lib/session";
-import { appendAdminAuditLog } from "@/lib/portal-store";
 import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
@@ -54,12 +52,6 @@ export async function POST(req: NextRequest) {
     const page = await notion.pages.create({
       parent: { database_id: dbId },
       properties,
-    });
-
-    const { adminId, adminName } = await resolveAuditActor(req.headers.get("cookie"));
-    await appendAdminAuditLog({
-      adminId, adminName, action: "create", target: "hwRepair",
-      itemTitle: body.assetId.trim(), timestamp: new Date().toISOString(),
     });
 
     return NextResponse.json({ ok: true, id: page.id });

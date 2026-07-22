@@ -3,7 +3,6 @@ import { Client } from "@notionhq/client";
 import { type HwRecord, type FieldMap, buildHwProperties, patchHwCacheBulk } from "@/lib/hw";
 import { kvGet } from "@/lib/kv-store";
 import { getSessionFromCookieHeader, resolveCurrentName, companyScope } from "@/lib/session";
-import { appendAdminAuditLog } from "@/lib/portal-store";
 import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
@@ -31,10 +30,6 @@ async function getRecordCompany(id: string): Promise<string | null> {
 const ALLOWED_FIELDS = new Set(["status", "company", "dept", "location", "note"]);
 
 type ResultItem = { id: string; ok: boolean; error?: string };
-
-const FIELD_LABEL: Record<string, string> = {
-  status: "상태", company: "법인명", dept: "부서", location: "위치", note: "기타",
-};
 
 export async function POST(req: NextRequest) {
   try {
@@ -107,17 +102,6 @@ export async function POST(req: NextRequest) {
     if (success > 0) {
       await patchHwCacheBulk(successIds, fields);
     }
-
-    // 감사로그 — 건별이 아닌 이번 일괄수정 전체를 요약한 항목 1건만 기록
-    const fieldSummary = Object.keys(rawFields)
-      .map(k => `${FIELD_LABEL[k] ?? k} → ${String(rawFields[k])}`)
-      .join(", ");
-    await appendAdminAuditLog({
-      adminId: session.userId, adminName, action: "bulk-update", target: "hw",
-      itemTitle: `${ids.length}건 일괄수정`,
-      detail: `${fieldSummary} (성공 ${success}건${failed > 0 ? `, 실패 ${failed}건` : ""})`,
-      timestamp: modifiedAt,
-    });
 
     return NextResponse.json({ ok: true, success, failed, results });
   } catch (e) {
