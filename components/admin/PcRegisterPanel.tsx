@@ -104,6 +104,95 @@ function RegisterSelectedModal({
   );
 }
 
+function formatCollectedAt(iso: string) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("ko-KR", {
+    timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
+// 자산번호 클릭 시 상세 정보 팝업 (PcScanPanel의 DetailModal과 동일한 구성)
+function DetailModal({ record, registered, onClose }: {
+  record: PcScanRecordWithMatch; registered: boolean; onClose: () => void;
+}) {
+  const fields: [string, string][] = [
+    ["자산번호",   record.assetNo],
+    ["PC이름",    record.pcName],
+    ["시리얼 넘버", record.serial],
+    ["법인명",    record.corp],
+    ["겸직/쉐어드", record.isDualOrShared ? "예" : "아니오"],
+    ["원소속법인", record.originalCorp],
+    ["부서",      record.dept],
+    ["사용자",    record.userName],
+    ["이메일",    record.email],
+    ["제조사",    record.manufacturer],
+    ["모델명",    record.model],
+    ["CPU",       record.cpu],
+    ["RAM",       record.ram],
+    ["OS",        record.os],
+    ["GPU",       record.gpu],
+    ["저장장치",  record.storage],
+    ["MAC",       record.mac],
+    ["수집일시",  formatCollectedAt(record.collectedAt)],
+    ["마스터존재", registered ? "✓ 일치" : "—"],
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="font-bold text-gray-900 text-base">PC 상세 정보</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+        </div>
+
+        <div className="px-6 py-4 max-h-[65vh] overflow-y-auto">
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
+            {fields.map(([label, value]) => (
+              <div key={label}>
+                <dt className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">{label}</dt>
+                <dd className="text-gray-800 break-all">{value || "—"}</dd>
+              </div>
+            ))}
+          </dl>
+
+          {record.programFileUrl && (
+            <div className="mt-5 pt-4 border-t border-gray-100">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">설치프로그램</p>
+              <a
+                href={record.programFileUrl}
+                download={record.programFileName || undefined}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline font-medium"
+              >
+                {record.programFileName || "파일 다운로드"}
+              </a>
+            </div>
+          )}
+        </div>
+
+        <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-between">
+          <a
+            href={record.notionUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs text-gray-400 hover:text-blue-500 hover:underline"
+          >
+            Notion에서 보기 →
+          </a>
+          <button onClick={onClose} className="px-4 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700">
+            닫기
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PcRegisterPanel() {
   const [records, setRecords] = useState<PcScanRecordWithMatch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -112,6 +201,7 @@ export default function PcRegisterPanel() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [makerOptions, setMakerOptions] = useState<string[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<PcScanRecordWithMatch | null>(null);
 
   // 등록 전 실시간 중복 체크 — 엑셀 등록(HwPanel handleCheckAndUpload)과 동일하게
   // 마스터(HW DB)를 직접 조회해 시리얼·자산번호 중복이면 체크박스 자체를 막는다.
@@ -356,7 +446,7 @@ export default function PcRegisterPanel() {
                     checked={selectableFiltered.length > 0 && selected.size === selectableFiltered.length}
                     onChange={toggleSelectAll} />
                 </th>
-                {["PC이름","자산번호","시리얼","제조사","모델명","법인","부서","사용자","마스터","자산흐름관리"].map(h => <th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}
+                {["자산번호","법인","부서","이름","제조사","모델명","마스터","자산흐름관리"].map(h => <th key={h} className="px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}
                 <th className="px-3 py-2.5"></th>
               </tr>
             </thead>
@@ -371,14 +461,16 @@ export default function PcRegisterPanel() {
                       title={dup ? "이미 마스터(HW DB)에 동일한 자산번호/시리얼이 등록되어 있습니다" : undefined}
                       onChange={() => toggleSelect(r.id)} />
                   </td>
-                  <td className="px-3 py-2 font-medium text-gray-800 whitespace-nowrap">{r.pcName || "-"}</td>
-                  <td className="px-3 py-2 font-mono text-gray-600 whitespace-nowrap">{r.assetNo || "-"}</td>
-                  <td className="px-3 py-2 font-mono text-gray-400 text-[11px] whitespace-nowrap">{r.serial || "-"}</td>
-                  <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{r.manufacturer || "-"}</td>
-                  <td className="px-3 py-2 text-gray-600 whitespace-nowrap max-w-[120px] truncate">{r.model || "-"}</td>
+                  <td className="px-3 py-2 font-mono whitespace-nowrap">
+                    <button onClick={() => setDetail(r)} className="font-semibold text-blue-600 hover:underline text-left">
+                      {r.assetNo || <span className="text-gray-300 font-normal">-</span>}
+                    </button>
+                  </td>
                   <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{r.corp || "-"}</td>
                   <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{r.dept || "-"}</td>
                   <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{r.userName || "-"}</td>
+                  <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{r.manufacturer || "-"}</td>
+                  <td className="px-3 py-2 text-gray-600 whitespace-nowrap max-w-[120px] truncate">{r.model || "-"}</td>
                   <td className="px-3 py-2">
                     {dup
                       ? <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-green-100 text-green-700">등록됨</span>
@@ -398,7 +490,7 @@ export default function PcRegisterPanel() {
                 );
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={11} className="py-10 text-center text-gray-300">조건에 맞는 수집 데이터가 없습니다</td></tr>
+                <tr><td colSpan={10} className="py-10 text-center text-gray-300">조건에 맞는 수집 데이터가 없습니다</td></tr>
               )}
             </tbody>
           </table>
@@ -422,6 +514,10 @@ export default function PcRegisterPanel() {
         onToggle={(i) => sync.setExpandedSyncIdx(sync.expandedSyncIdx === i ? null : i)}
         onConfirm={sync.confirmSync}
       />
+
+      {detail && (
+        <DetailModal record={detail} registered={isAlreadyRegistered(detail)} onClose={() => setDetail(null)} />
+      )}
 
       {regRows && (
         <RegisterSelectedModal
