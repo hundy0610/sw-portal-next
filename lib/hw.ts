@@ -368,18 +368,32 @@ export async function fetchHwFiltered({
   returnDue = false,
   company = "",
   assetNo = "",
+  search = "",
 }: {
   statuses?: string[];   // OR 조건 (예: ["출고준비중","출고준비완료"])
   returnDue?: boolean;   // 반납예정일이 있는 레코드만
   company?: string;
   assetNo?: string;      // 자산번호 정확히 일치 조회
+  // 검색창 입력값 — /api/hw가 KV 캐시 히트 시 사용자/자산번호/모델/시리얼/부서에 대해
+  // 부분 일치(대소문자 무시) OR 검색을 하는 것과 동일한 의미로 맞춘다. 이 함수는 KV 캐시가
+  // 비어있을 때의 라이브 폴백이라, 여기서 assetNo처럼 정확히 일치만 찾으면 캐시가 비어있는
+  // 순간에만 검색이 실패하는 것처럼 보이는 문제가 생긴다 — 실제로 "두 번 검색해야 나온다"는
+  // 증상의 원인이었음(첫 검색이 캐시 미스로 이 폴백을 타면서 정확 일치만 확인해 빈 결과를
+  // 반환하고, 다시 검색했을 때 캐시가 채워져 있으면 그제서야 부분 일치로 찾아졌음).
+  search?: string;
 }): Promise<HwRecord[]> {
+  const searchTerms = search ? search.split(",").map(s => s.trim().toLowerCase()).filter(Boolean) : [];
   if (isMock()) {
     return mockHwRecords.filter(r =>
       (statuses.length === 0 || statuses.includes(r.status)) &&
       (!returnDue || !!r.returnDue) &&
       (!company || r.company === company) &&
-      (!assetNo || r.assetNo === assetNo)
+      (!assetNo || r.assetNo === assetNo) &&
+      (searchTerms.length === 0 || searchTerms.some(q =>
+        r.user.toLowerCase().includes(q)   || r.assetNo.toLowerCase().includes(q) ||
+        r.model.toLowerCase().includes(q)  || r.serial.toLowerCase().includes(q) ||
+        r.dept.toLowerCase().includes(q)
+      ))
     ) as HwRecord[];
   }
   const andFilters: object[] = [];
@@ -400,6 +414,19 @@ export async function fetchHwFiltered({
 
   if (assetNo) {
     andFilters.push({ property: "자산번호", rich_text: { equals: assetNo } });
+  }
+
+  if (searchTerms.length > 0) {
+    const termFilters = searchTerms.map(term => ({
+      or: [
+        { property: "사용자",      title:     { contains: term } },
+        { property: "자산번호",    rich_text: { contains: term } },
+        { property: "모델명",      rich_text: { contains: term } },
+        { property: "시리얼 넘버", rich_text: { contains: term } },
+        { property: "부서",        rich_text: { contains: term } },
+      ],
+    }));
+    andFilters.push(termFilters.length === 1 ? termFilters[0] : { or: termFilters });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
