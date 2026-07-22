@@ -76,7 +76,13 @@ export async function saveManual(data: {
     updatedBy: data.updatedBy,
     updatedAt: new Date().toISOString(),
   };
-  await kvSetPermanent(manualKey(id), manual);
+  // 본문(HTML 첨부 파일)이 Upstash REST 요청 크기 한도를 넘으면 이 저장이 조용히 실패할 수
+  // 있다 — 인덱스에 반영하기 전에 반드시 실제 저장 성공을 확인해, 실패를 "성공"으로 보여주며
+  // 목록에는 없는 매뉴얼이 생기는 일이 없도록 한다.
+  const ok = await kvSetPermanent(manualKey(id), manual);
+  if (!ok) {
+    throw new Error("MANUAL_SAVE_KV_WRITE_FAILED");
+  }
 
   const index = (await kvGet<string[]>(INDEX_KEY)) ?? [];
   if (!index.includes(id)) {

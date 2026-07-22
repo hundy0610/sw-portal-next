@@ -54,6 +54,13 @@ export async function POST(req: NextRequest) {
     const manual = await saveManual({ id, title, contentType, body, linkedTicketIds: cleanIds, matchKeywords, updatedBy: updatedBy || "" });
     return NextResponse.json({ ok: true, manual });
   } catch (e) {
+    if (e instanceof Error && e.message === "MANUAL_SAVE_KV_WRITE_FAILED") {
+      console.error("[API /helpdesk/manuals POST] MANUAL_SAVE_KV_WRITE_FAILED");
+      return NextResponse.json(
+        { ok: false, error: "저장 공간에 쓰지 못했습니다. 첨부한 HTML 파일 용량을 줄여 다시 시도해주세요.", code: "MANUAL_SAVE_KV_WRITE_FAILED" },
+        { status: 500 }
+      );
+    }
     console.error("[API /helpdesk/manuals POST] MANUAL_SAVE_FAILED", e);
     return NextResponse.json({ ok: false, error: "서버 오류", code: "MANUAL_SAVE_FAILED" }, { status: 500 });
   }
