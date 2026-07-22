@@ -58,6 +58,7 @@ export interface PcScanPayload {
   isDualOrShared?: boolean;
   originalCorp?: string;
   collectedAt?: string;
+  price?: number;
   programsFileBase64?: string;
   programsFileName?: string;
   programsContentType?: string;
@@ -132,6 +133,7 @@ function buildProperties(
     ? { select: { name: data.originalCorp } }
     : { select: null };
   if (data.collectedAt) props["수집일시"] = { date: { start: data.collectedAt } };
+  if (typeof data.price === "number") props["단가"] = { number: data.price };
   if (fileUploadId && data.programsFileName) {
     props["설치프로그램"] = {
       files: [{ type: "file_upload", name: data.programsFileName, file_upload: { id: fileUploadId } }],
@@ -161,6 +163,7 @@ export interface PcScanRecord {
   storage: string;
   mac: string;
   collectedAt: string;
+  price: number;
   masterExists: boolean;
   programFileName: string;
   programFileUrl: string;
@@ -280,6 +283,7 @@ export async function fetchPcScans(dbEnvVar: string = "NOTION_DB_PC_SCAN"): Prom
         storage:      rt("저장장치"),
         mac:          rt("MAC"),
         collectedAt:  (p["수집일시"]?.type === "date" ? (p["수집일시"].date as { start?: string } | null)?.start : "") ?? "",
+        price:        p["단가"]?.type === "number" ? ((p["단가"].number as number | null) ?? 0) : 0,
         masterExists: p["마스터존재"]?.type === "checkbox" ? (p["마스터존재"].checkbox as boolean) : false,
         ...(() => {
           const files = p["설치프로그램"]?.type === "files"
@@ -315,6 +319,7 @@ export interface PcScanEditFields {
   gpu?: string;
   storage?: string;
   mac?: string;
+  price?: number;
 }
 
 function buildEditProperties(fields: PcScanEditFields): Record<string, unknown> {
@@ -336,6 +341,7 @@ function buildEditProperties(fields: PcScanEditFields): Record<string, unknown> 
   if (fields.corp           !== undefined) props["법인명"] = fields.corp ? { select: { name: fields.corp } } : { select: null };
   if (fields.originalCorp   !== undefined) props["원소속법인"] = fields.originalCorp ? { select: { name: fields.originalCorp } } : { select: null };
   if (fields.isDualOrShared !== undefined) props["겸직/쉐어드"] = { checkbox: !!fields.isDualOrShared };
+  if (fields.price          !== undefined) props["단가"] = { number: fields.price };
 
   return props;
 }

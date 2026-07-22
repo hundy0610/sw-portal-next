@@ -9,7 +9,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useMemo, useState } from "react";
 import { safeJson } from "@/lib/fetch-json";
-import type { PcScanRecordWithMatch } from "@/lib/pc-scan";
+import type { PcScanRecordWithMatch, PcScanEditFields } from "@/lib/pc-scan";
 import type { HwRecord } from "@/lib/hw";
 import { useAssetFlowSync, AssetFlowSyncSection, type DispatchRow } from "@/components/admin/shared/AssetFlowSync";
 import { fetchAssetFlowCandidates, matchAssetFlowCandidates, type AssetFlowCandidate } from "@/lib/hw-register-flow";
@@ -28,6 +28,7 @@ const EMPTY_FILTERS: Filters = { assetNo: "", corp: "", dept: "", userName: "", 
 interface RegRow {
   id: string; assetNo: string; maker: string; makerCustom: boolean; model: string; serial: string;
   company: string; user: string; dept: string; cpu: string; ram: string; mac: string; email: string;
+  price: number;
 }
 
 // 마스터(HW DB)와 방금 수집된 스캔값을 필드별로 비교 — "업데이트" 모달·행 판정 공용
@@ -109,9 +110,16 @@ function RegisterSelectedModal({
                   </select>
                 )}
               </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">단가</label>
+                <input type="number" min="0" value={r.price || ""} placeholder="0"
+                  onChange={e => update(i, { price: Number(e.target.value) || 0 })}
+                  className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-400" />
+              </div>
             </div>
           ))}
         </div>
+        <p className="px-6 pb-1 text-[11px] text-gray-400">구매일자·사용일자는 등록일로 자동 반영됩니다.</p>
         {error && <p className="px-6 pb-2 text-xs text-red-500">{error}</p>}
         <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-end gap-2">
           <button onClick={onClose} className="px-4 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700">취소</button>
@@ -246,31 +254,61 @@ function formatCollectedAt(iso: string) {
   });
 }
 
-// 자산번호 클릭 시 상세 정보 팝업 (PcScanPanel의 DetailModal과 동일한 구성)
-function DetailModal({ record, masterStatus, onClose }: {
-  record: PcScanRecordWithMatch; masterStatus: "registered" | "update" | "unregistered"; onClose: () => void;
+const DETAIL_INPUT_CLS = "w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-400";
+
+// 자산번호 클릭 시 나타나는 상세 정보 팝업 — 수집된 값을 그대로 수정할 수 있다
+// (PC이름·시리얼은 다음 수집 매칭 키라 여기서 바꿀 수 없음, PcScanPanel의 EditScanModal과 동일 원칙)
+function DetailModal({ record, masterStatus, onClose, onSaved }: {
+  record: PcScanRecordWithMatch;
+  masterStatus: "registered" | "update" | "unregistered";
+  onClose: () => void;
+  onSaved: (id: string, fields: PcScanEditFields) => void;
 }) {
-  const fields: [string, string][] = [
-    ["자산번호",   record.assetNo],
-    ["PC이름",    record.pcName],
-    ["시리얼 넘버", record.serial],
-    ["법인명",    record.corp],
-    ["겸직/쉐어드", record.isDualOrShared ? "예" : "아니오"],
-    ["원소속법인", record.originalCorp],
-    ["부서",      record.dept],
-    ["사용자",    record.userName],
-    ["이메일",    record.email],
-    ["제조사",    record.manufacturer],
-    ["모델명",    record.model],
-    ["CPU",       record.cpu],
-    ["RAM",       record.ram],
-    ["OS",        record.os],
-    ["GPU",       record.gpu],
-    ["저장장치",  record.storage],
-    ["MAC",       record.mac],
-    ["수집일시",  formatCollectedAt(record.collectedAt)],
-    ["마스터존재", masterStatus === "registered" ? "✓ 일치" : masterStatus === "update" ? "△ 값 불일치 (업데이트 필요)" : "—"],
-  ];
+  const [assetNo, setAssetNo]           = useState(record.assetNo);
+  const [manufacturer, setManufacturer] = useState(record.manufacturer);
+  const [model, setModel]               = useState(record.model);
+  const [corp, setCorp]                 = useState(record.corp);
+  const [isDualOrShared, setIsDualOrShared] = useState(record.isDualOrShared);
+  const [originalCorp, setOriginalCorp] = useState(record.originalCorp);
+  const [dept, setDept]                 = useState(record.dept);
+  const [userName, setUserName]         = useState(record.userName);
+  const [email, setEmail]               = useState(record.email);
+  const [cpu, setCpu]                   = useState(record.cpu);
+  const [ram, setRam]                   = useState(record.ram);
+  const [os, setOs]                     = useState(record.os);
+  const [gpu, setGpu]                   = useState(record.gpu);
+  const [storage, setStorage]           = useState(record.storage);
+  const [mac, setMac]                   = useState(record.mac);
+  const [price, setPrice]               = useState(record.price);
+  const [submitting, setSubmitting]     = useState(false);
+  const [error, setError]               = useState("");
+
+  async function handleSubmit() {
+    setSubmitting(true);
+    setError("");
+    try {
+      const fields: PcScanEditFields = {
+        assetNo: assetNo.trim(), manufacturer: manufacturer.trim(), model: model.trim(),
+        corp: corp.trim(), isDualOrShared, originalCorp: originalCorp.trim(),
+        dept: dept.trim(), userName: userName.trim(), email: email.trim(),
+        cpu: cpu.trim(), ram: ram.trim(), os: os.trim(), gpu: gpu.trim(), storage: storage.trim(), mac: mac.trim(),
+        price,
+      };
+      const res = await fetch("/api/admin/pc-register", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: record.id, fields }),
+      });
+      const json = await safeJson(res);
+      if (!json?.ok) throw new Error(json?.error || "수정 실패");
+      onSaved(record.id, fields);
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "수정 중 오류가 발생했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
@@ -283,18 +321,89 @@ function DetailModal({ record, masterStatus, onClose }: {
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
         </div>
 
-        <div className="px-6 py-4 max-h-[65vh] overflow-y-auto">
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
-            {fields.map(([label, value]) => (
-              <div key={label}>
-                <dt className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">{label}</dt>
-                <dd className="text-gray-800 break-all">{value || "—"}</dd>
-              </div>
-            ))}
-          </dl>
+        <div className="px-6 py-4 max-h-[65vh] overflow-y-auto space-y-3">
+          <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
+            PC이름({record.pcName || "—"}) · 시리얼({record.serial || "—"})은 다음 수집 매칭 키라 여기서 바꿀 수 없습니다.
+            이 PC가 계속 수집되고 있다면 아래 값도 다음 수집 시 자동으로 덮어써질 수 있습니다.
+          </p>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">자산번호</label>
+              <input className={DETAIL_INPUT_CLS} value={assetNo} onChange={e => setAssetNo(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">제조사</label>
+              <input className={DETAIL_INPUT_CLS} value={manufacturer} onChange={e => setManufacturer(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">모델명</label>
+              <input className={DETAIL_INPUT_CLS} value={model} onChange={e => setModel(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">법인명</label>
+              <input className={DETAIL_INPUT_CLS} value={corp} onChange={e => setCorp(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">원소속법인</label>
+              <input className={DETAIL_INPUT_CLS} value={originalCorp} onChange={e => setOriginalCorp(e.target.value)} />
+            </div>
+            <div className="flex items-end pb-1.5">
+              <label className="flex items-center gap-1.5 text-xs text-gray-600">
+                <input type="checkbox" checked={isDualOrShared} onChange={e => setIsDualOrShared(e.target.checked)} />
+                겸직/쉐어드
+              </label>
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">부서</label>
+              <input className={DETAIL_INPUT_CLS} value={dept} onChange={e => setDept(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">사용자</label>
+              <input className={DETAIL_INPUT_CLS} value={userName} onChange={e => setUserName(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">이메일</label>
+              <input className={DETAIL_INPUT_CLS} value={email} onChange={e => setEmail(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">CPU</label>
+              <input className={DETAIL_INPUT_CLS} value={cpu} onChange={e => setCpu(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">RAM</label>
+              <input className={DETAIL_INPUT_CLS} value={ram} onChange={e => setRam(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">OS</label>
+              <input className={DETAIL_INPUT_CLS} value={os} onChange={e => setOs(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">GPU</label>
+              <input className={DETAIL_INPUT_CLS} value={gpu} onChange={e => setGpu(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">저장장치</label>
+              <input className={DETAIL_INPUT_CLS} value={storage} onChange={e => setStorage(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">MAC</label>
+              <input className={DETAIL_INPUT_CLS} value={mac} onChange={e => setMac(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">단가</label>
+              <input type="number" min="0" className={DETAIL_INPUT_CLS} value={price || ""} placeholder="0"
+                onChange={e => setPrice(Number(e.target.value) || 0)} />
+            </div>
+          </div>
+
+          <p className="text-[11px] text-gray-400">
+            수집일시 {formatCollectedAt(record.collectedAt)} · 마스터{" "}
+            {masterStatus === "registered" ? "✓ 일치" : masterStatus === "update" ? "△ 값 불일치" : "미등록"}
+          </p>
 
           {record.programFileUrl && (
-            <div className="mt-5 pt-4 border-t border-gray-100">
+            <div className="pt-2 border-t border-gray-100">
               <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">설치프로그램</p>
               <a
                 href={record.programFileUrl}
@@ -307,6 +416,8 @@ function DetailModal({ record, masterStatus, onClose }: {
               </a>
             </div>
           )}
+
+          {error && <p className="text-xs text-red-500">{error}</p>}
         </div>
 
         <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-between">
@@ -318,9 +429,18 @@ function DetailModal({ record, masterStatus, onClose }: {
           >
             Notion에서 보기 →
           </a>
-          <button onClick={onClose} className="px-4 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700">
-            닫기
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={onClose} className="px-4 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700">
+              취소
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={submitting}
+              className="px-4 py-1.5 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-40"
+            >
+              {submitting ? "저장 중…" : "저장"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -412,6 +532,9 @@ export default function PcRegisterPanel() {
   function handleMasterUpdated(masterId: string, fields: Record<string, string>) {
     setHwRecords(prev => prev.map(h => h.id === masterId ? { ...h, ...fields } : h));
   }
+  function handleScanSaved(id: string, fields: PcScanEditFields) {
+    setRecords(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r));
+  }
 
   const corpOptions = useMemo(
     () => [...new Set(records.map(r => r.corp).filter(Boolean))].sort(),
@@ -455,6 +578,7 @@ export default function PcRegisterPanel() {
       id: r.id, assetNo: r.assetNo, model: r.model, serial: r.serial,
       maker: bestMakerMatch(r.manufacturer, makerOptions), makerCustom: false,
       company: r.corp, user: r.userName, dept: r.dept, cpu: r.cpu, ram: r.ram, mac: r.mac, email: r.email,
+      price: r.price || 0,
     })));
     setRegError("");
     setRegSummary(null);
@@ -470,11 +594,13 @@ export default function PcRegisterPanel() {
     setRegistering(true);
     setRegError("");
     try {
+      // 신규 등록 자산의 구매일·사용일자는 등록일로 통일 (잔존가치 계산에 필요한 구매일·단가 확보)
+      const today = new Date().toISOString().slice(0, 10);
       const rows = regRows.map(r => ({
         assetNo: r.assetNo.trim(), model: r.model.trim(), serial: r.serial.trim(), maker: r.maker.trim(),
         cpu: r.cpu.trim(), ram: r.ram.trim(), company: r.company.trim(), user: r.user.trim(), dept: r.dept.trim(),
         mac: r.mac.trim(), email: r.email.trim(),
-        location: "", purchaseDate: "", price: 0, useDate: "",
+        location: "", purchaseDate: today, useDate: today, price: r.price || 0,
       }));
       const res = await fetch("/api/hw/upload", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -670,7 +796,7 @@ export default function PcRegisterPanel() {
       />
 
       {detail && (
-        <DetailModal record={detail} masterStatus={rowMasterStatus(detail).status} onClose={() => setDetail(null)} />
+        <DetailModal record={detail} masterStatus={rowMasterStatus(detail).status} onClose={() => setDetail(null)} onSaved={handleScanSaved} />
       )}
 
       {updateTarget && (
