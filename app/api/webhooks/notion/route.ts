@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 const PROCESSED_KEY = (id: string) => `webhook_processed:${id}`;
-const SENT_KEY      = (id: string) => `feedback_email_sent:${id}`;
+const SENT_PROPERTY  = "평가메일발송";
 
 export async function POST(req: NextRequest) {
   try {
@@ -60,8 +60,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, skipped: `status is '${status}'` });
     }
 
-    // 이미 발송됐는지 확인
-    const alreadySent = await kvGet<boolean>(SENT_KEY(pageId));
+    // 이미 발송됐는지 확인 (Notion 체크박스 속성 기준)
+    const alreadySent = props[SENT_PROPERTY]?.checkbox === true;
     if (alreadySent) return NextResponse.json({ ok: true, skipped: "email already sent" });
 
     // 필요 데이터 추출

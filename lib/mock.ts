@@ -386,6 +386,7 @@ export const mockHelpDeskTickets = [
     actionNote: "드라이버 업데이트 진행 중",
     actionCategory: ["HW 점검"],
     actionMethod: "원격 지원",
+    feedbackEmailSent: false,
   },
   {
     id: "mock-hd-2",
@@ -408,6 +409,7 @@ export const mockHelpDeskTickets = [
     actionNote: "인증서 재발급으로 해결",
     actionCategory: ["네트워크", "SW 설정"],
     actionMethod: "전화 지원",
+    feedbackEmailSent: true,
   },
 ];
 

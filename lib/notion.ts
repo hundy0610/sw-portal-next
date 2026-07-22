@@ -412,6 +412,7 @@ export interface HelpDeskTicket {
   actionNote: string;
   actionCategory: string[];
   actionMethod: string;
+  feedbackEmailSent: boolean;
 }
 
 export async function fetchHelpDeskTickets(): Promise<HelpDeskTicket[]> {
@@ -450,6 +451,7 @@ export async function fetchHelpDeskTickets(): Promise<HelpDeskTicket[]> {
       actionNote: getPropText(p, "조치 내용") || "",
       actionCategory: getPropMultiSelect(p, "조치분류"),
       actionMethod: getPropSelect(p, "조치방법") || "",
+      feedbackEmailSent: getPropCheckbox(p, "평가메일발송"),
     };
   });
 }
