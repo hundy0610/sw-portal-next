@@ -5,6 +5,26 @@ import nodemailer from "nodemailer";
 const SENT_KEY  = (id: string) => `feedback_email_sent:${id}`;
 const SENT_TTL  = 60 * 60 * 24 * 365; // 1년
 
+// 이 키는 "이미 보낸 메일을 재발송하지 않는다"는 유일한 안전장치라, 한 번의 읽기/쓰기
+// 실패가 곧바로 고객에게 평가 메일이 반복 발송되는 사고로 이어진다. Redis 무료 티어
+// 한도 초과로 인한 간헐적 실패에 대비해, 기본 kvGet/kvSet의 1회 재시도보다 더 집요하게
+// 재시도한다 — 이 경로는 명령 수가 조금 늘어도 감수할 가치가 있는 곳이다.
+async function alreadySentFeedback(ticketId: string): Promise<boolean> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (await kvGet<boolean>(SENT_KEY(ticketId))) return true;
+    if (attempt < 2) await new Promise(r => setTimeout(r, 250 * (attempt + 1)));
+  }
+  return false;
+}
+
+async function markFeedbackSent(ticketId: string): Promise<void> {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (await kvSet(SENT_KEY(ticketId), true, SENT_TTL)) return;
+    if (attempt < 3) await new Promise(r => setTimeout(r, 300 * (attempt + 1)));
+  }
+  console.error(`[send-feedback] 발송 완료 표시 저장 실패 — 중복 발송 위험: ${ticketId}`);
+}
+
 function buildEmailHtml(opts: {
   requesterName: string;
   ticketContent: string;
@@ -109,8 +129,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "ticketId, requesterEmail 필수" }, { status: 400 });
 
     // 중복 발송 방지
-    const alreadySent = await kvGet<boolean>(SENT_KEY(ticketId));
-    if (alreadySent) return NextResponse.json({ ok: true, skipped: true, reason: "이미 발송됨" });
+    if (await alreadySentFeedback(ticketId)) {
+      return NextResponse.json({ ok: true, skipped: true, reason: "이미 발송됨" });
+    }
 
     const origin = process.env.NEXT_PUBLIC_APP_URL || "https://assetify-desk-main.vercel.app";
     const feedbackUrl = `${origin}/inquiry/feedback/${ticketId}`;
@@ -129,7 +150,7 @@ export async function POST(req: NextRequest) {
       html,
     });
 
-    await kvSet(SENT_KEY(ticketId), true, SENT_TTL);
+    await markFeedbackSent(ticketId);
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[POST /api/helpdesk/send-feedback]", e);

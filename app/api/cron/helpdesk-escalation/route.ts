@@ -20,6 +20,16 @@ const BUCKET_MIN = 30;
 const ESCALATION_KEY = (id: string) => `helpdesk_escalation:${id}`;
 const ESCALATION_TTL = 60 * 60 * 24 * 7; // 7일 — 티켓이 오래 방치돼도 키가 무한정 쌓이지 않도록
 
+// 이 키 저장이 실패하면 다음 30분 주기에도 같은 구간으로 인식돼 알림이 중복 발송된다
+// (평가 메일의 SENT_KEY와 동일한 위험) — 기본 kvSet의 1회 재시도보다 더 집요하게 재시도한다.
+async function markEscalationSent(ticketId: string, bucket: number): Promise<void> {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (await kvSet(ESCALATION_KEY(ticketId), bucket, ESCALATION_TTL)) return;
+    if (attempt < 3) await new Promise(r => setTimeout(r, 300 * (attempt + 1)));
+  }
+  console.error(`[helpdesk-escalation] 발송 완료 표시 저장 실패 — 중복 발송 위험: ${ticketId}`);
+}
+
 interface AccountLite { name: string; email: string; }
 
 export async function GET(req: NextRequest) {
@@ -95,7 +105,7 @@ export async function GET(req: NextRequest) {
           html,
         });
 
-        await kvSet(ESCALATION_KEY(ticket.id), bucket, ESCALATION_TTL);
+        await markEscalationSent(ticket.id, bucket);
         results.push({ id: ticket.id, to, bucket, result: "sent" });
 
         // Gmail 발송 간격 확보

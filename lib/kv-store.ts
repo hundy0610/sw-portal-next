@@ -43,18 +43,25 @@ export async function kvGet<T>(key: string): Promise<T | null> {
 /**
  * KV에 값 저장 (TTL 있음, 기본 24시간). 읽기와 마찬가지로 쓰기도 간헐적으로 실패하는 것이
  * 관측돼(매뉴얼 이력 자동 연결이 조용히 저장 안 되는 문제로 발견) 한 번 재시도한다.
+ *
+ * 성공 여부를 boolean으로 반환한다(kvSetPermanent와 동일 이유) — 이메일 중복발송 방지
+ * 키처럼 실패를 "성공"으로 착각하면 안 되는 저장은 이 값을 반드시 확인해야 한다.
  */
-export async function kvSet<T>(key: string, value: T, ttl = KV_TTL): Promise<void> {
+export async function kvSet<T>(key: string, value: T, ttl = KV_TTL): Promise<boolean> {
   const client = getClient();
-  if (!client) return;
+  if (!client) return false;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       await client.set(key, value, { ex: ttl });
-      return;
+      return true;
     } catch (e) {
-      if (attempt === 1) console.warn("[KV] set failed after retry:", key, e);
+      if (attempt === 1) {
+        console.warn("[KV] set failed after retry:", key, e);
+        return false;
+      }
     }
   }
+  return false;
 }
 
 /**
