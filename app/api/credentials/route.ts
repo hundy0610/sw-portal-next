@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
 import { kvGet, kvSet, kvDel } from "@/lib/kv-store";
 import { memGet, memSet, memDel } from "@/lib/mem-cache";
-import { resolveAuditActor } from "@/lib/session";
-import { appendAdminAuditLog } from "@/lib/portal-store";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
@@ -93,11 +91,6 @@ export async function POST(req: NextRequest) {
 
     memDel("credentials:all");
     await kvDel("credentials:all");
-    const { adminId, adminName } = await resolveAuditActor(req.headers.get("cookie"));
-    await appendAdminAuditLog({
-      adminId, adminName, action: "create", target: "credentials",
-      itemTitle: String(swName).trim(), timestamp: new Date().toISOString(),
-    });
     return NextResponse.json({ ok: true, data: mapPage(page) });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
@@ -121,11 +114,6 @@ export async function PUT(req: NextRequest) {
     const page = await notion.pages.update({ page_id: id, properties });
     memDel("credentials:all");
     await kvDel("credentials:all");
-    const { adminId, adminName } = await resolveAuditActor(req.headers.get("cookie"));
-    await appendAdminAuditLog({
-      adminId, adminName, action: "update", target: "credentials",
-      itemTitle: swName !== undefined ? String(swName).trim() : id, timestamp: new Date().toISOString(),
-    });
     return NextResponse.json({ ok: true, data: mapPage(page) });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
@@ -139,17 +127,9 @@ export async function DELETE(req: NextRequest) {
     const { id } = await req.json();
     if (!id) return NextResponse.json({ error: "id가 필요합니다." }, { status: 400 });
 
-    const cached = memGet<{ id: string; swName: string }[]>("credentials:all");
-    const target = cached?.find(c => c.id === id);
-
     await notion.pages.update({ page_id: id, archived: true });
     memDel("credentials:all");
     await kvDel("credentials:all");
-    const { adminId, adminName } = await resolveAuditActor(req.headers.get("cookie"));
-    await appendAdminAuditLog({
-      adminId, adminName, action: "delete", target: "credentials",
-      itemTitle: target?.swName ?? id, timestamp: new Date().toISOString(),
-    });
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

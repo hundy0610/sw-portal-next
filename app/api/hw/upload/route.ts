@@ -4,7 +4,6 @@ import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoint
 import { computeHwStats, getHwAllForPatch, type HwRecord } from "@/lib/hw";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { getSessionFromCookieHeader, resolveCurrentName, companyScope } from "@/lib/session";
-import { appendAdminAuditLog } from "@/lib/portal-store";
 import { errorMessage } from "@/lib/api-error";
 import type { RegistrationRecord } from "@/app/api/hw/registration-log/route";
 
@@ -205,7 +204,7 @@ async function createHwPage(row: ExcelRow, modifiedBy: string, modifiedAt: strin
 
 export async function POST(req: NextRequest) {
   try {
-    const { rows, source }: { rows: ExcelRow[]; source?: string } = await req.json();
+    const { rows }: { rows: ExcelRow[] } = await req.json();
 
     if (!Array.isArray(rows) || rows.length === 0) {
       return NextResponse.json({ ok: false, error: "등록할 데이터가 없습니다." }, { status: 400 });
@@ -289,18 +288,6 @@ export async function POST(req: NextRequest) {
       } catch (e) {
         console.warn("[hw/upload] registration-log patch failed:", e);
       }
-
-      // 행별 기록 대신 일괄 등록 1건으로 요약 (감사 로그 500건 cap 보호)
-      const itemTitle = source === "pc-scan"
-        ? `PC 실사 스캔 신규 등록 ${success}건`
-        : source === "pc-register"
-        ? `PC 신규 등록(실사 수집) ${success}건`
-        : `엑셀 일괄 등록 ${success}건`;
-      await appendAdminAuditLog({
-        adminId: session.userId, adminName, action: "create", target: "hw",
-        itemTitle, detail: failed > 0 ? `실패 ${failed}건` : undefined,
-        timestamp: modifiedAt,
-      });
     }
 
     return NextResponse.json({ ok: true, success, failed, results: results.map(({ page: _p, ...r }) => r) });

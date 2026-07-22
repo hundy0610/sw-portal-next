@@ -3,10 +3,8 @@
 import { useEffect, useRef, useState, useCallback, useMemo, Suspense } from "react";
 import QRCode from "qrcode";
 import type { Notice, Course, SwVersion, SwDoc, Manual } from "@/types/portal";
-import type { AuditLog } from "@/lib/portal-store";
 import type { SwItem } from "@/types";
 import { safeJson } from "@/lib/fetch-json";
-import { exportRowsToExcel } from "@/lib/xlsx-export";
 
 /* ── 색상 토큰 — 브랜드 앰버로 통일, CSS 변수 참조 (다크모드는 .portal-dark로 자동 대응) ── */
 const C = {
@@ -23,7 +21,7 @@ const C = {
   dangerSoft:  "var(--state-risk-soft)",
 } as const;
 
-type ManageTab = "notices" | "courses" | "swdb" | "audit" | "swresources" | "manuals";
+type ManageTab = "notices" | "courses" | "swdb" | "swresources" | "manuals";
 
 interface SessionInfo {
   name: string;
@@ -106,7 +104,6 @@ function ManageDashboard({ session }: { session: SessionInfo }) {
     { id: "swresources", label: "SW 자료실"  },
     { id: "swdb",        label: "SW 검색"    },
     { id: "manuals",     label: "매뉴얼"     },
-    { id: "audit",       label: "감사 로그"  },
   ];
 
   async function handleLogout() {
@@ -165,7 +162,6 @@ function ManageDashboard({ session }: { session: SessionInfo }) {
           {tab === "swresources" && <SwResourcesPanel  />}
           {tab === "swdb"        && <SwPanel           />}
           {tab === "manuals"     && <ManualsPanel      />}
-          {tab === "audit"       && <AuditPanel        />}
         </div>
       </main>
     </div>
@@ -497,167 +493,6 @@ function SwPanel() {
           );
         })}
       </ItemList>
-    </div>
-  );
-}
-
-/* ══════════════════════════════════════════════════════
-   감사 로그 패널
-══════════════════════════════════════════════════════ */
-function AuditPanel() {
-  const [logs,    setLogs]    = useState<AuditLog[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const ALL = "전체";
-  const [search,       setSearch]       = useState("");
-  const [actionFilter, setActionFilter] = useState<string>(ALL);
-  const [targetFilter, setTargetFilter] = useState<string>(ALL);
-  const [fromDate,     setFromDate]     = useState("");
-  const [toDate,       setToDate]       = useState("");
-
-  useEffect(() => {
-    fetch("/api/manage/audit-log?limit=500")
-      .then(r => safeJson(r))
-      .then(res => setLogs(res.data ?? []))
-      .finally(() => setLoading(false));
-  }, []);
-
-  const ACTION_STYLE: Record<AuditLog["action"], { label: string; bg: string; color: string }> = {
-    create: { label: "등록", bg: "var(--state-positive-soft)", color: "var(--state-positive)" },
-    update: { label: "수정", bg: "var(--state-caution-soft)", color: "var(--state-caution)" },
-    delete: { label: "삭제", bg: C.dangerSoft, color: C.danger },
-    "bulk-update": { label: "일괄수정", bg: "var(--state-caution-soft)", color: "var(--state-caution)" },
-  };
-
-  const TARGET_LABEL: Partial<Record<AuditLog["target"], string>> = {
-    notices: "공지사항", courses: "교육과정", swdb: "SW 검색", swresources: "SW 자료실", manuals: "매뉴얼",
-  };
-
-  function formatTime(iso: string) {
-    return new Date(iso).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
-  }
-
-  const targetOptions = useMemo(
-    () => [ALL, ...Array.from(new Set(logs.map(l => l.target)))],
-    [logs]
-  );
-
-  const filtered = useMemo(() => logs.filter(log => {
-    if (actionFilter !== ALL && log.action !== actionFilter) return false;
-    if (targetFilter !== ALL && log.target !== targetFilter) return false;
-    if (fromDate && log.timestamp.slice(0, 10) < fromDate) return false;
-    if (toDate   && log.timestamp.slice(0, 10) > toDate)   return false;
-    if (search) {
-      const q = search.toLowerCase();
-      const hay = [log.adminName, log.adminId, log.itemTitle, log.detail ?? ""].join(" ").toLowerCase();
-      if (!hay.includes(q)) return false;
-    }
-    return true;
-  }), [logs, search, actionFilter, targetFilter, fromDate, toDate]);
-
-  function resetFilters() {
-    setSearch(""); setActionFilter(ALL); setTargetFilter(ALL); setFromDate(""); setToDate("");
-  }
-
-  async function handleExport() {
-    const rows = filtered.map(log => ({
-      "일시":   formatTime(log.timestamp),
-      "관리자": `${log.adminName} (${log.adminId})`,
-      "액션":   ACTION_STYLE[log.action]?.label ?? log.action,
-      "대상":   TARGET_LABEL[log.target] ?? log.target,
-      "항목":   log.itemTitle,
-      "상세":   log.detail ?? "",
-    }));
-    const today = new Date().toISOString().slice(0, 10);
-    await exportRowsToExcel(rows, `감사로그_${today}.xlsx`, "감사로그");
-  }
-
-  return (
-    <div>
-      <div style={{ marginBottom: 24, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <div>
-          <h2 style={{ fontSize: 20, fontWeight: 800, color: C.text1, margin: "0 0 4px" }}>감사 로그</h2>
-          <p style={{ fontSize: 13, color: C.text3, margin: 0 }}>슈퍼어드민의 포털 콘텐츠 변경 이력 · {filtered.length} / {logs.length}건</p>
-        </div>
-        <button onClick={handleExport} disabled={filtered.length === 0}
-          style={{ padding: "9px 14px", borderRadius: 10, background: "var(--state-positive)", color: "#fff", border: "none", fontSize: 12, fontWeight: 700, cursor: filtered.length === 0 ? "not-allowed" : "pointer", opacity: filtered.length === 0 ? 0.5 : 1 }}>
-          엑셀 다운로드
-        </button>
-      </div>
-
-      {/* ── 필터 ── */}
-      <div style={{ background: "var(--portal-surface)", border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, marginBottom: 16, display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: 12 }}>
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: C.text4, marginBottom: 4 }}>검색</label>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="관리자, 항목, 상세 검색..." style={iStyle} />
-        </div>
-        <div>
-          <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: C.text4, marginBottom: 4 }}>액션</label>
-          <select value={actionFilter} onChange={e => setActionFilter(e.target.value)} style={{ ...iStyle, width: "auto" }}>
-            <option value={ALL}>전체</option>
-            {(Object.keys(ACTION_STYLE) as AuditLog["action"][]).map(a => (
-              <option key={a} value={a}>{ACTION_STYLE[a].label}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: C.text4, marginBottom: 4 }}>대상</label>
-          <select value={targetFilter} onChange={e => setTargetFilter(e.target.value)} style={{ ...iStyle, width: "auto" }}>
-            {targetOptions.map(t => <option key={t} value={t}>{t === ALL ? "전체" : (TARGET_LABEL[t as AuditLog["target"]] ?? t)}</option>)}
-          </select>
-        </div>
-        <div>
-          <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: C.text4, marginBottom: 4 }}>시작일</label>
-          <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} style={{ ...iStyle, width: "auto" }} />
-        </div>
-        <div>
-          <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: C.text4, marginBottom: 4 }}>종료일</label>
-          <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} style={{ ...iStyle, width: "auto" }} />
-        </div>
-        <button onClick={resetFilters} style={{ padding: "10px 12px", borderRadius: 12, border: `1px solid ${C.border}`, background: "transparent", color: C.text4, fontSize: 12, cursor: "pointer" }}>
-          초기화
-        </button>
-      </div>
-
-      {loading ? (
-        <div style={{ textAlign: "center", padding: 48, color: C.text4 }}>불러오는 중...</div>
-      ) : filtered.length === 0 ? (
-        <div style={{ textAlign: "center", padding: 64, background: "var(--portal-surface)", borderRadius: 12, border: `1px solid ${C.border}`, color: C.text4, fontSize: 13 }}>
-          {logs.length === 0 ? "아직 기록된 활동이 없습니다." : "조건에 맞는 기록이 없습니다."}
-        </div>
-      ) : (
-        <div style={{ background: "var(--portal-surface)", borderRadius: 12, border: `1px solid ${C.border}`, overflow: "hidden" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-                {["일시", "관리자", "액션", "대상", "항목", "상세"].map(h => (
-                  <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: 11, fontWeight: 700, color: C.text4, textTransform: "uppercase", letterSpacing: ".04em" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((log, i) => {
-                const as = ACTION_STYLE[log.action];
-                return (
-                  <tr key={log.id} className="hover:bg-slate-50 transition-colors" style={{ borderBottom: i < filtered.length - 1 ? `1px solid var(--portal-border)` : "none" }}>
-                    <td style={{ padding: "12px 16px", fontSize: 12, color: C.text3, whiteSpace: "nowrap" }}>{formatTime(log.timestamp)}</td>
-                    <td style={{ padding: "12px 16px" }}>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: C.text1 }}>{log.adminName}</span>
-                      <span style={{ fontSize: 11, color: C.text4, marginLeft: 4 }}>({log.adminId})</span>
-                    </td>
-                    <td style={{ padding: "12px 16px" }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: as.bg, color: as.color }}>{as.label}</span>
-                    </td>
-                    <td style={{ padding: "12px 16px", fontSize: 12, color: C.text3 }}>{TARGET_LABEL[log.target]}</td>
-                    <td style={{ padding: "12px 16px", fontSize: 13, color: C.text2, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{log.itemTitle}</td>
-                    <td style={{ padding: "12px 16px", fontSize: 12, color: C.text3, maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{log.detail ?? "—"}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
     </div>
   );
 }

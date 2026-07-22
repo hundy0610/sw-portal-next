@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deleteExchangeReturn } from "@/lib/exchange-return";
-import { memGet, memDel } from "@/lib/mem-cache";
-import { resolveAuditActor } from "@/lib/session";
-import { appendAdminAuditLog } from "@/lib/portal-store";
+import { memDel } from "@/lib/mem-cache";
 import { errorMessage } from "@/lib/api-error";
-import type { ExchangeReturnRecord } from "@/types";
 
 export const dynamic = "force-dynamic";
 
@@ -18,15 +15,8 @@ export async function POST(req: NextRequest) {
     const { id } = await req.json() as { id: string };
     if (!id) return NextResponse.json({ ok: false, error: "id 필수" }, { status: 400 });
 
-    const target = memGet<ExchangeReturnRecord[]>("exchange-return:all")?.find(r => r.id === id);
-
     await deleteExchangeReturn(id);
     memDel("exchange-return:all");
-    const { adminId, adminName } = await resolveAuditActor(req.headers.get("cookie"));
-    await appendAdminAuditLog({
-      adminId, adminName, action: "delete", target: "exchangeReturn",
-      itemTitle: target?.assetId || target?.newAssetId || id, timestamp: new Date().toISOString(),
-    });
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[API /exchange-return/delete]", e);

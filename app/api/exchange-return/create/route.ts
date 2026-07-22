@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createExchangeReturn, type CreateFields } from "@/lib/exchange-return";
 import { memGet, memDel } from "@/lib/mem-cache";
 import { getSessionFromCookieHeader, resolveCurrentName, companyScope } from "@/lib/session";
-import { appendAdminAuditLog } from "@/lib/portal-store";
 import type { ExchangeReturnRecord } from "@/types";
 import { errorMessage } from "@/lib/api-error";
 
@@ -49,10 +48,6 @@ export async function POST(req: NextRequest) {
 
     const record = await createExchangeReturn({ ...body, lastModifiedBy });
     memDel("exchange-return:all");
-    await appendAdminAuditLog({
-      adminId: session.userId, adminName, action: "create", target: "exchangeReturn",
-      itemTitle: body.assetId?.trim() || body.type, timestamp: new Date().toISOString(),
-    });
     return NextResponse.json({ ok: true, record });
   } catch (e) {
     console.error("[API /exchange-return/create]", e);

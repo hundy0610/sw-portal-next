@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchManuals, createManual, updateManual, archiveManual } from "@/lib/notion";
-import { getSessionFromCookieHeader, resolveCurrentName, resolveCurrentRole } from "@/lib/session";
-import { appendAuditLog, summarizeChanges } from "@/lib/portal-store";
+import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";
 import { errorMessage } from "@/lib/api-error";
 
 const SLUG_RE = /^[a-z0-9-]+$/;
@@ -35,20 +34,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const body = await req.json();
-  const adminName = await resolveCurrentName(session);
 
   try {
     if (body._action === "delete") {
-      const all = await fetchManuals(false);
-      const target = all.find(m => m.id === body.id);
       await archiveManual(body.id);
-      await appendAuditLog({ adminId: session.userId, adminName, action: "delete", target: "manuals", itemTitle: target?.title ?? body.id, timestamp: new Date().toISOString() });
       return NextResponse.json({ ok: true });
     }
 
     if (body._action === "update") {
       const all = await fetchManuals(false);
-      const target = all.find(m => m.id === body.id);
 
       let slug: string | undefined;
       if (body.data.slug !== undefined) {
@@ -65,14 +59,6 @@ export async function POST(req: NextRequest) {
         fileUploadId:    body.data.fileUploadId    ?? undefined,
         externalFileUrl: body.data.externalFileUrl ?? undefined,
       });
-      const detail = summarizeChanges(target, body.data, [
-        { key: "visible", label: "공개 여부", format: v => (v ? "공개" : "숨김") },
-        { key: "title",   label: "제목" },
-        { key: "slug",    label: "슬러그" },
-      ]);
-      const fileNote = (body.data.fileUploadId || body.data.externalFileUrl) ? "파일 변경" : undefined;
-      const fullDetail = [detail, fileNote].filter(Boolean).join(", ") || undefined;
-      await appendAuditLog({ adminId: session.userId, adminName, action: "update", target: "manuals", itemTitle: body.data?.title ?? target?.title ?? body.id, detail: fullDetail, timestamp: new Date().toISOString() });
       return NextResponse.json({ ok: true });
     }
 
@@ -97,7 +83,6 @@ export async function POST(req: NextRequest) {
       fileUploadId:    body.fileUploadId    ?? undefined,
       externalFileUrl: body.externalFileUrl ?? undefined,
     });
-    await appendAuditLog({ adminId: session.userId, adminName, action: "create", target: "manuals", itemTitle: body.title ?? "", timestamp: new Date().toISOString() });
     return NextResponse.json({ ok: true, id });
   } catch (e) {
     return NextResponse.json({ error: errorMessage(e) }, { status: 500 });

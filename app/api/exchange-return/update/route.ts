@@ -3,7 +3,6 @@ import { Client } from "@notionhq/client";
 import { updateExchangeReturn, type UpdateFields } from "@/lib/exchange-return";
 import { memGet, memDel } from "@/lib/mem-cache";
 import { getSessionFromCookieHeader, resolveCurrentName, companyScope } from "@/lib/session";
-import { appendAdminAuditLog } from "@/lib/portal-store";
 import { errorMessage } from "@/lib/api-error";
 import type { ExchangeReturnRecord } from "@/types";
 
@@ -54,10 +53,6 @@ export async function POST(req: NextRequest) {
 
     await updateExchangeReturn(id, fieldsWithModifier);
     memDel("exchange-return:all");
-    await appendAdminAuditLog({
-      adminId: session.userId, adminName, action: "update", target: "exchangeReturn",
-      itemTitle: fields.newAssetId ?? fields.user ?? id, timestamp: new Date().toISOString(),
-    });
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[API /exchange-return/update]", e);

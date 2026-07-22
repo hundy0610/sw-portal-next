@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
-import { resolveAuditActor } from "@/lib/session";
-import { appendAdminAuditLog } from "@/lib/portal-store";
 import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
@@ -38,12 +36,6 @@ export async function POST(req: NextRequest) {
     await notion.pages.update({
       page_id: id,
       properties: properties as Parameters<typeof notion.pages.update>[0]["properties"],
-    });
-
-    const { adminId, adminName } = await resolveAuditActor(req.headers.get("cookie"));
-    await appendAdminAuditLog({
-      adminId, adminName, action: "update", target: "repairTicket",
-      itemTitle: id, detail: fields.status, timestamp: new Date().toISOString(),
     });
 
     return NextResponse.json({ ok: true });

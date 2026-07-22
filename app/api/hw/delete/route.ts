@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
 import { type HwRecord, removeFromHwCache } from "@/lib/hw";
 import { kvGet } from "@/lib/kv-store";
-import { getSessionFromCookieHeader, resolveCurrentName, companyScope } from "@/lib/session";
-import { appendAdminAuditLog } from "@/lib/portal-store";
+import { getSessionFromCookieHeader, companyScope } from "@/lib/session";
 import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
@@ -44,7 +43,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
     const scope = companyScope(session);
-    const adminName = await resolveCurrentName(session);
 
     const results: ResultItem[] = [];
     for (const id of ids) {
@@ -68,12 +66,6 @@ export async function POST(req: NextRequest) {
 
     if (success > 0) {
       await removeFromHwCache(successIds);
-      await appendAdminAuditLog({
-        adminId: session.userId, adminName, action: "delete", target: "hw",
-        itemTitle: `${success}건 일괄삭제`,
-        detail: failed > 0 ? `성공 ${success}건, 실패 ${failed}건` : undefined,
-        timestamp: new Date().toISOString(),
-      });
     }
 
     return NextResponse.json({ ok: true, success, failed, results });
