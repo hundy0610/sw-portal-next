@@ -1,7 +1,7 @@
 import { Client } from "@notionhq/client";
 import * as XLSX from "xlsx";
 import { isMock } from "./mock";
-import { findHwByAssetNo, serialFuzzyMatch, markHwVerifiedByScanMatch, type HwRecord } from "./hw";
+import { findHwByAssetNo, serialFuzzyMatch, markHwVerifiedByScanMatch, fillMissingHwContactInfo, type HwRecord } from "./hw";
 import { uploadFileToNotion } from "./notion";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
@@ -385,16 +385,25 @@ export async function upsertPcScan(data: PcScanPayload, dbEnvVar: string = "NOTI
     && (!scanCpu   || hwRecord.cpu === scanCpu)
     && (!scanRam   || hwRecord.ram === scanRam);
 
-  if (hwRecord && masterExists
+  const fullOrgMatch = !!hwRecord && masterExists
     && hwRecord.company === (data.corp ?? "")
     && hwRecord.dept    === (data.dept ?? "")
-    && hwRecord.user    === (data.userName ?? "")
-    && !alreadySynced
-  ) {
+    && hwRecord.user    === (data.userName ?? "");
+
+  if (hwRecord && fullOrgMatch && !alreadySynced) {
     await markHwVerifiedByScanMatch(hwRecord.id, {
       mac: scanMac, email: scanEmail, cpu: scanCpu, ram: scanRam,
     }).catch(e =>
       console.error("[pc-scan → hw 자동 실사확인 실패]", e)
+    );
+  } else if (hwRecord && masterExists) {
+    // 법인/부서/사용자가 완전히 일치하진 않아도, 마스터에 MAC·이메일이 비어있으면 채워준다
+    // (자산번호+시리얼로 동일 기기임은 확인됐으므로 최소한의 연락정보는 보정)
+    await fillMissingHwContactInfo(hwRecord.id, {
+      mac:   !hwRecord.mac   ? scanMac   : undefined,
+      email: !hwRecord.email ? scanEmail : undefined,
+    }).catch(e =>
+      console.error("[pc-scan → hw MAC/이메일 보정 실패]", e)
     );
   }
 

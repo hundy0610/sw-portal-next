@@ -206,6 +206,7 @@ export function buildHwProperties(fields: FieldMap) {
 
   if (fields.status      !== undefined) sel("사용/재고/폐기/기타",  String(fields.status));
   if (fields.company     !== undefined) sel("법인명",                String(fields.company));
+  if (fields.maker       !== undefined) sel("제조사",                String(fields.maker));
 
   if (fields.user        !== undefined) txt("사용자",       String(fields.user),  true);
   if (fields.assetNo     !== undefined) txt("자산번호",     String(fields.assetNo));
@@ -213,6 +214,10 @@ export function buildHwProperties(fields: FieldMap) {
   if (fields.dept        !== undefined) txt("부서",         String(fields.dept));
   if (fields.location    !== undefined) txt("위치",         String(fields.location));
   if (fields.note        !== undefined) txt("기타",         String(fields.note));
+  if (fields.model       !== undefined) txt("모델명",       String(fields.model));
+  if (fields.cpu         !== undefined) txt("CPU",          String(fields.cpu));
+  if (fields.ram         !== undefined) txt("RAM",          String(fields.ram));
+  if (fields.mac         !== undefined) txt("MAC",          String(fields.mac));
   if (fields.email       !== undefined) {
     const emailVal = String(fields.email ?? "");
     props["이메일"] = emailVal ? { email: emailVal } : { email: null };
@@ -334,6 +339,35 @@ export async function markHwVerifiedByScanMatch(
     properties["RAM"] = { rich_text: [{ text: { content: extra.ram } }] };
     patch.ram = extra.ram;
   }
+
+  await notion.pages.update({
+    page_id: id,
+    properties: properties as Parameters<typeof notion.pages.update>[0]["properties"],
+  });
+  await patchHwCache(id, patch);
+}
+
+/**
+ * 법인/부서/사용자가 스캔값과 완전히 일치하지 않아 실사확인까지는 못 걸어도,
+ * 마스터에 MAC·이메일이 비어있으면 스캔값으로 채워 넣는다 (상태·실사확인은 건드리지 않음,
+ * 이미 값이 있는 필드는 덮어쓰지 않음).
+ */
+export async function fillMissingHwContactInfo(
+  id: string,
+  extra: { mac?: string; email?: string }
+): Promise<void> {
+  const properties: Record<string, unknown> = {};
+  const patch: Record<string, unknown> = {};
+
+  if (extra.mac) {
+    properties["MAC"] = { rich_text: [{ text: { content: extra.mac } }] };
+    patch.mac = extra.mac;
+  }
+  if (extra.email) {
+    properties["이메일"] = { email: extra.email };
+    patch.email = extra.email;
+  }
+  if (Object.keys(properties).length === 0) return;
 
   await notion.pages.update({
     page_id: id,
