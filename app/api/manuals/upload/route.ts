@@ -29,6 +29,17 @@ async function readNotionError(res: Response): Promise<string> {
   return text;
 }
 
+// Notion(Cloudflare 포함) 쪽 일시적 차단/과부하(403/429/5xx)에 대비한 재시도
+const RETRYABLE_STATUS = new Set([403, 429, 500, 502, 503, 504]);
+async function fetchWithRetry(url: string, init: RequestInit, maxRetries = 2): Promise<Response> {
+  let res = await fetch(url, init);
+  for (let i = 0; i < maxRetries && !res.ok && RETRYABLE_STATUS.has(res.status); i++) {
+    await new Promise(r => setTimeout(r, 800 * (i + 1)));
+    res = await fetch(url, init);
+  }
+  return res;
+}
+
 export async function POST(req: NextRequest) {
   const s = getSessionFromCookieHeader(req.headers.get("cookie"));
   if (!s || (await resolveCurrentRole(s)) !== "super") {
@@ -55,7 +66,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Step 1: 업로드 세션 생성 (single_part)
-  const createRes = await fetch(`${NOTION_API}/file_uploads`, {
+  const createRes = await fetchWithRetry(`${NOTION_API}/file_uploads`, {
     method: "POST",
     headers: { ...notionHeaders(token), "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -69,9 +80,9 @@ export async function POST(req: NextRequest) {
   }
   const { id: fileUploadId } = await createRes.json();
 
-  // Step 2: 파일 전송 — Cloudflare 챌린지처럼 일시적으로 막히는 경우가 있어 한 번 재시도한다
+  // Step 2: 파일 전송 — FormData는 재사용이 안전하지 않아 시도마다 새로 만든다
   let sendRes: Response | null = null;
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt <= 2; attempt++) {
     const uploadFd = new FormData();
     uploadFd.append("file", file, file.name);
     sendRes = await fetch(`${NOTION_API}/file_uploads/${fileUploadId}/send`, {
@@ -79,8 +90,8 @@ export async function POST(req: NextRequest) {
       headers: notionHeaders(token),
       body: uploadFd,
     });
-    if (sendRes.ok) break;
-    if (attempt === 0) await new Promise(r => setTimeout(r, 1000));
+    if (sendRes.ok || !RETRYABLE_STATUS.has(sendRes.status)) break;
+    if (attempt < 2) await new Promise(r => setTimeout(r, 800 * (attempt + 1)));
   }
   if (!sendRes || !sendRes.ok) {
     return NextResponse.json({ error: await readNotionError(sendRes!) }, { status: 500 });
