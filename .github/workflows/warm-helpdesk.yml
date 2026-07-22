@@ -1,0 +1,36 @@
+name: Cache Warming (Help Desk)
+
+on:
+  schedule:
+    # 5분마다 실행 — helpdesk:tickets 캐시(TTL 5분) 상시 웜 유지.
+    # SW/HW는 이미 각자 워밍 크론이 있는데 문의 접수 현황만 없어서, 방문 간격이
+    # 5분을 넘으면 매번 라이브 Notion 페이지네이션(838건 기준 9회 이상 순차 호출)을
+    # 떠안는 문제가 있었음 — 이를 해소하기 위한 크론.
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  warm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Warm Help Desk ticket cache
+        run: |
+          echo "🔥 캐시 워밍 시작 (문의 접수): $(date)"
+
+          BASE_URL="https://swportal.vercel.app"
+
+          RESPONSE=$(curl -s -o response.txt -w "%{http_code}" \
+            -X GET "${BASE_URL}/api/cron/warm-helpdesk" \
+            --max-time 45)
+
+          echo "응답 상태: $RESPONSE"
+          cat response.txt 2>/dev/null | head -c 300 || true
+
+          if [ "$RESPONSE" = "200" ]; then
+            echo "✅ 캐시 워밍 완료"
+          else
+            echo "⚠️ 응답 코드: $RESPONSE"
+            exit 0
+          fi
