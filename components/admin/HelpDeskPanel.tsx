@@ -2378,7 +2378,7 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
     return () => document.removeEventListener("mousedown", handler);
   }, [assetHistoryOpen]);
 
-  // 완료 티켓의 피드백 + 이메일 발송 여부를 단 1번의 배치 요청으로 로드 (N+1 → O(1))
+  // 완료 티켓의 피드백을 단 1번의 배치 요청으로 로드 (N+1 → O(1))
   useEffect(() => {
     const completed = tickets.filter(t => t.status === "완료");
     if (completed.length === 0) return;
@@ -2386,10 +2386,16 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
     fetch(`/api/helpdesk/ticket-status?ids=${ids}`)
       .then(r => safeJson(r))
       .then(res => {
-        if (res.feedbacks)  setFeedbacks(res.feedbacks);
-        if (res.emailSent)  setEmailSentIds(new Set(Object.keys(res.emailSent)));
+        if (res.feedbacks) setFeedbacks(res.feedbacks);
       })
       .catch(() => {/* Redis 미설정 시 조용히 무시 */});
+  }, [tickets]);
+
+  // 이메일 발송 여부는 Notion 티켓의 feedbackEmailSent 필드가 항상 정확한 값이므로 그대로 반영
+  useEffect(() => {
+    const sentIds = tickets.filter(t => t.feedbackEmailSent).map(t => t.id);
+    if (sentIds.length === 0) return;
+    setEmailSentIds(prev => new Set([...prev, ...sentIds]));
   }, [tickets]);
 
   const months = useMemo(() => last6Months(), []);
