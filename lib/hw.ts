@@ -206,6 +206,7 @@ export function buildHwProperties(fields: FieldMap) {
 
   if (fields.status      !== undefined) sel("사용/재고/폐기/기타",  String(fields.status));
   if (fields.company     !== undefined) sel("법인명",                String(fields.company));
+  if (fields.maker       !== undefined) sel("제조사",                String(fields.maker));
 
   if (fields.user        !== undefined) txt("사용자",       String(fields.user),  true);
   if (fields.assetNo     !== undefined) txt("자산번호",     String(fields.assetNo));
@@ -213,6 +214,10 @@ export function buildHwProperties(fields: FieldMap) {
   if (fields.dept        !== undefined) txt("부서",         String(fields.dept));
   if (fields.location    !== undefined) txt("위치",         String(fields.location));
   if (fields.note        !== undefined) txt("기타",         String(fields.note));
+  if (fields.model       !== undefined) txt("모델명",       String(fields.model));
+  if (fields.cpu         !== undefined) txt("CPU",          String(fields.cpu));
+  if (fields.ram         !== undefined) txt("RAM",          String(fields.ram));
+  if (fields.mac         !== undefined) txt("MAC",          String(fields.mac));
   if (fields.email       !== undefined) {
     const emailVal = String(fields.email ?? "");
     props["이메일"] = emailVal ? { email: emailVal } : { email: null };
