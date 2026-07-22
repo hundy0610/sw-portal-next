@@ -61,18 +61,26 @@ export async function kvSet<T>(key: string, value: T, ttl = KV_TTL): Promise<voi
  * KV에 값 영구 저장 (TTL 없음). 공지사항/강의/자료/매뉴얼 등 관리 데이터에 사용.
  * 쓰기도 간헐적으로 실패하는 것이 관측돼(매뉴얼 이력 자동 연결이 조용히 저장 안 되는 문제로
  * 발견) 한 번 재시도한다.
+ *
+ * 성공 여부를 boolean으로 반환한다 — 대부분의 호출부는 무시해도 되는 백그라운드 캐시
+ * 갱신이라 기존 호출부는 그대로 둬도 되지만, 사용자가 결과를 기다리는 저장(예: 매뉴얼 등록)은
+ * 이 값을 확인해 실패를 화면에 그대로 "성공"으로 보여주지 않도록 해야 한다.
  */
-export async function kvSetPermanent<T>(key: string, value: T): Promise<void> {
+export async function kvSetPermanent<T>(key: string, value: T): Promise<boolean> {
   const client = getClient();
-  if (!client) return;
+  if (!client) return false;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       await client.set(key, value);
-      return;
+      return true;
     } catch (e) {
-      if (attempt === 1) console.warn("[KV] setPermanent failed after retry:", key, e);
+      if (attempt === 1) {
+        console.warn("[KV] setPermanent failed after retry:", key, e);
+        return false;
+      }
     }
   }
+  return false;
 }
 
 /**
