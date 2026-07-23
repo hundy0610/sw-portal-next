@@ -39,7 +39,10 @@ export async function POST(req: NextRequest) {
     }
     const existing = (await kvGet<DispatchRecord[]>(KV_KEY)) ?? [];
     const updated = [...incoming, ...existing].slice(0, MAX_RECORDS);
-    await kvSetPermanent(KV_KEY, updated);
+    const saved = await kvSetPermanent(KV_KEY, updated);
+    if (!saved) {
+      return NextResponse.json({ ok: false, error: "저장에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "DISPATCH_HISTORY_SAVE_FAILED" }, { status: 500 });
+    }
     return NextResponse.json({ ok: true, added: incoming.length });
   } catch (e) {
     console.error("[dispatch-history POST]", e);
@@ -53,7 +56,10 @@ export async function DELETE(req: NextRequest) {
   try {
     const id = new URL(req.url).searchParams.get("id");
     const existing = (await kvGet<DispatchRecord[]>(KV_KEY)) ?? [];
-    await kvSetPermanent(KV_KEY, id ? existing.filter(r => r.id !== id) : []);
+    const saved = await kvSetPermanent(KV_KEY, id ? existing.filter(r => r.id !== id) : []);
+    if (!saved) {
+      return NextResponse.json({ ok: false, error: "삭제에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "DISPATCH_HISTORY_SAVE_FAILED" }, { status: 500 });
+    }
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[dispatch-history DELETE]", e);

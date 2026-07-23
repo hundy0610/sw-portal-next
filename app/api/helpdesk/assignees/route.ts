@@ -34,6 +34,9 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "이름이 비어있는 항목이 있습니다" }, { status: 400 });
   }
 
-  await kvSetPermanent(ASSIGNEES_KEY, assignees);
+  const saved = await kvSetPermanent(ASSIGNEES_KEY, assignees);
+  if (!saved) {
+    return NextResponse.json({ ok: false, error: "저장에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "ASSIGNEES_SAVE_FAILED" }, { status: 500 });
+  }
   return NextResponse.json({ ok: true, assignees });
 }

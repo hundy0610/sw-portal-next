@@ -41,7 +41,8 @@ export async function POST(req: NextRequest) {
     }
     const existing = (await kvGet<PrintHistoryRecord[]>(KV_KEY)) ?? [];
     const updated  = [body, ...existing].slice(0, MAX_RECORDS);
-    await kvSetPermanent(KV_KEY, updated);
+    const saved = await kvSetPermanent(KV_KEY, updated);
+    if (!saved) return NextResponse.json({ ok: false, error: "저장에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "LABEL_HISTORY_SAVE_FAILED" }, { status: 500 });
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[label-history POST]", e);
@@ -58,17 +59,19 @@ export async function DELETE(req: NextRequest) {
     const id       = params.get("id");
     const keepLast = params.get("keepLast");
 
+    let saved: boolean;
     if (id) {
       const existing = (await kvGet<PrintHistoryRecord[]>(KV_KEY)) ?? [];
-      await kvSetPermanent(KV_KEY, existing.filter(r => r.id !== id));
+      saved = await kvSetPermanent(KV_KEY, existing.filter(r => r.id !== id));
     } else if (keepLast !== null) {
       const n        = Math.max(0, parseInt(keepLast, 10) || 0);
       const existing = (await kvGet<PrintHistoryRecord[]>(KV_KEY)) ?? [];
       // records are newest-first → keep first N
-      await kvSetPermanent(KV_KEY, existing.slice(0, n));
+      saved = await kvSetPermanent(KV_KEY, existing.slice(0, n));
     } else {
-      await kvSetPermanent(KV_KEY, []);
+      saved = await kvSetPermanent(KV_KEY, []);
     }
+    if (!saved) return NextResponse.json({ ok: false, error: "삭제에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "LABEL_HISTORY_SAVE_FAILED" }, { status: 500 });
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[label-history DELETE]", e);

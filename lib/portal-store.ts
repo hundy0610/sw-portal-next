@@ -10,9 +10,71 @@ import { DEFAULT_WORK_STAGES } from "@/types/work-tracker";
 const KV_NOTICES    = "portal:notices";
 const KV_COURSES    = "portal:courses";
 const KV_SWDB       = "portal:swdb";
+const KV_AUDIT      = "portal:audit_log";
+const KV_ADMIN_AUDIT = "portal:admin_audit_log";
 const KV_BUG_STAGES = "portal:bug_stages";
 const KV_WORK_STAGES = "portal:work_stages";
 const KV_DECLARATION_LOG = "portal:declaration_log";
+
+// ─── Audit Log ──────────────────────────────────────────
+export interface AuditLog {
+  id: string;
+  adminId: string;
+  adminName: string;
+  action: "create" | "update" | "delete" | "bulk-update";
+  target:
+    | "notices" | "courses" | "swdb" | "swresources" | "manuals"
+    | "exchangeReturn" | "hw" | "hwRepair" | "rentalHw" | "credentials"
+    | "repairTicket" | "meetingRental" | "meetingEquipment" | "contract" | "account"
+    | "orgChart";
+  itemTitle: string;
+  detail?: string;
+  timestamp: string; // ISO
+}
+
+// update 시 변경된 필드를 "필드명: 이전값 → 이후값" 형태로 요약 (지정한 필드만 비교)
+export function summarizeChanges<T>(
+  before: T | undefined,
+  after: Partial<T>,
+  fields: { key: keyof T; label: string; format?: (v: unknown) => string }[],
+): string | undefined {
+  if (!before) return undefined;
+  const fmtDefault = (v: unknown) => (v === undefined || v === null || v === "" ? "(없음)" : String(v));
+  const parts: string[] = [];
+  for (const f of fields) {
+    if (!(f.key in (after as object))) continue;
+    const oldV = before[f.key];
+    const newV = (after as T)[f.key];
+    if (JSON.stringify(oldV) === JSON.stringify(newV)) continue;
+    const fmt = f.format ?? fmtDefault;
+    parts.push(`${f.label}: ${fmt(oldV)} → ${fmt(newV)}`);
+  }
+  return parts.length ? parts.join(", ") : undefined;
+}
+
+export async function appendAuditLog(entry: Omit<AuditLog, "id">, key = KV_AUDIT): Promise<void> {
+  try {
+    const logs = (await kvGet<AuditLog[]>(key)) ?? [];
+    const newLog: AuditLog = { id: `al_${Date.now()}`, ...entry };
+    // 최대 500건 유지
+    const trimmed = [newLog, ...logs].slice(0, 500);
+    await kvSetPermanent(key, trimmed);
+  } catch (e) {
+    console.warn("[audit] log failed:", e);
+  }
+}
+
+export async function getAuditLogs(limit = 100, key = KV_AUDIT): Promise<AuditLog[]> {
+  try {
+    const logs = (await kvGet<AuditLog[]>(key)) ?? [];
+    return logs.slice(0, limit);
+  } catch {
+    return [];
+  }
+}
+
+export const appendAdminAuditLog = (entry: Omit<AuditLog, "id">) => appendAuditLog(entry, KV_ADMIN_AUDIT);
+export const getAdminAuditLogs = (limit = 100) => getAuditLogs(limit, KV_ADMIN_AUDIT);
 
 // ─── 실사 제출 이력 (개인/팀 실사 완료 기록) ──────────────────
 export async function appendDeclarationLog(entry: Omit<DeclarationLog, "id">): Promise<void> {
@@ -59,9 +121,13 @@ export async function getNotices(onlyVisible = true): Promise<Notice[]> {
   return onlyVisible ? data.filter(n => n.visible) : data;
 }
 
-export async function saveNotices(notices: Notice[]): Promise<void> {
-  await kvSetPermanent(KV_NOTICES, notices);
-  memSet(KV_NOTICES, notices, MEM_TTL); // 인메모리도 즉시 갱신
+// Redis 저장이 실패했는데 인메모리 캐시만 낙관적으로 갱신하면, 이 인스턴스가 살아있는
+// MEM_TTL(60초) 동안은 저장된 것처럼 보이다가 캐시가 만료되면 원래 값으로 되돌아가는
+// 더 헷갈리는 증상이 된다 — 저장 성공을 확인한 뒤에만 인메모리도 갱신한다.
+export async function saveNotices(notices: Notice[]): Promise<boolean> {
+  const ok = await kvSetPermanent(KV_NOTICES, notices);
+  if (ok) memSet(KV_NOTICES, notices, MEM_TTL);
+  return ok;
 }
 
 // ─── Courses ────────────────────────────────────────────
@@ -75,9 +141,10 @@ export async function getCourses(onlyVisible = true): Promise<Course[]> {
   return list.sort((a, b) => a.order - b.order);
 }
 
-export async function saveCourses(courses: Course[]): Promise<void> {
-  await kvSetPermanent(KV_COURSES, courses);
-  memSet(KV_COURSES, courses, MEM_TTL);
+export async function saveCourses(courses: Course[]): Promise<boolean> {
+  const ok = await kvSetPermanent(KV_COURSES, courses);
+  if (ok) memSet(KV_COURSES, courses, MEM_TTL);
+  return ok;
 }
 
 // ─── 버그리포트 칸반 단계 ──────────────────────────────────
@@ -90,9 +157,10 @@ export async function getBugStages(): Promise<BugStage[]> {
   return data;
 }
 
-export async function saveBugStages(stages: BugStage[]): Promise<void> {
-  await kvSetPermanent(KV_BUG_STAGES, stages);
-  memSet(KV_BUG_STAGES, stages, MEM_TTL);
+export async function saveBugStages(stages: BugStage[]): Promise<boolean> {
+  const ok = await kvSetPermanent(KV_BUG_STAGES, stages);
+  if (ok) memSet(KV_BUG_STAGES, stages, MEM_TTL);
+  return ok;
 }
 
 // ─── 작업 트래커 칸반 단계 ─────────────────────────────────
@@ -105,9 +173,10 @@ export async function getWorkStages(): Promise<WorkStage[]> {
   return data;
 }
 
-export async function saveWorkStages(stages: WorkStage[]): Promise<void> {
-  await kvSetPermanent(KV_WORK_STAGES, stages);
-  memSet(KV_WORK_STAGES, stages, MEM_TTL);
+export async function saveWorkStages(stages: WorkStage[]): Promise<boolean> {
+  const ok = await kvSetPermanent(KV_WORK_STAGES, stages);
+  if (ok) memSet(KV_WORK_STAGES, stages, MEM_TTL);
+  return ok;
 }
 
 // ─── SW DB (화이트/블랙리스트) ───────────────────────────
@@ -120,9 +189,10 @@ export async function getSwItems(): Promise<SwItem[]> {
   return data;
 }
 
-export async function saveSwItems(items: SwItem[]): Promise<void> {
-  await kvSetPermanent(KV_SWDB, items);
-  memSet(KV_SWDB, items, MEM_TTL);
+export async function saveSwItems(items: SwItem[]): Promise<boolean> {
+  const ok = await kvSetPermanent(KV_SWDB, items);
+  if (ok) memSet(KV_SWDB, items, MEM_TTL);
+  return ok;
 }
 
 // ─── Event Status ────────────────────────────────────────
@@ -139,7 +209,8 @@ export async function getEventOpen(): Promise<boolean> {
   return true; // default: open
 }
 
-export async function setEventOpen(open: boolean): Promise<void> {
-  memSet(KV_EVENT_OPEN, open, 3600 * 24 * 7);
-  await kvSetPermanent(KV_EVENT_OPEN, open);
+export async function setEventOpen(open: boolean): Promise<boolean> {
+  const ok = await kvSetPermanent(KV_EVENT_OPEN, open);
+  if (ok) memSet(KV_EVENT_OPEN, open, 3600 * 24 * 7);
+  return ok;
 }
