@@ -34,6 +34,9 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ ok: false, error: `올바르지 않은 이메일: ${invalid.join(", ")}` }, { status: 400 });
   }
 
-  await kvSetPermanent(NOTIFY_KEY, emails);
+  const saved = await kvSetPermanent(NOTIFY_KEY, emails);
+  if (!saved) {
+    return NextResponse.json({ ok: false, error: "저장에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "NOTIFY_EMAILS_SAVE_FAILED" }, { status: 500 });
+  }
   return NextResponse.json({ ok: true, emails });
 }

@@ -47,11 +47,7 @@ async function requireSuper(request: NextRequest): Promise<AdminSession | null> 
 }
 
 function hasKv(): boolean {
-  return !!(
-    process.env.REDIS_URL ||
-    process.env.UPSTASH_REDIS_REST_URL ||
-    process.env.KV_REST_API_URL
-  );
+  return !!(process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL);
 }
 
 async function getAccounts(): Promise<Account[]> {
@@ -63,9 +59,11 @@ async function getAccounts(): Promise<Account[]> {
   }
 }
 
-async function saveAccounts(accounts: Account[]): Promise<void> {
-  if (!hasKv()) return;
-  await kvSetPermanent(ACCOUNTS_KEY, accounts);
+// 계정 목록은 이 KV 키가 유일한 원본이라, 쓰기가 조용히 실패하면 화면엔 "저장됨"으로
+// 보이지만 실제로는 계정 생성/수정/삭제가 반영되지 않는 사고로 이어진다 — 반드시 확인한다.
+async function saveAccounts(accounts: Account[]): Promise<boolean> {
+  if (!hasKv()) return false;
+  return kvSetPermanent(ACCOUNTS_KEY, accounts);
 }
 
 async function syncGmLists(accounts: Account[]) {
@@ -145,7 +143,9 @@ export async function POST(request: NextRequest) {
     };
 
     accounts.push(newAccount);
-    await saveAccounts(accounts);
+    if (!(await saveAccounts(accounts))) {
+      return NextResponse.json({ ok: false, error: "계정 저장에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "ACCOUNT_SAVE_FAILED" }, { status: 500 });
+    }
     await syncGmLists(accounts);
 
     await appendAdminAuditLog({
@@ -199,7 +199,9 @@ export async function PATCH(request: NextRequest) {
         password:           hashPassword(tempPassword),
         mustChangePassword: true,
       };
-      await saveAccounts(accounts);
+      if (!(await saveAccounts(accounts))) {
+        return NextResponse.json({ ok: false, error: "저장에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "ACCOUNT_SAVE_FAILED" }, { status: 500 });
+      }
 
       const transporter = createMailTransporter();
       if (transporter) {
@@ -240,7 +242,9 @@ export async function PATCH(request: NextRequest) {
     }
 
     accounts[idx] = updated;
-    await saveAccounts(accounts);
+    if (!(await saveAccounts(accounts))) {
+      return NextResponse.json({ ok: false, error: "저장에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "ACCOUNT_SAVE_FAILED" }, { status: 500 });
+    }
 
     if (role !== undefined || active !== undefined) {
       await syncGmLists(accounts);
@@ -292,7 +296,9 @@ export async function DELETE(request: NextRequest) {
       accounts[idx] = { ...accounts[idx], active: false };
     }
 
-    await saveAccounts(accounts);
+    if (!(await saveAccounts(accounts))) {
+      return NextResponse.json({ ok: false, error: "저장에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "ACCOUNT_SAVE_FAILED" }, { status: 500 });
+    }
     await syncGmLists(accounts);
 
     await appendAdminAuditLog({

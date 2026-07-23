@@ -28,7 +28,9 @@ export async function POST(req: NextRequest) {
 
   if (body._action === "delete") {
     const target = all.find(c => c.id === body.id);
-    await saveCourses(all.filter(c => c.id !== body.id));
+    if (!(await saveCourses(all.filter(c => c.id !== body.id)))) {
+      return NextResponse.json({ ok: false, error: "저장에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "COURSE_SAVE_FAILED" }, { status: 500 });
+    }
     await appendAuditLog({
       adminId: session.userId, adminName,
       action: "delete", target: "courses",
@@ -40,7 +42,9 @@ export async function POST(req: NextRequest) {
 
   if (body._action === "update") {
     const target = all.find(c => c.id === body.id);
-    await saveCourses(all.map(c => c.id === body.id ? { ...c, ...body.data } : c));
+    if (!(await saveCourses(all.map(c => c.id === body.id ? { ...c, ...body.data } : c)))) {
+      return NextResponse.json({ ok: false, error: "저장에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "COURSE_SAVE_FAILED" }, { status: 500 });
+    }
     const detail = summarizeChanges(target, body.data, [
       { key: "title",   label: "제목" },
       { key: "visible", label: "공개 여부", format: v => (v ? "공개" : "숨김") },
@@ -70,7 +74,9 @@ export async function POST(req: NextRequest) {
     visible:      body.visible      ?? true,
     createdAt:    new Date().toISOString(),
   };
-  await saveCourses([...all, course]);
+  if (!(await saveCourses([...all, course]))) {
+    return NextResponse.json({ ok: false, error: "저장에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "COURSE_SAVE_FAILED" }, { status: 500 });
+  }
   await appendAuditLog({
     adminId: session.userId, adminName,
     action: "create", target: "courses",

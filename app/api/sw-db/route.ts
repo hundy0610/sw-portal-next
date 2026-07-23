@@ -49,7 +49,9 @@ export async function POST(req: NextRequest) {
       mandatory: false,
       description: "온라인 자산실사에서 미확인 SW로 감지되어 일괄 등록됨",
     }));
-    await saveSwItems([...items, ...newItems]);
+    if (!(await saveSwItems([...items, ...newItems]))) {
+      return NextResponse.json({ ok: false, error: "저장에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "SWDB_SAVE_FAILED" }, { status: 500 });
+    }
     await appendAuditLog({
       adminId: session.userId, adminName, action: "create", target: "swdb",
       itemTitle: `${newItems.length}건 일괄등록`, detail: names.join(", "), timestamp: new Date().toISOString(),
@@ -61,7 +63,9 @@ export async function POST(req: NextRequest) {
   if (body._action === "delete") {
     const target = items.find(i => i.id === body.id);
     const updated = items.filter(i => i.id !== body.id);
-    await saveSwItems(updated);
+    if (!(await saveSwItems(updated))) {
+      return NextResponse.json({ ok: false, error: "저장에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "SWDB_SAVE_FAILED" }, { status: 500 });
+    }
     await appendAuditLog({ adminId: session.userId, adminName, action: "delete", target: "swdb", itemTitle: target?.name ?? body.id, timestamp: new Date().toISOString() });
     return NextResponse.json({ ok: true });
   }
@@ -69,7 +73,9 @@ export async function POST(req: NextRequest) {
   // 수정
   if (body._action === "update") {
     const updated = items.map(i => i.id === body.id ? { ...i, ...body.data } : i);
-    await saveSwItems(updated);
+    if (!(await saveSwItems(updated))) {
+      return NextResponse.json({ ok: false, error: "저장에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "SWDB_SAVE_FAILED" }, { status: 500 });
+    }
     const target = items.find(i => i.id === body.id);
     const STATUS_LABEL: Record<string, string> = { approved: "승인", banned: "금지", conditional: "조건부" };
     const detail = summarizeChanges(target, body.data, [
@@ -93,7 +99,9 @@ export async function POST(req: NextRequest) {
     description:  body.description  ?? "",
     officialUrl:  body.officialUrl  || undefined,
   };
-  await saveSwItems([...items, newItem]);
+  if (!(await saveSwItems([...items, newItem]))) {
+    return NextResponse.json({ ok: false, error: "저장에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "SWDB_SAVE_FAILED" }, { status: 500 });
+  }
   await appendAuditLog({ adminId: session.userId, adminName, action: "create", target: "swdb", itemTitle: newItem.name, timestamp: new Date().toISOString() });
   return NextResponse.json({ ok: true, id: newItem.id });
 }

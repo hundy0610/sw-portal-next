@@ -37,7 +37,10 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as BuildingsConfig;
-    await kvSetPermanent(KV_KEY, body);
+    const saved = await kvSetPermanent(KV_KEY, body);
+    if (!saved) {
+      return NextResponse.json({ ok: false, error: "저장에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "BUILDINGS_SAVE_FAILED" }, { status: 500 });
+    }
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });

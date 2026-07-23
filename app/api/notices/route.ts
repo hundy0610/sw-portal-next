@@ -28,7 +28,9 @@ export async function POST(req: NextRequest) {
 
   if (body._action === "delete") {
     const target = all.find(n => n.id === body.id);
-    await saveNotices(all.filter(n => n.id !== body.id));
+    if (!(await saveNotices(all.filter(n => n.id !== body.id)))) {
+      return NextResponse.json({ ok: false, error: "저장에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "NOTICE_SAVE_FAILED" }, { status: 500 });
+    }
     await appendAuditLog({
       adminId: session.userId, adminName,
       action: "delete", target: "notices",
@@ -40,7 +42,9 @@ export async function POST(req: NextRequest) {
 
   if (body._action === "update") {
     const target = all.find(n => n.id === body.id);
-    await saveNotices(all.map(n => n.id === body.id ? { ...n, ...body.data } : n));
+    if (!(await saveNotices(all.map(n => n.id === body.id ? { ...n, ...body.data } : n)))) {
+      return NextResponse.json({ ok: false, error: "저장에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "NOTICE_SAVE_FAILED" }, { status: 500 });
+    }
     const detail = summarizeChanges(target, body.data, [
       { key: "title",   label: "제목" },
       { key: "visible", label: "공개 여부", format: v => (v ? "공개" : "숨김") },
@@ -67,7 +71,9 @@ export async function POST(req: NextRequest) {
     visible:  body.visible  ?? true,
     createdAt: new Date().toISOString(),
   };
-  await saveNotices([notice, ...all]);
+  if (!(await saveNotices([notice, ...all]))) {
+    return NextResponse.json({ ok: false, error: "저장에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "NOTICE_SAVE_FAILED" }, { status: 500 });
+  }
   await appendAuditLog({
     adminId: session.userId, adminName,
     action: "create", target: "notices",

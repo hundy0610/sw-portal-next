@@ -110,14 +110,19 @@ export async function kvMGet<T>(keys: string[]): Promise<(T | null)[]> {
 }
 
 /**
- * KV 캐시 삭제
+ * KV 캐시 삭제. 실패하면(예: Notion 수정 직후 캐시 무효화) 오래된 값이 다음 조회에서
+ * 그대로 다시 캐싱돼 한동안 낡은 데이터가 보일 수 있어, 다른 KV 함수들과 동일하게 한 번
+ * 재시도한다.
  */
 export async function kvDel(...keys: string[]): Promise<void> {
   const client = getClient();
   if (!client) return;
-  try {
-    await client.del(...keys);
-  } catch (e) {
-    console.warn("[KV] del failed:", keys, e);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      await client.del(...keys);
+      return;
+    } catch (e) {
+      if (attempt === 1) console.warn("[KV] del failed after retry:", keys, e);
+    }
   }
 }

@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ENV 슈퍼어드민은 비밀번호 변경 불필요
-    if (session.notionPageId && session.notionPageId !== "env-super" && process.env.REDIS_URL) {
+    if (session.notionPageId && session.notionPageId !== "env-super") {
       const accounts = (await kvGet<Account[]>(ACCOUNTS_KEY)) ?? [];
       const idx = accounts.findIndex(a => a.id === session.notionPageId);
       if (idx !== -1) {
@@ -37,7 +37,12 @@ export async function POST(request: NextRequest) {
           password:           hashPassword(newPassword),
           mustChangePassword: false,
         };
-        await kvSetPermanent(ACCOUNTS_KEY, accounts);
+        // 여기서 저장이 조용히 실패하면 "비밀번호를 바꿨다"고 믿은 사용자가 새 비밀번호로는
+        // 로그인이 안 되는 사고로 이어진다 — 반드시 확인해서 실패 시 명확히 알려야 한다.
+        const saved = await kvSetPermanent(ACCOUNTS_KEY, accounts);
+        if (!saved) {
+          return NextResponse.json({ error: "비밀번호 저장에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "PASSWORD_SAVE_FAILED" }, { status: 500 });
+        }
       }
     }
 

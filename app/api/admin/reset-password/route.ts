@@ -18,10 +18,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "아이디와 이메일을 입력해주세요" }, { status: 400 });
     }
 
-    if (!process.env.REDIS_URL) {
-      return NextResponse.json({ error: "계정 DB가 설정되지 않았습니다" }, { status: 500 });
-    }
-
     // Redis에서 userId + email 일치하는 활성 계정 조회
     const accounts = (await kvGet<Account[]>(ACCOUNTS_KEY)) ?? [];
     const account  = accounts.find(
@@ -99,10 +95,6 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    if (!process.env.REDIS_URL) {
-      return NextResponse.json({ error: "계정 DB가 설정되지 않았습니다" }, { status: 500 });
-    }
-
     // Redis 계정 배열에서 해당 계정 비밀번호 업데이트
     const accounts = (await kvGet<Account[]>(ACCOUNTS_KEY)) ?? [];
     const idx = accounts.findIndex(a => a.id === stored.accountId);
@@ -112,7 +104,12 @@ export async function PATCH(request: NextRequest) {
         password:           hashPassword(newPassword),
         mustChangePassword: false,
       };
-      await kvSetPermanent(ACCOUNTS_KEY, accounts);
+      // 인증코드는 이미 확인됐는데 저장만 조용히 실패하면, 사용자는 비밀번호를 초기화했다고
+      // 믿지만 실제로는 예전 비밀번호로만 로그인되는 상태가 된다 — 반드시 확인한다.
+      const saved = await kvSetPermanent(ACCOUNTS_KEY, accounts);
+      if (!saved) {
+        return NextResponse.json({ error: "비밀번호 저장에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "PASSWORD_SAVE_FAILED" }, { status: 500 });
+      }
     }
 
     await kvDel(RESET_KEY(userId));

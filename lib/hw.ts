@@ -249,7 +249,7 @@ export async function getHwAllForPatch(): Promise<HwRecord[] | null> {
 export async function patchHwCache(id: string, fields: Record<string, unknown>): Promise<void> {
   const kvPatchPromise = (async () => {
     const all = await getHwAllForPatch();
-    if (!all) return; // KV 미스 — warm 시 자연히 반영됨
+    if (!all) { console.warn("[HW] patchHwCache: hw:all KV 미스, 패치 스킵 (warm 시 자연히 반영됨)", id); return; }
     const updated = all.map(r => r.id === id ? { ...r, ...fields } : r);
     const stats   = computeHwStats(updated);
     await Promise.all([
@@ -270,7 +270,7 @@ export async function patchHwCache(id: string, fields: Record<string, unknown>):
 export async function patchHwCacheBulk(ids: string[], fields: Record<string, unknown>): Promise<void> {
   const kvPatchPromise = (async () => {
     const all = await getHwAllForPatch();
-    if (!all) return; // KV 미스 — warm 시 자연히 반영됨
+    if (!all) { console.warn("[HW] patchHwCacheBulk: hw:all KV 미스, 패치 스킵 (warm 시 자연히 반영됨)", ids); return; }
     const idSet = new Set(ids);
     const updated = all.map(r => idSet.has(r.id) ? { ...r, ...fields } : r);
     const stats   = computeHwStats(updated);
@@ -294,7 +294,7 @@ export async function patchHwCacheBulk(ids: string[], fields: Record<string, unk
 export async function removeFromHwCache(ids: string[]): Promise<void> {
   const idSet = new Set(ids);
   const all = await getHwAllForPatch();
-  if (!all) return; // KV 미스 — warm 시 자연히 반영됨
+  if (!all) { console.warn("[HW] removeFromHwCache: hw:all KV 미스, 제거 스킵 (warm 시 자연히 반영됨)", ids); return; }
   const updated = all.filter(r => !idSet.has(r.id));
   const stats   = computeHwStats(updated);
   await Promise.all([

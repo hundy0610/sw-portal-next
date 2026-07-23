@@ -27,6 +27,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "stages array required" }, { status: 400 });
   }
 
-  await saveWorkStages(stages);
+  if (!(await saveWorkStages(stages))) {
+    return NextResponse.json({ error: "저장에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "WORK_STAGES_SAVE_FAILED" }, { status: 500 });
+  }
   return NextResponse.json({ ok: true });
 }

@@ -24,7 +24,10 @@ export async function POST(req: NextRequest) {
   const ids = (await kvGet<string[]>(KEY)) ?? [];
   if (!ids.includes(id)) {
     ids.push(id);
-    await kvSetPermanent(KEY, ids);
+    const saved = await kvSetPermanent(KEY, ids);
+    if (!saved) {
+      return NextResponse.json({ ok: false, error: "발송 기록 저장에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "MAIL_SENT_SAVE_FAILED" }, { status: 500 });
+    }
   }
   return NextResponse.json({ ok: true, ids });
 }

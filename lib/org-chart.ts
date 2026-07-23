@@ -76,7 +76,8 @@ export async function fetchOrgUnits(): Promise<OrgUnit[]> {
 export async function createOrgUnit(data: Omit<OrgUnit, "id" | "notionUrl">): Promise<string> {
   const units = await loadUnits();
   const id = `org_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-  await kvSetPermanent(KV_KEY, [...units, { ...data, id, notionUrl: "" }]);
+  const ok = await kvSetPermanent(KV_KEY, [...units, { ...data, id, notionUrl: "" }]);
+  if (!ok) throw new Error("ORG_CHART_SAVE_FAILED");
   return id;
 }
 
@@ -86,14 +87,16 @@ export async function updateOrgUnit(id: string, data: Partial<Omit<OrgUnit, "id"
   if (idx === -1) throw new Error("조직을 찾을 수 없습니다.");
   const next = [...units];
   next[idx] = { ...next[idx], ...data };
-  await kvSetPermanent(KV_KEY, next);
+  const ok = await kvSetPermanent(KV_KEY, next);
+  if (!ok) throw new Error("ORG_CHART_SAVE_FAILED");
 }
 
 // 삭제된 조직을 상위조직으로 참조하던 하위 조직은 buildOrgTree에서 자동으로
 // 최상위 취급되므로(부모 id가 존재하지 않으면 root) 별도 정리가 필요 없다.
 export async function archiveOrgUnit(id: string): Promise<void> {
   const units = await loadUnits();
-  await kvSetPermanent(KV_KEY, units.filter(u => u.id !== id));
+  const ok = await kvSetPermanent(KV_KEY, units.filter(u => u.id !== id));
+  if (!ok) throw new Error("ORG_CHART_SAVE_FAILED");
 }
 
 // PC 실사 제출 기록에서 이메일 집합만 뽑아내는 순수 함수 — 이미 scans를 다른 목적으로

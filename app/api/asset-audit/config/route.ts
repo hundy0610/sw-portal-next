@@ -21,6 +21,10 @@ export async function POST(req: NextRequest) {
   }
   const body = await req.json();
   const patch: Partial<AssetAuditConfig> = body;
-  const next = await setAssetAuditConfig(patch);
-  return NextResponse.json({ ok: true, config: next });
+  try {
+    const next = await setAssetAuditConfig(patch);
+    return NextResponse.json({ ok: true, config: next });
+  } catch {
+    return NextResponse.json({ ok: false, error: "저장에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "ASSET_AUDIT_CONFIG_SAVE_FAILED" }, { status: 500 });
+  }
 }
