@@ -33,7 +33,8 @@ export async function POST(req: NextRequest) {
     if (existing.some(i => i.id === item.id)) {
       return NextResponse.json({ ok: true }); // 이미 존재
     }
-    await kvSetPermanent(KV_KEY, [...existing, item]);
+    const saved = await kvSetPermanent(KV_KEY, [...existing, item]);
+    if (!saved) return NextResponse.json({ ok: false, error: "저장에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "PRINT_QUEUE_SAVE_FAILED" }, { status: 500 });
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
@@ -44,7 +45,8 @@ export async function DELETE(req: NextRequest) {
   try {
     const id = new URL(req.url).searchParams.get("id");
     const existing = (await kvGet<PrintQueueItem[]>(KV_KEY)) ?? [];
-    await kvSetPermanent(KV_KEY, id ? existing.filter(i => i.id !== id) : []);
+    const saved = await kvSetPermanent(KV_KEY, id ? existing.filter(i => i.id !== id) : []);
+    if (!saved) return NextResponse.json({ ok: false, error: "저장에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "PRINT_QUEUE_SAVE_FAILED" }, { status: 500 });
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });

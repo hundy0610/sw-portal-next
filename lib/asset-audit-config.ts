@@ -66,6 +66,7 @@ export async function getAssetAuditConfig(): Promise<AssetAuditConfig> {
 export async function setAssetAuditConfig(patch: Partial<AssetAuditConfig>): Promise<AssetAuditConfig> {
   const current = await getAssetAuditConfig();
   const next = { ...current, ...patch };
-  await kvSetPermanent(CONFIG_KEY, next);
+  const saved = await kvSetPermanent(CONFIG_KEY, next);
+  if (!saved) throw new Error("ASSET_AUDIT_CONFIG_SAVE_FAILED");
   return next;
 }

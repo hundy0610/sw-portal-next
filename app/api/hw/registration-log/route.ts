@@ -37,7 +37,10 @@ export async function DELETE(req: NextRequest) {
   try {
     const id = new URL(req.url).searchParams.get("id");
     const existing = (await kvGet<RegistrationRecord[]>(KV_KEY)) ?? [];
-    await kvSetPermanent(KV_KEY, id ? existing.filter(r => r.id !== id) : []);
+    const saved = await kvSetPermanent(KV_KEY, id ? existing.filter(r => r.id !== id) : []);
+    if (!saved) {
+      return NextResponse.json({ ok: false, error: "삭제에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "REGISTRATION_LOG_SAVE_FAILED" }, { status: 500 });
+    }
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[registration-log DELETE]", e);

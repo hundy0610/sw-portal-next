@@ -40,8 +40,12 @@ export async function POST(req: NextRequest) {
       submittedAt: new Date().toISOString(),
     };
 
-    // 1. Redis에 저장 (빠른 읽기용)
-    await kvSet(KEY(ticketId), entry, FEEDBACK_TTL);
+    // 1. Redis에 저장 (빠른 읽기용 — GET은 Redis만 조회하므로 저장 실패 시
+    //    중복 제출 방지 체크(existing)도 무력화된다. 반드시 성공 여부를 확인한다.
+    const saved = await kvSet(KEY(ticketId), entry, FEEDBACK_TTL);
+    if (!saved) {
+      return NextResponse.json({ error: "저장에 실패했습니다. 잠시 후 다시 시도해주세요." }, { status: 500 });
+    }
 
     // 2. Notion 티켓 페이지에 영구 저장 (누적 보존)
     try {

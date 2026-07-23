@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getNotices, saveNotices } from "@/lib/portal-store";
-import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";
+import { getNotices, saveNotices, appendAuditLog, summarizeChanges } from "@/lib/portal-store";
+import { getSessionFromCookieHeader, resolveCurrentName, resolveCurrentRole } from "@/lib/session";
 import type { Notice } from "@/types/portal";
 
 async function getSuperSession(req: NextRequest) {
@@ -24,14 +24,39 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const all = await getNotices(false);
+  const adminName = await resolveCurrentName(session);
 
   if (body._action === "delete") {
-    await saveNotices(all.filter(n => n.id !== body.id));
+    const target = all.find(n => n.id === body.id);
+    if (!(await saveNotices(all.filter(n => n.id !== body.id)))) {
+      return NextResponse.json({ ok: false, error: "저장에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "NOTICE_SAVE_FAILED" }, { status: 500 });
+    }
+    await appendAuditLog({
+      adminId: session.userId, adminName,
+      action: "delete", target: "notices",
+      itemTitle: target?.title ?? body.id,
+      timestamp: new Date().toISOString(),
+    });
     return NextResponse.json({ ok: true });
   }
 
   if (body._action === "update") {
-    await saveNotices(all.map(n => n.id === body.id ? { ...n, ...body.data } : n));
+    const target = all.find(n => n.id === body.id);
+    if (!(await saveNotices(all.map(n => n.id === body.id ? { ...n, ...body.data } : n)))) {
+      return NextResponse.json({ ok: false, error: "저장에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "NOTICE_SAVE_FAILED" }, { status: 500 });
+    }
+    const detail = summarizeChanges(target, body.data, [
+      { key: "title",   label: "제목" },
+      { key: "visible", label: "공개 여부", format: v => (v ? "공개" : "숨김") },
+      { key: "urgent",  label: "긴급",     format: v => (v ? "긴급" : "일반") },
+    ]);
+    await appendAuditLog({
+      adminId: session.userId, adminName,
+      action: "update", target: "notices",
+      itemTitle: body.data?.title ?? target?.title ?? body.id,
+      detail,
+      timestamp: new Date().toISOString(),
+    });
     return NextResponse.json({ ok: true });
   }
 
@@ -46,6 +71,14 @@ export async function POST(req: NextRequest) {
     visible:  body.visible  ?? true,
     createdAt: new Date().toISOString(),
   };
-  await saveNotices([notice, ...all]);
+  if (!(await saveNotices([notice, ...all]))) {
+    return NextResponse.json({ ok: false, error: "저장에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "NOTICE_SAVE_FAILED" }, { status: 500 });
+  }
+  await appendAuditLog({
+    adminId: session.userId, adminName,
+    action: "create", target: "notices",
+    itemTitle: notice.title,
+    timestamp: new Date().toISOString(),
+  });
   return NextResponse.json({ ok: true, id: notice.id });
 }
