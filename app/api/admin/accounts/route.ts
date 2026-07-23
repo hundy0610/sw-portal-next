@@ -46,11 +46,7 @@ async function requireSuper(request: NextRequest): Promise<AdminSession | null> 
 }
 
 function hasKv(): boolean {
-  return !!(
-    process.env.REDIS_URL ||
-    process.env.UPSTASH_REDIS_REST_URL ||
-    process.env.KV_REST_API_URL
-  );
+  return !!(process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL);
 }
 
 async function getAccounts(): Promise<Account[]> {

@@ -18,10 +18,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "아이디와 이메일을 입력해주세요" }, { status: 400 });
     }
 
-    if (!process.env.REDIS_URL) {
-      return NextResponse.json({ error: "계정 DB가 설정되지 않았습니다" }, { status: 500 });
-    }
-
     // Redis에서 userId + email 일치하는 활성 계정 조회
     const accounts = (await kvGet<Account[]>(ACCOUNTS_KEY)) ?? [];
     const account  = accounts.find(
@@ -97,10 +93,6 @@ export async function PATCH(request: NextRequest) {
         { error: "인증코드가 올바르지 않거나 만료되었습니다" },
         { status: 400 },
       );
-    }
-
-    if (!process.env.REDIS_URL) {
-      return NextResponse.json({ error: "계정 DB가 설정되지 않았습니다" }, { status: 500 });
     }
 
     // Redis 계정 배열에서 해당 계정 비밀번호 업데이트

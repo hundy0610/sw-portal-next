@@ -31,7 +31,6 @@ export interface MonitorRequest {
 
 async function getRequests(): Promise<MonitorRequest[]> {
   try {
-    if (!process.env.REDIS_URL) return [];
     return (await kvGet<MonitorRequest[]>(REQUESTS_KEY)) ?? [];
   } catch {
     return [];
@@ -39,13 +38,11 @@ async function getRequests(): Promise<MonitorRequest[]> {
 }
 
 async function saveRequests(requests: MonitorRequest[]): Promise<void> {
-  if (!process.env.REDIS_URL) return;
   await kvSetPermanent(REQUESTS_KEY, requests);
 }
 
 async function getGeneralManagers(): Promise<string[]> {
   try {
-    if (!process.env.REDIS_URL) return [];
     return (await kvGet<string[]>(GM_KEY)) ?? [];
   } catch {
     return [];
@@ -55,7 +52,6 @@ async function getGeneralManagers(): Promise<string[]> {
 // 총무관리자에게 이메일 발송
 async function notifyGMs(request: MonitorRequest) {
   try {
-    if (!process.env.REDIS_URL) return;
     const details = (await kvGet<GmDetail[]>(GM_DETAILS_KEY)) ?? [];
     const emails = details.map(d => d.email).filter(Boolean);
     if (emails.length === 0) return;

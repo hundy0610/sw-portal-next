@@ -15,7 +15,6 @@ const GM_KEY       = "sw:general-managers";
 
 async function getRequests(): Promise<MonitorRequest[]> {
   try {
-    if (!process.env.REDIS_URL) return [];
     return (await kvGet<MonitorRequest[]>(REQUESTS_KEY)) ?? [];
   } catch {
     return [];
@@ -23,13 +22,11 @@ async function getRequests(): Promise<MonitorRequest[]> {
 }
 
 async function saveRequests(requests: MonitorRequest[]): Promise<void> {
-  if (!process.env.REDIS_URL) return;
   await kvSetPermanent(REQUESTS_KEY, requests);
 }
 
 async function getGeneralManagers(): Promise<string[]> {
   try {
-    if (!process.env.REDIS_URL) return [];
     return (await kvGet<string[]>(GM_KEY)) ?? [];
   } catch {
     return [];

@@ -52,10 +52,6 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
-  if (!process.env.REDIS_URL) {
-    return NextResponse.json({ error: "REDIS_URL 환경변수가 설정되지 않았습니다" }, { status: 500 });
-  }
-
   try {
     const notion = new Client({ auth: NOTION_TOKEN });
     const notionAccounts: Account[] = [];

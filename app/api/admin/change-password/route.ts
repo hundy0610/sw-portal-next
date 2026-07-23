@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ENV 슈퍼어드민은 비밀번호 변경 불필요
-    if (session.notionPageId && session.notionPageId !== "env-super" && process.env.REDIS_URL) {
+    if (session.notionPageId && session.notionPageId !== "env-super") {
       const accounts = (await kvGet<Account[]>(ACCOUNTS_KEY)) ?? [];
       const idx = accounts.findIndex(a => a.id === session.notionPageId);
       if (idx !== -1) {
