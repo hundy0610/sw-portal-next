@@ -13,20 +13,21 @@ import type { PcScanRecordWithMatch, PcScanEditFields } from "@/lib/pc-scan";
 import type { HwRecord } from "@/lib/hw";
 import { useAssetFlowSync, AssetFlowSyncSection, type DispatchRow } from "@/components/admin/shared/AssetFlowSync";
 import { fetchAssetFlowCandidates, matchAssetFlowCandidates, type AssetFlowCandidate } from "@/lib/hw-register-flow";
+import { COMPANIES } from "@/lib/companies";
 
-// 마스터 DB에 이미 쓰이는 제조사 표기와 대소문자 무시하고 정확히 일치할 때만 채택
-// (스캔값 원본은 마스터 표기와 다른 경우가 많아 그대로 쓰지 않음 — PcScanPanel과 동일 로직)
+// 마스터 DB에 이미 쓰이는 제조사 표기와 대소문자 무시하고 정확히 일치하면 그 표준 표기를 채택
+// (대소문자 차이만 있는 경우 표준 표기로 통일하되, 일치하는 게 없으면 수집값을 그대로 보존한다 —
+// 예전엔 일치하는 게 없으면 빈 값이 되어 제조사가 통째로 사라져 보이는 문제가 있었음)
 function bestMakerMatch(raw: string, options: string[]): string {
   if (!raw) return "";
-  return options.find(o => o.toLowerCase() === raw.toLowerCase()) ?? "";
+  return options.find(o => o.toLowerCase() === raw.toLowerCase()) ?? raw;
 }
-const CUSTOM_MAKER = "__custom__";
 
 interface Filters { assetNo: string; corp: string; dept: string; userName: string; onlyUnregistered: boolean; }
 const EMPTY_FILTERS: Filters = { assetNo: "", corp: "", dept: "", userName: "", onlyUnregistered: true };
 
 interface RegRow {
-  id: string; assetNo: string; maker: string; makerCustom: boolean; model: string; serial: string;
+  id: string; assetNo: string; maker: string; model: string; serial: string;
   company: string; user: string; dept: string; cpu: string; ram: string; mac: string; email: string;
   price: number;
 }
@@ -52,6 +53,42 @@ function isDiffField(f: FieldDiff): boolean {
   return f.scanVal.trim() !== "" && f.scanVal.trim() !== f.masterVal.trim();
 }
 
+const REG_INPUT_CLS = "w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-400";
+
+// 표준 목록(datalist)을 참고용으로 붙인 입력 — 목록에 없는 값도 자유롭게 입력 가능하고,
+// 목록과 다르면 "불일치" 안내만 보여준다 (강제로 막지 않음)
+function RegFieldInput({ label, value, onChange, required, listId, options }: {
+  label: string; value: string; onChange: (v: string) => void; required?: boolean;
+  listId?: string; options?: string[];
+}) {
+  const mismatch = !!options && value.trim() !== "" && !options.some(o => o.toLowerCase() === value.trim().toLowerCase());
+  return (
+    <div>
+      <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">{label}{required ? " *" : ""}</label>
+      <input list={listId} value={value} onChange={e => onChange(e.target.value)} className={REG_INPUT_CLS} />
+      {listId && options && <datalist id={listId}>{options.map(o => <option key={o} value={o} />)}</datalist>}
+      {mismatch && <p className="text-[11px] text-amber-600 mt-0.5">⚠ 표준 목록과 불일치 (그대로 등록 가능)</p>}
+    </div>
+  );
+}
+
+// 단가 입력 — 천 단위 콤마를 자동으로 표시하고, 입력값에서 숫자만 추출해 저장한다
+function PriceFieldInput({ label, value, onChange }: { label: string; value: number; onChange: (n: number) => void }) {
+  return (
+    <div>
+      <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">{label}</label>
+      <input
+        type="text"
+        inputMode="numeric"
+        value={value > 0 ? value.toLocaleString("ko-KR") : ""}
+        placeholder="0"
+        onChange={e => onChange(Number(e.target.value.replace(/\D/g, "")) || 0)}
+        className={REG_INPUT_CLS}
+      />
+    </div>
+  );
+}
+
 function RegisterSelectedModal({
   rows, makerOptions, registering, error, onChange, onSubmit, onClose,
 }: {
@@ -75,46 +112,31 @@ function RegisterSelectedModal({
         onClick={e => e.stopPropagation()}
       >
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="font-bold text-gray-900 text-base">선택 {rows.length}건 등록 확인</h3>
+          <h3 className="font-bold text-gray-900 text-base">{rows.length}건 등록 확인</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
         </div>
         <p className="px-6 pt-3 text-xs text-gray-400">
-          스캔값으로 자동 채워졌습니다. 자산번호·제조사는 필수이며, 마스터 DB 표기와 다르면 목록에서 다시 선택하세요.
+          수집된 값이 기본값으로 채워졌습니다. 자산번호·제조사는 필수이며, 모든 항목을 자유롭게 수정할 수 있습니다.
         </p>
-        <div className="overflow-y-auto flex-1 px-6 py-4 space-y-3">
+        <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
           {rows.map((r, i) => (
-            <div key={r.id} className="border border-gray-200 rounded-xl p-3 grid grid-cols-2 gap-3">
-              <div className="col-span-2 text-xs text-gray-500 font-medium">{r.user || "사용자 미상"} · {r.model || "모델 미상"}</div>
-              <div>
-                <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">자산번호 *</label>
-                <input value={r.assetNo} onChange={e => update(i, { assetNo: e.target.value })}
-                  className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-400" />
-              </div>
-              <div>
-                <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">제조사 *</label>
-                {r.makerCustom ? (
-                  <div className="flex items-center gap-2">
-                    <input value={r.maker} onChange={e => update(i, { maker: e.target.value })} placeholder="제조사명 입력"
-                      className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-400" />
-                    <button type="button" onClick={() => update(i, { makerCustom: false, maker: "" })}
-                      className="text-[11px] text-gray-400 hover:text-gray-600 whitespace-nowrap">목록</button>
-                  </div>
-                ) : (
-                  <select value={r.maker} onChange={e => {
-                    if (e.target.value === CUSTOM_MAKER) update(i, { makerCustom: true, maker: "" });
-                    else update(i, { maker: e.target.value });
-                  }} className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg">
-                    <option value="">— 선택 —</option>
-                    {makerOptions.map(m => <option key={m} value={m}>{m}</option>)}
-                    <option value={CUSTOM_MAKER}>+ 직접 입력</option>
-                  </select>
-                )}
-              </div>
-              <div>
-                <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">단가</label>
-                <input type="number" min="0" value={r.price || ""} placeholder="0"
-                  onChange={e => update(i, { price: Number(e.target.value) || 0 })}
-                  className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-400" />
+            <div key={r.id} className="border border-gray-200 rounded-xl p-3 space-y-2">
+              <div className="text-xs text-gray-500 font-medium">{r.user || "사용자 미상"} · {r.model || "모델 미상"}</div>
+              <div className="grid grid-cols-2 gap-3">
+                <RegFieldInput label="자산번호" required value={r.assetNo} onChange={v => update(i, { assetNo: v })} />
+                <RegFieldInput label="제조사" required value={r.maker} onChange={v => update(i, { maker: v })}
+                  listId={`maker-opts-${i}`} options={makerOptions} />
+                <RegFieldInput label="모델명" value={r.model} onChange={v => update(i, { model: v })} />
+                <RegFieldInput label="시리얼" value={r.serial} onChange={v => update(i, { serial: v })} />
+                <RegFieldInput label="법인명" value={r.company} onChange={v => update(i, { company: v })}
+                  listId={`corp-opts-${i}`} options={COMPANIES} />
+                <RegFieldInput label="부서" value={r.dept} onChange={v => update(i, { dept: v })} />
+                <RegFieldInput label="사용자" value={r.user} onChange={v => update(i, { user: v })} />
+                <RegFieldInput label="이메일" value={r.email} onChange={v => update(i, { email: v })} />
+                <RegFieldInput label="CPU" value={r.cpu} onChange={v => update(i, { cpu: v })} />
+                <RegFieldInput label="RAM" value={r.ram} onChange={v => update(i, { ram: v })} />
+                <RegFieldInput label="MAC" value={r.mac} onChange={v => update(i, { mac: v })} />
+                <PriceFieldInput label="단가" value={r.price} onChange={v => update(i, { price: v })} />
               </div>
             </div>
           ))}
@@ -392,8 +414,9 @@ function DetailModal({ record, masterStatus, onClose, onSaved }: {
             </div>
             <div>
               <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">단가</label>
-              <input type="number" min="0" className={DETAIL_INPUT_CLS} value={price || ""} placeholder="0"
-                onChange={e => setPrice(Number(e.target.value) || 0)} />
+              <input type="text" inputMode="numeric" className={DETAIL_INPUT_CLS}
+                value={price > 0 ? price.toLocaleString("ko-KR") : ""} placeholder="0"
+                onChange={e => setPrice(Number(e.target.value.replace(/\D/g, "")) || 0)} />
             </div>
           </div>
 
@@ -521,6 +544,9 @@ export default function PcRegisterPanel() {
   // 마스터와 관계가 없으면 "미등록"(신규 등록 가능), 관계는 있지만 값이 달라진 곳이 있으면
   // "업데이트"(선택 반영 필요), 전부 동일하면 "등록됨".
   function rowMasterStatus(r: PcScanRecordWithMatch): { status: "registered" | "update" | "unregistered"; master?: HwRecord } {
+    // 운영자가 직접 등록 완료 처리한 건은 Notion 체크박스(등록완료)를 그대로 신뢰한다 —
+    // 마스터 캐시(Redis) 갱신 지연/유실과 무관하게 항상 정확한 상태를 보장하기 위함.
+    if (r.registered) return { status: "registered" };
     const master = findMasterMatch(r);
     if (!master) return { status: "unregistered" };
     const hasDiff = computeFieldDiffs(r, master).some(isDiffField);
@@ -570,16 +596,28 @@ export default function PcRegisterPanel() {
       : new Set(selectableFiltered.map(r => r.id)));
   }
 
+  function buildRegRow(r: PcScanRecordWithMatch): RegRow {
+    return {
+      id: r.id, assetNo: r.assetNo, model: r.model, serial: r.serial,
+      maker: bestMakerMatch(r.manufacturer, makerOptions),
+      company: r.corp, user: r.userName, dept: r.dept, cpu: r.cpu, ram: r.ram, mac: r.mac, email: r.email,
+      price: r.price || 0,
+    };
+  }
+
   function openRegisterSelected() {
     // 체크박스로 막아두지만, 그 사이 마스터에 등록된 경우까지 대비해 한 번 더 방어적으로 걸러낸다.
     const chosen = filtered.filter(r => selected.has(r.id) && rowMasterStatus(r).status === "unregistered");
     if (chosen.length === 0) return;
-    setRegRows(chosen.map(r => ({
-      id: r.id, assetNo: r.assetNo, model: r.model, serial: r.serial,
-      maker: bestMakerMatch(r.manufacturer, makerOptions), makerCustom: false,
-      company: r.corp, user: r.userName, dept: r.dept, cpu: r.cpu, ram: r.ram, mac: r.mac, email: r.email,
-      price: r.price || 0,
-    })));
+    setRegRows(chosen.map(buildRegRow));
+    setRegError("");
+    setRegSummary(null);
+    sync.resetSync();
+  }
+
+  // "미등록" 배지 클릭 — 그 한 건만 바로 등록 확인 모달을 연다 (체크박스 선택 없이)
+  function openRegisterOne(r: PcScanRecordWithMatch) {
+    setRegRows([buildRegRow(r)]);
     setRegError("");
     setRegSummary(null);
     sync.resetSync();
@@ -613,8 +651,9 @@ export default function PcRegisterPanel() {
       const successIdxSet = new Set<number>((json.results ?? []).filter((x: any) => x.ok).map((x: any) => x.index));
       const successRows: DispatchRow[] = rows.filter((_, i) => successIdxSet.has(i));
       const registeredIds = regRows.filter((_, i) => successIdxSet.has(i)).map(r => r.id);
+      const registeredAt = new Date().toISOString();
 
-      setRecords(prev => prev.map(r => registeredIds.includes(r.id) ? { ...r, masterExists: true } : r));
+      setRecords(prev => prev.map(r => registeredIds.includes(r.id) ? { ...r, masterExists: true, registered: true, registeredAt } : r));
       setSelected(prev => {
         const next = new Set(prev);
         registeredIds.forEach(id => next.delete(id));
@@ -622,6 +661,15 @@ export default function PcRegisterPanel() {
       });
       setRegSummary({ success: json.success ?? 0, failed: json.failed ?? 0 });
       setRegRows(null);
+
+      // 수집 기록 자체에 등록완료 플래그를 남긴다 — Redis 마스터 캐시 상태와 무관하게
+      // "이 건은 운영자가 직접 등록했다"는 사실을 Notion에 영구적으로 남기기 위함
+      await Promise.all(registeredIds.map(id =>
+        fetch("/api/admin/pc-register", {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, fields: { registered: true, registeredAt } }),
+        }).catch(e => console.warn("[PcRegisterPanel] 등록완료 플래그 기록 실패:", id, e))
+      ));
 
       // 엑셀 일괄 등록과 동일한 후속 체인 (지급 이력 기록 + 자산흐름관리 연동)
       await sync.runPostRegistration(successRows);
@@ -753,7 +801,10 @@ export default function PcRegisterPanel() {
                     ) : mStatus === "registered" ? (
                       <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-green-100 text-green-700">등록됨</span>
                     ) : (
-                      <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-500">미등록</span>
+                      <button onClick={() => openRegisterOne(r)}
+                        className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-700 hover:bg-blue-200">
+                        미등록
+                      </button>
                     )}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">

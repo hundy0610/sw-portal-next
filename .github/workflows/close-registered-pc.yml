@@ -1,0 +1,24 @@
+name: Close Registered PC (Cron)
+
+on:
+  schedule:
+    # 매일 오전 10시 (KST) = UTC 01:00 — 전월 이전에 등록 완료된 PC 신규 등록 건을 종료 케이스로 정리
+    - cron: '0 1 * * *'
+  workflow_dispatch:  # 수동 실행 가능
+
+jobs:
+  close-registered-pc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call close-registered-pc cron endpoint
+        run: |
+          response=$(curl -s -o /tmp/response.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://swportal.vercel.app/api/cron/close-registered-pc)
+          echo "HTTP Status: $response"
+          cat /tmp/response.json
+          if [ "$response" != "200" ]; then
+            echo "Error: Non-200 response"
+            exit 1
+          fi
