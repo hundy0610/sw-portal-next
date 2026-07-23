@@ -30,7 +30,8 @@ export async function GET(req: NextRequest) {
 
     if (!hwAll) triggerWarmHw().catch(console.warn);
 
-    const data = matchPcScansWithHw(scans, hwAll ?? []);
+    // 종료(전월 이전 등록 완료 건 일괄 정리, cron이 표시) 처리된 건은 기본 목록에서 제외
+    const data = matchPcScansWithHw(scans.filter(s => !s.closed), hwAll ?? []);
     return NextResponse.json({ ok: true, data, masterCacheWarming: !hwAll });
   } catch (e) {
     console.error("[GET /api/admin/pc-register]", e);

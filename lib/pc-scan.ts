@@ -165,6 +165,12 @@ export interface PcScanRecord {
   collectedAt: string;
   price: number;
   masterExists: boolean;
+  /** 운영자가 이 스캔 건을 실제로 마스터(HW DB)에 등록 완료했는지 — Redis 캐시가 아닌
+   *  Notion 자체 체크박스로 관리해, 캐시 갱신 지연/유실과 무관하게 항상 정확하다. */
+  registered: boolean;
+  registeredAt: string;
+  /** 등록 완료 후 일정 기간(전월 이전)이 지나 일괄 정리된 종료 케이스 */
+  closed: boolean;
   programFileName: string;
   programFileUrl: string;
   notionUrl: string;
@@ -285,6 +291,9 @@ export async function fetchPcScans(dbEnvVar: string = "NOTION_DB_PC_SCAN"): Prom
         collectedAt:  (p["수집일시"]?.type === "date" ? (p["수집일시"].date as { start?: string } | null)?.start : "") ?? "",
         price:        p["단가"]?.type === "number" ? ((p["단가"].number as number | null) ?? 0) : 0,
         masterExists: p["마스터존재"]?.type === "checkbox" ? (p["마스터존재"].checkbox as boolean) : false,
+        registered:   p["등록완료"]?.type === "checkbox" ? (p["등록완료"].checkbox as boolean) : false,
+        registeredAt: (p["등록일시"]?.type === "date" ? (p["등록일시"].date as { start?: string } | null)?.start : "") ?? "",
+        closed:       p["종료"]?.type === "checkbox" ? (p["종료"].checkbox as boolean) : false,
         ...(() => {
           const files = p["설치프로그램"]?.type === "files"
             ? (p["설치프로그램"].files as { name?: string; type: string; file?: { url: string } }[])
@@ -320,6 +329,9 @@ export interface PcScanEditFields {
   storage?: string;
   mac?: string;
   price?: number;
+  registered?: boolean;
+  registeredAt?: string;
+  closed?: boolean;
 }
 
 function buildEditProperties(fields: PcScanEditFields): Record<string, unknown> {
@@ -342,6 +354,9 @@ function buildEditProperties(fields: PcScanEditFields): Record<string, unknown> 
   if (fields.originalCorp   !== undefined) props["원소속법인"] = fields.originalCorp ? { select: { name: fields.originalCorp } } : { select: null };
   if (fields.isDualOrShared !== undefined) props["겸직/쉐어드"] = { checkbox: !!fields.isDualOrShared };
   if (fields.price          !== undefined) props["단가"] = { number: fields.price };
+  if (fields.registered     !== undefined) props["등록완료"] = { checkbox: !!fields.registered };
+  if (fields.registeredAt   !== undefined) props["등록일시"] = fields.registeredAt ? { date: { start: fields.registeredAt } } : { date: null };
+  if (fields.closed         !== undefined) props["종료"] = { checkbox: !!fields.closed };
 
   return props;
 }
