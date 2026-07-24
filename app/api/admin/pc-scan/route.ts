@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";
 import { fetchPcScans, matchPcScansWithHw, updatePcScan, deletePcScan, type PcScanEditFields } from "@/lib/pc-scan";
 import { type HwRecord } from "@/lib/hw";
+import { getHwAllFromPostgres } from "@/lib/repo/hw";
 import { kvGet } from "@/lib/kv-store";
 import { triggerWarmHw } from "@/lib/trigger-warm-hw";
 import { errorMessage } from "@/lib/api-error";
@@ -20,11 +21,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [scans, hwAll] = await Promise.all([
+    // HW 마스터 대조는 맥북 Postgres 우선(항상 최신) — 미설정/실패 시에만 hw:all KV 캐시로 폴백.
+    const [scans, pgHw] = await Promise.all([
       fetchPcScans(),
-      kvGet<HwRecord[]>("hw:all"),
+      getHwAllFromPostgres(),
     ]);
-
+    const hwAll = pgHw ?? await kvGet<HwRecord[]>("hw:all");
     if (!hwAll) triggerWarmHw().catch(console.warn);
 
     const data = matchPcScansWithHw(scans, hwAll ?? []);
