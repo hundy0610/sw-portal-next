@@ -52,6 +52,26 @@ export async function GET(req: NextRequest) {
   const kvAll = await kvGet<HwRecord[]>("hw:all");
   const kvRecord = kvAll?.find(r => r.assetNo === assetNo) ?? null;
 
+  // getHwAllFromPostgres()와 동일한 필터/정렬이지만 페이지네이션 루프 없이 한 번에 큰 range로 조회
+  // (기존은 1000개씩 나눠서 최대 100번 반복) — 루프 자체가 원인인지 확인용.
+  let oneShot: { ok: boolean; count: number | null; record: unknown } = { ok: false, count: null, record: null };
+  {
+    const url2 = process.env.SUPABASE_URL;
+    const key2 = process.env.SUPABASE_KEY;
+    if (url2 && key2) {
+      const sb2 = createClient(url2, key2, { auth: { persistSession: false, autoRefreshToken: false } });
+      const { data, error } = await sb2
+        .from("hw")
+        .select("assetNo,user,lastModifiedAt,lastModifiedBy,updated_at")
+        .eq("deleted", false)
+        .order("purchaseDate", { ascending: false })
+        .range(0, 9999);
+      oneShot.ok = !error;
+      oneShot.count = data?.length ?? null;
+      oneShot.record = data?.find((r: { assetNo: string }) => r.assetNo === assetNo) ?? null;
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     postgresEnabled: isPostgresEnabled(),
@@ -61,5 +81,6 @@ export async function GET(req: NextRequest) {
     rowCount: allRows?.length ?? null,
     fullList: { ok: fullListOk, ms: fullListMs, count: fullListCount, recordInFullList },
     kvAllCache: { present: !!kvAll, count: kvAll?.length ?? null, recordInKv: kvRecord ? { user: kvRecord.user, lastModifiedAt: kvRecord.lastModifiedAt, lastModifiedBy: kvRecord.lastModifiedBy } : null },
+    oneShotNoPagination: oneShot,
   });
 }
