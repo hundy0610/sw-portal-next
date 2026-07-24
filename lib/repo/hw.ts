@@ -11,6 +11,7 @@ import type { HwRecord } from "@/lib/hw";
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
+// KV 와 동일한 서버 전용 service_role 키(브라우저 노출 금지). RLS 우회로 읽기 수행.
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 // 공개 Funnel 경로에 대한 커스텀 공유 시크릿(보완책, 선택). 값이 있을 때만 헤더로 전송한다.
 const SWP_DB_SECRET = process.env.SWP_DB_SECRET;
