@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Client } from "@notionhq/client";
 import nodemailer from "nodemailer";
+import { readEntityOne, upsertEntity } from "@/lib/repo/mirror";
+import type { HelpDeskTicket } from "@/lib/notion";
 
-const notion = new Client({ auth: process.env.NOTION_TOKEN });
-const SENT_PROPERTY = "평가메일발송";
+const HD_ENTITY = "helpdesk";
 
 function buildEmailHtml(opts: {
   requesterName: string;
@@ -108,10 +108,10 @@ export async function POST(req: NextRequest) {
     if (!ticketId || !requesterEmail)
       return NextResponse.json({ error: "ticketId, requesterEmail 필수" }, { status: 400 });
 
-    // 중복 발송 방지 — Notion 티켓의 체크박스 속성을 기준으로 판단 (Redis 장애와 무관하게 항상 정확)
-    const page = await notion.pages.retrieve({ page_id: ticketId }) as any;
-    const alreadySent = page.properties?.[SENT_PROPERTY]?.checkbox === true;
-    if (alreadySent) return NextResponse.json({ ok: true, skipped: true, reason: "이미 발송됨" });
+    // 중복 발송 방지 — 미러(메인) 레코드의 발송 플래그를 기준으로 판단.
+    const ticket = await readEntityOne<HelpDeskTicket>(HD_ENTITY, ticketId);
+    if (!ticket) return NextResponse.json({ error: "티켓을 찾을 수 없습니다." }, { status: 404 });
+    if (ticket.feedbackEmailSent) return NextResponse.json({ ok: true, skipped: true, reason: "이미 발송됨" });
 
     const origin = process.env.NEXT_PUBLIC_APP_URL || "https://assetify-desk-main.vercel.app";
     const feedbackUrl = `${origin}/inquiry/feedback/${ticketId}`;
@@ -130,10 +130,7 @@ export async function POST(req: NextRequest) {
       html,
     });
 
-    await notion.pages.update({
-      page_id: ticketId,
-      properties: { [SENT_PROPERTY]: { checkbox: true } } as Parameters<typeof notion.pages.update>[0]["properties"],
-    });
+    await upsertEntity(HD_ENTITY, ticketId, { ...ticket, feedbackEmailSent: true, lastEditedAt: new Date().toISOString() });
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[POST /api/helpdesk/send-feedback]", e);
@@ -145,7 +142,6 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id 필요" }, { status: 400 });
-  const page = await notion.pages.retrieve({ page_id: id }) as any;
-  const sent = page.properties?.[SENT_PROPERTY]?.checkbox === true;
-  return NextResponse.json({ sent });
+  const ticket = await readEntityOne<HelpDeskTicket>(HD_ENTITY, id);
+  return NextResponse.json({ sent: !!ticket?.feedbackEmailSent });
 }

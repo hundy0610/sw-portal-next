@@ -2,6 +2,7 @@ import { Client } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
 import { isMock, mockHwRecords } from "./mock";
 import { kvGet, kvSet, kvSetPermanent } from "./kv-store";
+import { updateHwFields } from "./repo/hw";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
@@ -317,34 +318,14 @@ export async function markHwVerifiedByScanMatch(
   id: string,
   extra?: { mac?: string; email?: string; cpu?: string; ram?: string }
 ): Promise<void> {
-  const properties: Record<string, unknown> = {
-    "사용/재고/폐기/기타": { select: { name: "사용중" } },
-    "실사확인": { checkbox: true },
-  };
   const patch: Record<string, unknown> = { status: "사용중", verified: true };
+  if (extra?.mac)   patch.mac   = extra.mac;
+  if (extra?.email) patch.email = extra.email;
+  if (extra?.cpu)   patch.cpu   = extra.cpu;
+  if (extra?.ram)   patch.ram   = extra.ram;
 
-  if (extra?.mac) {
-    properties["MAC"] = { rich_text: [{ text: { content: extra.mac } }] };
-    patch.mac = extra.mac;
-  }
-  if (extra?.email) {
-    properties["이메일"] = { email: extra.email };
-    patch.email = extra.email;
-  }
-  if (extra?.cpu) {
-    properties["CPU"] = { rich_text: [{ text: { content: extra.cpu } }] };
-    patch.cpu = extra.cpu;
-  }
-  if (extra?.ram) {
-    properties["RAM"] = { rich_text: [{ text: { content: extra.ram } }] };
-    patch.ram = extra.ram;
-  }
-
-  await notion.pages.update({
-    page_id: id,
-    properties: properties as Parameters<typeof notion.pages.update>[0]["properties"],
-  });
-  await patchHwCache(id, patch);
+  // 메인 저장소(맥북 Postgres)에 write-through + dirty → 5분 뒤 Notion 백업.
+  await updateHwFields(id, patch);
 }
 
 /**
@@ -356,24 +337,13 @@ export async function fillMissingHwContactInfo(
   id: string,
   extra: { mac?: string; email?: string }
 ): Promise<void> {
-  const properties: Record<string, unknown> = {};
   const patch: Record<string, unknown> = {};
+  if (extra.mac)   patch.mac   = extra.mac;
+  if (extra.email) patch.email = extra.email;
+  if (Object.keys(patch).length === 0) return;
 
-  if (extra.mac) {
-    properties["MAC"] = { rich_text: [{ text: { content: extra.mac } }] };
-    patch.mac = extra.mac;
-  }
-  if (extra.email) {
-    properties["이메일"] = { email: extra.email };
-    patch.email = extra.email;
-  }
-  if (Object.keys(properties).length === 0) return;
-
-  await notion.pages.update({
-    page_id: id,
-    properties: properties as Parameters<typeof notion.pages.update>[0]["properties"],
-  });
-  await patchHwCache(id, patch);
+  // 메인 저장소(맥북 Postgres)에 write-through + dirty → 5분 뒤 Notion 백업.
+  await updateHwFields(id, patch);
 }
 
 async function queryWithRetry(params: Parameters<typeof notion.databases.query>[0], maxRetries = 3) {

@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
-import { Client } from "@notionhq/client";
 import { fetchSwDatabase } from "@/lib/notion";
-import { kvDel } from "@/lib/kv-store";
-import { memDel } from "@/lib/mem-cache";
+import { deleteEntity } from "@/lib/repo/mirror";
+import { SW_ENTITY } from "@/lib/sw-notion";
 
 export const dynamic = "force-dynamic";
-const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
 // 만료 처리 후 30일 경과 시 자동 삭제
 const DELETE_AFTER_DAYS = 30;
@@ -26,18 +24,9 @@ export async function GET() {
 
     let deleted = 0, errors = 0;
     for (const r of toDelete) {
-      try {
-        await notion.pages.update({ page_id: r.id, archived: true });
-        deleted++;
-        await new Promise(res => setTimeout(res, 350));
-      } catch {
-        errors++;
-      }
-    }
-
-    if (deleted > 0) {
-      memDel("sw:all");
-      await kvDel("sw:all");
+      // 미러(메인) 소프트 삭제 → 5분 백업 러너가 Notion 페이지를 archive.
+      const ok = await deleteEntity(SW_ENTITY, r.id);
+      if (ok) deleted++; else errors++;
     }
 
     return NextResponse.json({
@@ -48,7 +37,8 @@ export async function GET() {
       threshold: threshold.toISOString().slice(0, 10),
       deletedAt: new Date().toISOString(),
     });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message }, { status: 500 });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }

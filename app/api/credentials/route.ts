@@ -1,68 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Client } from "@notionhq/client";
-import { kvGet, kvSet, kvDel } from "@/lib/kv-store";
-import { memGet, memSet, memDel } from "@/lib/mem-cache";
+import { readEntity, readEntityOne, upsertEntity, deleteEntity, isMirrorEnabled } from "@/lib/repo/mirror";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
 
-const notion = new Client({ auth: process.env.NOTION_TOKEN });
+const CRED_ENTITY = "credentials";
 
-function getDbId() {
-  const id = process.env.NOTION_PAGE_CREDENTIALS;
-  if (!id) throw new Error("NOTION_PAGE_CREDENTIALS 환경변수가 설정되지 않았습니다.");
-  return id;
+// 미러 저장 레코드(비밀번호는 암호화된 문자열로 보관).
+interface CredentialRecord {
+  id: string;
+  swName: string;
+  accountId: string;
+  password: string;   // encryptSecret() 결과(암호문)
+  siteUrl: string;
+  memo: string;
+  createdAt: string;
 }
 
-function mapPage(page: any) {
-  const p = page.properties;
-  const getText = (prop: any) =>
-    prop?.rich_text?.map((t: any) => t.plain_text).join("") ?? "";
-
+// 클라이언트 응답(비밀번호 복호화).
+function toClient(r: CredentialRecord) {
   return {
-    id:        page.id,
-    swName:    p["이름"]?.title?.map((t: any) => t.plain_text).join("") ?? "",
-    accountId: getText(p["ID"]),
-    password:  decryptSecret(getText(p["PW"])),
-    siteUrl:   p["URL"]?.url ?? "",
-    memo:      getText(p["유형"]),
+    id: r.id,
+    swName: r.swName,
+    accountId: r.accountId,
+    password: decryptSecret(r.password || ""),
+    siteUrl: r.siteUrl,
+    memo: r.memo,
   };
 }
 
 // ── GET: 전체 조회 ────────────────────────────────────────
+// 4.0verMACBOOK: 맥북 Postgres 미러(entity "credentials")에서 조회. 비밀번호는 미러에
+// 암호화 저장되며 응답 시 복호화한다.
 export async function GET() {
-  for (const v of ["NOTION_TOKEN", "NOTION_PAGE_CREDENTIALS"]) {
-    if (!process.env[v]) return NextResponse.json({ missingEnv: v, error: `환경변수 ${v} 가 설정되지 않았습니다.` }, { status: 503 });
+  if (!isMirrorEnabled() && !process.env.NOTION_TOKEN) {
+    return NextResponse.json({ missingEnv: "SUPABASE_URL", error: "데이터 저장소가 설정되지 않았습니다." }, { status: 503 });
   }
   try {
-    // 1. 인메모리 캐시 (0ms)
-    const mem = memGet<object[]>("credentials:all");
-    if (mem) return NextResponse.json({ data: mem, cached: true });
-
-    // 2. KV 캐시 (1~5ms, KV 미설정 시 null)
-    const kv = await kvGet<object[]>("credentials:all");
-    if (kv) {
-      memSet("credentials:all", kv, 300);
-      return NextResponse.json({ data: kv, cached: true });
-    }
-
-    // 3. Notion 직접 조회
-    const pages: any[] = [];
-    let cursor: string | undefined;
-
-    do {
-      const res = await notion.databases.query({
-        database_id: getDbId(),
-        sorts: [{ timestamp: "created_time", direction: "ascending" }],
-        page_size: 100,
-        start_cursor: cursor,
-      });
-      pages.push(...res.results);
-      cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined;
-    } while (cursor);
-
-    const data = pages.map(mapPage);
-    memSet("credentials:all", data, 300);
-    await kvSet("credentials:all", data);
-
+    const rows = (await readEntity<CredentialRecord>(CRED_ENTITY)) ?? [];
+    const data = [...rows]
+      .sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""))
+      .map(toClient);
     return NextResponse.json({ data });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
@@ -78,20 +54,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "SW명과 아이디는 필수입니다." }, { status: 400 });
     }
 
-    const page = await notion.pages.create({
-      parent: { database_id: getDbId() },
-      properties: {
-        이름: { title: [{ text: { content: String(swName).trim() } }] },
-        ID:   { rich_text: [{ text: { content: String(accountId).trim() } }] },
-        PW:   { rich_text: [{ text: { content: encryptSecret(String(password).trim()) } }] },
-        URL:  { url: siteUrl.trim() || null },
-        유형: { rich_text: [{ text: { content: String(memo).trim() } }] },
-      },
-    });
+    const id = crypto.randomUUID();
+    const record: CredentialRecord = {
+      id,
+      swName: String(swName).trim(),
+      accountId: String(accountId).trim(),
+      password: encryptSecret(String(password).trim()),
+      siteUrl: String(siteUrl).trim(),
+      memo: String(memo).trim(),
+      createdAt: new Date().toISOString(),
+    };
+    const ok = await upsertEntity(CRED_ENTITY, id, record);
+    if (!ok) return NextResponse.json({ error: "저장 실패(Postgres)" }, { status: 500 });
 
-    memDel("credentials:all");
-    await kvDel("credentials:all");
-    return NextResponse.json({ ok: true, data: mapPage(page) });
+    return NextResponse.json({ ok: true, data: toClient(record) });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });
@@ -104,32 +80,32 @@ export async function PUT(req: NextRequest) {
     const { id, swName, siteUrl, accountId, password, memo } = await req.json();
     if (!id) return NextResponse.json({ error: "id가 필요합니다." }, { status: 400 });
 
-    const properties: Record<string, any> = {};
-    if (swName    !== undefined) properties["이름"] = { title:     [{ text: { content: String(swName).trim() } }] };
-    if (accountId !== undefined) properties["ID"]   = { rich_text: [{ text: { content: String(accountId).trim() } }] };
-    if (password  !== undefined) properties["PW"]   = { rich_text: [{ text: { content: encryptSecret(String(password).trim()) } }] };
-    if (siteUrl   !== undefined) properties["URL"]  = { url: String(siteUrl).trim() || null };
-    if (memo      !== undefined) properties["유형"] = { rich_text: [{ text: { content: String(memo).trim() } }] };
+    const base = await readEntityOne<CredentialRecord>(CRED_ENTITY, id);
+    if (!base) return NextResponse.json({ error: "대상을 찾을 수 없습니다." }, { status: 404 });
 
-    const page = await notion.pages.update({ page_id: id, properties });
-    memDel("credentials:all");
-    await kvDel("credentials:all");
-    return NextResponse.json({ ok: true, data: mapPage(page) });
+    const next: CredentialRecord = { ...base };
+    if (swName    !== undefined) next.swName = String(swName).trim();
+    if (accountId !== undefined) next.accountId = String(accountId).trim();
+    if (password  !== undefined) next.password = encryptSecret(String(password).trim());
+    if (siteUrl   !== undefined) next.siteUrl = String(siteUrl).trim();
+    if (memo      !== undefined) next.memo = String(memo).trim();
+
+    const ok = await upsertEntity(CRED_ENTITY, id, next);
+    if (!ok) return NextResponse.json({ error: "저장 실패(Postgres)" }, { status: 500 });
+
+    return NextResponse.json({ ok: true, data: toClient(next) });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
-// ── DELETE: 삭제 (아카이브) ───────────────────────────────
+// ── DELETE: 삭제 (소프트 삭제) ───────────────────────────────
 export async function DELETE(req: NextRequest) {
   try {
     const { id } = await req.json();
     if (!id) return NextResponse.json({ error: "id가 필요합니다." }, { status: 400 });
-
-    await notion.pages.update({ page_id: id, archived: true });
-    memDel("credentials:all");
-    await kvDel("credentials:all");
+    await deleteEntity(CRED_ENTITY, id);
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

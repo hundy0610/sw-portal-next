@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { type HwRecord, fetchHwFiltered, parseChangeLog } from "@/lib/hw";
+import { getHwAllFromPostgres, isPostgresEnabled } from "@/lib/repo/hw";
 import { kvGet } from "@/lib/kv-store";
 import { triggerWarmHw } from "@/lib/trigger-warm-hw";
 import { errorMessage } from "@/lib/api-error";
@@ -19,7 +20,8 @@ function matchesPastUserOrDept(changeLogRaw: string, q: string): boolean {
 }
 
 export async function GET(req: NextRequest) {
-  if (!process.env.NOTION_TOKEN) return NextResponse.json({ missingEnv: "NOTION_TOKEN", error: "환경변수 NOTION_TOKEN 이 설정되지 않았습니다." }, { status: 503 });
+  // Postgres(맥북) 경로가 켜져 있으면 NOTION_TOKEN 이 없어도 진행(폴백용으로만 사용).
+  if (!process.env.NOTION_TOKEN && !isPostgresEnabled()) return NextResponse.json({ missingEnv: "NOTION_TOKEN", error: "환경변수 NOTION_TOKEN 이 설정되지 않았습니다." }, { status: 503 });
 
   const session = getSessionFromCookieHeader(req.headers.get("cookie"));
   if (!session) {
@@ -39,11 +41,22 @@ export async function GET(req: NextRequest) {
   const statuses  = searchParams.get("statuses")?.split(",").map(s => s.trim()).filter(Boolean) ?? [];
 
   try {
-    // hw:all + hw:deltas 병렬 조회
-    const [records, deltas] = await Promise.all([
-      kvGet<HwRecord[]>("hw:all"),
-      kvGet<Record<string, Partial<HwRecord>>>("hw:deltas"),
-    ]);
+    // 1차 소스: 맥북 Postgres(자체 Supabase, Tailscale Funnel 경유).
+    // 미설정/실패 시 null → 기존 KV/Notion 경로로 자동 폴백(맥북 다운 시 완전 다운 방지).
+    const pgRecords = await getHwAllFromPostgres();
+
+    let records: HwRecord[] | null;
+    let deltas: Record<string, Partial<HwRecord>> | null;
+    if (pgRecords) {
+      records = pgRecords; // Postgres 가 원본이므로 KV delta 패치는 불필요
+      deltas = null;
+    } else {
+      // hw:all + hw:deltas 병렬 조회
+      [records, deltas] = await Promise.all([
+        kvGet<HwRecord[]>("hw:all"),
+        kvGet<Record<string, Partial<HwRecord>>>("hw:deltas"),
+      ]);
+    }
 
     if (!records) {
       // KV 미스

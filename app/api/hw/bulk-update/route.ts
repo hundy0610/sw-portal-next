@@ -1,29 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Client } from "@notionhq/client";
-import { type HwRecord, type FieldMap, buildHwProperties, patchHwCacheBulk } from "@/lib/hw";
-import { kvGet } from "@/lib/kv-store";
+import { type FieldMap } from "@/lib/hw";
+import { bulkUpdateHwFields, getHwCompaniesByIds, isPostgresEnabled } from "@/lib/repo/hw";
 import { getSessionFromCookieHeader, resolveCurrentName, companyScope } from "@/lib/session";
 import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
 
-const notion = new Client({ auth: process.env.NOTION_TOKEN });
-
 const MAX_IDS = 100;
-
-// 캐시 우선 조회, 미스 시 Notion 직접 조회 (법인 범위 검증용)
-async function getRecordCompany(id: string): Promise<string | null> {
-  const all = await kvGet<HwRecord[]>("hw:all");
-  const cached = all?.find(r => r.id === id);
-  if (cached) return cached.company;
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const page: any = await notion.pages.retrieve({ page_id: id });
-    return page.properties?.["법인명"]?.select?.name ?? "";
-  } catch {
-    return null;
-  }
-}
 
 // 일괄 수정 허용 필드 — 여러 건에 동일하게 덮어써도 안전한 공통값만 허용
 // (사용자명/자산번호/시리얼/이메일/날짜 등은 제외)
@@ -52,6 +35,9 @@ export async function POST(req: NextRequest) {
     if (rawFields.status === "교체요청") {
       return NextResponse.json({ ok: false, error: "'교체요청' 상태는 일괄 수정으로 지원되지 않습니다. 개별로 수정해주세요." }, { status: 400 });
     }
+    if (!isPostgresEnabled()) {
+      return NextResponse.json({ ok: false, error: "데이터 저장소(Postgres)가 설정되지 않았습니다." }, { status: 503 });
+    }
 
     const session = getSessionFromCookieHeader(req.headers.get("cookie"));
     if (!session) {
@@ -74,35 +60,32 @@ export async function POST(req: NextRequest) {
       lastModifiedBy: modifiedBy,
       lastModifiedAt: modifiedAt,
     };
-    const properties = buildHwProperties(fields);
 
+    // 법인 범위 검증 — 본인 법인 레코드만 대상으로 추린다.
+    let targetIds = ids;
     const results: ResultItem[] = [];
-    for (const id of ids) {
-      if (scope && (await getRecordCompany(id)) !== scope) {
-        results.push({ id, ok: false, error: "본인 법인 데이터만 수정할 수 있습니다." });
-      } else {
-        try {
-          await notion.pages.update({
-            page_id: id,
-            properties: properties as Parameters<typeof notion.pages.update>[0]["properties"],
-          });
-          results.push({ id, ok: true });
-        } catch (e) {
-          results.push({ id, ok: false, error: errorMessage(e) });
-        }
+    if (scope) {
+      const companies = (await getHwCompaniesByIds(ids)) ?? new Map<string, string>();
+      targetIds = [];
+      for (const id of ids) {
+        if (companies.get(id) === scope) targetIds.push(id);
+        else results.push({ id, ok: false, error: "본인 법인 데이터만 수정할 수 있습니다." });
       }
-      // Notion API rate limit
-      await new Promise(r => setTimeout(r, 350));
     }
 
-    const success = results.filter(r => r.ok).length;
-    const failed  = results.length - success;
-    const successIds = results.filter(r => r.ok).map(r => r.id);
-
-    if (success > 0) {
-      await patchHwCacheBulk(successIds, fields);
+    // 메인 저장소(맥북 Postgres)에 일괄 write-through + dirty 표시 → 5분 뒤 Notion 백업.
+    let success = 0;
+    if (targetIds.length > 0) {
+      const ok = await bulkUpdateHwFields(targetIds, fields);
+      if (ok) {
+        success = targetIds.length;
+        for (const id of targetIds) results.push({ id, ok: true });
+      } else {
+        for (const id of targetIds) results.push({ id, ok: false, error: "저장 실패(Postgres)" });
+      }
     }
 
+    const failed = results.length - success;
     return NextResponse.json({ ok: true, success, failed, results });
   } catch (e) {
     console.error("[API /hw/bulk-update]", e);

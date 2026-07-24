@@ -54,7 +54,7 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "fields 필수" }, { status: 400 });
     }
 
-    await updatePcScan(id, fields);
+    await updatePcScan(id, fields, "NOTION_DB_PC_REGISTER");
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[PATCH /api/admin/pc-register]", e);
@@ -74,7 +74,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "id 필수" }, { status: 400 });
     }
 
-    await deletePcScan(id);
+    await deletePcScan(id, "NOTION_DB_PC_REGISTER");
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[DELETE /api/admin/pc-register]", e);

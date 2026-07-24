@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
-import { type HwRecord, type HwChangeLogEvent, buildUpdatedChangeLog, patchHwCache, buildHwProperties } from "@/lib/hw";
+import { type HwRecord, type HwChangeLogEvent, buildUpdatedChangeLog } from "@/lib/hw";
+import { getHwByIdFromPostgres, updateHwFields, isPostgresEnabled } from "@/lib/repo/hw";
 import { kvGet } from "@/lib/kv-store";
 import { memDel } from "@/lib/mem-cache";
 import { autoCompleteReturnsByAssetId, autoSyncUseDateByAssetId } from "@/lib/exchange-return";
@@ -11,23 +12,23 @@ export const dynamic = "force-dynamic";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
-// 캐시 우선 조회, 미스 시 Notion 직접 조회 (법인 범위 검증용)
-async function getRecordCompany(id: string): Promise<string | null> {
-  const all = await kvGet<HwRecord[]>("hw:all");
-  const cached = all?.find(r => r.id === id);
-  if (cached) return cached.company;
+// 대상 레코드 조회 (법인 범위 검증 + 변경이력 before). 4.0verMACBOOK: 맥북 Postgres 우선.
+async function getRecord(id: string): Promise<HwRecord | null> {
+  const pg = await getHwByIdFromPostgres(id);
+  if (pg) return pg;
+  const cached = (await kvGet<HwRecord[]>("hw:all"))?.find(r => r.id === id);
+  if (cached) return cached;
+  if (!process.env.NOTION_TOKEN) return null;
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const page: any = await notion.pages.retrieve({ page_id: id });
-    return page.properties?.["법인명"]?.select?.name ?? "";
+    return { id, company: page.properties?.["법인명"]?.select?.name ?? "", assetNo: page.properties?.["자산번호"]?.rich_text?.[0]?.plain_text ?? "" } as HwRecord;
   } catch {
     return null;
   }
 }
 
-// HwRecord 필드 → Notion 프로퍼티 매핑
 type FieldMap = Record<string, unknown>;
-const buildProperties = buildHwProperties;
 
 // 변경이력에 기록할 필드 목록 — 전역 감사로그(8개)보다 넓게 전체 수정가능 필드 포함
 const HW_LOG_FIELDS: { key: keyof HwRecord; label: string }[] = [
@@ -67,19 +68,22 @@ export async function POST(req: NextRequest) {
     if (!rawFields || typeof rawFields !== "object") {
       return NextResponse.json({ ok: false, error: "fields 필수" }, { status: 400 });
     }
+    if (!isPostgresEnabled()) {
+      return NextResponse.json({ ok: false, error: "데이터 저장소(Postgres)가 설정되지 않았습니다." }, { status: 503 });
+    }
 
     const session = getSessionFromCookieHeader(req.headers.get("cookie"));
     if (!session) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
+    const before = await getRecord(id);
     const scope = companyScope(session);
-    if (scope && (await getRecordCompany(id)) !== scope) {
+    if (scope && before?.company !== scope) {
       return NextResponse.json({ ok: false, error: "본인 법인 데이터만 수정할 수 있습니다." }, { status: 403 });
     }
     const adminName = await resolveCurrentName(session);
     const modifiedBy = `${adminName} (${session.userId})`;
     const modifiedAt = new Date().toISOString();
-    const before = (await kvGet<HwRecord[]>("hw:all"))?.find(r => r.id === id);
 
     // 재고 상태로 변경 시 반납예정일 자동 초기화
     const fields: FieldMap = {
@@ -90,12 +94,7 @@ export async function POST(req: NextRequest) {
       lastModifiedAt: modifiedAt,
     };
 
-    const properties = buildProperties(fields);
-    if (Object.keys(properties).length === 0) {
-      return NextResponse.json({ ok: false, error: "업데이트할 필드 없음" }, { status: 400 });
-    }
-
-    // 변경이력 — 이번 저장에서 실제로 바뀐 필드들을 하나의 이벤트로 묶어 "변경이력" 속성에 함께 기록
+    // 변경이력 — 이번 저장에서 실제로 바뀐 필드들을 하나의 이벤트로 묶어 changeLog(json)에 누적
     const logChanges = HW_LOG_FIELDS
       .filter(f => f.key in (rawFields as object))
       .map(f => ({
@@ -105,26 +104,20 @@ export async function POST(req: NextRequest) {
       .filter(c => c.from !== c.to);
     if (logChanges.length > 0) {
       const event: HwChangeLogEvent = { at: modifiedAt, by: modifiedBy, changes: logChanges };
-      const { json, richText } = buildUpdatedChangeLog(before?.changeLog ?? "", event);
-      properties["변경이력"] = richText;
-      fields.changeLog = json; // KV 캐시 patch(hw:all/hw:deltas)에도 최신 변경이력이 함께 반영되도록
+      const { json } = buildUpdatedChangeLog(before?.changeLog ?? "", event);
+      fields.changeLog = json;
     }
 
-    // Notion 페이지 업데이트 — 성공을 먼저 확인해야 캐시도 그 값으로 갱신
-    await notion.pages.update({
-      page_id: id,
-      properties: properties as Parameters<typeof notion.pages.update>[0]["properties"],
-    });
-
-    // KV 캐시 in-place 패치 (삭제하지 않고 해당 레코드만 수정)
-    await patchHwCache(id, fields);
+    // 메인 저장소(맥북 Postgres)에 write-through + dirty 표시 → 5분 뒤 Notion 백업.
+    const ok = await updateHwFields(id, fields);
+    if (!ok) {
+      return NextResponse.json({ ok: false, error: "저장 실패(Postgres). 잠시 후 다시 시도해주세요." }, { status: 502 });
+    }
 
     // 상태가 "재고"로 변경되거나 사용일자가 변경된 경우 — 연결된 자산 흐름 레코드에 반영
     if ((fields.status === "재고" || fields.useDate !== undefined) && process.env.NOTION_DB_EXCHANGE_RETURN) {
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const page: any = await notion.pages.retrieve({ page_id: id });
-        const assetNo: string = page.properties?.["자산번호"]?.rich_text?.[0]?.plain_text || "";
+        const assetNo = before?.assetNo || "";
         if (assetNo) {
           let changed = 0;
           if (fields.status === "재고") {

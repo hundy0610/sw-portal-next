@@ -1,50 +1,61 @@
 import { NextResponse } from "next/server";
-import { notionRequest } from "@/shared/lib/notion";
+import { createHelpDeskTicket } from "@/lib/notion";
+import { kvGet } from "@/lib/kv-store";
 
+const NOTIFY_KEY = "helpdesk:notify-emails";
+
+// 4.0verMACBOOK: 공개 문의 접수(QR/키오스크 폼) → 맥북 Postgres 미러(entity "helpdesk")에 직접 기록.
+// 예전엔 Notion 페이지 생성 후 Automation 웹훅이 알림 메일을 보냈지만, 미러가 메인이라
+// Notion 반영이 5분 지연되므로 접수 시점에 앱에서 직접 관리자 알림 메일을 발송한다.
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
 
-    const 법인 = formData.get("법인") as string;
-    const 부서 = formData.get("부서") as string;
-    const 문의자 = formData.get("문의자") as string;
-    const 자산번호 = formData.get("자산번호") as string;
-    const 문의유형 = formData.get("문의유형") as string;
-    const 문의내용 = formData.get("문의내용") as string;
-    const 긴급도 = formData.get("긴급도") as string;
-    const 이메일 = formData.get("이메일") as string;
+    const 법인 = (formData.get("법인") as string) || "";
+    const 부서 = (formData.get("부서") as string) || "";
+    const 문의자 = (formData.get("문의자") as string) || "";
+    const 자산번호 = (formData.get("자산번호") as string) || "";
+    const 문의유형 = (formData.get("문의유형") as string) || "";
+    const 문의내용 = (formData.get("문의내용") as string) || "";
+    const 긴급도 = (formData.get("긴급도") as string) || "";
+    const 이메일 = (formData.get("이메일") as string) || "";
 
-    const body = {
-      parent: {
-        data_source_id: process.env.INQUIRY_TICKETS_DATA_SOURCE_ID,
-      },
-      properties: {
-        법인: { select: { name: 법인 || "" } },
-        부서: { rich_text: [{ text: { content: 부서 || "" } }] },
-        문의자: { rich_text: [{ text: { content: 문의자 || "" } }] },
-        자산번호: { rich_text: [{ text: { content: 자산번호 || "" } }] },
-        문의유형: { select: { name: 문의유형 || "" } },
-        문의내용: { title: [{ text: { content: 문의내용 || "" } }] },
-        긴급도: { select: { name: 긴급도 || "" } },
-        "문의자 이메일": { email: 이메일 || null },
-      },
-    };
+    const title = 문의내용.length > 40 ? 문의내용.slice(0, 40) + "…" : 문의내용;
 
-    const notionResponse = await notionRequest<any>("/pages", {
-      method: "POST",
-      body,
+    const ticketId = await createHelpDeskTicket({
+      title,
+      company: 법인,
+      department: 부서,
+      requester: 문의자,
+      requesterEmail: 이메일,
+      inquiryType: 문의유형 || "SW",
+      urgency: 긴급도 || "기다릴 수 있어요",
+      content: 문의내용,
+      assetNo: 자산번호,
     });
 
-    // 매뉴얼 매칭/완료 처리는 더 이상 여기서 자동으로 하지 않는다 — 접수 완료 화면에서
-    // 사용자가 "매뉴얼로 해결"/"담당자 지원" 중 직접 선택하면 그때 /resolve-with-manual에서 처리한다.
-    const response = {
-      ticketId: notionResponse.id,
-    };
+    // 관리자 신규 접수 알림 메일 (fire-and-forget)
+    void (async () => {
+      try {
+        const notifyEmails = (await kvGet<string[]>(NOTIFY_KEY)) ?? [];
+        if (notifyEmails.length === 0) return;
+        const origin = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
+        await fetch(`${origin}/api/helpdesk/notify-new-inquiry`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            requester: 문의자, company: 법인, department: 부서,
+            inquiryType: 문의유형, urgency: 긴급도, content: 문의내용, assetNo: 자산번호,
+          }),
+        });
+      } catch (e) {
+        console.error("[request/inquiry] notify failed:", e);
+      }
+    })();
 
-    return NextResponse.json(response);
-  } catch (error: any) {
-    return NextResponse.json(error.data || { message: error.message }, {
-      status: (error.status as number) || 500,
-    });
+    return NextResponse.json({ ticketId });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "서버 오류";
+    return NextResponse.json({ message: msg }, { status: 500 });
   }
 }

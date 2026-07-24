@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
     let closed = 0, errors = 0;
     for (const s of toClose) {
       try {
-        await updatePcScan(s.id, { closed: true });
+        await updatePcScan(s.id, { closed: true }, "NOTION_DB_PC_REGISTER");
         closed++;
       } catch {
         errors++;
