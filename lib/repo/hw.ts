@@ -24,7 +24,14 @@ if (postgresEnabled) {
   sb = createClient(SUPABASE_URL as string, SUPABASE_KEY as string, {
     auth: { persistSession: false, autoRefreshToken: false },
     global: {
-      headers: SWP_DB_SECRET ? { "x-swp-secret": SWP_DB_SECRET } : {},
+      // Funnel 경로 중간에 페이지네이션(Range 헤더) 응답을 캐싱하는 프록시가 있을 가능성이
+      // 있어 명시적으로 캐시 금지를 요청한다 (getHwAllFromPostgres 전체목록 조회가 옛날
+      // 값을 돌려주는 문제 대응).
+      headers: {
+        ...(SWP_DB_SECRET ? { "x-swp-secret": SWP_DB_SECRET } : {}),
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+        "Pragma": "no-cache",
+      },
     },
   });
 }

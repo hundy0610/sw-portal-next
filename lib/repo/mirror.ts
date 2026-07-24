@@ -21,6 +21,14 @@ function getClient(): SupabaseClient | null {
   try {
     _client = createClient(SUPABASE_URL, SUPABASE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
+      // Funnel 경로 중간에 페이지네이션(Range 헤더) 응답을 캐싱하는 프록시가 있을 가능성이
+      // 있어 명시적으로 캐시 금지를 요청한다 (lib/repo/hw.ts와 동일한 대응).
+      global: {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+          "Pragma": "no-cache",
+        },
+      },
     });
     return _client;
   } catch {
