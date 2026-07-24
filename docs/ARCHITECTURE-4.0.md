@@ -153,6 +153,36 @@ launchctl list | grep swportal        # 종료코드 0 확인
 cat /tmp/swportal-backup-notion.out   # 실행 로그
 ```
 
+### 가용성 / 잠들지 않게 유지 (Availability / keep-awake)
+
+맥북이 잠들면 Funnel(HTTPS 8000)과 로컬 Supabase가 도달 불가가 되어, 배포된 앱이
+미러를 못 읽고 **5분 지연된 Notion 백업으로 조용히 폴백**한다(방금 저장한 최신
+문의 항목이 목록에서 누락되는 증상). 이를 막기 위해:
+
+1. **idle 슬립 방지 (sudo 불필요, 유저 레벨 launchd + `caffeinate -s`)**
+```bash
+cp deploy/com.swportal.keepawake.plist ~/Library/LaunchAgents/
+launchctl unload ~/Library/LaunchAgents/com.swportal.keepawake.plist 2>/dev/null
+launchctl load  ~/Library/LaunchAgents/com.swportal.keepawake.plist
+launchctl list | grep -i swportal     # com.swportal.keepawake 로드 확인
+pmset -g assertions | grep PreventSystemSleep   # caffeinate assertion 확인
+```
+2. **클램셸(뚜껑 닫힘) 슬립 방지** — `caffeinate -s`로는 못 막는다. 뚜껑을 닫고
+   운용하려면 관리자 권한으로:
+```bash
+sudo pmset -c disablesleep 1     # AC 전원에서 슬립 완전 비활성(클램셸 포함)
+sudo pmset -c womp 1 powernap 0  # (선택) 네트워크 웨이크 유지, powernap 끄기
+```
+   되돌리기: `sudo pmset -c disablesleep 0`
+3. **Tailscale Funnel 재기동** — tailscaled가 시스템 데몬(`/Library/LaunchDaemons/com.tailscale.tailscaled.plist`)으로
+   돌면 재부팅 후 serve/funnel 설정이 복원된다. 매핑이 없으면(확인: `tailscale funnel status`):
+```bash
+tailscale funnel --bg 8000       # sudo 불필요(tailscaled 떠 있으면)
+```
+4. **Supabase Docker 자동 기동** — 컨테이너 restart 정책은 `unless-stopped`(부팅 시 자동 복구).
+   단, **Docker Desktop 자체가 로그인 시 실행**되어야 한다:
+   Docker Desktop → Settings → General → *Start Docker Desktop when you sign in* 체크.
+
 ---
 
 ## 9. 브랜치 & 안전 규칙
@@ -182,3 +212,4 @@ cat /tmp/swportal-backup-notion.out   # 실행 로그
 | `lib/blob-store.ts` | Vercel Blob 업로드 |
 | `lib/mail.ts` | 이메일(nodemailer + Gmail) |
 | `deploy/com.swportal.backup-notion.plist` | 5분 백업 launchd 유닛 |
+| `deploy/com.swportal.keepawake.plist` | idle 슬립 방지 launchd 유닛(`caffeinate -s`) — Funnel/DB 24/7 도달성 유지 |
