@@ -204,3 +204,35 @@ export async function getHwByIdFromPostgres(id: string): Promise<HwRecord | null
     return null;
   }
 }
+
+/**
+ * 단건 조회 — 실패를 숨기지 않고 그대로 throw (findHwById/findHwByAssetNo 전용).
+ * HW 는 Postgres 가 메인 소스이므로, 조회 실패 시 오래된 Notion 백업으로 조용히
+ * 폴백하지 않고 호출부가 에러를 그대로 사용자에게 노출하도록 한다.
+ */
+export async function getHwByIdFromPostgresOrThrow(id: string): Promise<HwRecord | null> {
+  if (!sb) throw new Error("데이터 저장소(Postgres)가 설정되지 않았습니다.");
+  const { data, error } = await sb
+    .from("hw")
+    .select("*")
+    .eq("id", id)
+    .eq("deleted", false)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as unknown as HwRecord) ?? null;
+}
+
+/** 자산번호 버전 — 규약은 getHwByIdFromPostgresOrThrow 와 동일. */
+export async function getHwByAssetNoFromPostgresOrThrow(assetNo: string): Promise<HwRecord | null> {
+  if (!sb) throw new Error("데이터 저장소(Postgres)가 설정되지 않았습니다.");
+  const { data, error } = await sb
+    .from("hw")
+    .select("*")
+    .eq("assetNo", assetNo)
+    .eq("deleted", false)
+    .order("purchaseDate", { ascending: false })
+    .limit(1);
+  if (error) throw error;
+  const row = (data ?? [])[0];
+  return (row as unknown as HwRecord) ?? null;
+}

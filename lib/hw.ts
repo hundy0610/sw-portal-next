@@ -2,7 +2,7 @@ import { Client } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
 import { isMock, mockHwRecords } from "./mock";
 import { kvGet, kvSet, kvSetPermanent } from "./kv-store";
-import { updateHwFields } from "./repo/hw";
+import { updateHwFields, getHwByIdFromPostgresOrThrow, getHwByAssetNoFromPostgresOrThrow } from "./repo/hw";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
@@ -463,27 +463,19 @@ export async function fetchHwFiltered({
 
 // 자산번호는 중복 등록된 경우(HwRecord.duplicated)가 있어 자산번호만으로 조회하면
 // 사용자가 클릭한 것과 다른 레코드가 나올 수 있다 — id가 있으면 이 함수로 정확히 단건 조회한다.
+// HW 는 Postgres 가 메인 소스 — 조회 실패 시 Notion 으로 조용히 폴백하지 않고 그대로 throw 한다.
 export async function findHwById(id: string): Promise<HwRecord | null> {
   if (isMock()) {
     return (mockHwRecords.find(r => r.id === id) as HwRecord) ?? null;
   }
-  const page = await notion.pages.retrieve({ page_id: id });
-  if (page.object !== "page" || !("properties" in page)) return null;
-  return mapPage(page as PageObjectResponse);
+  return getHwByIdFromPostgresOrThrow(id);
 }
 
 export async function findHwByAssetNo(assetNo: string): Promise<HwRecord | null> {
   if (isMock()) {
     return (mockHwRecords.find(r => r.assetNo === assetNo) as HwRecord) ?? null;
   }
-  const res = await queryWithRetry({
-    database_id: DB_ID,
-    filter: { property: "자산번호", rich_text: { equals: assetNo } },
-    page_size: 1,
-  });
-  const page = res.results[0];
-  if (!page || page.object !== "page" || !("properties" in page)) return null;
-  return mapPage(page as PageObjectResponse);
+  return getHwByAssetNoFromPostgresOrThrow(assetNo);
 }
 
 function normalizeSerial(s: string): string {

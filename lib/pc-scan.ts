@@ -362,10 +362,9 @@ export async function upsertPcScan(data: PcScanPayload, dbEnvVar: string = "NOTI
   }
   const entity = entityFor(dbEnvVar);
 
-  // 마스터(HW) 대조 — HW 는 이미 Postgres 메인이지만 조회는 Notion 백업(최대 5분 지연) 경유.
-  const hwRecord = data.assetNo
-    ? await findHwByAssetNo(data.assetNo).catch(() => null)
-    : null;
+  // 마스터(HW) 대조 — findHwByAssetNo는 Postgres 전용. 조회 실패 시 마스터 없음으로
+  // 조용히 넘기지 않고 그대로 throw해 스캔 업로드 자체를 실패 처리한다.
+  const hwRecord = data.assetNo ? await findHwByAssetNo(data.assetNo) : null;
   const masterExists = !!hwRecord && serialFuzzyMatch(data.serial, hwRecord.serial);
 
   // 완전 일치 시 HW 자동 실사확인 / 부분 일치 시 연락정보 보정 (HW 쓰기는 Postgres write-through)
