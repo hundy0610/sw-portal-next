@@ -167,6 +167,26 @@ export async function getHwCompaniesByIds(ids: string[]): Promise<Map<string, st
   }
 }
 
+/** 자산번호로 단건 조회(삭제분 제외) — 공개 자산 자가조회(QR)용. 최근 구매일 우선. */
+export async function getHwByAssetNoFromPostgres(assetNo: string): Promise<HwRecord | null> {
+  if (!sb) return null;
+  try {
+    const { data, error } = await sb
+      .from("hw")
+      .select("*")
+      .eq("assetNo", assetNo)
+      .eq("deleted", false)
+      .order("purchaseDate", { ascending: false })
+      .limit(1);
+    if (error) throw error;
+    const row = (data ?? [])[0];
+    return (row as unknown as HwRecord) ?? null;
+  } catch (e) {
+    console.warn("[hw-repo] getHwByAssetNoFromPostgres 실패", assetNo, e);
+    return null;
+  }
+}
+
 /** 단일 HW 레코드 조회(삭제분 제외) — 법인 범위 검증 등에 사용. */
 export async function getHwByIdFromPostgres(id: string): Promise<HwRecord | null> {
   if (!sb) return null;

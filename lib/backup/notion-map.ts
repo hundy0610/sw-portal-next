@@ -377,42 +377,6 @@ export const entityRegistry: Record<string, NotionBackupEntry> = {
     }),
   },
 
-  // 자산 자가서비스 — HW 트래커와 별개 DB(ASSETS_DATA_SOURCE_ID). data_source_id 로만 관리.
-  // 사용자=title, 자산번호=rich_text 주의. 잔존가치(formula)는 백업 대상 아님.
-  "asset-selfservice": {
-    databaseId: undefined,
-    dataSourceId: process.env.ASSETS_DATA_SOURCE_ID,
-    buildProperties: (d) => {
-      const props: Props = {
-        "사용자": P.title(d.user),
-        "자산번호": P.text(d.assetNo),
-        "법인명": P.select(d.company),
-        "부서": P.text(d.dept),
-        "위치": P.text(d.location),
-        "제조사": P.select(d.maker),
-        "모델명": P.text(d.model),
-        "시리얼 넘버": P.text(d.serial),
-        "CPU": P.text(d.cpu),
-        "RAM": P.text(d.ram),
-        "구매일자": P.date(d.purchaseDate),
-        "사용일자": P.date(d.useDate),
-        "반납일자": P.date(d.returnDate),
-        "수리일자": P.date(d.repairDate),
-        "사용/재고/폐기/기타": P.select(d.status),
-        "출고진행상황": P.status(d.shipStatus),
-        "반납 진행 상황": P.status(d.returnStatus),
-        "수리진행상황": P.status(d.repairStatus),
-        "수리담당자": P.people(d.repairAssigneeId),
-        "수리 작업 유형": P.multiSelect(d.repairTypes),
-        "누락 사항": P.multiSelect(d.missingItems),
-        "반납사유": P.select(d.returnReason),
-        "기타": P.text(d.note),
-      };
-      if (typeof d.price === "number" && d.price > 0) props["단가"] = P.number(d.price);
-      return props;
-    },
-  },
-
   // SW 수요조사 설문 — 제출일시는 명시 date 로 기록.
   "survey-demand": {
     databaseId: process.env.NOTION_DB_SURVEY_DEMAND,
@@ -621,13 +585,6 @@ export const seedRegistry: Record<string, EntitySeedSource> = {
         cursor = res.has_more ? res.next_cursor ?? undefined : undefined;
       } while (cursor);
       return out;
-    },
-  },
-  "asset-selfservice": {
-    fetch: async () => {
-      const { fetchAssetsFromNotion } = await import("@/lib/asset-selfservice");
-      const rows = await fetchAssetsFromNotion();
-      return rows.map(r => ({ id: r.id, notionId: r.id, data: r as unknown as Record<string, unknown> }));
     },
   },
   "survey-demand": {
