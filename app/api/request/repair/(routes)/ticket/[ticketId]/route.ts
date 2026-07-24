@@ -1,44 +1,42 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { notionRequest } from "@/shared/lib/notion";
+import { readEntityOne } from "@/lib/repo/mirror";
+import type { RepairTicket } from "@/types";
 
 type RouteContext = {
   params: { ticketId: string };
 };
 
+// 4.0verMACBOOK: 수리 접수 티켓 조회 → 맥북 Postgres 미러(entity "repair").
 export async function GET(_: NextRequest, context: RouteContext) {
   try {
     const { ticketId } = context.params;
-
-    const notionResponse = await notionRequest<any>(`/pages/${ticketId}`, {
-      method: "GET",
-    });
+    const t = await readEntityOne<RepairTicket>("repair", ticketId);
+    if (!t) return NextResponse.json({ message: "티켓을 찾을 수 없습니다." }, { status: 404 });
 
     const response = {
-      법인: notionResponse.properties.법인?.select?.name ?? "-",
-      부서: notionResponse.properties.부서?.rich_text?.[0]?.text?.content ?? "-",
-      문의자: notionResponse.properties.문의자?.rich_text?.[0]?.text?.content ?? "-",
-      건물명: notionResponse.properties.건물명?.select?.name ?? "-",
-      층수: notionResponse.properties.층수?.rich_text?.[0]?.text?.content ?? "-",
-      모니터번호: notionResponse.properties.자산번호?.rich_text?.[0]?.text?.content ?? "-",
-      고장내역: notionResponse.properties["고장 내역"]?.multi_select?.[0]?.name ?? "-",
-      세부내역: notionResponse.properties.세부내역?.rich_text?.[0]?.text?.content ?? "-",
-
-      상태: notionResponse.properties.상태?.status?.name ?? "-",
-      조치내용: notionResponse.properties.조치내용?.rich_text?.[0]?.text?.content ?? "-",
-      담당자: notionResponse.properties.담당자?.people?.[0]?.name ?? "-",
-      과실여부: notionResponse.properties.과실여부?.select?.name ?? "-",
-      수리일정: notionResponse.properties["수리 일정"]?.date?.start ?? "-",
-      단가: notionResponse.properties.단가?.number?.toString() ?? "-",
-      수리진행상황: notionResponse.properties.수리진행상황?.status?.name ?? "-",
-
-      createdAt: notionResponse.created_time ?? "-",
+      법인: t.company || "-",
+      부서: t.department || "-",
+      문의자: t.requester || "-",
+      건물명: t.building || "-",
+      층수: t.floor || "-",
+      모니터번호: t.assetId || "-",
+      고장내역: (t.faultTypes && t.faultTypes[0]) || "-",
+      세부내역: t.detail || "-",
+      상태: t.status || "-",
+      조치내용: t.actionNote || "-",
+      담당자: t.assignee || "-",
+      // 아래 3개는 레거시 표시 필드로 미러에서 관리하지 않음
+      과실여부: "-",
+      수리일정: t.repairDate || "-",
+      단가: "-",
+      수리진행상황: "-",
+      createdAt: t.createdAt || "-",
     };
 
     return NextResponse.json(response);
-  } catch (error: any) {
-    return NextResponse.json(error.data || { message: error.message }, {
-      status: (error.status as number) || 500,
-    });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "서버 오류";
+    return NextResponse.json({ message: msg }, { status: 500 });
   }
 }

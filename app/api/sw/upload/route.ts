@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Client } from "@notionhq/client";
 import { getSessionFromCookieHeader, resolveCurrentName, companyScope } from "@/lib/session";
-import { memDel } from "@/lib/mem-cache";
-import { kvDel } from "@/lib/kv-store";
 import { errorMessage } from "@/lib/api-error";
+import { upsertEntity, isMirrorEnabled } from "@/lib/repo/mirror";
+import { SW_ENTITY } from "@/lib/sw-notion";
+import type { SwDbRecord } from "@/types";
 
-const notion = new Client({ auth: process.env.NOTION_TOKEN });
-
-// SW 통합 데이터베이스 (lib/notion.ts fetchSwDatabase와 동일)
-const DB_ID = process.env.NOTION_DB_SW_UNIFIED!;
+export const dynamic = "force-dynamic";
 
 // 엑셀 1행 → SwDbRecord 컬럼 매핑용 인터페이스
 export interface SwUploadRow {
@@ -31,13 +28,13 @@ export interface SwUploadRow {
   billingType:  string;   // 결제방식
   monthlyKrw:   number;   // 월비용(KRW)
   monthlyUsd:   number;   // 월비용(USD)
-  certificateFileUploadId?: string; // 증서 파일 업로드 ID (선택)
-  draftDocFileUploadId?: string;    // 기안문서 파일 업로드 ID (선택)
+  certificateFileUploadId?: string; // 증서 Blob 공개 URL (선택)
+  draftDocFileUploadId?: string;    // 기안문서 Blob 공개 URL (선택)
 }
 
 // ISO 날짜 정규화 (YYYY-MM-DD / YYYY.MM.DD / Excel serial)
-function toIsoDate(val: string | number | undefined): string | null {
-  if (!val) return null;
+function toIsoDate(val: string | number | undefined): string {
+  if (!val) return "";
   if (typeof val === "number") {
     const d = new Date((val - 25569) * 86400 * 1000);
     return d.toISOString().slice(0, 10);
@@ -47,114 +44,52 @@ function toIsoDate(val: string | number | undefined): string | null {
   if (m1) return `${m1[1]}-${m1[2].padStart(2, "0")}-${m1[3].padStart(2, "0")}`;
   const m2 = s.match(/^(\d{4})\.(\d{1,2})\.(\d{1,2})/);
   if (m2) return `${m2[1]}-${m2[2].padStart(2, "0")}-${m2[3].padStart(2, "0")}`;
-  return null;
+  return "";
 }
 
-async function createSwPage(row: SwUploadRow, modifiedBy: string, modifiedAt: string) {
-  const usageDate    = toIsoDate(row.usageDate);
-  const renewalDate  = toIsoDate(row.renewalDate);
-  const purchaseDate = toIsoDate(row.purchaseDate);
-
-  // 버전: 쉼표 구분 문자열 → multi_select 배열
+function rowToRecord(row: SwUploadRow, modifiedBy: string, modifiedAt: string): SwDbRecord {
   const versions = row.version
     ? row.version.split(",").map(v => v.trim()).filter(Boolean)
     : [];
-
-  return notion.pages.create({
-    parent: { database_id: DB_ID },
-    properties: {
-      // ── 사용자 (title) ──────────────────────────────
-      "사용자": {
-        title: [{ text: { content: row.user || "" } }],
-      },
-      // ── 텍스트 필드 ──────────────────────────────────
-      ...(row.swDetail ? {
-        "SW소분류": { rich_text: [{ text: { content: row.swDetail } }] },
-      } : {}),
-      ...(row.department ? {
-        "부서": { rich_text: [{ text: { content: row.department } }] },
-      } : {}),
-      ...(row.licenseKey ? {
-        "인증키 / 인증계정": { rich_text: [{ text: { content: row.licenseKey } }] },
-      } : {}),
-      ...(row.vendor ? {
-        "구매처": { rich_text: [{ text: { content: row.vendor } }] },
-      } : {}),
-      // ── Select 필드 ──────────────────────────────────
-      ...(row.swCategory ? {
-        "SW대분류": { select: { name: row.swCategory } },
-      } : {}),
-      ...(row.status ? {
-        "사용/재고/만료/갱신필요/신규등록": { select: { name: row.status } },
-      } : {
-        // 기본값: 신규등록
-        "사용/재고/만료/갱신필요/신규등록": { select: { name: "신규등록" } },
-      }),
-      ...(row.company ? {
-        "법인명": { select: { name: row.company } },
-      } : {}),
-      ...(row.licenseType ? {
-        "영구 / 구독": { select: { name: row.licenseType } },
-      } : {}),
-      ...(row.accountType ? {
-        "계정유형": { select: { name: row.accountType } },
-      } : {}),
-      ...(row.renewalCycle ? {
-        "갱신주기": { select: { name: row.renewalCycle } },
-      } : {}),
-      ...(row.workType ? {
-        "SW사용직군": { select: { name: row.workType } },
-      } : {}),
-      ...(row.billingType ? {
-        "결재방식": { select: { name: row.billingType } },
-      } : {}),
-      // ── Multi-select ─────────────────────────────────
-      ...(versions.length > 0 ? {
-        "version": { multi_select: versions.map(v => ({ name: v })) },
-      } : {}),
-      // ── 날짜 필드 ────────────────────────────────────
-      ...(usageDate ? {
-        "사용일자": { date: { start: usageDate } },
-      } : {}),
-      ...(renewalDate ? {
-        "갱신필요일": { date: { start: renewalDate } },
-      } : {}),
-      ...(purchaseDate ? {
-        "구매일자": { date: { start: purchaseDate } },
-      } : {}),
-      // ── 숫자 필드 ────────────────────────────────────
-      ...(row.monthlyKrw > 0 ? {
-        "월 비용 (KRW)": { number: row.monthlyKrw },
-      } : {}),
-      ...(row.monthlyUsd > 0 ? {
-        "월 비용 (USD)": { number: row.monthlyUsd },
-      } : {}),
-      // 증서 파일 ─────────────────
-      ...(row.certificateFileUploadId ? {
-        "증서": {
-          files: [{ type: "file_upload", file_upload: { id: row.certificateFileUploadId } }],
-        },
-      } : {}),
-      // 기안문서 파일 ─────────────────
-      ...(row.draftDocFileUploadId ? {
-        "기안문서": {
-          files: [{ type: "file_upload", file_upload: { id: row.draftDocFileUploadId } }],
-        },
-      } : {}),
-      // 마지막수정자/일시 (신규 등록 시점 = 최초 수정으로 기록)
-      "마지막수정자": {
-        rich_text: [{ text: { content: modifiedBy } }],
-      },
-      "마지막수정일시": {
-        rich_text: [{ text: { content: modifiedAt } }],
-      },
-    },
-  });
+  const monthlyKrw = row.monthlyKrw > 0 ? row.monthlyKrw : 0;
+  const monthlyUsd = row.monthlyUsd > 0 ? row.monthlyUsd : 0;
+  return {
+    id: crypto.randomUUID(),
+    user: row.user || "",
+    swCategory: row.swCategory || "",
+    swDetail: row.swDetail || "",
+    version: versions,
+    status: row.status || "신규등록",
+    company: row.company || "",
+    licenseType: row.licenseType || "",
+    department: row.department || "",
+    usageDate: toIsoDate(row.usageDate),
+    renewalDate: toIsoDate(row.renewalDate),
+    purchaseDate: toIsoDate(row.purchaseDate),
+    returnDate: "",
+    shipStatus: "",
+    accountType: row.accountType || "",
+    renewalCycle: row.renewalCycle || "",
+    licenseKey: row.licenseKey || "",
+    vendor: row.vendor || "",
+    usageCount: 0,
+    certificate: row.certificateFileUploadId || "",
+    draftDocument: row.draftDocFileUploadId || "",
+    workType: row.workType || "",
+    billingType: row.billingType || "",
+    lastModifiedBy: modifiedBy,
+    lastModifiedAt: modifiedAt,
+    monthlyUsd,
+    monthlyKrw,
+    annualUsd: monthlyUsd * 12,
+    annualKrw: monthlyKrw * 12,
+    notionUrl: "",
+  };
 }
 
 export async function POST(req: NextRequest) {
-  if (!process.env.NOTION_TOKEN || !DB_ID) {
-    return NextResponse.json({ ok: false, error: "환경변수 NOTION_TOKEN 또는 NOTION_DB_SW_UNIFIED가 설정되지 않았습니다." }, { status: 503 });
+  if (!isMirrorEnabled()) {
+    return NextResponse.json({ ok: false, error: "데이터 저장소(Postgres)가 설정되지 않았습니다." }, { status: 503 });
   }
 
   try {
@@ -182,23 +117,13 @@ export async function POST(req: NextRequest) {
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      try {
-        await createSwPage(row, modifiedBy, modifiedAt);
-        results.push({ index: i, user: row.user, sw: row.swCategory, ok: true });
-      } catch (e) {
-        results.push({ index: i, user: row.user, sw: row.swCategory, ok: false, error: errorMessage(e) });
-      }
-      // Notion API rate limit 방지 (3 req/sec)
-      if (i < rows.length - 1) await new Promise(r => setTimeout(r, 350));
+      const record = rowToRecord(row, modifiedBy, modifiedAt);
+      const ok = await upsertEntity(SW_ENTITY, record.id, record);
+      results.push({ index: i, user: row.user, sw: row.swCategory, ok, error: ok ? undefined : "저장 실패(Postgres)" });
     }
 
     const success = results.filter(r => r.ok).length;
     const failed  = results.filter(r => !r.ok).length;
-
-    if (success > 0) {
-      memDel("sw:all");
-      await kvDel("sw:all");
-    }
 
     return NextResponse.json({ ok: true, success, failed, results });
   } catch (e) {

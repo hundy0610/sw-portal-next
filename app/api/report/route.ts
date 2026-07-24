@@ -1,8 +1,6 @@
 import { fetchSwDatabase } from "@/lib/notion";
 import { mapCategory } from "@/lib/reportTypes";
 import type { SubRow, DeptSummary, ReportData } from "@/lib/reportTypes";
-import { kvGet, kvSet } from "@/lib/kv-store";
-import type { SwDbRecord } from "@/types";
 import { errorMessage } from "@/lib/api-error";
 import { getSessionFromCookieHeader, companyScope } from "@/lib/session";
 
@@ -21,14 +19,8 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const filterCompany = scope ?? (searchParams.get("company")?.trim() || "");
 
-    // ✅ KV에서 즉시 읽기 (sw:all 키 공유 - sw-records API와 동일 데이터)
-    let allRecords = await kvGet<SwDbRecord[]>("sw:all");
-
-    if (!allRecords) {
-      // KV 미스: Notion fetch 후 KV 저장
-      allRecords = await fetchSwDatabase();
-      await kvSet("sw:all", allRecords);
-    }
+    // 메인 저장소(맥북 Postgres 미러)에서 직접 조회
+    const allRecords = await fetchSwDatabase();
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);

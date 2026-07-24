@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Client } from "@notionhq/client";
-import { kvDel } from "@/lib/kv-store";
-import { memDel } from "@/lib/mem-cache";
 import { getSessionFromCookieHeader, resolveCurrentName, companyScope } from "@/lib/session";
 import { errorMessage } from "@/lib/api-error";
-import { getRecordCompany, buildProperties, type FieldMap } from "@/lib/sw-notion";
+import { applyFields, SW_ENTITY, type FieldMap } from "@/lib/sw-notion";
+import { readEntityOne, upsertEntity } from "@/lib/repo/mirror";
+import type { SwDbRecord } from "@/types";
 
 export const dynamic = "force-dynamic";
-
-const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
 const MAX_IDS = 100;
 
@@ -54,34 +51,29 @@ export async function POST(req: NextRequest) {
       lastModifiedBy: modifiedBy,
       lastModifiedAt: new Date().toISOString(),
     };
-    const properties = buildProperties(fieldsWithModifier);
 
     const results: ResultItem[] = [];
     for (const id of ids) {
-      if (scope && (await getRecordCompany(id)) !== scope) {
-        results.push({ id, ok: false, error: "본인 법인 데이터만 수정할 수 있습니다." });
-      } else {
-        try {
-          await notion.pages.update({
-            page_id: id,
-            properties: properties as Parameters<typeof notion.pages.update>[0]["properties"],
-          });
-          results.push({ id, ok: true });
-        } catch (e) {
-          results.push({ id, ok: false, error: errorMessage(e) });
+      try {
+        const base = await readEntityOne<SwDbRecord>(SW_ENTITY, id);
+        if (!base) {
+          results.push({ id, ok: false, error: "레코드를 찾을 수 없습니다." });
+          continue;
         }
+        if (scope && (base.company ?? "") !== scope) {
+          results.push({ id, ok: false, error: "본인 법인 데이터만 수정할 수 있습니다." });
+          continue;
+        }
+        const { next } = applyFields(base, fieldsWithModifier);
+        const ok = await upsertEntity(SW_ENTITY, id, next);
+        results.push(ok ? { id, ok: true } : { id, ok: false, error: "저장 실패(Postgres)" });
+      } catch (e) {
+        results.push({ id, ok: false, error: errorMessage(e) });
       }
-      // Notion API rate limit
-      await new Promise(r => setTimeout(r, 350));
     }
 
     const success = results.filter(r => r.ok).length;
     const failed  = results.length - success;
-
-    if (success > 0) {
-      memDel("sw:all");
-      await kvDel("sw:all");
-    }
 
     return NextResponse.json({ ok: true, success, failed, results });
   } catch (e) {

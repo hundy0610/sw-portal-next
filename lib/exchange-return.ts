@@ -1,11 +1,16 @@
 /**
- * 교체/반납 트래커 — Notion DB 연동 모듈
- * 환경변수: NOTION_DB_EXCHANGE_RETURN, NOTION_TOKEN
+ * 교체/반납 트래커 (4.0verMACBOOK)
+ * 메인 저장소: 맥북 Postgres public.entity_store('exchange-return').
+ * 읽기는 미러 우선(미설정/실패 시 Notion 폴백), 쓰기는 미러 write-through + dirty → 5분 뒤 Notion 백업.
+ * 환경변수: NOTION_DB_EXCHANGE_RETURN(백업/폴백/시드), NOTION_TOKEN
  */
 
 import { Client } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
 import type { ExchangeReturnRecord } from "@/types";
+import { readEntity, readEntityOne, upsertEntity, deleteEntity } from "@/lib/repo/mirror";
+
+export const ER_ENTITY = "exchange-return";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
@@ -66,7 +71,6 @@ function mapPage(page: PageObjectResponse): ExchangeReturnRecord {
   const p = page.properties;
   const stage      = sel(p, "현재단계");
   const completedAt = dt(p, "완료일");
-  // 기존 버그로 인해 사용일자가 완료일로 잘못 저장된 레코드의 fallback 처리
   const useDate    = dt(p, "사용일자") || (stage !== "반납완료" ? completedAt : "");
   return {
     id:           page.id,
@@ -101,7 +105,7 @@ function getDbId(): string {
   return id;
 }
 
-export async function fetchExchangeReturns(): Promise<ExchangeReturnRecord[]> {
+async function fetchAllFromNotion(): Promise<ExchangeReturnRecord[]> {
   const dbId = getDbId();
   const results: PageObjectResponse[] = [];
   let cursor: string | undefined;
@@ -116,6 +120,31 @@ export async function fetchExchangeReturns(): Promise<ExchangeReturnRecord[]> {
     cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined;
   } while (cursor);
   return results.map(mapPage);
+}
+
+async function fetchOneFromNotion(id: string): Promise<ExchangeReturnRecord | null> {
+  try {
+    const page = await notion.pages.retrieve({ page_id: id });
+    if (page.object !== "page" || !("properties" in page)) return null;
+    return mapPage(page as PageObjectResponse);
+  } catch {
+    return null;
+  }
+}
+
+function sortByEditedDesc(rows: ExchangeReturnRecord[]): ExchangeReturnRecord[] {
+  return [...rows].sort((a, b) => (b.lastEditedAt || "") < (a.lastEditedAt || "") ? -1 : 1);
+}
+
+/** 초기 이관(seed)용 — 현재 Notion 레코드 전체. */
+export async function fetchExchangeReturnsFromNotion(): Promise<ExchangeReturnRecord[]> {
+  return fetchAllFromNotion();
+}
+
+export async function fetchExchangeReturns(): Promise<ExchangeReturnRecord[]> {
+  const mir = await readEntity<ExchangeReturnRecord>(ER_ENTITY);
+  if (mir) return sortByEditedDesc(mir);
+  return fetchAllFromNotion();
 }
 
 export interface CreateFields {
@@ -140,34 +169,36 @@ export interface CreateFields {
 }
 
 export async function createExchangeReturn(fields: CreateFields): Promise<ExchangeReturnRecord> {
-  const dbId = getDbId();
   if (fields.type !== "신규지급" && !fields.assetId?.trim()) throw new Error("자산번호 필수");
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const props: Record<string, any> = {
-    "자산번호":   { title: [{ text: { content: fields.assetId?.trim() || "" } }] },
-    "유형":       { select: { name: fields.type } },
-    "케이스종료": { checkbox: false },
+  const now = new Date().toISOString();
+  const record: ExchangeReturnRecord = {
+    id:             crypto.randomUUID(),
+    type:           fields.type,
+    assetId:        fields.assetId?.trim() || "",
+    newAssetId:     fields.newAssetId || "",
+    company:        fields.company || "",
+    department:     fields.department || "",
+    user:           fields.user || "",
+    stage:          fields.stage || "",
+    requestedAt:    fields.requestedAt || "",
+    useDate:        "",
+    returnDue:      fields.returnDue || "",
+    completedAt:    fields.completedAt || "",
+    reason:         fields.reason || "",
+    assignee:       "",
+    assigneeId:     fields.assigneeId || "",
+    note:           fields.note || "",
+    address:        fields.address || "",
+    requesterEmail: fields.requesterEmail || "",
+    autoSynced:     !!fields.autoSynced,
+    isClosed:       !!fields.isClosed,
+    lastEditedAt:   now,
+    lastModifiedBy: fields.lastModifiedBy || "",
+    notionUrl:      "",
   };
-
-  if (fields.newAssetId)  props["교체 자산번호"] = { rich_text: [{ text: { content: fields.newAssetId } }] };
-  if (fields.company)     props["법인"]          = { select: { name: fields.company } };
-  if (fields.department)  props["부서"]          = { rich_text: [{ text: { content: fields.department } }] };
-  if (fields.user)        props["사용자"]        = { rich_text: [{ text: { content: fields.user } }] };
-  if (fields.stage)       props["현재단계"]      = { select: { name: fields.stage } };
-  if (fields.requestedAt) props["신청일"]        = { date: { start: fields.requestedAt } };
-  if (fields.returnDue)   props["반납예정일"]    = { date: { start: fields.returnDue } };
-  if (fields.completedAt) props["완료일"]        = { date: { start: fields.completedAt } };
-  if (fields.reason)         props["신청사유"]      = { rich_text: [{ text: { content: fields.reason } }] };
-  if (fields.address)        props["배송지"]        = { select: { name: fields.address } };
-  if (fields.assigneeId)     props["담당자"]        = { people: [{ object: "user", id: fields.assigneeId }] };
-  if (fields.note)           props["비고"]          = { rich_text: [{ text: { content: fields.note } }] };
-  if (fields.requesterEmail) props["기안자이메일"]  = { email: fields.requesterEmail };
-  if (fields.autoSynced)     props["자동동기화"]    = { checkbox: true };
-  if (fields.lastModifiedBy) props["마지막수정자"]  = { rich_text: [{ text: { content: fields.lastModifiedBy } }] };
-
-  const page = await notion.pages.create({ parent: { database_id: dbId }, properties: props });
-  return mapPage(page as PageObjectResponse);
+  const ok = await upsertEntity(ER_ENTITY, record.id, record);
+  if (!ok) throw new Error("exchange-return 저장 실패(Postgres)");
+  return record;
 }
 
 export interface UpdateFields {
@@ -192,100 +223,63 @@ export interface UpdateFields {
 }
 
 export async function updateExchangeReturn(id: string, fields: UpdateFields): Promise<void> {
-  const props: Record<string, unknown> = {};
+  let base = await readEntityOne<ExchangeReturnRecord>(ER_ENTITY, id);
+  if (!base) base = await fetchOneFromNotion(id);
+  if (!base) throw new Error("대상 레코드를 찾을 수 없습니다.");
 
-  if (fields.type        !== undefined) props["유형"]         = { select: fields.type ? { name: fields.type } : null };
-  if (fields.newAssetId  !== undefined) props["교체 자산번호"] = { rich_text: [{ text: { content: fields.newAssetId } }] };
-  if (fields.company     !== undefined) props["법인"]         = { select: fields.company ? { name: fields.company } : null };
-  if (fields.department  !== undefined) props["부서"]         = { rich_text: [{ text: { content: fields.department } }] };
-  if (fields.user        !== undefined) props["사용자"]       = { rich_text: [{ text: { content: fields.user } }] };
-  if (fields.stage       !== undefined) props["현재단계"]     = { select: fields.stage ? { name: fields.stage } : null };
-  if (fields.requestedAt !== undefined) props["신청일"]       = { date: fields.requestedAt ? { start: fields.requestedAt } : null };
-  if (fields.useDate     !== undefined) props["사용일자"]     = { date: fields.useDate ? { start: fields.useDate } : null };
-  if (fields.returnDue   !== undefined) props["반납예정일"]   = { date: fields.returnDue ? { start: fields.returnDue } : null };
-  if (fields.completedAt !== undefined) props["완료일"]       = { date: fields.completedAt ? { start: fields.completedAt } : null };
-  if (fields.reason      !== undefined) props["신청사유"]     = { rich_text: [{ text: { content: fields.reason } }] };
-  if (fields.assigneeId  !== undefined) props["담당자"]       = fields.assigneeId
-    ? { people: [{ object: "user", id: fields.assigneeId }] }
-    : { people: [] };
-  if (fields.note        !== undefined) props["비고"]         = { rich_text: [{ text: { content: fields.note } }] };
-  if (fields.address         !== undefined) props["배송지"]       = { select: fields.address ? { name: fields.address } : null };
-  if (fields.requesterEmail  !== undefined) props["기안자이메일"] = { email: fields.requesterEmail || null };
-  if (fields.autoSynced      !== undefined) props["자동동기화"]   = { checkbox: fields.autoSynced };
-  if (fields.isClosed        !== undefined) props["케이스종료"]   = { checkbox: fields.isClosed };
-  if (fields.lastModifiedBy  !== undefined) props["마지막수정자"] = { rich_text: [{ text: { content: fields.lastModifiedBy } }] };
+  const next: ExchangeReturnRecord = { ...base };
+  if (fields.type        !== undefined) next.type = fields.type;
+  if (fields.newAssetId  !== undefined) next.newAssetId = fields.newAssetId;
+  if (fields.company     !== undefined) next.company = fields.company;
+  if (fields.department  !== undefined) next.department = fields.department;
+  if (fields.user        !== undefined) next.user = fields.user;
+  if (fields.stage       !== undefined) next.stage = fields.stage;
+  if (fields.requestedAt !== undefined) next.requestedAt = fields.requestedAt;
+  if (fields.useDate     !== undefined) next.useDate = fields.useDate ?? "";
+  if (fields.returnDue   !== undefined) next.returnDue = fields.returnDue ?? "";
+  if (fields.completedAt !== undefined) next.completedAt = fields.completedAt ?? "";
+  if (fields.reason      !== undefined) next.reason = fields.reason;
+  if (fields.assigneeId  !== undefined) next.assigneeId = fields.assigneeId;
+  if (fields.note        !== undefined) next.note = fields.note;
+  if (fields.address     !== undefined) next.address = fields.address;
+  if (fields.requesterEmail !== undefined) next.requesterEmail = fields.requesterEmail;
+  if (fields.autoSynced     !== undefined) next.autoSynced = fields.autoSynced;
+  if (fields.isClosed       !== undefined) next.isClosed = fields.isClosed;
+  if (fields.lastModifiedBy !== undefined) next.lastModifiedBy = fields.lastModifiedBy;
+  next.lastEditedAt = new Date().toISOString();
 
-  if (Object.keys(props).length === 0) return;
-
-  await notion.pages.update({
-    page_id: id,
-    properties: props as Parameters<typeof notion.pages.update>[0]["properties"],
-  });
+  const ok = await upsertEntity(ER_ENTITY, id, next);
+  if (!ok) throw new Error("exchange-return 수정 실패(Postgres)");
 }
 
 export async function deleteExchangeReturn(id: string): Promise<void> {
-  // Notion은 archived=true로 소프트 삭제. 휴지통에서 30일 후 영구 삭제됨.
-  await notion.pages.update({ page_id: id, archived: true });
+  const ok = await deleteEntity(ER_ENTITY, id);
+  if (!ok) throw new Error("exchange-return 삭제 실패(Postgres)");
 }
 
 // HW 상태가 "재고"로 변경될 때 호출 — 반납요청 단계인 레코드를 반납완료로 자동 처리
 export async function autoCompleteReturnsByAssetId(assetId: string): Promise<number> {
   if (!assetId) return 0;
-  const dbId = getDbId();
-
-  const res = await notion.databases.query({
-    database_id: dbId,
-    filter: { property: "자산번호", title: { equals: assetId } },
-  });
-
+  const rows = (await readEntity<ExchangeReturnRecord>(ER_ENTITY)) ?? [];
   const today = new Date().toISOString().slice(0, 10);
-  const pending = (res.results as PageObjectResponse[]).filter(
-    p => sel(p.properties, "현재단계") === "반납요청"
-  );
+  const pending = rows.filter(r => r.assetId === assetId && r.stage === "반납요청");
   if (pending.length === 0) return 0;
-
-  await Promise.all(pending.map(p =>
-    notion.pages.update({
-      page_id: p.id,
-      properties: {
-        "현재단계": { select: { name: "반납완료" } },
-        "완료일":   { date: { start: today } },
-      } as Parameters<typeof notion.pages.update>[0]["properties"],
-    })
+  const now = new Date().toISOString();
+  await Promise.all(pending.map(r =>
+    upsertEntity(ER_ENTITY, r.id, { ...r, stage: "반납완료", completedAt: today, lastEditedAt: now }),
   ));
   return pending.length;
 }
 
-// HW 자산의 사용일자가 변경될 때 호출 — 연결된 진행 중(미종료) 자산 흐름 레코드의 사용일자 동기화
+// HW 자산의 사용일자가 변경될 때 호출 — 진행 중(미종료) 자산 흐름 레코드의 사용일자 동기화
 export async function autoSyncUseDateByAssetId(assetId: string, useDate: string): Promise<number> {
   if (!assetId) return 0;
-  const dbId = getDbId();
-
-  const res = await notion.databases.query({
-    database_id: dbId,
-    filter: {
-      and: [
-        { property: "케이스종료", checkbox: { equals: false } },
-        { or: [
-          { property: "자산번호",     title:     { equals: assetId } },
-          { property: "교체 자산번호", rich_text: { equals: assetId } },
-        ] },
-      ],
-    },
-  });
-
-  const targets = res.results as PageObjectResponse[];
+  const rows = (await readEntity<ExchangeReturnRecord>(ER_ENTITY)) ?? [];
+  const targets = rows.filter(r => !r.isClosed && (r.assetId === assetId || r.newAssetId === assetId));
   if (targets.length === 0) return 0;
-
-  await Promise.all(targets.map(p =>
-    notion.pages.update({
-      page_id: p.id,
-      properties: {
-        "사용일자": { date: useDate ? { start: useDate } : null },
-      } as Parameters<typeof notion.pages.update>[0]["properties"],
-    })
+  const now = new Date().toISOString();
+  await Promise.all(targets.map(r =>
+    upsertEntity(ER_ENTITY, r.id, { ...r, useDate, lastEditedAt: now }),
   ));
   return targets.length;
 }
-
-

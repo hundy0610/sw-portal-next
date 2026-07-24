@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { kvGet } from "@/lib/kv-store";
-import { memGet } from "@/lib/mem-cache";
-import type { SwDbRecord } from "@/types";
+import { fetchSwDatabase } from "@/lib/notion";
 import { getSessionFromCookieHeader, companyScope } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -21,12 +19,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const filterCompany = scope ?? (searchParams.get("company")?.trim() || "");
 
-    // 캐시에서 SW 데이터 조회
-    let data = memGet<SwDbRecord[]>("sw:all");
-    if (!data) {
-      const compact = await kvGet<Partial<SwDbRecord>[]>("sw:all");
-      data = compact as SwDbRecord[] | null;
-    }
+    // 메인 저장소(맥북 Postgres 미러)에서 직접 조회
+    const data = await fetchSwDatabase();
     if (!data) return NextResponse.json({ ok: true, groups: [], total: 0 });
 
     const today = new Date();

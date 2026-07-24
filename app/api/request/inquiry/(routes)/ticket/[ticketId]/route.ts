@@ -1,38 +1,35 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { notionRequest } from "@/shared/lib/notion";
+import { readEntityOne } from "@/lib/repo/mirror";
+import type { HelpDeskTicket } from "@/lib/notion";
 
 type RouteContext = {
   params: { ticketId: string };
 };
 
+// 4.0verMACBOOK: 문의 접수 티켓 조회 → 맥북 Postgres 미러(entity "helpdesk").
 export async function GET(_: NextRequest, context: RouteContext) {
   try {
     const { ticketId } = context.params;
-
-    const notionResponse = await notionRequest<any>(`/pages/${ticketId}`, {
-      method: "GET",
-    });
+    const t = await readEntityOne<HelpDeskTicket>("helpdesk", ticketId);
+    if (!t) return NextResponse.json({ message: "티켓을 찾을 수 없습니다." }, { status: 404 });
 
     const response = {
-      법인: notionResponse.properties.법인.select?.name ?? "-",
-      부서: notionResponse.properties.부서.rich_text?.[0]?.text?.content ?? "-",
-      문의자: notionResponse.properties.문의자.rich_text?.[0]?.text?.content ?? "-",
-      자산번호: notionResponse.properties.자산번호.rich_text?.[0]?.text?.content ?? "-",
-      문의유형: notionResponse.properties.문의유형.select?.name ?? "-",
-      문의내용: notionResponse.properties.문의내용.title?.[0]?.text?.content ?? "-",
-      긴급도: notionResponse.properties.긴급도.select?.name ?? "-",
-
-      상태: notionResponse.properties.상태.status?.name ?? "-",
-      담당자: notionResponse.properties.담당자.people?.[0]?.name ?? "-",
-
-      createdAt: notionResponse.created_time ?? "-",
+      법인: t.company || "-",
+      부서: t.department || "-",
+      문의자: t.requester || "-",
+      자산번호: t.assetNo || "-",
+      문의유형: t.inquiryType || "-",
+      문의내용: t.content || t.title || "-",
+      긴급도: t.urgency || "-",
+      상태: t.status || "-",
+      담당자: t.assignee || "-",
+      createdAt: t.submittedAt || "-",
     };
 
     return NextResponse.json(response);
-  } catch (error: any) {
-    return NextResponse.json(error.data || { message: error.message }, {
-      status: (error.status as number) || 500,
-    });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "서버 오류";
+    return NextResponse.json({ message: msg }, { status: 500 });
   }
 }

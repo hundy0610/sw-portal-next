@@ -1,15 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Client } from "@notionhq/client";
 import { getSessionFromCookieHeader } from "@/lib/session";
+import { readEntity, upsertEntity, deleteEntity, isMirrorEnabled } from "@/lib/repo/mirror";
 
 export const dynamic = "force-dynamic";
-const notion = new Client({ auth: process.env.NOTION_TOKEN });
-const DB_ID  = process.env.NOTION_DB_SURVEY_DEMAND!;
+
+const SD_ENTITY = "survey-demand";
+
+export interface SurveyDemandRecord {
+  id: string;
+  name: string;
+  company: string;
+  department: string;
+  email: string;
+  purpose: string[];
+  language: string[];
+  frequency: string;
+  note: string;
+  submittedAt: string;
+  notionUrl: string;
+}
 
 // ── POST: 설문 응답 제출 (인증 불필요) ───────────────────────────────
+// 4.0verMACBOOK: 맥북 Postgres 미러(entity "survey-demand")에 직접 기록.
 export async function POST(req: NextRequest) {
-  if (!process.env.NOTION_TOKEN || !DB_ID) {
-    return NextResponse.json({ ok: false, error: "설문 DB가 설정되지 않았습니다." }, { status: 503 });
+  if (!isMirrorEnabled() && !process.env.NOTION_TOKEN) {
+    return NextResponse.json({ ok: false, error: "설문 저장소가 설정되지 않았습니다." }, { status: 503 });
   }
 
   try {
@@ -25,20 +40,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "주요 언어를 하나 이상 선택해 주세요." }, { status: 400 });
     if (!frequency?.trim())         return NextResponse.json({ ok: false, error: "사용 주기를 선택해 주세요." }, { status: 400 });
 
-    await notion.pages.create({
-      parent: { database_id: DB_ID },
-      properties: {
-        "성함":    { title: [{ text: { content: name.trim() } }] },
-        "소속법인": { rich_text: [{ text: { content: company.trim() } }] },
-        "부서명":  { rich_text: [{ text: { content: department.trim() } }] },
-        "이메일":  { email: email.trim() },
-        "사용목적": { multi_select: (purpose as string[]).map(p => ({ name: p })) },
-        "주요언어": { multi_select: (language as string[]).map(l => ({ name: l })) },
-        "사용주기": { rich_text: [{ text: { content: frequency.trim() } }] },
-        "특이사항": { rich_text: [{ text: { content: (note ?? "").trim() } }] },
-        "제출일시": { date: { start: new Date().toISOString() } },
-      } as Parameters<typeof notion.pages.create>[0]["properties"],
-    });
+    const id = crypto.randomUUID();
+    const record: SurveyDemandRecord = {
+      id,
+      name: name.trim(),
+      company: company.trim(),
+      department: department.trim(),
+      email: email.trim(),
+      purpose: purpose as string[],
+      language: language as string[],
+      frequency: frequency.trim(),
+      note: (note ?? "").trim(),
+      submittedAt: new Date().toISOString(),
+      notionUrl: "",
+    };
+    const ok = await upsertEntity(SD_ENTITY, id, record);
+    if (!ok) return NextResponse.json({ ok: false, error: "설문 저장 실패(Postgres)" }, { status: 500 });
 
     return NextResponse.json({ ok: true });
   } catch (e: any) {
@@ -52,41 +69,23 @@ export async function GET(req: NextRequest) {
   const session = getSessionFromCookieHeader(req.headers.get("cookie"));
   if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
-  if (!process.env.NOTION_TOKEN || !DB_ID) {
-    return NextResponse.json({ ok: false, error: "설문 DB가 설정되지 않았습니다." }, { status: 503 });
-  }
-
   try {
-    const pages: any[] = [];
-    let cursor: string | undefined;
-
-    do {
-      const res: any = await notion.databases.query({
-        database_id: DB_ID,
-        sorts: [{ timestamp: "created_time", direction: "descending" }],
-        start_cursor: cursor,
-        page_size: 100,
-      });
-      pages.push(...res.results);
-      cursor = res.has_more ? res.next_cursor ?? undefined : undefined;
-    } while (cursor);
-
-    const getText = (p: any, key: string) =>
-      p?.[key]?.rich_text?.[0]?.plain_text ?? p?.[key]?.title?.[0]?.plain_text ?? "";
-
-    const data = pages.map((p: any) => ({
-      id:          p.id,
-      name:        getText(p.properties, "성함"),
-      company:     getText(p.properties, "소속법인"),
-      department:  getText(p.properties, "부서명"),
-      email:       p.properties["이메일"]?.email ?? "",
-      purpose:     (p.properties["사용목적"]?.multi_select ?? []).map((s: any) => s.name).join(", "),
-      language:    (p.properties["주요언어"]?.multi_select  ?? []).map((s: any) => s.name).join(", "),
-      frequency:   getText(p.properties, "사용주기"),
-      note:        getText(p.properties, "특이사항"),
-      submittedAt: p.properties["제출일시"]?.date?.start ?? p.created_time,
-      notionUrl:   p.url,
-    }));
+    const rows = (await readEntity<SurveyDemandRecord>(SD_ENTITY)) ?? [];
+    const data = [...rows]
+      .sort((a, b) => (b.submittedAt || "").localeCompare(a.submittedAt || ""))
+      .map((r) => ({
+        id: r.id,
+        name: r.name,
+        company: r.company,
+        department: r.department,
+        email: r.email,
+        purpose: (r.purpose ?? []).join(", "),
+        language: (r.language ?? []).join(", "),
+        frequency: r.frequency,
+        note: r.note,
+        submittedAt: r.submittedAt,
+        notionUrl: r.notionUrl,
+      }));
 
     return NextResponse.json({ ok: true, data });
   } catch (e: any) {
@@ -102,7 +101,7 @@ export async function DELETE(req: NextRequest) {
   try {
     const { id } = await req.json();
     if (!id) return NextResponse.json({ ok: false, error: "id 필수" }, { status: 400 });
-    await notion.pages.update({ page_id: id, archived: true });
+    await deleteEntity(SD_ENTITY, id);
     return NextResponse.json({ ok: true });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message }, { status: 500 });

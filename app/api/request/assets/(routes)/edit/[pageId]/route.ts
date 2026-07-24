@@ -1,12 +1,15 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { convertToNotionProperties } from "@/app/api/request/assets/(utils)/convertToNotionProperties";
-import { notionRequest } from "@/shared/lib/notion";
+import { convertToHwFields } from "@/app/api/request/assets/(utils)/convertToHwFields";
+import { updateHwFields, getHwByIdFromPostgres, isPostgresEnabled } from "@/lib/repo/hw";
 
 type RouteContext = {
   params: { pageId: string };
 };
 
+// 4.0verMACBOOK: 자산 자가서비스 DB == HWDB(hw 테이블). 공개 자산 수정(QR)은 hw 테이블
+// write-through(dirty=true) → 5분 백업 러너가 Notion 으로 단방향 반영. 응답 형태(한글 키)는
+// lookup 과 동일하게 갱신본을 반환. HWDB 에 없는 워크플로 필드는 무시(드롭).
 export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
     const { pageId } = context.params;
@@ -15,58 +18,61 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (!body || Object.keys(body).length === 0) {
       return NextResponse.json({ message: "수정할 데이터가 필요합니다." }, { status: 400 });
     }
+    if (!isPostgresEnabled()) {
+      return NextResponse.json({ message: "데이터 저장소(Postgres)가 설정되지 않았습니다." }, { status: 503 });
+    }
 
-    const properties = body.properties ? body.properties : convertToNotionProperties(body);
-
-    if (Object.keys(properties).length === 0) {
+    const fields = convertToHwFields(body);
+    if (Object.keys(fields).length === 0) {
       return NextResponse.json({ message: "유효한 프로퍼티가 없습니다." }, { status: 400 });
     }
 
-    const notionResponse = await notionRequest<any>(`/pages/${pageId}`, {
-      method: "PATCH",
-      body: {
-        properties,
-      },
-    });
+    const ok = await updateHwFields(pageId, fields);
+    if (!ok) {
+      return NextResponse.json({ message: "수정 실패(Postgres)." }, { status: 502 });
+    }
+
+    const hw = await getHwByIdFromPostgres(pageId);
+    if (!hw) {
+      return NextResponse.json({ pageId });
+    }
 
     const response = {
-      pageId: notionResponse.id,
+      pageId: hw.id,
       properties: {
-        자산번호: notionResponse.properties.자산번호?.rich_text?.[0]?.text?.content ?? "-",
-        사용자: notionResponse.properties.사용자?.title?.[0]?.text?.content ?? "-",
-        법인명: notionResponse.properties.법인명?.select?.name ?? "-",
-        부서: notionResponse.properties.부서?.rich_text?.[0]?.text?.content ?? "-",
-        위치: notionResponse.properties.위치?.rich_text?.[0]?.text?.content ?? "-",
-        제조사: notionResponse.properties.제조사?.select?.name ?? "-",
-        모델명: notionResponse.properties.모델명?.rich_text?.[0]?.text?.content ?? "-",
-        "시리얼 넘버": notionResponse.properties["시리얼 넘버"]?.rich_text?.[0]?.text?.content ?? "-",
-        CPU: notionResponse.properties.CPU?.rich_text?.[0]?.text?.content ?? "-",
-        RAM: notionResponse.properties.RAM?.rich_text?.[0]?.text?.content ?? "-",
-        단가: notionResponse.properties.단가?.number ?? 0,
-        잔존가치: notionResponse.properties.잔존가치?.formula?.number ?? 0,
-        구매일자: notionResponse.properties.구매일자?.date?.start ?? "-",
-        사용일자: notionResponse.properties.사용일자?.date?.start ?? "-",
-        반납일자: notionResponse.properties.반납일자?.date?.start ?? "-",
-        수리일자: notionResponse.properties.수리일자?.date?.start ?? "-",
-        "사용/재고/폐기/기타": notionResponse.properties["사용/재고/폐기/기타"]?.select?.name ?? "-",
-        출고진행상황: notionResponse.properties.출고진행상황?.status?.name ?? "-",
-        "반납 진행 상황": notionResponse.properties["반납 진행 상황"]?.status?.name ?? "-",
-        수리진행상황: notionResponse.properties.수리진행상황?.status?.name ?? "-",
-        수리담당자: notionResponse.properties.수리담당자?.people?.[0]?.name ?? "-",
-        "수리 작업 유형":
-          notionResponse.properties["수리 작업 유형"]?.multi_select?.map((item: any) => item.name) ?? [],
-        반납사유: notionResponse.properties.반납사유?.select?.name ?? "-",
-        "누락 사항": notionResponse.properties["누락 사항"]?.multi_select?.map((item: any) => item.name) ?? [],
-        기타: notionResponse.properties.기타?.rich_text?.[0]?.text?.content ?? "-",
-        createdAt: notionResponse.created_time ?? "-",
-        updatedAt: notionResponse.last_edited_time ?? "-",
+        자산번호: hw.assetNo || "-",
+        사용자: hw.user || "-",
+        법인명: hw.company || "-",
+        부서: hw.dept || "-",
+        위치: hw.location || "-",
+        제조사: hw.maker || "-",
+        모델명: hw.model || "-",
+        "시리얼 넘버": hw.serial || "-",
+        CPU: hw.cpu || "-",
+        RAM: hw.ram || "-",
+        단가: hw.price ?? 0,
+        잔존가치: hw.residualValue ?? 0,
+        구매일자: hw.purchaseDate || "-",
+        사용일자: hw.useDate || "-",
+        반납일자: hw.returnDate || "-",
+        "사용/재고/폐기/기타": hw.status || "-",
+        기타: hw.note || "-",
+        수리일자: "-",
+        출고진행상황: "-",
+        "반납 진행 상황": "-",
+        수리진행상황: "-",
+        수리담당자: "-",
+        "수리 작업 유형": [],
+        반납사유: "-",
+        "누락 사항": [],
+        createdAt: "-",
+        updatedAt: "-",
       },
     };
 
     return NextResponse.json(response);
-  } catch (error: any) {
-    return NextResponse.json(error.data || { message: error.message }, {
-      status: (error.status as number) || 500,
-    });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "서버 오류";
+    return NextResponse.json({ message: msg }, { status: 500 });
   }
 }
