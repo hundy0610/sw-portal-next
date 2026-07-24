@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
 import { fetchHwRepairs } from "@/lib/notion";
+import { isMirrorEnabled } from "@/lib/repo/mirror";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  for (const v of ["NOTION_TOKEN", "NOTION_DB_HW_REPAIR"]) {
-    if (!process.env[v])
-      return NextResponse.json(
-        { missingEnv: v, error: `환경변수 ${v} 가 설정되지 않았습니다.` },
-        { status: 503 }
-      );
+  if (!isMirrorEnabled() && !process.env.NOTION_TOKEN) {
+    return NextResponse.json(
+      { missingEnv: "SUPABASE_URL", error: "데이터 저장소가 설정되지 않았습니다." },
+      { status: 503 }
+    );
   }
   try {
     const data = await fetchHwRepairs();

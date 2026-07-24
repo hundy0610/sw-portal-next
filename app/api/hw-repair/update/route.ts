@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Client } from "@notionhq/client";
 import { errorMessage } from "@/lib/api-error";
+import { readEntityOne, upsertEntity } from "@/lib/repo/mirror";
+import { HR_ENTITY } from "@/lib/hw-repair";
+import type { HwRepairRecord } from "@/types";
 
 export const dynamic = "force-dynamic";
-
-const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
 export async function POST(req: NextRequest) {
   try {
@@ -30,65 +30,33 @@ export async function POST(req: NextRequest) {
     };
 
     if (!id) return NextResponse.json({ ok: false, error: "id 필수" }, { status: 400 });
-
-    const properties: Record<string, unknown> = {};
-
-    if (fields.stage !== undefined) {
-      properties["현재단계"] = { select: fields.stage ? { name: fields.stage } : null };
-    }
-    if (fields.vendor !== undefined) {
-      properties["수리업체"] = { select: fields.vendor ? { name: fields.vendor } : null };
-    }
-    if (fields.receivedAt !== undefined) {
-      properties["접수일"] = { date: fields.receivedAt ? { start: fields.receivedAt } : null };
-    }
-    if (fields.completedAt !== undefined) {
-      properties["실제완료일"] = { date: fields.completedAt ? { start: fields.completedAt } : null };
-    }
-    if (fields.faultType !== undefined) {
-      properties["과실여부"] = { select: fields.faultType ? { name: fields.faultType } : null };
-    }
-    if (fields.assigneeId !== undefined) {
-      properties["담당자"] = fields.assigneeId
-        ? { people: [{ object: "user", id: fields.assigneeId }] }
-        : { people: [] };
-    }
-    if (fields.company !== undefined) {
-      properties["법인"] = { select: fields.company ? { name: fields.company } : null };
-    }
-    if (fields.department !== undefined) {
-      properties["부서"] = { rich_text: [{ text: { content: fields.department } }] };
-    }
-    if (fields.user !== undefined) {
-      properties["사용자"] = { rich_text: [{ text: { content: fields.user } }] };
-    }
-    if (fields.note !== undefined) {
-      properties["수리내용"] = { rich_text: [{ text: { content: fields.note } }] };
-    }
-    if (fields.repairCost !== undefined) {
-      properties["수리비용"] = { number: fields.repairCost || null };
-    }
-    if (fields.assetStatus !== undefined) {
-      properties["대분류"] = { select: fields.assetStatus ? { name: fields.assetStatus } : null };
-    }
-    if (fields.address !== undefined) {
-      properties["배송지"] = { select: fields.address ? { name: fields.address } : null };
-    }
-    if (fields.requesterEmail !== undefined) {
-      properties["기안자이메일"] = fields.requesterEmail ? { email: fields.requesterEmail } : null;
-    }
-    if (fields.isClosed !== undefined) {
-      properties["케이스종료"] = { checkbox: fields.isClosed };
-    }
-
-    if (Object.keys(properties).length === 0) {
+    if (!fields || typeof fields !== "object" || Object.keys(fields).length === 0) {
       return NextResponse.json({ ok: false, error: "업데이트할 필드 없음" }, { status: 400 });
     }
 
-    await notion.pages.update({
-      page_id: id,
-      properties: properties as Parameters<typeof notion.pages.update>[0]["properties"],
-    });
+    const base = await readEntityOne<HwRepairRecord>(HR_ENTITY, id);
+    if (!base) return NextResponse.json({ ok: false, error: "대상 레코드를 찾을 수 없습니다." }, { status: 404 });
+
+    const next: HwRepairRecord = { ...base };
+    if (fields.stage          !== undefined) next.stage = fields.stage;
+    if (fields.vendor         !== undefined) next.vendor = fields.vendor;
+    if (fields.company        !== undefined) next.company = fields.company;
+    if (fields.department     !== undefined) next.department = fields.department;
+    if (fields.user           !== undefined) next.user = fields.user;
+    if (fields.receivedAt     !== undefined) next.receivedAt = fields.receivedAt;
+    if (fields.completedAt    !== undefined) next.completedAt = fields.completedAt;
+    if (fields.faultType      !== undefined) next.faultType = fields.faultType;
+    if (fields.assigneeId     !== undefined) next.assigneeId = fields.assigneeId;
+    if (fields.note           !== undefined) next.note = fields.note;
+    if (fields.repairCost     !== undefined) next.repairCost = fields.repairCost || 0;
+    if (fields.assetStatus    !== undefined) next.assetStatus = fields.assetStatus;
+    if (fields.address        !== undefined) next.address = fields.address;
+    if (fields.requesterEmail !== undefined) next.requesterEmail = fields.requesterEmail;
+    if (fields.isClosed       !== undefined) next.isClosed = fields.isClosed;
+    next.lastEditedAt = new Date().toISOString();
+
+    const ok = await upsertEntity(HR_ENTITY, id, next);
+    if (!ok) return NextResponse.json({ ok: false, error: "저장 실패(Postgres)" }, { status: 500 });
 
     return NextResponse.json({ ok: true });
   } catch (e) {

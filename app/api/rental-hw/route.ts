@@ -1,37 +1,21 @@
 import { NextResponse } from "next/server";
 import { fetchRentalRecords } from "@/lib/rental-hw";
-import { memGet, memSet, memDel } from "@/lib/mem-cache";
+import { isMirrorEnabled } from "@/lib/repo/mirror";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(req: Request) {
-  if (!process.env.NOTION_DB_RENTAL_HW) {
+export async function GET() {
+  // 4.0verMACBOOK: 메인 저장소는 맥북 Postgres(미러). 미러가 꺼져 있을 때만 Notion 필요.
+  if (!isMirrorEnabled() && !process.env.NOTION_TOKEN) {
     return NextResponse.json({
       ok: false,
-      missingEnv: "NOTION_DB_RENTAL_HW",
-      error: "환경변수 NOTION_DB_RENTAL_HW 가 설정되지 않았습니다.",
+      missingEnv: "SUPABASE_KEY",
+      error: "데이터 저장소(Postgres/Notion)가 설정되지 않았습니다.",
     }, { status: 503 });
   }
-  if (!process.env.NOTION_TOKEN) {
-    return NextResponse.json({
-      ok: false,
-      missingEnv: "NOTION_TOKEN",
-      error: "환경변수 NOTION_TOKEN 이 설정되지 않았습니다.",
-    }, { status: 503 });
-  }
-
-  const { searchParams } = new URL(req.url);
-  const refresh = searchParams.get("refresh") === "1";
 
   try {
-    if (refresh) memDel("rental-hw:all");
-
-    let data = memGet<Awaited<ReturnType<typeof fetchRentalRecords>>>("rental-hw:all");
-    if (!data) {
-      data = await fetchRentalRecords();
-      memSet("rental-hw:all", data, 300);
-    }
-
+    const data = await fetchRentalRecords();
     return NextResponse.json({ ok: true, data });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message }, { status: 500 });

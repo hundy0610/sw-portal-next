@@ -1,19 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchContracts, createContract } from "@/lib/contract-notion";
-import { kvDel } from "@/lib/kv-store";
+import { isMirrorEnabled } from "@/lib/repo/mirror";
 import type { ContractStage } from "@/types/contract";
 import { errorMessage } from "@/lib/api-error";
 
-// DELETE /api/contracts  — KV 캐시 강제 무효화
+// DELETE /api/contracts  — (구) KV 캐시 무효화 엔드포인트, 미러 구조에선 no-op
 export async function DELETE() {
-  await kvDel("contracts:list");
   return NextResponse.json({ ok: true });
 }
 
 // GET /api/contracts
 export async function GET() {
-  for (const v of ["NOTION_TOKEN", "NOTION_DB_CONTRACTS"]) {
-    if (!process.env[v]) return NextResponse.json({ missingEnv: v, error: `환경변수 ${v} 가 설정되지 않았습니다.` }, { status: 503 });
+  // 4.0verMACBOOK: 메인 저장소는 맥북 Postgres(미러). 미러가 꺼져 있을 때만 Notion 필요.
+  if (!isMirrorEnabled()) {
+    for (const v of ["NOTION_TOKEN", "NOTION_DB_CONTRACTS"]) {
+      if (!process.env[v]) return NextResponse.json({ missingEnv: v, error: `환경변수 ${v} 가 설정되지 않았습니다.` }, { status: 503 });
+    }
   }
   try {
     const contracts = await fetchContracts();

@@ -9,7 +9,9 @@
     "lint": "next lint",
     "migrate": "node --env-file=.env --import tsx scripts/migrate.ts",
     "seed:hw": "node --env-file=.env --import tsx scripts/seed-hw.ts",
-    "seed:kv": "node --env-file=.env --import tsx scripts/seed-kv.ts"
+    "seed:kv": "node --env-file=.env --import tsx scripts/seed-kv.ts",
+    "seed:entities": "node --env-file=.env --import tsx scripts/seed-entities.ts",
+    "backup:notion": "node --env-file=.env --import tsx scripts/backup-to-notion.ts"
   },
   "dependencies": {
     "@notionhq/client": "^2.2.15",

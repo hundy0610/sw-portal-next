@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SW-PORTAL 4.0verMACBOOK — Notion 백업 launchd 에이전트 (5분 주기)
+
+  맥북 Postgres(메인)에서 dirty 행을 Notion(백업)으로 단방향 반영한다.
+  scripts/backup-to-notion.ts 를 5분(StartInterval=300)마다 실행한다.
+
+  설치(맥북에서):
+    cp deploy/com.swportal.backup-notion.plist ~/Library/LaunchAgents/
+    launchctl unload ~/Library/LaunchAgents/com.swportal.backup-notion.plist 2>/dev/null
+    launchctl load  ~/Library/LaunchAgents/com.swportal.backup-notion.plist
+    launchctl start com.swportal.backup-notion       # 즉시 1회 실행(테스트)
+
+  로그: /tmp/swportal-backup-notion.out / .err
+  경로/사용자에 맞게 WorkingDirectory 와 ProgramArguments 의 node 경로를 확인하세요.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.swportal.backup-notion</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/node</string>
+    <string>--env-file=.env</string>
+    <string>--import</string>
+    <string>tsx</string>
+    <string>scripts/backup-to-notion.ts</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/user/works/SW-PORTAL</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+
+  <key>StartInterval</key>
+  <integer>300</integer>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/swportal-backup-notion.out</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/swportal-backup-notion.err</string>
+</dict>
+</plist>

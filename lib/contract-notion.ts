@@ -1,66 +1,20 @@
 /**
- * PC/OA 유지보수 계약 — Notion DB 연동 모듈
- * 환경변수: NOTION_DB_CONTRACTS  (DB ID)
- *           NOTION_TOKEN         (통합 토큰 — 기존과 공유)
- *
- * KV 캐시: contracts:list (TTL 5분)
- *   - Notion File URL이 1시간 유효하므로 5분 캐시는 안전
- *   - 생성/수정/삭제 시 kvDel로 즉시 무효화
- *
- * ※ Notion SDK(v2.2.x)는 page_id를 UUID로 강제 검증하여
- *   신규 ID 포맷(c_xxx 등)을 거부함 → pages.create / pages.update /
- *   pages.archive 는 raw fetch 로 대체, query는 SDK 유지
+ * PC/OA 유지보수 계약 (4.0verMACBOOK)
+ * 메인 저장소: 맥북 Postgres public.entity_store('contracts').
+ * 첨부 계약서(PDF)는 Vercel Blob(영구 공개 URL)에 저장하고, 미러 레코드에는 그 URL 을 담는다.
+ * 5분 백업 러너가 Blob 파일을 Notion file_uploads 로 재업로드한다(lib/backup/notion-map.ts files 설정).
+ * 환경변수: NOTION_DB_CONTRACTS(백업/폴백/시드), NOTION_TOKEN, BLOB_READ_WRITE_TOKEN(업로드)
  */
 
 import { Client } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
-import { kvGet, kvSet, kvDel } from "@/lib/kv-store";
 import type { Contract, ContractStage } from "@/types/contract";
+import { readEntity, readEntityOne, upsertEntity, deleteEntity } from "@/lib/repo/mirror";
+import { uploadToBlob } from "@/lib/blob-store";
+
+export const CONTRACT_ENTITY = "contracts";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
-const KV_KEY = "contracts:list";
-const KV_TTL = 300; // 5분
-
-// ── Raw Notion Pages API (SDK UUID 검증 우회) ─────────────────
-// SDK는 page_id 를 UUID로 검증 → 신규 Notion ID(c_xxx)에서 실패
-// raw fetch 를 사용하면 API 서버가 직접 ID를 검증하므로 문제 없음
-const NOTION_VER = "2026-03-11";
-
-function notionHeaders(): Record<string, string> {
-  const token = process.env.NOTION_TOKEN;
-  if (!token) throw new Error("NOTION_TOKEN이 설정되지 않았습니다.");
-  return {
-    Authorization: `Bearer ${token}`,
-    "Notion-Version": NOTION_VER,
-    "Content-Type": "application/json",
-  };
-}
-
-async function notionPageCreate(body: Record<string, unknown>): Promise<PageObjectResponse> {
-  const res = await fetch("https://api.notion.com/v1/pages", {
-    method: "POST",
-    headers: notionHeaders(),
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const msg = await res.text();
-    throw new Error(`Notion pages 생성 실패: ${msg}`);
-  }
-  return res.json() as Promise<PageObjectResponse>;
-}
-
-async function notionPagePatch(pageId: string, body: Record<string, unknown>): Promise<PageObjectResponse> {
-  const res = await fetch(`https://api.notion.com/v1/pages/${encodeURIComponent(pageId)}`, {
-    method: "PATCH",
-    headers: notionHeaders(),
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const msg = await res.text();
-    throw new Error(`Notion pages 수정 실패: ${msg}`);
-  }
-  return res.json() as Promise<PageObjectResponse>;
-}
 
 // ── 날짜 기준 상태 자동 계산 ──────────────────────────────────
 function calcStatus(startDate: string, endDate: string): Contract["status"] {
@@ -72,10 +26,19 @@ function calcStatus(startDate: string, endDate: string): Contract["status"] {
   return "active";
 }
 
-// ── Notion 페이지 → Contract 변환 ────────────────────────────
+const VALID_STAGES = [
+  "관리현황 파악",
+  "각 사 계약담당자 소통 (계약 검토)",
+  "계약서 작성 (수정사항 있을시 반영)",
+  "내부기안 상신",
+  "각 사 날인된 계약서 송부",
+  "계약완료",
+  "재경팀과 소통하여 월별 서비스 비용 청구",
+];
+
+// ── Notion 페이지 → Contract (폴백/시드용) ────────────────────
 function toContract(page: PageObjectResponse): Contract {
   const p = page.properties;
-
   const text = (key: string): string => {
     const prop = p[key];
     if (!prop) return "";
@@ -84,20 +47,16 @@ function toContract(page: PageObjectResponse): Contract {
     if (prop.type === "email")     return prop.email ?? "";
     return "";
   };
-
   const num = (key: string): number => {
     const prop = p[key];
     if (!prop || prop.type !== "number") return 0;
     return prop.number ?? 0;
   };
-
   const date = (key: string): string => {
     const prop = p[key];
     if (!prop || prop.type !== "date") return "";
     return prop.date?.start ?? "";
   };
-
-  // Notion 첨부 파일 URL & 이름 — 서명 URL은 호출마다 새로 발급됨 (1시간 유효)
   const fileUrl = (key: string): string => {
     const prop = p[key];
     if (!prop || prop.type !== "files" || !prop.files.length) return "";
@@ -106,13 +65,11 @@ function toContract(page: PageObjectResponse): Contract {
     if (f.type === "external") return f.external.url;
     return "";
   };
-
   const fileName = (key: string): string => {
     const prop = p[key];
     if (!prop || prop.type !== "files" || !prop.files.length) return "";
     return prop.files[0].name ?? "";
   };
-
   const select = (key: string): string => {
     const prop = p[key];
     if (!prop || prop.type !== "select") return "";
@@ -121,35 +78,11 @@ function toContract(page: PageObjectResponse): Contract {
 
   const startDate = date("계약시작일");
   const endDate   = date("계약종료일");
-
-  // 진행단계 — Notion select "진행단계" 컬럼, 없으면 기본값
   const stageRaw = select("진행단계");
-  const VALID_STAGES = [
-    "관리현황 파악",
-    "각 사 계약담당자 소통 (계약 검토)",
-    "계약서 작성 (수정사항 있을시 반영)",
-    "내부기안 상신",
-    "각 사 날인된 계약서 송부",
-    "계약완료",
-    "재경팀과 소통하여 월별 서비스 비용 청구",
-  ];
   const stage = (VALID_STAGES.includes(stageRaw) ? stageRaw : "관리현황 파악") as ContractStage;
 
-  // c_xxx 형식 ID는 Notion REST API URL에서 UUID 검증 실패 → page.url 끝의 UUID 추출
-  const apiId = (() => {
-    if (!page.id.startsWith("c_")) return page.id;
-    console.log("[contract] c_xxx page detected — id:", page.id, "url:", page.url);
-    const m = (page.url ?? "").match(/([0-9a-f]{32})$/i);
-    if (!m) {
-      console.log("[contract] UUID 추출 실패, url 원문:", page.url);
-      return page.id;
-    }
-    const h = m[1];
-    return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
-  })();
-
   return {
-    id:           apiId,
+    id:           page.id,
     company:      text("법인명"),
     contactName:  text("담당자"),
     contactEmail: text("이메일"),
@@ -167,49 +100,7 @@ function toContract(page: PageObjectResponse): Contract {
   };
 }
 
-// ── Notion File Uploads API (SDK v2.x 미지원 → raw fetch) ────
-async function uploadPdfToNotion(buffer: Buffer, filename: string): Promise<string> {
-  const token = process.env.NOTION_TOKEN;
-  if (!token) throw new Error("NOTION_TOKEN이 설정되지 않았습니다.");
-
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${token}`,
-    "Notion-Version": "2026-03-11",
-  };
-
-  // Step 1: 파일 업로드 세션 생성
-  const createRes = await fetch("https://api.notion.com/v1/file_uploads", {
-    method: "POST",
-    headers: { ...headers, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      mode: "single_part",
-      filename,
-      content_type: "application/pdf",
-    }),
-  });
-  if (!createRes.ok) {
-    const msg = await createRes.text();
-    throw new Error(`Notion 파일 업로드 세션 생성 실패: ${msg}`);
-  }
-  const { id: fileUploadId } = await createRes.json();
-
-  // Step 2: 파일 바이너리 전송
-  const formData = new FormData();
-  formData.append("file", new Blob([buffer], { type: "application/pdf" }), filename);
-  const sendRes = await fetch(
-    `https://api.notion.com/v1/file_uploads/${fileUploadId}/send`,
-    { method: "POST", headers, body: formData }
-  );
-  if (!sendRes.ok) {
-    const msg = await sendRes.text();
-    throw new Error(`Notion 파일 전송 실패: ${msg}`);
-  }
-
-  return fileUploadId;
-}
-
-// ── Notion DB 전체 페이지 조회 ───────────────────────────────
-async function queryAll(dbId: string): Promise<PageObjectResponse[]> {
+async function queryAllNotion(dbId: string): Promise<PageObjectResponse[]> {
   const pages: PageObjectResponse[] = [];
   let cursor: string | undefined;
   do {
@@ -220,69 +111,69 @@ async function queryAll(dbId: string): Promise<PageObjectResponse[]> {
       page_size: 100,
     });
     for (const p of res.results) {
-      if (p.object === "page" && "properties" in p) {
-        pages.push(p as PageObjectResponse);
-      }
+      if (p.object === "page" && "properties" in p) pages.push(p as PageObjectResponse);
     }
     cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined;
   } while (cursor);
   return pages;
 }
 
-// ── 계약서 files 프로퍼티 빌더 ────────────────────────────────
-async function buildFilesProp(
-  pdfBuffer?: Buffer,
-  pdfFileName?: string,
-  pdfLink?: string,
-): Promise<Record<string, unknown> | undefined> {
-  // 1) 파일 직접 업로드
-  if (pdfBuffer && pdfFileName) {
-    try {
-      const id = await uploadPdfToNotion(pdfBuffer, pdfFileName);
-      return { files: [{ type: "file_upload", file_upload: { id } }] };
-    } catch (e) {
-      console.warn("[contract] Notion 파일 업로드 실패, URL fallback 시도:", e);
-      // 업로드 실패 시 URL이 있으면 external로 저장
-      if (pdfLink) {
-        return { files: [{ type: "external", name: pdfFileName, external: { url: pdfLink } }] };
-      }
-      return undefined;
-    }
+async function fetchOneFromNotion(id: string): Promise<Contract | null> {
+  try {
+    const page = await notion.pages.retrieve({ page_id: id });
+    if (page.object !== "page" || !("properties" in page)) return null;
+    return toContract(page as PageObjectResponse);
+  } catch {
+    return null;
   }
-  // 2) URL 링크 첨부
-  if (pdfLink) {
-    const name = pdfLink.split("/").pop()?.split("?")[0] || "계약서";
-    return { files: [{ type: "external", name, external: { url: pdfLink } }] };
-  }
-  return undefined;
 }
 
 // ══════════════════════════════════════════════════════════════
-// Public API
+// Public API (라우트 시그니처 유지)
 // ══════════════════════════════════════════════════════════════
 
-/** 계약 목록 조회 (KV 캐시 → Notion fallback) */
+/** 계약 목록 — 미러(Postgres) 우선, 미설정/실패 시 Notion 폴백. status 는 항상 날짜 기준 재계산. */
 export async function fetchContracts(): Promise<Contract[]> {
-  const cached = await kvGet<Contract[]>(KV_KEY);
-  if (cached) {
-    // c_xxx ID가 캐시에 남아있으면 무효화 후 재조회
-    if (cached.some((c) => c.id.startsWith("c_"))) {
-      await kvDel(KV_KEY);
-    } else {
-      return cached.map((c) => ({ ...c, status: calcStatus(c.startDate, c.endDate) }));
-    }
-  }
+  const mir = await readEntity<Contract>(CONTRACT_ENTITY);
+  if (mir) return mir.map((c) => ({ ...c, status: calcStatus(c.startDate, c.endDate) }));
 
   const dbId = process.env.NOTION_DB_CONTRACTS;
   if (!dbId) return [];
-
-  const pages  = await queryAll(dbId);
-  const result = pages.map(toContract);
-  await kvSet(KV_KEY, result, KV_TTL);
-  return result;
+  const pages = await queryAllNotion(dbId);
+  return pages.map(toContract);
 }
 
-/** 계약 생성 */
+/** 초기 이관(seed)용 — Notion 계약을 읽고 첨부파일을 Blob 으로 옮겨 미러 data 형태로 반환. */
+export async function seedContractsFromNotion(): Promise<{ id: string; notionId: string; data: Record<string, unknown> }[]> {
+  const dbId = process.env.NOTION_DB_CONTRACTS;
+  if (!dbId) return [];
+  const pages = await queryAllNotion(dbId);
+  const out: { id: string; notionId: string; data: Record<string, unknown> }[] = [];
+  for (const page of pages) {
+    const c = toContract(page);
+    const data: Record<string, unknown> = { ...c };
+    // Notion 서명 URL(1시간 만료)을 영구 Blob URL 로 이관 → 앱이 안정적으로 서빙.
+    if (c.pdfUrl && /^https?:\/\//.test(c.pdfUrl)) {
+      try {
+        const dl = await fetch(c.pdfUrl);
+        if (dl.ok) {
+          const buf = Buffer.from(await dl.arrayBuffer());
+          const ct = dl.headers.get("content-type") || "application/pdf";
+          const blobUrl = await uploadToBlob(buf, c.pdfName || "계약서.pdf", ct, "contracts");
+          data.pdfUrl = blobUrl;
+          // Notion 에는 이미 파일이 있으므로 재업로드 방지 표시.
+          data.__syncedFiles = { "계약서": blobUrl };
+        }
+      } catch (e) {
+        console.warn(`[contracts seed] 파일 이관 실패(${c.id}):`, (e as Error).message);
+      }
+    }
+    out.push({ id: c.id, notionId: c.id, data });
+  }
+  return out;
+}
+
+/** 계약 생성 — 첨부는 Blob 업로드, 미러 write-through + dirty → 5분 뒤 Notion 백업. */
 export async function createContract(data: {
   company: string;
   contactName: string;
@@ -297,31 +188,37 @@ export async function createContract(data: {
   pdfFileName?: string;
   pdfLink?: string;
 }): Promise<Contract> {
-  const dbId = process.env.NOTION_DB_CONTRACTS;
-  if (!dbId) throw new Error("NOTION_DB_CONTRACTS 환경변수가 설정되지 않았습니다.");
+  let pdfUrl = "";
+  let pdfName = "";
+  if (data.pdfBuffer && data.pdfFileName) {
+    pdfUrl = await uploadToBlob(data.pdfBuffer, data.pdfFileName, "application/pdf", "contracts");
+    pdfName = data.pdfFileName;
+  } else if (data.pdfLink) {
+    pdfUrl = data.pdfLink;
+    pdfName = data.pdfLink.split("/").pop()?.split("?")[0] || "계약서";
+  }
 
-  const filesProp = await buildFilesProp(data.pdfBuffer, data.pdfFileName, data.pdfLink);
-
-  const properties: Record<string, unknown> = {
-    "법인명":     { title:     [{ text: { content: data.company } }] },
-    "담당자":     { rich_text: [{ text: { content: data.contactName } }] },
-    "이메일":     { email: data.contactEmail || null },
-    "계약시작일": { date: { start: data.startDate } },
-    "계약종료일": { date: { start: data.endDate } },
-    "PC수량":     { number: data.quantity },
-    "단가":       { number: data.unitPrice },
-    "메모":       { rich_text: [{ text: { content: data.notes || "" } }] },
-    "진행단계":   { select: { name: data.stage ?? "관리현황 파악" } },
+  const now = new Date().toISOString();
+  const record: Contract = {
+    id:           crypto.randomUUID(),
+    company:      data.company,
+    contactName:  data.contactName,
+    contactEmail: data.contactEmail || "",
+    startDate:    data.startDate,
+    endDate:      data.endDate,
+    quantity:     data.quantity,
+    unitPrice:    data.unitPrice,
+    pdfUrl,
+    pdfName,
+    status:       calcStatus(data.startDate, data.endDate),
+    stage:        data.stage ?? ("관리현황 파악" as ContractStage),
+    notes:        data.notes || "",
+    createdAt:    now,
+    updatedAt:    now,
   };
-  if (filesProp) properties["계약서"] = filesProp;
-
-  const page = await notionPageCreate({
-    parent: { database_id: dbId },
-    properties,
-  });
-
-  await kvDel(KV_KEY);
-  return toContract(page);
+  const ok = await upsertEntity(CONTRACT_ENTITY, record.id, record);
+  if (!ok) throw new Error("contracts 저장 실패(Postgres)");
+  return record;
 }
 
 /** 계약 수정 */
@@ -342,41 +239,48 @@ export async function updateContract(
     pdfLink?: string;
   }
 ): Promise<Contract> {
-  const properties: Record<string, unknown> = {};
-  if (data.company      !== undefined) properties["법인명"]     = { title:     [{ text: { content: data.company } }] };
-  if (data.contactName  !== undefined) properties["담당자"]     = { rich_text: [{ text: { content: data.contactName } }] };
-  if (data.contactEmail !== undefined) properties["이메일"]     = { email: data.contactEmail || null };
-  if (data.startDate    !== undefined) properties["계약시작일"] = { date: { start: data.startDate } };
-  if (data.endDate      !== undefined) properties["계약종료일"] = { date: { start: data.endDate } };
-  if (data.quantity     !== undefined) properties["PC수량"]     = { number: data.quantity };
-  if (data.unitPrice    !== undefined) properties["단가"]       = { number: data.unitPrice };
-  if (data.notes        !== undefined) properties["메모"]       = { rich_text: [{ text: { content: data.notes } }] };
-  if (data.stage        !== undefined) properties["진행단계"]   = { select: { name: data.stage } };
+  let base = await readEntityOne<Contract>(CONTRACT_ENTITY, pageId);
+  if (!base) base = await fetchOneFromNotion(pageId);
+  if (!base) throw new Error("대상 계약을 찾을 수 없습니다.");
 
-  // 파일 첨부: 직접 업로드 우선, 없으면 URL 링크
-  if (data.pdfBuffer || data.pdfLink) {
-    const filesProp = await buildFilesProp(data.pdfBuffer, data.pdfFileName, data.pdfLink);
-    if (filesProp) properties["계약서"] = filesProp;
+  const next: Contract = { ...base };
+  if (data.company      !== undefined) next.company = data.company;
+  if (data.contactName  !== undefined) next.contactName = data.contactName;
+  if (data.contactEmail !== undefined) next.contactEmail = data.contactEmail;
+  if (data.startDate    !== undefined) next.startDate = data.startDate;
+  if (data.endDate      !== undefined) next.endDate = data.endDate;
+  if (data.quantity     !== undefined) next.quantity = data.quantity;
+  if (data.unitPrice    !== undefined) next.unitPrice = data.unitPrice;
+  if (data.notes        !== undefined) next.notes = data.notes;
+  if (data.stage        !== undefined) next.stage = data.stage;
+
+  if (data.pdfBuffer && data.pdfFileName) {
+    next.pdfUrl = await uploadToBlob(data.pdfBuffer, data.pdfFileName, "application/pdf", "contracts");
+    next.pdfName = data.pdfFileName;
+  } else if (data.pdfLink) {
+    next.pdfUrl = data.pdfLink;
+    next.pdfName = data.pdfLink.split("/").pop()?.split("?")[0] || "계약서";
   }
 
-  const page = await notionPagePatch(pageId, { properties });
+  next.status = calcStatus(next.startDate, next.endDate);
+  next.updatedAt = new Date().toISOString();
 
-  await kvDel(KV_KEY);
-  return toContract(page);
+  const ok = await upsertEntity(CONTRACT_ENTITY, pageId, next);
+  if (!ok) throw new Error("contracts 수정 실패(Postgres)");
+  return next;
 }
 
-/** 진행 단계만 빠르게 업데이트 (칸반 드래그앤드롭 / 목록 인라인 변경) */
+/** 진행 단계만 빠르게 업데이트 */
 export async function updateContractStage(pageId: string, stage: ContractStage): Promise<void> {
-  await notionPagePatch(pageId, {
-    properties: {
-      "진행단계": { select: { name: stage } },
-    },
-  });
-  await kvDel(KV_KEY);
+  let base = await readEntityOne<Contract>(CONTRACT_ENTITY, pageId);
+  if (!base) base = await fetchOneFromNotion(pageId);
+  if (!base) throw new Error("대상 계약을 찾을 수 없습니다.");
+  const ok = await upsertEntity(CONTRACT_ENTITY, pageId, { ...base, stage, updatedAt: new Date().toISOString() });
+  if (!ok) throw new Error("contracts 단계 수정 실패(Postgres)");
 }
 
-/** 계약 삭제 (Notion 페이지 아카이브) */
+/** 계약 삭제 (소프트 삭제 → 백업 시 Notion 아카이브) */
 export async function deleteContract(pageId: string): Promise<void> {
-  await notionPagePatch(pageId, { in_trash: true });
-  await kvDel(KV_KEY);
+  const ok = await deleteEntity(CONTRACT_ENTITY, pageId);
+  if (!ok) throw new Error("contracts 삭제 실패(Postgres)");
 }

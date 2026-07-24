@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { notionRequest } from "@/shared/lib/notion";
+import { readEntityOne, upsertEntity } from "@/lib/repo/mirror";
+import type { HelpDeskTicket } from "@/lib/notion";
 import { getManual, saveManual } from "@/lib/helpdesk-manuals";
 import { extractKeywords } from "@/lib/helpdesk-manual-match";
 
@@ -25,18 +26,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "매뉴얼을 찾을 수 없습니다", code: "RESOLVE_WITH_MANUAL_MANUAL_NOT_FOUND" }, { status: 404 });
     }
 
-    await notionRequest(`/pages/${ticketId}`, {
-      method: "PATCH",
-      body: {
-        properties: {
-          상태: { status: { name: "완료" } },
-          조치방법: { select: { name: "매뉴얼" } },
-          "조치 내용": {
-            rich_text: [{ text: { content: `매뉴얼 "${manual.title}" 로 안내됨 (문의자가 직접 매뉴얼로 해결 선택)` } }],
-          },
-        },
-      },
-    });
+    const base = await readEntityOne<HelpDeskTicket>("helpdesk", ticketId);
+    if (!base) {
+      return NextResponse.json({ ok: false, error: "티켓을 찾을 수 없습니다", code: "RESOLVE_WITH_MANUAL_TICKET_NOT_FOUND" }, { status: 404 });
+    }
+    const next: HelpDeskTicket = {
+      ...base,
+      status: "완료",
+      actionMethod: "매뉴얼",
+      actionNote: `매뉴얼 "${manual.title}" 로 안내됨 (문의자가 직접 매뉴얼로 해결 선택)`,
+      lastEditedAt: new Date().toISOString(),
+    };
+    const ok = await upsertEntity("helpdesk", ticketId, next);
+    if (!ok) {
+      return NextResponse.json({ ok: false, error: "저장 실패(Postgres)", code: "RESOLVE_WITH_MANUAL_SAVE_FAILED" }, { status: 500 });
+    }
 
     // 문의자가 실제로 이 매뉴얼로 해결하기로 선택한 확인된 사례이므로 이력에 추가해,
     // 비슷한 표현의 다음 문의를 더 잘 매칭할 수 있게 한다

@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Client } from "@notionhq/client";
 import { errorMessage } from "@/lib/api-error";
+import { readEntityOne, upsertEntity } from "@/lib/repo/mirror";
+import type { HelpDeskTicket } from "@/lib/notion";
 
 export const dynamic = "force-dynamic";
 
-const notion = new Client({ auth: process.env.NOTION_TOKEN });
+const HD_ENTITY = "helpdesk";
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,37 +15,23 @@ export async function POST(req: NextRequest) {
     };
 
     if (!id) return NextResponse.json({ ok: false, error: "id 필수" }, { status: 400 });
-
-    const properties: Record<string, unknown> = {};
-
-    if (fields.status !== undefined) {
-      properties["상태"] = { status: { name: fields.status } };
-    }
-    if (fields.assigneeId !== undefined) {
-      properties["담당자"] = fields.assigneeId
-        ? { people: [{ object: "user", id: fields.assigneeId }] }
-        : { people: [] };
-    }
-    if (fields.actionNote !== undefined) {
-      properties["조치 내용"] = { rich_text: [{ text: { content: fields.actionNote } }] };
-    }
-    if (fields.actionCategory !== undefined) {
-      properties["조치분류"] = { multi_select: fields.actionCategory.map(name => ({ name })) };
-    }
-    if (fields.actionMethod !== undefined) {
-      properties["조치방법"] = fields.actionMethod
-        ? { select: { name: fields.actionMethod } }
-        : { select: null };
-    }
-
-    if (Object.keys(properties).length === 0) {
+    if (!fields || typeof fields !== "object" || Object.keys(fields).length === 0) {
       return NextResponse.json({ ok: false, error: "업데이트할 필드 없음" }, { status: 400 });
     }
 
-    await notion.pages.update({
-      page_id: id,
-      properties: properties as Parameters<typeof notion.pages.update>[0]["properties"],
-    });
+    const base = await readEntityOne<HelpDeskTicket>(HD_ENTITY, id);
+    if (!base) return NextResponse.json({ ok: false, error: "대상 문의를 찾을 수 없습니다." }, { status: 404 });
+
+    const next: HelpDeskTicket = { ...base };
+    if (fields.status         !== undefined) next.status = fields.status;
+    if (fields.assigneeId     !== undefined) next.assigneeId = fields.assigneeId;
+    if (fields.actionNote     !== undefined) next.actionNote = fields.actionNote;
+    if (fields.actionCategory !== undefined) next.actionCategory = fields.actionCategory;
+    if (fields.actionMethod   !== undefined) next.actionMethod = fields.actionMethod;
+    next.lastEditedAt = new Date().toISOString();
+
+    const ok = await upsertEntity(HD_ENTITY, id, next);
+    if (!ok) return NextResponse.json({ ok: false, error: "저장 실패(Postgres)" }, { status: 500 });
 
     return NextResponse.json({ ok: true });
   } catch (e) {

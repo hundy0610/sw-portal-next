@@ -1,70 +1,60 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { notionRequest } from "@/shared/lib/notion";
+import { getAssetByAssetNo } from "@/lib/asset-selfservice";
 
 type RouteContext = {
   params: { assetId: string };
 };
 
+// 4.0verMACBOOK: 공개 자산 자가조회(QR) → asset-selfservice 미러(맥북 Postgres) 우선,
+// 미스 시 Notion(ASSETS_DATA_SOURCE_ID) 폴백 + lazy-migration. 응답 JSON 한글 키 형태는
+// 기존 Notion 버전과 100% 동일하게 유지한다(외부 클라이언트 무수정).
 export async function GET(_: NextRequest, context: RouteContext) {
   try {
     const { assetId } = context.params;
 
-    const notionResponse = await notionRequest<any>(`/data_sources/${process.env.ASSETS_DATA_SOURCE_ID}/query`, {
-      method: "POST",
-      body: {
-        filter: {
-          property: "자산번호",
-          rich_text: {
-            equals: assetId,
-          },
-        },
-      },
-    });
-
-    if (!notionResponse.results || notionResponse.results.length === 0) {
+    const a = await getAssetByAssetNo(assetId);
+    if (!a) {
       return NextResponse.json({ message: "자산을 찾을 수 없습니다." }, { status: 404 });
     }
 
-    const asset = notionResponse.results[0];
-
     const response = {
-      pageId: asset.id,
+      pageId: a.id,
       properties: {
-        자산번호: asset.properties.자산번호?.rich_text?.[0]?.text?.content ?? "-",
-        사용자: asset.properties.사용자?.title?.[0]?.text?.content ?? "-",
-        법인명: asset.properties.법인명?.select?.name ?? "-",
-        부서: asset.properties.부서?.rich_text?.[0]?.text?.content ?? "-",
-        위치: asset.properties.위치?.rich_text?.[0]?.text?.content ?? "-",
-        제조사: asset.properties.제조사?.select?.name ?? "-",
-        모델명: asset.properties.모델명?.rich_text?.[0]?.text?.content ?? "-",
-        "시리얼 넘버": asset.properties["시리얼 넘버"]?.rich_text?.[0]?.text?.content ?? "-",
-        CPU: asset.properties.CPU?.rich_text?.[0]?.text?.content ?? "-",
-        RAM: asset.properties.RAM?.rich_text?.[0]?.text?.content ?? "-",
-        단가: asset.properties.단가?.number ?? 0,
-        잔존가치: asset.properties.잔존가치?.formula?.number ?? 0,
-        구매일자: asset.properties.구매일자?.date?.start ?? "-",
-        사용일자: asset.properties.사용일자?.date?.start ?? "-",
-        반납일자: asset.properties.반납일자?.date?.start ?? "-",
-        수리일자: asset.properties.수리일자?.date?.start ?? "-",
-        "사용/재고/폐기/기타": asset.properties["사용/재고/폐기/기타"]?.select?.name ?? "-",
-        출고진행상황: asset.properties.출고진행상황?.status?.name ?? "-",
-        "반납 진행 상황": asset.properties["반납 진행 상황"]?.status?.name ?? "-",
-        수리진행상황: asset.properties.수리진행상황?.status?.name ?? "-",
-        수리담당자: asset.properties.수리담당자?.people?.[0]?.name ?? "-",
-        "수리 작업 유형": asset.properties["수리 작업 유형"]?.multi_select?.map((item: any) => item.name) ?? [],
-        반납사유: asset.properties.반납사유?.select?.name ?? "-",
-        "누락 사항": asset.properties["누락 사항"]?.multi_select?.map((item: any) => item.name) ?? [],
-        기타: asset.properties.기타?.rich_text?.[0]?.text?.content ?? "-",
-        createdAt: asset.created_time ?? "-",
-        updatedAt: asset.last_edited_time ?? "-",
+        자산번호: a.assetNo || "-",
+        사용자: a.user || "-",
+        법인명: a.company || "-",
+        부서: a.dept || "-",
+        위치: a.location || "-",
+        제조사: a.maker || "-",
+        모델명: a.model || "-",
+        "시리얼 넘버": a.serial || "-",
+        CPU: a.cpu || "-",
+        RAM: a.ram || "-",
+        단가: a.price ?? 0,
+        // 잔존가치는 Notion formula(계산필드) — 미러에 저장하지 않으므로 0으로 응답.
+        잔존가치: 0,
+        구매일자: a.purchaseDate || "-",
+        사용일자: a.useDate || "-",
+        반납일자: a.returnDate || "-",
+        수리일자: a.repairDate || "-",
+        "사용/재고/폐기/기타": a.status || "-",
+        출고진행상황: a.shipStatus || "-",
+        "반납 진행 상황": a.returnStatus || "-",
+        수리진행상황: a.repairStatus || "-",
+        수리담당자: a.repairAssignee || "-",
+        "수리 작업 유형": a.repairTypes ?? [],
+        반납사유: a.returnReason || "-",
+        "누락 사항": a.missingItems ?? [],
+        기타: a.note || "-",
+        createdAt: "-",
+        updatedAt: "-",
       },
     };
 
     return NextResponse.json(response);
-  } catch (error: any) {
-    return NextResponse.json(error.data || { message: error.message }, {
-      status: (error.status as number) || 500,
-    });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "서버 오류";
+    return NextResponse.json({ message: msg }, { status: 500 });
   }
 }

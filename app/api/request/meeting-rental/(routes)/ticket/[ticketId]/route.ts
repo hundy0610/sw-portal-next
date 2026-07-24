@@ -1,37 +1,34 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { notionRequest } from "@/shared/lib/notion";
+import { readEntityOne } from "@/lib/repo/mirror";
+import type { MeetingRentalTicket } from "@/types";
 
 type RouteContext = {
   params: { ticketId: string };
 };
 
+// 4.0verMACBOOK: 대여신청 티켓 조회 → 맥북 Postgres 미러(entity "meeting-rental").
 export async function GET(_: NextRequest, context: RouteContext) {
   try {
     const { ticketId } = context.params;
-
-    const notionResponse = await notionRequest<any>(`/pages/${ticketId}`, {
-      method: "GET",
-    });
+    const t = await readEntityOne<MeetingRentalTicket>("meeting-rental", ticketId);
+    if (!t) return NextResponse.json({ message: "티켓을 찾을 수 없습니다." }, { status: 404 });
 
     const response = {
-      법인명: notionResponse.properties.법인명.select?.name ?? "-",
-      부서: notionResponse.properties.부서.rich_text?.[0]?.text?.content ?? "-",
-      신청자: notionResponse.properties.신청자.title?.[0]?.text?.content ?? "-",
-      이메일: notionResponse.properties["신청자 이메일"].email ?? "-",
-      시작일시: notionResponse.properties.신청기간.date?.start ?? "-",
-      종료일시: notionResponse.properties.신청기간.date?.end ?? "-",
-
-      상태: notionResponse.properties.상태.status?.name ?? "-",
-      담당자: notionResponse.properties.담당자.people?.[0]?.name ?? "-",
-
-      createdAt: notionResponse.created_time ?? "-",
+      법인명: t.company || "-",
+      부서: t.department || "-",
+      신청자: t.requester || "-",
+      이메일: t.email || "-",
+      시작일시: t.startAt || "-",
+      종료일시: t.endAt || "-",
+      상태: t.status || "-",
+      담당자: t.assignee || "-",
+      createdAt: t.createdAt || "-",
     };
 
     return NextResponse.json(response);
-  } catch (error: any) {
-    return NextResponse.json(error.data || { message: error.message }, {
-      status: (error.status as number) || 500,
-    });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "서버 오류";
+    return NextResponse.json({ message: msg }, { status: 500 });
   }
 }

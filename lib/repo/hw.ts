@@ -52,6 +52,7 @@ export async function getHwAllFromPostgres(): Promise<HwRecord[] | null> {
       const { data, error } = await sb
         .from("hw")
         .select("*")
+        .eq("deleted", false)
         .order("purchaseDate", { ascending: false })
         .range(from, from + PAGE - 1);
       if (error) throw error;
@@ -63,6 +64,123 @@ export async function getHwAllFromPostgres(): Promise<HwRecord[] | null> {
     return all;
   } catch (e) {
     console.warn("[hw-repo] Postgres 조회 실패 → 기존 KV/Notion 경로로 폴백", e);
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 쓰기(write-through) — 4.0verMACBOOK: HW 의 메인 저장소는 맥북 Postgres.
+// 앱은 여기(hw 테이블)에 직접 쓰고 dirty=true 로 표시한다. 5분 뒤 launchd 백업 잡이
+// dirty 행을 Notion 으로 단방향 반영한다. Notion 직접 쓰기는 하지 않는다(속도/드리프트 해결).
+// 모든 쓰기는 service_role 키로 수행(RLS 우회). 실패 시 false 를 반환한다.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** 단일 HW 레코드의 일부 필드 수정 + dirty 표시. 존재하는 컬럼만 넘겨야 한다. */
+export async function updateHwFields(
+  id: string,
+  fields: Record<string, unknown>,
+): Promise<boolean> {
+  if (!sb) return false;
+  try {
+    const { error } = await sb
+      .from("hw")
+      .update({ ...fields, dirty: true, updated_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) throw error;
+    return true;
+  } catch (e) {
+    console.warn("[hw-repo] updateHwFields 실패", id, e);
+    return false;
+  }
+}
+
+/** 동일 fields 를 여러 id 에 일괄 적용 + dirty 표시. */
+export async function bulkUpdateHwFields(
+  ids: string[],
+  fields: Record<string, unknown>,
+): Promise<boolean> {
+  if (!sb || ids.length === 0) return false;
+  try {
+    const { error } = await sb
+      .from("hw")
+      .update({ ...fields, dirty: true, updated_at: new Date().toISOString() })
+      .in("id", ids);
+    if (error) throw error;
+    return true;
+  } catch (e) {
+    console.warn("[hw-repo] bulkUpdateHwFields 실패", e);
+    return false;
+  }
+}
+
+/** 신규 HW 레코드 생성 + dirty 표시(notion_id 는 백업 성공 후 러너가 채운다). */
+export async function insertHwRecord(record: Record<string, unknown>): Promise<boolean> {
+  return insertHwRecords([record]);
+}
+
+/** 신규 HW 레코드 여러 건 생성 + dirty 표시. */
+export async function insertHwRecords(records: Record<string, unknown>[]): Promise<boolean> {
+  if (!sb || records.length === 0) return false;
+  try {
+    const now = new Date().toISOString();
+    const rows = records.map(r => ({ ...r, dirty: true, deleted: false, updated_at: now }));
+    const { error } = await sb.from("hw").insert(rows);
+    if (error) throw error;
+    return true;
+  } catch (e) {
+    console.warn("[hw-repo] insertHwRecords 실패", e);
+    return false;
+  }
+}
+
+/** 소프트 삭제 + dirty 표시. 백업 잡이 Notion 페이지를 archive 한다. */
+export async function softDeleteHw(ids: string[]): Promise<boolean> {
+  if (!sb || ids.length === 0) return false;
+  try {
+    const { error } = await sb
+      .from("hw")
+      .update({ deleted: true, dirty: true, updated_at: new Date().toISOString() })
+      .in("id", ids);
+    if (error) throw error;
+    return true;
+  } catch (e) {
+    console.warn("[hw-repo] softDeleteHw 실패", e);
+    return false;
+  }
+}
+
+/** 여러 id 의 법인명 조회(범위 검증용). Map<id, company> 반환. */
+export async function getHwCompaniesByIds(ids: string[]): Promise<Map<string, string> | null> {
+  if (!sb || ids.length === 0) return null;
+  try {
+    const { data, error } = await sb
+      .from("hw")
+      .select("id,company")
+      .in("id", ids);
+    if (error) throw error;
+    const map = new Map<string, string>();
+    for (const r of (data ?? []) as { id: string; company: string }[]) map.set(r.id, r.company ?? "");
+    return map;
+  } catch (e) {
+    console.warn("[hw-repo] getHwCompaniesByIds 실패", e);
+    return null;
+  }
+}
+
+/** 단일 HW 레코드 조회(삭제분 제외) — 법인 범위 검증 등에 사용. */
+export async function getHwByIdFromPostgres(id: string): Promise<HwRecord | null> {
+  if (!sb) return null;
+  try {
+    const { data, error } = await sb
+      .from("hw")
+      .select("*")
+      .eq("id", id)
+      .eq("deleted", false)
+      .maybeSingle();
+    if (error) throw error;
+    return (data as unknown as HwRecord) ?? null;
+  } catch (e) {
+    console.warn("[hw-repo] getHwByIdFromPostgres 실패", id, e);
     return null;
   }
 }
