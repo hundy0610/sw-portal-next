@@ -89,11 +89,18 @@ export async function updateHwFields(
 ): Promise<boolean> {
   if (!sb) return false;
   try {
-    const { error } = await sb
+    // .select() 로 실제 반영된 행을 받아 확인한다 — RLS 등으로 0행 적용돼도
+    // error 는 null 이라 .select() 없이는 "성공"으로 오판하는 무음 실패가 된다.
+    const { data, error } = await sb
       .from("hw")
       .update({ ...fields, dirty: true, updated_at: new Date().toISOString() })
-      .eq("id", id);
+      .eq("id", id)
+      .select("id");
     if (error) throw error;
+    if (!data || data.length === 0) {
+      console.warn("[hw-repo] updateHwFields 0행 반영(권한/RLS 의심)", id);
+      return false;
+    }
     return true;
   } catch (e) {
     console.warn("[hw-repo] updateHwFields 실패", id, e);
@@ -108,11 +115,16 @@ export async function bulkUpdateHwFields(
 ): Promise<boolean> {
   if (!sb || ids.length === 0) return false;
   try {
-    const { error } = await sb
+    const { data, error } = await sb
       .from("hw")
       .update({ ...fields, dirty: true, updated_at: new Date().toISOString() })
-      .in("id", ids);
+      .in("id", ids)
+      .select("id");
     if (error) throw error;
+    if (!data || data.length === 0) {
+      console.warn("[hw-repo] bulkUpdateHwFields 0행 반영(권한/RLS 의심)", ids);
+      return false;
+    }
     return true;
   } catch (e) {
     console.warn("[hw-repo] bulkUpdateHwFields 실패", e);
@@ -131,8 +143,12 @@ export async function insertHwRecords(records: Record<string, unknown>[]): Promi
   try {
     const now = new Date().toISOString();
     const rows = records.map(r => ({ ...r, dirty: true, deleted: false, updated_at: now }));
-    const { error } = await sb.from("hw").insert(rows);
+    const { data, error } = await sb.from("hw").insert(rows).select("id");
     if (error) throw error;
+    if (!data || data.length < rows.length) {
+      console.warn("[hw-repo] insertHwRecords 일부/전부 반영 안 됨(권한/RLS 의심)", data?.length, "/", rows.length);
+      return false;
+    }
     return true;
   } catch (e) {
     console.warn("[hw-repo] insertHwRecords 실패", e);
@@ -144,11 +160,16 @@ export async function insertHwRecords(records: Record<string, unknown>[]): Promi
 export async function softDeleteHw(ids: string[]): Promise<boolean> {
   if (!sb || ids.length === 0) return false;
   try {
-    const { error } = await sb
+    const { data, error } = await sb
       .from("hw")
       .update({ deleted: true, dirty: true, updated_at: new Date().toISOString() })
-      .in("id", ids);
+      .in("id", ids)
+      .select("id");
     if (error) throw error;
+    if (!data || data.length === 0) {
+      console.warn("[hw-repo] softDeleteHw 0행 반영(권한/RLS 의심)", ids);
+      return false;
+    }
     return true;
   } catch (e) {
     console.warn("[hw-repo] softDeleteHw 실패", e);
