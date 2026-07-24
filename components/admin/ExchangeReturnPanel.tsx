@@ -3554,6 +3554,9 @@ export default function ExchangeReturnPanel() {
       });
       const json = await safeJson(res);
       if (json.ok) handleUpdated(id, { isClosed: true });
+      else setError(json.error ?? "종료 처리 실패");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally { setAdvancingId(null); }
   }, [handleUpdated]);
 
@@ -3598,7 +3601,11 @@ export default function ExchangeReturnPanel() {
                 }).catch(console.error);
               }
             }).catch(console.error);
+        } else {
+          setError(json.error ?? "단계 진행 실패");
         }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
       } finally { setAdvancingId(null); }
       return;
     }
@@ -3611,6 +3618,9 @@ export default function ExchangeReturnPanel() {
       });
       const json = await safeJson(res);
       if (json.ok) handleUpdated(r.id, { stage: nextStage });
+      else setError(json.error ?? "단계 진행 실패");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setAdvancingId(null);
     }
