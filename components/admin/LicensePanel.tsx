@@ -914,6 +914,81 @@ function AddableMultiSelect({ value, initOptions, onChange }: {
   );
 }
 
+function SwDuplicateModal({
+  record,
+  onConfirm,
+  onClose,
+}: {
+  record: SwDbRecord;
+  onConfirm: (id: string, count: number) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [count, setCount] = useState(1);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleConfirm() {
+    if (count < 1 || count > 50) {
+      setError("1~50 사이로 입력해주세요.");
+      return;
+    }
+    setSubmitting(true); setError("");
+    try {
+      await onConfirm(record.id, count);
+      onClose();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+      onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+        onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-4 bg-indigo-600 text-white flex items-start justify-between shrink-0">
+          <div>
+            <div className="font-bold text-sm">항목 복제</div>
+            <div className="text-xs text-white/80 mt-0.5">
+              {record.user} · {record.swCategory}{record.swDetail ? ` (${record.swDetail})` : ""}
+            </div>
+          </div>
+          <button onClick={onClose} className="text-white/80 hover:text-white text-xl leading-none">✕</button>
+        </div>
+        <div className="p-5 space-y-3">
+          <p className="text-xs text-gray-500 leading-relaxed">
+            선택한 항목과 동일한 내용으로 새 레코드를 원하는 건수만큼 만듭니다.
+            생성된 항목은 목록 맨 위에 추가되며, 이후 각 항목을 개별 수정해
+            사용자·부서 등 다른 값만 바꾸면 됩니다.
+          </p>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">복제할 건수</label>
+            <input
+              type="number" min={1} max={50} value={count}
+              onChange={e => setCount(Math.max(1, Math.min(50, Number(e.target.value) || 1)))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            />
+            <p className="text-[11px] text-gray-400 mt-1">최대 50건까지 한 번에 복제할 수 있습니다.</p>
+          </div>
+          {error && <p className="text-xs text-red-500">{error}</p>}
+        </div>
+        <div className="px-5 py-4 bg-gray-50 flex justify-end gap-2">
+          <button onClick={onClose} disabled={submitting}
+            className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+            취소
+          </button>
+          <button onClick={handleConfirm} disabled={submitting}
+            className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 rounded-lg transition-colors">
+            {submitting ? "복제 중…" : `${count}건 복제`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const EMPTY_FORM = {
   user: "", swCategory: "", swDetail: "", status: "신규등록",
   company: "", licenseType: "", department: "", usageDate: "", renewalDate: "",
@@ -1397,10 +1472,11 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
   const [refreshing,  setRefreshing]  = useState(false);
   const [fromCache,   setFromCache]   = useState(false);
 
-  // 체크박스 선택 / 삭제
+  // 체크박스 선택 / 삭제 / 복제
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting,    setDeleting]    = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [duplicateRecord, setDuplicateRecord] = useState<SwDbRecord | null>(null);
 
   const maSwCategoryOptions  = useMemo(() => [...new Set(records.map(r => r.swCategory).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ko")), [records]);
   const maVersionOptions     = useMemo(() => [...new Set(records.flatMap(r => r.version ?? []).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ko")), [records]);
@@ -1485,6 +1561,21 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
     } finally {
       setDeleting(false);
     }
+  }, [company, records]);
+
+  const handleDuplicate = useCallback(async (id: string, count: number) => {
+    const res  = await fetch("/api/sw/duplicate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, count }),
+    });
+    const json = await safeJson(res);
+    if (!json.ok) throw new Error(json.error ?? "복제 실패");
+    const created: SwDbRecord[] = json.created ?? [];
+    const next = [...created, ...records];
+    setRecords(next);
+    lcSet(LC_KEY(company), next);
+    setSelectedIds(new Set());
   }, [company, records]);
 
   // 강제 갱신: Notion → KV → 메모리 재워밍 후 필터된 데이터 즉시 반환 (1회 요청)
@@ -1844,13 +1935,27 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
             onClear={() => setSelectedIds(new Set())}
             onApply={handleBulkUpdate}
             extraActions={
-              <button
-                onClick={() => handleDelete(Array.from(selectedIds))}
-                disabled={deleting}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-xs font-semibold rounded-lg transition-colors"
-              >
-                {deleting ? "삭제 중…" : `${selectedIds.size}건 삭제`}
-              </button>
+              <>
+                <button
+                  onClick={() => {
+                    const id = Array.from(selectedIds)[0];
+                    const rec = records.find(r => r.id === id);
+                    if (rec) setDuplicateRecord(rec);
+                  }}
+                  disabled={selectedIds.size !== 1}
+                  title={selectedIds.size !== 1 ? "복제하려면 1건만 선택하세요" : "선택한 항목을 복제합니다"}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-lg transition-colors"
+                >
+                  복제
+                </button>
+                <button
+                  onClick={() => handleDelete(Array.from(selectedIds))}
+                  disabled={deleting}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-xs font-semibold rounded-lg transition-colors"
+                >
+                  {deleting ? "삭제 중…" : `${selectedIds.size}건 삭제`}
+                </button>
+              </>
             }
           />
           {deleteError && (
@@ -1874,6 +1979,15 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
           <span className="text-xs text-gray-400">{filtered.length}건 조회됨</span>
         </div>
       </div>
+
+      {/* ── 복제 모달 ── */}
+      {duplicateRecord && (
+        <SwDuplicateModal
+          record={duplicateRecord}
+          onConfirm={handleDuplicate}
+          onClose={() => setDuplicateRecord(null)}
+        />
+      )}
 
       {/* ── 직접 등록 모달 ── */}
       {showManualAdd && (
