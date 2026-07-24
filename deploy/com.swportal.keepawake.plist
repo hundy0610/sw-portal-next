@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SW-PORTAL 4.0verMACBOOK — keep-awake launchd 에이전트 (caffeinate)
+
+  목적: 맥북이 전원(AC) 연결 상태에서 idle 로 잠들지 않게 해, Tailscale Funnel
+  (https://userui-macbookpro.tailc11f42.ts.net → 127.0.0.1:8000) 와 로컬 Supabase
+  가 24/7 도달 가능하도록 유지한다. 잠들면 배포된 Vercel 앱이 미러를 못 읽고
+  5분 지연된 Notion 백업으로 폴백해 최신 문의 항목이 누락되는 증상이 발생한다.
+
+  동작: caffeinate -s 는 AC 전원일 때 시스템 슬립을 막는 assertion 을 유지한다.
+  KeepAlive=true 로 프로세스가 죽어도 launchd 가 즉시 되살린다.
+
+  주의(중요): caffeinate -s 는 "idle 슬립"만 막는다. 뚜껑을 닫은 클램셸(clamshell)
+  슬립은 막지 못한다. 뚜껑을 닫고 운용하려면 아래 중 하나가 추가로 필요하다:
+    - 뚜껑 열어두기, 또는 외장 디스플레이+키보드/마우스 연결, 또는
+    - sudo pmset -c disablesleep 1   (관리자 권한 필요)
+
+  설치(맥북에서, sudo 불필요):
+    cp deploy/com.swportal.keepawake.plist ~/Library/LaunchAgents/
+    launchctl unload ~/Library/LaunchAgents/com.swportal.keepawake.plist 2>/dev/null
+    launchctl load  ~/Library/LaunchAgents/com.swportal.keepawake.plist
+    launchctl list | grep -i swportal        # 로드 확인
+
+  제거:
+    launchctl unload ~/Library/LaunchAgents/com.swportal.keepawake.plist
+    rm ~/Library/LaunchAgents/com.swportal.keepawake.plist
+
+  로그: /tmp/swportal-keepawake.out / .err
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.swportal.keepawake</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/caffeinate</string>
+    <string>-s</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/swportal-keepawake.out</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/swportal-keepawake.err</string>
+</dict>
+</plist>

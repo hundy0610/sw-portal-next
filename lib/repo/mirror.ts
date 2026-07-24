@@ -37,7 +37,14 @@ const PAGE = 1000; // PostgREST 기본 최대 반환 행수
 
 /**
  * 엔티티의 전체 레코드(soft-deleted 제외)를 반환한다. data(jsonb)를 그대로 앱 레코드로 돌려준다.
- * 미설정/실패 시 null 을 반환해 호출부가 판단하도록 한다(폴백 없음 정책이지만, 방어적).
+ *
+ * 반환/throw 규약:
+ *  - 미러 미설정(SUPABASE_URL/KEY 없음) → null. 호출부는 Notion(시드/폴백)으로 넘어간다.
+ *  - 미러 설정됨 + 조회 성공 → 레코드 배열(0건이면 []).
+ *  - 미러 설정됨 + 조회 실패(Funnel 다운/키 오류/RLS/네트워크) → **throw**.
+ *    이때 조용히 null 을 돌려주면 호출부가 5분 지연되는 Notion 백업으로 폴백해,
+ *    방금 저장된 최신 레코드가 목록에서 누락된다("DB엔 저장됐고 Notion엔 넘어갔는데
+ *    앱엔 안 보임" 증상). Postgres 가 메인 소스인 이상 읽기 실패는 숨기지 않고 드러낸다.
  */
 export async function readEntity<T>(entity: string): Promise<T[] | null> {
   const client = getClient();
@@ -60,12 +67,15 @@ export async function readEntity<T>(entity: string): Promise<T[] | null> {
     }
     return all;
   } catch (e) {
-    console.warn(`[mirror] readEntity(${entity}) 실패`, e);
-    return null;
+    console.error(`[mirror] readEntity(${entity}) 실패 — Notion 폴백 대신 오류 전파`, e);
+    throw e instanceof Error ? e : new Error(`mirror readEntity(${entity}) failed`);
   }
 }
 
-/** 엔티티의 단일 레코드를 id 로 조회. */
+/**
+ * 엔티티의 단일 레코드를 id 로 조회.
+ * 규약은 readEntity 와 동일: 미설정→null, 없음/삭제됨→null, 설정됨+조회실패→throw.
+ */
 export async function readEntityOne<T>(entity: string, id: string): Promise<T | null> {
   const client = getClient();
   if (!client) return null;
@@ -80,8 +90,8 @@ export async function readEntityOne<T>(entity: string, id: string): Promise<T | 
     if (!data || (data as { deleted: boolean }).deleted) return null;
     return (data as { data: T }).data;
   } catch (e) {
-    console.warn(`[mirror] readEntityOne(${entity},${id}) 실패`, e);
-    return null;
+    console.error(`[mirror] readEntityOne(${entity},${id}) 실패 — Notion 폴백 대신 오류 전파`, e);
+    throw e instanceof Error ? e : new Error(`mirror readEntityOne(${entity},${id}) failed`);
   }
 }
 

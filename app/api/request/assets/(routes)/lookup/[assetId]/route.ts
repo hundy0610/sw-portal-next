@@ -6,6 +6,9 @@ type RouteContext = {
   params: { assetId: string };
 };
 
+// 미러(Postgres)가 항상 최신이어야 하므로 라우트/데이터 캐시를 끈다(새로고침 시 최신 자산 정보 조회).
+export const dynamic = "force-dynamic";
+
 // 4.0verMACBOOK: 자산 자가서비스 DB == HWDB(hw 테이블). 공개 자산 자가조회(QR)는 hw 테이블
 // 단일 소스에서 자산번호로 조회한다. 응답 JSON 한글 키 형태는 기존 Notion 버전과 100% 동일.
 // HWDB 에 없는 워크플로 표시필드는 기존처럼 "-"/0/[] 로 반환.
