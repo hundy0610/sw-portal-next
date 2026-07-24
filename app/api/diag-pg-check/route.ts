@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
     allRowsWithThisAssetNo: allRows,
     rowCount: allRows?.length ?? null,
     fullList: { ok: fullListOk, ms: fullListMs, count: fullListCount, recordInFullList },
-    kvAllCache: { present: !!kvAll, count: kvAll?.length ?? null, recordInKv: kvRecord ? { user: kvRecord.user, lastModifiedAt: kvRecord.lastModifiedAt, lastModifiedBy: kvRecord.lastModifiedBy } : null },
+    kvAllCache: { present: !!kvAll, count: kvAll?.length ?? null, recordInKv: kvRecord },
     oneShotNoPagination: oneShot,
   });
 }
