@@ -156,7 +156,7 @@ type Counts = { created: number; updated: number; archived: number; failed: numb
 async function backupHw(pg: Pg, notion: Notion): Promise<Counts> {
   const c: Counts = { created: 0, updated: 0, archived: 0, failed: 0 };
   const { rows } = await pg.query(
-    `select * from public.hw where dirty = true order by updated_at asc limit $1`,
+    `select *, updated_at::text as updated_at_lock from public.hw where dirty = true order by updated_at asc limit $1`,
     [BATCH],
   );
   if (rows.length === 0) return c;
@@ -164,7 +164,9 @@ async function backupHw(pg: Pg, notion: Notion): Promise<Counts> {
 
   for (const r of rows) {
     const id: string = r.id;
-    const updatedAt: string = r.updated_at?.toISOString?.() ?? r.updated_at;
+    // 낙관적 락: Postgres timestamptz 는 µs 정밀도라 JS Date(ms)로 비교하면 항상 불일치 →
+    // dirty 가 안 풀린다. ::text 로 읽은 전체 정밀도 문자열로 WHERE 매칭한다.
+    const updatedAt: string = r.updated_at_lock;
     try {
       if (r.deleted) {
         if (r.notion_id) {
@@ -230,7 +232,7 @@ async function backupEntity(
   }
 
   const { rows } = await pg.query(
-    `select id, notion_id, data, deleted, updated_at
+    `select id, notion_id, data, deleted, updated_at, updated_at::text as updated_at_lock
        from public.entity_store where entity=$1 and dirty=true order by updated_at asc limit $2`,
     [entity, BATCH],
   );
@@ -239,7 +241,8 @@ async function backupEntity(
 
   for (const r of rows) {
     const id: string = r.id;
-    const updatedAt: string = r.updated_at?.toISOString?.() ?? r.updated_at;
+    // 낙관적 락: µs 정밀도 보존을 위해 ::text 로 읽은 전체 정밀도 문자열 사용(위 hw 주석 참조).
+    const updatedAt: string = r.updated_at_lock;
     const data = (r.data ?? {}) as Record<string, unknown>;
     try {
       if (r.deleted) {
