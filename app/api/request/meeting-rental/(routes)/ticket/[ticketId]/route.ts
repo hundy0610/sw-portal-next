@@ -7,6 +7,9 @@ type RouteContext = {
   params: { ticketId: string };
 };
 
+// 미러(Postgres)가 항상 최신이어야 하므로 라우트/데이터 캐시를 끈다(새로고침 시 최신 상태 조회).
+export const dynamic = "force-dynamic";
+
 // 4.0verMACBOOK: 대여신청 티켓 조회 → 맥북 Postgres 미러(entity "meeting-rental").
 export async function GET(_: NextRequest, context: RouteContext) {
   try {
