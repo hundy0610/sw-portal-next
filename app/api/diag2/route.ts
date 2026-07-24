@@ -40,13 +40,13 @@ export async function POST(req: NextRequest) {
   if (req.headers.get("x-diag-key") !== DIAG_KEY) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const { assetNo } = (await req.json()) as { assetNo: string };
+  const { assetNo, noteValue } = (await req.json()) as { assetNo: string; noteValue?: string };
   if (!assetNo) return NextResponse.json({ error: "assetNo 필요" }, { status: 400 });
 
   const before = await getHwByAssetNoFromPostgres(assetNo);
   if (!before) return NextResponse.json({ error: "자산을 찾을 수 없음" }, { status: 404 });
 
-  const marker = `진단-${Date.now()}`;
+  const marker = noteValue !== undefined ? noteValue : `진단-${Date.now()}`;
   const writeOk = await updateHwFields(before.id, { note: marker });
 
   const singleAfter = await getHwByIdFromPostgres(before.id);
