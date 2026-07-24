@@ -41,20 +41,23 @@ export function useMonitorAsset({
 
   const saveFields = useCallback(async (fields: Partial<AssetForm>) => {
     if (asset) {
-      setAsset(prev => prev ? { ...prev, ...fields } : prev);
-      await fetch(`/api/monitor-assets/${asset.id}`, {
+      const res = await fetch(`/api/monitor-assets/${asset.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(fields),
       });
+      const json = await safeJson(res);
+      if (!json.ok) throw new Error(json.error ?? "저장 실패");
+      setAsset(prev => prev ? { ...prev, ...fields } : prev);
     } else {
       const res = await fetch(`/api/monitor-assets`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ itemId, title: defaultTitle, building, floor, ...fields }),
       });
-      const { id } = await safeJson(res);
-      setAsset({ id, itemId, title: defaultTitle, building, floor, ...EMPTY_FORM, ...fields });
+      const json = await safeJson(res);
+      if (!json.ok) throw new Error(json.error ?? "등록 실패");
+      setAsset({ id: json.id, itemId, title: defaultTitle, building, floor, ...EMPTY_FORM, ...fields });
     }
   }, [asset, itemId, building, floor, defaultTitle]);
 
@@ -72,6 +75,7 @@ export function AssetNoBadge({
   const [editing, setEditing] = useState(false);
   const [value,   setValue]   = useState("");
   const [saving,  setSaving]  = useState(false);
+  const [error,   setError]   = useState("");
 
   useEffect(() => { setValue(asset?.assetNo ?? ""); }, [asset?.assetNo]);
 
@@ -79,21 +83,29 @@ export function AssetNoBadge({
 
   if (editing) {
     return (
-      <div className="flex items-center gap-1 mt-1">
-        <input
-          autoFocus
-          value={value}
-          onChange={e => setValue(e.target.value)}
-          placeholder="자산번호 입력"
-          className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:border-white/50 w-32"
-        />
-        <button
-          disabled={saving}
-          onClick={async () => { setSaving(true); try { await saveFields({ assetNo: value }); setEditing(false); } finally { setSaving(false); } }}
-          className="text-[10px] text-blue-300 hover:text-blue-100 disabled:opacity-50">
-          {saving ? "…" : "저장"}
-        </button>
-        <button onClick={() => { setValue(asset?.assetNo ?? ""); setEditing(false); }} className="text-[10px] text-white/50 hover:text-white/80">취소</button>
+      <div className="flex flex-col gap-1 mt-1">
+        <div className="flex items-center gap-1">
+          <input
+            autoFocus
+            value={value}
+            onChange={e => setValue(e.target.value)}
+            placeholder="자산번호 입력"
+            className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:border-white/50 w-32"
+          />
+          <button
+            disabled={saving}
+            onClick={async () => {
+              setSaving(true); setError("");
+              try { await saveFields({ assetNo: value }); setEditing(false); }
+              catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+              finally { setSaving(false); }
+            }}
+            className="text-[10px] text-blue-300 hover:text-blue-100 disabled:opacity-50">
+            {saving ? "…" : "저장"}
+          </button>
+          <button onClick={() => { setValue(asset?.assetNo ?? ""); setEditing(false); setError(""); }} className="text-[10px] text-white/50 hover:text-white/80">취소</button>
+        </div>
+        {error && <div className="text-[10px] text-red-300">{error}</div>}
       </div>
     );
   }
@@ -116,6 +128,7 @@ export default function MonitorAssetSection({
   const [editing, setEditing] = useState(false);
   const [saving,  setSaving]  = useState(false);
   const [form,    setForm]    = useState<AssetForm>(EMPTY_FORM);
+  const [error,   setError]   = useState("");
 
   useEffect(() => {
     setForm(asset
@@ -124,10 +137,12 @@ export default function MonitorAssetSection({
   }, [asset]);
 
   const save = async () => {
-    setSaving(true);
+    setSaving(true); setError("");
     try {
       await saveFields(form);
       setEditing(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }
@@ -140,7 +155,7 @@ export default function MonitorAssetSection({
         {!loading && (
           editing ? (
             <div className="flex gap-1">
-              <button onClick={() => { setEditing(false); setForm(asset
+              <button onClick={() => { setEditing(false); setError(""); setForm(asset
                 ? { assetNo: asset.assetNo, model: asset.model, status: asset.status || "사용중", corp: asset.corp, purchaseDate: asset.purchaseDate, note: asset.note }
                 : EMPTY_FORM); }} className="text-[10px] text-gray-400 hover:text-gray-600">취소</button>
               <button onClick={save} disabled={saving} className="text-[10px] text-blue-500 hover:text-blue-700 font-semibold disabled:opacity-50">
@@ -190,6 +205,7 @@ export default function MonitorAssetSection({
             <textarea value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} rows={2}
               className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-blue-400" />
           </div>
+          {error && <div className="text-[10px] text-red-500">{error}</div>}
         </div>
       ) : !asset ? (
         <div className="text-[11px] text-gray-400 text-center py-3">등록된 자산 정보 없음</div>
