@@ -3,12 +3,22 @@ import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";
 import { fetchOrgUnits, buildOrgTree, submittedEmailsFromScans, type OrgTreeNode } from "@/lib/org-chart";
 import { type HwRecord } from "@/lib/hw";
 import { kvGet } from "@/lib/kv-store";
+import { getHwAllFromPostgres } from "@/lib/repo/hw";
 import { triggerWarmHw } from "@/lib/trigger-warm-hw";
 import { fetchPcScans, matchPcScansWithHw } from "@/lib/pc-scan";
 import { COMPANIES, normalizeCompany, EXCLUDED_FROM_AUDIT_DASHBOARD, AUDIT_CONTRACT_QTY } from "@/lib/companies";
 import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
+
+// HW 전체 조회 — /api/hw와 동일하게 맥북 Postgres를 1차 소스로 쓰고, 미설정/실패 시에만
+// KV 캐시(hw:all)로 폴백한다. Postgres가 메인이 된 이후 KV만 읽으면 방금 등록/반납한
+// 자산이 실사 현황 집계에 반영되지 않는 문제가 있었다.
+async function getHwAll(): Promise<HwRecord[] | null> {
+  const pg = await getHwAllFromPostgres();
+  if (pg) return pg;
+  return kvGet<HwRecord[]>("hw:all");
+}
 
 export interface CompanyAchievement {
   company: string;
@@ -36,12 +46,11 @@ export async function GET(req: NextRequest) {
 
   try {
     // PC 실사 제출 기록(scans)은 이메일 집합 계산과 HW 매칭 양쪽에 필요하지만,
-    // 같은 데이터를 두 번 조회하면 Notion 호출이 불필요하게 늘어나므로 한 번만 가져온다.
-    // HW 자산은 전사 전체를 매번 Notion에서 라이브로 페이지네이션하면(수십 초 소요)
-    // 응답이 지나치게 느려지므로, 30분마다 갱신되는 KV 캐시(hw:all — /api/hw,
-    // /api/admin/pc-scan 등 다른 화면들도 동일하게 이 캐시를 사용한다)를 사용한다.
+    // 같은 데이터를 두 번 조회하면 불필요한 호출이 늘어나므로 한 번만 가져온다.
+    // HW 자산은 맥북 Postgres를 1차 소스로 조회하고(/api/hw, /api/admin/pc-scan 등과 동일),
+    // 미설정/실패 시에만 KV 캐시(hw:all)로 폴백한다.
     const [units, hwAll, scans] = await Promise.all([
-      fetchOrgUnits(), kvGet<HwRecord[]>("hw:all"), fetchPcScans(),
+      fetchOrgUnits(), getHwAll(), fetchPcScans(),
     ]);
     if (!hwAll) triggerWarmHw().catch(console.warn);
     const hwRecords = hwAll ?? [];
