@@ -1520,8 +1520,10 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
     });
     const json = await safeJson(res);
     if (!json.ok) throw new Error(json.error ?? "Notion 업데이트 실패");
-    setRecords(prev => prev.map(r => r.id === id ? { ...r, ...recordFields } : r));
-  }, []);
+    const next = records.map(r => r.id === id ? { ...r, ...recordFields } : r);
+    setRecords(next);
+    lcSet(LC_KEY(company), next);
+  }, [company, records]);
 
   const handleBulkUpdate = useCallback(async (fieldKey: string, value: string) => {
     const ids = Array.from(selectedIds);
