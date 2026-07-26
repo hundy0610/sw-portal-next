@@ -1,24 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";
 import { fetchOrgUnits, buildOrgTree, submittedEmailsFromScans, type OrgTreeNode } from "@/lib/org-chart";
-import { type HwRecord } from "@/lib/hw";
-import { kvGet } from "@/lib/kv-store";
 import { getHwAllFromPostgres } from "@/lib/repo/hw";
-import { triggerWarmHw } from "@/lib/trigger-warm-hw";
 import { fetchPcScans, matchPcScansWithHw } from "@/lib/pc-scan";
 import { COMPANIES, normalizeCompany, EXCLUDED_FROM_AUDIT_DASHBOARD, AUDIT_CONTRACT_QTY } from "@/lib/companies";
 import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
-
-// HW 전체 조회 — /api/hw와 동일하게 맥북 Postgres를 1차 소스로 쓰고, 미설정/실패 시에만
-// KV 캐시(hw:all)로 폴백한다. Postgres가 메인이 된 이후 KV만 읽으면 방금 등록/반납한
-// 자산이 실사 현황 집계에 반영되지 않는 문제가 있었다.
-async function getHwAll(): Promise<HwRecord[] | null> {
-  const pg = await getHwAllFromPostgres();
-  if (pg) return pg;
-  return kvGet<HwRecord[]>("hw:all");
-}
 
 export interface CompanyAchievement {
   company: string;
@@ -47,12 +35,11 @@ export async function GET(req: NextRequest) {
   try {
     // PC 실사 제출 기록(scans)은 이메일 집합 계산과 HW 매칭 양쪽에 필요하지만,
     // 같은 데이터를 두 번 조회하면 불필요한 호출이 늘어나므로 한 번만 가져온다.
-    // HW 자산은 맥북 Postgres를 1차 소스로 조회하고(/api/hw, /api/admin/pc-scan 등과 동일),
-    // 미설정/실패 시에만 KV 캐시(hw:all)로 폴백한다.
+    // HW 자산은 맥북 Postgres에서 조회(/api/hw 등과 동일). 미설정(로컬 dev 등) 시에만
+    // null — 조회 실패 시엔 getHwAllFromPostgres가 throw해 바깥 catch가 처리한다.
     const [units, hwAll, scans] = await Promise.all([
-      fetchOrgUnits(), getHwAll(), fetchPcScans(),
+      fetchOrgUnits(), getHwAllFromPostgres(), fetchPcScans(),
     ]);
-    if (!hwAll) triggerWarmHw().catch(console.warn);
     const hwRecords = hwAll ?? [];
     const submittedEmails = submittedEmailsFromScans(scans);
 
