@@ -2113,7 +2113,6 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
   const [copiedRequesterId, setCopiedRequesterId] = useState<string | null>(null);
   const [modalAssetId, setModalAssetId] = useState<string | null>(null);
   const [floatingTicket, setFloatingTicket] = useState<HelpDeskTicket | null>(null);
-  const [sendingEmail, setSendingEmail] = useState<string | null>(null);
   const [emailSentIds, setEmailSentIds] = useState<Set<string>>(new Set());
 
   // 반복 문의 매뉴얼 관리
@@ -2201,32 +2200,8 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
   const [reportStartMonth, setReportStartMonth] = useState(oneYearAgo);
   const [reportEndMonth,   setReportEndMonth]   = useState(nowYearMonth);
 
-  // 이전 폴링의 티켓 상태를 기억 — "완료" 전환 감지용
-  const prevStatusRef  = useRef<Map<string, string>>(new Map());
-  const isFirstLoadRef = useRef(true);
-
-  // 완료 전환 티켓에 이메일 자동 발송 (UI 로딩 없이 조용히 처리)
-  const autoSendEmail = useCallback((ticket: HelpDeskTicket) => {
-    if (!ticket.requesterEmail) return;
-    fetch("/api/helpdesk/send-feedback", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ticketId:       ticket.id,
-        requesterEmail: ticket.requesterEmail,
-        requesterName:  ticket.requester  || "고객",
-        ticketContent:  ticket.content    || ticket.title || "",
-        assignee:       ticket.assignee   || "담당자",
-      }),
-    })
-      .then(r => safeJson(r))
-      .then(json => {
-        if (json.ok || json.skipped)
-          setEmailSentIds(prev => new Set([...prev, ticket.id]));
-      })
-      .catch(e => console.error("[autoSendEmail]", e));
-  }, []);
-
+  // 2026-07-28: 완료 전환 시 자동 발송하던 로직 제거 — 만족도 메일 발송 주체가
+  // 맥북 폴러로 이전됐다(app/api/helpdesk/send-feedback POST는 무력화됨).
   const load = useCallback((force = false) => {
     if (!force) { setLoading(true); setError(null); }
     if (force) setRefreshing(true);
@@ -2237,29 +2212,12 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
         if (res.error) { if (!force) setError(res.error); return; }
         const newTickets: HelpDeskTicket[] = res.data ?? [];
 
-        // 첫 로드가 아닐 때만 상태 변화 감지 → 자동 이메일
-        if (!isFirstLoadRef.current) {
-          newTickets.forEach(ticket => {
-            if (
-              ticket.status === "완료" &&
-              ticket.requesterEmail &&
-              prevStatusRef.current.get(ticket.id) !== "완료"
-            ) {
-              autoSendEmail(ticket);
-            }
-          });
-        }
-
-        // 현재 상태 저장
-        prevStatusRef.current = new Map(newTickets.map(t => [t.id, t.status]));
-        isFirstLoadRef.current = false;
-
         setTickets(newTickets);
         setLastSynced(res.lastSynced ?? null);
       })
       .catch(e => { if (!force) setError(e.message); })
       .finally(() => { if (!force) setLoading(false); else setRefreshing(false); });
-  }, [autoSendEmail]);
+  }, []);
 
   // 초기 로드
   useEffect(() => { load(); }, [load]);
@@ -2487,33 +2445,6 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
       setCopiedId(id);
       setTimeout(() => setCopiedId(null), 2000);
     });
-  };
-
-  // ── Send feedback email ───────────────────────────────────
-  const sendFeedbackEmail = async (ticket: HelpDeskTicket) => {
-    if (!ticket.requesterEmail) return;
-    setSendingEmail(ticket.id);
-    try {
-      const res = await fetch("/api/helpdesk/send-feedback", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ticketId: ticket.id,
-          requesterEmail: ticket.requesterEmail,
-          requesterName: ticket.requester || "고객",
-          ticketContent: ticket.content || ticket.title || "",
-          assignee: ticket.assignee || "담당자",
-        }),
-      });
-      const data = await safeJson(res);
-      if (res.ok || data.skipped) {
-        setEmailSentIds(prev => new Set([...prev, ticket.id]));
-      }
-    } catch (e) {
-      console.error("email send failed", e);
-    } finally {
-      setSendingEmail(null);
-    }
   };
 
   // ── HTML Report download ─────────────────────────────────
@@ -3111,17 +3042,11 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
                               {copiedId === t.id ? "복사됨" : "평가링크"}
                             </button>
                           )}
+                          {/* 2026-07-28: 만족도 메일 발송이 맥북 폴러로 이전 — 포털에서는 발송 안내만 표시 */}
                           {t.status === "완료" && t.requesterEmail && !emailSentIds.has(t.id) && (
-                            <button onClick={() => sendFeedbackEmail(t)}
-                              disabled={sendingEmail === t.id}
-                              title={`만족도 평가 이메일 발송 → ${t.requesterEmail}`}
-                              className="text-amber-500 hover:text-amber-600 transition-colors text-[10px] font-medium whitespace-nowrap disabled:opacity-40 flex items-center gap-0.5">
-                              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                                <polyline points="22,6 12,13 2,6"/>
-                              </svg>
-                              {sendingEmail === t.id ? "발송중..." : "이메일"}
-                            </button>
+                            <span className="text-gray-300 text-[10px] whitespace-nowrap" title="만족도 평가 메일은 자산관리 콘솔(맥북 폴러)에서 발송됩니다">
+                              발송은 콘솔에서
+                            </span>
                           )}
                           {t.status === "완료" && !t.requesterEmail && !fb && (
                             <span className="text-gray-300 text-[10px] whitespace-nowrap" title="이메일 없음">이메일 없음</span>

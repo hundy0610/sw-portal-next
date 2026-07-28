@@ -1,10 +1,9 @@
 name: Send Feedback Emails (Cron)
 
 on:
-  schedule:
-    # 1시간마다 실행 — Notion 웹훅이 주 트리거, 크론은 어디까지나 안전망이라
-    # 완료 후 최대 1시간 지연은 사용자 경험에 영향 없음 (Redis 명령 절감)
-    - cron: '0 * * * *'
+  # 2026-07-28: 만족도 메일 발송이 맥북 폴러로 이전 — 자동 실행 중단
+  # schedule:
+  #   - cron: '0 * * * *'
   workflow_dispatch:  # 수동 실행 가능
 
 jobs:
