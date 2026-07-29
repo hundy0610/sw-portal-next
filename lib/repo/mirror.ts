@@ -21,6 +21,14 @@ function getClient(): SupabaseClient | null {
   try {
     _client = createClient(SUPABASE_URL, SUPABASE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
+      // Funnel 경로 중간에 페이지네이션(Range 헤더) 응답을 캐싱하는 프록시가 있을 가능성이
+      // 있어 명시적으로 캐시 금지를 요청한다 (lib/repo/hw.ts와 동일한 대응).
+      global: {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+          "Pragma": "no-cache",
+        },
+      },
     });
     return _client;
   } catch {
@@ -104,13 +112,20 @@ export async function upsertEntity(entity: string, id: string, data: unknown): P
   const client = getClient();
   if (!client) return false;
   try {
-    const { error } = await client
+    // .select() 로 실제 반영된 행을 받아 확인한다 — RLS 등으로 0행 적용돼도
+    // error 는 null 이라 .select() 없이는 "성공"으로 오판하는 무음 실패가 된다.
+    const { data: rows, error } = await client
       .from(TABLE)
       .upsert(
         { entity, id, data, deleted: false, dirty: true, updated_at: new Date().toISOString() },
         { onConflict: "entity,id" },
-      );
+      )
+      .select("id");
     if (error) throw error;
+    if (!rows || rows.length === 0) {
+      console.warn(`[mirror] upsertEntity(${entity},${id}) 0행 반영(권한/RLS 의심)`);
+      return false;
+    }
     return true;
   } catch (e) {
     console.warn(`[mirror] upsertEntity(${entity},${id}) 실패`, e);
@@ -123,12 +138,17 @@ export async function deleteEntity(entity: string, id: string): Promise<boolean>
   const client = getClient();
   if (!client) return false;
   try {
-    const { error } = await client
+    const { data, error } = await client
       .from(TABLE)
       .update({ deleted: true, dirty: true, updated_at: new Date().toISOString() })
       .eq("entity", entity)
-      .eq("id", id);
+      .eq("id", id)
+      .select("id");
     if (error) throw error;
+    if (!data || data.length === 0) {
+      console.warn(`[mirror] deleteEntity(${entity},${id}) 0행 반영(권한/RLS 의심)`);
+      return false;
+    }
     return true;
   } catch (e) {
     console.warn(`[mirror] deleteEntity(${entity},${id}) 실패`, e);
