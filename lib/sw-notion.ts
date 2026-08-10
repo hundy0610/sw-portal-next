@@ -98,6 +98,7 @@ export function applyFields(base: SwDbRecord, fields: FieldMap): { next: SwDbRec
   if (fields.billingType  !== undefined) setStr("billingType", fields.billingType);
   if (fields.renewalDate  !== undefined) setStr("renewalDate", fields.renewalDate);
   if (fields.usageDate    !== undefined) setStr("usageDate", fields.usageDate);
+  if (fields.paymentDate  !== undefined) setStr("paymentDate", fields.paymentDate);
   if (fields.returnDate   !== undefined) setStr("returnDate", fields.returnDate);
   if (fields.lastModifiedBy !== undefined) setStr("lastModifiedBy", fields.lastModifiedBy);
   if (fields.lastModifiedAt !== undefined) setStr("lastModifiedAt", fields.lastModifiedAt);

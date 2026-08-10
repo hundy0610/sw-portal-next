@@ -26,6 +26,8 @@ export interface SwDbRecord {
   draftDocument: string;                  // 기안문서 (file URL)
   workType: string;                       // SW사용직군
   billingType?: string;                   // 결제방식 (대웅 등)
+  paymentDate?: string;                   // 최근 결제일 YYYY-MM-DD — 구독형 SW의 USD→KRW 환산 시
+                                           // "조회 시점 환율"이 아니라 이 날짜 기준 환율을 적용하기 위함
   lastModifiedBy?: string;                // 마지막수정자 (이름 + 아이디)
   lastModifiedAt?: string;                // 마지막수정일시 (ISO)
   monthlyUsd: number;                     // 월 비용 (USD)
