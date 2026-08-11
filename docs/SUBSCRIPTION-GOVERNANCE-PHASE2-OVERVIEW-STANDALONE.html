@@ -212,13 +212,13 @@
 <div class="top-bar"></div>
 <div class="cover">
   <div class="cover-inner">
-    <div class="eyebrow">그룹 SaaS 거버넌스 · 기획 개요 (v3 — Assetify Desktop 기준)</div>
+    <div class="eyebrow">그룹 SaaS 거버넌스 · PM 개발 기획서 (v3.1 — Assetify Desktop 기준)</div>
     <h1 class="title">SaaS 구독 라이선스 거버넌스 기획서</h1>
-    <p class="subtitle">배포 대상은 웹 포털이 아니라 <strong>Assetify Desktop</strong>(Electron 데스크탑 앱, <code>assetify-for-desktop</code>)이다. 이 문서는 그 실제 코드를 분석한 뒤 아키텍처와 로드맵을 다시 정리한 버전이다 — 개발 지침은 별도 문서(<code>SUBSCRIPTION-GOVERNANCE-PHASE2.md</code>)를 따른다.</p>
+    <p class="subtitle">배포 대상은 웹 포털이 아니라 <strong>Assetify Desktop</strong>(Electron 데스크탑 앱, <code>assetify-for-desktop</code>)이다. 이 문서는 그 실제 코드를 분석해 아키텍처와 로드맵을 다시 정리한 PM 관점 개발 기획서다 — 개발자가 이 문서만 읽어도 왜·무엇을·어떤 순서로 만드는지 이해할 수 있어야 한다. 티켓별 세부 구현 지침은 착수 시점에 새로 쓴다(<a class="inline" href="#process">05장</a>).</p>
     <div class="meta-row">
-      <span><b>버전</b>v3.0 · 대상 저장소 정정판</span>
+      <span><b>버전</b>v3.1 · PM 관점 보강판</span>
       <span><b>작성일</b>2026-08-11</span>
-      <span><b>대상</b>경영진 · 자산관리파트</span>
+      <span><b>대상</b>PM · 개발자 · 경영진</span>
       <span><b>배포 형태</b>DMG(mac) / Setup.exe(win)</span>
     </div>
   </div>
@@ -232,11 +232,12 @@
       <li><a href="#stakeholders"><span class="num">02</span>세 관점의 요구</a></li>
       <li><a href="#architecture"><span class="num">03</span>전체 아키텍처</a></li>
       <li><a href="#status"><span class="num">04</span>지금 상태 — 무엇이 어디에 있나</a></li>
-      <li><a href="#phase2"><span class="num">05</span>로드맵 (G0~G13)</a></li>
-      <li><a href="#vendor-api"><span class="num">06</span>벤더 API 전략</a></li>
-      <li><a href="#excluded"><span class="num">07</span>제외한 것과 이유</a></li>
-      <li><a href="#principles"><span class="num">08</span>운영 원칙</a></li>
-      <li><a href="#timeline"><span class="num">09</span>로드맵 타임라인</a></li>
+      <li><a href="#process"><span class="num">05</span>개발 진행 방식</a></li>
+      <li><a href="#phase2"><span class="num">06</span>로드맵 (G0~G13)</a></li>
+      <li><a href="#vendor-api"><span class="num">07</span>벤더 API 전략</a></li>
+      <li><a href="#excluded"><span class="num">08</span>제외한 것과 이유</a></li>
+      <li><a href="#principles"><span class="num">09</span>운영 원칙</a></li>
+      <li><a href="#timeline"><span class="num">10</span>로드맵 타임라인</a></li>
     </ol>
   </nav>
 
@@ -406,9 +407,29 @@ sequenceDiagram
       <p class="prose">Assetify Desktop의 <code>src/main/api/router.ts</code>는 Next.js의 <code>NextRequest</code>/<code>NextResponse</code>와 호환되는 얇은 shim을 이미 갖추고 있다. 그래서 <code>app/api/report/route.ts</code> 같은 웹 라우트 파일을 <code>src/main/api/routes/</code>에 거의 그대로 복사하고, <code>src/main/api/registry.ts</code>에 경로 한 줄만 등록하면 대부분 동작한다. 화면(컴포넌트)도 <code>fetch("/api/...")</code> 호출부만 <code>window.electronAPI.apiCall(...)</code>로 바꾸면 나머지 UI 코드는 그대로 옮겨진다. 즉 <strong>설계는 이미 끝나 있고, 남은 건 기계적인 포팅</strong>이다.</p>
     </section>
 
+    <section id="process">
+      <div class="sec-head"><span class="sec-num">05</span><h2>개발 진행 방식</h2></div>
+      <p class="lede">이 문서가 하는 일과 하지 않는 일을 먼저 구분한다 — "왜 필요한지, 무엇을 만들지, 어떤 순서로 할지, 전체 구조가 어떻게 생겼는지"까지가 이 문서의 몫이다. "정확히 어떤 파일의 어느 부분을 어떻게 고치는지"는 여기 없다 — 그건 각 티켓에 <strong>착수하는 시점에</strong> 별도 MD로 새로 쓴다.</p>
+
+      <div class="callout warn"><b>왜 사전에 전부 문서화하지 않는가</b> — 코드를 실제로 열어보기 전에 세부까지 미리 써두면, 그 전제가 틀렸을 때 통째로 버려야 한다. 방금 이 문서에서 그 일이 실제로 일어났다 — "웹 포털"이라는 전제 하나가 틀려서 아키텍처와 로드맵 전체를 다시 썼다. 코드베이스를 실제로 연 직후에 쓴 지침이, 코드를 안 보고 미리 쓴 지침보다 항상 정확하다.</div>
+
+      <h3>티켓 착수 절차</h3>
+      <div class="card-grid">
+        <div class="card"><h4>1. 티켓 선택</h4><p>우선순위표와 의존성 다이어그램(06장)에서 선행 티켓부터 고른다 — G0이 항상 먼저다.</p></div>
+        <div class="card"><h4>2. 코드 확인</h4><p><code>core/*</code>, <code>src/main/api/routes/*</code>, <code>src/renderer/src/components/*</code>를 실제로 열어 이 문서의 설계 설명이 지금도 맞는지 확인한다. 틀렸으면 코드를 짜기 전에 이 문서부터 고친다.</p></div>
+        <div class="card"><h4>3. 티켓 MD 작성</h4><p><code>docs/tickets/&lt;티켓ID&gt;-&lt;한줄요약&gt;.md</code>로 배경·설계·수용기준·Claude Code 프롬프트를 새로 쓴다. 코드를 방금 본 뒤라 사전 작성보다 정확하다.</p></div>
+        <div class="card"><h4>4. 구현 · 검증</h4><p>그 문서로 구현 → <code>npm run typecheck</code> → 앱을 직접 실행해 화면으로 확인한다.</p></div>
+        <div class="card"><h4>5. 버전 · 커밋</h4><p><code>CLAUDE.md</code> 버전 규칙대로 patch/minor를 올린다. 수정 하나마다 — 여러 개를 모아 한 번에 올리지 않는다.</p></div>
+        <div class="card"><h4>6. 보고 · 다음 티켓</h4><p>무엇을 바꿨는지 한 문단으로 보고하고 다음 티켓으로 이동한다.</p></div>
+      </div>
+
+      <h3>이 문서가 계속 담당하는 것</h3>
+      <p class="prose">바뀔 일이 적은 것들 — 배경/취지(01), 세 관점의 요구(02), 전체 아키텍처(03), 우선순위와 그 이유(06), 벤더 API 전략(07), 제외 결정 로그(08), 운영 원칙(09). 티켓별 MD가 매번 새로 쓰이고 버려져도 이 문서는 그 기준점으로 남는다 — 티켓 MD를 쓸 때 이 문서와 어긋나는 걸 발견하면, 코드가 아니라 <strong>이 문서를 먼저</strong> 의심하고 고친다.</p>
+    </section>
+
     <section id="phase2">
-      <div class="sec-head"><span class="sec-num">05</span><h2>로드맵 (G0~G13)</h2></div>
-      <p class="lede">G0(이식)이 새로 추가된 선행 단계다. G1~G13의 배경·설계·수용기준은 이전 버전과 동일하되, 실행 위치만 <code>app/api/*/route.ts</code> + <code>components/admin/*.tsx</code>(웹)에서 <code>src/main/api/routes/*.ts</code> + <code>src/renderer/src/components/*.tsx</code>(데스크탑)로 바뀐다. 상세 설계와 Claude Code 프롬프트는 <code>SUBSCRIPTION-GOVERNANCE-PHASE2.md</code>에 있다.</p>
+      <div class="sec-head"><span class="sec-num">06</span><h2>로드맵 (G0~G13)</h2></div>
+      <p class="lede">G0(이식)이 새로 추가된 선행 단계다. G1~G13의 배경·취지는 이전 버전과 동일하되, 실행 위치만 <code>app/api/*/route.ts</code> + <code>components/admin/*.tsx</code>(웹)에서 <code>src/main/api/routes/*.ts</code> + <code>src/renderer/src/components/*.tsx</code>(데스크탑)로 바뀐다. 티켓별 세부 지침은 지금 쓰지 않는다 — <a class="inline" href="#process">05장</a>대로 착수 시점에 새로 쓴다.</p>
 
       <div class="table-scroll">
         <table>
@@ -458,7 +479,7 @@ flowchart TD
     </section>
 
     <section id="vendor-api">
-      <div class="sec-head"><span class="sec-num">06</span><h2>SaaS 벤더 API 연동 전략</h2></div>
+      <div class="sec-head"><span class="sec-num">07</span><h2>SaaS 벤더 API 연동 전략</h2></div>
       <p class="lede">"종량제 라이선스는 GPT처럼 API로 데이터를 가져오자"는 방향에서 출발했다. 그런데 실제 SW 현황을 보면 이 요청은 사실 <strong>성격이 다른 두 가지</strong>가 섞여 있었다 — 나눠서 봐야 헛수고를 피할 수 있다.</p>
 
       <div class="compare">
@@ -506,7 +527,7 @@ flowchart TD
     </section>
 
     <section id="excluded">
-      <div class="sec-head"><span class="sec-num">07</span><h2>검토했지만 채택하지 않은 것 — 의사결정 로그</h2></div>
+      <div class="sec-head"><span class="sec-num">08</span><h2>검토했지만 채택하지 않은 것 — 의사결정 로그</h2></div>
       <p class="lede">"왜 이렇게 안 했지?"라는 질문이 나중에 다시 나올 때, 재검토 없이 바로 참고할 수 있도록 기록해둔다. 배포 대상이 웹에서 데스크탑으로 바뀌어도 아래 결정은 그대로 유효하다.</p>
       <div class="table-scroll">
         <table>
@@ -542,7 +563,7 @@ flowchart TD
     </section>
 
     <section id="principles">
-      <div class="sec-head"><span class="sec-num">08</span><h2>운영 원칙</h2></div>
+      <div class="sec-head"><span class="sec-num">09</span><h2>운영 원칙</h2></div>
       <p class="lede">기능이 늘어나도 지켜야 하는 최소한의 가드레일. <code>assetify-for-desktop</code>의 <code>CLAUDE.md</code>에 이미 있는 작업 규칙과 충돌하지 않도록 맞췄다.</p>
       <div class="card-grid">
         <div class="card"><h4>발송은 화면까지만</h4><p>메일·알림 자동 발송 기능은 만들지 않는다. 발송 관련 결정은 반드시 별도 승인을 받는다.</p></div>
@@ -555,7 +576,7 @@ flowchart TD
     </section>
 
     <section id="timeline">
-      <div class="sec-head"><span class="sec-num">09</span><h2>로드맵 타임라인</h2></div>
+      <div class="sec-head"><span class="sec-num">10</span><h2>로드맵 타임라인</h2></div>
       <p class="lede">전체 흐름을 시간 순으로 다시 정리하면 다음과 같다. G0(이식)이 맨 앞에 추가됐다.</p>
       <div class="diagram">
         <pre class="mermaid">
@@ -579,7 +600,8 @@ timeline
     <div class="doc-list">
       <code>github.com/qortmddbs33/assetify-for-desktop</code> — 실제 배포 대상(Electron)
       <code>sw-portal-next</code> — SW-PORTAL 웹(공개 신청 폼 + 기존 admin 설계 원본)
-      <code>docs/SUBSCRIPTION-GOVERNANCE-PHASE2.md</code>
+      <code>docs/SUBSCRIPTION-GOVERNANCE-PHASE2.md</code> — 웹 포털 대상으로 쓴 예시(양식만 참고, 그대로 쓰지 말 것)
+      <code>docs/tickets/*.md</code> — 티켓 착수 시점마다 새로 쓰는 세부 지침(05장 참고)
       <code>assetify-for-desktop/CLAUDE.md</code> — 데스크탑 앱 작업 규칙·버전 규칙
     </div>
   </footer>
