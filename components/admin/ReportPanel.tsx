@@ -5,6 +5,7 @@ import type { ReportData, SubRow } from "@/lib/reportTypes";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import SubscriptionAlerts from "@/components/admin/SubscriptionAlerts";
 import { safeJson } from "@/lib/fetch-json";
+import { getAnomalyFlags, ANOMALY_LABEL, type AnomalyFlag } from "@/lib/anomaly-detection";
 
 // ─── 카테고리 색상 맵 ────────────────────────────────────────────────────
 const CATEGORY_BADGE: Record<string, string> = {
@@ -50,34 +51,6 @@ const CATEGORY_COUNT: Record<string, string> = {
 };
 
 const CAT_ORDER = ["사무","문서작성","정부","설계","디자인","AI","개발","협업","원격","RPA","기타"];
-
-// ─── 이상치 자동 감지 (F1) ────────────────────────────────────────────────
-// 임계값은 상수로 분리 — 나중에 조정이 필요하면 이 값만 바꾸면 된다.
-const ANOMALY_PERHEAD_MULTIPLIER = 3; // 인당비용이 전체 평균의 몇 배 이상이면 이상치로 볼지
-
-export type AnomalyFlag = "담당자미지정" | "인당비용이상치" | "비용확인필요";
-
-export const ANOMALY_LABEL: Record<AnomalyFlag, string> = {
-  "담당자미지정":   "담당자 미지정",
-  "인당비용이상치": "인당비용 이상치",
-  "비용확인필요":   "비용 데이터 확인 필요",
-};
-
-// 부서 하나의 (인원수, SW개수, 비용)을 보고 해당되는 이상치 플래그를 모두 반환한다.
-// 우선순위: 담당자미지정 > 인당비용이상치. 비용확인필요는 비용이 0일 때만 해당되므로
-// 위 두 조건과 함께 나타나지 않는다(둘 다 비용>0을 전제로 함).
-function getAnomalyFlags(headcount: number, swCount: number, cost: number, avgPerHead: number): AnomalyFlag[] {
-  const flags: AnomalyFlag[] = [];
-  if (headcount === 0 && cost > 0) {
-    flags.push("담당자미지정");
-  } else if (headcount > 0 && avgPerHead > 0 && cost / headcount >= avgPerHead * ANOMALY_PERHEAD_MULTIPLIER) {
-    flags.push("인당비용이상치");
-  }
-  if (swCount > 0 && cost === 0) {
-    flags.push("비용확인필요");
-  }
-  return flags;
-}
 
 // ─── 헬퍼 ───────────────────────────────────────────────────────────────
 const fmt = (n: number) => n.toLocaleString("ko-KR");
@@ -652,6 +625,17 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
   const [filterCompany, setFilterCompany] = useState(company);
   const [filterDept,    setFilterDept]    = useState("");
   const [filterCat,     setFilterCat]     = useState("");
+
+  // 거버넌스 스코어카드에서 특정 법인 행을 클릭해 넘어온 경우, 그 법인으로 필터를
+  // 미리 맞춰준다(슈퍼어드민만 해당 — company prop이 고정된 법인 담당자는 대상 아님).
+  useEffect(() => {
+    if (company) return;
+    const jump = sessionStorage.getItem("gov-scorecard-jump-company");
+    if (jump) {
+      setFilterCompany(jump);
+      sessionStorage.removeItem("gov-scorecard-jump-company");
+    }
+  }, [company]);
 
   // 기간 모드 (월간 / 연간)
   const [mode, setMode] = useState<PeriodMode>("monthly");
