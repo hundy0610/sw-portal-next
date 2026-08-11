@@ -34,10 +34,6 @@ launchd 백업 잡(`deploy/com.swportal.backup-notion.plist`)은 **맥북에서�
 - 로컬 DB 띄우지 말 것. 중앙(맥북) Postgres를 쓴다.
 - 로컬 `.env`: `DATA_SOURCE=postgres`, `SUPABASE_URL=<Funnel 주소>`, `SUPABASE_KEY=<service_role>` (+ 필요 시 `GMAIL_*`, `BLOB_READ_WRITE_TOKEN`). 맥북 Supabase/Funnel이 켜져 있어야 한다.
 - 스키마 변경은 `scripts/sql/NNN_*.sql` + `npm run migrate`(중앙 DB, 사전 합의).
-- **예외**: Windows PC에 만든 "콜드 스페어" 1대는 예외다(사용자 명시 승인 하에 구축,
-  [docs/COLD-SPARE-WINDOWS.md](docs/COLD-SPARE-WINDOWS.md) 참고). 평소엔 서비스하지
-  않고 맥북 백업을 매일 받아두기만 하다가, 맥북 장애 시에만 수동 승격한다. **새로운
-  스페어/로컬 DB를 추가로 만들지 말 것** — 이미 있는 것 하나로 충분하다.
 
 ## 안전 규칙 (엄수)
 - **커밋/푸시/머지/프로덕션 배포는 명시적 승인 필요.**
