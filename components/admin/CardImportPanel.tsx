@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { safeJson } from "@/lib/fetch-json";
 import { STANDARD_FIELDS, type ImportProfile, type CardRow, type BatchMeta, type StandardFieldKey } from "@/lib/card-import";
+import type { ReconcileItem, ReconcileSummary, MatchStatus } from "@/lib/card-reconcile";
 
 const fmt = (n: number) => n.toLocaleString("ko-KR");
 
@@ -56,6 +57,11 @@ export default function CardImportPanel() {
   // 상세 보기
   const [openBatch,     setOpenBatch]     = useState<BatchMeta | null>(null);
   const [openBatchRows, setOpenBatchRows] = useState<CardRow[] | null>(null);
+
+  // 대사(카드명세 ↔ 등록 구독)
+  const [reconBatch,   setReconBatch]   = useState<BatchMeta | null>(null);
+  const [reconItems,   setReconItems]   = useState<ReconcileItem[] | null>(null);
+  const [reconSummary, setReconSummary] = useState<ReconcileSummary | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -237,6 +243,19 @@ export default function CardImportPanel() {
       setBatches(prev => prev.filter(x => x.id !== b.id));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function openReconcile(b: BatchMeta) {
+    setReconBatch(b); setReconItems(null); setReconSummary(null); setError("");
+    try {
+      const json = await fetch(`/api/card-import/reconcile?batchId=${encodeURIComponent(b.id)}`).then(r => safeJson(r));
+      if (!json.ok) throw new Error(json.error ?? "대사 실패");
+      setReconItems(json.items ?? []);
+      setReconSummary(json.summary ?? null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setReconBatch(null);
     }
   }
 
@@ -502,6 +521,7 @@ export default function CardImportPanel() {
                     </td>
                     <td className="px-3 py-2 text-gray-400 whitespace-nowrap">{b.uploadedAt.slice(0, 10)} {b.uploadedBy}</td>
                     <td className="px-3 py-2 text-right whitespace-nowrap">
+                      <button onClick={() => openReconcile(b)} className="text-[11px] font-semibold text-blue-600 hover:underline mr-2">대사</button>
                       <button onClick={() => openBatchDetail(b)} className="text-[11px] font-semibold text-amber-700 hover:underline mr-2">상세</button>
                       <button onClick={() => removeBatch(b)} className="text-[11px] font-semibold text-red-500 hover:underline">삭제</button>
                     </td>
@@ -512,6 +532,14 @@ export default function CardImportPanel() {
           </div>
         )}
       </div>
+
+      {/* ── 대사 결과 모달 ── */}
+      {reconBatch && (
+        <ReconcileModal
+          batch={reconBatch} items={reconItems} summary={reconSummary}
+          onClose={() => { setReconBatch(null); setReconItems(null); setReconSummary(null); }}
+        />
+      )}
 
       {/* ── 배치 상세 모달 ── */}
       {openBatch && (
@@ -565,6 +593,148 @@ export default function CardImportPanel() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── 대사 결과 모달 ──────────────────────────────────────────────────────────
+const MATCH_STYLE: Record<MatchStatus, { label: string; chip: string; row: string }> = {
+  "card-only": { label: "미등록 지출", chip: "bg-red-100 text-red-700",       row: "bg-red-50/60"    },
+  "sub-only":  { label: "지출 없음",   chip: "bg-orange-100 text-orange-700", row: "bg-orange-50/50" },
+  "probable":  { label: "추정 일치",   chip: "bg-yellow-100 text-yellow-700", row: "bg-yellow-50/50" },
+  "matched":   { label: "일치",        chip: "bg-emerald-100 text-emerald-700", row: "" },
+};
+
+function ReconcileModal({ batch, items, summary, onClose }: {
+  batch: BatchMeta;
+  items: ReconcileItem[] | null;
+  summary: ReconcileSummary | null;
+  onClose: () => void;
+}) {
+  const [filter, setFilter] = useState<MatchStatus | "all">("all");
+  const shown = items?.filter(i => filter === "all" || i.status === filter) ?? [];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[88vh] flex flex-col overflow-hidden"
+        onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-4 bg-gray-800 text-white flex items-start justify-between shrink-0">
+          <div>
+            <div className="font-bold text-sm">카드명세 대사 — {batch.company} · {batch.source}</div>
+            <div className="text-xs text-white/70 mt-0.5">
+              카드 지출과 포털에 등록된 구독을 맞춰봅니다. 금액 ±10% 이내를 같은 건으로 봅니다.
+            </div>
+          </div>
+          <button onClick={onClose} className="text-white/80 hover:text-white text-xl leading-none">✕</button>
+        </div>
+
+        {summary && (
+          <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 shrink-0">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+              <div>
+                <div className="text-[10px] text-gray-400 font-semibold uppercase">카드 지출 합계</div>
+                <div className="text-sm font-bold text-gray-800">₩{fmt(summary.cardTotal)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-gray-400 font-semibold uppercase">등록 구독 합계(월)</div>
+                <div className="text-sm font-bold text-gray-800">₩{fmt(summary.subTotal)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-gray-400 font-semibold uppercase">미등록 지출</div>
+                <div className="text-sm font-bold text-red-600">₩{fmt(summary.cardOnlyAmount)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-gray-400 font-semibold uppercase">지출 없는 구독</div>
+                <div className="text-sm font-bold text-orange-600">₩{fmt(summary.subOnlyAmount)}</div>
+              </div>
+            </div>
+            <div className="flex gap-1.5 flex-wrap">
+              {([
+                ["all", `전체 ${items?.length ?? 0}`],
+                ["card-only", `미등록 지출 ${summary.cardOnlyCount}`],
+                ["sub-only", `지출 없음 ${summary.subOnlyCount}`],
+                ["probable", `추정 일치 ${summary.probableCount}`],
+                ["matched", `일치 ${summary.matchedCount}`],
+              ] as const).map(([key, label]) => (
+                <button key={key} onClick={() => setFilter(key as MatchStatus | "all")}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${
+                    filter === key ? "bg-gray-800 text-white" : "bg-white border border-gray-200 text-gray-500 hover:bg-gray-100"
+                  }`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="overflow-auto flex-1">
+          {items === null ? (
+            <p className="text-xs text-gray-400 py-12 text-center">대사 중…</p>
+          ) : shown.length === 0 ? (
+            <p className="text-xs text-gray-400 py-12 text-center">해당 항목이 없습니다.</p>
+          ) : (
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-gray-50">
+                <tr className="text-gray-400 border-b border-gray-200">
+                  <th className="px-3 py-2 text-left font-semibold w-24">구분</th>
+                  <th className="px-3 py-2 text-left font-semibold">부서</th>
+                  <th className="px-3 py-2 text-left font-semibold">카드 지출</th>
+                  <th className="px-3 py-2 text-left font-semibold">등록 구독</th>
+                  <th className="px-3 py-2 text-right font-semibold w-24">차이</th>
+                  <th className="px-3 py-2 text-left font-semibold">비고</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((it, i) => {
+                  const st = MATCH_STYLE[it.status];
+                  return (
+                    <tr key={i} className={`border-b border-gray-100 last:border-0 ${st.row}`}>
+                      <td className="px-3 py-2">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${st.chip}`}>{st.label}</span>
+                      </td>
+                      <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{it.department || "—"}</td>
+                      <td className="px-3 py-2 text-gray-700">
+                        {it.card
+                          ? <>
+                              <span className="font-mono font-semibold">₩{fmt(it.card.amount)}</span>
+                              <span className="text-gray-400 ml-1.5">{it.card.paidAt}</span>
+                              {it.card.cardLast4 && <span className="text-gray-400 ml-1">·{it.card.cardLast4}</span>}
+                              {it.card.note && <div className="text-[10px] text-gray-400 truncate max-w-[180px]">{it.card.note}</div>}
+                            </>
+                          : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="px-3 py-2 text-gray-700">
+                        {it.sub
+                          ? <>
+                              <span className="font-semibold">{it.sub.swName}</span>
+                              {it.sub.user && <span className="text-gray-400 ml-1.5">{it.sub.user}</span>}
+                              <div className="text-[10px] text-gray-400 font-mono">월 ₩{fmt(it.sub.monthlyKrw)}</div>
+                            </>
+                          : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono">
+                        {it.diff !== undefined
+                          ? <span className={it.diff === 0 ? "text-gray-400" : it.diff > 0 ? "text-red-600" : "text-blue-600"}>
+                              {it.diff > 0 ? "+" : ""}{fmt(it.diff)}
+                            </span>
+                          : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="px-3 py-2 text-[10px] text-gray-500">{it.reason}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        <div className="px-5 py-3 bg-gray-50 border-t border-gray-200 shrink-0">
+          <p className="text-[11px] text-gray-400">
+            * 카드명세에는 가맹점명만 찍히는 경우가 많아 SW명 자동 매칭은 하지 않습니다. 금액·부서 기준으로만
+            분류하므로 <b>최종 판단은 담당자가 확인</b>해야 합니다.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
