@@ -35,6 +35,7 @@ flowchart LR
         G8["G8 계약서 보관"]
         G9["G9 법인 아카이브 정책"]
         G10["G10 Google 로그인"]
+        G13["G13 벤더 API 연동 로드맵"]
     end
     subgraph HOLD["보류 / 범위 제외 — 재검토 없이 착수 금지"]
         G11["G11 카드사 API 연동 — 외부 협의 필요"]
@@ -132,9 +133,10 @@ flowchart LR
 | `/api/sw-alias` | GET/POST/DELETE | 슈퍼 전용 | G1 | 신규 |
 | `/api/sw/confirm-usage` | POST | 로그인 필요 | G6 | 신규 |
 | `/api/governance-scorecard/monthly-summary` | GET | 슈퍼 전용 | G7 | 신규 |
+| `/api/vendor-usage/sync` | POST | 슈퍼 전용 | G13 | 신규(1단계는 수동 트리거만) |
 | `/api/admin/auth` | POST | - | G2 | 기존 확장(`lastLoginAt` 기록) |
 | `/api/governance-scorecard` | GET | 슈퍼 전용 | G2, G6, G9 | 기존 확장(신규 집계 필드 추가) |
-| `/api/subscription-alerts` | GET | - | G5 | 기존 확장(`cancellation` 알림 타입) |
+| `/api/subscription-alerts` | GET | - | G5, G13 | 기존 확장(`cancellation` 알림 타입, `vendor-api` 소스) |
 | `/api/sw/update`, `/api/sw/upload` | POST | - | G4, G8 | 기존 확장 |
 | `/admin/login` (Google OAuth 콜백 포함) | GET/POST | - | G10 | 기존 확장 + OAuth 흐름 추가 |
 
@@ -154,6 +156,7 @@ flowchart LR
 | 8 | G8. 계약서 원본 보관 표준화 | 없음 | |
 | 9 | G9. 법인 폐업/매각 데이터 정책 | 없음 | 정책 결정 후 코드 반영 |
 | 10 | G10. "Google로 로그인" 추가(SSO 준비) | 없음 | 기존 ID/PW 병행, 인증서버 자체 구축 아님 |
+| 11 | G13. SaaS 벤더 API 연동 로드맵(1단계: OpenAI/Anthropic) | 없음(단, 벤더 API 키 확보가 선행조건) | 실제 SW 현황 기반 벤더별 우선순위 정리 포함 |
 | 보류 | G11. 카드사 API 자동 연동 | 외부(카드사) 협의 | 설계만 |
 | 참고 | G12. 전자결재 연동 | 외부(사내 부서) 협의 | 이미 설계 문서 있음 — docs/ELECTRONIC-APPROVAL-INTEGRATION.md |
 
@@ -173,6 +176,7 @@ flowchart TD
     G8["G8 계약서 보관 — 독립, 아무 때나 가능"]
     G9["G9 법인 아카이브 — 정책 결정 선행 필요"]
     G10["G10 Google 로그인 — 독립, 아무 때나 가능"]
+    G13["G13 벤더 API 연동 — 독립, 단 벤더 API 키 확보 선행"]
 ```
 
 G7(임원 리포트)로 화살표가 모이는 이유는 단순하다 — G1~G6이 만들어내는 신호
@@ -756,6 +760,162 @@ sequenceDiagram
 
 ---
 
+## G13. SaaS 벤더 사용량/청구 API 연동 로드맵
+
+**배경**: 1차 개발 때 대표님 요청 — "종량제로 사용하는 라이선스는 GPT처럼 API
+연동해서 데이터를 가져오는 구조로 가자". 이걸 위해 `lib/subscription-alerts.ts`의
+`DeptSpend.source: "registered" | "vendor-api"`를 미리 확장 가능하게 설계해뒀지만,
+실제 벤더 연동은 아직 하나도 구현되지 않았다. 지금 SW 현황에 등록된 SW들이 실제로
+무엇인지는 `lib/reportTypes.ts`의 `CATEGORY_RULES`(카테고리 분류용 정규식)가
+사실상 축소판 목록이다 — 이 문서는 그 목록을 기준으로 "어떤 벤더부터 API 연동이
+현실적인지"를 미리 정리해, 개발자가 매번 벤더 문서를 처음부터 찾아보지 않게
+한다.
+
+> **주의**: 아래 벤더별 API 정보는 이 문서 작성 시점(2026년 초) 기준 알려진
+> 내용이다. 벤더 API는 자주 바뀌고 등급(Enterprise/Business/Team)별로 제공 범위가
+> 다르므로, 실제 착수 전 반드시 최신 문서와 현재 가입된 플랜을 다시 확인해야
+> 한다 — 오래된 정보로 설계하면 헛수고가 된다.
+
+**중요한 구분 — 이 요청은 사실 두 가지가 섞여 있다**
+
+- **① 종량제 비용 추적형**: 실제 사용한 만큼 청구되는 서비스(OpenAI, Anthropic,
+  AWS/Azure/GCP 등)는 API로 실제 청구액을 가져와 예산 상한(F5) 대비 실시간
+  추적하는 게 목적 — 원래 요청("GPT처럼")이 가리키는 게 이쪽이다.
+- **② 좌석 사용률 대사형**: Microsoft 365, Slack, Zoom, Adobe처럼 좌석(seat)
+  단위로 정액 결제되는 서비스는 청구액이 이미 계약서에 고정돼 있어 API로 가져올
+  실익이 적다 — 대신 "라이선스를 산 사람 수" vs "실제로 로그인한 사람 수"를
+  비교해 미사용 좌석을 찾아내는 게 목적이다. 이건 G6(재확인 캠페인)의 자동화
+  버전에 가깝다.
+
+두 갈래를 섞어서 "다 API로 연동하자"고 접근하면 안 된다 — ①은 비용 정확도
+문제, ②는 사용률 감사 문제로 성격이 다르다.
+
+**설계 — 카테고리별(`mapCategory` 기준) 벤더 API 가능성**
+
+| 카테고리 | 벤더 | 공개 API | 가져올 수 있는 데이터 | 인증 방식 | 유형 |
+|---|---|---|---|---|---|
+| AI | OpenAI (ChatGPT Enterprise/Team) | Admin/Usage API | 멤버 목록, 사용량, 청구 내역 | Admin API Key(조직 Owner 발급) | ① 파일럿 1순위 |
+| AI | Anthropic (Claude Enterprise) | Admin/Usage API | 멤버 목록, 사용량·비용 | Admin API Key | ① 파일럿 1순위 |
+| AI | GitHub Copilot | Copilot Metrics API | 좌석 수, 활성 사용자 | GitHub App/PAT(Org Owner) | ② |
+| 개발 | GitHub(Org/Enterprise) | REST/Billing API | 좌석 수, Actions/Copilot 청구액 | GitHub App | ①·② 혼합 |
+| 개발 | AWS / Azure / GCP | Cost Explorer / Cost Management / Cloud Billing API | 실제 청구액(계정·태그별) | IAM Role(읽기전용) | ① — 단, 이미 확정비용 성격이라 우선순위는 낮음 |
+| 개발 | Vercel, Datadog, Sentry 등 | 벤더별 Usage API 상이 | 대부분 사용량, 청구액은 제한적 | API Token | 벤더별 개별 확인 |
+| 디자인 | Adobe Creative Cloud | User Management API(UMAPI) | 라이선스 배정 현황, 사용자 목록 | OAuth2 Server-to-Server | ② |
+| 디자인 | Figma | 조직 Admin API(제한적) | 멤버/시트 사용 현황 | OAuth2 | ② 부분 가능 |
+| 문서작성 | Microsoft 365 | Microsoft Graph API | 라이선스 배정(subscribedSkus), 활성 사용자 리포트 | Azure AD App(OAuth2) | ② — 전역관리자 협조 필수 |
+| 문서작성 | Google Workspace | Admin SDK / Reports API | 라이선스, 활성 사용자 | 서비스 계정(도메인 위임) | ⏸ 보류 — GWS 미도입(G10 참고) |
+| 문서작성 | 한글(Hancom Office) | 공개 API 확인 안 됨 | - | - | ❓ 벤더 직접 문의 필요 |
+| 협업 | Slack(Enterprise Grid) | SCIM/Admin API | 멤버 목록, 활성 사용자 | OAuth2(Admin 권한) | ② — 청구액 API는 없음 |
+| 협업 | Zoom | Dashboard/Billing API | 사용량, 라이선스 현황 | Server-to-Server OAuth | ② 부분 가능 |
+| 협업 | Notion, Dropbox, Miro, Asana, Monday 등 | 벤더별 상이 | 대부분 사용자 목록 정도 | 벤더별 상이 | 우선순위 낮음(소액·개별 확인) |
+
+**설계 — 공통 어댑터 아키텍처**
+
+```
+lib/vendor-usage/
+  types.ts     — VendorUsageSnapshot, VendorUsageAdapter 인터페이스
+  openai.ts    — 1단계 파일럿
+  anthropic.ts — 1단계 파일럿
+  index.ts     — registry: vendorKey → adapter, 폴백 처리
+```
+
+```ts
+export interface VendorUsageSnapshot {
+  vendorKey: string;
+  asOfDate: string;          // YYYY-MM-DD
+  seatCount?: number;
+  activeUserCount?: number;
+  billedAmountUsd?: number;  // ①(종량제) 벤더만 채움
+}
+
+export interface VendorUsageAdapter {
+  vendorKey: string;         // CATEGORY_RULES 판정에 쓰이는 것과 동일한 표기로 통일
+  fetchUsage(): Promise<VendorUsageSnapshot>;
+}
+```
+
+- **자격증명**: 코드/커밋/KV 평문 어디에도 저장하지 않는다. 벤더별 API 키는
+  맥 로컬 `.env`(환경변수)로만 관리한다 — 로그인 계정 정보와 달리 이건 외부
+  시스템 전체에 대한 접근권한이라 유출 시 피해 범위가 훨씬 크다.
+- **동기화**: 이 프로젝트는 도메인 리다이렉트 실패로 크론 4개를 이미 제거한
+  이력이 있다(`4178562`). 벤더 API 폴링은 도메인 라우팅과 무관한 서버 내부
+  동작이라 같은 문제가 재발할 이유는 없지만, **크론을 다시 도입하기 전에 그
+  커밋에서 무엇이 왜 실패했는지 먼저 확인**하고 동일 실패 패턴이 아님을
+  검증한 뒤 진행한다. 1단계는 수동 동기화 버튼으로 시작하고, 안정화되면
+  자동화를 검토한다.
+- **저장**: `lib/kv-store.ts`의 `kvSetPermanent`로
+  `vendor-usage:<vendorKey>:<date>`에 스냅샷을 영구 저장한다(환율 캐시
+  `lib/exchange-rate.ts`와 동일 패턴 — 과거 스냅샷을 지우지 않아야 G7 임원
+  리포트의 추세 분석 재료로 쓸 수 있다).
+- **화면**: SW 상세보기에 "API 연동됨" 배지 + 최근 동기화 시각 + (등록값 vs
+  API값) 차이를 카드명세 대사(F4)와 같은 diff UI로 보여준다. API 실패 시
+  기존 등록값으로 조용히 폴백하되 "동기화 실패(마지막 성공: n일 전)"를 화면에
+  명확히 표시한다 — 실패를 성공처럼 보이게 만들지 않는다(이 프로젝트 실제
+  사고 이력 반영).
+
+**이해관계자별 협조 필요사항**
+
+| 구분 | 누구 | 무엇을 협조해야 하는지 |
+|---|---|---|
+| 내부 | 각 벤더 계정 관리자(조직 Owner/전역관리자) | API Key 발급 또는 OAuth 앱 등록 — 본인이 그 권한이 없으면 실제 관리자에게 요청 |
+| 내부 | 대표님/예산 승인권자 | 벤더 연동 우선순위 승인(전 벤더 동시 연동은 비효율 — 아래 단계적 접근 참고) |
+| 내부 | 법무/개인정보 담당(있다면) | 활성 사용자 목록에 임직원 이메일이 포함되므로, 이 데이터를 내부 시스템에 저장하는 게 사내 개인정보 처리방침에 저촉되지 않는지 확인 |
+| 외부 | 각 벤더 영업/파트너 담당자 | 현재 가입 플랜 등급이 Admin/Usage API를 지원하는지 확인 — 대부분 Enterprise 등급 이상에서만 제공되어 플랜 업그레이드 협의가 필요할 수 있음 |
+
+**단계적 접근**
+
+1. **1단계(파일럿)**: OpenAI, Anthropic — API가 안정적이고, 이 개발 자체가
+   Claude Code로 진행되고 있어 팀이 이미 계정 구조에 익숙함.
+2. **2단계**: GitHub(Copilot/Org 좌석) — 개발팀이 실무자라 협조가 쉬움.
+3. **3단계**: Microsoft 365(Graph API) — 전역관리자 협조 필요, 범위가 넓어
+   신중하게 착수.
+4. **보류**: Google Workspace(도입 전), 한글(API 불명), 나머지 협업툴(비용
+   대비 개발 효용 낮음 — 대부분 소액 정액 라이선스).
+
+**수용기준**
+- [ ] 1단계 벤더(OpenAI, Anthropic) 중 최소 1개는 API로 실제 사용량/청구액을
+      가져와 `DeptSpend.source: "vendor-api"`로 표시된다
+- [ ] API 연동된 항목은 화면에서 "API 연동됨" 배지와 최근 동기화 시각이 보인다
+- [ ] API 키는 코드/커밋/KV 평문 어디에도 남지 않고 환경변수로만 관리된다
+- [ ] API 실패 시 기존 등록값으로 조용히 폴백하고, 실패 사실이 화면에 표시된다
+
+**Claude Code 프롬프트**
+```
+SaaS 벤더 사용량/청구 API 연동의 1단계(파일럿)를 구현해줘 — OpenAI와 Anthropic부터.
+
+배경: lib/subscription-alerts.ts의 DeptSpend.source가 이미 "registered" |
+"vendor-api"로 확장 가능하게 설계돼 있지만 실제 연동은 없다. 종량제 라이선스는
+등록된 예산 상한이 아니라 실제 API 사용량/청구액을 가져와야 정확하다.
+
+요구사항:
+1. lib/vendor-usage/types.ts 신규 생성 — VendorUsageSnapshot, VendorUsageAdapter
+   인터페이스 정의(vendorKey, asOfDate, seatCount?, activeUserCount?,
+   billedAmountUsd?).
+2. lib/vendor-usage/openai.ts, lib/vendor-usage/anthropic.ts 신규 생성 — 각 벤더의
+   Admin/Usage API를 호출해 VendorUsageSnapshot을 반환한다. API 키는
+   process.env.OPENAI_ADMIN_API_KEY / process.env.ANTHROPIC_ADMIN_API_KEY로
+   읽어라(없으면 명확한 에러를 던지고, 절대 하드코딩하지 마라). 구현 전에 각 벤더의
+   최신 Admin/Usage API 문서를 다시 확인해라 — API 스펙이 바뀌었을 수 있다.
+3. lib/vendor-usage/index.ts — vendorKey → adapter 레지스트리. 실패 시 예외를
+   던지되 호출부(app/api/subscription-alerts/route.ts)에서 잡아 기존 "registered"
+   데이터로 조용히 폴백하고, 관리자 화면에 "API 동기화 실패(마지막 성공: n일 전)"를
+   표시해라 — 실패를 성공처럼 보이게 하지 마라(이 프로젝트에 실제 그런 사고
+   이력이 있다).
+4. 가져온 스냅샷은 lib/kv-store.ts의 kvSetPermanent로
+   vendor-usage:<vendorKey>:<date> 키에 저장해라(lib/exchange-rate.ts와 동일
+   패턴 — 과거 스냅샷 보존).
+5. components/admin/LicensePanel.tsx 상세보기에서 해당 SW가 API 연동 대상이면
+   "API 연동됨" 배지 + 최근 동기화 시각을 표시해라.
+6. 수동 동기화 API(app/api/vendor-usage/sync/route.ts, 슈퍼 전용)를 만들어라 —
+   자동 스케줄링(크론)은 이번 티켓 범위 밖이다(과거 크론 제거 이력이 있으니
+   재도입은 별도로 신중히 검토, 지금은 수동 버튼으로 시작).
+7. 실제 API 키가 없으면 끝까지 테스트할 수 없다 — 키가 없는 동안은 폴백 경로
+   (registered 데이터 유지 + 실패 표시)까지만 구현하고, 실제 키가 확보되면
+   이어서 진행한다고 보고해라.
+```
+
+---
+
 ## 2. 공통 유의사항 (모든 티켓 공통)
 
 - 매 세션 시작 시 `docs/ARCHITECTURE-4.0.md`와 `AGENTS.md`를 다시 확인한다 —
@@ -766,5 +926,7 @@ sequenceDiagram
 - 임계값(이상치 배수, 미확인 기준일수 등)은 항상 상수로 분리한다.
 - **메일/알림 자동 발송 기능은 만들지 않는다** — 이 프로젝트는 과거 중복발송 사고
   이력이 있어, 발송 관련 결정은 반드시 별도로 명시 승인을 받는다.
+- **외부 벤더 API 키/토큰은 코드나 KV에 평문 저장하지 않는다** — 환경변수로만
+  관리한다(G13 참고). 로그인 계정 정보보다 유출 시 피해 범위가 크다.
 - 커밋/푸시/머지/프로덕션 배포는 명시적 승인 후에만 진행한다.
 - 기능 완료 후에는 무엇을 바꿨는지, 어떤 파일을 건드렸는지 요약해서 보고한다.
