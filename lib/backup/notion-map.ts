@@ -313,12 +313,23 @@ export const entityRegistry: Record<string, NotionBackupEntry> = {
     ],
   },
 
-  // 헬프데스크 문의 — 문의 상세 본문은 미러(content)에만 보존(백업은 제목·메타). "상태"는 status 타입.
+  // 헬프데스크 문의 — Notion "문의내용"(title 타입)이 재조회 시 content 로 그대로 read-back
+  // 되므로 본문 전문을 넣어야 한다(요약 title 을 넣으면 왕복 후 미러 content 가 40자로 덮임).
+  // title 프로퍼티는 text 청크 분할이 없고 rich_text 블록 한도(2000자)를 넘기면 API 가
+  // 거부해 dirty=true 무한 재시도에 빠지므로 1900자에서 자른다. "상태"는 status 타입.
   "helpdesk": {
     databaseId: process.env.NOTION_DB_HELPDESK || process.env.NOTION_DB_TICKETS,
     buildProperties: (d) => {
+      const fullContent = String(d.content ?? d.title ?? "");
+      let notionTitle = fullContent;
+      if (notionTitle.length > 1900) {
+        notionTitle = notionTitle.slice(0, 1900);
+        console.warn(
+          `[backup-notion] helpdesk 문의내용 1900자 초과로 잘림 (entity id=${String(d.id ?? "unknown")}, 길이=${fullContent.length})`
+        );
+      }
       const props: Props = {
-        "문의내용": P.title(d.title),
+        "문의내용": P.title(notionTitle),
         "문의유형": P.select(d.inquiryType),
         "법인": P.select(d.company),
         "부서": P.text(d.department),
