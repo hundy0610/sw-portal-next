@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, Fragment } from "react";
 import type { ReportData, SubRow } from "@/lib/reportTypes";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
+import SubscriptionAlerts from "@/components/admin/SubscriptionAlerts";
 import { safeJson } from "@/lib/fetch-json";
 
 // ─── 카테고리 색상 맵 ────────────────────────────────────────────────────
@@ -900,6 +901,8 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
           </button>
         </div>
       </div>
+
+      <SubscriptionAlerts isSuper={!company} />
 
       <AnomalyBanner items={anomalyItems} />
 
