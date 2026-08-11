@@ -6,6 +6,7 @@ import { getBudgets, getDeadlines, buildAlerts, type RenewalTarget, type DeptSpe
 import { annotateAnomalies, type DeptCostStat } from "@/lib/anomaly-detection";
 import { listBatches } from "@/lib/card-import";
 import { getUsdKrwRatesForDates } from "@/lib/exchange-rate";
+import { getCompanyGroups, UNGROUPED } from "@/lib/governance-groups";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,7 @@ export type Severity = "red" | "yellow" | "green";
 
 export interface CompanyScoreRow {
   company: string;
+  group: string;
   severity: Severity;
   renewalUrgent: number;   // D-7 이내
   renewalWarn: number;     // D-30 이내
@@ -34,8 +36,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [all, budgets, deadlines, batches] = await Promise.all([
-      fetchSwDatabase(), getBudgets(), getDeadlines(), listBatches(),
+    const [all, budgets, deadlines, batches, companyGroups] = await Promise.all([
+      fetchSwDatabase(), getBudgets(), getDeadlines(), listBatches(), getCompanyGroups(),
     ]);
 
     const today = new Date();
@@ -129,13 +131,18 @@ export async function GET(req: NextRequest) {
           : "green";
 
       rows.push({
-        company, severity, renewalUrgent, renewalWarn, anomalyCount,
+        company, group: companyGroups[company] ?? UNGROUPED, severity,
+        renewalUrgent, renewalWarn, anomalyCount,
         budgetOverCount, submissionStatus, swCount: companySubs.length,
       });
     }
 
     const rank: Record<Severity, number> = { red: 0, yellow: 1, green: 2 };
-    rows.sort((a, b) => rank[a.severity] - rank[b.severity] || b.swCount - a.swCount);
+    rows.sort((a, b) =>
+      a.group.localeCompare(b.group, "ko") ||
+      rank[a.severity] - rank[b.severity] ||
+      b.swCount - a.swCount
+    );
 
     return NextResponse.json({ ok: true, rows, generatedAt: new Date().toISOString() });
   } catch (e) {
