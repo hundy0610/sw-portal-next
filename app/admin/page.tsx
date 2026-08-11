@@ -12,6 +12,7 @@ const LicensePanel      = dynamic(() => import("@/components/admin/LicensePanel"
 const CredentialsPanel  = dynamic(() => import("@/components/admin/CredentialsPanel"),  { ssr: false });
 const SwDbPanel         = dynamic(() => import("@/components/admin/SwDbPanel"),         { ssr: false });
 const ReportPanel       = dynamic(() => import("@/components/admin/ReportPanel"),       { ssr: false });
+const CardImportPanel   = dynamic(() => import("@/components/admin/CardImportPanel"),   { ssr: false });
 const HwPanel           = dynamic(() => import("@/components/admin/HwPanel"),           { ssr: false });
 const AccountsPanel     = dynamic(() => import("@/components/admin/AccountsPanel"),     { ssr: false });
 const AssetMapPanel     = dynamic(() => import("@/components/admin/AssetMapPanel"),     { ssr: false });
@@ -42,10 +43,10 @@ interface SessionInfo {
   mustChangePassword?: boolean;
 }
 
-type PageId = "home" | "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "rental-hw" | "accounts" | "assetmap" | "helpdesk" | "contracts" | "repair" | "hw-repair" | "exchange-return" | "work-feedback" | "bugreport" | "worktracker" | "meeting-rental" | "survey-demand" | "pc-scan" | "pc-register" | "asset-audit-settings" | "org-chart" | "asset-audit-dashboard";
+type PageId = "home" | "overview" | "license" | "credentials" | "swdb" | "report" | "card-import" | "hw" | "rental-hw" | "accounts" | "assetmap" | "helpdesk" | "contracts" | "repair" | "hw-repair" | "exchange-return" | "work-feedback" | "bugreport" | "worktracker" | "meeting-rental" | "survey-demand" | "pc-scan" | "pc-register" | "asset-audit-settings" | "org-chart" | "asset-audit-dashboard";
 
 // 슈퍼어드민 전용 페이지 (company 계정은 접근 불가)
-const SUPER_ONLY_PAGES = new Set<PageId>(["credentials", "swdb", "accounts", "contracts", "rental-hw", "hw-repair", "exchange-return", "work-feedback", "worktracker", "meeting-rental", "pc-scan", "pc-register", "asset-audit-settings", "org-chart", "asset-audit-dashboard"]);
+const SUPER_ONLY_PAGES = new Set<PageId>(["credentials", "swdb", "accounts", "contracts", "rental-hw", "hw-repair", "exchange-return", "work-feedback", "worktracker", "meeting-rental", "pc-scan", "pc-register", "asset-audit-settings", "org-chart", "asset-audit-dashboard", "card-import"]);
 
 // ── 메뉴 정의 ──────────────────────────────────────────────────
 type MenuItem = { id: PageId; icon: string; label: string; desc: string; children?: MenuItem[] };
@@ -85,6 +86,7 @@ const SUPER_GROUPS: MenuGroup[] = [
       { id: "credentials", icon: "",   label: "계정 관리",               desc: "ID / PW 목록"          },
       { id: "swdb",        icon: "",   label: "라이선스 설치 정책 관리", desc: "승인 / 금지 목록"      },
       { id: "report",      icon: "",   label: "구독형 라이선스 현황",    desc: "현황 분석 · 만료 알림" },
+      { id: "card-import", icon: "",   label: "카드명세 업로드",         desc: "결제 내역 취합 · 표준화" },
     ],
   },
   {
@@ -242,6 +244,7 @@ export default function AdminPage() {
       case "credentials": return canAccess("credentials") ? <CredentialsPanel /> : <AccessDenied />;
       case "swdb":        return canAccess("swdb")        ? <SwDbPanel />       : <AccessDenied />;
       case "report":      return <ReportPanel company={company} />;
+      case "card-import": return <CardImportPanel />;
       case "hw":          return <HwPanel company={company} initialStats={hwStatsPrefetch} isSuperAdmin={isSuper} />;
       case "rental-hw":   return canAccess("rental-hw") ? <RentalHwPanel /> : <AccessDenied />;
       case "meeting-rental": return canAccess("meeting-rental") ? <MeetingRentalPanel /> : <AccessDenied />;
