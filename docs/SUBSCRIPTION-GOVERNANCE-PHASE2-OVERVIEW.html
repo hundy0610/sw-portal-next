@@ -1,0 +1,517 @@
+<title>SaaS 구독 라이선스 거버넌스 기획서</title>
+<style>
+  :root{
+    --bg:#FAF7F1;
+    --bg-elevated:#FFFFFF;
+    --ink:#221C13;
+    --ink-soft:#6B6255;
+    --ink-faint:#9A8F7D;
+    --border:#E7DFCF;
+    --border-soft:#F0E9DA;
+    --accent:#AD7A26;
+    --accent-ink:#7A5316;
+    --accent-soft:#F2E4C4;
+    --accent-soft-border:#E5CE9A;
+    --green:#2E7A50;
+    --green-soft:#E3F1E6;
+    --green-border:#BFDDC7;
+    --blue:#33608F;
+    --blue-soft:#E4EDF6;
+    --blue-border:#C3D6EA;
+    --red:#AA3E36;
+    --red-soft:#F6E5E2;
+    --red-border:#E5C1B9;
+    --shadow: 0 1px 2px rgba(40,30,10,0.04), 0 8px 24px -12px rgba(40,30,10,0.12);
+    --font-display:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",-apple-system,sans-serif;
+    --font-body:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",-apple-system,sans-serif;
+    --font-mono:"JetBrains Mono","SFMono-Regular",Consolas,monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#18140F;
+      --bg-elevated:#221C15;
+      --ink:#F2ECDF;
+      --ink-soft:#B7AC97;
+      --ink-faint:#8B8071;
+      --border:#3A3122;
+      --border-soft:#2C261B;
+      --accent:#E3A83B;
+      --accent-ink:#F3CE8C;
+      --accent-soft:#3B2E15;
+      --accent-soft-border:#5C4720;
+      --green:#7BCB9A;
+      --green-soft:#1C2E22;
+      --green-border:#33513E;
+      --blue:#8FB4DE;
+      --blue-soft:#1D2733;
+      --blue-border:#324258;
+      --red:#E29088;
+      --red-soft:#332020;
+      --red-border:#523030;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#18140F; --bg-elevated:#221C15; --ink:#F2ECDF; --ink-soft:#B7AC97; --ink-faint:#8B8071;
+    --border:#3A3122; --border-soft:#2C261B; --accent:#E3A83B; --accent-ink:#F3CE8C;
+    --accent-soft:#3B2E15; --accent-soft-border:#5C4720; --green:#7BCB9A; --green-soft:#1C2E22;
+    --green-border:#33513E; --blue:#8FB4DE; --blue-soft:#1D2733; --blue-border:#324258;
+    --red:#E29088; --red-soft:#332020; --red-border:#523030;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+  }
+  :root[data-theme="light"]{
+    --bg:#FAF7F1; --bg-elevated:#FFFFFF; --ink:#221C13; --ink-soft:#6B6255; --ink-faint:#9A8F7D;
+    --border:#E7DFCF; --border-soft:#F0E9DA; --accent:#AD7A26; --accent-ink:#7A5316;
+    --accent-soft:#F2E4C4; --accent-soft-border:#E5CE9A; --green:#2E7A50; --green-soft:#E3F1E6;
+    --green-border:#BFDDC7; --blue:#33608F; --blue-soft:#E4EDF6; --blue-border:#C3D6EA;
+    --red:#AA3E36; --red-soft:#F6E5E2; --red-border:#E5C1B9;
+    --shadow: 0 1px 2px rgba(40,30,10,0.04), 0 8px 24px -12px rgba(40,30,10,0.12);
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:var(--font-body);
+    line-height:1.7;
+    -webkit-font-smoothing:antialiased;
+  }
+  .doc-wrap{
+    max-width:1180px; margin:0 auto;
+    display:grid; grid-template-columns:236px minmax(0,1fr);
+    gap:48px;
+    padding:0 24px 96px;
+  }
+  @media (max-width:880px){
+    .doc-wrap{grid-template-columns:1fr; gap:0; padding:0 16px 64px;}
+    .toc{display:none;}
+    .toc-mobile{display:block !important;}
+  }
+
+  /* ── Cover ───────────────────────────────────────────── */
+  .cover{
+    grid-column:1/-1;
+    padding:72px 24px 40px;
+    border-bottom:1px solid var(--border);
+    margin-bottom:8px;
+  }
+  .cover-inner{max-width:760px; margin:0 auto;}
+  .eyebrow{
+    font-family:var(--font-mono); font-size:12px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--accent-ink); font-weight:600; margin-bottom:18px; display:flex; align-items:center; gap:10px;
+  }
+  .eyebrow::before{content:""; width:20px; height:2px; background:var(--accent); display:inline-block;}
+  h1.title{
+    font-family:var(--font-display); font-size:clamp(28px,4vw,42px); font-weight:800;
+    letter-spacing:-0.01em; margin:0 0 14px; text-wrap:balance; color:var(--ink);
+  }
+  .subtitle{font-size:17px; color:var(--ink-soft); margin:0 0 28px; max-width:56ch; text-wrap:balance;}
+  .meta-row{display:flex; flex-wrap:wrap; gap:10px 22px; font-size:13px; color:var(--ink-faint);}
+  .meta-row span b{color:var(--ink-soft); font-weight:600;}
+
+  /* ── TOC ─────────────────────────────────────────────── */
+  .toc{position:sticky; top:32px; align-self:start; padding-top:40px;}
+  .toc-label{font-family:var(--font-mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:14px;}
+  .toc ol{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:2px;}
+  .toc a{
+    display:block; padding:7px 10px; border-radius:8px; text-decoration:none;
+    font-size:13.5px; color:var(--ink-soft); border-left:2px solid transparent;
+  }
+  .toc a:hover{background:var(--bg-elevated); color:var(--ink);}
+  .toc a .num{font-family:var(--font-mono); color:var(--ink-faint); margin-right:8px; font-size:12px;}
+  .toc-mobile{display:none;}
+
+  /* ── Main content ────────────────────────────────────── */
+  main{padding-top:40px; min-width:0;}
+  section{margin-bottom:64px; scroll-margin-top:24px;}
+  .sec-head{display:flex; align-items:baseline; gap:14px; margin-bottom:20px;}
+  .sec-num{
+    font-family:var(--font-mono); font-size:14px; color:var(--accent-ink);
+    background:var(--accent-soft); border:1px solid var(--accent-soft-border);
+    width:32px; height:32px; border-radius:9px; display:flex; align-items:center; justify-content:center;
+    flex-shrink:0; font-weight:700;
+  }
+  h2{font-family:var(--font-display); font-size:23px; font-weight:800; margin:0; letter-spacing:-0.01em; text-wrap:balance;}
+  h3{font-family:var(--font-display); font-size:16.5px; font-weight:700; margin:28px 0 10px;}
+  p{margin:0 0 14px; color:var(--ink);}
+  .lede{font-size:15.5px; color:var(--ink-soft); max-width:66ch;}
+  .prose{max-width:68ch;}
+  strong{color:var(--ink); font-weight:700;}
+  a.inline{color:var(--accent-ink); text-decoration-color:var(--accent-soft-border); text-underline-offset:2px;}
+
+  /* ── Pills / badges ──────────────────────────────────── */
+  .pill{
+    display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700;
+    padding:3px 9px; border-radius:999px; font-family:var(--font-mono); letter-spacing:.01em; white-space:nowrap;
+  }
+  .pill-done{background:var(--green-soft); color:var(--green); border:1px solid var(--green-border);}
+  .pill-new{background:var(--blue-soft); color:var(--blue); border:1px solid var(--blue-border);}
+  .pill-hold{background:var(--accent-soft); color:var(--accent-ink); border:1px solid var(--accent-soft-border);}
+  .pill-out{background:var(--red-soft); color:var(--red); border:1px solid var(--red-border);}
+
+  /* ── Cards ───────────────────────────────────────────── */
+  .card-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin:20px 0;}
+  @media (max-width:760px){.card-grid{grid-template-columns:1fr;}}
+  .card{
+    background:var(--bg-elevated); border:1px solid var(--border); border-radius:14px;
+    padding:18px 18px 20px; box-shadow:var(--shadow);
+  }
+  .card h4{margin:0 0 8px; font-family:var(--font-display); font-size:14.5px; font-weight:800;}
+  .card p{font-size:13.5px; color:var(--ink-soft); margin:0;}
+  .card ul{margin:8px 0 0; padding-left:18px; font-size:13.5px; color:var(--ink-soft);}
+  .card ul li{margin-bottom:4px;}
+
+  .stat-row{display:flex; flex-wrap:wrap; gap:12px; margin:22px 0;}
+  .stat{
+    flex:1 1 150px; background:var(--bg-elevated); border:1px solid var(--border); border-radius:12px;
+    padding:14px 16px;
+  }
+  .stat .num{font-family:var(--font-display); font-size:24px; font-weight:800; color:var(--accent-ink); font-variant-numeric:tabular-nums;}
+  .stat .lbl{font-size:12px; color:var(--ink-faint); margin-top:2px;}
+
+  .feature-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:12px; margin:18px 0;}
+  .feature{
+    border:1px solid var(--border); border-radius:12px; padding:14px 15px; background:var(--bg-elevated);
+  }
+  .feature .tag{font-family:var(--font-mono); font-size:11px; color:var(--ink-faint); margin-bottom:6px;}
+  .feature h4{margin:0 0 6px; font-size:14px; font-weight:700;}
+  .feature p{font-size:12.5px; color:var(--ink-soft); margin:0;}
+
+  /* ── Tables ──────────────────────────────────────────── */
+  .table-scroll{overflow-x:auto; border:1px solid var(--border); border-radius:12px; margin:18px 0; background:var(--bg-elevated);}
+  table{border-collapse:collapse; width:100%; font-size:13.5px; min-width:560px;}
+  th{
+    text-align:left; font-family:var(--font-mono); font-size:11px; letter-spacing:.04em; text-transform:uppercase;
+    color:var(--ink-faint); font-weight:600; padding:11px 14px; border-bottom:1px solid var(--border); background:var(--bg);
+  }
+  td{padding:11px 14px; border-bottom:1px solid var(--border-soft); color:var(--ink-soft); vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+  td strong,td b{color:var(--ink);}
+  td.num, th.num{font-family:var(--font-mono); font-variant-numeric:tabular-nums;}
+
+  /* ── Diagram wrap ────────────────────────────────────── */
+  .diagram{
+    background:var(--bg-elevated); border:1px solid var(--border); border-radius:14px;
+    padding:20px; margin:18px 0; overflow-x:auto; box-shadow:var(--shadow);
+  }
+  .diagram-cap{font-size:12.5px; color:var(--ink-faint); margin-top:10px; padding-top:10px; border-top:1px dashed var(--border);}
+
+  /* ── Two-col compare ─────────────────────────────────── */
+  .compare{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:18px 0;}
+  @media (max-width:660px){.compare{grid-template-columns:1fr;}}
+  .compare .box{border-radius:14px; padding:18px; border:1px solid var(--border);}
+  .box.type1{background:var(--blue-soft); border-color:var(--blue-border);}
+  .box.type2{background:var(--accent-soft); border-color:var(--accent-soft-border);}
+  .compare .box .kicker{font-family:var(--font-mono); font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; margin-bottom:8px;}
+  .box.type1 .kicker{color:var(--blue);}
+  .box.type2 .kicker{color:var(--accent-ink);}
+  .compare .box h4{margin:0 0 8px; font-size:15px;}
+  .compare .box p{font-size:13px; color:var(--ink-soft); margin:0;}
+  .compare .box ul{margin:8px 0 0; padding-left:18px; font-size:13px; color:var(--ink-soft);}
+
+  /* ── Callout ─────────────────────────────────────────── */
+  .callout{
+    border-left:3px solid var(--accent); background:var(--accent-soft); border-radius:0 12px 12px 0;
+    padding:14px 18px; font-size:13.5px; color:var(--ink); margin:18px 0;
+  }
+  .callout b{color:var(--accent-ink);}
+
+  code{font-family:var(--font-mono); font-size:0.92em; background:var(--border-soft); padding:1px 6px; border-radius:5px; color:var(--ink);}
+
+  footer{
+    grid-column:1/-1; border-top:1px solid var(--border); padding:32px 24px 0; margin-top:16px;
+    font-size:12.5px; color:var(--ink-faint);
+  }
+  footer .doc-list{display:flex; flex-wrap:wrap; gap:8px 20px; margin-top:10px;}
+  footer .doc-list code{background:none; padding:0; color:var(--ink-faint);}
+
+  @media print{
+    .toc{display:none;}
+    .doc-wrap{grid-template-columns:1fr;}
+  }
+</style>
+
+<div class="cover">
+  <div class="cover-inner">
+    <div class="eyebrow">그룹 SaaS 거버넌스 · 기획 개요</div>
+    <h1 class="title">SaaS 구독 라이선스 거버넌스 기획서</h1>
+    <p class="subtitle">17개 이상 계열사를 한 명의 관리자가 운영하는 구조에서, SaaS 비용을 통제하고 이력을 관리하기 위한 전체 설계와 취지 — 개발 지침은 별도 문서(<code>SUBSCRIPTION-GOVERNANCE-PHASE2.md</code>)를 따른다.</p>
+    <div class="meta-row">
+      <span><b>버전</b> v2.0 · 2차 개발 기획</span>
+      <span><b>작성일</b> 2026-08-11</span>
+      <span><b>대상</b> 경영진 · 자산관리파트</span>
+      <span><b>1차 개발</b> 완료 · master 반영됨</span>
+    </div>
+  </div>
+</div>
+
+<div class="doc-wrap">
+  <nav class="toc">
+    <div class="toc-label">Contents</div>
+    <ol>
+      <li><a href="#background"><span class="num">01</span>왜 이 프로젝트인가</a></li>
+      <li><a href="#stakeholders"><span class="num">02</span>세 관점의 요구</a></li>
+      <li><a href="#architecture"><span class="num">03</span>전체 아키텍처</a></li>
+      <li><a href="#phase1"><span class="num">04</span>1차 개발 현황</a></li>
+      <li><a href="#phase2"><span class="num">05</span>2차 개발 로드맵</a></li>
+      <li><a href="#vendor-api"><span class="num">06</span>벤더 API 전략</a></li>
+      <li><a href="#excluded"><span class="num">07</span>제외한 것과 이유</a></li>
+      <li><a href="#principles"><span class="num">08</span>운영 원칙</a></li>
+      <li><a href="#timeline"><span class="num">09</span>로드맵 타임라인</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <section id="background">
+      <div class="sec-head"><div class="sec-num">01</div><h2>왜 이 프로젝트인가</h2></div>
+      <p class="lede">SaaS 도입이 계열사별로 자유롭게 이뤄지면서 비용은 계속 늘고 있는데, 그 전체를 한눈에 보는 사람은 없었다. 경영진은 이 상황을 더 이상 두고 볼 수 없다는 입장이고, 그 컨트롤타워 역할을 자산관리파트가 맡기로 했다.</p>
+      <div class="stat-row">
+        <div class="stat"><div class="num">17+</div><div class="lbl">관리 대상 계열사</div></div>
+        <div class="stat"><div class="num">1</div><div class="lbl">전담 관리 인력</div></div>
+        <div class="stat"><div class="num">↑</div><div class="lbl">지속 증가 중인 SaaS 지출</div></div>
+        <div class="stat"><div class="num">0</div><div class="lbl">기존 통합 관제 체계</div></div>
+      </div>
+      <p class="prose">문제의 본질은 두 가지가 겹쳐 있다. 첫째, <strong>계열사마다 도메인과 운영 방식이 달라</strong> 표준 프로세스를 강제하기 어렵다. 둘째, <strong>구독형 SaaS는 등록 이후 방치되기 쉬운 구조</strong>라 — 담당자가 바뀌거나 실사용이 끊겨도 결제는 계속된다. 이 두 가지를 동시에 풀지 못하면 "관리하고 있다"는 착시만 남는다.</p>
+    </section>
+
+    <section id="stakeholders">
+      <div class="sec-head"><div class="sec-num">02</div><h2>세 관점의 요구를 동시에 만족시켜야 한다</h2></div>
+      <p class="lede">이 기획은 어느 한쪽만 만족시키면 실패한다. 운영자·사용자·임원, 세 관점의 요구가 서로 다른 방향을 향할 수 있어서 설계 단계부터 함께 고려했다.</p>
+      <div class="card-grid">
+        <div class="card">
+          <h4>👤 운영자 (자산관리파트)</h4>
+          <p>혼자서 17개 이상 계열사를 관리해야 한다.</p>
+          <ul>
+            <li>반복 작업 최소화(대사·환율 자동 계산)</li>
+            <li>이상 징후를 스스로 찾기보다 시스템이 먼저 알려주길 원함</li>
+            <li>계열사 간 표기 차이로 인한 집계 오류 부담</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>🏢 사용자 (계열사 담당자)</h4>
+          <p>각자의 법인 데이터만 보고, 등록·갱신을 직접 처리한다.</p>
+          <ul>
+            <li>본인 법인 범위를 벗어난 데이터는 볼 필요도 권한도 없어야 함</li>
+            <li>등록 절차가 복잡하면 방치로 이어짐</li>
+            <li>메일 폭탄이 아니라 필요할 때 화면에서 확인하고 싶어함</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>💼 임원 · 경영진</h4>
+          <p>비용 증가를 통제하고 싶고, 컨트롤타워가 이 파트이길 기대한다.</p>
+          <ul>
+            <li>전사 지출 추세를 화면 몇 개로 파악하고 싶음</li>
+            <li>중복·낭비 지출을 구조적으로 찾아내길 원함</li>
+            <li>세부 구현보다 "결론"과 "절감 여지"에 관심</li>
+          </ul>
+        </div>
+      </div>
+      <div class="callout"><b>설계 원칙</b> — 임원용 화면은 요약과 결론 위주(거버넌스 스코어카드, 벤더 통합 뷰, 월간 리포트), 운영자용 화면은 자동 판정과 대사 중심(이상치·중복탐지·카드명세 대사), 사용자용 화면은 권한 스코프가 걸린 최소 입력 폼으로 나눠 설계했다.</div>
+    </section>
+
+    <section id="architecture">
+      <div class="sec-head"><div class="sec-num">03</div><h2>전체 아키텍처 개요</h2></div>
+      <p class="lede">클라우드 DB 비용과 관리자 1인 체계라는 현실적 제약 위에서 만들어진 구조다. "이상적인" 인프라가 아니라 "지금 감당 가능한" 인프라를 택했다.</p>
+      <div class="diagram">
+        <pre class="mermaid">
+flowchart LR
+    subgraph MAC["맥 1대 — 중앙 DB"]
+        PG[("Postgres\n(Self-hosted Supabase)")]
+        TF["Tailscale Funnel\n(HTTPS 노출)"]
+        PG --- TF
+    end
+    APP["SW-PORTAL\n(Next.js · Vercel)"]
+    NOTION[("Notion\n5분 주기 단방향 백업")]
+    USERS["계열사 담당자\n(17개+)"]
+    EXEC["임원 · 대표"]
+
+    TF <--> APP
+    PG -. 백업 전용, 앱은 직접 안 씀 .-> NOTION
+    USERS --> APP
+    EXEC --> APP
+        </pre>
+        <div class="diagram-cap">앱은 항상 Postgres를 1차 소스로 읽고 쓴다. Notion은 장애 대비 백업일 뿐 실시간 데이터 소스가 아니다 — 과거 "Notion 조회 지연 + 캐시 비용" 문제를 겪은 뒤 내린 결정이다.</div>
+      </div>
+      <p class="prose">이 구조를 유지하기 위해 두 가지 대안을 검토했지만 모두 최종 채택하지 않았다 — 자세한 사유는 <a class="inline" href="#excluded">07. 제외한 것과 이유</a>에 정리했다.</p>
+    </section>
+
+    <section id="phase1">
+      <div class="sec-head"><div class="sec-num">04</div><h2>1차 개발 — 이미 구축된 기반 <span class="pill pill-done">완료</span></h2></div>
+      <p class="lede">구독형 SaaS 관리의 기본 뼈대다. 이상치를 잡아내고, 환율을 결제 시점 기준으로 정확히 계산하고, 카드명세와 대사하고, 임원이 한눈에 볼 수 있는 거버넌스 화면까지 — 이 위에 2차 개발이 얹힌다.</p>
+      <div class="feature-grid">
+        <div class="feature"><div class="tag">F1</div><h4>이상치 경고</h4><p>담당자 미지정·인당비용 이상치를 자동 판정</p></div>
+        <div class="feature"><div class="tag">F2</div><h4>CSV 내보내기</h4><p>부서별 집계를 감사·보고용으로 추출</p></div>
+        <div class="feature"><div class="tag">F3</div><h4>환율 이력화</h4><p><strong>결제 시점</strong> 기준 USD→KRW 자동 환산</p></div>
+        <div class="feature"><div class="tag">F4</div><h4>카드명세 업로드·대사</h4><p>실결제 카드명세와 등록 라이선스 매칭</p></div>
+        <div class="feature"><div class="tag">F5</div><h4>알림(화면표시)</h4><p>갱신임박·예산초과를 화면에서 확인</p></div>
+        <div class="feature"><div class="tag">GOV</div><h4>거버넌스 스코어카드</h4><p>17개+ 계열사를 그룹 단위로 묶어 한눈에</p></div>
+        <div class="feature"><div class="tag">VEN</div><h4>벤더 통합 협상 뷰</h4><p>같은 SW를 여러 법인이 따로 계약 중인지 탐지</p></div>
+      </div>
+    </section>
+
+    <section id="phase2">
+      <div class="sec-head"><div class="sec-num">05</div><h2>2차 개발 로드맵 (G1~G13)</h2></div>
+      <p class="lede">1차가 "기반"이라면 2차는 "빈틈 메우기"다 — 계정이 방치돼도 모르는 문제, 중복 지출이 표기 차이로 숨는 문제, 해지 결정이 유실되는 문제 등, 운영하면서 드러난 실제 구멍들이다. 구현 순서와 각 항목의 코드 수준 설계는 <code>SUBSCRIPTION-GOVERNANCE-PHASE2.md</code>에 있고, 여기서는 전체 그림과 왜 이 순서인지만 다룬다.</p>
+
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>순서</th><th>티켓</th><th>상태</th><th>왜 필요한가</th></tr></thead>
+          <tbody>
+            <tr><td class="num">1</td><td><strong>G1</strong> SW명 표준화</td><td><span class="pill pill-new">신규</span></td><td>표기 차이로 벤더통합·중복탐지 정확도가 떨어지는 걸 막는 기반 작업</td></tr>
+            <tr><td class="num">2</td><td><strong>G2</strong> 계정 비활성 추적</td><td><span class="pill pill-new">신규</span></td><td>담당자가 바뀌어도 아무도 모르는 상태를 방지</td></tr>
+            <tr><td class="num">3</td><td><strong>G3</strong> 중복 툴 탐지</td><td><span class="pill pill-new">신규</span></td><td>같은 카테고리에 중복 결제 중인 SW를 자동으로 찾아냄</td></tr>
+            <tr><td class="num">4</td><td><strong>G4</strong> 최소 감사증적</td><td><span class="pill pill-new">신규</span></td><td>전자결재 연동 전까지 "누가 확인했는지" 최소한의 흔적 확보</td></tr>
+            <tr><td class="num">5</td><td><strong>G5</strong> 해지예정 워크플로</td><td><span class="pill pill-new">신규</span></td><td>해지 결정이 났는데 실제 처리가 안 된 채 계속 결제되는 걸 방지</td></tr>
+            <tr><td class="num">6</td><td><strong>G6</strong> 재확인 캠페인</td><td><span class="pill pill-new">신규</span></td><td>사용자 필드는 있지만 실사용 여부가 불확실한 라이선스를 사람이 직접 확인</td></tr>
+            <tr><td class="num">7</td><td><strong>G7</strong> 임원 월간 리포트</td><td><span class="pill pill-new">신규</span></td><td>G1~G6이 만든 신호를 모아 임원이 볼 결론 화면으로 압축</td></tr>
+            <tr><td class="num">8</td><td><strong>G8</strong> 계약서 원본 보관</td><td><span class="pill pill-new">신규</span></td><td>분쟁·감사 시 계약서 원본 위치를 표준화</td></tr>
+            <tr><td class="num">9</td><td><strong>G9</strong> 법인 아카이브 정책</td><td><span class="pill pill-new">신규</span></td><td>매각·청산된 법인의 데이터 보존 정책 — 코드보다 정책 결정이 먼저</td></tr>
+            <tr><td class="num">10</td><td><strong>G10</strong> Google 로그인</td><td><span class="pill pill-new">신규</span></td><td>향후 GWS 도입에 대비, 자체 SSO 없이 병행 추가</td></tr>
+            <tr><td class="num">11</td><td><strong>G13</strong> 벤더 API 연동 로드맵</td><td><span class="pill pill-new">신규</span></td><td>종량제 라이선스를 등록값이 아닌 실사용 데이터로 추적</td></tr>
+            <tr><td class="num">보류</td><td><strong>G11</strong> 카드사 API 연동</td><td><span class="pill pill-hold">보류</span></td><td>카드사의 API 제공 여부 확인 필요 — 외부 협의 대상</td></tr>
+            <tr><td class="num">참고</td><td><strong>G12</strong> 전자결재 연동</td><td><span class="pill pill-hold">설계만</span></td><td>사내 부서 협의 필요 — 별도 설계 문서 존재</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>왜 이 순서인가</h3>
+      <div class="diagram">
+        <pre class="mermaid">
+flowchart TD
+    G1["G1 SW명 표준화"] --> G3["G3 중복 툴 탐지"]
+    G1 --> G7["G7 임원 월간 리포트"]
+    G2["G2 계정 비활성 추적"] --> G6["G6 재확인 캠페인"]
+    G2 --> G7
+    G3 --> G7
+    G4["G4 최소 감사증적"] --> G7
+    G5["G5 해지예정 워크플로"] --> G7
+    G6 --> G7
+    G8["G8 계약서 보관 — 독립"]
+    G9["G9 법인 아카이브 — 정책 선결정"]
+    G10["G10 Google 로그인 — 독립"]
+        </pre>
+        <div class="diagram-cap">G1~G6이 쌓일수록 G7(임원 리포트)에 넣을 재료가 많아진다 — 그래서 종합 리포트를 가장 마지막에 배치했다. G8~G10은 나머지와 데이터 의존이 없어 병렬로 진행해도 무방하다.</div>
+      </div>
+    </section>
+
+    <section id="vendor-api">
+      <div class="sec-head"><div class="sec-num">06</div><h2>SaaS 벤더 API 연동 전략</h2></div>
+      <p class="lede">"종량제 라이선스는 GPT처럼 API로 데이터를 가져오자"는 방향에서 출발했다. 그런데 실제 SW 현황을 보면 이 요청은 사실 <strong>성격이 다른 두 가지</strong>가 섞여 있었다 — 나눠서 봐야 헛수고를 피할 수 있다.</p>
+
+      <div class="compare">
+        <div class="box type1">
+          <div class="kicker">① 종량제 비용 추적형</div>
+          <h4>실사용량만큼 청구되는 서비스</h4>
+          <p>OpenAI · Anthropic · AWS/Azure/GCP</p>
+          <ul>
+            <li>목적: 실제 청구액을 예산 상한과 실시간 비교</li>
+            <li>API 연동의 실익이 가장 큰 그룹</li>
+            <li>1단계 파일럿 대상</li>
+          </ul>
+        </div>
+        <div class="box type2">
+          <div class="kicker">② 좌석 사용률 대사형</div>
+          <h4>좌석 단위로 정액 결제되는 서비스</h4>
+          <p>Microsoft 365 · Slack · Zoom · Adobe</p>
+          <ul>
+            <li>목적: 산 좌석 수 vs 실제 로그인한 사용자 수 비교</li>
+            <li>청구액은 API로 가져올 실익이 적음(이미 계약서에 고정)</li>
+            <li>미사용 좌석 탐지에 집중 — 재확인 캠페인(G6)의 자동화 버전</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>카테고리</th><th>벤더</th><th>확보 가능 데이터</th><th>연동 가능성</th></tr></thead>
+          <tbody>
+            <tr><td>AI</td><td><strong>OpenAI</strong> (ChatGPT Enterprise/Team)</td><td>사용량, 청구 내역, 멤버 목록</td><td><span class="pill pill-done">파일럿 1순위</span></td></tr>
+            <tr><td>AI</td><td><strong>Anthropic</strong> (Claude Enterprise)</td><td>사용량·비용, 멤버 목록</td><td><span class="pill pill-done">파일럿 1순위</span></td></tr>
+            <tr><td>AI</td><td>GitHub Copilot</td><td>좌석 수, 활성 사용자</td><td><span class="pill pill-new">가능</span></td></tr>
+            <tr><td>개발</td><td>GitHub (Org/Enterprise)</td><td>좌석 수, 청구액</td><td><span class="pill pill-new">가능</span></td></tr>
+            <tr><td>개발</td><td>AWS / Azure / GCP</td><td>실제 클라우드 비용</td><td><span class="pill pill-new">가능(우선순위 낮음)</span></td></tr>
+            <tr><td>디자인</td><td>Adobe Creative Cloud</td><td>라이선스 배정 현황</td><td><span class="pill pill-hold">부분 가능</span></td></tr>
+            <tr><td>문서작성</td><td>Microsoft 365</td><td>라이선스, 활성 사용자 리포트</td><td><span class="pill pill-hold">전역관리자 협조 필요</span></td></tr>
+            <tr><td>문서작성</td><td>Google Workspace</td><td>라이선스, 활성 사용자</td><td><span class="pill pill-out">보류 — GWS 미도입</span></td></tr>
+            <tr><td>문서작성</td><td>한글(Hancom Office)</td><td>불명</td><td><span class="pill pill-out">벤더 문의 필요</span></td></tr>
+            <tr><td>협업</td><td>Slack / Zoom</td><td>멤버·사용량(청구액 API 없음)</td><td><span class="pill pill-hold">부분 가능</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="prose">진행 순서는 <strong>OpenAI·Anthropic(1단계) → GitHub(2단계) → Microsoft 365(3단계)</strong> 이고, Google Workspace는 회사가 도입하기 전까지는 대상이 아니다. 각 단계마다 필요한 것은 개발보다 <strong>협조</strong>다 — 벤더 API는 대부분 조직 관리자 권한이 있어야 키를 발급받을 수 있고, Enterprise 등급 이상에서만 제공되는 경우가 많아 벤더 영업 담당자 확인이 선행돼야 한다.</p>
+    </section>
+
+    <section id="excluded">
+      <div class="sec-head"><div class="sec-num">07</div><h2>검토했지만 채택하지 않은 것 — 의사결정 로그</h2></div>
+      <p class="lede">"왜 이렇게 안 했지?"라는 질문이 나중에 다시 나올 때, 재검토 없이 바로 참고할 수 있도록 기록해둔다.</p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>검토 항목</th><th>검토 배경</th><th>결론</th><th>사유</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>자체 OAuth 2.0 SSO 구축</strong></td>
+              <td>향후 GWS(Google Workspace) 도입 가능성을 대비한 사전 검토</td>
+              <td><span class="pill pill-out">범위 제외</span></td>
+              <td>도입 시점이 불확실한 상태에서 자체 인가서버까지 만드는 건 유지부담 대비 실익이 낮음. 대신 "Google로 로그인"(G10)만 기존 ID/PW와 병행 추가 — GWS가 나중에 도입돼도 코드 변경 없이 그대로 동작</td>
+            </tr>
+            <tr>
+              <td><strong>Windows 콜드스페어 물리 서버</strong></td>
+              <td>맥 1대 운영 체계의 가용성 리스크 검토, 별도 PC 추가 논의</td>
+              <td><span class="pill pill-out">구축 후 철회</span></td>
+              <td>실제로 인프라(문서·백업 스크립트)까지 구축했으나, 최종적으로 "맥 하나로 통일"하는 쪽으로 결정 변경 — git revert로 깔끔히 되돌림. 가용성 문제 자체는 여전히 유효하나 별도 논의로 이관</td>
+            </tr>
+            <tr>
+              <td><strong>자동 메일 알림</strong> (F5 원안)</td>
+              <td>원 기획서상 갱신임박·예산초과를 이메일로 발송하는 요구</td>
+              <td><span class="pill pill-out">화면 표시로 대체</span></td>
+              <td>과거 평가 메일 중복발송 사고 이력이 있고, 원인이 됐던 발송용 크론도 이미 제거된 상태 — 같은 실패 패턴을 다시 들이는 대신 "화면에서 확인"으로 설계 변경</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="principles">
+      <div class="sec-head"><div class="sec-num">08</div><h2>운영 원칙</h2></div>
+      <p class="lede">기능이 늘어나도 지켜야 하는 최소한의 가드레일. 새로 합류하는 개발자도 이 원칙만은 예외 없이 따라야 한다.</p>
+      <div class="card-grid">
+        <div class="card"><h4>발송은 화면까지만</h4><p>메일·알림 자동 발송 기능은 만들지 않는다. 발송 관련 결정은 반드시 별도 승인을 받는다.</p></div>
+        <div class="card"><h4>실패는 실패로 보인다</h4><p>데이터 쓰기 실패를 성공으로 착각한 응답을 절대 보내지 않는다 — 과거 실제 사고 이력이 있다.</p></div>
+        <div class="card"><h4>키는 코드에 남기지 않는다</h4><p>외부 벤더 API 키·토큰은 환경변수로만 관리한다. 로그인 정보보다 유출 피해가 크다.</p></div>
+        <div class="card"><h4>추가는 항상 additive</h4><p>기존 화면·데이터를 뜯어고쳐야 하면 반드시 먼저 확인받는다.</p></div>
+        <div class="card"><h4>배포는 승인 후에만</h4><p>커밋·푸시·머지·프로덕션 반영은 명시적 승인 없이 진행하지 않는다.</p></div>
+        <div class="card"><h4>기능 = 커밋 단위</h4><p>여러 기능을 한 커밋에 섞지 않는다. 완료 후에는 무엇을 바꿨는지 요약 보고한다.</p></div>
+      </div>
+    </section>
+
+    <section id="timeline">
+      <div class="sec-head"><div class="sec-num">09</div><h2>로드맵 타임라인</h2></div>
+      <p class="lede">전체 흐름을 시간 순으로 다시 정리하면 다음과 같다.</p>
+      <div class="diagram">
+        <pre class="mermaid">
+timeline
+    title SaaS 거버넌스 로드맵
+    1차 개발 (완료) : F1~F7 : 거버넌스 스코어카드 : 벤더 통합 뷰
+    2차 · 데이터 품질 : G1 SW명 표준화 : G2 계정 비활성 추적
+    2차 · 통제 장치 : G3 중복 탐지 : G4 최소 감사증적 : G5 해지예정 워크플로 : G6 재확인 캠페인
+    2차 · 종합·확장 : G7 임원 월간 리포트 : G13 벤더 API 파일럿(OpenAI·Anthropic)
+    지속 검토 : G8 계약서 보관 : G9 법인 아카이브 정책 : G10 Google 로그인
+    외부 협의 대기 : G11 카드사 API : G12 전자결재 연동
+        </pre>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <div>관련 문서</div>
+    <div class="doc-list">
+      <code>docs/SUBSCRIPTION-GOVERNANCE-PHASE2.md</code>
+      <code>docs/ARCHITECTURE-4.0.md</code>
+      <code>docs/ELECTRONIC-APPROVAL-INTEGRATION.md</code>
+      <code>AGENTS.md</code>
+    </div>
+  </footer>
+</div>
