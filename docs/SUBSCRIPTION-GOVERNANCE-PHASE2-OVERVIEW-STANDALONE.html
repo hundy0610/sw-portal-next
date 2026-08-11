@@ -36,6 +36,22 @@
       --red:#E1978B; --red-tint:#331F1B;
     }
   }
+  :root[data-theme="dark"]{
+    --bg:#12151B; --bg-subtle:#181C24; --ink:#E9ECF1; --ink-soft:#A7AFBD; --ink-faint:#6D7583;
+    --border:#262B34; --border-strong:#39404C;
+    --accent:#9CB9DE; --accent-tint:#1C2733; --accent-tint-border:#2C3B4C;
+    --green:#7FCBA0; --green-tint:#17301F;
+    --amber:#D9B466; --amber-tint:#332A15;
+    --red:#E1978B; --red-tint:#331F1B;
+  }
+  :root[data-theme="light"]{
+    --bg:#FFFFFF; --bg-subtle:#F5F6F8; --ink:#161B22; --ink-soft:#4A5160; --ink-faint:#8891A0;
+    --border:#E1E4EA; --border-strong:#CBD1DB;
+    --accent:#1F3A5F; --accent-tint:#EBF0F6; --accent-tint-border:#D3E0EC;
+    --green:#1F6D45; --green-tint:#E7F3EC;
+    --amber:#8A6116; --amber-tint:#F5EDDD;
+    --red:#9C3B2E; --red-tint:#F6E7E4;
+  }
 
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
@@ -75,7 +91,7 @@
     font-family:var(--font-display); font-size:clamp(26px,3.6vw,36px); font-weight:800;
     letter-spacing:-0.01em; margin:0 0 12px; text-wrap:balance; color:var(--ink);
   }
-  .subtitle{font-size:15.5px; color:var(--ink-soft); margin:0 0 24px; max-width:58ch; text-wrap:balance;}
+  .subtitle{font-size:15.5px; color:var(--ink-soft); margin:0 0 24px; max-width:60ch; text-wrap:balance;}
   .meta-row{display:flex; flex-wrap:wrap; gap:8px 28px; font-size:12.5px; color:var(--ink-faint); font-family:var(--font-mono);}
   .meta-row span b{color:var(--ink-soft); font-weight:600; font-family:var(--font-body); margin-right:4px;}
 
@@ -172,6 +188,8 @@
     padding:14px 18px; font-size:13.5px; color:var(--ink-soft); margin:18px 0;
   }
   .callout b{color:var(--ink);}
+  .callout.warn{border-left-color:var(--red);}
+  .callout.warn b{color:var(--red);}
 
   code{font-family:var(--font-mono); font-size:0.9em; background:var(--bg-subtle); padding:1px 6px; color:var(--ink); border:1px solid var(--border);}
 
@@ -190,17 +208,18 @@
 </head>
 <body>
 
+
 <div class="top-bar"></div>
 <div class="cover">
   <div class="cover-inner">
-    <div class="eyebrow">그룹 SaaS 거버넌스 · 기획 개요</div>
+    <div class="eyebrow">그룹 SaaS 거버넌스 · 기획 개요 (v3 — Assetify Desktop 기준)</div>
     <h1 class="title">SaaS 구독 라이선스 거버넌스 기획서</h1>
-    <p class="subtitle">17개 이상 계열사를 한 명의 관리자가 운영하는 구조에서, SaaS 비용을 통제하고 이력을 관리하기 위한 전체 설계와 취지 — 개발 지침은 별도 문서(<code>SUBSCRIPTION-GOVERNANCE-PHASE2.md</code>)를 따른다.</p>
+    <p class="subtitle">배포 대상은 웹 포털이 아니라 <strong>Assetify Desktop</strong>(Electron 데스크탑 앱, <code>assetify-for-desktop</code>)이다. 이 문서는 그 실제 코드를 분석한 뒤 아키텍처와 로드맵을 다시 정리한 버전이다 — 개발 지침은 별도 문서(<code>SUBSCRIPTION-GOVERNANCE-PHASE2.md</code>)를 따른다.</p>
     <div class="meta-row">
-      <span><b>버전</b>v2.0 · 2차 개발 기획</span>
+      <span><b>버전</b>v3.0 · 대상 저장소 정정판</span>
       <span><b>작성일</b>2026-08-11</span>
       <span><b>대상</b>경영진 · 자산관리파트</span>
-      <span><b>1차 개발</b>완료 · master 반영됨</span>
+      <span><b>배포 형태</b>DMG(mac) / Setup.exe(win)</span>
     </div>
   </div>
 </div>
@@ -212,8 +231,8 @@
       <li><a href="#background"><span class="num">01</span>왜 이 프로젝트인가</a></li>
       <li><a href="#stakeholders"><span class="num">02</span>세 관점의 요구</a></li>
       <li><a href="#architecture"><span class="num">03</span>전체 아키텍처</a></li>
-      <li><a href="#phase1"><span class="num">04</span>1차 개발 현황</a></li>
-      <li><a href="#phase2"><span class="num">05</span>2차 개발 로드맵</a></li>
+      <li><a href="#status"><span class="num">04</span>지금 상태 — 무엇이 어디에 있나</a></li>
+      <li><a href="#phase2"><span class="num">05</span>로드맵 (G0~G13)</a></li>
       <li><a href="#vendor-api"><span class="num">06</span>벤더 API 전략</a></li>
       <li><a href="#excluded"><span class="num">07</span>제외한 것과 이유</a></li>
       <li><a href="#principles"><span class="num">08</span>운영 원칙</a></li>
@@ -237,7 +256,7 @@
 
     <section id="stakeholders">
       <div class="sec-head"><span class="sec-num">02</span><h2>세 관점의 요구를 동시에 만족시켜야 한다</h2></div>
-      <p class="lede">이 기획은 어느 한쪽만 만족시키면 실패한다. 운영자·사용자·임원, 세 관점의 요구가 서로 다른 방향을 향할 수 있어서 설계 단계부터 함께 고려했다.</p>
+      <p class="lede">이 기획은 어느 한쪽만 만족시키면 실패한다. 운영자·사용자·임원, 세 관점의 요구가 서로 다른 방향을 향할 수 있어서 설계 단계부터 함께 고려했다. 세 관점 모두 결국 같은 앱(Assetify Desktop) 화면을 역할(super/admin/company/general)에 따라 다르게 쓰게 된다.</p>
       <div class="card-grid">
         <div class="card">
           <h4>운영자 — 자산관리파트</h4>
@@ -250,7 +269,7 @@
         </div>
         <div class="card">
           <h4>사용자 — 계열사 담당자</h4>
-          <p>각자의 법인 데이터만 보고, 등록·갱신을 직접 처리한다.</p>
+          <p>같은 앱을 company 스코프 계정으로 설치해 자기 법인 데이터만 등록·갱신한다.</p>
           <ul>
             <li>본인 법인 범위를 벗어난 데이터는 볼 필요도 권한도 없어야 함</li>
             <li>등록 절차가 복잡하면 방치로 이어짐</li>
@@ -267,58 +286,135 @@
           </ul>
         </div>
       </div>
-      <div class="callout"><b>설계 원칙</b> — 임원용 화면은 요약과 결론 위주(거버넌스 스코어카드, 벤더 통합 뷰, 월간 리포트), 운영자용 화면은 자동 판정과 대사 중심(이상치·중복탐지·카드명세 대사), 사용자용 화면은 권한 스코프가 걸린 최소 입력 폼으로 나눠 설계했다.</div>
+      <div class="callout"><b>설계 원칙</b> — 임원용 화면은 요약과 결론 위주(거버넌스 스코어카드, 벤더 통합 뷰, 월간 리포트), 운영자용 화면은 자동 판정과 대사 중심(이상치·중복탐지·카드명세 대사), 사용자용 화면은 권한 스코프가 걸린 최소 입력 폼으로 나눠 설계한다.</div>
     </section>
 
     <section id="architecture">
-      <div class="sec-head"><span class="sec-num">03</span><h2>전체 아키텍처 개요</h2></div>
-      <p class="lede">클라우드 DB 비용과 관리자 1인 체계라는 현실적 제약 위에서 만들어진 구조다. "이상적인" 인프라가 아니라 "지금 감당 가능한" 인프라를 택했다.</p>
+      <div class="sec-head"><span class="sec-num">03</span><h2>전체 아키텍처</h2></div>
+      <p class="lede"><code>qortmddbs33/assetify-for-desktop</code> 저장소를 직접 분석해서 그린 실제 구조다. 웹 서버가 요청마다 뜨고 사라지는 구조가 아니라, <strong>각 관리자 PC에 설치된 Electron 앱이 맥 중앙 서버에 직접 붙는</strong> 구조라는 점이 이전 버전 문서와 가장 크게 다르다.</p>
+
+      <div class="diagram">
+        <pre class="mermaid">
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#EBF0F6','primaryBorderColor':'#1F3A5F','primaryTextColor':'#161B22','lineColor':'#1F3A5F','tertiaryColor':'#F5F6F8','fontFamily':'Pretendard, sans-serif'}}}%%
+flowchart TB
+    subgraph MAC["idsTrust 사내 맥 1대 — 중앙 서버"]
+        PG[("Postgres\nSelf-hosted Supabase")]
+        TF["Tailscale Funnel\nHTTPS / WSS 노출"]
+    end
+
+    subgraph DESK["Assetify Desktop — 관리자 PC (Electron)"]
+        REND["Renderer\nReact 18 UI"]
+        MAIN["Main 프로세스\n포팅된 API 라우트(84개)"]
+        SQLITE[("로컬 SQLite 캐시\n세션 동안만 유지")]
+        REND -- "IPC api-call" --- MAIN
+        MAIN --- SQLITE
+    end
+
+    WEB["SW-PORTAL 웹(Vercel)\n공개 신청 폼\n문의·실사·수요조사 등"]
+    BLOB[("Vercel Blob\n첨부파일 · 설치파일(비공개)")]
+    MAIL["Gmail SMTP"]
+
+    MAIN -- "REST + Realtime(WSS)" --- TF
+    TF --- PG
+    WEB -- "같은 Postgres에 직접 기록" --> PG
+    MAIN --- BLOB
+    MAIN --- MAIL
+        </pre>
+        <div class="diagram-cap">
+          "관리자 PC"는 실제로는 여러 대다(super/admin 및 각 계열사 company 계정 담당자) — 각자 독립된 Electron 프로세스로 같은 맥 서버에 동시에 접속한다.
+          SW-PORTAL 웹은 없어지지 않는다 — 문의 접수·자산 실사·수요조사처럼 <strong>사내 누구나 접근해야 하는 공개 신청 폼</strong>은 계속 웹으로 남고, 그 데이터가 같은 Postgres에 쌓이면 Assetify Desktop이 조회·처리한다.
+        </div>
+      </div>
+
+      <h3>클라이언트 안에서: 왜 로컬 SQLite가 있고, 왜 매번 비우는가</h3>
+      <p class="prose">화면은 네트워크를 기다리지 않고 항상 로컬 캐시를 읽는다 — 그런데 그 캐시는 앱을 켤 때마다 통째로 비우고 다시 받는다. 두 가지가 동시에 성립하는 이유를 흐름으로 보면 명확해진다.</p>
       <div class="diagram">
         <pre class="mermaid">
 %%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#EBF0F6','primaryBorderColor':'#1F3A5F','primaryTextColor':'#161B22','lineColor':'#1F3A5F','tertiaryColor':'#F5F6F8','fontFamily':'Pretendard, sans-serif'}}}%%
 flowchart LR
-    subgraph MAC["맥 1대 — 중앙 DB"]
-        PG[("Postgres\n(Self-hosted Supabase)")]
-        TF["Tailscale Funnel\n(HTTPS 노출)"]
-        PG --- TF
-    end
-    APP["SW-PORTAL\n(Next.js · Vercel)"]
-    NOTION[("Notion\n5분 주기 단방향 백업")]
-    USERS["계열사 담당자\n(17개+)"]
-    EXEC["임원 · 대표"]
-
-    TF <--> APP
-    PG -. 백업 전용, 앱은 직접 안 씀 .-> NOTION
-    USERS --> APP
-    EXEC --> APP
+    START(["앱 시작"]) --> CLEAR["로컬 캐시 비우기"]
+    CLEAR --> HYDRATE["엔티티별 전체 스냅샷 하이드레이션\nSW·HW·문의·계약 등 17종, 동시 4개씩"]
+    HYDRATE --> READY["화면은 항상 로컬 SQLite만 읽음\n동기 · 네트워크 지연 없음"]
+    READY --> WRITE{"사용자가 저장?"}
+    WRITE -- 예 --> REMOTE["Postgres에 먼저 쓰기"]
+    REMOTE -- 성공 --> CACHE1["성공한 행만 로컬 캐시 반영"]
+    REMOTE -- 실패 --> FAIL["로컬은 그대로, 오류만 표시"]
+    READY --> SYNC["백그라운드 동시 진행"]
+    SYNC --> RTIME["Realtime 구독\npostgres_changes"]
+    SYNC --> POLL["20초 주기 폴링\nRealtime 유실 대비"]
+    RTIME --> CACHE2["변경분 캐시 반영 →\n화면에 entity-changed 통지"]
+    POLL --> CACHE2
+    READY --> QUIT(["앱 종료"])
+    QUIT --> CLEAR2["로컬 캐시 전체 삭제\n다음 실행은 항상 재하이드레이션"]
         </pre>
-        <div class="diagram-cap">앱은 항상 Postgres를 1차 소스로 읽고 쓴다. Notion은 장애 대비 백업일 뿐 실시간 데이터 소스가 아니다 — 과거 "Notion 조회 지연 + 캐시 비용" 문제를 겪은 뒤 내린 결정이다.</div>
+        <div class="diagram-cap">읽기는 로컬(빠름), 쓰기는 원격 우선(정확함) — 그리고 Realtime과 폴링을 동시에 돌려 한쪽이 막혀도(Funnel이 WSS를 못 태우는 경우 등) 다른 쪽이 최종 일관성을 보장한다. 캐시를 영구 저장소로 쓰지 않는 이유는 단순하다 — "로컬이 곧 진실"이 되는 순간 여러 PC 간 데이터가 갈라질 위험이 생기기 때문이다.</div>
       </div>
-      <p class="prose">이 구조를 유지하기 위해 두 가지 대안을 검토했지만 모두 최종 채택하지 않았다 — 자세한 사유는 <a class="inline" href="#excluded">07. 제외한 것과 이유</a>에 정리했다.</p>
+
+      <h3>배포와 업데이트</h3>
+      <div class="diagram">
+        <pre class="mermaid">
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#EBF0F6','primaryBorderColor':'#1F3A5F','primaryTextColor':'#161B22','lineColor':'#1F3A5F','tertiaryColor':'#F5F6F8','fontFamily':'Pretendard, sans-serif'}}}%%
+sequenceDiagram
+    participant Dev as 개발자(맥)
+    participant Blob as Vercel Blob(비공개)
+    participant KV as 릴리스 정보(Postgres KV)
+    participant App as Assetify Desktop(사용자 PC)
+
+    Dev->>Dev: npm run build:mac / build:win
+    Dev->>Blob: DMG(arm64) / Setup.exe(x64) 업로드
+    Dev->>KV: 최신 버전 정보 기록
+    App->>KV: 시작 시 1회만 확인(주기적 재확인 없음)
+    KV-->>App: 새 버전 있음
+    App->>Blob: 비공개 토큰(BLOB_RELEASE_TOKEN)으로 다운로드
+    alt Windows
+        App->>App: 설치파일 실행 + 앱 종료(자동)
+    else macOS
+        App->>App: DMG 열기까지만(서명 없음 → 수동 드래그 설치)
+    end
+        </pre>
+        <div class="diagram-cap">electron-updater를 쓰지 않는다 — 서명(코드사이닝) 없이 내부 배포하기 때문에 macOS의 자동 설치 검증을 애초에 통과할 수 없어, 아예 자체 KV 매니페스트 + Vercel Blob 비공개 저장소 조합으로 대체했다. Windows만 자동 설치가 가능하고, macOS는 DMG를 열어주는 데까지가 앱의 역할이다.</div>
+      </div>
+
+      <div class="callout">
+        <b>왜 이게 이전 버전 문서와 다른가</b> — 이전 버전은 "Vercel에 올라간 Next.js 웹앱"을 전제로 설계했다(서버리스 API 라우트, 브라우저 접속). 실제로는 그 API 라우트 코드 자체가 <code>src/main/api/routes/</code>로 거의 그대로 이식되어 <strong>Electron 메인 프로세스 안에서 로컬로 실행</strong>된다 — 그래서 설계·비즈니스 로직(F1~F13, G1~G13)은 대부분 재사용 가능하지만, "배포"와 "네트워크 계층" 설명은 완전히 다시 써야 했다.
+      </div>
     </section>
 
-    <section id="phase1">
-      <div class="sec-head"><span class="sec-num">04</span><h2>1차 개발 — 이미 구축된 기반</h2><span class="status s-done">완료</span></div>
-      <p class="lede">구독형 SaaS 관리의 기본 뼈대다. 이상치를 잡아내고, 환율을 결제 시점 기준으로 정확히 계산하고, 카드명세와 대사하고, 임원이 한눈에 볼 수 있는 거버넌스 화면까지 — 이 위에 2차 개발이 얹힌다.</p>
-      <div class="feature-grid">
-        <div class="feature"><div class="tag">F1</div><h4>이상치 경고</h4><p>담당자 미지정·인당비용 이상치를 자동 판정</p></div>
-        <div class="feature"><div class="tag">F2</div><h4>CSV 내보내기</h4><p>부서별 집계를 감사·보고용으로 추출</p></div>
-        <div class="feature"><div class="tag">F3</div><h4>환율 이력화</h4><p><strong>결제 시점</strong> 기준 USD→KRW 자동 환산</p></div>
-        <div class="feature"><div class="tag">F4</div><h4>카드명세 업로드·대사</h4><p>실결제 카드명세와 등록 라이선스 매칭</p></div>
-        <div class="feature"><div class="tag">F5</div><h4>알림(화면표시)</h4><p>갱신임박·예산초과를 화면에서 확인</p></div>
-        <div class="feature"><div class="tag">GOV</div><h4>거버넌스 스코어카드</h4><p>17개+ 계열사를 그룹 단위로 묶어 한눈에</p></div>
-        <div class="feature"><div class="tag">VEN</div><h4>벤더 통합 협상 뷰</h4><p>같은 SW를 여러 법인이 따로 계약 중인지 탐지</p></div>
+    <section id="status">
+      <div class="sec-head"><span class="sec-num">04</span><h2>지금 상태 — 무엇이 어디에 있나</h2></div>
+      <p class="lede">이전 버전 문서는 F1~F7과 거버넌스 스코어카드·벤더 통합 뷰를 "완료"로 표시했다. 정정한다 — <strong>완료된 곳은 SW-PORTAL 웹의 관리자 화면(sw-portal-next)</strong>이고, 실제 배포 대상인 Assetify Desktop에는 아직 이식되지 않았다.</p>
+
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>기능</th><th>SW-PORTAL 웹(sw-portal-next)</th><th>Assetify Desktop</th></tr></thead>
+          <tbody>
+            <tr><td>SW 기본 CRUD(등록·수정·삭제·엑셀 업로드)</td><td><span class="status s-done">있음</span></td><td><span class="status s-done">이식됨</span></td></tr>
+            <tr><td>구독 현황 리포트(부서별 집계)</td><td><span class="status s-done">있음</span></td><td><span class="status s-hold">구버전만 이식됨 — 이상치·환율이력화 이전 로직</span></td></tr>
+            <tr><td>F1 이상치 경고 / F3 환율 이력화(결제일 기준)</td><td><span class="status s-done">있음</span></td><td><span class="status s-out">없음</span></td></tr>
+            <tr><td>F4 카드명세 업로드·대사</td><td><span class="status s-done">있음</span></td><td><span class="status s-out">없음</span></td></tr>
+            <tr><td>F5 알림(갱신임박·예산초과, 화면표시)</td><td><span class="status s-done">있음</span></td><td><span class="status s-out">없음</span></td></tr>
+            <tr><td>거버넌스 스코어카드 / 계열사 그룹핑</td><td><span class="status s-done">있음</span></td><td><span class="status s-out">없음</span></td></tr>
+            <tr><td>벤더 통합 협상 뷰</td><td><span class="status s-done">있음</span></td><td><span class="status s-out">없음</span></td></tr>
+            <tr><td>설치 SW 화이트/블랙리스트 감사</td><td>—</td><td><span class="status s-done">있음(별개 기능, sw-audit.ts)</span></td></tr>
+          </tbody>
+        </table>
       </div>
+
+      <div class="callout warn"><b>결론</b> — G1~G13을 시작하기 전에, F1~F7·거버넌스 스코어카드·벤더 통합 뷰를 Assetify Desktop으로 옮기는 작업이 먼저 필요하다. 아래 로드맵의 <strong>G0</strong>이 그 작업이다.</div>
+
+      <h3>다행인 점 — 이식은 재설계가 아니다</h3>
+      <p class="prose">Assetify Desktop의 <code>src/main/api/router.ts</code>는 Next.js의 <code>NextRequest</code>/<code>NextResponse</code>와 호환되는 얇은 shim을 이미 갖추고 있다. 그래서 <code>app/api/report/route.ts</code> 같은 웹 라우트 파일을 <code>src/main/api/routes/</code>에 거의 그대로 복사하고, <code>src/main/api/registry.ts</code>에 경로 한 줄만 등록하면 대부분 동작한다. 화면(컴포넌트)도 <code>fetch("/api/...")</code> 호출부만 <code>window.electronAPI.apiCall(...)</code>로 바꾸면 나머지 UI 코드는 그대로 옮겨진다. 즉 <strong>설계는 이미 끝나 있고, 남은 건 기계적인 포팅</strong>이다.</p>
     </section>
 
     <section id="phase2">
-      <div class="sec-head"><span class="sec-num">05</span><h2>2차 개발 로드맵 (G1~G13)</h2></div>
-      <p class="lede">1차가 "기반"이라면 2차는 "빈틈 메우기"다 — 계정이 방치돼도 모르는 문제, 중복 지출이 표기 차이로 숨는 문제, 해지 결정이 유실되는 문제 등, 운영하면서 드러난 실제 구멍들이다. 구현 순서와 각 항목의 코드 수준 설계는 <code>SUBSCRIPTION-GOVERNANCE-PHASE2.md</code>에 있고, 여기서는 전체 그림과 왜 이 순서인지만 다룬다.</p>
+      <div class="sec-head"><span class="sec-num">05</span><h2>로드맵 (G0~G13)</h2></div>
+      <p class="lede">G0(이식)이 새로 추가된 선행 단계다. G1~G13의 배경·설계·수용기준은 이전 버전과 동일하되, 실행 위치만 <code>app/api/*/route.ts</code> + <code>components/admin/*.tsx</code>(웹)에서 <code>src/main/api/routes/*.ts</code> + <code>src/renderer/src/components/*.tsx</code>(데스크탑)로 바뀐다. 상세 설계와 Claude Code 프롬프트는 <code>SUBSCRIPTION-GOVERNANCE-PHASE2.md</code>에 있다.</p>
 
       <div class="table-scroll">
         <table>
           <thead><tr><th>순서</th><th>티켓</th><th>상태</th><th>왜 필요한가</th></tr></thead>
           <tbody>
+            <tr><td class="num">0</td><td><strong>G0</strong> 웹 admin 기능 → 데스크탑 이식</td><td><span class="status s-new">신규 · 선행</span></td><td>F1~F7·거버넌스 스코어카드·벤더 통합 뷰를 실제 배포 대상(Assetify Desktop)으로 옮긴다</td></tr>
             <tr><td class="num">1</td><td><strong>G1</strong> SW명 표준화</td><td><span class="status s-new">신규</span></td><td>표기 차이로 벤더통합·중복탐지 정확도가 떨어지는 걸 막는 기반 작업</td></tr>
             <tr><td class="num">2</td><td><strong>G2</strong> 계정 비활성 추적</td><td><span class="status s-new">신규</span></td><td>담당자가 바뀌어도 아무도 모르는 상태를 방지</td></tr>
             <tr><td class="num">3</td><td><strong>G3</strong> 중복 툴 탐지</td><td><span class="status s-new">신규</span></td><td>같은 카테고리에 중복 결제 중인 SW를 자동으로 찾아냄</td></tr>
@@ -341,19 +437,23 @@ flowchart LR
         <pre class="mermaid">
 %%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#EBF0F6','primaryBorderColor':'#1F3A5F','primaryTextColor':'#161B22','lineColor':'#1F3A5F','tertiaryColor':'#F5F6F8','fontFamily':'Pretendard, sans-serif'}}}%%
 flowchart TD
-    G1["G1 SW명 표준화"] --> G3["G3 중복 툴 탐지"]
+    G0["G0 웹 admin → 데스크탑 이식"] --> G1["G1 SW명 표준화"]
+    G0 --> G2["G2 계정 비활성 추적"]
+    G0 --> G4["G4 최소 감사증적"]
+    G0 --> G5["G5 해지예정 워크플로"]
+    G0 --> G8["G8 계약서 보관"]
+    G0 --> G10["G10 Google 로그인"]
+    G1 --> G3["G3 중복 툴 탐지"]
     G1 --> G7["G7 임원 월간 리포트"]
-    G2["G2 계정 비활성 추적"] --> G6["G6 재확인 캠페인"]
+    G2 --> G6["G6 재확인 캠페인"]
     G2 --> G7
     G3 --> G7
-    G4["G4 최소 감사증적"] --> G7
-    G5["G5 해지예정 워크플로"] --> G7
+    G4 --> G7
+    G5 --> G7
     G6 --> G7
-    G8["G8 계약서 보관 — 독립"]
-    G9["G9 법인 아카이브 — 정책 선결정"]
-    G10["G10 Google 로그인 — 독립"]
+    G9["G9 법인 아카이브 — 정책 선결정(코드 무관)"]
         </pre>
-        <div class="diagram-cap">G1~G6이 쌓일수록 G7(임원 리포트)에 넣을 재료가 많아진다 — 그래서 종합 리포트를 가장 마지막에 배치했다. G8~G10은 나머지와 데이터 의존이 없어 병렬로 진행해도 무방하다.</div>
+        <div class="diagram-cap">G0이 모든 것의 전제조건이다 — 웹 admin에만 있고 데스크탑에 없는 상태로는 G1~G13을 아무리 설계해도 실제 사용자가 볼 화면이 없다. G9는 유일하게 코드보다 정책 결정이 먼저인 항목이라 G0과 무관하게 병행 가능하다.</div>
       </div>
     </section>
 
@@ -402,12 +502,12 @@ flowchart TD
         </table>
       </div>
 
-      <p class="prose">진행 순서는 <strong>OpenAI·Anthropic(1단계) → GitHub(2단계) → Microsoft 365(3단계)</strong> 이고, Google Workspace는 회사가 도입하기 전까지는 대상이 아니다. 각 단계마다 필요한 것은 개발보다 <strong>협조</strong>다 — 벤더 API는 대부분 조직 관리자 권한이 있어야 키를 발급받을 수 있고, Enterprise 등급 이상에서만 제공되는 경우가 많아 벤더 영업 담당자 확인이 선행돼야 한다.</p>
+      <p class="prose">진행 순서는 <strong>OpenAI·Anthropic(1단계) → GitHub(2단계) → Microsoft 365(3단계)</strong> 이고, Google Workspace는 회사가 도입하기 전까지는 대상이 아니다. Assetify Desktop은 요청마다 뜨고 사라지는 서버리스 함수가 아니라 <strong>계속 켜져 있는 하나의 프로세스</strong>라서, 벤더 API 폴링 주기를 잡기가 오히려 웹 서버리스 환경보다 단순하다 — 이미 같은 방식(20초 폴링, <code>live-sync.ts</code>)으로 자체 데이터도 동기화하고 있다.</p>
     </section>
 
     <section id="excluded">
       <div class="sec-head"><span class="sec-num">07</span><h2>검토했지만 채택하지 않은 것 — 의사결정 로그</h2></div>
-      <p class="lede">"왜 이렇게 안 했지?"라는 질문이 나중에 다시 나올 때, 재검토 없이 바로 참고할 수 있도록 기록해둔다.</p>
+      <p class="lede">"왜 이렇게 안 했지?"라는 질문이 나중에 다시 나올 때, 재검토 없이 바로 참고할 수 있도록 기록해둔다. 배포 대상이 웹에서 데스크탑으로 바뀌어도 아래 결정은 그대로 유효하다.</p>
       <div class="table-scroll">
         <table>
           <thead><tr><th>검토 항목</th><th>검토 배경</th><th>결론</th><th>사유</th></tr></thead>
@@ -430,6 +530,12 @@ flowchart TD
               <td><span class="status s-out">화면 표시로 대체</span></td>
               <td>과거 평가 메일 중복발송 사고 이력이 있고, 원인이 됐던 발송용 크론도 이미 제거된 상태 — 같은 실패 패턴을 다시 들이는 대신 "화면에서 확인"으로 설계 변경</td>
             </tr>
+            <tr>
+              <td><strong>electron-updater(Squirrel) 자동 업데이트</strong></td>
+              <td>Electron 표준 업데이트 방식 검토</td>
+              <td><span class="status s-out">채택 안 함</span></td>
+              <td>내부 배포라 코드 서명을 하지 않는데, macOS의 Squirrel.Mac은 서명 검증을 통과해야 자동 설치가 동작한다 — 서명 없이는 어차피 못 쓴다. 대신 KV 매니페스트 + Vercel Blob 비공개 저장소로 자체 구현(이미 assetify-for-desktop에 존재)</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -437,29 +543,29 @@ flowchart TD
 
     <section id="principles">
       <div class="sec-head"><span class="sec-num">08</span><h2>운영 원칙</h2></div>
-      <p class="lede">기능이 늘어나도 지켜야 하는 최소한의 가드레일. 새로 합류하는 개발자도 이 원칙만은 예외 없이 따라야 한다.</p>
+      <p class="lede">기능이 늘어나도 지켜야 하는 최소한의 가드레일. <code>assetify-for-desktop</code>의 <code>CLAUDE.md</code>에 이미 있는 작업 규칙과 충돌하지 않도록 맞췄다.</p>
       <div class="card-grid">
         <div class="card"><h4>발송은 화면까지만</h4><p>메일·알림 자동 발송 기능은 만들지 않는다. 발송 관련 결정은 반드시 별도 승인을 받는다.</p></div>
         <div class="card"><h4>실패는 실패로 보인다</h4><p>데이터 쓰기 실패를 성공으로 착각한 응답을 절대 보내지 않는다 — 과거 실제 사고 이력이 있다.</p></div>
         <div class="card"><h4>키는 코드에 남기지 않는다</h4><p>외부 벤더 API 키·토큰은 환경변수로만 관리한다. 로그인 정보보다 유출 피해가 크다.</p></div>
         <div class="card"><h4>추가는 항상 additive</h4><p>기존 화면·데이터를 뜯어고쳐야 하면 반드시 먼저 확인받는다.</p></div>
-        <div class="card"><h4>배포는 승인 후에만</h4><p>커밋·푸시·머지·프로덕션 반영은 명시적 승인 없이 진행하지 않는다.</p></div>
-        <div class="card"><h4>기능 = 커밋 단위</h4><p>여러 기능을 한 커밋에 섞지 않는다. 완료 후에는 무엇을 바꿨는지 요약 보고한다.</p></div>
+        <div class="card"><h4>이식은 포팅, 재설계 아님</h4><p>G0은 웹 admin의 로직을 그대로 옮기는 작업이다. 옮기면서 "더 낫게" 고치려 하지 않는다(별도 티켓으로 분리).</p></div>
+        <div class="card"><h4>버전 규칙을 따른다</h4><p>수정 하나마다 patch/minor를 올린다(CLAUDE.md 버전 규칙). 버전을 안 올리고 재빌드하면 이전 배포 파일을 덮어쓴다.</p></div>
       </div>
     </section>
 
     <section id="timeline">
       <div class="sec-head"><span class="sec-num">09</span><h2>로드맵 타임라인</h2></div>
-      <p class="lede">전체 흐름을 시간 순으로 다시 정리하면 다음과 같다.</p>
+      <p class="lede">전체 흐름을 시간 순으로 다시 정리하면 다음과 같다. G0(이식)이 맨 앞에 추가됐다.</p>
       <div class="diagram">
         <pre class="mermaid">
-%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#EBF0F6','primaryBorderColor':'#1F3A5F','primaryTextColor':'#161B22','lineColor':'#1F3A5F','tertiaryColor':'#F5F6F8','cScale0':'#1F3A5F','fontFamily':'Pretendard, sans-serif'}}}%%
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#EBF0F6','primaryBorderColor':'#1F3A5F','primaryTextColor':'#161B22','lineColor':'#1F3A5F','tertiaryColor':'#F5F6F8','fontFamily':'Pretendard, sans-serif'}}}%%
 timeline
-    title SaaS 거버넌스 로드맵
-    1차 개발 (완료) : F1~F7 : 거버넌스 스코어카드 : 벤더 통합 뷰
-    2차 · 데이터 품질 : G1 SW명 표준화 : G2 계정 비활성 추적
-    2차 · 통제 장치 : G3 중복 탐지 : G4 최소 감사증적 : G5 해지예정 워크플로 : G6 재확인 캠페인
-    2차 · 종합·확장 : G7 임원 월간 리포트 : G13 벤더 API 파일럿(OpenAI·Anthropic)
+    title SaaS 거버넌스 로드맵 (Assetify Desktop 기준)
+    0단계 · 이식 : G0 웹 admin 기능을 데스크탑으로 포팅
+    1단계 · 데이터 품질 : G1 SW명 표준화 : G2 계정 비활성 추적
+    2단계 · 통제 장치 : G3 중복 탐지 : G4 최소 감사증적 : G5 해지예정 워크플로 : G6 재확인 캠페인
+    3단계 · 종합·확장 : G7 임원 월간 리포트 : G13 벤더 API 파일럿(OpenAI·Anthropic)
     지속 검토 : G8 계약서 보관 : G9 법인 아카이브 정책 : G10 Google 로그인
     외부 협의 대기 : G11 카드사 API : G12 전자결재 연동
         </pre>
@@ -469,12 +575,12 @@ timeline
   </main>
 
   <footer>
-    <div>관련 문서</div>
+    <div>관련 저장소 · 문서</div>
     <div class="doc-list">
+      <code>github.com/qortmddbs33/assetify-for-desktop</code> — 실제 배포 대상(Electron)
+      <code>sw-portal-next</code> — SW-PORTAL 웹(공개 신청 폼 + 기존 admin 설계 원본)
       <code>docs/SUBSCRIPTION-GOVERNANCE-PHASE2.md</code>
-      <code>docs/ARCHITECTURE-4.0.md</code>
-      <code>docs/ELECTRONIC-APPROVAL-INTEGRATION.md</code>
-      <code>AGENTS.md</code>
+      <code>assetify-for-desktop/CLAUDE.md</code> — 데스크탑 앱 작업 규칙·버전 규칙
     </div>
   </footer>
 </div>
