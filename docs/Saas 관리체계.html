@@ -409,24 +409,7 @@ sequenceDiagram
 
     <section id="process">
       <div class="sec-head"><span class="sec-num">05</span><h2>개발자가 알아야 하는 것</h2></div>
-      <p class="lede">이 장은 두 층으로 나뉜다. <strong>바뀌지 않는 사실</strong>(기술 스택, 인프라, 프로젝트 구조, 개발 명령어, 코딩 컨벤션)은 전부 여기에 담는다 — 별도 MD로 미루지 않는다. <strong>티켓마다 달라지는 것</strong>(정확히 어떤 파일의 어느 줄을 어떻게 고치는지)만 착수 시점에 새로 쓴다.</p>
-
-      <h3>런타임 사전 점검 — 티켓을 고르기 전에 가장 먼저</h3>
-      <p class="prose">이 문서는 읽고 이해하는 정보일 뿐, <strong>실제로 빌드·실행이 되는지는 보장하지 않는다</strong> — 그러려면 진짜 <code>.env</code> 값과 진짜 네트워크 접근이 있어야 한다. 아래를 순서대로 통과하는지 먼저 확인한다. 하나라도 막히면 그 자리에서 사람에게 물어본다 — 문서를 더 읽는다고 풀리는 문제가 아니다.</p>
-      <div class="table-scroll">
-        <table>
-          <thead><tr><th>단계</th><th>확인 방법</th><th>막히면</th></tr></thead>
-          <tbody>
-            <tr><td>저장소</td><td><code>assetify-for-desktop</code>이 로컬에 있는지, <code>git status</code>로 브랜치 확인</td><td>없으면 clone부터</td></tr>
-            <tr><td><code>.env</code> 값</td><td><code>.env.example</code>의 변수 전부가 <strong>실제 값</strong>으로 채워져 있는지(더미 아님)</td><td>값 소유자에게 요청 — 코드로는 풀 수 없다</td></tr>
-            <tr><td>의존성</td><td><code>npm install</code>이 에러 없이 끝나는지</td><td>Node 버전 확인(better-sqlite3는 네이티브 빌드가 필요)</td></tr>
-            <tr><td>개발 서버</td><td><code>npm run dev</code>로 창이 뜨는지</td><td>에러 메시지를 그대로 사람에게 공유</td></tr>
-            <tr><td>로그인 · 동기화</td><td>로그인 후 콘솔에 <code>[cache-warmup] 전체 N개 엔티티 완료</code>가 찍히고 실패 목록이 비어있는지</td><td>Postgres/Funnel 연결 문제 — 네트워크부터 의심</td></tr>
-            <tr><td>화면 확인 가능 여부</td><td>Electron 창을 실제로 볼 수 있는 환경인지(GUI 있는 세션)</td><td>헤드리스면 UI 검증은 사람이 대신 해야 한다 — 착수 전에 미리 알린다</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="callout warn"><b>이 점검이 예외 없이 먼저인 이유</b> — 05장의 나머지(스택·인프라·구조·컨벤션)는 전부 "읽고 이해하는" 정보다. 이 점검만 유일하게 "실제로 되는지 눈으로 확인하는" 단계다. 여기서 막히면 그 뒤에 설계를 아무리 정확히 해도 로컬에서 검증할 방법이 없다 — 검증 안 된 코드를 검증됐다고 보고하게 되는 게 가장 나쁜 결과다.</div>
+      <p class="lede">이 장은 두 층으로 나뉜다. <strong>바뀌지 않는 사실</strong>(기술 스택, 인프라, 프로젝트 구조, 개발 명령어, 코딩 컨벤션)은 전부 여기에 담는다 — 별도 MD로 미루지 않는다. <strong>티켓마다 달라지는 것</strong>(정확히 어떤 파일의 어느 줄을 어떻게 고치는지)만 착수 시점에 새로 쓴다. (개발 환경·자격증명 접근은 이미 갖춰져 있다는 전제다 — 별도로 다루지 않는다.)</p>
 
       <h3>기술 스택</h3>
       <div class="table-scroll">
