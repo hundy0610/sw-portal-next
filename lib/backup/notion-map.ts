@@ -84,6 +84,8 @@ export function buildHwBackupProperties(r: Record<string, unknown>): Props {
     "법인명": P.select(r.company),
     "부서": P.text(r.dept),
     "위치": P.text(r.location),
+    "창고": P.text(r.warehouse),
+    "창고칸": P.text(r.warehouseCell),
     "사용/재고/폐기/기타": P.select(r.status),
     "반납예정일": P.date(r.returnDue),
     "반납일자": P.date(r.returnDate),
