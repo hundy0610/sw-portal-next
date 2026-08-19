@@ -6,7 +6,7 @@ import { LabelPrintTab } from "@/components/admin/LabelPrintTab";
 import { safeJson } from "@/lib/fetch-json";
 import BulkEditBar, { type BulkFieldOption } from "@/components/admin/shared/BulkEditBar";
 import { useAssetFlowSync, AssetFlowSyncSection } from "@/components/admin/shared/AssetFlowSync";
-import { COMPANIES } from "@/lib/companies";
+import { COMPANIES, RENTAL_COMPANY } from "@/lib/companies";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 타입
@@ -587,6 +587,24 @@ function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false, initi
 
   const setField = (k: keyof typeof form, v: string) => setForm(prev => ({ ...prev, [k]: v }));
 
+  // 임대용 자산: 지급사유/사용자/부서/반납예정일을 자산 흐름 관리(exchange-return, type="임대") 레코드에서
+  // 읽어 읽기전용으로 보여준다 — HWDB 컬럼을 늘리지 않고 흐름 레코드를 단일 출처로 유지한다.
+  const [rentalMemo, setRentalMemo] = useState<{ reason: string; user: string; dept: string; returnDue: string } | null>(null);
+  useEffect(() => {
+    if (record.company !== RENTAL_COMPANY || !record.assetNo) { setRentalMemo(null); return; }
+    let cancelled = false;
+    fetch(`/api/exchange-return?assetId=${encodeURIComponent(record.assetNo)}&type=${encodeURIComponent("임대")}`)
+      .then(r => safeJson(r))
+      .then(json => {
+        if (cancelled) return;
+        const rows: { note: string; user: string; department: string; returnDue: string; isClosed: boolean; requestedAt: string }[] = json.data ?? [];
+        const picked = rows.find(r => !r.isClosed) ?? [...rows].sort((a, b) => b.requestedAt.localeCompare(a.requestedAt))[0] ?? null;
+        setRentalMemo(picked ? { reason: picked.note, user: picked.user, dept: picked.department, returnDue: picked.returnDue } : null);
+      })
+      .catch(() => { if (!cancelled) setRentalMemo(null); });
+    return () => { cancelled = true; };
+  }, [record.company, record.assetNo]);
+
   // 변경 이력 — 별도 API 없이 record.changeLog(JSON 텍스트)를 그대로 파싱
   const changeLog: HwChangeLogEvent[] = useMemo(() => {
     try {
@@ -771,6 +789,17 @@ function AssetDetailModal({ record, onSave, onClose, isSuperAdmin = false, initi
               <textarea value={form.note} onChange={e => setField("note", e.target.value)} rows={2}
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 resize-none" />
             </div>
+            {rentalMemo && (
+              <div className="rounded-lg border border-orange-200 bg-orange-50/60 px-3 py-2 space-y-1">
+                <p className="text-[10px] font-semibold text-orange-500 uppercase tracking-wider">임대 메모 (읽기전용 · 자산 흐름 관리에서 가져옴)</p>
+                <div className="text-xs text-orange-900 grid grid-cols-2 gap-x-3 gap-y-0.5">
+                  <span>사용자: {rentalMemo.user || "—"}</span>
+                  <span>부서: {rentalMemo.dept || "—"}</span>
+                  <span className="col-span-2">반납예정일: {rentalMemo.returnDue || "—"}</span>
+                  {rentalMemo.reason && <span className="col-span-2">지급사유: {rentalMemo.reason}</span>}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 슈퍼어드민 전용: 자산번호·시리얼 변경 */}

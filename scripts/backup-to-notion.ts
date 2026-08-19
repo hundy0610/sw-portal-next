@@ -46,6 +46,8 @@ const NOT_BACKED_UP_ENTITIES: Record<string, string> = {
   "admin-account": "관리자 계정 정보 — Notion 에 두지 않는다.",
   "warehouse": "창고 정의(랙/칸 구성, 데스크탑 앱 설정)이지 자산이 아니다. " +
     "자산의 창고 배치는 public.hw.warehouse/warehouseCell 로 이미 Notion 에 백업된다.",
+  "rental-hw": "임대노트북 현황 관리 기능 폐지 — 임대 자산은 이제 public.hw(company=\"임대용\")로 관리된다. " +
+    "기존 레코드는 entity_store 에 보관만 하고 더 이상 Notion 으로 백업하지 않는다.",
 };
 
 function buildPg(): Pg {

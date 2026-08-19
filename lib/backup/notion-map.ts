@@ -186,24 +186,6 @@ export const entityRegistry: Record<string, NotionBackupEntry> = {
     }),
   },
 
-  // 렌탈 HW — "상태"는 Notion formula 이므로 기록 제외.
-  "rental-hw": {
-    databaseId: process.env.NOTION_DB_RENTAL_HW,
-    buildProperties: (d) => ({
-      "실사용자 / 지급사유": P.title(d.userAndReason),
-      "요청인": P.text(d.requester),
-      "부서": P.text(d.dept),
-      "출고자산번호": P.text(d.assetNo),
-      "출고자산번호 (기존)": P.text(d.assetNoOld),
-      "인증 DLP 계정": P.text(d.dlpAccount),
-      "IO코드": P.text(d.ioCode),
-      "재고": P.checkbox(d.inStock),
-      "요청법인": P.select(d.company),
-      "사용시작일": P.date(d.startDate),
-      "반납예정일": P.date(d.returnDue),
-    }),
-  },
-
   // PC/OA 유지보수 계약 — 계약서(PDF)는 Blob→Notion 재업로드(files). status 는 계산값이라 제외.
   "contracts": {
     databaseId: process.env.NOTION_DB_CONTRACTS,
@@ -501,13 +483,6 @@ export const seedRegistry: Record<string, EntitySeedSource> = {
     fetch: async () => {
       const { fetchExchangeReturnsFromNotion } = await import("@/lib/exchange-return");
       const rows = await fetchExchangeReturnsFromNotion();
-      return rows.map(r => ({ id: r.id, notionId: r.id, data: r as unknown as Record<string, unknown> }));
-    },
-  },
-  "rental-hw": {
-    fetch: async () => {
-      const { fetchRentalRecordsFromNotion } = await import("@/lib/rental-hw");
-      const rows = await fetchRentalRecordsFromNotion();
       return rows.map(r => ({ id: r.id, notionId: r.id, data: r as unknown as Record<string, unknown> }));
     },
   },
