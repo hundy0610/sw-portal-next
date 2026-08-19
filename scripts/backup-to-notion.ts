@@ -33,6 +33,21 @@ import {
 const BATCH = 300; // 주기당 엔티티별 최대 처리 건수(과도한 러닝 방지)
 const RATE_MS = 350;
 
+/**
+ * entity_store 를 쓰지만 애초에 Notion 백업 대상이 아닌 엔티티.
+ * upsertEntity/deleteEntity(lib/repo/mirror.ts) 는 모든 엔티티에 공통으로 dirty=true 를
+ * 켜므로, 백업 안 할 엔티티도 dirty 행이 쌓인다. 여기 등록해 두면 cleanupUnbackedDirty 가
+ * 그 dirty 를 정리한다 — 값은 "왜 백업 대상이 아닌지"이고, 나중에 이 목록을 보는 사람이
+ * "빠뜨린 건가?"를 다시 묻지 않게 하기 위한 것이다.
+ * (entityRegistry 에도 여기에도 없는 엔티티의 dirty 는 cleanupUnbackedDirty 가 건드리지
+ * 않고 경고만 한다 — 레지스트리 등록을 깜빡한 실수일 수 있어서다.)
+ */
+const NOT_BACKED_UP_ENTITIES: Record<string, string> = {
+  "admin-account": "관리자 계정 정보 — Notion 에 두지 않는다.",
+  "warehouse": "창고 정의(랙/칸 구성, 데스크탑 앱 설정)이지 자산이 아니다. " +
+    "자산의 창고 배치는 public.hw.warehouse/warehouseCell 로 이미 Notion 에 백업된다.",
+};
+
 function buildPg(): Pg {
   if (process.env.DATABASE_URL) return new Pg({ connectionString: process.env.DATABASE_URL });
   const password = process.env.PGPASSWORD || process.env.POSTGRES_PASSWORD;
@@ -388,6 +403,40 @@ async function backupEntity(
   return c;
 }
 
+/**
+ * 정식 백업(위 backupHw/backupEntity) 이후에 한 번 도는 별도 정리 단계.
+ * entityRegistry 에 없는(=위 루프가 손대지 않은) 엔티티에 dirty 행이 남아 있을 때:
+ *  - NOT_BACKED_UP_ENTITIES 에 있으면 → 백업 대상이 아니라고 이미 선언된 것이므로 dirty 만
+ *    내린다. synced_at 은 건드리지 않는다 — Notion 에 보낸 적이 없는데 동기화 시각을
+ *    적으면 거짓이 된다.
+ *  - 둘 다 아니면 → 정리하지 않고 경고만 남긴다. 여기서 무조건 dirty 를 내려버리면, 나중에
+ *    진짜 백업해야 할 엔티티를 추가하고 레지스트리 등록을 깜빡했을 때 그 실수가 조용히
+ *    묻힌다. dirty=true 로 남겨 "밀려 있다"는 신호를 계속 보이게 한다.
+ */
+async function cleanupUnbackedDirty(pg: Pg): Promise<{ cleaned: number; unknown: number }> {
+  const { rows } = await pg.query(
+    `select entity, count(*)::int as cnt from public.entity_store where dirty = true group by entity`,
+  );
+  let cleaned = 0;
+  let unknown = 0;
+  for (const row of rows as { entity: string; cnt: number }[]) {
+    if (entityRegistry[row.entity]) continue; // 정식 등록 엔티티는 위 루프가 이미 처리(실패해도 그대로 둔다)
+    const reason = NOT_BACKED_UP_ENTITIES[row.entity];
+    if (reason) {
+      const { rowCount } = await pg.query(
+        `update public.entity_store set dirty = false where entity = $1 and dirty = true`,
+        [row.entity],
+      );
+      console.log(`  [cleanup] [${row.entity}] 백업 대상 아님(${reason}) — dirty ${rowCount}건 정리`);
+      cleaned += rowCount ?? 0;
+    } else {
+      console.warn(`  ! [cleanup] 미등록 엔티티 "${row.entity}" 에 dirty ${row.cnt}건 — 레지스트리 등록 누락 의심, 정리하지 않음`);
+      unknown += row.cnt;
+    }
+  }
+  return { cleaned, unknown };
+}
+
 function add(a: Counts, b: Counts): Counts {
   return {
     created: a.created + b.created,
@@ -414,8 +463,12 @@ async function main() {
     for (const entity of Object.keys(entityRegistry)) {
       total = add(total, await backupEntity(pg, notion, entity));
     }
+    const { cleaned, unknown } = await cleanupUnbackedDirty(pg);
     console.log(
-      `✓ 완료 — 생성 ${total.created} / 수정 ${total.updated} / 아카이브 ${total.archived} / 실패 ${total.failed} (${Date.now() - started}ms)`,
+      `✓ 완료 — 생성 ${total.created} / 수정 ${total.updated} / 아카이브 ${total.archived} / 실패 ${total.failed}` +
+        (cleaned > 0 ? ` / 백업대상아님정리 ${cleaned}` : "") +
+        (unknown > 0 ? ` / 미등록경고 ${unknown}` : "") +
+        ` (${Date.now() - started}ms)`,
     );
   } finally {
     await pg.end();
