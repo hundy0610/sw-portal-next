@@ -27,6 +27,7 @@ import {
   HW_DB_ID,
   buildHwBackupProperties,
   entityRegistry,
+  type NotionBackupEntry,
 } from "@/lib/backup/notion-map";
 
 const BATCH = 300; // 주기당 엔티티별 최대 처리 건수(과도한 러닝 방지)
@@ -144,10 +145,29 @@ async function withRetry<T>(fn: () => Promise<T>, label: string, max = 3): Promi
         await sleep(1000 * (attempt + 1));
         continue;
       }
-      throw new Error(`${label}: ${(e as Error).message}`);
+      // 원본 Notion 에러의 .code 를 보존한다(isGoneOrArchivedError 판별용).
+      const wrapped = new Error(`${label}: ${(e as Error).message}`);
+      (wrapped as { code?: string }).code = (e as { code?: string })?.code;
+      throw wrapped;
     }
   }
   throw new Error(`${label}: 재시도 초과`);
+}
+
+/**
+ * Notion 이 "아카이브/삭제되어 편집할 수 없다"고 답하는 경우만 골라낸다.
+ *  - validation_error + 메시지에 archived: 다른 프로세스/사람이 이미 아카이브한 페이지
+ *  - object_not_found: 휴지통에서 30일 지나 완전히 삭제된 페이지
+ * 그 외 에러(권한/네트워크/속성 불일치 등)는 절대 여기 걸리지 않고 그대로 실패 처리된다.
+ */
+function isGoneOrArchivedError(e: unknown): boolean {
+  const code = (e as { code?: string })?.code;
+  if (code === "object_not_found") return true;
+  if (code === "validation_error") {
+    const msg = (e as { message?: string })?.message ?? "";
+    return /archived/i.test(msg);
+  }
+  return false;
 }
 
 type Counts = { created: number; updated: number; archived: number; failed: number };
@@ -162,6 +182,16 @@ async function backupHw(pg: Pg, notion: Notion): Promise<Counts> {
   if (rows.length === 0) return c;
   console.log(`  [hw] dirty ${rows.length}건`);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const createPage = (r: Record<string, unknown>) => withRetry(
+    () => notion.pages.create({
+      parent: { database_id: HW_DB_ID },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      properties: buildHwBackupProperties(r) as any,
+    }),
+    `hw create ${r.id}`,
+  );
+
   for (const r of rows) {
     const id: string = r.id;
     // 낙관적 락: Postgres timestamptz 는 µs 정밀도라 JS Date(ms)로 비교하면 항상 불일치 →
@@ -170,7 +200,13 @@ async function backupHw(pg: Pg, notion: Notion): Promise<Counts> {
     try {
       if (r.deleted) {
         if (r.notion_id) {
-          await withRetry(() => notion.pages.update({ page_id: r.notion_id, archived: true }), `hw archive ${id}`);
+          try {
+            await withRetry(() => notion.pages.update({ page_id: r.notion_id, archived: true }), `hw archive ${id}`);
+          } catch (e) {
+            // 이미 아카이브/삭제된 페이지 — 소프트 삭제의 목표 상태는 이미 달성됐으므로 성공 처리.
+            if (!isGoneOrArchivedError(e)) throw e;
+            console.log(`  ↺ [hw] ${id}: 이미 아카이브/삭제됨(notion_id=${r.notion_id}) → 목표 상태 달성으로 처리`);
+          }
         }
         await pg.query(
           `update public.hw set dirty=false, synced_at=now() where id=$1 and updated_at=$2`,
@@ -178,14 +214,7 @@ async function backupHw(pg: Pg, notion: Notion): Promise<Counts> {
         );
         c.archived++;
       } else if (!r.notion_id) {
-        const page = await withRetry(
-          () => notion.pages.create({
-            parent: { database_id: HW_DB_ID },
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            properties: buildHwBackupProperties(r) as any,
-          }),
-          `hw create ${id}`,
-        );
+        const page = await createPage(r);
         await pg.query(
           `update public.hw set dirty=false, synced_at=now(), notion_id=$2, "notionUrl"=$3
              where id=$1 and updated_at=$4`,
@@ -194,19 +223,35 @@ async function backupHw(pg: Pg, notion: Notion): Promise<Counts> {
         );
         c.created++;
       } else {
-        await withRetry(
-          () => notion.pages.update({
-            page_id: r.notion_id,
+        try {
+          await withRetry(
+            () => notion.pages.update({
+              page_id: r.notion_id,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              properties: buildHwBackupProperties(r) as any,
+            }),
+            `hw update ${id}`,
+          );
+          await pg.query(
+            `update public.hw set dirty=false, synced_at=now() where id=$1 and updated_at=$2`,
+            [id, updatedAt],
+          );
+          c.updated++;
+        } catch (e) {
+          // 연결된 페이지가 사람/다른 프로세스에 의해 아카이브/삭제됨 — 앱엔 살아있는 레코드이므로
+          // 재시도 대신 같은 DB 에 새 페이지를 만들어 notion_id 를 다시 연결한다.
+          if (!isGoneOrArchivedError(e)) throw e;
+          console.log(`  ↺ [hw] ${id}: 연결된 페이지(${r.notion_id})가 아카이브/삭제됨 → 새 페이지로 재생성`);
+          const page = await createPage(r);
+          await pg.query(
+            `update public.hw set dirty=false, synced_at=now(), notion_id=$2, "notionUrl"=$3
+               where id=$1 and updated_at=$4`,
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            properties: buildHwBackupProperties(r) as any,
-          }),
-          `hw update ${id}`,
-        );
-        await pg.query(
-          `update public.hw set dirty=false, synced_at=now() where id=$1 and updated_at=$2`,
-          [id, updatedAt],
-        );
-        c.updated++;
+            [id, page.id, (page as any).url ?? null, updatedAt],
+          );
+          console.log(`  ↺ [hw] ${id}: notion_id ${r.notion_id} → ${page.id}`);
+          c.updated++;
+        }
       }
     } catch (e) {
       c.failed++;
@@ -215,6 +260,32 @@ async function backupHw(pg: Pg, notion: Notion): Promise<Counts> {
     await sleep(RATE_MS);
   }
   return c;
+}
+
+// entry.databaseId/dataSourceId 에 새 페이지를 만든다(최초 생성 · 아카이브된 페이지 복구 공용).
+async function createEntityPage(
+  notion: Notion,
+  entry: NotionBackupEntry,
+  entity: string,
+  id: string,
+  data: Record<string, unknown>,
+): Promise<{ page: { id: string }; newData: Record<string, unknown> | null }> {
+  const { props: fileProps, syncedFiles } = await buildFileProps(process.env.NOTION_TOKEN as string, entry, data);
+  const properties = { ...entry.buildProperties(data), ...fileProps };
+  const page = await withRetry(
+    () => entry.dataSourceId
+      ? createPageInDataSource(process.env.NOTION_TOKEN as string, entry.dataSourceId, properties)
+      : notion.pages.create({
+          parent: { database_id: entry.databaseId as string },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          properties: properties as any,
+        }),
+    `${entity} create ${id}`,
+  );
+  const newData = Object.keys(syncedFiles).length
+    ? { ...data, __syncedFiles: { ...((data.__syncedFiles as object) ?? {}), ...syncedFiles } }
+    : null;
+  return { page, newData };
 }
 
 // ── 제네릭 미러(entity_store) ────────────────────────────────────────────────
@@ -247,7 +318,13 @@ async function backupEntity(
     try {
       if (r.deleted) {
         if (r.notion_id) {
-          await withRetry(() => notion.pages.update({ page_id: r.notion_id, archived: true }), `${entity} archive ${id}`);
+          try {
+            await withRetry(() => notion.pages.update({ page_id: r.notion_id, archived: true }), `${entity} archive ${id}`);
+          } catch (e) {
+            // 이미 아카이브/삭제된 페이지 — 소프트 삭제의 목표 상태는 이미 달성됐으므로 성공 처리.
+            if (!isGoneOrArchivedError(e)) throw e;
+            console.log(`  ↺ [${entity}] ${id}: 이미 아카이브/삭제됨(notion_id=${r.notion_id}) → 목표 상태 달성으로 처리`);
+          }
         }
         await pg.query(
           `update public.entity_store set dirty=false, synced_at=now()
@@ -256,21 +333,7 @@ async function backupEntity(
         );
         c.archived++;
       } else if (!r.notion_id) {
-        const { props: fileProps, syncedFiles } = await buildFileProps(process.env.NOTION_TOKEN as string, entry, data);
-        const properties = { ...entry.buildProperties(data), ...fileProps };
-        const page = await withRetry(
-          () => entry.dataSourceId
-            ? createPageInDataSource(process.env.NOTION_TOKEN as string, entry.dataSourceId, properties)
-            : notion.pages.create({
-                parent: { database_id: entry.databaseId as string },
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                properties: properties as any,
-              }),
-          `${entity} create ${id}`,
-        );
-        const newData = Object.keys(syncedFiles).length
-          ? { ...data, __syncedFiles: { ...((data.__syncedFiles as object) ?? {}), ...syncedFiles } }
-          : null;
+        const { page, newData } = await createEntityPage(notion, entry, entity, id, data);
         await pg.query(
           `update public.entity_store set dirty=false, synced_at=now(), notion_id=$3
              ${newData ? ", data=$5::jsonb" : ""}
@@ -279,26 +342,42 @@ async function backupEntity(
         );
         c.created++;
       } else {
-        const { props: fileProps, syncedFiles } = await buildFileProps(process.env.NOTION_TOKEN as string, entry, data);
-        const properties = { ...entry.buildProperties(data), ...fileProps };
-        await withRetry(
-          () => notion.pages.update({
-            page_id: r.notion_id,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            properties: properties as any,
-          }),
-          `${entity} update ${id}`,
-        );
-        const newData = Object.keys(syncedFiles).length
-          ? { ...data, __syncedFiles: { ...((data.__syncedFiles as object) ?? {}), ...syncedFiles } }
-          : null;
-        await pg.query(
-          `update public.entity_store set dirty=false, synced_at=now()
-             ${newData ? ", data=$4::jsonb" : ""}
-             where entity=$1 and id=$2 and updated_at=$3`,
-          newData ? [entity, id, updatedAt, JSON.stringify(newData)] : [entity, id, updatedAt],
-        );
-        c.updated++;
+        try {
+          const { props: fileProps, syncedFiles } = await buildFileProps(process.env.NOTION_TOKEN as string, entry, data);
+          const properties = { ...entry.buildProperties(data), ...fileProps };
+          await withRetry(
+            () => notion.pages.update({
+              page_id: r.notion_id,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              properties: properties as any,
+            }),
+            `${entity} update ${id}`,
+          );
+          const newData = Object.keys(syncedFiles).length
+            ? { ...data, __syncedFiles: { ...((data.__syncedFiles as object) ?? {}), ...syncedFiles } }
+            : null;
+          await pg.query(
+            `update public.entity_store set dirty=false, synced_at=now()
+               ${newData ? ", data=$4::jsonb" : ""}
+               where entity=$1 and id=$2 and updated_at=$3`,
+            newData ? [entity, id, updatedAt, JSON.stringify(newData)] : [entity, id, updatedAt],
+          );
+          c.updated++;
+        } catch (e) {
+          // 연결된 페이지가 사람/다른 프로세스에 의해 아카이브/삭제됨 — 앱엔 살아있는 레코드이므로
+          // 재시도 대신 같은 DB 에 새 페이지를 만들어 notion_id 를 다시 연결한다.
+          if (!isGoneOrArchivedError(e)) throw e;
+          console.log(`  ↺ [${entity}] ${id}: 연결된 페이지(${r.notion_id})가 아카이브/삭제됨 → 새 페이지로 재생성`);
+          const { page, newData } = await createEntityPage(notion, entry, entity, id, data);
+          await pg.query(
+            `update public.entity_store set dirty=false, synced_at=now(), notion_id=$3
+               ${newData ? ", data=$5::jsonb" : ""}
+               where entity=$1 and id=$2 and updated_at=$4`,
+            newData ? [entity, id, page.id, updatedAt, JSON.stringify(newData)] : [entity, id, page.id, updatedAt],
+          );
+          console.log(`  ↺ [${entity}] ${id}: notion_id ${r.notion_id} → ${page.id}`);
+          c.updated++;
+        }
       }
     } catch (e) {
       c.failed++;
