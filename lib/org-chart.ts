@@ -1,12 +1,13 @@
 import { kvGet, kvSetPermanent } from "./kv-store";
 import { fetchPcScans } from "./pc-scan";
+import { normalizeCompany } from "./companies";
 
 // 조직도는 Notion 대신 KV(Upstash Redis)에 저장한다 — 계층형 relation을 Notion
 // 스키마로 새로 만드는 대신, 이미 쓰고 있는 KV 저장소에 트리 전체를 하나의
 // 값으로 두어 바로 편집 가능하게 한다.
 const KV_KEY = "orgChart:units";
 
-export type OrgLevel = "사업부" | "본부" | "센터" | "팀";
+export type OrgLevel = "사업부" | "실" | "팀" | "파트" | "본부" | "센터";
 
 export interface OrgMember {
   name: string;
@@ -99,20 +100,67 @@ export async function archiveOrgUnit(id: string): Promise<void> {
   if (!ok) throw new Error("ORG_CHART_SAVE_FAILED");
 }
 
-// PC 실사 제출 기록에서 이메일 집합만 뽑아내는 순수 함수 — 이미 scans를 다른 목적으로
-// 함께 조회하는 호출부(예: 대시보드)는 fetchPcScans()를 중복 호출하지 않고 이 함수로
-// 바로 변환할 수 있다. 데스크톱 프로그램이 보낸 값에 앞뒤 공백이 섞여 들어와도
-// 매칭이 깨지지 않도록 trim까지 함께 정규화한다.
-export function submittedEmailsFromScans(scans: { email: string }[]): Set<string> {
-  return new Set(scans.map(s => s.email.trim().toLowerCase()).filter(Boolean));
+// 실사 제출 대조 — 1순위 이메일, 실패 시 2순위 법인+이름. 실측에서 email이 "-"인
+// 제출 건이 있어(9/33) 이메일만으로는 그 인원이 영원히 미제출로 남는다. 부서는
+// 표기가 흔들려 기준으로 쓰지 않는다. 조직도 쪽에 같은 법인+이름이 둘 이상이면
+// 이름 폴백을 하지 않고 ambiguous로 보류한다(스캔 쪽 동명이인은 PC 단위 제출이라
+// 정상이므로 모호로 보지 않는다).
+export interface ScanIdentity { corp: string; originalCorp: string; userName: string; email: string }
+export type MatchBasis = "email" | "name";
+export interface MemberMatch { submitted: boolean; basis: MatchBasis | null; ambiguous: boolean }
+export interface ScanMatcher { match(company: string, member: OrgMember): MemberMatch }
+
+function companyKey(raw: string): string {
+  return (normalizeCompany(raw ?? "") ?? (raw ?? "").trim()).toLowerCase();
+}
+function nameKey(raw: string): string { return (raw ?? "").replace(/\s+/g, "").toLowerCase(); }
+function emailKey(raw: string): string { return (raw ?? "").trim().toLowerCase(); }
+function isEmail(raw: string): boolean { return emailKey(raw).includes("@"); }
+
+export function buildScanMatcher(scans: ScanIdentity[], units: OrgUnit[]): ScanMatcher {
+  const submittedEmails = new Set<string>();
+  const submittedNames = new Set<string>();
+  for (const s of scans) {
+    if (isEmail(s.email)) submittedEmails.add(emailKey(s.email));
+    const n = nameKey(s.userName);
+    if (!n) continue;
+    // 겸직/쉐어드는 조직도 소속이 원소속법인 쪽일 수 있어 둘 다 색인한다.
+    for (const c of [s.corp, s.originalCorp]) {
+      const ck = companyKey(c);
+      if (ck) submittedNames.add(`${ck} ${n}`);
+    }
+  }
+
+  // 조직도 안 (법인, 이름) 등장 횟수 — 2 이상이면 이름 폴백 금지
+  const rosterCount = new Map<string, number>();
+  for (const u of units) {
+    const ck = companyKey(u.company);
+    for (const m of u.members) {
+      const n = nameKey(m.name);
+      if (!ck || !n) continue;
+      const k = `${ck} ${n}`;
+      rosterCount.set(k, (rosterCount.get(k) ?? 0) + 1);
+    }
+  }
+
+  return {
+    match(company, member) {
+      if (isEmail(member.email) && submittedEmails.has(emailKey(member.email))) {
+        return { submitted: true, basis: "email", ambiguous: false };
+      }
+      const ck = companyKey(company);
+      const n = nameKey(member.name);
+      if (!ck || !n) return { submitted: false, basis: null, ambiguous: false };
+      const k = `${ck} ${n}`;
+      if (!submittedNames.has(k)) return { submitted: false, basis: null, ambiguous: false };
+      if ((rosterCount.get(k) ?? 0) > 1) return { submitted: false, basis: null, ambiguous: true };
+      return { submitted: true, basis: "name", ambiguous: false };
+    },
+  };
 }
 
-// 실사 제출 완료 여부 판단용 이메일 집합 — PC 실사 프로그램이 실행되면 그 시점의
-// 실행자 이메일이 그대로 수집되므로, HW 자산 마스터(부서/사용자)와 무관하게
-// "제출했는지"를 정확히 알 수 있다.
-export async function fetchSubmittedEmails(): Promise<Set<string>> {
-  const scans = await fetchPcScans();
-  return submittedEmailsFromScans(scans);
+export async function fetchScanMatcher(units: OrgUnit[]): Promise<ScanMatcher> {
+  return buildScanMatcher(await fetchPcScans(), units);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -121,7 +169,7 @@ export async function fetchSubmittedEmails(): Promise<Set<string>> {
 // parentId 기반으로만 구성되므로 계열사마다 구조가 달라도 그대로 반영된다.
 // ─────────────────────────────────────────────────────────────────────────────
 export interface OrgProgress { total: number; verified: number }
-export interface MemberStatus extends OrgMember { submitted: boolean }
+export interface MemberStatus extends OrgMember, MemberMatch {}
 export interface OrgTreeNode extends OrgUnit {
   children: OrgTreeNode[];
   ownProgress: OrgProgress;   // 이 단위에 직접 등록된 인원만
@@ -129,18 +177,22 @@ export interface OrgTreeNode extends OrgUnit {
   memberStatus: MemberStatus[]; // 이 단위에 직접 등록된 인원 각각의 제출 여부(진행률 상세 표시용)
 }
 
-// submittedEmails: PC 실사 제출 기록(PcScanRecord)에서 수집된 이메일 집합(소문자 정규화)
-export function computeUnitProgress(unit: OrgUnit, submittedEmails: Set<string>): OrgProgress {
+export function memberStatusOf(unit: OrgUnit, matcher: ScanMatcher): MemberStatus[] {
+  return unit.members.map(m => ({ ...m, ...matcher.match(unit.company, m) }));
+}
+
+export function computeUnitProgress(unit: OrgUnit, matcher: ScanMatcher): OrgProgress {
   if (unit.members.length === 0) return { total: 0, verified: 0 };
-  const verified = unit.members.filter(m => submittedEmails.has(m.email.trim().toLowerCase())).length;
+  const verified = memberStatusOf(unit, matcher).filter(m => m.submitted).length;
   return { total: unit.members.length, verified };
 }
 
-export function buildOrgTree(units: OrgUnit[], submittedEmails: Set<string>): OrgTreeNode[] {
+export function buildOrgTree(units: OrgUnit[], matcher: ScanMatcher): OrgTreeNode[] {
   const byId = new Map<string, OrgTreeNode>();
   for (const u of units) {
-    const memberStatus = u.members.map(m => ({ ...m, submitted: submittedEmails.has(m.email.trim().toLowerCase()) }));
-    byId.set(u.id, { ...u, children: [], ownProgress: computeUnitProgress(u, submittedEmails), rollupProgress: { total: 0, verified: 0 }, memberStatus });
+    const memberStatus = memberStatusOf(u, matcher);
+    const ownProgress = { total: u.members.length, verified: memberStatus.filter(m => m.submitted).length };
+    byId.set(u.id, { ...u, children: [], ownProgress, rollupProgress: { total: 0, verified: 0 }, memberStatus });
   }
   const roots: OrgTreeNode[] = [];
   for (const node of byId.values()) {
@@ -185,4 +237,9 @@ export function collectUnitIds(node: OrgTreeNode): string[] {
 // 서브트리에 속한 모든 인원(자기 자신 조직 + 하위 조직 전체) 나열
 export function collectMembers(node: OrgTreeNode): OrgMember[] {
   return [...node.members, ...node.children.flatMap(collectMembers)];
+}
+
+// 서브트리에 속한 모든 인원의 제출 상태(자기 자신 조직 + 하위 조직 전체) 나열 — 독려 메일 대상 선별용
+export function collectMemberStatus(node: OrgTreeNode): MemberStatus[] {
+  return [...node.memberStatus, ...node.children.flatMap(collectMemberStatus)];
 }

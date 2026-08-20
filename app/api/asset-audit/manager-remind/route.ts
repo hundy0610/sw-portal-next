@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyManagerToken } from "@/lib/asset-audit-token";
-import { fetchOrgUnits, buildOrgTree, findSubtree, collectMembers, fetchSubmittedEmails } from "@/lib/org-chart";
+import { fetchOrgUnits, buildOrgTree, findSubtree, collectMemberStatus, fetchScanMatcher } from "@/lib/org-chart";
 import { createMailTransporter } from "@/lib/mail";
 import { errorMessage } from "@/lib/api-error";
 
@@ -38,16 +38,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "인증이 만료되었습니다. 다시 로그인해주세요." }, { status: 401 });
     }
 
-    const [units, submittedEmails] = await Promise.all([fetchOrgUnits(), fetchSubmittedEmails()]);
-    const tree = buildOrgTree(units, submittedEmails);
+    const units = await fetchOrgUnits();
+    const tree = buildOrgTree(units, await fetchScanMatcher(units));
     const subtree = findSubtree(tree, payload.unitId);
     if (!subtree) {
       return NextResponse.json({ ok: false, error: "조직 정보를 찾을 수 없습니다." }, { status: 404 });
     }
 
     const byEmail = new Map<string, string>(); // email -> name
-    for (const m of collectMembers(subtree)) {
-      if (!m.email || submittedEmails.has(m.email.toLowerCase())) continue;
+    for (const m of collectMemberStatus(subtree)) {
+      // 동명이인으로 보류된 인원(ambiguous)에게는 보낸다 — 참여했을 수도 있다고
+      // 안 보내면 정말 안 한 사람이 빠진다. 메일 본문도 "이미 하셨으면 무시하라"고 안내한다.
+      if (!m.email.includes("@") || m.submitted) continue;
       if (!byEmail.has(m.email)) byEmail.set(m.email, m.name);
     }
 
