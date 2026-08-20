@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";
-import { fetchOrgUnits, buildOrgTree, submittedEmailsFromScans, type OrgTreeNode } from "@/lib/org-chart";
+import { fetchOrgUnits, buildOrgTree, buildScanMatcher, type OrgTreeNode } from "@/lib/org-chart";
 import { type HwRecord } from "@/lib/hw";
 import { kvGet } from "@/lib/kv-store";
 import { triggerWarmHw } from "@/lib/trigger-warm-hw";
@@ -45,7 +45,9 @@ export async function GET(req: NextRequest) {
     ]);
     if (!hwAll) triggerWarmHw().catch(console.warn);
     const hwRecords = hwAll ?? [];
-    const submittedEmails = submittedEmailsFromScans(scans);
+    // 동명이인(법인+이름) 판정은 대시보드에서 가려진 법인까지 봐야 안전하므로,
+    // 매처는 필터링 전 units 전체로 만든다.
+    const matcher = buildScanMatcher(scans, units);
 
     // 조직별 실사 진행률(트리)은 실제 소속 인원 명단 vs PC 실사 제출 기록으로 계산한다.
     // 대시보드에서 제외하기로 한 법인 소속 조직은 트리에서도 함께 제외한다.
@@ -53,7 +55,7 @@ export async function GET(req: NextRequest) {
       const normalized = normalizeCompany(u.company);
       return !normalized || !EXCLUDED_FROM_AUDIT_DASHBOARD.includes(normalized);
     });
-    const tree = buildOrgTree(visibleUnits, submittedEmails);
+    const tree = buildOrgTree(visibleUnits, matcher);
 
     // 계약 수량 대비 달성률의 "확인됨" 기준 — HW 마스터의 실사확인 체크박스는 구매 등록
     // 시 일괄 체크되거나 관리자가 수동으로 토글할 수 있어 실제 실사 여부와 무관하게 켜져
