@@ -50,9 +50,14 @@ export async function POST(req: NextRequest) {
 
   const isDualOrShared = typeof body.isDualOrShared === "boolean" ? body.isDualOrShared : false;
   const originalCorp = typeof body.originalCorp === "string" ? body.originalCorp.trim() : "";
+  // 공용PC — 예전 버전 에이전트는 이 필드를 안 보낸다(그때는 false, 기존과 동일 동작).
+  const isShared = typeof body.isShared === "boolean" ? body.isShared : false;
+  const sharedName = typeof body.sharedName === "string" ? body.sharedName.trim() : "";
 
   try {
-    const result = await upsertPcScan({ ...body, serial, pcName, isDualOrShared, originalCorp });
+    const result = await upsertPcScan({
+      ...body, serial, pcName, isDualOrShared, originalCorp, isShared, sharedName,
+    });
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {
     console.error("[POST /api/pc-scan]", e);

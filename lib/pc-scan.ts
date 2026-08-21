@@ -69,6 +69,8 @@ export interface PcScanPayload {
   corp?: string;
   isDualOrShared?: boolean;
   originalCorp?: string;
+  isShared?: boolean;
+  sharedName?: string;
   collectedAt?: string;
   price?: number;
   programsFileBase64?: string;
@@ -122,6 +124,19 @@ export interface PcScanRecord {
   corp: string;
   isDualOrShared: boolean;
   originalCorp: string;
+  /**
+   * 공용PC — 여럿이 함께 쓰는 PC(회의실·검사장비 등). `isDualOrShared`(겸직/쉐어드,
+   * 사람이 두 법인 일을 겸함)와 **다른 개념**이다.
+   *
+   * 예전에는 이 구분을 사용자 이름 규칙("용도_담당자이름_공용")으로 대신했다. 사람 칸에
+   * 사람 아닌 값이 들어가 실사 진행률의 조직도 명단 대조가 어긋났다. 이제 에이전트가
+   * 체크박스로 받고 userName 은 담당자 이름을 그대로 담는다.
+   *
+   * 이 필드가 생기기 전 레코드에는 없다(그래서 optional) — 그때는 false 로 본다.
+   */
+  isShared?: boolean;
+  /** 공용 용도/위치. 예: "3층 회의실". 공용이 아니면 빈 값. */
+  sharedName?: string;
   dept: string;
   userName: string;
   email: string;
@@ -132,6 +147,16 @@ export interface PcScanRecord {
   storage: string;
   mac: string;
   collectedAt: string;
+  /**
+   * 이 PC 가 수집된 시각 전부(오래된 것 → 최신). collectedAt 은 늘 마지막 수집
+   * 시각으로 덮이므로, 같은 PC 가 다음 회차에 재스캔되면 이전 회차의 수집 시각이
+   * 사라진다 — 회차별 진행률은 "그 기간에 수집됐는지"로 세기 때문에 지난 회차
+   * 진행률이 소급해서 줄어든다. 그것을 막기 위한 이력이다.
+   *
+   * 이 필드가 생기기 전 레코드에는 없다(그래서 optional) — 그 레코드가 다시
+   * 수집되는 순간 collectedAt 하나로 이력이 시작된다.
+   */
+  collectedHistory?: string[];
   price: number;
   masterExists: boolean;
   registered: boolean;
@@ -140,6 +165,20 @@ export interface PcScanRecord {
   programFileName: string;
   programFileUrl: string;
   notionUrl: string;
+}
+
+/**
+ * 수집 시각 이력에 이번 수집 시각을 더한다. 같은 시각은 한 번만 담고 오래된 순으로 둔다.
+ * 이력이 없는(필드가 생기기 전) 레코드는 기존 collectedAt 하나로 이력을 시작한다 —
+ * 안 그러면 이 변경 이후 첫 재스캔에서 옛 수집 시각이 그대로 사라진다.
+ */
+function appendCollectedAt(existing: PcScanRecord | undefined, at: string | undefined): string[] {
+  const prev = Array.isArray(existing?.collectedHistory)
+    ? existing!.collectedHistory!.filter(v => typeof v === "string" && v.trim() !== "")
+    : [existing?.collectedAt ?? ""].filter(v => v.trim() !== "");
+  const now = (at ?? "").trim();
+  if (!now || prev.includes(now)) return prev;
+  return [...prev, now].sort();
 }
 
 export interface PcScanMismatch {
@@ -224,6 +263,8 @@ function mapNotionPage(page: { id: string; properties: Record<string, { type: st
     corp:         (p["법인명"]?.type === "select" ? (p["법인명"].select as { name?: string } | null)?.name : "") ?? "",
     isDualOrShared: p["겸직/쉐어드"]?.type === "checkbox" ? (p["겸직/쉐어드"].checkbox as boolean) : false,
     originalCorp: (p["원소속법인"]?.type === "select" ? (p["원소속법인"].select as { name?: string } | null)?.name : "") ?? "",
+    isShared:     p["공용"]?.type === "checkbox" ? (p["공용"].checkbox as boolean) : false,
+    sharedName:   rt("공용용도"),
     dept:         rt("부서"),
     userName:     rt("사용자"),
     email:        (p["이메일"]?.type === "email" ? p["이메일"].email as string | null : "") ?? "",
@@ -306,6 +347,8 @@ export interface PcScanEditFields {
   corp?: string;
   isDualOrShared?: boolean;
   originalCorp?: string;
+  isShared?: boolean;
+  sharedName?: string;
   dept?: string;
   userName?: string;
   email?: string;
@@ -331,6 +374,8 @@ export async function updatePcScan(id: string, fields: PcScanEditFields, dbEnvVa
   if (fields.model          !== undefined) next.model = fields.model;
   if (fields.corp           !== undefined) next.corp = fields.corp;
   if (fields.isDualOrShared !== undefined) next.isDualOrShared = fields.isDualOrShared;
+  if (fields.isShared       !== undefined) next.isShared = fields.isShared;
+  if (fields.sharedName     !== undefined) next.sharedName = fields.sharedName;
   if (fields.originalCorp   !== undefined) next.originalCorp = fields.originalCorp;
   if (fields.dept           !== undefined) next.dept = fields.dept;
   if (fields.userName       !== undefined) next.userName = fields.userName;
@@ -425,6 +470,9 @@ export async function upsertPcScan(data: PcScanPayload, dbEnvVar: string = "NOTI
     model:          data.model ?? "",
     corp:           data.corp ?? "",
     isDualOrShared: !!data.isDualOrShared,
+    isShared:       !!data.isShared,
+    // 공용이 아니면 용도는 버린다 — 개인 PC 에 용도가 남으면 화면에서 공용처럼 보인다.
+    sharedName:     data.isShared ? (data.sharedName ?? "") : "",
     originalCorp:   data.originalCorp ?? "",
     dept:           data.dept ?? "",
     userName:       data.userName ?? "",
@@ -436,6 +484,9 @@ export async function upsertPcScan(data: PcScanPayload, dbEnvVar: string = "NOTI
     storage:        data.storage ?? "",
     mac:            scanMac ?? "",
     collectedAt:    data.collectedAt ?? "",
+    // collectedAt 은 의도대로 "마지막 수집 시각"으로 덮는다. 회차별 집계가 잃어버리는
+    // 지난 수집 시각은 이력에 쌓아 남긴다.
+    collectedHistory: appendCollectedAt(existing, data.collectedAt),
     price:          typeof data.price === "number" ? data.price : 0,
     masterExists,
     // 관리자 플래그는 스캔 페이로드에 없으므로 기존값 보존

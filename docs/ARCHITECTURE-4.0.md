@@ -62,10 +62,14 @@
 - **⚠️ 읽기 규칙 (중요)**: `readEntity()`는 미러가 켜져 있으면 데이터가 없어도 **빈 배열 `[]`** 을 돌려준다. 호출부는 `const m = await readEntity(...); if (m) return m; ...Notion폴백` 패턴이라 `[]`도 truthy → **미러가 켜지면 Notion으로 폴백하지 않는다.**
   - **따라서 전환(cutover) 전에 반드시 미러를 시드해야 한다.** 시드 안 하면 앱에 "빈 목록"이 뜬다(데이터 유실 아님, 표시만 비어 보임).
 
-### 현재 미러에 올라간 엔티티 (12종) + HW
-`entity_store`: `meeting-equipment`, `exchange-return`, `rental-hw`, `contracts`, `pc-scan`,
+### 현재 미러에 올라간 엔티티 (11종) + HW
+`entity_store`: `meeting-equipment`, `exchange-return`, `contracts`, `pc-scan`,
 `pc-register`, `sw`, `hw-repair`, `helpdesk`, `repair`, `meeting-rental`, `credentials`,
 `survey-demand`(원본이 비어 0건) — 그리고 별도 테이블 `public.hw`.
+
+`rental-hw`(임대노트북 현황 관리)는 걷어냈다 — 임대 자산의 원본은 HWDB 하나이고, 법인명이
+`임대용`이고 상태가 `재고`인 자산이 임대 재고다(데스크탑 앱 v1.30.0). `entity_store` 의 기존
+31건은 지우지 않고 남겨뒀지만 읽지도 쓰지도 않고, Notion 백업 대상에서도 빠졌다.
 
 ---
 

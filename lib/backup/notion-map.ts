@@ -84,6 +84,8 @@ export function buildHwBackupProperties(r: Record<string, unknown>): Props {
     "법인명": P.select(r.company),
     "부서": P.text(r.dept),
     "위치": P.text(r.location),
+    "창고": P.text(r.warehouse),
+    "창고칸": P.text(r.warehouseCell),
     "사용/재고/폐기/기타": P.select(r.status),
     "반납예정일": P.date(r.returnDue),
     "반납일자": P.date(r.returnDate),
@@ -91,9 +93,14 @@ export function buildHwBackupProperties(r: Record<string, unknown>): Props {
     "사용일자": P.date(r.useDate),
     "기타": P.text(r.note),
     "결재문서번호": P.text(r.docNo),
+    "IO코드": P.text(r.ioCode),
     "MAC": P.text(r.mac),
     "이메일": P.email(r.email),
     "실사확인": P.checkbox(r.verified),
+    // 공용 자산 — Notion HW DB 에 "공용"(체크박스) · "공용용도"(텍스트) 속성 필요
+    // (scripts/sql/002_hw_shared_column.sql · Assetify Desktop).
+    "공용": P.checkbox(r.isShared),
+    "공용용도": P.text(r.sharedName),
     "마지막수정자": P.text(r.lastModifiedBy),
     "마지막수정일시": P.text(r.lastModifiedAt),
     "변경이력": P.text(r.changeLog),
@@ -180,23 +187,6 @@ export const entityRegistry: Record<string, NotionBackupEntry> = {
       "자동동기화": P.checkbox(d.autoSynced),
       "케이스종료": P.checkbox(d.isClosed),
       "마지막수정자": P.text(d.lastModifiedBy),
-    }),
-  },
-
-  // 렌탈 HW — "상태"는 Notion formula 이므로 기록 제외.
-  "rental-hw": {
-    databaseId: process.env.NOTION_DB_RENTAL_HW,
-    buildProperties: (d) => ({
-      "실사용자 / 지급사유": P.title(d.userAndReason),
-      "요청인": P.text(d.requester),
-      "부서": P.text(d.dept),
-      "출고자산번호": P.text(d.assetNo),
-      "출고자산번호 (기존)": P.text(d.assetNoOld),
-      "인증 DLP 계정": P.text(d.dlpAccount),
-      "재고": P.checkbox(d.inStock),
-      "요청법인": P.select(d.company),
-      "사용시작일": P.date(d.startDate),
-      "반납예정일": P.date(d.returnDue),
     }),
   },
 
@@ -456,6 +446,10 @@ function buildPcScanProperties(d: Record<string, unknown>): Props {
     "법인명": P.select(d.corp),
     "겸직/쉐어드": P.checkbox(d.isDualOrShared),
     "원소속법인": P.select(d.originalCorp),
+    // 공용PC — Notion PC스캔/PC등록 DB 에 "공용"(체크박스) · "공용용도"(텍스트) 속성이
+    // 있어야 한다. 매핑은 화이트리스트라 속성이 없으면 이 백업이 실패한다.
+    "공용": P.checkbox(d.isShared),
+    "공용용도": P.text(d.sharedName),
     "부서": P.text(d.dept),
     "사용자": P.text(d.userName),
     "이메일": P.email(d.email),
@@ -497,13 +491,6 @@ export const seedRegistry: Record<string, EntitySeedSource> = {
     fetch: async () => {
       const { fetchExchangeReturnsFromNotion } = await import("@/lib/exchange-return");
       const rows = await fetchExchangeReturnsFromNotion();
-      return rows.map(r => ({ id: r.id, notionId: r.id, data: r as unknown as Record<string, unknown> }));
-    },
-  },
-  "rental-hw": {
-    fetch: async () => {
-      const { fetchRentalRecordsFromNotion } = await import("@/lib/rental-hw");
-      const rows = await fetchRentalRecordsFromNotion();
       return rows.map(r => ({ id: r.id, notionId: r.id, data: r as unknown as Record<string, unknown> }));
     },
   },

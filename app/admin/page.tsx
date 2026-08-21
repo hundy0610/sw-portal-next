@@ -21,7 +21,6 @@ const AssetMapPanel     = dynamic(() => import("@/components/admin/AssetMapPanel
 const HelpDeskPanel     = dynamic(() => import("@/components/admin/HelpDeskPanel"),     { ssr: false });
 const ContractPanel     = dynamic(() => import("@/components/admin/ContractPanel"),     { ssr: false });
 const RepairPanel       = dynamic(() => import("@/components/admin/RepairPanel"),       { ssr: false });
-const RentalHwPanel     = dynamic(() => import("@/components/admin/RentalHwPanel"),     { ssr: false });
 const HwRepairPanel          = dynamic(() => import("@/components/admin/HwRepairPanel"),          { ssr: false });
 const ExchangeReturnPanel    = dynamic(() => import("@/components/admin/ExchangeReturnPanel"),    { ssr: false });
 const WorkFeedbackPanel      = dynamic(() => import("@/components/admin/WorkFeedbackPanel"),      { ssr: false });
@@ -69,7 +68,6 @@ const SUPER_GROUPS: MenuGroup[] = [
       { id: "hw",              icon: "",   label: "노트북/데스크탑 자산관리", desc: "NT/DT 재고 · 반납 관리"     },
       { id: "pc-register",     icon: "",   label: "PC 신규 등록",             desc: "자산 실사 방식 수집 데이터로 신규 등록" },
       { id: "hw-repair",       icon: "",   label: "수리/과실청구 트래커",     desc: "외부 수리 · 과실 청구 관리" },
-      { id: "rental-hw",       icon: "",   label: "임대노트북 현황 관리",     desc: "임시 PC 대여 · 반납 관리"   },
       { id: "assetmap",        icon: "",   label: "스마트오피스 모니터 관리", desc: "인터랙티브 자산 맵"         },
       {
         id: "pc-scan", icon: "", label: "온라인 자산 실사", desc: "WPF 에이전트 PC 수집 데이터",
@@ -255,7 +253,6 @@ export default function AdminPage() {
         setPage("report");
       }} />;
       case "hw":          return <HwPanel company={company} initialStats={hwStatsPrefetch} isSuperAdmin={isSuper} />;
-      case "rental-hw":   return canAccess("rental-hw") ? <RentalHwPanel /> : <AccessDenied />;
       case "meeting-rental": return canAccess("meeting-rental") ? <MeetingRentalPanel /> : <AccessDenied />;
       case "assetmap":    return <AssetMapPanel session={session} />;
       case "helpdesk":    return <HelpDeskPanel company={isSuper ? "" : company} currentUserName={session?.name ?? ""} />;
