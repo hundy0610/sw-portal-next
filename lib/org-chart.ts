@@ -7,6 +7,12 @@ import { normalizeCompany } from "./companies";
 // 값으로 두어 바로 편집 가능하게 한다.
 const KV_KEY = "orgChart:units";
 
+// 실제 구조는 법인 → 사업부 → 실 → 팀 → 파트 이고, 중간 단계가 없어 바로 팀이거나
+// 파트인 경우도 있다. "본부"·"센터"는 지우지 않는다 — KV 에 이미 저장된 값이라
+// 타입에서 빼면 기존 데이터가 타입 위반이 된다.
+// **데스크탑 앱(core/org-chart.ts)과 같은 목록이어야 한다** — 같은 KV 조직도를 쓰므로,
+// 여기에 "실"·"파트"가 없으면 앱에서 만든 그 조직을 웹에서 열어 저장할 때 select 에
+// 없는 값이라 첫 옵션("사업부")으로 조용히 덮어써진다.
 export type OrgLevel = "사업부" | "실" | "팀" | "파트" | "본부" | "센터";
 
 export interface OrgMember {
@@ -100,23 +106,65 @@ export async function archiveOrgUnit(id: string): Promise<void> {
   if (!ok) throw new Error("ORG_CHART_SAVE_FAILED");
 }
 
-// 실사 제출 대조 — 1순위 이메일, 실패 시 2순위 법인+이름. 실측에서 email이 "-"인
-// 제출 건이 있어(9/33) 이메일만으로는 그 인원이 영원히 미제출로 남는다. 부서는
-// 표기가 흔들려 기준으로 쓰지 않는다. 조직도 쪽에 같은 법인+이름이 둘 이상이면
-// 이름 폴백을 하지 않고 ambiguous로 보류한다(스캔 쪽 동명이인은 PC 단위 제출이라
-// 정상이므로 모호로 보지 않는다).
-export interface ScanIdentity { corp: string; originalCorp: string; userName: string; email: string }
-export type MatchBasis = "email" | "name";
-export interface MemberMatch { submitted: boolean; basis: MatchBasis | null; ambiguous: boolean }
-export interface ScanMatcher { match(company: string, member: OrgMember): MemberMatch }
+// ─────────────────────────────────────────────────────────────────────────────
+// 실사 제출 대조 — 이메일 하나로만 맞추던 것을 2단계로 바꿨다.
+//
+// 실측(제출 33건)에서 9건의 email 이 문자열 "-" 였다. 예전 filter(Boolean) 은 "-" 를
+// truthy 로 통과시켜 집합에 넣었고, 명단에 "-" 인 사람은 없으니 그 9명은 어느 조직에서도
+// 영원히 미제출로 남았다. 그 9건 모두 법인·이름은 채워져 있다(이름은 33/33 전부 있다).
+//
+//   1) 이메일 정확 일치            — 확실
+//   2) 실패 시 법인 + 이름 일치    — 보조
+//   3) 조직도에 같은 법인·이름이 둘 이상이면 매칭하지 않고 경고(ambiguous)
+//
+// 부서는 일부러 안 쓴다 — 표기가 흔들리는 경우가 많아 기준이 못 된다.
+// 스캔 쪽 동명이인은 모호로 보지 않는다. 스캔은 PC 단위라 한 사람이 노트북·데스크탑을
+// 각각 내면 같은 이름이 여러 건인 게 정상이다. 모호한 것은 조직도 쪽 중복뿐이다.
+//
+// **데스크탑 앱(core/org-chart.ts)과 같은 규칙이어야 한다** — 같은 KV 조직도를 읽고
+// 같은 진행률을 보여주는 화면이라, 한쪽만 고치면 앱과 웹의 숫자가 갈린다.
+// ─────────────────────────────────────────────────────────────────────────────
 
+// 대조에 쓰는 스캔 레코드의 최소 형태(PcScanRecord 의 부분집합)
+export interface ScanIdentity {
+  corp: string;
+  originalCorp: string;
+  userName: string;
+  email: string;
+}
+
+export type MatchBasis = "email" | "name";
+
+export interface MemberMatch {
+  submitted: boolean;
+  basis: MatchBasis | null; // 무엇으로 맞췄는지. 미제출이면 null
+  ambiguous: boolean;       // 이름으로 붙을 뻔했는데 조직도에 동명이인이 있어 보류한 건
+}
+
+export interface ScanMatcher {
+  match(company: string, member: OrgMember): MemberMatch;
+}
+
+// 법인 표기 정규화 — 표준 목록에 있으면 표준 표기로, 없으면 원문 기준으로 맞춘다.
 function companyKey(raw: string): string {
   return (normalizeCompany(raw ?? "") ?? (raw ?? "").trim()).toLowerCase();
 }
-function nameKey(raw: string): string { return (raw ?? "").replace(/\s+/g, "").toLowerCase(); }
-function emailKey(raw: string): string { return (raw ?? "").trim().toLowerCase(); }
-function isEmail(raw: string): boolean { return emailKey(raw).includes("@"); }
 
+function nameKey(raw: string): string {
+  return (raw ?? "").replace(/\s+/g, "").toLowerCase();
+}
+
+function emailKey(raw: string): string {
+  return (raw ?? "").trim().toLowerCase();
+}
+
+// 이메일로 쓸 수 있는 값인지 — "-" 같은 자리표시자를 걸러낸다.
+function isEmail(raw: string): boolean {
+  return emailKey(raw).includes("@");
+}
+
+// units 를 함께 받는 이유: 동명이인 판정은 조직도 전체를 봐야 한다. 같은 법인 안
+// 다른 팀에 같은 이름이 있어도 이름 폴백은 못 쓴다.
 export function buildScanMatcher(scans: ScanIdentity[], units: OrgUnit[]): ScanMatcher {
   const submittedEmails = new Set<string>();
   const submittedNames = new Set<string>();
@@ -127,7 +175,7 @@ export function buildScanMatcher(scans: ScanIdentity[], units: OrgUnit[]): ScanM
     // 겸직/쉐어드는 조직도 소속이 원소속법인 쪽일 수 있어 둘 다 색인한다.
     for (const c of [s.corp, s.originalCorp]) {
       const ck = companyKey(c);
-      if (ck) submittedNames.add(`${ck} ${n}`);
+      if (ck) submittedNames.add(`${ck}\u0000${n}`);
     }
   }
 
@@ -138,7 +186,7 @@ export function buildScanMatcher(scans: ScanIdentity[], units: OrgUnit[]): ScanM
     for (const m of u.members) {
       const n = nameKey(m.name);
       if (!ck || !n) continue;
-      const k = `${ck} ${n}`;
+      const k = `${ck}\u0000${n}`;
       rosterCount.set(k, (rosterCount.get(k) ?? 0) + 1);
     }
   }
@@ -151,7 +199,8 @@ export function buildScanMatcher(scans: ScanIdentity[], units: OrgUnit[]): ScanM
       const ck = companyKey(company);
       const n = nameKey(member.name);
       if (!ck || !n) return { submitted: false, basis: null, ambiguous: false };
-      const k = `${ck} ${n}`;
+
+      const k = `${ck}\u0000${n}`;
       if (!submittedNames.has(k)) return { submitted: false, basis: null, ambiguous: false };
       if ((rosterCount.get(k) ?? 0) > 1) return { submitted: false, basis: null, ambiguous: true };
       return { submitted: true, basis: "name", ambiguous: false };
@@ -159,6 +208,8 @@ export function buildScanMatcher(scans: ScanIdentity[], units: OrgUnit[]): ScanM
   };
 }
 
+// 제출 기록을 읽어 매처를 만든다. scans 를 이미 조회한 호출부(대시보드)는
+// buildScanMatcher 를 직접 쓰면 fetchPcScans 중복 호출을 피할 수 있다.
 export async function fetchScanMatcher(units: OrgUnit[]): Promise<ScanMatcher> {
   return buildScanMatcher(await fetchPcScans(), units);
 }
@@ -191,8 +242,13 @@ export function buildOrgTree(units: OrgUnit[], matcher: ScanMatcher): OrgTreeNod
   const byId = new Map<string, OrgTreeNode>();
   for (const u of units) {
     const memberStatus = memberStatusOf(u, matcher);
-    const ownProgress = { total: u.members.length, verified: memberStatus.filter(m => m.submitted).length };
-    byId.set(u.id, { ...u, children: [], ownProgress, rollupProgress: { total: 0, verified: 0 }, memberStatus });
+    byId.set(u.id, {
+      ...u,
+      children: [],
+      ownProgress: { total: u.members.length, verified: memberStatus.filter(m => m.submitted).length },
+      rollupProgress: { total: 0, verified: 0 },
+      memberStatus,
+    });
   }
   const roots: OrgTreeNode[] = [];
   for (const node of byId.values()) {
@@ -239,7 +295,9 @@ export function collectMembers(node: OrgTreeNode): OrgMember[] {
   return [...node.members, ...node.children.flatMap(collectMembers)];
 }
 
-// 서브트리에 속한 모든 인원의 제출 상태(자기 자신 조직 + 하위 조직 전체) 나열 — 독려 메일 대상 선별용
+// 서브트리 전체의 인원 + 제출 여부. 독려 메일 대상(미제출자)을 고를 때 쓴다 —
+// members 만 모으면 2단계 대조 결과(이름으로 맞춘 건)를 잃어버려, 이미 참여한
+// 사람에게 독려 메일이 나간다.
 export function collectMemberStatus(node: OrgTreeNode): MemberStatus[] {
   return [...node.memberStatus, ...node.children.flatMap(collectMemberStatus)];
 }

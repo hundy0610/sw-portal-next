@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { safeJson } from "@/lib/fetch-json";
 import { parseMembers, serializeMembers, type OrgUnit, type OrgLevel } from "@/lib/org-chart";
 
+// 계층 순. "본부"·"센터"는 이미 저장된 데이터가 있어 남긴다(앱의 LEVELS 와 같은 목록).
 const LEVELS: OrgLevel[] = ["사업부", "실", "팀", "파트", "본부", "센터"];
 
 type FormState = {
