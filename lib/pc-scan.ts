@@ -132,6 +132,16 @@ export interface PcScanRecord {
   storage: string;
   mac: string;
   collectedAt: string;
+  /**
+   * 이 PC 가 수집된 시각 전부(오래된 것 → 최신). collectedAt 은 늘 마지막 수집
+   * 시각으로 덮이므로, 같은 PC 가 다음 회차에 재스캔되면 이전 회차의 수집 시각이
+   * 사라진다 — 회차별 진행률은 "그 기간에 수집됐는지"로 세기 때문에 지난 회차
+   * 진행률이 소급해서 줄어든다. 그것을 막기 위한 이력이다.
+   *
+   * 이 필드가 생기기 전 레코드에는 없다(그래서 optional) — 그 레코드가 다시
+   * 수집되는 순간 collectedAt 하나로 이력이 시작된다.
+   */
+  collectedHistory?: string[];
   price: number;
   masterExists: boolean;
   registered: boolean;
@@ -140,6 +150,20 @@ export interface PcScanRecord {
   programFileName: string;
   programFileUrl: string;
   notionUrl: string;
+}
+
+/**
+ * 수집 시각 이력에 이번 수집 시각을 더한다. 같은 시각은 한 번만 담고 오래된 순으로 둔다.
+ * 이력이 없는(필드가 생기기 전) 레코드는 기존 collectedAt 하나로 이력을 시작한다 —
+ * 안 그러면 이 변경 이후 첫 재스캔에서 옛 수집 시각이 그대로 사라진다.
+ */
+function appendCollectedAt(existing: PcScanRecord | undefined, at: string | undefined): string[] {
+  const prev = Array.isArray(existing?.collectedHistory)
+    ? existing!.collectedHistory!.filter(v => typeof v === "string" && v.trim() !== "")
+    : [existing?.collectedAt ?? ""].filter(v => v.trim() !== "");
+  const now = (at ?? "").trim();
+  if (!now || prev.includes(now)) return prev;
+  return [...prev, now].sort();
 }
 
 export interface PcScanMismatch {
@@ -436,6 +460,9 @@ export async function upsertPcScan(data: PcScanPayload, dbEnvVar: string = "NOTI
     storage:        data.storage ?? "",
     mac:            scanMac ?? "",
     collectedAt:    data.collectedAt ?? "",
+    // collectedAt 은 의도대로 "마지막 수집 시각"으로 덮는다. 회차별 집계가 잃어버리는
+    // 지난 수집 시각은 이력에 쌓아 남긴다.
+    collectedHistory: appendCollectedAt(existing, data.collectedAt),
     price:          typeof data.price === "number" ? data.price : 0,
     masterExists,
     // 관리자 플래그는 스캔 페이로드에 없으므로 기존값 보존
