@@ -114,6 +114,8 @@ function companyKey(raw: string): string {
   return (normalizeCompany(raw ?? "") ?? (raw ?? "").trim()).toLowerCase();
 }
 function nameKey(raw: string): string { return (raw ?? "").replace(/\s+/g, "").toLowerCase(); }
+// 법인+이름 합성 키의 구분자는 NUL 이다. 공백이면 nameKey 가 이름의 공백을 지우므로
+// ("idsTrust A","홍길동") 과 ("idsTrust","A 홍길동") 이 같은 키가 된다.
 function emailKey(raw: string): string { return (raw ?? "").trim().toLowerCase(); }
 function isEmail(raw: string): boolean { return emailKey(raw).includes("@"); }
 
@@ -127,7 +129,7 @@ export function buildScanMatcher(scans: ScanIdentity[], units: OrgUnit[]): ScanM
     // 겸직/쉐어드는 조직도 소속이 원소속법인 쪽일 수 있어 둘 다 색인한다.
     for (const c of [s.corp, s.originalCorp]) {
       const ck = companyKey(c);
-      if (ck) submittedNames.add(`${ck} ${n}`);
+      if (ck) submittedNames.add(`${ck}\u0000${n}`);
     }
   }
 
@@ -138,7 +140,7 @@ export function buildScanMatcher(scans: ScanIdentity[], units: OrgUnit[]): ScanM
     for (const m of u.members) {
       const n = nameKey(m.name);
       if (!ck || !n) continue;
-      const k = `${ck} ${n}`;
+      const k = `${ck}\u0000${n}`;
       rosterCount.set(k, (rosterCount.get(k) ?? 0) + 1);
     }
   }
@@ -151,7 +153,7 @@ export function buildScanMatcher(scans: ScanIdentity[], units: OrgUnit[]): ScanM
       const ck = companyKey(company);
       const n = nameKey(member.name);
       if (!ck || !n) return { submitted: false, basis: null, ambiguous: false };
-      const k = `${ck} ${n}`;
+      const k = `${ck}\u0000${n}`;
       if (!submittedNames.has(k)) return { submitted: false, basis: null, ambiguous: false };
       if ((rosterCount.get(k) ?? 0) > 1) return { submitted: false, basis: null, ambiguous: true };
       return { submitted: true, basis: "name", ambiguous: false };
