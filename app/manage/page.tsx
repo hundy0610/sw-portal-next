@@ -5,6 +5,7 @@ import QRCode from "qrcode";
 import type { Notice, Course, SwVersion, SwDoc, Manual } from "@/types/portal";
 import type { SwItem } from "@/types";
 import { safeJson } from "@/lib/fetch-json";
+import { SW_POLICY_SEED } from "@/lib/sw-policy-seed";
 
 /* ── 색상 토큰 — 브랜드 앰버로 통일, CSS 변수 참조 (다크모드는 .portal-dark로 자동 대응) ── */
 const C = {
@@ -349,6 +350,7 @@ function SwPanel() {
   const [saving,    setSaving]    = useState(false);
   const [editing,   setEditing]   = useState<SwItem | null>(null);
   const [filter,    setFilter]    = useState<"all" | SwItem["status"]>("all");
+  const [importing, setImporting] = useState(false);
 
   const defaultForm = { name: "", vendor: "", category: "", status: "conditional" as SwItem["status"], description: "", alternatives: "", mandatory: false, officialUrl: "" };
   const [form, setForm] = useState(defaultForm);
@@ -393,6 +395,29 @@ function SwPanel() {
     }
   }
 
+  // 큐레이션된 확장 목록(SW_POLICY_SEED, 171종)을 일괄 가져온다. 이름이 이미 있는
+  // 항목은 건너뛰므로 몇 번을 눌러도 중복 등록되지 않는다.
+  async function handleBulkImport() {
+    if (!confirm(`화이트/블랙/예외 확장 목록(최대 ${SW_POLICY_SEED.length}종)을 가져옵니다.\n이미 등록된 이름은 건너뜁니다. 계속할까요?`)) return;
+    setImporting(true);
+    try {
+      const res = await fetch("/api/sw-db", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ _action: "bulkImport", items: SW_POLICY_SEED }),
+      });
+      const json = await safeJson(res);
+      if (json.ok) {
+        alert(`${json.created}건 등록됨 (${json.skipped}건은 이미 있어 건너뜀)`);
+        load();
+      } else {
+        alert(json.error ?? "가져오기 실패");
+      }
+    } finally {
+      setImporting(false);
+    }
+  }
+
   async function del(id: string, name: string) {
     if (!confirm(`"${name}" 을(를) 삭제하시겠습니까?`)) return;
     try {
@@ -407,34 +432,51 @@ function SwPanel() {
   const STATUS_STYLE: Record<SwItem["status"], { text: string; bg: string; color: string }> = {
     approved:    { text: "승인",   bg: "var(--state-positive-soft)", color: "var(--state-positive)" },
     banned:      { text: "금지",   bg: "var(--state-risk-soft)", color: "var(--state-risk)" },
+    blocked:     { text: "금지",   bg: "var(--state-risk-soft)", color: "var(--state-risk)" },
     conditional: { text: "조건부", bg: "var(--state-caution-soft)", color: "var(--state-caution)" },
+    excluded:    { text: "예외",   bg: "var(--state-progress-soft)", color: "var(--state-progress)" },
   };
 
+  // "blocked"는 과거 데이터에만 존재하는 값이라 필터·등록폼에는 노출하지 않는다
+  // (신규 등록은 항상 "banned"로 — isBannedPolicy()가 둘을 같은 것으로 취급한다).
   const FILTERS: { key: "all" | SwItem["status"]; label: string }[] = [
     { key: "all",         label: `전체 (${items.length})` },
     { key: "approved",    label: `승인 (${items.filter(i => i.status === "approved").length})` },
     { key: "conditional", label: `조건부 (${items.filter(i => i.status === "conditional").length})` },
-    { key: "banned",      label: `금지 (${items.filter(i => i.status === "banned").length})` },
+    { key: "banned",      label: `금지 (${items.filter(i => i.status === "banned" || i.status === "blocked").length})` },
+    { key: "excluded",    label: `예외 (${items.filter(i => i.status === "excluded").length})` },
   ];
 
-  const filtered = filter === "all" ? items : items.filter(i => i.status === filter);
+  const filtered = filter === "all"
+    ? items
+    : filter === "banned"
+      ? items.filter(i => i.status === "banned" || i.status === "blocked")
+      : items.filter(i => i.status === filter);
 
   return (
     <div>
       <SectionHeader title="SW 검색 관리" count={items.length} onAdd={startAdd} />
 
-      {/* 상태 필터 */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
-        {FILTERS.map(f => (
-          <button key={f.key} onClick={() => setFilter(f.key)}
-            style={{ padding: "6px 14px", borderRadius: 12, border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer",
-              background: filter === f.key ? C.primary : "var(--portal-surface)",
-              color:      filter === f.key ? "#fff"     : C.text3,
-              boxShadow:  filter === f.key ? "none" : `0 0 0 1px ${C.border}`,
-            }}>
-            {f.label}
-          </button>
-        ))}
+      {/* 상태 필터 + 확장 목록 일괄 가져오기 */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {FILTERS.map(f => (
+            <button key={f.key} onClick={() => setFilter(f.key)}
+              style={{ padding: "6px 14px", borderRadius: 12, border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                background: filter === f.key ? C.primary : "var(--portal-surface)",
+                color:      filter === f.key ? "#fff"     : C.text3,
+                boxShadow:  filter === f.key ? "none" : `0 0 0 1px ${C.border}`,
+              }}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <button onClick={handleBulkImport} disabled={importing}
+          title="큐레이션된 화이트/블랙/예외 확장 목록을 한 번에 등록합니다. 이미 있는 이름은 건너뜁니다."
+          style={{ padding: "6px 14px", borderRadius: 12, border: `1px solid ${C.border}`, background: "var(--portal-surface)",
+            color: C.text3, fontSize: 12, fontWeight: 600, cursor: importing ? "default" : "pointer", opacity: importing ? 0.6 : 1 }}>
+          {importing ? "가져오는 중…" : `확장 목록 일괄 가져오기 (${SW_POLICY_SEED.length}종)`}
+        </button>
       </div>
 
       {adding && (
@@ -450,6 +492,7 @@ function SwPanel() {
                 <option value="approved">승인</option>
                 <option value="conditional">조건부</option>
                 <option value="banned">금지</option>
+                <option value="excluded">예외 (판정 대상 아님 — 보안모듈·드라이버 등)</option>
               </select>
             </Field>
           </div>

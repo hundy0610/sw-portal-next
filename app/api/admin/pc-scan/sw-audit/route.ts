@@ -49,6 +49,7 @@ export async function POST(req: NextRequest) {
       total: p.entries.length,
       whitelist: p.entries.filter(e => e.status === "whitelist").length,
       blacklist: p.entries.filter(e => e.status === "blacklist").length,
+      excluded: p.entries.filter(e => e.status === "excluded").length,
       unknown: p.entries.filter(e => e.status === "unknown").length,
     }));
 

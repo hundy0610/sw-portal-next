@@ -1,7 +1,7 @@
 import type { SwItem } from "@/types";
 import type { InstalledProgram } from "@/lib/pc-scan";
 
-export type SwMatchStatus = "whitelist" | "blacklist" | "unknown";
+export type SwMatchStatus = "whitelist" | "blacklist" | "unknown" | "excluded";
 
 export interface SwAuditEntry extends InstalledProgram {
   status: SwMatchStatus;
@@ -11,6 +11,51 @@ export interface SwAuditEntry extends InstalledProgram {
 // 공백/하이픈/버전 표기 차이를 흡수하기 위한 느슨한 이름 정규화
 function normalize(s: string): string {
   return s.toLowerCase().replace(/[\s\-_.()]/g, "");
+}
+
+/**
+ * 금지 정책인지 — "banned"와 "blocked" 둘 다 본다. SwItem 타입에는 "banned"만
+ * 있었지만 실제 KV 데이터에는 과거에 등록된 "blocked" 값이 섞여 있다(포털
+ * 코드 어디에도 "blocked"를 새로 쓰는 곳은 없다 — 이 코드가 쓰이기 전에
+ * 들어간 값으로 보인다). 한쪽만 보면 그 데이터가 조용히 허용으로 분류된다.
+ */
+export function isBannedPolicy(status: SwItem["status"] | string): boolean {
+  return status === "banned" || status === "blocked";
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 자동 예외 판정 — SW DB에 등록돼 있지 않아도, 이름·게시자로 봤을 때 "사용자가
+// 능동적으로 선택한 게 아닌" SW로 추정되면 "unknown"이 아니라 "excluded"로
+// 분류한다. 은행·공공기관 보안모듈이나 드라이버는 버전·모델명이 기기마다
+// 달라 하나하나 SW DB에 등록해서는 커버할 수 없어, 패턴으로 미리 걸러낸다.
+//
+// 게시자 목록은 "일반 사용자용 제품을 팔지 않는" 순수 보안 미들웨어/하드웨어
+// 벤더만 넣는다. AhnLab처럼 V3 백신 같은 일반 사용자용 제품도 함께 파는
+// 벤더는 여기 넣지 않는다 — 이름 패턴(EXCLUDED_NAME_PATTERNS)으로만 잡는다.
+// ─────────────────────────────────────────────────────────────────────────────
+const EXCLUDED_PUBLISHERS = [
+  "initech", "raonsecure", "wizvera", "dreamsecurity", "softforum",
+  "penta security", "ksign", "markany", "fasoo", "inca internet",
+  "intel corporation", "nvidia corporation", "realtek semiconductor",
+  "advanced micro devices", "synaptics incorporated",
+];
+
+const EXCLUDED_NAME_PATTERNS = [
+  "visual c++", "vcredist", "vc_redist",
+  ".net runtime", ".net desktop runtime", ".net framework",
+  "directx", "webview2", "windows sdk",
+  "안전거래", "safe transaction", // AhnLab Safe Transaction — 은행 접속 시 자동 설치
+  "touchen", "inisafe", "veraport", "delfino", "magicline",
+  "nprotect", "xecureweb", "isign", "anysign", "ipinside",
+];
+
+/** SW DB에 등록되지 않은 프로그램이 자동 예외 패턴에 해당하는지. */
+function looksAutoExcluded(name: string, publisher: string): boolean {
+  const n = normalize(name);
+  const pub = publisher.toLowerCase();
+  if (EXCLUDED_PUBLISHERS.some(k => pub.includes(k))) return true;
+  if (EXCLUDED_NAME_PATTERNS.some(k => n.includes(normalize(k)))) return true;
+  return false;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -67,8 +112,10 @@ export function commercialUseHint(name: string, publisher: string): CommercialUs
   return "unknown";
 }
 
-// 관리 중인 SW DB(화이트리스트=approved/conditional, 블랙리스트=banned)와 대조해
-// 각 설치 프로그램을 whitelist/blacklist/unknown 으로 분류한다.
+// 관리 중인 SW DB(화이트리스트=approved/conditional, 블랙리스트=banned/blocked,
+// 예외=excluded)와 대조해 각 설치 프로그램을 whitelist/blacklist/excluded/unknown
+// 으로 분류한다. SW DB에 없어도 자동 예외 패턴에 해당하면 excluded로 분류해
+// "미확인" 큐가 드라이버·보안모듈로 영원히 채워지는 걸 막는다.
 export function matchProgramsAgainstSwDb(programs: InstalledProgram[], swItems: SwItem[]): SwAuditEntry[] {
   return programs.map(p => {
     const pn = normalize(p.name);
@@ -78,8 +125,13 @@ export function matchProgramsAgainstSwDb(programs: InstalledProgram[], swItems: 
       if (!in_) return false;
       return pn === in_ || pn.includes(in_) || in_.includes(pn);
     });
-    if (!matched) return { ...p, status: "unknown" };
-    return { ...p, status: matched.status === "banned" ? "blacklist" : "whitelist", matchedItem: matched };
+    if (matched) {
+      if (isBannedPolicy(matched.status)) return { ...p, status: "blacklist", matchedItem: matched };
+      if (matched.status === "excluded") return { ...p, status: "excluded", matchedItem: matched };
+      return { ...p, status: "whitelist", matchedItem: matched };
+    }
+    if (looksAutoExcluded(p.name, p.publisher)) return { ...p, status: "excluded" };
+    return { ...p, status: "unknown" };
   });
 }
 

@@ -43,7 +43,11 @@ export interface SwItem {
   name: string;
   vendor: string;
   category: string;
-  status: "approved" | "banned" | "conditional";
+  // "blocked"는 화면에서 새로 만들 수 없는 값이지만 과거 데이터에 실존해
+  // isBannedPolicy()로 "banned"와 함께 처리한다(lib/sw-audit.ts 참고).
+  // "excluded"는 사용자가 능동적으로 선택하지 않는 SW(보안모듈·드라이버·
+  // OS 런타임 등)를 승인/금지 판정 대상에서 제외하기 위한 상태다.
+  status: "approved" | "banned" | "blocked" | "conditional" | "excluded";
   alternatives: string[];
   mandatory: boolean;
   description: string;
