@@ -7,9 +7,9 @@ import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { LabelPrintTab, PrintQueueSection } from "@/components/admin/LabelPrintTab";
 import { safeJson } from "@/lib/fetch-json";
-import { RENTAL_COMPANY } from "@/lib/companies";
 import { useAdminDarkMode } from "@/lib/use-admin-dark-mode";
 import { exportRowsToExcel } from "@/lib/xlsx-export";
+import { RENTAL_COMPANY } from "@/lib/companies";
 
 // 단계 필터 칩 색상 — 다크모드에서는 옅은 파스텔 배경 대신 중립 다크 서피스 +
 // dot 색상 텍스트로, 0건인 칩은 더 옅은 회색으로 표시한다.
@@ -690,14 +690,11 @@ function ReturnCompleteModal({
     setSaving(true);
     setError(null);
     try {
-      // 임대 자산도 HWDB 에서 찾는다 — 별도 임대 DB 는 없앴고, 임대 자산은 법인명이
-      // "임대용"인 HWDB 자산이다(데스크탑 앱 v1.30.0 과 같은 기준).
       let assetPageId: string | null = null;
       if (assetId) {
-        const res = await fetch(`/api/hw?search=${encodeURIComponent(assetId)}`).then(r => safeJson(r));
+        const res = await fetch(`/api/hw?assetNo=${encodeURIComponent(assetId)}`).then(r => safeJson(r));
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const found = (res.records as any[]).find((r: any) => r.assetNo === assetId) ??
-          (res.records.length === 1 ? res.records[0] : null);
+        const found = (res.records as any[]).find((r: any) => r.assetNo === assetId) ?? null;
         assetPageId = found?.id ?? null;
       }
 
@@ -714,8 +711,6 @@ function ReturnCompleteModal({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             id: assetPageId,
-            // 임대 반납은 항상 재고 복귀이고 사용자·부서를 비운다. 법인명("임대용")은
-            // 그대로 둬야 다음 임대 등록에서 다시 임대 재고로 잡힌다.
             fields: isRental
               ? { status: "재고", returnDate, returnDue: "", user: "", dept: "" }
               : { status: selectedStatus, returnDate, returnDue: "" },
@@ -772,7 +767,7 @@ function ReturnCompleteModal({
             <ul className="space-y-1 list-disc list-inside text-xs text-green-700">
               {assetId && (
                 isRental
-                  ? <li>임대 자산 <strong className="font-mono">{assetId}</strong> → HW DB: <strong>재고</strong> 전환, 사용자·부서 초기화 (법인명 <strong>임대용</strong>은 유지)</li>
+                  ? <li>임대 자산 <strong className="font-mono">{assetId}</strong> → HW DB 상태: <strong>재고</strong> 전환, 사용자/부서 초기화 (법인명 &quot;임대용&quot;은 유지)</li>
                   : <li>기존 자산 <strong className="font-mono">{assetId}</strong> → HW DB 상태: <strong>{selectedStatus}</strong></li>
               )}
               {assetId && <li>반납예정일 → 삭제</li>}
@@ -1603,23 +1598,25 @@ function DetailModal({
         setSaved(p => ({ ...p, [field]: true }));
         setTimeout(() => setSaved(p => ({ ...p, [field]: false })), 2000);
 
-        // 임대: 법인·부서·사용자 수정을 HWDB 쪽에 다시 반영한다.
-        // HWDB 법인 칸은 "임대용"으로 남아야 반납 후 다시 임대 재고로 잡히므로,
-        // 누가 쓰는 자산인지는 부서 한 칸에 "법인_부서" 로 합쳐 넣는다(등록할 때와 같은 규칙).
-        // 지급사유(note)는 내보내지 않는다 — HWDB 비고를 덮지 않는다.
+        // 임대: 법인/부서/사용자 수정 시 HWDB(자산번호로 연결된 hwId)와 동기화. 지급사유(note)는 보내지 않는다.
         if (record.type === "임대" && hwId && (field === "company" || field === "department" || field === "user")) {
-          const nextCompany = field === "company" ? (value.company as string) || "" : company;
-          const nextDept = field === "department"
-            ? (value.department as string) || ""
-            : record.department ?? "";
-          const nextUser = field === "user" ? (value.user as string) || "" : (userRef.current?.value ?? record.user ?? "");
-          const hwFields: Record<string, unknown> = { user: nextUser.trim() };
-          if (nextCompany && nextDept.trim()) hwFields.dept = `${nextCompany}_${nextDept.trim()}`;
-          fetch("/api/hw/update", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: hwId, fields: hwFields }),
-          }).catch(console.error);
+          const nextCompany    = field === "company"    ? ((value.company as string) || "")    : company;
+          const nextDepartment = field === "department" ? ((value.department as string) || "") : (departmentRef.current?.value ?? "");
+          const nextUser       = field === "user"       ? ((value.user as string) || "")       : (userRef.current?.value ?? "");
+          try {
+            const hwRes = await fetch("/api/hw/update", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                id: hwId,
+                fields: { dept: [nextCompany, nextDepartment].filter(Boolean).join("_"), user: nextUser },
+              }),
+            });
+            const hwJson = await safeJson(hwRes);
+            if (!hwJson.ok) setSaveErr({ field, msg: `HWDB 동기화 실패: ${hwJson.error || "저장 실패"}` });
+          } catch (e) {
+            setSaveErr({ field, msg: `HWDB 동기화 실패: ${String(e)}` });
+          }
         }
       } else {
         setSaveErr({ field, msg: json.error || "저장 실패" });
@@ -2203,20 +2200,18 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
   const [exNewPurchasing, setExNewPurchasing] = useState(false);
 
   // ── 임대 state ──
-  const [rnStock, setRnStock] = useState<{ id: string; assetNo: string; assetNoOld: string }[]>([]);
+  const [rnStock, setRnStock] = useState<StockAsset[]>([]);
   const [rnStockLoading, setRnStockLoading] = useState(false);
 
-  // 임대 재고는 HWDB 에서 온다 — 법인명이 "임대용"이고 상태가 "재고"인 자산만
-  // 고를 수 있다(데스크탑 앱 v1.30.0 과 같은 기준. 별도 임대 DB 는 없앴다).
+  // 임대: HWDB 에서 법인="임대용" & 상태="재고" 인 자산 목록 로드
   useEffect(() => {
     if (phase !== "form" || form.type !== "임대") return;
     setRnStockLoading(true);
-    fetch(`/api/hw?company=${encodeURIComponent(RENTAL_COMPANY)}&status=재고`)
-      .then(r => safeJson(r)).then(json => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const list = (json.records as any[] ?? []);
-        setRnStock(list.map(r => ({ id: r.id, assetNo: r.assetNo, assetNoOld: r.serial ?? "" })));
-      }).finally(() => setRnStockLoading(false));
+    fetch(`/api/hw?company=${encodeURIComponent(RENTAL_COMPANY)}&status=재고`).then(r => safeJson(r)).then(json => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const list = (json.records as any[] ?? []);
+      setRnStock(list.map(r => ({ id: r.id, assetNo: r.assetNo, model: r.model, cpu: r.cpu, ram: r.ram })));
+    }).finally(() => setRnStockLoading(false));
   }, [phase, form.type]);
 
   useEffect(() => {
@@ -2297,9 +2292,13 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
     setForm(p => ({ ...p, [k]: v }));
   };
 
-  // 교체/퇴사반납 등록
+  // 교체/퇴사반납/임대 등록
   const handleSubmit = async () => {
     if (!form.assetId.trim()) { setErr("자산번호를 입력해주세요."); return; }
+    if (form.type === "임대" && (!form.company.trim() || !form.department.trim() || !form.user.trim())) {
+      setErr("임대 지급은 법인·부서·사용자가 모두 필요합니다.");
+      return;
+    }
     setSaving(true); setErr(null);
     try {
       const res = await fetch("/api/exchange-return/create", {
@@ -2319,24 +2318,29 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
       }
       if (form.type === "임대") {
         const picked = rnStock.find(r => r.assetNo === form.assetId.trim());
-        if (picked) {
-          // 법인명은 "임대용"으로 남겨둔다(반납하면 다시 임대 재고로 잡혀야 한다).
-          // 사용 법인은 부서 칸에 "법인_부서" 로 합쳐 넣고, 지급사유는 흐름 레코드에만 둔다.
-          const hwDept = form.company && form.department.trim()
-            ? `${form.company}_${form.department.trim()}` : "";
-          fetch("/api/hw/update", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              id: picked.id,
-              fields: {
-                status: "사용중",
-                user: form.user.trim(),
-                dept: hwDept,
-                useDate: new Date().toISOString().slice(0, 10),
-                returnDue: form.returnDue || "",
-              },
-            }),
-          }).catch(console.error);
+        if (!picked) {
+          setErr("케이스는 등록됐지만 HWDB에서 해당 자산을 찾지 못해 지급 처리를 반영하지 못했습니다. 자산 상태를 직접 확인해주세요.");
+          onCreated();
+          return;
+        }
+        const hwRes = await fetch("/api/hw/update", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: picked.id,
+            fields: {
+              status: "사용중",
+              dept: [form.company, form.department].filter(Boolean).join("_"),
+              user: form.user,
+              useDate: new Date().toISOString().slice(0, 10),
+              returnDue: form.returnDue || "",
+            },
+          }),
+        });
+        const hwJson = await safeJson(hwRes);
+        if (!hwJson.ok) {
+          setErr(`케이스는 등록됐지만 HWDB 반영에 실패했습니다: ${hwJson.error || "저장 실패"}. 자산 ${picked.assetNo} 상태를 직접 확인해주세요.`);
+          onCreated();
+          return;
         }
       }
       onCreated(); onClose();
@@ -2668,11 +2672,11 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
                     </option>
                     {rnStock.map(r => (
                       <option key={r.id} value={r.assetNo}>
-                        {r.assetNo}{r.assetNoOld ? ` (구: ${r.assetNoOld})` : ""}
+                        {r.assetNo} — {r.model || "—"} — {[r.cpu, r.ram].filter(Boolean).join(" / ") || "—"}
                       </option>
                     ))}
                   </select>
-                  <p className="text-[11px] text-gray-400 mt-1">임대노트북현황관리 DB에서 재고 상태인 자산만 표시됩니다.</p>
+                  <p className="text-[11px] text-gray-400 mt-1">HW DB에서 법인 &quot;임대용&quot;·상태 &quot;재고&quot;인 자산만 표시됩니다.</p>
                 </div>
               ) : (
                 <div>
@@ -2751,20 +2755,20 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelCls}>법인</label>
+                  <label className={labelCls}>법인{form.type === "임대" && <span className="text-red-500"> *</span>}</label>
                   <select className={inputCls} value={form.company} onChange={set("company")}>
-                    <option value="">선택 안 함</option>
+                    <option value="">{form.type === "임대" ? "선택하세요" : "선택 안 함"}</option>
                     {COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className={labelCls}>부서</label>
+                  <label className={labelCls}>부서{form.type === "임대" && <span className="text-red-500"> *</span>}</label>
                   <input className={inputCls} placeholder="부서명" value={form.department} onChange={set("department")} />
                 </div>
               </div>
 
               <div>
-                <label className={labelCls}>사용자</label>
+                <label className={labelCls}>사용자{form.type === "임대" && <span className="text-red-500"> *</span>}</label>
                 <input className={inputCls} placeholder="사용자 이름" value={form.user} onChange={set("user")} />
               </div>
 

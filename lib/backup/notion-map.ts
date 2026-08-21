@@ -93,6 +93,7 @@ export function buildHwBackupProperties(r: Record<string, unknown>): Props {
     "사용일자": P.date(r.useDate),
     "기타": P.text(r.note),
     "결재문서번호": P.text(r.docNo),
+    "IO코드": P.text(r.ioCode),
     "MAC": P.text(r.mac),
     "이메일": P.email(r.email),
     "실사확인": P.checkbox(r.verified),

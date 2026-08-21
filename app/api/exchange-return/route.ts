@@ -1,10 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { fetchExchangeReturns } from "@/lib/exchange-return";
 import { isMirrorEnabled } from "@/lib/repo/mirror";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   // 4.0verMACBOOK: 메인 저장소는 맥북 Postgres(미러). 미러가 꺼져 있을 때만 Notion 필요.
   if (!isMirrorEnabled()) {
     for (const v of ["NOTION_TOKEN", "NOTION_DB_EXCHANGE_RETURN"]) {
@@ -17,9 +17,16 @@ export async function GET() {
     }
   }
 
+  const { searchParams } = new URL(req.url);
+  const assetId = searchParams.get("assetId")?.trim() || "";
+  const type    = searchParams.get("type")?.trim()    || "";
+
   try {
     // 미러(Postgres)에서 매 요청 조회 → 쓰기 즉시 반영.
-    const data = await fetchExchangeReturns();
+    let data = await fetchExchangeReturns();
+    // 자산 상세의 "임대 메모" 등 특정 자산/유형만 필요한 화면에서 전체 목록을 내려보내지 않도록 필터.
+    if (assetId) data = data.filter(r => r.assetId === assetId || r.newAssetId === assetId);
+    if (type)    data = data.filter(r => r.type === type);
     return NextResponse.json({ data, lastSynced: new Date().toISOString(), cached: false });
   } catch (error) {
     console.error("[API GET /exchange-return]", error);
