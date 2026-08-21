@@ -96,6 +96,10 @@ export function buildHwBackupProperties(r: Record<string, unknown>): Props {
     "MAC": P.text(r.mac),
     "이메일": P.email(r.email),
     "실사확인": P.checkbox(r.verified),
+    // 공용 자산 — Notion HW DB 에 "공용"(체크박스) · "공용용도"(텍스트) 속성 필요
+    // (scripts/sql/002_hw_shared_column.sql · Assetify Desktop).
+    "공용": P.checkbox(r.isShared),
+    "공용용도": P.text(r.sharedName),
     "마지막수정자": P.text(r.lastModifiedBy),
     "마지막수정일시": P.text(r.lastModifiedAt),
     "변경이력": P.text(r.changeLog),
@@ -441,6 +445,10 @@ function buildPcScanProperties(d: Record<string, unknown>): Props {
     "법인명": P.select(d.corp),
     "겸직/쉐어드": P.checkbox(d.isDualOrShared),
     "원소속법인": P.select(d.originalCorp),
+    // 공용PC — Notion PC스캔/PC등록 DB 에 "공용"(체크박스) · "공용용도"(텍스트) 속성이
+    // 있어야 한다. 매핑은 화이트리스트라 속성이 없으면 이 백업이 실패한다.
+    "공용": P.checkbox(d.isShared),
+    "공용용도": P.text(d.sharedName),
     "부서": P.text(d.dept),
     "사용자": P.text(d.userName),
     "이메일": P.email(d.email),
