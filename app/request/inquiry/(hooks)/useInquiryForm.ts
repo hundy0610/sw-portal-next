@@ -8,6 +8,7 @@ import {
   InquiryForm문의자Atom,
   InquiryForm법인Atom,
   InquiryForm부서Atom,
+  InquiryForm위치Atom,
   InquiryForm자산번호Atom,
   InquiryForm이메일Atom,
 } from "@/app/request/inquiry/(atoms)/useInquiryFormStore";
@@ -30,6 +31,7 @@ export const useInquiryForm = (): UseInquiryFormReturn => {
   const [문의내용, set문의내용] = useAtom(InquiryForm문의내용Atom);
   const [긴급도, set긴급도] = useAtom(InquiryForm긴급도Atom);
   const [이메일, set이메일] = useAtom(InquiryForm이메일Atom);
+  const [위치, set위치] = useAtom(InquiryForm위치Atom);
 
   const resetForm = () => {
     set법인("");
@@ -40,6 +42,7 @@ export const useInquiryForm = (): UseInquiryFormReturn => {
     set문의내용("");
     set긴급도("");
     set이메일("");
+    set위치("");
   };
 
   const { mutateAsync, isPending, error: mutationError } = useMutation({
@@ -53,6 +56,7 @@ export const useInquiryForm = (): UseInquiryFormReturn => {
       formData.append("문의내용", 문의내용);
       formData.append("긴급도", 긴급도);
       formData.append("이메일", 이메일);
+      formData.append("위치", 위치);
 
       const response = await fetch("/api/request/inquiry", {
         method: "POST",

@@ -18,9 +18,10 @@ function buildNotifyHtml(opts: {
   urgency: string;
   content: string;
   assetNo: string;
+  location: string;
   ticketUrl: string;
 }): string {
-  const { requester, company, department, inquiryType, urgency, content, assetNo, ticketUrl } = opts;
+  const { requester, company, department, inquiryType, urgency, content, assetNo, location, ticketUrl } = opts;
   const urgencyLabel = URGENCY_LABEL[urgency] ?? urgency;
   const companyDept = [company, department].filter(Boolean).join(" / ");
 
@@ -56,6 +57,10 @@ function buildNotifyHtml(opts: {
         <td style="padding:8px 12px;background:#F8FAFC;border:1px solid #E2E8F0;font-weight:600;color:#64748B;">긴급도</td>
         <td style="padding:8px 12px;border:1px solid #E2E8F0;color:#1E293B;">${urgencyLabel}</td>
       </tr>
+      ${location ? `<tr>
+        <td style="padding:8px 12px;background:#F8FAFC;border:1px solid #E2E8F0;font-weight:600;color:#64748B;">위치</td>
+        <td style="padding:8px 12px;border:1px solid #E2E8F0;color:#1E293B;">${location}</td>
+      </tr>` : ""}
       ${assetNo ? `<tr>
         <td style="padding:8px 12px;background:#F8FAFC;border:1px solid #E2E8F0;font-weight:600;color:#64748B;">자산번호</td>
         <td style="padding:8px 12px;border:1px solid #E2E8F0;color:#1E293B;">${assetNo}</td>
@@ -112,7 +117,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { requester, company, department, inquiryType, urgency, content, assetNo } = body;
+    const { requester, company, department, inquiryType, urgency, content, assetNo, location } = body;
 
     const ticketUrl = "https://swportal.vercel.app/admin";
 
@@ -124,6 +129,7 @@ export async function POST(req: NextRequest) {
       urgency: urgency || "기다릴 수 있어요",
       content: content || "",
       assetNo: assetNo || "",
+      location: location || "",
       ticketUrl,
     });
 

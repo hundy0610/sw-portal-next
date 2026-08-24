@@ -30,12 +30,17 @@ export async function POST(req: NextRequest) {
     if (!base) {
       return NextResponse.json({ ok: false, error: "티켓을 찾을 수 없습니다", code: "RESOLVE_WITH_MANUAL_TICKET_NOT_FOUND" }, { status: 404 });
     }
+    // 담당자를 거치지 않고 완료로 직행하는 경로다. 여기서 시각을 안 찍으면
+    // 매뉴얼로 해결된 건만 소요 시간이 통째로 비어 평균이 왜곡된다.
+    const resolvedAt = new Date().toISOString();
     const next: HelpDeskTicket = {
       ...base,
       status: "완료",
       actionMethod: "매뉴얼",
       actionNote: `매뉴얼 "${manual.title}" 로 안내됨 (문의자가 직접 매뉴얼로 해결 선택)`,
-      lastEditedAt: new Date().toISOString(),
+      firstRespondedAt: base.firstRespondedAt || resolvedAt,
+      completedAt: resolvedAt,
+      lastEditedAt: resolvedAt,
     };
     const ok = await upsertEntity("helpdesk", ticketId, next);
     if (!ok) {

@@ -19,6 +19,7 @@ export async function POST(request: Request) {
     const 문의내용 = (formData.get("문의내용") as string) || "";
     const 긴급도 = (formData.get("긴급도") as string) || "";
     const 이메일 = (formData.get("이메일") as string) || "";
+    const 위치 = (formData.get("위치") as string) || "";
 
     const title = 문의내용.length > 40 ? 문의내용.slice(0, 40) + "…" : 문의내용;
 
@@ -32,6 +33,7 @@ export async function POST(request: Request) {
       urgency: 긴급도 || "기다릴 수 있어요",
       content: 문의내용,
       assetNo: 자산번호,
+      location: 위치,
     });
 
     // 관리자 신규 접수 알림 메일 (fire-and-forget)
@@ -46,6 +48,7 @@ export async function POST(request: Request) {
           body: JSON.stringify({
             requester: 문의자, company: 법인, department: 부서,
             inquiryType: 문의유형, urgency: 긴급도, content: 문의내용, assetNo: 자산번호,
+            location: 위치,
           }),
         });
       } catch (e) {

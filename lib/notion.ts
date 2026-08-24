@@ -410,6 +410,9 @@ export interface HelpDeskTicket {
   requester: string;
   requesterEmail: string;
   assetNo: string;
+  // 근무 위치(문의 접수 폼) — 연구소·센터 단위. Notion "위치"(select) 옵션과 같은 값이고,
+  // 재택 등으로 고르지 않으면 빈 문자열.
+  location?: string;
   content: string;
   urgency: string;
   team: string;
@@ -417,6 +420,9 @@ export interface HelpDeskTicket {
   assigneeId: string;
   submittedAt: string;
   lastEditedAt: string;
+  // 상태 전이 실측 시각(데스크탑 앱 v1.43.0~). 그 이전 접수 건에는 없다.
+  firstRespondedAt?: string;  // "시작 전"에서 처음 벗어난 순간. 한 번만 찍힌다.
+  completedAt?: string;       // 완료·보류(처리 종료)로 바뀐 마지막 순간.
   notionUrl: string;
   actionNote: string;
   actionCategory: string[];
@@ -787,6 +793,7 @@ export async function createHelpDeskTicket(data: {
   urgency: string;
   content: string;
   assetNo?: string;
+  location?: string;
 }): Promise<string> {
   if (isMock()) { console.log("[MOCK] createHelpDeskTicket", data); return "mock-hd-new"; }
 
@@ -803,6 +810,7 @@ export async function createHelpDeskTicket(data: {
     requester: data.requester,
     requesterEmail: data.requesterEmail,
     assetNo: data.assetNo || "",
+    location: data.location || "",
     content: data.content || "",
     urgency: data.urgency,
     team: "",

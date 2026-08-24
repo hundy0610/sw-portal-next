@@ -326,6 +326,9 @@ export const entityRegistry: Record<string, NotionBackupEntry> = {
         "문의자": P.text(d.requester),
         "문의자 이메일": P.email(d.requesterEmail),
         "자산번호": P.text(d.assetNo),
+        // 근무 위치(연구소·센터). 수리 접수 DB "건물명"과 같은 어휘를 쓴다 — 두 접수를
+        // 같은 기준으로 집계하려면 옵션 이름이 어긋나면 안 된다.
+        "위치": P.select(d.location),
         "긴급도": P.select(d.urgency),
         "상태": P.status(d.status),
         "담당자": P.people(d.assigneeId),

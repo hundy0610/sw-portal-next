@@ -8,3 +8,4 @@ export const InquiryForm문의유형Atom = atom<string>("");
 export const InquiryForm문의내용Atom = atom<string>("");
 export const InquiryForm긴급도Atom = atom<string>("");
 export const InquiryForm이메일Atom = atom<string>("");
+export const InquiryForm위치Atom = atom<string>("");
