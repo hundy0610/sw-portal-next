@@ -58,6 +58,24 @@ export interface SwItem {
 }
 
 // ────────────────────────────────────────────────────────────
+// SaaS 도메인 정책 (화이트/블랙리스트) — 설치형 SW(SwItem)와 별개로, 브라우저로
+// 접속해서 쓰는 웹 기반 SaaS를 도메인 단위로 관리한다. PC에 설치되지 않아
+// SwItem 대조로는 잡히지 않는다.
+// ────────────────────────────────────────────────────────────
+export interface SaasItem {
+  id: string;
+  /** 매칭 기준 도메인. 예: "notion.so" — 방문 호스트가 이 값과 같거나 하위 도메인이면 매치 */
+  domain: string;
+  name: string;
+  vendor: string;
+  category: string;
+  status: "approved" | "banned" | "conditional" | "excluded";
+  alternatives: string[];
+  description: string;
+  officialUrl?: string;
+}
+
+// ────────────────────────────────────────────────────────────
 // 구독 관리
 // ────────────────────────────────────────────────────────────
 export interface Subscription {
