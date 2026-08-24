@@ -1,15 +1,18 @@
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { memGet, memSet } from "@/lib/mem-cache";
 import type { Notice, Course, DeclarationLog } from "@/types/portal";
-import type { SwItem } from "@/types";
+import type { SwItem, SaasItem } from "@/types";
 import type { BugStage } from "@/types/bug-report";
 import { DEFAULT_BUG_STAGES } from "@/types/bug-report";
 import type { WorkStage } from "@/types/work-tracker";
 import { DEFAULT_WORK_STAGES } from "@/types/work-tracker";
+import type { SaasUsageStore } from "@/lib/saas-audit";
 
 const KV_NOTICES    = "portal:notices";
 const KV_COURSES    = "portal:courses";
 const KV_SWDB       = "portal:swdb";
+const KV_SAASDB     = "portal:saasdb";
+const KV_SAAS_USAGE = "portal:saas_usage";
 const KV_AUDIT      = "portal:audit_log";
 const KV_ADMIN_AUDIT = "portal:admin_audit_log";
 const KV_BUG_STAGES = "portal:bug_stages";
@@ -23,7 +26,7 @@ export interface AuditLog {
   adminName: string;
   action: "create" | "update" | "delete" | "bulk-update";
   target:
-    | "notices" | "courses" | "swdb" | "swresources" | "manuals"
+    | "notices" | "courses" | "swdb" | "saasdb" | "swresources" | "manuals"
     | "exchangeReturn" | "hw" | "hwRepair" | "rentalHw" | "credentials"
     | "repairTicket" | "meetingRental" | "meetingEquipment" | "contract" | "account"
     | "orgChart";
@@ -192,6 +195,38 @@ export async function getSwItems(): Promise<SwItem[]> {
 export async function saveSwItems(items: SwItem[]): Promise<boolean> {
   const ok = await kvSetPermanent(KV_SWDB, items);
   if (ok) memSet(KV_SWDB, items, MEM_TTL);
+  return ok;
+}
+
+// ─── SaaS 도메인 DB (화이트/블랙리스트) ──────────────────
+export async function getSaasItems(): Promise<SaasItem[]> {
+  let data = memGet<SaasItem[]>(KV_SAASDB);
+  if (!data) {
+    data = (await kvGet<SaasItem[]>(KV_SAASDB)) ?? [];
+    memSet(KV_SAASDB, data, MEM_TTL);
+  }
+  return data;
+}
+
+export async function saveSaasItems(items: SaasItem[]): Promise<boolean> {
+  const ok = await kvSetPermanent(KV_SAASDB, items);
+  if (ok) memSet(KV_SAASDB, items, MEM_TTL);
+  return ok;
+}
+
+// ─── SaaS 사용 현황(PC별 도메인 방문 누적치) ──────────────
+export async function getSaasUsage(): Promise<SaasUsageStore> {
+  let data = memGet<SaasUsageStore>(KV_SAAS_USAGE);
+  if (!data) {
+    data = (await kvGet<SaasUsageStore>(KV_SAAS_USAGE)) ?? {};
+    memSet(KV_SAAS_USAGE, data, MEM_TTL);
+  }
+  return data;
+}
+
+export async function saveSaasUsage(store: SaasUsageStore): Promise<boolean> {
+  const ok = await kvSetPermanent(KV_SAAS_USAGE, store);
+  if (ok) memSet(KV_SAAS_USAGE, store, MEM_TTL);
   return ok;
 }
 

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo, Suspense } from "react";
 import QRCode from "qrcode";
 import type { Notice, Course, SwVersion, SwDoc, Manual } from "@/types/portal";
-import type { SwItem } from "@/types";
+import type { SwItem, SaasItem } from "@/types";
 import { safeJson } from "@/lib/fetch-json";
 
 /* ── 색상 토큰 — 브랜드 앰버로 통일, CSS 변수 참조 (다크모드는 .portal-dark로 자동 대응) ── */
@@ -21,7 +21,7 @@ const C = {
   dangerSoft:  "var(--state-risk-soft)",
 } as const;
 
-type ManageTab = "notices" | "courses" | "swdb" | "swresources" | "manuals";
+type ManageTab = "notices" | "courses" | "swdb" | "saasdb" | "swresources" | "manuals";
 
 interface SessionInfo {
   name: string;
@@ -103,6 +103,7 @@ function ManageDashboard({ session }: { session: SessionInfo }) {
     { id: "courses",     label: "교육과정"   },
     { id: "swresources", label: "SW 자료실"  },
     { id: "swdb",        label: "SW 검색"    },
+    { id: "saasdb",      label: "SaaS 도메인 정책" },
     { id: "manuals",     label: "매뉴얼"     },
   ];
 
@@ -161,6 +162,7 @@ function ManageDashboard({ session }: { session: SessionInfo }) {
           {tab === "courses"     && <CoursesPanel      />}
           {tab === "swresources" && <SwResourcesPanel  />}
           {tab === "swdb"        && <SwPanel           />}
+          {tab === "saasdb"      && <SaasPanel         />}
           {tab === "manuals"     && <ManualsPanel      />}
         </div>
       </main>
@@ -485,6 +487,185 @@ function SwPanel() {
                   수정
                 </button>
                 <button onClick={() => del(sw.id, sw.name)}
+                  style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: C.dangerSoft, color: C.danger }}>
+                  삭제
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </ItemList>
+    </div>
+  );
+}
+
+function SaasPanel() {
+  const [items,     setItems]     = useState<SaasItem[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [adding,    setAdding]    = useState(false);
+  const [saving,    setSaving]    = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [editing,   setEditing]   = useState<SaasItem | null>(null);
+  const [filter,    setFilter]    = useState<"all" | SaasItem["status"]>("all");
+
+  const defaultForm = { domain: "", name: "", vendor: "", category: "", status: "conditional" as SaasItem["status"], description: "", alternatives: "", officialUrl: "" };
+  const [form, setForm] = useState(defaultForm);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetch("/api/saas-db").then(r => safeJson(r)).then(res => setItems(res.data ?? [])).finally(() => setLoading(false));
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  function startAdd() { setForm(defaultForm); setEditing(null); setAdding(true); }
+  function startEdit(item: SaasItem) {
+    setForm({ domain: item.domain, name: item.name, vendor: item.vendor, category: item.category, status: item.status, description: item.description, alternatives: item.alternatives.join(", "), officialUrl: item.officialUrl ?? "" });
+    setEditing(item);
+    setAdding(true);
+  }
+
+  async function handleSave() {
+    if (!form.domain.trim()) return;
+    setSaving(true);
+    try {
+      const payload = {
+        ...form,
+        alternatives: form.alternatives.split(",").map(s => s.trim()).filter(Boolean),
+      };
+      if (editing) {
+        const res = await fetch("/api/saas-db", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ _action: "update", id: editing.id, data: payload }) });
+        if (!res.ok) throw new Error(await res.text());
+      } else {
+        const res = await fetch("/api/saas-db", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        if (!res.ok) throw new Error(await res.text());
+      }
+      setAdding(false); setEditing(null);
+      setForm(defaultForm);
+      load();
+    } catch (e) {
+      alert(`저장 실패: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function del(id: string, name: string) {
+    if (!confirm(`"${name}" 을(를) 삭제하시겠습니까?`)) return;
+    try {
+      const res = await fetch("/api/saas-db", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ _action: "delete", id }) });
+      if (!res.ok) throw new Error(await res.text());
+      load();
+    } catch (e) {
+      alert(`삭제 실패: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  async function handleBulkImport() {
+    if (!confirm("큐레이션된 SaaS 도메인 목록을 가져옵니다. 이미 등록된 도메인은 건너뜁니다. 계속할까요?")) return;
+    setImporting(true);
+    try {
+      const { SAAS_POLICY_SEED } = await import("@/lib/saas-policy-seed");
+      const res = await fetch("/api/saas-db", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ _action: "bulkImport", items: SAAS_POLICY_SEED }) });
+      const json = await safeJson(res);
+      if (!res.ok || !json.ok) throw new Error(json.error ?? "가져오기 실패");
+      alert(`${json.created}건 등록, ${json.skipped}건 중복 건너뜀`);
+      load();
+    } catch (e) {
+      alert(`가져오기 실패: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  const STATUS_STYLE: Record<SaasItem["status"], { text: string; bg: string; color: string }> = {
+    approved:    { text: "승인",   bg: "var(--state-positive-soft)", color: "var(--state-positive)" },
+    banned:      { text: "금지",   bg: "var(--state-risk-soft)", color: "var(--state-risk)" },
+    conditional: { text: "조건부", bg: "var(--state-caution-soft)", color: "var(--state-caution)" },
+    excluded:    { text: "예외",   bg: "var(--state-progress-soft)", color: "var(--state-progress)" },
+  };
+
+  const FILTERS: { key: "all" | SaasItem["status"]; label: string }[] = [
+    { key: "all",         label: `전체 (${items.length})` },
+    { key: "approved",    label: `승인 (${items.filter(i => i.status === "approved").length})` },
+    { key: "conditional", label: `조건부 (${items.filter(i => i.status === "conditional").length})` },
+    { key: "banned",      label: `금지 (${items.filter(i => i.status === "banned").length})` },
+    { key: "excluded",    label: `예외 (${items.filter(i => i.status === "excluded").length})` },
+  ];
+
+  const filtered = filter === "all" ? items : items.filter(i => i.status === filter);
+
+  return (
+    <div>
+      <SectionHeader title="SaaS 도메인 정책" count={items.length} onAdd={startAdd} />
+      <p style={{ fontSize: 12, color: C.text4, marginTop: -12, marginBottom: 16 }}>
+        브라우저로 접속해서 쓰는 웹 기반 SaaS를 도메인 단위로 관리합니다. 설치형 SW는
+        &ldquo;SW 검색&rdquo; 탭에서 별도로 관리합니다. 실제 사용 현황은 관리자 포털의
+        &ldquo;SaaS 사용 현황&rdquo;에서 확인할 수 있습니다.
+      </p>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
+        {FILTERS.map(f => (
+          <button key={f.key} onClick={() => setFilter(f.key)}
+            style={{ padding: "6px 14px", borderRadius: 12, border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer",
+              background: filter === f.key ? C.primary : "var(--portal-surface)",
+              color:      filter === f.key ? "#fff"     : C.text3,
+              boxShadow:  filter === f.key ? "none" : `0 0 0 1px ${C.border}`,
+            }}>
+            {f.label}
+          </button>
+        ))}
+        <button onClick={handleBulkImport} disabled={importing}
+          style={{ marginLeft: "auto", padding: "6px 14px", borderRadius: 12, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer",
+            background: C.primarySoft, color: C.primary, opacity: importing ? 0.6 : 1 }}>
+          {importing ? "가져오는 중…" : "큐레이션 목록 일괄 가져오기"}
+        </button>
+      </div>
+
+      {adding && (
+        <FormCard title={editing ? `수정: ${editing.name}` : "새 SaaS 등록"} onCancel={() => { setAdding(false); setEditing(null); }} onSave={handleSave} saving={saving} disabled={!form.domain.trim()}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Field label="도메인 *"><input style={iStyle} value={form.domain} onChange={e => setForm(f => ({ ...f, domain: e.target.value }))} placeholder="예: notion.so" /></Field>
+            <Field label="서비스명"><input style={iStyle} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="예: Notion" /></Field>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Field label="제공사"><input style={iStyle} value={form.vendor} onChange={e => setForm(f => ({ ...f, vendor: e.target.value }))} placeholder="예: Notion Labs" /></Field>
+            <Field label="카테고리"><input style={iStyle} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} placeholder="예: 협업, 파일공유" /></Field>
+          </div>
+          <Field label="상태">
+            <select style={iStyle} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as SaasItem["status"] }))}>
+              <option value="approved">승인</option>
+              <option value="conditional">조건부</option>
+              <option value="banned">금지</option>
+              <option value="excluded">예외 (판정 대상 아님 — 사내 자체 도메인 등)</option>
+            </select>
+          </Field>
+          <Field label="설명"><textarea style={{ ...iStyle, minHeight: 80, resize: "vertical" }} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="분류 사유 및 사용 조건" /></Field>
+          <Field label="대체 SaaS (쉼표로 구분)"><input style={iStyle} value={form.alternatives} onChange={e => setForm(f => ({ ...f, alternatives: e.target.value }))} placeholder="예: Notion, Slack" /></Field>
+          <Field label="공식 사이트 링크"><input style={iStyle} value={form.officialUrl} onChange={e => setForm(f => ({ ...f, officialUrl: e.target.value }))} placeholder="https://..." /></Field>
+        </FormCard>
+      )}
+
+      <ItemList loading={loading} empty="아직 등록된 SaaS가 없습니다.">
+        {filtered.map(s => {
+          const st = STATUS_STYLE[s.status] ?? { text: s.status, bg: C.bg, color: C.text3 };
+          return (
+            <div key={s.id} className="hover:shadow-sm transition-shadow" style={{ background: "var(--portal-surface)", borderRadius: 12, padding: 20, display: "flex", alignItems: "center", gap: 16, border: `1px solid ${C.border}` }}>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: st.bg, color: st.color, flexShrink: 0 }}>{st.text}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: C.text1, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {s.name} <span style={{ fontWeight: 500, color: C.text4 }}>({s.domain})</span>
+                </p>
+                <p style={{ fontSize: 11, color: C.text4, margin: "4px 0 0" }}>
+                  {s.vendor}{s.category ? ` · ${s.category}` : ""}
+                  {s.alternatives.length ? ` · 대체: ${s.alternatives.join(", ")}` : ""}
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                <button onClick={() => startEdit(s)}
+                  style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: C.primarySoft, color: C.primary }}>
+                  수정
+                </button>
+                <button onClick={() => del(s.id, s.name)}
                   style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: C.dangerSoft, color: C.danger }}>
                   삭제
                 </button>
