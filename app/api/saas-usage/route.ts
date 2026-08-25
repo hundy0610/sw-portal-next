@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSaasUsage, saveSaasUsage, getSaasItems } from "@/lib/portal-store";
 import { mergeSaasUsageReport, matchDomainsAgainstSaasDb, aggregateUnknownDomains, domainsToVisitedList, type SaasUsageReport, type VisitedDomain } from "@/lib/saas-audit";
+import { findUnregisteredUsage, type SubscriptionLite, type PcIdentity } from "@/lib/saas-subscription-check";
+import { fetchSwDatabase } from "@/lib/notion";
+import { fetchPcScans } from "@/lib/pc-scan";
 import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";
 import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
+
+// 정기적 사용으로 볼 최소 관측 일수 — 정책값이라 쿼리스트링으로 조정 가능하게 둔다.
+const DEFAULT_MIN_DAYS_OBSERVED = 5;
 
 const MAX_DOMAINS_PER_REPORT = 2000;
 const MAX_BODY_BYTES = 1 * 1024 * 1024;
@@ -79,7 +85,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [store, saasItems] = await Promise.all([getSaasUsage(), getSaasItems()]);
+    const minDaysParam = Number(req.nextUrl.searchParams.get("minDays"));
+    const minDaysObserved = Number.isFinite(minDaysParam) && minDaysParam > 0 ? minDaysParam : DEFAULT_MIN_DAYS_OBSERVED;
+
+    const [store, saasItems, pcScans, swRecords] = await Promise.all([
+      getSaasUsage(), getSaasItems(), fetchPcScans(), fetchSwDatabase(),
+    ]);
     const records = Object.values(store);
 
     const perPc = records.map(r => ({
@@ -99,7 +110,37 @@ export async function GET(req: NextRequest) {
       excluded: p.entries.filter(e => e.status === "excluded").length,
     }));
 
-    return NextResponse.json({ ok: true, perPcSummary, unknownAggregate, perPc });
+    // 조직이 인식하는 실제 신원(자산실사 스캔 기록)을 serial로 매핑한다 — 수집
+    // 스크립트가 보낸 원본 Windows 계정명보다 이쪽이 인사/부서 정보와 일치한다.
+    // 같은 serial에 여러 회차 스캔이 있을 수 있어 collectedAt 최신 것을 쓴다.
+    const identityBySerial = new Map<string, PcIdentity & { _collectedAt: string }>();
+    for (const s of pcScans) {
+      if (!s.serial) continue;
+      const prev = identityBySerial.get(s.serial);
+      if (prev && prev._collectedAt >= (s.collectedAt || "")) continue;
+      identityBySerial.set(s.serial, {
+        serial: s.serial, pcName: s.pcName, userName: s.userName || "", dept: s.dept || "", corp: s.corp || "",
+        _collectedAt: s.collectedAt || "",
+      });
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const subs: SubscriptionLite[] = swRecords
+      .filter(r => (r.licenseType ?? "").includes("구독"))
+      .filter(r => r.status !== "만료" && r.status !== "반납")
+      .filter(r => !r.renewalDate || new Date(r.renewalDate) >= today)
+      .map(r => ({ user: r.user, swName: r.swDetail || r.swCategory || "", company: r.company, department: r.department }));
+
+    const unregisteredUsage = findUnregisteredUsage(
+      perPc.map(p => ({
+        identity: identityBySerial.get(p.serial) ?? { serial: p.serial, pcName: p.pcName, userName: p.userName ?? "", dept: "", corp: p.corp ?? "" },
+        entries: p.entries,
+      })),
+      saasItems, subs, minDaysObserved,
+    );
+
+    return NextResponse.json({ ok: true, perPcSummary, unknownAggregate, perPc, unregisteredUsage, minDaysObserved });
   } catch (e) {
     console.error("[GET /api/saas-usage]", e);
     return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });

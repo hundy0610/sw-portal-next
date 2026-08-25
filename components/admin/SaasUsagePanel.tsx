@@ -30,10 +30,25 @@ interface UnknownAggregate {
   totalVisits: number;
 }
 
+interface UnregisteredUsageCandidate {
+  serial: string;
+  pcName: string;
+  userName: string;
+  dept: string;
+  corp: string;
+  domain: string;
+  serviceNameGuess: string;
+  daysObserved: number;
+  visitCount: number;
+  lastVisitedAt: string;
+}
+
 interface UsageResult {
   ok: true;
   perPcSummary: PcSummary[];
   unknownAggregate: UnknownAggregate[];
+  unregisteredUsage: UnregisteredUsageCandidate[];
+  minDaysObserved: number;
 }
 
 export default function SaasUsagePanel() {
@@ -43,18 +58,21 @@ export default function SaasUsagePanel() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [registering, setRegistering] = useState(false);
   const [registeredCount, setRegisteredCount] = useState<number | null>(null);
+  const [minDaysInput, setMinDaysInput] = useState(5);
 
-  const load = useCallback(() => {
+  const load = useCallback((minDays?: number) => {
     setLoading(true);
     setError("");
-    fetch("/api/saas-usage")
+    fetch(`/api/saas-usage?minDays=${minDays ?? minDaysInput}`)
       .then(r => safeJson(r))
       .then(res => {
         if (!res.ok) { setError(res.error ?? "조회 실패"); return; }
         setResult(res);
+        if (typeof res.minDaysObserved === "number") setMinDaysInput(res.minDaysObserved);
       })
       .catch(() => setError("네트워크 오류"))
       .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -100,7 +118,7 @@ export default function SaasUsagePanel() {
             각 PC의 수집 스크립트가 보고한 브라우저 방문 도메인을 SaaS 도메인 정책과 대조한 결과입니다.
           </p>
         </div>
-        <button onClick={load} className="px-4 py-1.5 rounded-lg bg-zinc-700 text-white text-xs font-semibold hover:bg-zinc-800">새로고침</button>
+        <button onClick={() => load()} className="px-4 py-1.5 rounded-lg bg-zinc-700 text-white text-xs font-semibold hover:bg-zinc-800">새로고침</button>
       </div>
 
       {loading && <div className="text-center py-16 text-gray-400 text-sm">불러오는 중…</div>}
@@ -108,10 +126,14 @@ export default function SaasUsagePanel() {
 
       {result && (
         <>
-          <div className="grid grid-cols-4 gap-3 mb-6">
+          <div className="grid grid-cols-5 gap-3 mb-6">
             <div className="bg-gray-50 rounded-xl p-3 text-center">
               <div className="text-xl font-bold text-gray-800">{totalPcs}</div>
               <div className="text-xs text-gray-500 mt-0.5">보고 중인 PC</div>
+            </div>
+            <div className="bg-amber-50 rounded-xl p-3 text-center">
+              <div className="text-xl font-bold text-amber-600">{result.unregisteredUsage.length}</div>
+              <div className="text-xs text-amber-600 mt-0.5">미등록 사용 후보</div>
             </div>
             <div className="bg-red-50 rounded-xl p-3 text-center">
               <div className="text-xl font-bold text-red-600">{result.unknownAggregate.length}</div>
@@ -126,6 +148,52 @@ export default function SaasUsagePanel() {
               <div className="text-xs text-gray-500 mt-0.5">승인 도메인 사용 건</div>
             </div>
           </div>
+
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs font-bold text-gray-700">미등록 사용 후보 — 구독 관리에 등록된 라이선스가 없음</h3>
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <span>최소 관측일수</span>
+              <input type="number" min={1} value={minDaysInput}
+                onChange={e => setMinDaysInput(Number(e.target.value) || 1)}
+                className="w-14 border border-gray-200 rounded px-1.5 py-1 text-center" />
+              <button onClick={() => load(minDaysInput)} className="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 font-semibold">다시 조회</button>
+            </div>
+          </div>
+          <div className="rounded-xl px-4 py-3 mb-3 text-xs bg-amber-50 text-amber-800">
+            서로 다른 {result.minDaysObserved}일 이상 정기적으로 접속했지만, 이 사람 이름으로 등록된 구독이
+            구독 관리(라이선스 대장)에서 확인되지 않은 경우입니다. 무료 티어 사용, 동료와의 공용 라이선스,
+            등록 누락 등 다른 이유일 수 있습니다 — <strong>바로 통보하지 말고 본인·부서 확인을 먼저 거쳐주세요.</strong>
+          </div>
+          {result.unregisteredUsage.length === 0 ? (
+            <div className="text-center py-8 text-gray-400 text-sm mb-6">해당하는 후보가 없습니다.</div>
+          ) : (
+            <div className="border border-gray-200 rounded-xl overflow-hidden mb-8">
+              <table className="w-full text-xs">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-semibold text-gray-500">사용자</th>
+                    <th className="text-left px-3 py-2 font-semibold text-gray-500">법인 · 부서</th>
+                    <th className="text-left px-3 py-2 font-semibold text-gray-500">추정 서비스</th>
+                    <th className="text-left px-3 py-2 font-semibold text-gray-500">도메인</th>
+                    <th className="text-right px-3 py-2 font-semibold text-gray-500">관측일수</th>
+                    <th className="text-left px-3 py-2 font-semibold text-gray-500">최근 접속</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.unregisteredUsage.map((u, i) => (
+                    <tr key={`${u.serial}-${u.domain}-${i}`} className="border-t border-gray-100 hover:bg-gray-50">
+                      <td className="px-3 py-2 text-gray-800 font-medium">{u.userName || "(미확인)"}</td>
+                      <td className="px-3 py-2 text-gray-500">{[u.corp, u.dept].filter(Boolean).join(" · ") || "—"}</td>
+                      <td className="px-3 py-2 text-gray-800">{u.serviceNameGuess}</td>
+                      <td className="px-3 py-2 text-gray-500">{u.domain}</td>
+                      <td className="px-3 py-2 text-right font-bold text-amber-600">{u.daysObserved}일</td>
+                      <td className="px-3 py-2 text-gray-400">{new Date(u.lastVisitedAt).toLocaleString("ko-KR")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           <h3 className="text-xs font-bold text-gray-700 mb-2">미확인 도메인 (발견 PC수 순)</h3>
           {result.unknownAggregate.length === 0 ? (
