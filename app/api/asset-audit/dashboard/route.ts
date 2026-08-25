@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";
 import { fetchOrgUnits, buildOrgTree, buildScanMatcher, type OrgTreeNode } from "@/lib/org-chart";
-import { type HwRecord } from "@/lib/hw";
-import { kvGet } from "@/lib/kv-store";
-import { triggerWarmHw } from "@/lib/trigger-warm-hw";
+import { getHwAllFromPostgres } from "@/lib/repo/hw";
 import { fetchPcScans, matchPcScansWithHw } from "@/lib/pc-scan";
 import { COMPANIES, normalizeCompany, EXCLUDED_FROM_AUDIT_DASHBOARD, AUDIT_CONTRACT_QTY } from "@/lib/companies";
 import { errorMessage } from "@/lib/api-error";
@@ -36,14 +34,12 @@ export async function GET(req: NextRequest) {
 
   try {
     // PC 실사 제출 기록(scans)은 이메일 집합 계산과 HW 매칭 양쪽에 필요하지만,
-    // 같은 데이터를 두 번 조회하면 Notion 호출이 불필요하게 늘어나므로 한 번만 가져온다.
-    // HW 자산은 전사 전체를 매번 Notion에서 라이브로 페이지네이션하면(수십 초 소요)
-    // 응답이 지나치게 느려지므로, 30분마다 갱신되는 KV 캐시(hw:all — /api/hw,
-    // /api/admin/pc-scan 등 다른 화면들도 동일하게 이 캐시를 사용한다)를 사용한다.
+    // 같은 데이터를 두 번 조회하면 불필요한 호출이 늘어나므로 한 번만 가져온다.
+    // HW 자산은 맥북 Postgres에서 조회(/api/hw 등과 동일). 미설정(로컬 dev 등) 시에만
+    // null — 조회 실패 시엔 getHwAllFromPostgres가 throw해 바깥 catch가 처리한다.
     const [units, hwAll, scans] = await Promise.all([
-      fetchOrgUnits(), kvGet<HwRecord[]>("hw:all"), fetchPcScans(),
+      fetchOrgUnits(), getHwAllFromPostgres(), fetchPcScans(),
     ]);
-    if (!hwAll) triggerWarmHw().catch(console.warn);
     const hwRecords = hwAll ?? [];
     // 동명이인(법인+이름) 판정은 대시보드에서 가려진 법인까지 봐야 안전하므로,
     // 매처는 필터링 전 units 전체로 만든다.

@@ -63,13 +63,20 @@ function DetailSheet({ ticket, onClose, onStatusChange }: {
   onStatusChange: (id: string, status: string) => Promise<void>;
 }) {
   const [updating, setUpdating] = useState(false);
+  const [statusError, setStatusError] = useState("");
   const STATUSES = ["시작 전", "진행 중", "완료"];
 
   async function changeStatus(s: string) {
     if (s === ticket.status) return;
     setUpdating(true);
-    await onStatusChange(ticket.id, s);
-    setUpdating(false);
+    setStatusError("");
+    try {
+      await onStatusChange(ticket.id, s);
+    } catch (e) {
+      setStatusError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setUpdating(false);
+    }
   }
 
   return (
@@ -111,6 +118,7 @@ function DetailSheet({ ticket, onClose, onStatusChange }: {
           })}
         </div>
         {updating && <div className="text-center text-xs text-blue-500 -mt-2 mb-3">업데이트 중...</div>}
+        {statusError && <div className="text-center text-xs text-red-500 -mt-2 mb-3">{statusError}</div>}
 
         {/* 문의 내용 */}
         {ticket.content && (
@@ -186,11 +194,13 @@ export default function MobileHelpDesk({ session }: Props) {
   }, [companyParam]);
 
   async function handleStatusChange(id: string, status: string) {
-    await fetch("/api/helpdesk/update", {
+    const res = await fetch("/api/helpdesk/update", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, status }),
+      body: JSON.stringify({ id, fields: { status } }),
     });
+    const json = await safeJson(res);
+    if (!json.ok) throw new Error(json.error ?? "상태 변경 실패");
     setTickets(prev => prev.map(t => t.id === id ? { ...t, status } : t));
     setSelected(prev => prev?.id === id ? { ...prev, status } : prev);
   }

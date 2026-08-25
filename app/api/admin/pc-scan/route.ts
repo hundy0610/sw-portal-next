@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";
 import { fetchPcScans, matchPcScansWithHw, updatePcScan, deletePcScan, type PcScanEditFields } from "@/lib/pc-scan";
-import { type HwRecord } from "@/lib/hw";
 import { getHwAllFromPostgres } from "@/lib/repo/hw";
-import { kvGet } from "@/lib/kv-store";
-import { triggerWarmHw } from "@/lib/trigger-warm-hw";
 import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
@@ -21,13 +18,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // HW 마스터 대조는 맥북 Postgres 우선(항상 최신) — 미설정/실패 시에만 hw:all KV 캐시로 폴백.
-    const [scans, pgHw] = await Promise.all([
+    // HW 마스터 대조는 맥북 Postgres에서(항상 최신). 미설정(로컬 dev 등) 시에만 null —
+    // 조회 실패 시엔 getHwAllFromPostgres가 throw해 바깥 catch가 처리한다.
+    const [scans, hwAll] = await Promise.all([
       fetchPcScans(),
       getHwAllFromPostgres(),
     ]);
-    const hwAll = pgHw ?? await kvGet<HwRecord[]>("hw:all");
-    if (!hwAll) triggerWarmHw().catch(console.warn);
 
     const data = matchPcScansWithHw(scans, hwAll ?? []);
     return NextResponse.json({ ok: true, data, masterCacheWarming: !hwAll });

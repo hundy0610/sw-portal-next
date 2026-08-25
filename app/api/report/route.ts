@@ -3,6 +3,9 @@ import { mapCategory } from "@/lib/reportTypes";
 import type { SubRow, DeptSummary, ReportData } from "@/lib/reportTypes";
 import { errorMessage } from "@/lib/api-error";
 import { getSessionFromCookieHeader, companyScope } from "@/lib/session";
+import { getUsdKrwRatesForDates } from "@/lib/exchange-rate";
+
+const FALLBACK_RATE = 1380; // 환율 API 자체가 완전히 실패했을 때만 쓰는 최후 폴백
 
 export const dynamic = "force-dynamic";
 
@@ -41,20 +44,36 @@ export async function GET(req: Request) {
 
     const filterDepts = [...new Set(filteredRecords.map(r => (r.department ?? "").trim()).filter(Boolean))].sort();
 
-    const rows: SubRow[] = filteredRecords.map(r => ({
-      id: r.id,
-      company: r.company ?? "",
-      department: (r.department ?? "").trim(),
-      swName: r.swCategory || r.swDetail || "미입력",
-      category: r.workType || mapCategory(r.swCategory ?? "", r.swDetail ?? ""),
-      licenseType: r.licenseType ?? "",
-      user: r.user ?? "",
-      renewalDate: r.renewalDate ?? "",
-      annualUsd: (r.annualUsd ?? 0) > 0 ? (r.annualUsd ?? 0) : ((r.monthlyUsd ?? 0) * 12),
-      annualKrw: (r.annualKrw ?? 0) > 0 ? (r.annualKrw ?? 0) : ((r.monthlyKrw ?? 0) * 12),
-      notionUrl: r.notionUrl ?? "",
-      billingType: r.billingType ?? "",
-    }));
+    // 결제일(paymentDate) 기준 환율을 적용한다 — 없으면 갱신일, 그것도 없으면 오늘로 폴백.
+    // "조회 시점 환율"을 전체에 일괄 적용하면 과거 결제 건도 오늘 환율로 왜곡되기 때문.
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const asOfDate = (r: typeof filteredRecords[number]) => r.paymentDate || r.renewalDate || todayStr;
+    const rateMap = await getUsdKrwRatesForDates(filteredRecords.map(asOfDate));
+
+    const rows: SubRow[] = filteredRecords.map(r => {
+      const annualUsd = (r.annualUsd ?? 0) > 0 ? (r.annualUsd ?? 0) : ((r.monthlyUsd ?? 0) * 12);
+      const annualKrw = (r.annualKrw ?? 0) > 0 ? (r.annualKrw ?? 0) : ((r.monthlyKrw ?? 0) * 12);
+      const rateDate = asOfDate(r);
+      const rateApplied = rateMap.get(rateDate) ?? FALLBACK_RATE;
+      return {
+        id: r.id,
+        company: r.company ?? "",
+        department: (r.department ?? "").trim(),
+        swName: r.swCategory || r.swDetail || "미입력",
+        category: r.workType || mapCategory(r.swCategory ?? "", r.swDetail ?? ""),
+        licenseType: r.licenseType ?? "",
+        user: r.user ?? "",
+        renewalDate: r.renewalDate ?? "",
+        paymentDate: r.paymentDate ?? "",
+        annualUsd,
+        annualKrw,
+        annualKrwConverted: annualKrw + Math.round(annualUsd * rateApplied),
+        rateApplied,
+        rateDate,
+        notionUrl: r.notionUrl ?? "",
+        billingType: r.billingType ?? "",
+      };
+    });
 
     const CAT_ORDER = ["사무", "문서작성", "정부", "설계", "디자인", "AI", "개발", "협업", "원격", "RPA", "기타"];
     const usedCats = new Set(rows.map(r => r.category));

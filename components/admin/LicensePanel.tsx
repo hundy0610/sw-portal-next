@@ -361,6 +361,7 @@ function SwEditModal({
       licenseKey:  record.licenseKey,
       swDetail:    record.swDetail,
       renewalDate: record.renewalDate,
+      paymentDate: record.paymentDate,
       vendor:      record.vendor,
       billingType: record.billingType,
       monthlyKrw:  record.monthlyKrw,
@@ -472,6 +473,16 @@ function SwEditModal({
                 className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
               {form.renewalDate && <button type="button" onClick={() => set("renewalDate", "")} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
             </div>
+          </div>
+          {/* 최근 결제일 — 구독 SW의 USD→KRW 환산 시 이 날짜 기준 환율을 적용 */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">최근 결제일</label>
+            <div className="flex items-center gap-1">
+              <input type="date" value={String(form.paymentDate ?? "")} onChange={e => set("paymentDate", e.target.value)}
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+              {form.paymentDate && <button type="button" onClick={() => set("paymentDate", "")} className="text-gray-400 hover:text-gray-600 text-lg leading-none shrink-0 px-0.5">×</button>}
+            </div>
+            <p className="text-[11px] text-gray-400 mt-1">구독형 SW를 USD로 결제한 경우, 이 날짜 기준 환율로 원화 환산됩니다. 비워두면 갱신필요일을 대신 사용합니다.</p>
           </div>
           {/* 구매처 */}
           <div>
@@ -992,7 +1003,7 @@ function SwDuplicateModal({
 const EMPTY_FORM = {
   user: "", swCategory: "", swDetail: "", status: "신규등록",
   company: "", licenseType: "", department: "", usageDate: "", renewalDate: "",
-  purchaseDate: "", accountType: "", renewalCycle: "", licenseKey: "", vendor: "",
+  purchaseDate: "", paymentDate: "", accountType: "", renewalCycle: "", licenseKey: "", vendor: "",
   workType: "", billingType: "", monthlyKrw: 0, monthlyUsd: 0,
 };
 
@@ -1152,6 +1163,9 @@ function SwManualAdd({ onClose, onSuccess, swCategoryOptions, versionOptions, co
             </Field>
             <Field label="구매일자">
               <input type="date" className={inputCls} value={form.purchaseDate} onChange={e => set("purchaseDate", e.target.value)} />
+            </Field>
+            <Field label="최근 결제일 (USD 구독 환산 기준)">
+              <input type="date" className={inputCls} value={form.paymentDate} onChange={e => set("paymentDate", e.target.value)} />
             </Field>
             <Field label="구매처">
               <input className={inputCls} value={form.vendor} onChange={e => set("vendor", e.target.value)} placeholder="MS Korea" />
@@ -1520,8 +1534,10 @@ export default function LicensePanel({ company = "" }: { company?: string }) {
     });
     const json = await safeJson(res);
     if (!json.ok) throw new Error(json.error ?? "Notion 업데이트 실패");
-    setRecords(prev => prev.map(r => r.id === id ? { ...r, ...recordFields } : r));
-  }, []);
+    const next = records.map(r => r.id === id ? { ...r, ...recordFields } : r);
+    setRecords(next);
+    lcSet(LC_KEY(company), next);
+  }, [company, records]);
 
   const handleBulkUpdate = useCallback(async (fieldKey: string, value: string) => {
     const ids = Array.from(selectedIds);

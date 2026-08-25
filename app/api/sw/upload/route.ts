@@ -20,6 +20,7 @@ export interface SwUploadRow {
   usageDate:    string;   // 사용일자 YYYY-MM-DD
   renewalDate:  string;   // 갱신필요일 YYYY-MM-DD
   purchaseDate: string;   // 구매일자 YYYY-MM-DD
+  paymentDate:  string;   // 최근 결제일 YYYY-MM-DD (구독 SW 환율 환산 기준)
   accountType:  string;   // 계정유형
   renewalCycle: string;   // 갱신주기 (연/월)
   licenseKey:   string;   // 인증키/인증계정
@@ -66,6 +67,7 @@ function rowToRecord(row: SwUploadRow, modifiedBy: string, modifiedAt: string): 
     usageDate: toIsoDate(row.usageDate),
     renewalDate: toIsoDate(row.renewalDate),
     purchaseDate: toIsoDate(row.purchaseDate),
+    paymentDate: toIsoDate(row.paymentDate),
     returnDate: "",
     shipStatus: "",
     accountType: row.accountType || "",

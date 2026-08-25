@@ -45,8 +45,11 @@ const PAGE = 1000;
 
 /**
  * 전체 HW 레코드를 맥북 Postgres 에서 조회한다.
- * - postgres 미사용/미설정: null (호출부가 기존 경로 사용)
- * - 조회 실패(맥북/터널 다운 등): null (자동 폴백)
+ * 반환/throw 규약은 lib/repo/mirror.ts의 readEntity와 동일하다:
+ *  - postgres 미사용/미설정 → null (호출부가 기존 Notion 경로 사용)
+ *  - 조회 성공 → 배열(0건이면 [])
+ *  - 조회 실패(맥북/터널 다운 등) → throw. 조용히 null을 돌려주면 호출부가 얼어붙은
+ *    hw:all KV 스냅샷으로 폴백해 "방금 저장했는데 목록엔 옛 값" 증상이 재발한다.
  * 컬럼명이 HwRecord 키와 동일하므로 별도 매핑 없이 그대로 반환한다.
  */
 export async function getHwAllFromPostgres(): Promise<HwRecord[] | null> {
@@ -70,8 +73,8 @@ export async function getHwAllFromPostgres(): Promise<HwRecord[] | null> {
     }
     return all;
   } catch (e) {
-    console.warn("[hw-repo] Postgres 조회 실패 → 기존 KV/Notion 경로로 폴백", e);
-    return null;
+    console.error("[hw-repo] getHwAllFromPostgres 실패 — 폴백 대신 오류 전파", e);
+    throw e instanceof Error ? e : new Error("getHwAllFromPostgres failed");
   }
 }
 

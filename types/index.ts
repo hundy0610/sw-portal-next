@@ -26,6 +26,8 @@ export interface SwDbRecord {
   draftDocument: string;                  // 기안문서 (file URL)
   workType: string;                       // SW사용직군
   billingType?: string;                   // 결제방식 (대웅 등)
+  paymentDate?: string;                   // 최근 결제일 YYYY-MM-DD — 구독형 SW의 USD→KRW 환산 시
+                                           // "조회 시점 환율"이 아니라 이 날짜 기준 환율을 적용하기 위함
   lastModifiedBy?: string;                // 마지막수정자 (이름 + 아이디)
   lastModifiedAt?: string;                // 마지막수정일시 (ISO)
   monthlyUsd: number;                     // 월 비용 (USD)
@@ -43,12 +45,34 @@ export interface SwItem {
   name: string;
   vendor: string;
   category: string;
-  status: "approved" | "banned" | "conditional";
+  // "blocked"는 화면에서 새로 만들 수 없는 값이지만 과거 데이터에 실존해
+  // isBannedPolicy()로 "banned"와 함께 처리한다(lib/sw-audit.ts 참고).
+  // "excluded"는 사용자가 능동적으로 선택하지 않는 SW(보안모듈·드라이버·
+  // OS 런타임 등)를 승인/금지 판정 대상에서 제외하기 위한 상태다.
+  status: "approved" | "banned" | "blocked" | "conditional" | "excluded";
   alternatives: string[];
   mandatory: boolean;
   description: string;
   officialUrl?: string;   // 공식 다운로드/제품 페이지
   notionUrl?: string;
+}
+
+// ────────────────────────────────────────────────────────────
+// SaaS 도메인 정책 (화이트/블랙리스트) — 설치형 SW(SwItem)와 별개로, 브라우저로
+// 접속해서 쓰는 웹 기반 SaaS를 도메인 단위로 관리한다. PC에 설치되지 않아
+// SwItem 대조로는 잡히지 않는다.
+// ────────────────────────────────────────────────────────────
+export interface SaasItem {
+  id: string;
+  /** 매칭 기준 도메인. 예: "notion.so" — 방문 호스트가 이 값과 같거나 하위 도메인이면 매치 */
+  domain: string;
+  name: string;
+  vendor: string;
+  category: string;
+  status: "approved" | "banned" | "conditional" | "excluded";
+  alternatives: string[];
+  description: string;
+  officialUrl?: string;
 }
 
 // ────────────────────────────────────────────────────────────

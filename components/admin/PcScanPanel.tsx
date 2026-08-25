@@ -585,7 +585,7 @@ interface UnknownAggregateEntry { name: string; publisher: string; count: number
 interface SwAuditResult {
   checked: number;
   failed: { recordId: string; pcName: string; error: string }[];
-  perPcSummary: { recordId: string; pcName: string; total: number; whitelist: number; blacklist: number; unknown: number }[];
+  perPcSummary: { recordId: string; pcName: string; total: number; whitelist: number; blacklist: number; excluded: number; unknown: number }[];
   unknownAggregate: UnknownAggregateEntry[];
 }
 
@@ -658,7 +658,7 @@ function SwAuditModal({ files, onClose }: { files: SwAuditFileTarget[]; onClose:
 
           {result && (
             <>
-              <div className="grid grid-cols-3 gap-3 mb-5">
+              <div className="grid grid-cols-4 gap-3 mb-5">
                 <div className="bg-gray-50 rounded-xl p-3 text-center">
                   <div className="text-xl font-bold text-gray-800">{result.checked}</div>
                   <div className="text-xs text-gray-500 mt-0.5">검사 완료 PC</div>
@@ -666,6 +666,10 @@ function SwAuditModal({ files, onClose }: { files: SwAuditFileTarget[]; onClose:
                 <div className="bg-red-50 rounded-xl p-3 text-center">
                   <div className="text-xl font-bold text-red-600">{result.unknownAggregate.length}</div>
                   <div className="text-xs text-red-500 mt-0.5">미확인 SW 종류</div>
+                </div>
+                <div className="bg-blue-50 rounded-xl p-3 text-center">
+                  <div className="text-xl font-bold text-blue-600">{result.perPcSummary.reduce((s, p) => s + p.excluded, 0)}</div>
+                  <div className="text-xs text-blue-500 mt-0.5">예외 처리(자동 제외)</div>
                 </div>
                 <div className="bg-gray-50 rounded-xl p-3 text-center">
                   <div className="text-xl font-bold text-gray-800">{result.failed.length}</div>
