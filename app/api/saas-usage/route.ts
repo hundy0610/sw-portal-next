@@ -1,21 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSaasUsage, saveSaasUsage, getSaasItems } from "@/lib/portal-store";
-import { mergeSaasUsageReport, matchDomainsAgainstSaasDb, aggregateUnknownDomains, domainsToVisitedList, type SaasUsageReport, type VisitedDomain } from "@/lib/saas-audit";
+import {
+  mergeSaasUsageReport, matchDomainsAgainstSaasDb, aggregateUnknownDomains, domainsToVisitedList,
+  isKnownDomain, isValidHostname, sanitizeForExcelCell,
+  type SaasUsageReport, type VisitedDomain,
+} from "@/lib/saas-audit";
 import { findUnregisteredUsage, type SubscriptionLite, type PcIdentity } from "@/lib/saas-subscription-check";
 import { fetchSwDatabase } from "@/lib/notion";
-import { fetchPcScans } from "@/lib/pc-scan";
+import { fetchPcScans, attachSaasDomainSheet } from "@/lib/pc-scan";
 import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";
 import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
 
-// 정기적 사용으로 볼 최소 관측 일수 — 정책값이라 쿼리스트링으로 조정 가능하게 둔다.
-const DEFAULT_MIN_DAYS_OBSERVED = 5;
+// 정기적 사용으로 볼 최소 누적 방문수 — 정책값이라 쿼리스트링으로 조정 가능하게 둔다.
+const DEFAULT_MIN_VISIT_COUNT = 10;
 
 const MAX_DOMAINS_PER_REPORT = 2000;
 const MAX_BODY_BYTES = 1 * 1024 * 1024;
 
-// POST /api/saas-usage — 수집 클라이언트(PowerShell, 각 PC에서 작업 스케줄러로 실행) 전용.
+// POST /api/saas-usage — 수집 클라이언트(PC 자산실사에 얹혀 반기 1회 실행) 전용.
 // 로그인 세션이 없는 무인 실행이라 /api/pc-scan과 동일하게 사전 공유 키로 인증한다.
 // PC 실사 수집(SCAN_INGEST_KEY)과 신뢰 경계를 분리하기 위해 별도 키를 쓴다 — 이 키가
 // 유출돼도 자산실사 데이터에는 영향이 없다.
@@ -48,8 +52,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: `domains는 한 번에 최대 ${MAX_DOMAINS_PER_REPORT}건까지 허용됩니다` }, { status: 400 });
   }
 
-  const domains: VisitedDomain[] = body.domains
-    .filter((d): d is VisitedDomain => !!d && typeof d.host === "string" && d.host.trim().length > 0)
+  // 호스트명 형태 검증 — 이상한 문자열은 조용히 버린다(전체 요청을 실패시키지 않음).
+  const parsed: VisitedDomain[] = body.domains
+    .filter((d): d is VisitedDomain => !!d && typeof d.host === "string" && isValidHostname(d.host.trim()))
     .map(d => ({
       host: d.host.trim(),
       visitCount: Number.isFinite(d.visitCount) && d.visitCount > 0 ? Math.floor(d.visitCount) : 1,
@@ -59,6 +64,13 @@ export async function POST(req: NextRequest) {
   const collectedAt = typeof body.collectedAt === "string" && body.collectedAt ? body.collectedAt : new Date().toISOString();
 
   try {
+    // 카탈로그(SaaS 도메인 정책)로 재검증한다 — 수집 클라이언트가 이미 걸러서 보내도록
+    // 스펙에 있지만, 그건 강제할 수 없는 약속이다. fail-closed: 카탈로그 조회 자체가
+    // 실패하면 아래 catch로 빠져 이 요청은 도메인을 하나도 저장하지 않고 통째로 실패
+    // 처리된다 — "카탈로그를 확인 못 했으니 일단 다 저장"으로 새지 않는다.
+    const saasItemsForFilter = await getSaasItems();
+    const domains = parsed.filter(d => isKnownDomain(d.host, saasItemsForFilter));
+
     const store = await getSaasUsage();
     const updated = mergeSaasUsageReport(store, {
       pcName, serial, collectedAt, domains,
@@ -69,7 +81,14 @@ export async function POST(req: NextRequest) {
     if (!(await saveSaasUsage(updated))) {
       return NextResponse.json({ ok: false, error: "저장에 실패했습니다" }, { status: 500 });
     }
-    return NextResponse.json({ ok: true, domainsReceived: domains.length });
+
+    // 같은 실사 라운드에서 먼저 도착했을 /api/pc-scan 첨부(설치프로그램 엑셀)에 이번
+    // SaaS 도메인을 두 번째 시트로 얹는다 — 부가 기능이라 실패해도 위 저장은 그대로 둔다.
+    attachSaasDomainSheet(serial, domains, sanitizeForExcelCell).catch(e =>
+      console.error("[saas-usage → pc-scan 엑셀 시트 병합 실패]", e)
+    );
+
+    return NextResponse.json({ ok: true, domainsReceived: domains.length, domainsDropped: parsed.length - domains.length });
   } catch (e) {
     console.error("[POST /api/saas-usage]", e);
     return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
@@ -85,8 +104,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const minDaysParam = Number(req.nextUrl.searchParams.get("minDays"));
-    const minDaysObserved = Number.isFinite(minDaysParam) && minDaysParam > 0 ? minDaysParam : DEFAULT_MIN_DAYS_OBSERVED;
+    const minVisitsParam = Number(req.nextUrl.searchParams.get("minVisits"));
+    const minVisitCount = Number.isFinite(minVisitsParam) && minVisitsParam > 0 ? minVisitsParam : DEFAULT_MIN_VISIT_COUNT;
 
     const [store, saasItems, pcScans, swRecords] = await Promise.all([
       getSaasUsage(), getSaasItems(), fetchPcScans(), fetchSwDatabase(),
@@ -124,10 +143,12 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // 라이선스 유형을 구독으로 한정하지 않는다 — 같은 SaaS를 영구(설치형) 라이선스로
+    // 등록해둔 사람이 웹 버전도 같이 쓰는 경우가 많아서, 구독만 보면 이미 정식
+    // 라이선스가 있는 사람도 "미등록"으로 잘못 걸린다.
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const subs: SubscriptionLite[] = swRecords
-      .filter(r => (r.licenseType ?? "").includes("구독"))
       .filter(r => r.status !== "만료" && r.status !== "반납")
       .filter(r => !r.renewalDate || new Date(r.renewalDate) >= today)
       .map(r => ({ user: r.user, swName: r.swDetail || r.swCategory || "", company: r.company, department: r.department }));
@@ -137,10 +158,10 @@ export async function GET(req: NextRequest) {
         identity: identityBySerial.get(p.serial) ?? { serial: p.serial, pcName: p.pcName, userName: p.userName ?? "", dept: "", corp: p.corp ?? "" },
         entries: p.entries,
       })),
-      saasItems, subs, minDaysObserved,
+      saasItems, subs, minVisitCount,
     );
 
-    return NextResponse.json({ ok: true, perPcSummary, unknownAggregate, perPc, unregisteredUsage, minDaysObserved });
+    return NextResponse.json({ ok: true, perPcSummary, unknownAggregate, perPc, unregisteredUsage, minVisitCount });
   } catch (e) {
     console.error("[GET /api/saas-usage]", e);
     return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });

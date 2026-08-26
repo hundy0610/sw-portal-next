@@ -31,10 +31,6 @@ export interface PcIdentity {
   corp: string;
 }
 
-function daysOf(e: { daysObserved?: number }): number {
-  return e.daysObserved ?? 0;
-}
-
 export interface UnregisteredUsageCandidate {
   serial: string;
   pcName: string;
@@ -44,7 +40,6 @@ export interface UnregisteredUsageCandidate {
   domain: string;
   /** SaaS 정책에 등록된 서비스명이 있으면 그 값, 없으면 도메인에서 추정한 이름 */
   serviceNameGuess: string;
-  daysObserved: number;
   visitCount: number;
   lastVisitedAt: string;
 }
@@ -81,32 +76,38 @@ function hasMatchingSubscription(userName: string, serviceNameGuess: string, sub
 
 /**
  * PC별 SaaS 사용 현황(화이트/조건부/미확인만 — 이미 블랙리스트·예외는 별도 처리되므로
- * 제외)을 구독 관리와 대조해 "등록된 구독 없이 정기적으로 쓰는" 후보를 뽑는다.
+ * 제외)을 구독 관리와 대조해 "등록된 라이선스 없이 정기적으로 쓰는" 후보를 뽑는다.
  *
- * minDaysObserved: 몇 개의 서로 다른 날짜에 관측돼야 "정기적"으로 볼지 — 정책적
- * 판단이라 호출부에서 정하게 한다(기본값은 API 라우트에서 지정).
+ * minVisitCount: 누적 방문수가 얼마 이상이어야 "정기적"으로 볼지 — 정책적 판단이라
+ * 호출부에서 정하게 한다(기본값은 API 라우트에서 지정).
+ *
+ * 예전에는 "서로 다른 날짜 수(daysObserved)"를 기준으로 삼았는데, 그건 수집이 하루
+ * 1회 상시 실행된다는 전제였다. 지금은 PC 자산실사 라운드(반기 1회)에 얹어 스냅샷으로
+ * 수집하므로, "서로 다른 날짜"가 몇 년이 지나야 의미 있게 쌓인다 — 대신 Chrome/Edge가
+ * 이미 수개월치 누적해서 갖고 있는 visitCount를 쓰면 스냅샷 한 번으로도 충분한 신호가
+ * 된다.
  */
 export function findUnregisteredUsage(
   perPc: { identity: PcIdentity; entries: SaasAuditEntry[] }[],
   saasItems: SaasItem[],
   subs: SubscriptionLite[],
-  minDaysObserved: number,
+  minVisitCount: number,
 ): UnregisteredUsageCandidate[] {
   const out: UnregisteredUsageCandidate[] = [];
   for (const { identity, entries } of perPc) {
     if (!identity.userName) continue; // 신원을 모르면 특정인을 지목할 수 없어 건너뜀
     for (const e of entries) {
       if (e.status === "blacklist" || e.status === "excluded") continue;
-      if (daysOf(e) < minDaysObserved) continue;
+      if (e.visitCount < minVisitCount) continue;
       const serviceNameGuess = guessServiceName(e.host, saasItems);
       if (hasMatchingSubscription(identity.userName, serviceNameGuess, subs)) continue;
       out.push({
         serial: identity.serial, pcName: identity.pcName, userName: identity.userName,
         dept: identity.dept, corp: identity.corp,
         domain: e.host, serviceNameGuess,
-        daysObserved: daysOf(e), visitCount: e.visitCount, lastVisitedAt: e.lastVisitedAt,
+        visitCount: e.visitCount, lastVisitedAt: e.lastVisitedAt,
       });
     }
   }
-  return out.sort((a, b) => b.daysObserved - a.daysObserved);
+  return out.sort((a, b) => b.visitCount - a.visitCount);
 }

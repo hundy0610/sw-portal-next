@@ -364,6 +364,56 @@ export interface PcScanEditFields {
   closed?: boolean;
 }
 
+/**
+ * SaaS 도메인 방문기록을, 같은 serial의 가장 최근 pc-scan 레코드가 이미 갖고 있는
+ * 설치프로그램 엑셀에 "SaaS 도메인" 시트로 얹어 재업로드하고, 그 레코드의 첨부 URL을
+ * 새 파일로 갱신한다. 한 실사 라운드 안에서 HW/설치SW 보고(/api/pc-scan)가 먼저 오고
+ * SaaS 도메인 보고(/api/saas-usage)가 뒤이어 온다는 전제 — 대상 레코드나 첨부가 아직
+ * 없으면 아무것도 하지 않는다(POST /api/saas-usage 쪽에서 non-fatal 로 처리).
+ */
+export async function attachSaasDomainSheet(
+  serial: string,
+  domains: { host: string; visitCount: number; lastVisitedAt: string }[],
+  sanitizeCell: (v: string) => string,
+  dbEnvVar: string = "NOTION_DB_PC_SCAN",
+): Promise<boolean> {
+  if (!serial || domains.length === 0) return false;
+  const entity = entityFor(dbEnvVar);
+  const all = (await readEntity<PcScanRecord>(entity)) ?? [];
+  // 같은 serial로 여러 회차 레코드가 있을 수 있어 collectedAt 최신 것을 대상으로 한다.
+  const target = all
+    .filter(r => r.serial === serial && r.programFileUrl)
+    .sort((a, b) => (b.collectedAt || "").localeCompare(a.collectedAt || ""))[0];
+  if (!target) return false;
+
+  const res = await fetch(target.programFileUrl);
+  if (!res.ok) return false;
+  const buf = Buffer.from(await res.arrayBuffer());
+  const wb = XLSX.read(buf, { type: "buffer" });
+
+  const SHEET_NAME = "SaaS 도메인";
+  const existingIdx = wb.SheetNames.indexOf(SHEET_NAME);
+  if (existingIdx !== -1) {
+    // 재실사 등으로 이미 이 시트가 있으면 지우고 새로 채운다(오래된 스냅샷이 남지 않게).
+    delete wb.Sheets[SHEET_NAME];
+    wb.SheetNames.splice(existingIdx, 1);
+  }
+  const rows = [
+    ["도메인", "누적 방문수", "최근 방문일시"],
+    ...domains.map(d => [sanitizeCell(d.host), d.visitCount, d.lastVisitedAt]),
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), SHEET_NAME);
+  const merged = Buffer.from(XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer);
+
+  const newUrl = await uploadToBlob(
+    merged,
+    target.programFileName || "installed_programs.xlsx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    entity,
+  );
+  return upsertEntity(entity, target.id, { ...target, programFileUrl: newUrl });
+}
+
 export async function updatePcScan(id: string, fields: PcScanEditFields, dbEnvVar: string = "NOTION_DB_PC_SCAN"): Promise<void> {
   const entity = entityFor(dbEnvVar);
   const base = await readEntityOne<PcScanRecord>(entity, id);

@@ -1,10 +1,14 @@
-// SaaS 사용 현황 — 각 PC의 수집 클라이언트(PowerShell, 작업 스케줄러로 상시 실행)가
-// Chrome/Edge 방문기록에서 추출해 보낸 도메인을 SaaS 도메인 정책(app/manage의
-// "SaaS 도메인 정책" 탭에서 관리)과 대조한 결과를 보여준다.
+// SaaS 사용 현황 — PC 자산실사(반기 1회)에 얹혀 수집된 Chrome/Edge 방문 도메인을
+// SaaS 도메인 정책(app/manage의 "SaaS 도메인 정책" 탭에서 관리)과 대조한 결과를 보여준다.
+//
+// 상시 실행되는 별도 수집 스크립트는 폐기했다 — 이미 동의받는 PC 자산실사에 얹어
+// 반기 1회 스냅샷으로만 수집한다. 서버(POST /api/saas-usage)가 카탈로그에 없는
+// 도메인은 애초에 저장하지 않으므로("미확인" 도메인은 과거에 저장된 것만 남아 있고
+// 새로 늘지 않는다), 여기 보이는 데이터는 이미 SaaS 도메인 정책에 등록된 것 위주다.
 //
 // 설치형 SW 감사(PcScanPanel의 SwAuditModal)와 달리 파일을 그때그때 골라 검사하는
-// 방식이 아니다 — 수집 클라이언트가 보낼 때마다 서버가 이미 누적·대조해 저장해두므로
-// 이 화면은 그 결과를 그대로 조회만 한다.
+// 방식이 아니다 — 수집 보고가 올 때마다 서버가 이미 누적·대조해 저장해두므로 이
+// 화면은 그 결과를 그대로 조회만 한다.
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
@@ -38,7 +42,6 @@ interface UnregisteredUsageCandidate {
   corp: string;
   domain: string;
   serviceNameGuess: string;
-  daysObserved: number;
   visitCount: number;
   lastVisitedAt: string;
 }
@@ -48,7 +51,7 @@ interface UsageResult {
   perPcSummary: PcSummary[];
   unknownAggregate: UnknownAggregate[];
   unregisteredUsage: UnregisteredUsageCandidate[];
-  minDaysObserved: number;
+  minVisitCount: number;
 }
 
 export default function SaasUsagePanel() {
@@ -58,17 +61,17 @@ export default function SaasUsagePanel() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [registering, setRegistering] = useState(false);
   const [registeredCount, setRegisteredCount] = useState<number | null>(null);
-  const [minDaysInput, setMinDaysInput] = useState(5);
+  const [minVisitsInput, setMinVisitsInput] = useState(10);
 
-  const load = useCallback((minDays?: number) => {
+  const load = useCallback((minVisits?: number) => {
     setLoading(true);
     setError("");
-    fetch(`/api/saas-usage?minDays=${minDays ?? minDaysInput}`)
+    fetch(`/api/saas-usage?minVisits=${minVisits ?? minVisitsInput}`)
       .then(r => safeJson(r))
       .then(res => {
         if (!res.ok) { setError(res.error ?? "조회 실패"); return; }
         setResult(res);
-        if (typeof res.minDaysObserved === "number") setMinDaysInput(res.minDaysObserved);
+        if (typeof res.minVisitCount === "number") setMinVisitsInput(res.minVisitCount);
       })
       .catch(() => setError("네트워크 오류"))
       .finally(() => setLoading(false));
@@ -150,19 +153,21 @@ export default function SaasUsagePanel() {
           </div>
 
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-bold text-gray-700">미등록 사용 후보 — 구독 관리에 등록된 라이선스가 없음</h3>
+            <h3 className="text-xs font-bold text-gray-700">미등록 사용 후보 — 등록된 라이선스가 없음</h3>
             <div className="flex items-center gap-2 text-xs text-gray-500">
-              <span>최소 관측일수</span>
-              <input type="number" min={1} value={minDaysInput}
-                onChange={e => setMinDaysInput(Number(e.target.value) || 1)}
+              <span>최소 누적 방문수</span>
+              <input type="number" min={1} value={minVisitsInput}
+                onChange={e => setMinVisitsInput(Number(e.target.value) || 1)}
                 className="w-14 border border-gray-200 rounded px-1.5 py-1 text-center" />
-              <button onClick={() => load(minDaysInput)} className="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 font-semibold">다시 조회</button>
+              <button onClick={() => load(minVisitsInput)} className="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 font-semibold">다시 조회</button>
             </div>
           </div>
           <div className="rounded-xl px-4 py-3 mb-3 text-xs bg-amber-50 text-amber-800">
-            서로 다른 {result.minDaysObserved}일 이상 정기적으로 접속했지만, 이 사람 이름으로 등록된 구독이
-            구독 관리(라이선스 대장)에서 확인되지 않은 경우입니다. 무료 티어 사용, 동료와의 공용 라이선스,
-            등록 누락 등 다른 이유일 수 있습니다 — <strong>바로 통보하지 말고 본인·부서 확인을 먼저 거쳐주세요.</strong>
+            브라우저 방문기록 누적 방문수가 {result.minVisitCount}회 이상으로 정기적으로 쓴 것으로 보이지만,
+            이 사람 이름으로 등록된 라이선스(구독·영구 모두 포함)가 구독 관리(라이선스 대장)에서 확인되지
+            않은 경우입니다. 수집은 자산실사 시점 스냅샷이라 방문수는 그 시점까지 브라우저에 누적된 기록
+            기준입니다. 무료 티어 사용, 동료와의 공용 라이선스, 등록 누락 등 다른 이유일 수 있습니다 —{" "}
+            <strong>바로 통보하지 말고 본인·부서 확인을 먼저 거쳐주세요(가입 시 회사 이메일을 썼는지도 이때 같이 확인).</strong>
           </div>
           {result.unregisteredUsage.length === 0 ? (
             <div className="text-center py-8 text-gray-400 text-sm mb-6">해당하는 후보가 없습니다.</div>
@@ -175,7 +180,7 @@ export default function SaasUsagePanel() {
                     <th className="text-left px-3 py-2 font-semibold text-gray-500">법인 · 부서</th>
                     <th className="text-left px-3 py-2 font-semibold text-gray-500">추정 서비스</th>
                     <th className="text-left px-3 py-2 font-semibold text-gray-500">도메인</th>
-                    <th className="text-right px-3 py-2 font-semibold text-gray-500">관측일수</th>
+                    <th className="text-right px-3 py-2 font-semibold text-gray-500">누적 방문수</th>
                     <th className="text-left px-3 py-2 font-semibold text-gray-500">최근 접속</th>
                   </tr>
                 </thead>
@@ -186,7 +191,7 @@ export default function SaasUsagePanel() {
                       <td className="px-3 py-2 text-gray-500">{[u.corp, u.dept].filter(Boolean).join(" · ") || "—"}</td>
                       <td className="px-3 py-2 text-gray-800">{u.serviceNameGuess}</td>
                       <td className="px-3 py-2 text-gray-500">{u.domain}</td>
-                      <td className="px-3 py-2 text-right font-bold text-amber-600">{u.daysObserved}일</td>
+                      <td className="px-3 py-2 text-right font-bold text-amber-600">{u.visitCount}회</td>
                       <td className="px-3 py-2 text-gray-400">{new Date(u.lastVisitedAt).toLocaleString("ko-KR")}</td>
                     </tr>
                   ))}

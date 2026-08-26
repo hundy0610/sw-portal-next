@@ -43,6 +43,27 @@ function domainMatches(visitedHost: string, policyDomain: string): boolean {
   return v === p || v.endsWith(`.${p}`);
 }
 
+/** 이 호스트가 SaaS 도메인 정책(카탈로그)에 등록돼 있는지 — 상태(승인/금지/조건부/예외)는
+ * 상관없이, 카탈로그에 존재하기만 하면 true. POST /api/saas-usage의 수집 필터링에 쓴다. */
+export function isKnownDomain(host: string, saasItems: SaasItem[]): boolean {
+  const h = normalizeDomain(host);
+  if (!h) return false;
+  return saasItems.some(item => domainMatches(h, item.domain));
+}
+
+/** 유효한 호스트명 형태인지 검사 — 영문/숫자/점/하이픈만, 길이 제한. 이상값·인젝션 방어. */
+export function isValidHostname(host: string): boolean {
+  if (typeof host !== "string") return false;
+  const h = host.trim();
+  if (!h || h.length > 253) return false;
+  return /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/i.test(h);
+}
+
+/** 엑셀 셀에 쓰기 전 방어적 정제 — =,+,-,@ 로 시작하면 수식으로 해석돼 열릴 수 있다(CSV/수식 인젝션). */
+export function sanitizeForExcelCell(value: string): string {
+  return /^[=+\-@]/.test(value) ? `'${value}` : value;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 자동 예외 판정 — SaaS DB에 등록돼 있지 않아도 순수 인프라/광고 트래킹 도메인이면
 // "미확인"이 아니라 "excluded"로 분류한다. 사람이 서비스로 선택해서 방문한 게 아니라
@@ -145,7 +166,17 @@ function reportDateOf(iso: string): string {
   return iso.slice(0, 10);
 }
 
-/** 새 보고를 기존 저장소에 병합한다(도메인별 방문수 누적, 최근 방문시각 갱신). */
+/**
+ * 새 보고를 기존 저장소에 병합한다.
+ *
+ * visitCount는 더하지 않고 최댓값으로 대체한다 — 예전에는 수집 클라이언트(작업
+ * 스케줄러, 하루 1회)가 "그날의 증분"만 보낸다고 가정해 누적 합산이 맞았지만, 지금은
+ * PC 자산실사 라운드(반기 1회)에 얹어 스냅샷으로 수집한다. Chrome/Edge의 History가
+ * 이미 수개월치 방문수를 자체 누적해서 갖고 있어, 매 라운드 보고값 자체가 "그 시점까지
+ * 누적된 총량"이다 — 여기에 다시 더하면 라운드를 거듭할수록 실제보다 훨씬 부풀려진다.
+ * 최댓값을 쓰면 오탐(방문기록 삭제 등으로 이번 값이 더 작게 오는 경우)에도 방문수가
+ * 줄어드는 이상한 일 없이 안전하다.
+ */
 export function mergeSaasUsageReport(store: SaasUsageStore, report: SaasUsageReport): SaasUsageStore {
   const key = report.serial.trim();
   if (!key) return store;
@@ -158,7 +189,7 @@ export function mergeSaasUsageReport(store: SaasUsageStore, report: SaasUsageRep
     const prev = domains[host];
     const isNewDay = !prev || prev.lastReportDate !== reportDate;
     domains[host] = {
-      visitCount: (prev?.visitCount ?? 0) + d.visitCount,
+      visitCount: Math.max(prev?.visitCount ?? 0, d.visitCount),
       // firstSeenAt은 브라우저의 실제 최초 방문시각이 아니라 "우리 시스템이 처음
       // 관측한 시각"이다 — 수집 클라이언트는 누적 방문수만 보내 브라우저 원본
       // 최초방문시각을 알 수 없다.
