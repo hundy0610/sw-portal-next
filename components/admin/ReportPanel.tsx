@@ -3,7 +3,9 @@
 import { useEffect, useState, useCallback, Fragment } from "react";
 import type { ReportData, SubRow } from "@/lib/reportTypes";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
+import SubscriptionAlerts from "@/components/admin/SubscriptionAlerts";
 import { safeJson } from "@/lib/fetch-json";
+import { getAnomalyFlags, ANOMALY_LABEL, type AnomalyFlag } from "@/lib/anomaly-detection";
 
 // ─── 카테고리 색상 맵 ────────────────────────────────────────────────────
 const CATEGORY_BADGE: Record<string, string> = {
@@ -63,10 +65,11 @@ function periodKrw(annualKrw: number, mode: "monthly" | "annual") {
 function periodUsd(annualUsd: number, mode: "monthly" | "annual") {
   return mode === "monthly" ? annualUsd / 12 : annualUsd;
 }
-function convertedKrw(annualKrw: number, annualUsd: number, rate: number, mode: "monthly" | "annual") {
-  const krw = periodKrw(annualKrw, mode);
-  const usd = periodUsd(annualUsd, mode);
-  return krw + Math.round(usd * rate);
+// 원화 환산 총액 — 서버(app/api/report)가 이미 이 항목의 결제일(또는 폴백 날짜) 기준
+// 환율로 annualKrwConverted를 계산해서 내려주므로, 여기서는 기간(월간/연간) 환산만 한다.
+// "조회 시점 환율" 하나를 전체에 일괄 적용하지 않기 위해 클라이언트에는 rate 파라미터를 두지 않는다.
+function convertedKrw(r: SubRow, mode: "monthly" | "annual") {
+  return periodKrw(r.annualKrwConverted, mode);
 }
 
 // ─── Notion 링크 버튼 ────────────────────────────────────────────────────
@@ -126,8 +129,8 @@ function DeptRowUnified({
     return { cat, swMap };
   }).filter(Boolean) as { cat: string; swMap: Map<string, { count: number; annualKrw: number; annualUsd: number; billingType?: string; notionUrl: string }> }[];
 
-  const totalKrwConverted  = rows.reduce((s, r) => s + convertedKrw(r.annualKrw, r.annualUsd, rate, mode), 0);
-  const sharedKrwConverted = rows.filter(isShared).reduce((s, r) => s + convertedKrw(r.annualKrw, r.annualUsd, rate, mode), 0);
+  const totalKrwConverted  = rows.reduce((s, r) => s + convertedKrw(r, mode), 0);
+  const sharedKrwConverted = rows.filter(isShared).reduce((s, r) => s + convertedKrw(r, mode), 0);
   const netKrwConverted    = totalKrwConverted - sharedKrwConverted;
   const hasShared          = rows.some(isShared);
 
@@ -206,7 +209,7 @@ function DeptRowUnified({
                   {rows.map(r => {
                     const pKrw = periodKrw(r.annualKrw, mode);
                     const pUsd = periodUsd(r.annualUsd, mode);
-                    const conv = convertedKrw(r.annualKrw, r.annualUsd, rate, mode);
+                    const conv = convertedKrw(r, mode);
                     const shared = isShared(r);
                     return (
                       <tr key={r.id} className={`border-t border-gray-100 ${shared ? "bg-amber-50/50" : "bg-white/70"} hover:bg-gray-100/50`}>
@@ -250,16 +253,16 @@ function DeptRowUnified({
 
 // ─── 부서 상세 행 (접기/펼치기) ──────────────────────────────────────────
 function DeptDetail({
-  dept, rows, dTotal, dShared, dNet, dHas, rate, mode, periodLabel,
+  co, dept, rows, dTotal, dShared, dNet, dHas, flags, mode, periodLabel,
 }: {
-  dept: string; rows: SubRow[]; dTotal: number; dShared: number; dNet: number; dHas: boolean;
-  rate: number; mode: PeriodMode; periodLabel: string;
+  co: string; dept: string; rows: SubRow[]; dTotal: number; dShared: number; dNet: number; dHas: boolean;
+  flags: AnomalyFlag[]; mode: PeriodMode; periodLabel: string;
 }) {
   const [open, setOpen] = useState(false);
   const users = [...new Set(rows.map(r => r.user).filter(Boolean))];
   const swSet = [...new Set(rows.map(r => r.swName))];
   return (
-    <div className="border-b border-slate-100 last:border-0">
+    <div id={anomalyAnchorId(co, dept)} className="border-b border-slate-100 last:border-0 scroll-mt-4">
       <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors text-left"
         onClick={() => setOpen(o => !o)}>
         <svg className={`w-3.5 h-3.5 text-slate-400 flex-shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
@@ -267,6 +270,13 @@ function DeptDetail({
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
         </svg>
         <span className="font-semibold text-slate-800 text-sm w-28 flex-shrink-0 truncate">{dept}</span>
+        {flags.length > 0 && (
+          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${
+            flags.includes("담당자미지정") ? "bg-red-100 text-red-600" : "bg-orange-100 text-orange-600"
+          }`} title={flags.map(f => ANOMALY_LABEL[f]).join(", ")}>
+            ⚠ {ANOMALY_LABEL[flags[0]]}
+          </span>
+        )}
         <div className="flex flex-wrap gap-1 flex-1 min-w-0">
           {swSet.slice(0,5).map(sw => (
             <span key={sw} className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded border border-slate-200">{sw}</span>
@@ -300,7 +310,7 @@ function DeptDetail({
             g.count++;
             g.totalKrw  += periodKrw(r.annualKrw, mode);
             g.totalUsd  += periodUsd(r.annualUsd, mode);
-            g.totalConv += convertedKrw(r.annualKrw, r.annualUsd, rate, mode);
+            g.totalConv += convertedKrw(r, mode);
             if (r.user && !g.users.includes(r.user)) g.users.push(r.user);
           } else {
             swGroups.set(key, {
@@ -309,7 +319,7 @@ function DeptDetail({
               count: 1,
               totalKrw:  periodKrw(r.annualKrw, mode),
               totalUsd:  periodUsd(r.annualUsd, mode),
-              totalConv: convertedKrw(r.annualKrw, r.annualUsd, rate, mode),
+              totalConv: convertedKrw(r, mode),
               shared: isShared(r),
             });
           }
@@ -427,15 +437,69 @@ function DeptDetail({
   );
 }
 
+// ─── 이상치 경고 배너 (F1) ────────────────────────────────────────────────
+function anomalyAnchorId(co: string, dept: string) {
+  return `dept-${encodeURIComponent(co)}-${encodeURIComponent(dept)}`;
+}
+
+function scrollToDept(co: string, dept: string) {
+  const el = document.getElementById(anomalyAnchorId(co, dept));
+  if (!el) return;
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  el.classList.add("anomaly-highlight");
+  setTimeout(() => el.classList.remove("anomaly-highlight"), 1800);
+}
+
+function AnomalyBanner({ items }: { items: { co: string; dept: string; flags: AnomalyFlag[] }[] }) {
+  if (items.length === 0) return null;
+  const urgent = items.filter(i => i.flags.includes("담당자미지정"));
+  const perHead = items.filter(i => !i.flags.includes("담당자미지정") && i.flags.includes("인당비용이상치"));
+  const zeroCost = items.filter(i => i.flags.includes("비용확인필요"));
+
+  const Row = ({ i, tone }: { i: { co: string; dept: string; flags: AnomalyFlag[] }; tone: "urgent" | "warn" | "note" }) => (
+    <button
+      onClick={() => scrollToDept(i.co, i.dept)}
+      className={`flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${
+        tone === "urgent"
+          ? "bg-red-100 text-red-700 hover:bg-red-200"
+          : tone === "warn"
+          ? "bg-orange-100 text-orange-700 hover:bg-orange-200"
+          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+      }`}
+    >
+      {i.co} · {i.dept}
+      <span className="opacity-70">{i.flags.map(f => ANOMALY_LABEL[f]).join(", ")}</span>
+    </button>
+  );
+
+  return (
+    <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3" data-print-hide>
+      <div className="flex items-start gap-2">
+        <svg className="w-4 h-4 mt-0.5 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/>
+        </svg>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-red-700">이상치 {items.length}건 발견 — 클릭하면 해당 부서로 이동합니다</p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {urgent.map(i => <Row key={`${i.co}-${i.dept}`} i={i} tone="urgent" />)}
+            {perHead.map(i => <Row key={`${i.co}-${i.dept}`} i={i} tone="warn" />)}
+            {zeroCost.map(i => <Row key={`${i.co}-${i.dept}`} i={i} tone="note" />)}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── 법인 블록 (요약 + 바 차트 + 부서 상세) ──────────────────────────────
 function CompanyBlock({
   co, coRows, coTotal, coShared, coNet, coHas,
-  deptList, maxDept, rate, mode, periodLabel,
+  deptList, maxDept, mode, periodLabel,
 }: {
   co: string; coRows: SubRow[];
   coTotal: number; coShared: number; coNet: number; coHas: boolean;
-  deptList: { dept: string; rows: SubRow[]; dTotal: number; dShared: number; dNet: number; dHas: boolean; users: string[]; sws: string[] }[];
-  maxDept: number; rate: number; mode: PeriodMode; periodLabel: string;
+  deptList: { dept: string; rows: SubRow[]; dTotal: number; dShared: number; dNet: number; dHas: boolean; users: string[]; sws: string[]; flags: AnomalyFlag[] }[];
+  maxDept: number; mode: PeriodMode; periodLabel: string;
 }) {
   return (
     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm mb-4">
@@ -462,12 +526,15 @@ function CompanyBlock({
       <div className="px-5 py-4 border-b border-slate-100 bg-slate-50">
         <div className="text-xs font-semibold text-slate-500 mb-3 uppercase tracking-wide">부서별 지출 현황</div>
         <div className="flex flex-col gap-2">
-          {deptList.map(({ dept, dNet, dHas, users, sws }) => {
+          {deptList.map(({ dept, dNet, dHas, users, sws, flags }) => {
             const pct = maxDept > 0 ? (dNet / maxDept * 100) : 0;
             const isHigh = pct > 60;
             return (
               <div key={dept} className="flex items-center gap-3">
-                <div className="w-24 text-xs font-medium text-slate-700 text-right flex-shrink-0 truncate">{dept}</div>
+                <div className="w-24 text-xs font-medium text-slate-700 text-right flex-shrink-0 truncate flex items-center justify-end gap-1">
+                  {flags.length > 0 && <span title={flags.map(f => ANOMALY_LABEL[f]).join(", ")}>⚠</span>}
+                  {dept}
+                </div>
                 <div className="flex-1 relative h-7 bg-slate-200 rounded-md overflow-hidden">
                   <div className="h-full rounded-md transition-all duration-500"
                     style={{ width: `${pct}%`, background: isHigh ? "var(--brand)" : "#94A3B8" }} />
@@ -503,10 +570,10 @@ function CompanyBlock({
         <div className="px-5 py-2 bg-white border-b border-slate-100 text-xs font-semibold text-slate-400 uppercase tracking-wide">
           부서 상세 — 클릭하여 사용자·SW 내역 확인
         </div>
-        {deptList.map(({ dept, rows, dTotal, dShared, dNet, dHas }) => (
-          <DeptDetail key={dept} dept={dept} rows={rows}
-            dTotal={dTotal} dShared={dShared} dNet={dNet} dHas={dHas}
-            rate={rate} mode={mode} periodLabel={periodLabel}/>
+        {deptList.map(({ dept, rows, dTotal, dShared, dNet, dHas, flags }) => (
+          <DeptDetail key={dept} co={co} dept={dept} rows={rows}
+            dTotal={dTotal} dShared={dShared} dNet={dNet} dHas={dHas} flags={flags}
+            mode={mode} periodLabel={periodLabel}/>
         ))}
       </div>
     </div>
@@ -516,7 +583,6 @@ function CompanyBlock({
 // ─── 뷰 빌더 (법인 그룹핑) ───────────────────────────────────────────────
 function buildView(
   rows: SubRow[],
-  rate: number,
   mode: PeriodMode,
   filterCompany: string,
   filterDept: string,
@@ -536,8 +602,8 @@ function buildView(
     deptMap.get(r.department)!.push(r);
   }
 
-  const grandTotal   = filtered.reduce((s, r) => s + convertedKrw(r.annualKrw, r.annualUsd, rate, mode), 0);
-  const sharedTotal  = filtered.filter(isShared).reduce((s, r) => s + convertedKrw(r.annualKrw, r.annualUsd, rate, mode), 0);
+  const grandTotal   = filtered.reduce((s, r) => s + convertedKrw(r, mode), 0);
+  const sharedTotal  = filtered.filter(isShared).reduce((s, r) => s + convertedKrw(r, mode), 0);
   const netTotal     = grandTotal - sharedTotal;
   const hasShared    = filtered.some(isShared);
 
@@ -551,11 +617,25 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
   const [error,      setError]      = useState<string | null>(null);
   const [missingEnv, setMissingEnv] = useState<string | null>(null);
   const [rate, setRate]   = useState<number>(1380);
+  const [rateAppliedAt, setRateAppliedAt]     = useState<string>("");
+  const [rateHistory,   setRateHistory]       = useState<{ rate: number; appliedAt: string }[]>([]);
+  const [showRateHistory, setShowRateHistory] = useState(false);
 
   // 필터 (법인 담당자면 company가 이미 고정됨)
   const [filterCompany, setFilterCompany] = useState(company);
   const [filterDept,    setFilterDept]    = useState("");
   const [filterCat,     setFilterCat]     = useState("");
+
+  // 거버넌스 스코어카드에서 특정 법인 행을 클릭해 넘어온 경우, 그 법인으로 필터를
+  // 미리 맞춰준다(슈퍼어드민만 해당 — company prop이 고정된 법인 담당자는 대상 아님).
+  useEffect(() => {
+    if (company) return;
+    const jump = sessionStorage.getItem("gov-scorecard-jump-company");
+    if (jump) {
+      setFilterCompany(jump);
+      sessionStorage.removeItem("gov-scorecard-jump-company");
+    }
+  }, [company]);
 
   // 기간 모드 (월간 / 연간)
   const [mode, setMode] = useState<PeriodMode>("monthly");
@@ -580,11 +660,42 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
 
   useEffect(() => { load(); }, [load]);
 
-  // 환율 조회
+  // 환율 조회 (F3) — 저장된 마지막 값(적용일자·이력 포함)을 먼저 불러와 화면에 반영하고,
+  // 실시간 조회가 성공하면 그 값으로 갱신하면서 이력에도 기록한다. 실시간 조회가 실패해도
+  // 마지막 저장값과 그 적용일자가 화면에 남아있게 한다.
   useEffect(() => {
+    fetch("/api/exchange-rate")
+      .then(r => safeJson(r))
+      .then(d => {
+        if (!d?.ok) return;
+        if (d.latest) { setRate(d.latest.rate); setRateAppliedAt(d.latest.appliedAt); }
+        setRateHistory(d.history ?? []);
+      })
+      .catch(() => {});
+
     fetch("https://open.er-api.com/v6/latest/USD")
       .then(r => safeJson(r))
-      .then(d => { if (d?.rates?.KRW) setRate(Math.round(d.rates.KRW)); })
+      .then(d => {
+        const liveRate = d?.rates?.KRW ? Math.round(d.rates.KRW) : null;
+        if (!liveRate) return;
+        const appliedAt = new Date().toISOString();
+        setRate(liveRate);
+        setRateAppliedAt(appliedAt);
+        return fetch("/api/exchange-rate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rate: liveRate }),
+        }).then(r => safeJson(r)).then(res => {
+          if (!res?.ok) return;
+          setRateHistory(prev => {
+            const today = appliedAt.slice(0, 10);
+            const sameDay = prev[0]?.appliedAt.slice(0, 10) === today;
+            return sameDay
+              ? [{ rate: liveRate, appliedAt }, ...prev.slice(1)]
+              : [{ rate: liveRate, appliedAt }, ...prev];
+          });
+        });
+      })
       .catch(() => {});
   }, []);
 
@@ -607,8 +718,27 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
   if (!data) return null;
 
   const { coMap, netTotal, hasShared, totalLicenses, filtered } = buildView(
-    data.rows, rate, mode, filterCompany, filterDept, filterCat
+    data.rows, mode, filterCompany, filterDept, filterCat
   );
+
+  // ─── 이상치 감지 (F1) — 현재 화면(필터 적용된 coMap)을 기준으로 전체 평균 인당비용을 구하고,
+  // 부서별로 플래그를 매긴다. 배너와 부서 상세 배지 양쪽에서 동일한 값을 재사용한다.
+  let sumCostForAvg = 0, sumHeadForAvg = 0;
+  const rawDeptStats: { co: string; dept: string; headcount: number; swCount: number; cost: number }[] = [];
+  for (const [co, deptMap] of coMap) {
+    for (const [dept, dRows] of deptMap) {
+      const headcount = new Set(dRows.map(r => r.user).filter(Boolean)).size;
+      const swCount   = new Set(dRows.map(r => r.swName)).size;
+      const cost      = dRows.reduce((s, r) => s + convertedKrw(r, mode), 0);
+      rawDeptStats.push({ co, dept, headcount, swCount, cost });
+      if (headcount > 0) {
+        sumHeadForAvg += headcount;
+        sumCostForAvg += cost;
+      }
+    }
+  }
+  const avgPerHead = sumHeadForAvg > 0 ? sumCostForAvg / sumHeadForAvg : 0;
+  const anomalyItems: { co: string; dept: string; flags: AnomalyFlag[] }[] = [];
 
   const periodLabel  = mode === "monthly" ? "월간" : "연간";
   const periodSuffix = mode === "monthly" ? "/월" : "/년";
@@ -651,7 +781,28 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
   // 인쇄: 현재 화면에서 선택된 법인만 출력 (전체 선택 시 모든 법인)
   const printTargetCo = filterCompany || company || "";
   const { coMap: printCoMap, grandTotal: printGrand, sharedTotal: printShared, netTotal: printNet, hasShared: printHasShared } =
-    buildView(data.rows, rate, "monthly", printTargetCo, "", "");
+    buildView(data.rows, "monthly", printTargetCo, "", "");
+
+  // ─── CSV 내보내기 (F2) — 현재 화면(필터·기간모드) 기준 부서별 데이터를 다운로드한다.
+  const exportCsv = () => {
+    const header = ["법인명", "부서명", "인원수", "SW개수", `${periodLabel}비용(원)`, "이상치_플래그"];
+    const csvRows = rawDeptStats.map(({ co, dept, headcount, swCount, cost }) => {
+      const flags = getAnomalyFlags(headcount, swCount, cost, avgPerHead);
+      const cell = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+      return [cell(co), cell(dept), cell(headcount), cell(swCount), cell(cost), cell(flags.map(f => ANOMALY_LABEL[f]).join(" / "))].join(",");
+    });
+    const csv = "﻿" + [header.join(","), ...csvRows].join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    const today = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `${filterCompany || company || "전체"}_${periodLabel}_${today}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <>
@@ -703,8 +854,21 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
               ))}
             </div>
           )}
-          {/* 환율 */}
-          <span className="text-xs text-slate-400 font-medium hidden sm:block">$1 = ₩{fmt(rate)}</span>
+          {/* 참고 환율 (오늘 기준) — 실제 금액 환산은 각 항목의 결제일 환율로 서버에서 계산됨. 클릭 시 이력 모달 */}
+          <button onClick={() => setShowRateHistory(true)}
+            title="아래 금액은 각 항목의 결제일 기준 환율로 개별 환산됩니다. 이 값은 참고용 오늘자 환율입니다."
+            className="text-xs text-slate-400 font-medium hidden sm:flex items-center gap-1 hover:text-slate-600 transition-colors">
+            오늘 환율 $1 = ₩{fmt(rate)}
+            {rateAppliedAt && <span className="text-slate-300">({rateAppliedAt.slice(0, 10)})</span>}
+          </button>
+          {/* CSV 내보내기 */}
+          <button onClick={exportCsv}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-white border border-emerald-300 text-emerald-700 text-xs font-semibold rounded-md hover:bg-emerald-50 transition-colors">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/>
+            </svg>
+            CSV 내보내기
+          </button>
           {/* 인쇄 */}
           <button onClick={printNow}
             className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-800 text-white text-xs font-semibold rounded-md hover:bg-slate-700 transition-colors">
@@ -722,11 +886,15 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
         </div>
       </div>
 
+      <SubscriptionAlerts isSuper={!company} />
+
+      <AnomalyBanner items={anomalyItems} />
+
       {/* ── 법인별 대시보드 ── */}
       {[...coMap.entries()].map(([co, deptMap]) => {
         const coRows   = [...deptMap.values()].flat();
-        const coTotal  = coRows.reduce((s,r) => s + convertedKrw(r.annualKrw, r.annualUsd, rate, mode), 0);
-        const coShared = coRows.filter(isShared).reduce((s,r) => s + convertedKrw(r.annualKrw, r.annualUsd, rate, mode), 0);
+        const coTotal  = coRows.reduce((s,r) => s + convertedKrw(r, mode), 0);
+        const coShared = coRows.filter(isShared).reduce((s,r) => s + convertedKrw(r, mode), 0);
         const coNet    = coTotal - coShared;
         const coHas    = coRows.some(isShared);
         const periodLabel = mode === "monthly" ? "월" : "연";
@@ -735,13 +903,15 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
         // 뺀 실부담으로 시각화한다(쉐어드는 부서 고유 지출이 아닌 회사 공통 비용이라 부서 비교를 왜곡함).
         // 원본 합계(dTotal)는 그대로 계산해두고 "포함 시" 참고용으로만 노출한다.
         const deptList = [...deptMap.entries()].map(([dept, rows]) => {
-          const dTotal  = rows.reduce((s,r) => s + convertedKrw(r.annualKrw, r.annualUsd, rate, mode), 0);
-          const dShared = rows.filter(isShared).reduce((s,r) => s + convertedKrw(r.annualKrw, r.annualUsd, rate, mode), 0);
+          const dTotal  = rows.reduce((s,r) => s + convertedKrw(r, mode), 0);
+          const dShared = rows.filter(isShared).reduce((s,r) => s + convertedKrw(r, mode), 0);
           const dNet    = dTotal - dShared;
           const dHas    = rows.some(isShared);
           const users   = [...new Set(rows.map(r => r.user).filter(Boolean))];
           const sws     = [...new Set(rows.map(r => r.swName))];
-          return { dept, rows, dTotal, dShared, dNet, dHas, users, sws };
+          const flags   = getAnomalyFlags(users.length, sws.length, dNet, avgPerHead);
+          if (flags.length > 0) anomalyItems.push({ co, dept, flags });
+          return { dept, rows, dTotal, dShared, dNet, dHas, users, sws, flags };
         }).sort((a, b) => b.dNet - a.dNet);
 
         const maxDept = deptList[0]?.dNet || 1;
@@ -750,7 +920,7 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
           <CompanyBlock
             key={co}
             co={co} coRows={coRows} coTotal={coTotal} coShared={coShared} coNet={coNet} coHas={coHas}
-            deptList={deptList} maxDept={maxDept} rate={rate} mode={mode} periodLabel={periodLabel}
+            deptList={deptList} maxDept={maxDept} mode={mode} periodLabel={periodLabel}
           />
         );
       })}
@@ -769,7 +939,7 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
       )}
 
       <p className="text-xs text-slate-400 text-right">
-        * 환율 $1 = ₩{fmt(rate)} (실시간) · 금액은 쉐어드청구 포함 총액 기준
+        * USD 금액은 각 항목의 결제일 기준 환율로 개별 환산됩니다 (오늘 환율 $1 = ₩{fmt(rate)}) · 금액은 쉐어드청구 포함 총액 기준
       </p>
     </div>{/* /화면용 */}
 
@@ -791,8 +961,8 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
       {/* ── 법인별 페이지 ── */}
       {[...printCoMap.entries()].map(([co, deptMap], coIdx) => {
         const coRows   = [...deptMap.values()].flat();
-        const coTotal  = coRows.reduce((s,r) => s + convertedKrw(r.annualKrw, r.annualUsd, rate, "monthly"), 0);
-        const coShared = coRows.filter(isShared).reduce((s,r) => s + convertedKrw(r.annualKrw, r.annualUsd, rate, "monthly"), 0);
+        const coTotal  = coRows.reduce((s,r) => s + convertedKrw(r, "monthly"), 0);
+        const coShared = coRows.filter(isShared).reduce((s,r) => s + convertedKrw(r, "monthly"), 0);
         const coNet    = coTotal - coShared;
         const coHas    = coRows.some(isShared);
         // 선택 법인이면 페이지 구분 없음, 전체 출력 시 법인별 페이지 구분
@@ -800,8 +970,8 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
 
         // 부서별 데이터 (비용 내림차순)
         const deptList = [...deptMap.entries()].map(([dept, dRows]) => {
-          const dTotal   = dRows.reduce((s,r) => s + convertedKrw(r.annualKrw, r.annualUsd, rate, "monthly"), 0);
-          const dShared  = dRows.filter(isShared).reduce((s,r) => s + convertedKrw(r.annualKrw, r.annualUsd, rate, "monthly"), 0);
+          const dTotal   = dRows.reduce((s,r) => s + convertedKrw(r, "monthly"), 0);
+          const dShared  = dRows.filter(isShared).reduce((s,r) => s + convertedKrw(r, "monthly"), 0);
           const dNet     = dTotal - dShared;
           const dHas     = dRows.some(isShared);
           // 부서 내 SW 집계
@@ -885,7 +1055,7 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
                     const deptRows = dRows.map((r, ri) => {
                       const mKrw = Math.round((r.annualKrw||0)/12);
                       const mUsd = (r.annualUsd||0)/12;
-                      const conv = convertedKrw(r.annualKrw, r.annualUsd, rate, "monthly");
+                      const conv = convertedKrw(r, "monthly");
                       const shared = isShared(r);
                       return (
                         <tr key={r.id} style={{background:shared?"#fffbeb":ri%2===0?"#ffffff":"#FAFAFA",borderBottom:"1px solid #F4F4F5"}}>
@@ -932,7 +1102,7 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
 
             {/* 주석 */}
             <div style={{marginTop:"1.5mm",fontSize:"6pt",color:"#A1A1AA",display:"flex",justifyContent:"space-between"}}>
-              <span>환율 $1=₩{fmt(rate)} (실시간 기준) · 금액은 쉐어드청구 포함 총액 기준 · [쉐] 쉐어드청구 항목</span>
+              <span>USD 금액은 항목별 결제일 기준 환율로 환산(오늘 $1=₩{fmt(rate)}) · 금액은 쉐어드청구 포함 총액 기준 · [쉐] 쉐어드청구 항목</span>
               <span>IT 자산관리 포털 · {printYear}.{String(printMonth).padStart(2,"0")}</span>
             </div>
           </div>
@@ -940,6 +1110,49 @@ export default function ReportPanel({ company = "" }: { company?: string }) {
       })}
 
     </div>{/* /인쇄 전용 */}
+
+    {/* ── 환율 이력 모달 (F3) ── */}
+    {showRateHistory && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+        onClick={() => setShowRateHistory(false)} data-print-hide>
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm max-h-[80vh] flex flex-col overflow-hidden"
+          onClick={e => e.stopPropagation()}>
+          <div className="px-5 py-4 bg-slate-800 text-white flex items-center justify-between shrink-0">
+            <div>
+              <div className="font-bold text-sm">환율 조회 이력</div>
+              <div className="text-xs text-white/70 mt-0.5">오늘 $1 = ₩{fmt(rate)} · {rateAppliedAt ? rateAppliedAt.slice(0,10) : "—"}</div>
+            </div>
+            <button onClick={() => setShowRateHistory(false)} className="text-white/80 hover:text-white text-xl leading-none">✕</button>
+          </div>
+          <div className="px-4 pt-3 text-[11px] text-slate-400 leading-relaxed">
+            위 화면의 금액은 이 값을 일괄 적용하지 않고, 각 항목의 <b>결제일 기준 환율</b>로 개별
+            환산됩니다. 아래는 매일 조회된 환율의 기록입니다.
+          </div>
+          <div className="overflow-y-auto p-4">
+            {rateHistory.length === 0 ? (
+              <p className="text-sm text-slate-400 text-center py-8">기록된 이력이 없습니다.</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-xs text-slate-400 border-b border-slate-200">
+                    <th className="text-left py-1.5 font-semibold">적용일자</th>
+                    <th className="text-right py-1.5 font-semibold">환율</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rateHistory.map((h, i) => (
+                    <tr key={i} className="border-b border-slate-100 last:border-0">
+                      <td className="py-1.5 text-slate-600">{h.appliedAt.slice(0, 10)}</td>
+                      <td className="py-1.5 text-right font-mono font-semibold text-slate-800">₩{fmt(h.rate)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
     </>
   );
 }

@@ -3,10 +3,9 @@
 import { useEffect, useRef, useState, useCallback, useMemo, Suspense } from "react";
 import QRCode from "qrcode";
 import type { Notice, Course, SwVersion, SwDoc, Manual } from "@/types/portal";
-import type { AuditLog } from "@/lib/portal-store";
-import type { SwItem } from "@/types";
+import type { SwItem, SaasItem } from "@/types";
 import { safeJson } from "@/lib/fetch-json";
-import { exportRowsToExcel } from "@/lib/xlsx-export";
+import { SW_POLICY_SEED } from "@/lib/sw-policy-seed";
 
 /* ── 색상 토큰 — 브랜드 앰버로 통일, CSS 변수 참조 (다크모드는 .portal-dark로 자동 대응) ── */
 const C = {
@@ -23,7 +22,7 @@ const C = {
   dangerSoft:  "var(--state-risk-soft)",
 } as const;
 
-type ManageTab = "notices" | "courses" | "swdb" | "audit" | "swresources" | "manuals";
+type ManageTab = "notices" | "courses" | "swdb" | "saasdb" | "swresources" | "manuals";
 
 interface SessionInfo {
   name: string;
@@ -105,8 +104,8 @@ function ManageDashboard({ session }: { session: SessionInfo }) {
     { id: "courses",     label: "교육과정"   },
     { id: "swresources", label: "SW 자료실"  },
     { id: "swdb",        label: "SW 검색"    },
+    { id: "saasdb",      label: "SaaS 도메인 정책" },
     { id: "manuals",     label: "매뉴얼"     },
-    { id: "audit",       label: "감사 로그"  },
   ];
 
   async function handleLogout() {
@@ -164,8 +163,8 @@ function ManageDashboard({ session }: { session: SessionInfo }) {
           {tab === "courses"     && <CoursesPanel      />}
           {tab === "swresources" && <SwResourcesPanel  />}
           {tab === "swdb"        && <SwPanel           />}
+          {tab === "saasdb"      && <SaasPanel         />}
           {tab === "manuals"     && <ManualsPanel      />}
-          {tab === "audit"       && <AuditPanel        />}
         </div>
       </main>
     </div>
@@ -353,6 +352,7 @@ function SwPanel() {
   const [saving,    setSaving]    = useState(false);
   const [editing,   setEditing]   = useState<SwItem | null>(null);
   const [filter,    setFilter]    = useState<"all" | SwItem["status"]>("all");
+  const [importing, setImporting] = useState(false);
 
   const defaultForm = { name: "", vendor: "", category: "", status: "conditional" as SwItem["status"], description: "", alternatives: "", mandatory: false, officialUrl: "" };
   const [form, setForm] = useState(defaultForm);
@@ -397,6 +397,29 @@ function SwPanel() {
     }
   }
 
+  // 큐레이션된 확장 목록(SW_POLICY_SEED, 171종)을 일괄 가져온다. 이름이 이미 있는
+  // 항목은 건너뛰므로 몇 번을 눌러도 중복 등록되지 않는다.
+  async function handleBulkImport() {
+    if (!confirm(`화이트/블랙/예외 확장 목록(최대 ${SW_POLICY_SEED.length}종)을 가져옵니다.\n이미 등록된 이름은 건너뜁니다. 계속할까요?`)) return;
+    setImporting(true);
+    try {
+      const res = await fetch("/api/sw-db", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ _action: "bulkImport", items: SW_POLICY_SEED }),
+      });
+      const json = await safeJson(res);
+      if (json.ok) {
+        alert(`${json.created}건 등록됨 (${json.skipped}건은 이미 있어 건너뜀)`);
+        load();
+      } else {
+        alert(json.error ?? "가져오기 실패");
+      }
+    } finally {
+      setImporting(false);
+    }
+  }
+
   async function del(id: string, name: string) {
     if (!confirm(`"${name}" 을(를) 삭제하시겠습니까?`)) return;
     try {
@@ -411,34 +434,51 @@ function SwPanel() {
   const STATUS_STYLE: Record<SwItem["status"], { text: string; bg: string; color: string }> = {
     approved:    { text: "승인",   bg: "var(--state-positive-soft)", color: "var(--state-positive)" },
     banned:      { text: "금지",   bg: "var(--state-risk-soft)", color: "var(--state-risk)" },
+    blocked:     { text: "금지",   bg: "var(--state-risk-soft)", color: "var(--state-risk)" },
     conditional: { text: "조건부", bg: "var(--state-caution-soft)", color: "var(--state-caution)" },
+    excluded:    { text: "예외",   bg: "var(--state-progress-soft)", color: "var(--state-progress)" },
   };
 
+  // "blocked"는 과거 데이터에만 존재하는 값이라 필터·등록폼에는 노출하지 않는다
+  // (신규 등록은 항상 "banned"로 — isBannedPolicy()가 둘을 같은 것으로 취급한다).
   const FILTERS: { key: "all" | SwItem["status"]; label: string }[] = [
     { key: "all",         label: `전체 (${items.length})` },
     { key: "approved",    label: `승인 (${items.filter(i => i.status === "approved").length})` },
     { key: "conditional", label: `조건부 (${items.filter(i => i.status === "conditional").length})` },
-    { key: "banned",      label: `금지 (${items.filter(i => i.status === "banned").length})` },
+    { key: "banned",      label: `금지 (${items.filter(i => i.status === "banned" || i.status === "blocked").length})` },
+    { key: "excluded",    label: `예외 (${items.filter(i => i.status === "excluded").length})` },
   ];
 
-  const filtered = filter === "all" ? items : items.filter(i => i.status === filter);
+  const filtered = filter === "all"
+    ? items
+    : filter === "banned"
+      ? items.filter(i => i.status === "banned" || i.status === "blocked")
+      : items.filter(i => i.status === filter);
 
   return (
     <div>
       <SectionHeader title="SW 검색 관리" count={items.length} onAdd={startAdd} />
 
-      {/* 상태 필터 */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
-        {FILTERS.map(f => (
-          <button key={f.key} onClick={() => setFilter(f.key)}
-            style={{ padding: "6px 14px", borderRadius: 12, border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer",
-              background: filter === f.key ? C.primary : "var(--portal-surface)",
-              color:      filter === f.key ? "#fff"     : C.text3,
-              boxShadow:  filter === f.key ? "none" : `0 0 0 1px ${C.border}`,
-            }}>
-            {f.label}
-          </button>
-        ))}
+      {/* 상태 필터 + 확장 목록 일괄 가져오기 */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {FILTERS.map(f => (
+            <button key={f.key} onClick={() => setFilter(f.key)}
+              style={{ padding: "6px 14px", borderRadius: 12, border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                background: filter === f.key ? C.primary : "var(--portal-surface)",
+                color:      filter === f.key ? "#fff"     : C.text3,
+                boxShadow:  filter === f.key ? "none" : `0 0 0 1px ${C.border}`,
+              }}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <button onClick={handleBulkImport} disabled={importing}
+          title="큐레이션된 화이트/블랙/예외 확장 목록을 한 번에 등록합니다. 이미 있는 이름은 건너뜁니다."
+          style={{ padding: "6px 14px", borderRadius: 12, border: `1px solid ${C.border}`, background: "var(--portal-surface)",
+            color: C.text3, fontSize: 12, fontWeight: 600, cursor: importing ? "default" : "pointer", opacity: importing ? 0.6 : 1 }}>
+          {importing ? "가져오는 중…" : `확장 목록 일괄 가져오기 (${SW_POLICY_SEED.length}종)`}
+        </button>
       </div>
 
       {adding && (
@@ -454,6 +494,7 @@ function SwPanel() {
                 <option value="approved">승인</option>
                 <option value="conditional">조건부</option>
                 <option value="banned">금지</option>
+                <option value="excluded">예외 (판정 대상 아님 — 보안모듈·드라이버 등)</option>
               </select>
             </Field>
           </div>
@@ -501,163 +542,181 @@ function SwPanel() {
   );
 }
 
-/* ══════════════════════════════════════════════════════
-   감사 로그 패널
-══════════════════════════════════════════════════════ */
-function AuditPanel() {
-  const [logs,    setLogs]    = useState<AuditLog[]>([]);
-  const [loading, setLoading] = useState(true);
+function SaasPanel() {
+  const [items,     setItems]     = useState<SaasItem[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [adding,    setAdding]    = useState(false);
+  const [saving,    setSaving]    = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [editing,   setEditing]   = useState<SaasItem | null>(null);
+  const [filter,    setFilter]    = useState<"all" | SaasItem["status"]>("all");
 
-  const ALL = "전체";
-  const [search,       setSearch]       = useState("");
-  const [actionFilter, setActionFilter] = useState<string>(ALL);
-  const [targetFilter, setTargetFilter] = useState<string>(ALL);
-  const [fromDate,     setFromDate]     = useState("");
-  const [toDate,       setToDate]       = useState("");
+  const defaultForm = { domain: "", name: "", vendor: "", category: "", status: "conditional" as SaasItem["status"], description: "", alternatives: "", officialUrl: "" };
+  const [form, setForm] = useState(defaultForm);
 
-  useEffect(() => {
-    fetch("/api/manage/audit-log?limit=500")
-      .then(r => safeJson(r))
-      .then(res => setLogs(res.data ?? []))
-      .finally(() => setLoading(false));
+  const load = useCallback(() => {
+    setLoading(true);
+    fetch("/api/saas-db").then(r => safeJson(r)).then(res => setItems(res.data ?? [])).finally(() => setLoading(false));
   }, []);
+  useEffect(() => { load(); }, [load]);
 
-  const ACTION_STYLE: Record<AuditLog["action"], { label: string; bg: string; color: string }> = {
-    create: { label: "등록", bg: "var(--state-positive-soft)", color: "var(--state-positive)" },
-    update: { label: "수정", bg: "var(--state-caution-soft)", color: "var(--state-caution)" },
-    delete: { label: "삭제", bg: C.dangerSoft, color: C.danger },
-    "bulk-update": { label: "일괄수정", bg: "var(--state-caution-soft)", color: "var(--state-caution)" },
-  };
-
-  const TARGET_LABEL: Partial<Record<AuditLog["target"], string>> = {
-    notices: "공지사항", courses: "교육과정", swdb: "SW 검색", swresources: "SW 자료실", manuals: "매뉴얼",
-  };
-
-  function formatTime(iso: string) {
-    return new Date(iso).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  function startAdd() { setForm(defaultForm); setEditing(null); setAdding(true); }
+  function startEdit(item: SaasItem) {
+    setForm({ domain: item.domain, name: item.name, vendor: item.vendor, category: item.category, status: item.status, description: item.description, alternatives: item.alternatives.join(", "), officialUrl: item.officialUrl ?? "" });
+    setEditing(item);
+    setAdding(true);
   }
 
-  const targetOptions = useMemo(
-    () => [ALL, ...Array.from(new Set(logs.map(l => l.target)))],
-    [logs]
-  );
-
-  const filtered = useMemo(() => logs.filter(log => {
-    if (actionFilter !== ALL && log.action !== actionFilter) return false;
-    if (targetFilter !== ALL && log.target !== targetFilter) return false;
-    if (fromDate && log.timestamp.slice(0, 10) < fromDate) return false;
-    if (toDate   && log.timestamp.slice(0, 10) > toDate)   return false;
-    if (search) {
-      const q = search.toLowerCase();
-      const hay = [log.adminName, log.adminId, log.itemTitle, log.detail ?? ""].join(" ").toLowerCase();
-      if (!hay.includes(q)) return false;
+  async function handleSave() {
+    if (!form.domain.trim()) return;
+    setSaving(true);
+    try {
+      const payload = {
+        ...form,
+        alternatives: form.alternatives.split(",").map(s => s.trim()).filter(Boolean),
+      };
+      if (editing) {
+        const res = await fetch("/api/saas-db", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ _action: "update", id: editing.id, data: payload }) });
+        if (!res.ok) throw new Error(await res.text());
+      } else {
+        const res = await fetch("/api/saas-db", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        if (!res.ok) throw new Error(await res.text());
+      }
+      setAdding(false); setEditing(null);
+      setForm(defaultForm);
+      load();
+    } catch (e) {
+      alert(`저장 실패: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setSaving(false);
     }
-    return true;
-  }), [logs, search, actionFilter, targetFilter, fromDate, toDate]);
-
-  function resetFilters() {
-    setSearch(""); setActionFilter(ALL); setTargetFilter(ALL); setFromDate(""); setToDate("");
   }
 
-  async function handleExport() {
-    const rows = filtered.map(log => ({
-      "일시":   formatTime(log.timestamp),
-      "관리자": `${log.adminName} (${log.adminId})`,
-      "액션":   ACTION_STYLE[log.action]?.label ?? log.action,
-      "대상":   TARGET_LABEL[log.target] ?? log.target,
-      "항목":   log.itemTitle,
-      "상세":   log.detail ?? "",
-    }));
-    const today = new Date().toISOString().slice(0, 10);
-    await exportRowsToExcel(rows, `감사로그_${today}.xlsx`, "감사로그");
+  async function del(id: string, name: string) {
+    if (!confirm(`"${name}" 을(를) 삭제하시겠습니까?`)) return;
+    try {
+      const res = await fetch("/api/saas-db", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ _action: "delete", id }) });
+      if (!res.ok) throw new Error(await res.text());
+      load();
+    } catch (e) {
+      alert(`삭제 실패: ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
+
+  async function handleBulkImport() {
+    if (!confirm("큐레이션된 SaaS 도메인 목록을 가져옵니다. 이미 등록된 도메인은 건너뜁니다. 계속할까요?")) return;
+    setImporting(true);
+    try {
+      const { SAAS_POLICY_SEED } = await import("@/lib/saas-policy-seed");
+      const res = await fetch("/api/saas-db", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ _action: "bulkImport", items: SAAS_POLICY_SEED }) });
+      const json = await safeJson(res);
+      if (!res.ok || !json.ok) throw new Error(json.error ?? "가져오기 실패");
+      alert(`${json.created}건 등록, ${json.skipped}건 중복 건너뜀`);
+      load();
+    } catch (e) {
+      alert(`가져오기 실패: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  const STATUS_STYLE: Record<SaasItem["status"], { text: string; bg: string; color: string }> = {
+    approved:    { text: "승인",   bg: "var(--state-positive-soft)", color: "var(--state-positive)" },
+    banned:      { text: "금지",   bg: "var(--state-risk-soft)", color: "var(--state-risk)" },
+    conditional: { text: "조건부", bg: "var(--state-caution-soft)", color: "var(--state-caution)" },
+    excluded:    { text: "예외",   bg: "var(--state-progress-soft)", color: "var(--state-progress)" },
+  };
+
+  const FILTERS: { key: "all" | SaasItem["status"]; label: string }[] = [
+    { key: "all",         label: `전체 (${items.length})` },
+    { key: "approved",    label: `승인 (${items.filter(i => i.status === "approved").length})` },
+    { key: "conditional", label: `조건부 (${items.filter(i => i.status === "conditional").length})` },
+    { key: "banned",      label: `금지 (${items.filter(i => i.status === "banned").length})` },
+    { key: "excluded",    label: `예외 (${items.filter(i => i.status === "excluded").length})` },
+  ];
+
+  const filtered = filter === "all" ? items : items.filter(i => i.status === filter);
 
   return (
     <div>
-      <div style={{ marginBottom: 24, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <div>
-          <h2 style={{ fontSize: 20, fontWeight: 800, color: C.text1, margin: "0 0 4px" }}>감사 로그</h2>
-          <p style={{ fontSize: 13, color: C.text3, margin: 0 }}>슈퍼어드민의 포털 콘텐츠 변경 이력 · {filtered.length} / {logs.length}건</p>
-        </div>
-        <button onClick={handleExport} disabled={filtered.length === 0}
-          style={{ padding: "9px 14px", borderRadius: 10, background: "var(--state-positive)", color: "#fff", border: "none", fontSize: 12, fontWeight: 700, cursor: filtered.length === 0 ? "not-allowed" : "pointer", opacity: filtered.length === 0 ? 0.5 : 1 }}>
-          엑셀 다운로드
+      <SectionHeader title="SaaS 도메인 정책" count={items.length} onAdd={startAdd} />
+      <p style={{ fontSize: 12, color: C.text4, marginTop: -12, marginBottom: 16 }}>
+        브라우저로 접속해서 쓰는 웹 기반 SaaS를 도메인 단위로 관리합니다. 설치형 SW는
+        &ldquo;SW 검색&rdquo; 탭에서 별도로 관리합니다. 실제 사용 현황은 관리자 포털의
+        &ldquo;SaaS 사용 현황&rdquo;에서 확인할 수 있습니다.
+      </p>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
+        {FILTERS.map(f => (
+          <button key={f.key} onClick={() => setFilter(f.key)}
+            style={{ padding: "6px 14px", borderRadius: 12, border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer",
+              background: filter === f.key ? C.primary : "var(--portal-surface)",
+              color:      filter === f.key ? "#fff"     : C.text3,
+              boxShadow:  filter === f.key ? "none" : `0 0 0 1px ${C.border}`,
+            }}>
+            {f.label}
+          </button>
+        ))}
+        <button onClick={handleBulkImport} disabled={importing}
+          style={{ marginLeft: "auto", padding: "6px 14px", borderRadius: 12, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer",
+            background: C.primarySoft, color: C.primary, opacity: importing ? 0.6 : 1 }}>
+          {importing ? "가져오는 중…" : "큐레이션 목록 일괄 가져오기"}
         </button>
       </div>
 
-      {/* ── 필터 ── */}
-      <div style={{ background: "var(--portal-surface)", border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, marginBottom: 16, display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: 12 }}>
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: C.text4, marginBottom: 4 }}>검색</label>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="관리자, 항목, 상세 검색..." style={iStyle} />
-        </div>
-        <div>
-          <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: C.text4, marginBottom: 4 }}>액션</label>
-          <select value={actionFilter} onChange={e => setActionFilter(e.target.value)} style={{ ...iStyle, width: "auto" }}>
-            <option value={ALL}>전체</option>
-            {(Object.keys(ACTION_STYLE) as AuditLog["action"][]).map(a => (
-              <option key={a} value={a}>{ACTION_STYLE[a].label}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: C.text4, marginBottom: 4 }}>대상</label>
-          <select value={targetFilter} onChange={e => setTargetFilter(e.target.value)} style={{ ...iStyle, width: "auto" }}>
-            {targetOptions.map(t => <option key={t} value={t}>{t === ALL ? "전체" : (TARGET_LABEL[t as AuditLog["target"]] ?? t)}</option>)}
-          </select>
-        </div>
-        <div>
-          <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: C.text4, marginBottom: 4 }}>시작일</label>
-          <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} style={{ ...iStyle, width: "auto" }} />
-        </div>
-        <div>
-          <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: C.text4, marginBottom: 4 }}>종료일</label>
-          <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} style={{ ...iStyle, width: "auto" }} />
-        </div>
-        <button onClick={resetFilters} style={{ padding: "10px 12px", borderRadius: 12, border: `1px solid ${C.border}`, background: "transparent", color: C.text4, fontSize: 12, cursor: "pointer" }}>
-          초기화
-        </button>
-      </div>
-
-      {loading ? (
-        <div style={{ textAlign: "center", padding: 48, color: C.text4 }}>불러오는 중...</div>
-      ) : filtered.length === 0 ? (
-        <div style={{ textAlign: "center", padding: 64, background: "var(--portal-surface)", borderRadius: 12, border: `1px solid ${C.border}`, color: C.text4, fontSize: 13 }}>
-          {logs.length === 0 ? "아직 기록된 활동이 없습니다." : "조건에 맞는 기록이 없습니다."}
-        </div>
-      ) : (
-        <div style={{ background: "var(--portal-surface)", borderRadius: 12, border: `1px solid ${C.border}`, overflow: "hidden" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-                {["일시", "관리자", "액션", "대상", "항목", "상세"].map(h => (
-                  <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: 11, fontWeight: 700, color: C.text4, textTransform: "uppercase", letterSpacing: ".04em" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((log, i) => {
-                const as = ACTION_STYLE[log.action];
-                return (
-                  <tr key={log.id} className="hover:bg-slate-50 transition-colors" style={{ borderBottom: i < filtered.length - 1 ? `1px solid var(--portal-border)` : "none" }}>
-                    <td style={{ padding: "12px 16px", fontSize: 12, color: C.text3, whiteSpace: "nowrap" }}>{formatTime(log.timestamp)}</td>
-                    <td style={{ padding: "12px 16px" }}>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: C.text1 }}>{log.adminName}</span>
-                      <span style={{ fontSize: 11, color: C.text4, marginLeft: 4 }}>({log.adminId})</span>
-                    </td>
-                    <td style={{ padding: "12px 16px" }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: as.bg, color: as.color }}>{as.label}</span>
-                    </td>
-                    <td style={{ padding: "12px 16px", fontSize: 12, color: C.text3 }}>{TARGET_LABEL[log.target]}</td>
-                    <td style={{ padding: "12px 16px", fontSize: 13, color: C.text2, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{log.itemTitle}</td>
-                    <td style={{ padding: "12px 16px", fontSize: 12, color: C.text3, maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{log.detail ?? "—"}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+      {adding && (
+        <FormCard title={editing ? `수정: ${editing.name}` : "새 SaaS 등록"} onCancel={() => { setAdding(false); setEditing(null); }} onSave={handleSave} saving={saving} disabled={!form.domain.trim()}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Field label="도메인 *"><input style={iStyle} value={form.domain} onChange={e => setForm(f => ({ ...f, domain: e.target.value }))} placeholder="예: notion.so" /></Field>
+            <Field label="서비스명"><input style={iStyle} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="예: Notion" /></Field>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Field label="제공사"><input style={iStyle} value={form.vendor} onChange={e => setForm(f => ({ ...f, vendor: e.target.value }))} placeholder="예: Notion Labs" /></Field>
+            <Field label="카테고리"><input style={iStyle} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} placeholder="예: 협업, 파일공유" /></Field>
+          </div>
+          <Field label="상태">
+            <select style={iStyle} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as SaasItem["status"] }))}>
+              <option value="approved">승인</option>
+              <option value="conditional">조건부</option>
+              <option value="banned">금지</option>
+              <option value="excluded">예외 (판정 대상 아님 — 사내 자체 도메인 등)</option>
+            </select>
+          </Field>
+          <Field label="설명"><textarea style={{ ...iStyle, minHeight: 80, resize: "vertical" }} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="분류 사유 및 사용 조건" /></Field>
+          <Field label="대체 SaaS (쉼표로 구분)"><input style={iStyle} value={form.alternatives} onChange={e => setForm(f => ({ ...f, alternatives: e.target.value }))} placeholder="예: Notion, Slack" /></Field>
+          <Field label="공식 사이트 링크"><input style={iStyle} value={form.officialUrl} onChange={e => setForm(f => ({ ...f, officialUrl: e.target.value }))} placeholder="https://..." /></Field>
+        </FormCard>
       )}
+
+      <ItemList loading={loading} empty="아직 등록된 SaaS가 없습니다.">
+        {filtered.map(s => {
+          const st = STATUS_STYLE[s.status] ?? { text: s.status, bg: C.bg, color: C.text3 };
+          return (
+            <div key={s.id} className="hover:shadow-sm transition-shadow" style={{ background: "var(--portal-surface)", borderRadius: 12, padding: 20, display: "flex", alignItems: "center", gap: 16, border: `1px solid ${C.border}` }}>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: st.bg, color: st.color, flexShrink: 0 }}>{st.text}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: C.text1, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {s.name} <span style={{ fontWeight: 500, color: C.text4 }}>({s.domain})</span>
+                </p>
+                <p style={{ fontSize: 11, color: C.text4, margin: "4px 0 0" }}>
+                  {s.vendor}{s.category ? ` · ${s.category}` : ""}
+                  {s.alternatives.length ? ` · 대체: ${s.alternatives.join(", ")}` : ""}
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                <button onClick={() => startEdit(s)}
+                  style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: C.primarySoft, color: C.primary }}>
+                  수정
+                </button>
+                <button onClick={() => del(s.id, s.name)}
+                  style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: C.dangerSoft, color: C.danger }}>
+                  삭제
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </ItemList>
     </div>
   );
 }
@@ -810,7 +869,7 @@ function SwResourcesPanel() {
     if (!selVersion) return;
     setSaving(true);
     try {
-      let fileUploadId: string | undefined;
+      let externalFileUrl = docForm.externalFileUrl?.trim() || undefined;
 
       if (uploadFile) {
         setUploading(true);
@@ -824,24 +883,22 @@ function SwResourcesPanel() {
           throw new Error(errData.error || "업로드 실패");
         }
         const data = await res.json();
-        fileUploadId = data.fileUploadId;
+        externalFileUrl = data.url;
         setUploading(false);
       }
-
-      const externalFileUrl = docForm.externalFileUrl?.trim() || undefined;
 
       let createdId: string | undefined;
       if (editDoc) {
         await fetch("/api/sw-docs", { method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ _action: "update", id: editDoc.id, data: { ...docForm, fileUploadId, externalFileUrl } }) });
+          body: JSON.stringify({ _action: "update", id: editDoc.id, data: { ...docForm, externalFileUrl } }) });
       } else {
         const createRes = await fetch("/api/sw-docs", { method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...docForm, versionId: selVersion.id, fileUploadId, externalFileUrl }) });
+          body: JSON.stringify({ ...docForm, versionId: selVersion.id, externalFileUrl }) });
         const createData = await createRes.json();
         createdId = createData.id;
       }
 
-      if (createdId && !fileUploadId && !externalFileUrl) {
+      if (createdId && !externalFileUrl) {
         setLastCreatedDocId(createdId);
       }
     } catch (e) {
@@ -1073,7 +1130,7 @@ function SwResourcesPanel() {
                     )}
                     {uploading && (
                       <div style={{ marginTop: 8, fontSize: 11, color: C.primary, fontWeight: 600 }}>
-                        Notion에 업로드 중... {uploadFile?.name}
+                        업로드 중... {uploadFile?.name}
                       </div>
                     )}
                   </div>
@@ -1235,7 +1292,7 @@ function ManualsPanel() {
     if (!form.title.trim() || !form.slug.trim()) return;
     setSaving(true);
     try {
-      let fileUploadId: string | undefined;
+      let externalFileUrl: string | undefined;
       if (uploadFile) {
         setUploading(true);
         const fd = new FormData();
@@ -1246,13 +1303,13 @@ function ManualsPanel() {
           throw new Error(errData.error || "업로드 실패");
         }
         const data = await res.json();
-        fileUploadId = data.fileUploadId;
+        externalFileUrl = data.url;
         setUploading(false);
       }
 
       const body = editing
-        ? { _action: "update", id: editing.id, data: { ...form, fileUploadId } }
-        : { ...form, fileUploadId };
+        ? { _action: "update", id: editing.id, data: { ...form, externalFileUrl } }
+        : { ...form, externalFileUrl };
       const res = await fetch("/api/manuals", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       if (!res.ok) {
         const errData = await res.json().catch(() => ({ error: res.statusText }));

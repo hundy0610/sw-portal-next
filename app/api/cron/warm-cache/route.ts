@@ -14,9 +14,8 @@ import { compactSwRecords } from "@/lib/sw-compact";
  * 확인 결과 sw:all/licenses:all만 실제로 읽히고 있어(sw-records, sw/expiring, licenses,
  * notifications, report 등), 이 둘만 남김 — Redis 명령·Notion API 호출 모두 절감.
  *
- * HW 데이터는 이 엔드포인트에서 제외 — Notion API 39회 호출로 Vercel 10초 타임아웃 초과.
- * HW는 .github/workflows/warm-hw.yml + .github/scripts/warm-hw.mjs 에서
- * GitHub Actions가 직접 Notion → Upstash로 push (타임아웃 없음).
+ * HW 데이터는 이 엔드포인트에서 제외 — 맥북 Postgres 미러(getHwAllFromPostgres)를
+ * 직접 조회하므로 이 캐시가 필요 없음(과거 warm-hw.yml/Upstash 캐시 경로는 4.0에서 제거).
  */
 export const dynamic = "force-dynamic";
 
@@ -54,7 +53,7 @@ export async function GET() {
       sw:       sw.length,
       licenses: licenses.length,
     },
-    note: "hw는 warm-hw.yml에서 직접 처리, swdb/subscriptions/tickets는 미사용 캐시라 제거함",
+    note: "hw는 Postgres 미러 직접 조회라 캐시 불필요, swdb/subscriptions/tickets는 미사용 캐시라 제거함",
     errors: errors.length ? errors : undefined,
     warmedAt: new Date().toISOString(),
   });

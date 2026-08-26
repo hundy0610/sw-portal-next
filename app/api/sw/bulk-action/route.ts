@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Client } from "@notionhq/client";
-import { kvDel } from "@/lib/kv-store";
-import { memDel } from "@/lib/mem-cache";
 import { getSessionFromCookieHeader } from "@/lib/session";
+import { readEntityOne, upsertEntity } from "@/lib/repo/mirror";
+import { SW_ENTITY } from "@/lib/sw-notion";
+import type { SwDbRecord } from "@/types";
 
 export const dynamic = "force-dynamic";
-const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
 /** 갱신주기에 따라 날짜 연장: 월간 +1개월 / 연간 +1년 */
 function extendDate(dateStr: string, cycle: string): string {
@@ -33,46 +32,24 @@ export async function POST(req: NextRequest) {
     let success = 0, failed = 0;
 
     for (const id of ids) {
-      try {
-        if (action === "renew") {
-          // 현재 갱신일 + 갱신주기 조회
-          const page = await notion.pages.retrieve({ page_id: id }) as any;
-          const currentDate = page.properties["갱신필요일"]?.date?.start ?? "";
-          const cycle       = page.properties["갱신주기"]?.select?.name ?? "월";
-          const base        = currentDate || new Date().toISOString().slice(0, 10);
-          const newDate     = extendDate(base, cycle);
+      const base = await readEntityOne<SwDbRecord>(SW_ENTITY, id);
+      if (!base) { failed++; continue; }
 
-          await notion.pages.update({
-            page_id: id,
-            properties: {
-              "갱신필요일": { date: { start: newDate } },
-              "사용/재고/만료/갱신필요/신규등록": { select: { name: "사용중" } },
-            } as Parameters<typeof notion.pages.update>[0]["properties"],
-          });
-        } else {
-          // 갱신 거부 → 만료
-          await notion.pages.update({
-            page_id: id,
-            properties: {
-              "사용/재고/만료/갱신필요/신규등록": { select: { name: "만료" } },
-            } as Parameters<typeof notion.pages.update>[0]["properties"],
-          });
-        }
-        success++;
-      } catch {
-        failed++;
+      const next: SwDbRecord = { ...base };
+      if (action === "renew") {
+        const baseDate = base.renewalDate || new Date().toISOString().slice(0, 10);
+        next.renewalDate = extendDate(baseDate, base.renewalCycle || "월");
+        next.status = "사용중";
+      } else {
+        next.status = "만료";
       }
-      // Notion API rate limit
-      await new Promise(r => setTimeout(r, 350));
-    }
-
-    if (success > 0) {
-      memDel("sw:all");
-      await kvDel("sw:all");
+      const ok = await upsertEntity(SW_ENTITY, id, next);
+      if (ok) success++; else failed++;
     }
 
     return NextResponse.json({ ok: true, success, failed, action });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message }, { status: 500 });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }

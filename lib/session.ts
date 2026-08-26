@@ -96,10 +96,3 @@ export function getSessionFromCookieHeader(cookieHeader: string | null): AdminSe
   return null;
 }
 
-// 로그인 검사가 없는 라우트에서도 감사 로그 주체를 안전하게 구해주는 헬퍼.
-// 세션이 없으면 차단하지 않고 "(미상)"으로 기록한다.
-export async function resolveAuditActor(cookieHeader: string | null): Promise<{ adminId: string; adminName: string }> {
-  const session = getSessionFromCookieHeader(cookieHeader);
-  if (!session) return { adminId: "unknown", adminName: "(미상)" };
-  return { adminId: session.userId, adminName: await resolveCurrentName(session) };
-}

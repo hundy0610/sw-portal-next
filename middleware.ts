@@ -1,23 +1,53 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { Redis } from "@upstash/redis";
 
 const SESSION_SECRET = process.env.SESSION_SECRET;
 const ACCOUNTS_KEY = "sw:accounts";
 
+// 계정 목록은 super 전용 라우트(/event/admin, /manage) 진입 시에만 조회한다.
+// Edge 미들웨어는 매 요청 실행되므로, 매번 맥북 Postgres 로 왕복하지 않도록
+// 모듈 스코프에 아주 짧게(수초) 캐시해 지연·부하를 줄인다.
+type AccountRole = { userId: string; role: string };
+let _accountsCache: { at: number; data: AccountRole[] } | null = null;
+const ACCOUNTS_CACHE_MS = 5000;
+
+// 계정 목록(kv:sw:accounts)을 맥북 Postgres(자체 Supabase, Tailscale Funnel)에서
+// PostgREST fetch 로 읽는다. service_role 키는 서버(Edge) 전용 env 로만 사용한다.
+async function fetchAccounts(): Promise<AccountRole[] | null> {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_KEY;
+  if (!url || !key) return null;
+
+  const now = Date.now();
+  if (_accountsCache && now - _accountsCache.at < ACCOUNTS_CACHE_MS) {
+    return _accountsCache.data;
+  }
+
+  try {
+    const endpoint =
+      `${url}/rest/v1/kv?select=value&key=eq.${encodeURIComponent(ACCOUNTS_KEY)}`;
+    const res = await fetch(endpoint, {
+      headers: { apikey: key, Authorization: `Bearer ${key}` },
+      cache: "no-store",
+    });
+    if (!res.ok) return _accountsCache?.data ?? null;
+    const rows = (await res.json()) as { value: AccountRole[] }[];
+    const accounts = rows?.[0]?.value ?? [];
+    _accountsCache = { at: now, data: accounts };
+    return accounts;
+  } catch {
+    // 조회 실패 시 마지막 캐시라도 사용(없으면 null → 호출부가 fallbackRole 사용)
+    return _accountsCache?.data ?? null;
+  }
+}
+
 // 쿠키의 role은 로그인 시점 스냅샷이라 이후 계정관리에서 권한이 바뀌어도
 // 갱신되지 않는다. super 전용 라우트 진입 직전에 최신 권한을 다시 조회한다.
 async function resolveCurrentRole(userId: string, fallbackRole: string): Promise<string> {
-  const url   = process.env.UPSTASH_REDIS_REST_URL   || process.env.KV_REST_API_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN  || process.env.KV_REST_API_TOKEN;
-  if (!url || !token) return fallbackRole;
-  try {
-    const accounts = await new Redis({ url, token }).get<{ userId: string; role: string }[]>(ACCOUNTS_KEY);
-    const found = accounts?.find(a => a.userId === userId);
-    return found?.role ?? fallbackRole;
-  } catch {
-    return fallbackRole;
-  }
+  const accounts = await fetchAccounts();
+  if (!accounts) return fallbackRole;
+  const found = accounts.find(a => a.userId === userId);
+  return found?.role ?? fallbackRole;
 }
 
 async function verifySessionToken(token: string): Promise<{ userId: string; role: string } | null> {

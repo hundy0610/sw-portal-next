@@ -122,8 +122,10 @@ function DetailSheet({ record, onClose, onStageChange }: {
   onStageChange: (id: string, stage: string) => Promise<void>;
 }) {
   const [updating, setUpdating] = useState(false);
+  const [stageError, setStageError] = useState("");
   const [note, setNote] = useState(record.note ?? "");
   const [savingNote, setSavingNote] = useState(false);
+  const [noteError, setNoteError] = useState("");
   const stages = STAGES_BY_TYPE[record.type] ?? STAGES;
   const idx = stages.indexOf(record.stage as Stage);
   const canNext = idx < stages.length - 1;
@@ -135,18 +137,32 @@ function DetailSheet({ record, onClose, onStageChange }: {
     const next = stages[idx + direction];
     if (!next) return;
     setUpdating(true);
-    await onStageChange(record.id, next);
-    setUpdating(false);
+    setStageError("");
+    try {
+      await onStageChange(record.id, next);
+    } catch (e) {
+      setStageError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setUpdating(false);
+    }
   }
 
   async function saveNote() {
     setSavingNote(true);
-    await fetch("/api/exchange-return/update", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: record.id, fields: { note } }),
-    });
-    setSavingNote(false);
+    setNoteError("");
+    try {
+      const res = await fetch("/api/exchange-return/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: record.id, fields: { note } }),
+      });
+      const json = await safeJson(res);
+      if (!json.ok) setNoteError(json.error ?? "메모 저장 실패");
+    } catch (e) {
+      setNoteError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSavingNote(false);
+    }
   }
 
   return (
@@ -193,6 +209,7 @@ function DetailSheet({ record, onClose, onStageChange }: {
           </button>
         </div>
         {updating && <div className="text-center text-xs text-blue-500 -mt-3 mb-3">업데이트 중...</div>}
+        {stageError && <div className="text-center text-xs text-red-500 -mt-3 mb-3">{stageError}</div>}
 
         {/* 정보 */}
         <div className="space-y-2.5 text-sm">
@@ -228,6 +245,7 @@ function DetailSheet({ record, onClose, onStageChange }: {
           >
             {savingNote ? "저장 중..." : "메모 저장"}
           </button>
+          {noteError && <div className="text-xs text-red-500 mt-1">{noteError}</div>}
         </div>
 
         {/* Notion 링크 */}
@@ -275,11 +293,13 @@ export default function MobileExchangeReturn({ session }: Props) {
   useEffect(() => { fetchRecords(); }, []);
 
   async function handleStageChange(id: string, stage: string) {
-    await fetch("/api/exchange-return/update", {
+    const res = await fetch("/api/exchange-return/update", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, fields: { stage } }),
     });
+    const json = await safeJson(res);
+    if (!json.ok) throw new Error(json.error ?? "단계 변경 실패");
     setRecords(prev => prev.map(r => r.id === id ? { ...r, stage } : r));
     setSelected(prev => prev?.id === id ? { ...prev, stage } : prev);
   }

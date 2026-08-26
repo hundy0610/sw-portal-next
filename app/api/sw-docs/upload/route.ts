@@ -1,22 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
+import { put } from "@vercel/blob";
 import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";
 
-const NOTION_API = "https://api.notion.com/v1";
-const NOTION_VER = "2026-03-11";
 const MAX_SIZE = 4 * 1024 * 1024; // 4 MB
 
-function notionHeaders(token: string): Record<string, string> {
-  return { Authorization: `Bearer ${token}`, "Notion-Version": NOTION_VER };
-}
-
+// Notion 파일 직접업로드(file_uploads API)는 Notion 앞단 Cloudflare가 Vercel 서버리스
+// IP 대역을 봇으로 판단해 요청을 차단하는 문제가 있어(재현 확인됨), Vercel Blob에 올리고
+// 공개 URL을 Notion에 external 타입으로 등록하는 방식으로 대체한다.
 export async function POST(req: NextRequest) {
   const s = getSessionFromCookieHeader(req.headers.get("cookie"));
   if (!s || (await resolveCurrentRole(s)) !== "super") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  const token = process.env.NOTION_TOKEN;
-  if (!token) return NextResponse.json({ error: "NOTION_TOKEN 미설정" }, { status: 500 });
 
   const fd = await req.formData();
   const file = fd.get("file") as File | null;
@@ -29,33 +24,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Step 1: 업로드 세션 생성 (single_part)
-  const createRes = await fetch(`${NOTION_API}/file_uploads`, {
-    method: "POST",
-    headers: { ...notionHeaders(token), "Content-Type": "application/json" },
-    body: JSON.stringify({
-      mode: "single_part",
-      filename: file.name,
-      content_type: file.type || "application/octet-stream",
-    }),
-  });
-  if (!createRes.ok) {
-    return NextResponse.json({ error: await createRes.text() }, { status: 500 });
+  try {
+    const blob = await put(`sw-docs/${file.name}`, file, {
+      access: "public",
+      addRandomSuffix: true,
+      contentType: file.type || "application/octet-stream",
+    });
+    return NextResponse.json({ ok: true, url: blob.url });
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
-  const { id: fileUploadId } = await createRes.json();
-
-  // Step 2: 파일 전송 (1회)
-  const uploadFd = new FormData();
-  uploadFd.append("file", file, file.name);
-
-  const sendRes = await fetch(`${NOTION_API}/file_uploads/${fileUploadId}/send`, {
-    method: "POST",
-    headers: notionHeaders(token),
-    body: uploadFd,
-  });
-  if (!sendRes.ok) {
-    return NextResponse.json({ error: await sendRes.text() }, { status: 500 });
-  }
-
-  return NextResponse.json({ ok: true, fileUploadId });
 }

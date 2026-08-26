@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Client } from "@notionhq/client";
-import { kvDel } from "@/lib/kv-store";
-import { memDel } from "@/lib/mem-cache";
 import { getSessionFromCookieHeader, resolveCurrentName, companyScope } from "@/lib/session";
 import { errorMessage } from "@/lib/api-error";
-import { getRecordCompany, buildProperties, type FieldMap } from "@/lib/sw-notion";
+import { getRecordCompany, applyFields, SW_ENTITY, type FieldMap } from "@/lib/sw-notion";
+import { readEntityOne, upsertEntity } from "@/lib/repo/mirror";
+import type { SwDbRecord } from "@/types";
 
 export const dynamic = "force-dynamic";
-
-const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
 export async function POST(req: NextRequest) {
   try {
@@ -37,18 +34,15 @@ export async function POST(req: NextRequest) {
       lastModifiedAt: new Date().toISOString(),
     };
 
-    const properties = buildProperties(fieldsWithModifier);
-    if (Object.keys(properties).length === 0) {
-      return NextResponse.json({ ok: false, error: "업데이트할 필드 없음" }, { status: 400 });
+    const base = await readEntityOne<SwDbRecord>(SW_ENTITY, id);
+    if (!base) {
+      return NextResponse.json({ ok: false, error: "대상 SW 레코드를 찾을 수 없습니다." }, { status: 404 });
     }
-
-    await notion.pages.update({
-      page_id: id,
-      properties: properties as Parameters<typeof notion.pages.update>[0]["properties"],
-    });
-
-    memDel("sw:all");
-    await kvDel("sw:all");
+    const { next } = applyFields(base, fieldsWithModifier);
+    const ok = await upsertEntity(SW_ENTITY, id, next);
+    if (!ok) {
+      return NextResponse.json({ ok: false, error: "저장 실패(Postgres)" }, { status: 500 });
+    }
 
     return NextResponse.json({ ok: true });
   } catch (e) {

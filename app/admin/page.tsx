@@ -12,13 +12,15 @@ const LicensePanel      = dynamic(() => import("@/components/admin/LicensePanel"
 const CredentialsPanel  = dynamic(() => import("@/components/admin/CredentialsPanel"),  { ssr: false });
 const SwDbPanel         = dynamic(() => import("@/components/admin/SwDbPanel"),         { ssr: false });
 const ReportPanel       = dynamic(() => import("@/components/admin/ReportPanel"),       { ssr: false });
+const CardImportPanel   = dynamic(() => import("@/components/admin/CardImportPanel"),   { ssr: false });
+const GovernanceScorecard = dynamic(() => import("@/components/admin/GovernanceScorecard"), { ssr: false });
+const VendorConsolidationPanel = dynamic(() => import("@/components/admin/VendorConsolidationPanel"), { ssr: false });
 const HwPanel           = dynamic(() => import("@/components/admin/HwPanel"),           { ssr: false });
 const AccountsPanel     = dynamic(() => import("@/components/admin/AccountsPanel"),     { ssr: false });
 const AssetMapPanel     = dynamic(() => import("@/components/admin/AssetMapPanel"),     { ssr: false });
 const HelpDeskPanel     = dynamic(() => import("@/components/admin/HelpDeskPanel"),     { ssr: false });
 const ContractPanel     = dynamic(() => import("@/components/admin/ContractPanel"),     { ssr: false });
 const RepairPanel       = dynamic(() => import("@/components/admin/RepairPanel"),       { ssr: false });
-const RentalHwPanel     = dynamic(() => import("@/components/admin/RentalHwPanel"),     { ssr: false });
 const HwRepairPanel          = dynamic(() => import("@/components/admin/HwRepairPanel"),          { ssr: false });
 const ExchangeReturnPanel    = dynamic(() => import("@/components/admin/ExchangeReturnPanel"),    { ssr: false });
 const WorkFeedbackPanel      = dynamic(() => import("@/components/admin/WorkFeedbackPanel"),      { ssr: false });
@@ -26,13 +28,13 @@ const BugReportPanel         = dynamic(() => import("@/components/admin/BugRepor
 const WorkTrackerPanel        = dynamic(() => import("@/components/admin/WorkTrackerPanel"),       { ssr: false });
 const MeetingRentalPanel      = dynamic(() => import("@/components/admin/MeetingRentalPanel"),      { ssr: false });
 const RenewalAlertModal       = dynamic(() => import("@/components/admin/RenewalAlertModal"),       { ssr: false });
-const NotificationBell        = dynamic(() => import("@/components/admin/NotificationBell"),        { ssr: false });
-const AuditLogPanel           = dynamic(() => import("@/components/admin/AuditLogPanel"),           { ssr: false });
 const SurveyDemandPanel       = dynamic(() => import("@/components/admin/SurveyDemandPanel"),       { ssr: false });
 const PcScanPanel             = dynamic(() => import("@/components/admin/PcScanPanel"),             { ssr: false });
+const PcRegisterPanel         = dynamic(() => import("@/components/admin/PcRegisterPanel"),         { ssr: false });
 const AssetAuditSettingsPanel = dynamic(() => import("@/components/admin/AssetAuditSettingsPanel"), { ssr: false });
 const OrgChartPanel           = dynamic(() => import("@/components/admin/OrgChartPanel"),           { ssr: false });
 const AssetAuditDashboardPanel = dynamic(() => import("@/components/admin/AssetAuditDashboardPanel"), { ssr: false });
+const SaasUsagePanel          = dynamic(() => import("@/components/admin/SaasUsagePanel"),           { ssr: false });
 
 // ── 세션 타입 ──────────────────────────────────────────────────
 interface SessionInfo {
@@ -43,10 +45,10 @@ interface SessionInfo {
   mustChangePassword?: boolean;
 }
 
-type PageId = "home" | "overview" | "license" | "credentials" | "swdb" | "report" | "hw" | "rental-hw" | "accounts" | "assetmap" | "helpdesk" | "contracts" | "repair" | "hw-repair" | "exchange-return" | "work-feedback" | "bugreport" | "worktracker" | "meeting-rental" | "audit" | "survey-demand" | "pc-scan" | "asset-audit-settings" | "org-chart" | "asset-audit-dashboard";
+type PageId = "home" | "overview" | "license" | "credentials" | "swdb" | "saas-usage" | "report" | "card-import" | "governance" | "vendor-consolidation" | "hw" | "rental-hw" | "accounts" | "assetmap" | "helpdesk" | "contracts" | "repair" | "hw-repair" | "exchange-return" | "work-feedback" | "bugreport" | "worktracker" | "meeting-rental" | "survey-demand" | "pc-scan" | "pc-register" | "asset-audit-settings" | "org-chart" | "asset-audit-dashboard";
 
 // 슈퍼어드민 전용 페이지 (company 계정은 접근 불가)
-const SUPER_ONLY_PAGES = new Set<PageId>(["credentials", "swdb", "accounts", "contracts", "rental-hw", "hw-repair", "exchange-return", "work-feedback", "worktracker", "meeting-rental", "audit", "pc-scan", "asset-audit-settings", "org-chart", "asset-audit-dashboard"]);
+const SUPER_ONLY_PAGES = new Set<PageId>(["credentials", "swdb", "saas-usage", "accounts", "contracts", "rental-hw", "hw-repair", "exchange-return", "work-feedback", "worktracker", "meeting-rental", "pc-scan", "pc-register", "asset-audit-settings", "org-chart", "asset-audit-dashboard", "card-import", "governance", "vendor-consolidation"]);
 
 // ── 메뉴 정의 ──────────────────────────────────────────────────
 type MenuItem = { id: PageId; icon: string; label: string; desc: string; children?: MenuItem[] };
@@ -57,6 +59,7 @@ const SUPER_GROUPS: MenuGroup[] = [
     label: "",
     items: [
       { id: "home",    icon: "",   label: "대시보드",  desc: "전사 현황 요약" },
+      { id: "governance", icon: "", label: "계열사 거버넌스", desc: "법인별 이상치·예산·제출현황 요약" },
     ],
   },
   {
@@ -64,8 +67,8 @@ const SUPER_GROUPS: MenuGroup[] = [
     items: [
       { id: "exchange-return", icon: "",   label: "자산 흐름 관리",           desc: "기기 교체 · 반납 처리 관리" },
       { id: "hw",              icon: "",   label: "노트북/데스크탑 자산관리", desc: "NT/DT 재고 · 반납 관리"     },
+      { id: "pc-register",     icon: "",   label: "PC 신규 등록",             desc: "자산 실사 방식 수집 데이터로 신규 등록" },
       { id: "hw-repair",       icon: "",   label: "수리/과실청구 트래커",     desc: "외부 수리 · 과실 청구 관리" },
-      { id: "rental-hw",       icon: "",   label: "임대노트북 현황 관리",     desc: "임시 PC 대여 · 반납 관리"   },
       { id: "assetmap",        icon: "",   label: "스마트오피스 모니터 관리", desc: "인터랙티브 자산 맵"         },
       {
         id: "pc-scan", icon: "", label: "온라인 자산 실사", desc: "WPF 에이전트 PC 수집 데이터",
@@ -84,7 +87,10 @@ const SUPER_GROUPS: MenuGroup[] = [
       { id: "license",     icon: "",   label: "상용 라이선스 자산관리",  desc: "영구 · 구독 통합"      },
       { id: "credentials", icon: "",   label: "계정 관리",               desc: "ID / PW 목록"          },
       { id: "swdb",        icon: "",   label: "라이선스 설치 정책 관리", desc: "승인 / 금지 목록"      },
+      { id: "saas-usage",  icon: "",   label: "SaaS 사용 현황",          desc: "브라우저 방문 도메인 수집·대조 결과" },
       { id: "report",      icon: "",   label: "구독형 라이선스 현황",    desc: "현황 분석 · 만료 알림" },
+      { id: "card-import", icon: "",   label: "카드명세 업로드",         desc: "결제 내역 취합 · 표준화" },
+      { id: "vendor-consolidation", icon: "", label: "벤더 통합 협상 뷰", desc: "계열사 간 중복 계약 탐지" },
     ],
   },
   {
@@ -104,7 +110,6 @@ const SUPER_GROUPS: MenuGroup[] = [
       { id: "work-feedback", icon: "",   label: "업무 피드백",     desc: "연/월/주간 목표 관리" },
       { id: "bugreport",     icon: "",   label: "버그리포트",      desc: "버그 및 개선요청 관리" },
       { id: "worktracker",   icon: "",   label: "작업 트래커",     desc: "개인 작업 칸반 관리"   },
-      { id: "audit",         icon: "",   label: "감사 로그",       desc: "관리자 변경 이력"     },
     ],
   },
 ];
@@ -242,9 +247,15 @@ export default function AdminPage() {
       case "license":     return <LicensePanel company={company} />;
       case "credentials": return canAccess("credentials") ? <CredentialsPanel /> : <AccessDenied />;
       case "swdb":        return canAccess("swdb")        ? <SwDbPanel />       : <AccessDenied />;
+      case "saas-usage":  return canAccess("saas-usage")  ? <SaasUsagePanel />  : <AccessDenied />;
       case "report":      return <ReportPanel company={company} />;
+      case "card-import": return <CardImportPanel />;
+      case "vendor-consolidation": return <VendorConsolidationPanel />;
+      case "governance":  return <GovernanceScorecard onOpenCompany={(co) => {
+        sessionStorage.setItem("gov-scorecard-jump-company", co);
+        setPage("report");
+      }} />;
       case "hw":          return <HwPanel company={company} initialStats={hwStatsPrefetch} isSuperAdmin={isSuper} />;
-      case "rental-hw":   return canAccess("rental-hw") ? <RentalHwPanel /> : <AccessDenied />;
       case "meeting-rental": return canAccess("meeting-rental") ? <MeetingRentalPanel /> : <AccessDenied />;
       case "assetmap":    return <AssetMapPanel session={session} />;
       case "helpdesk":    return <HelpDeskPanel company={isSuper ? "" : company} currentUserName={session?.name ?? ""} />;
@@ -253,12 +264,12 @@ export default function AdminPage() {
       case "exchange-return":  return canAccess("exchange-return")  ? <ExchangeReturnPanel /> : <AccessDenied />;
       case "accounts":    return canAccess("accounts")    ? <AccountsPanel isSuperAdmin={session?.role === "super"} />   : <AccessDenied />;
       case "contracts":     return canAccess("contracts")   ? <ContractPanel />   : <AccessDenied />;
-      case "audit":         return canAccess("audit")       ? <AuditLogPanel />   : <AccessDenied />;
       case "survey-demand": return <SurveyDemandPanel />;
       case "work-feedback": return canAccess("work-feedback") ? <WorkFeedbackPanel session={{ role: session.role, userId: session.userId, name: session.name }} /> : <AccessDenied />;
       case "bugreport":     return <BugReportPanel />;
       case "worktracker":   return canAccess("worktracker") ? <WorkTrackerPanel session={{ userId: session.userId, name: session.name }} /> : <AccessDenied />;
       case "pc-scan":       return canAccess("pc-scan") ? <PcScanPanel /> : <AccessDenied />;
+      case "pc-register":   return canAccess("pc-register") ? <PcRegisterPanel /> : <AccessDenied />;
       case "asset-audit-settings": return canAccess("asset-audit-settings") ? <AssetAuditSettingsPanel /> : <AccessDenied />;
       case "org-chart":    return canAccess("org-chart")    ? <OrgChartPanel />    : <AccessDenied />;
       case "asset-audit-dashboard": return canAccess("asset-audit-dashboard") ? <AssetAuditDashboardPanel /> : <AccessDenied />;
@@ -356,9 +367,6 @@ export default function AdminPage() {
               </span>
             )}
           </button>
-
-          {/* 알림센터 (슈퍼어드민 전용) */}
-          {isSuper && <NotificationBell onNavigate={(p) => setPage(p as PageId)} />}
 
           {/* 다크모드 토글 */}
           <button

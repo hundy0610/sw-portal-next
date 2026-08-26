@@ -1,30 +1,33 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { fetchExchangeReturns } from "@/lib/exchange-return";
-import { memCached } from "@/lib/mem-cache";
+import { isMirrorEnabled } from "@/lib/repo/mirror";
 
 export const dynamic = "force-dynamic";
 
-const CACHE_KEY = "exchange-return:all";
-const CACHE_TTL = 120;
-
-export async function GET(request: Request) {
-  for (const v of ["NOTION_TOKEN", "NOTION_DB_EXCHANGE_RETURN"]) {
-    if (!process.env[v]) {
-      return NextResponse.json(
-        { missingEnv: v, error: `환경변수 ${v} 가 설정되지 않았습니다.` },
-        { status: 503 }
-      );
+export async function GET(req: NextRequest) {
+  // 4.0verMACBOOK: 메인 저장소는 맥북 Postgres(미러). 미러가 꺼져 있을 때만 Notion 필요.
+  if (!isMirrorEnabled()) {
+    for (const v of ["NOTION_TOKEN", "NOTION_DB_EXCHANGE_RETURN"]) {
+      if (!process.env[v]) {
+        return NextResponse.json(
+          { missingEnv: v, error: `환경변수 ${v} 가 설정되지 않았습니다.` },
+          { status: 503 }
+        );
+      }
     }
   }
 
+  const { searchParams } = new URL(req.url);
+  const assetId = searchParams.get("assetId")?.trim() || "";
+  const type    = searchParams.get("type")?.trim()    || "";
+
   try {
-    const refresh = new URL(request.url).searchParams.get("refresh") === "1";
-    if (refresh) {
-      const data = await fetchExchangeReturns();
-      return NextResponse.json({ data, lastSynced: new Date().toISOString(), cached: false });
-    }
-    const { data, cached } = await memCached(CACHE_KEY, fetchExchangeReturns, CACHE_TTL);
-    return NextResponse.json({ data, lastSynced: new Date().toISOString(), cached });
+    // 미러(Postgres)에서 매 요청 조회 → 쓰기 즉시 반영.
+    let data = await fetchExchangeReturns();
+    // 자산 상세의 "임대 메모" 등 특정 자산/유형만 필요한 화면에서 전체 목록을 내려보내지 않도록 필터.
+    if (assetId) data = data.filter(r => r.assetId === assetId || r.newAssetId === assetId);
+    if (type)    data = data.filter(r => r.type === type);
+    return NextResponse.json({ data, lastSynced: new Date().toISOString(), cached: false });
   } catch (error) {
     console.error("[API GET /exchange-return]", error);
     return NextResponse.json(

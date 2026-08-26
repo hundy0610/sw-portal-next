@@ -11,6 +11,10 @@ export async function GET() {
         (option: { name: string }) => option.name,
       ),
       긴급도: (notionResponse.properties.긴급도.select?.options || []).map((option: { name: string }) => option.name),
+      // 근무 위치(연구소 · 센터 단위). Notion 에 속성을 아직 안 만들었으면 빈 목록이
+      // 내려가고 폼은 그 칸을 감춘다 — ?. 를 빼면 속성이 없을 때 여기서 터져 문의 폼
+      // 전체가 열리지 않는다.
+      위치: (notionResponse.properties.위치?.select?.options || []).map((option: { name: string }) => option.name),
     };
 
     return NextResponse.json(response);

@@ -59,6 +59,51 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, created: newItems.length });
   }
 
+  // 일괄 가져오기 — 전체 메타데이터(vendor/category/status/description/alternatives/
+  // officialUrl)를 가진 레코드를 한 번에 등록한다. bulkCreate(이름+상태만)와 달리
+  // 정책 목록을 대량으로 확장할 때 쓴다(예: SW_POLICY_SEED). 이름이 이미 있으면
+  // 건너뛴다 — 기존 항목을 덮어쓰지 않는다.
+  if (body._action === "bulkImport") {
+    const incoming: Partial<SwItem>[] = Array.isArray(body.items) ? body.items : [];
+    const valid = incoming.filter(
+      (it): it is Partial<SwItem> & { name: string } => typeof it?.name === "string" && it.name.trim() !== "",
+    );
+    if (valid.length === 0) {
+      return NextResponse.json({ error: "가져올 항목이 없습니다." }, { status: 400 });
+    }
+    const existing = new Set(items.map(i => i.name.trim().toLowerCase()));
+    const now = Date.now();
+    const fresh: SwItem[] = [];
+    valid.forEach((it, i) => {
+      const key = it.name.trim().toLowerCase();
+      if (existing.has(key)) return;
+      existing.add(key);
+      fresh.push({
+        id: `sw_${now}_${i}_${Math.random().toString(36).slice(2, 7)}`,
+        name: it.name!.trim(),
+        vendor: it.vendor ?? "",
+        category: it.category ?? "",
+        status: it.status ?? "conditional",
+        alternatives: it.alternatives ?? [],
+        mandatory: it.mandatory ?? false,
+        description: it.description ?? "",
+        officialUrl: it.officialUrl || undefined,
+      });
+    });
+    if (fresh.length === 0) {
+      return NextResponse.json({ ok: true, created: 0, skipped: valid.length });
+    }
+    if (!(await saveSwItems([...items, ...fresh]))) {
+      return NextResponse.json({ ok: false, error: "저장에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "SWDB_SAVE_FAILED" }, { status: 500 });
+    }
+    await appendAuditLog({
+      adminId: session.userId, adminName, action: "create", target: "swdb",
+      itemTitle: `${fresh.length}건 일괄 가져오기`, detail: fresh.map(f => f.name).join(", "),
+      timestamp: new Date().toISOString(),
+    });
+    return NextResponse.json({ ok: true, created: fresh.length, skipped: valid.length - fresh.length });
+  }
+
   // 삭제
   if (body._action === "delete") {
     const target = items.find(i => i.id === body.id);
@@ -77,7 +122,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "저장에 실패했습니다. 잠시 후 다시 시도해주세요.", code: "SWDB_SAVE_FAILED" }, { status: 500 });
     }
     const target = items.find(i => i.id === body.id);
-    const STATUS_LABEL: Record<string, string> = { approved: "승인", banned: "금지", conditional: "조건부" };
+    const STATUS_LABEL: Record<string, string> = { approved: "승인", banned: "금지", blocked: "금지", conditional: "조건부", excluded: "예외" };
     const detail = summarizeChanges(target, body.data, [
       { key: "status",    label: "상태", format: v => STATUS_LABEL[String(v)] ?? String(v) },
       { key: "mandatory", label: "필수 설치", format: v => (v ? "필수" : "선택") },

@@ -4,14 +4,14 @@ import type { SwDbRecord } from "@/types";
 // SW 등록 양식 엑셀 컬럼 — admin 엑셀 업로드(SW_COL_MAP)와 동일한 헤더를 사용한다.
 export const SW_TEMPLATE_HEADERS = [
   "사용자", "SW대분류", "SW소분류", "버전(쉼표구분)", "상태",
-  "법인명", "라이선스유형", "부서", "사용일자", "갱신필요일", "구매일자",
+  "법인명", "라이선스유형", "부서", "사용일자", "갱신필요일", "구매일자", "최근결제일",
   "계정유형", "갱신주기", "인증키/인증계정", "구매처", "SW사용직군", "결제방식",
   "월비용KRW", "월비용USD",
 ];
 
 const SAMPLE_ROW: (string | number)[] = [
   "홍길동", "MS Office", "Office 365", "2021,2024", "사용중",
-  "대웅제약", "영구", "IT팀", "2024-01-01", "2025-12-31", "2024-01-01",
+  "대웅제약", "영구", "IT팀", "2024-01-01", "2025-12-31", "2024-01-01", "2024-01-01",
   "법인", "연", "XXXXX-XXXXX-XXXXX", "MS Korea", "사무직", "법인카드",
   0, 0,
 ];
@@ -22,6 +22,8 @@ const NOTE_LINES = [
   "라이선스유형: 영구/구독(업체)/구독(웹)",
   "버전: 쉼표로 구분 (예: 2021,2024)",
   "날짜: YYYY-MM-DD 형식",
+  "최근결제일: 구독형 SW를 USD로 결제한 경우, 이 날짜 기준 환율로 원화 환산됩니다.",
+  "           비워두면 갱신필요일을 대신 사용합니다.",
 ];
 
 // 법인명/부서를 미리 채운 SW 등록 양식 엑셀 파일을 생성해 다운로드한다.
@@ -49,7 +51,7 @@ export function downloadSwTemplate(prefill?: { company?: string; department?: st
 export interface SwExcelRow {
   user: string; swCategory: string; swDetail: string; version: string;
   status: string; company: string; licenseType: string; department: string;
-  usageDate: string; renewalDate: string; purchaseDate: string;
+  usageDate: string; renewalDate: string; purchaseDate: string; paymentDate: string;
   accountType: string; renewalCycle: string; licenseKey: string;
   vendor: string; workType: string; billingType: string;
   monthlyKrw: number; monthlyUsd: number;
@@ -68,6 +70,7 @@ const SW_COL_MAP: { key: string; aliases: string[] }[] = [
   { key: "usageDate",    aliases: ["사용일자", "사용날짜", "usagedate", "use_date"] },
   { key: "renewalDate",  aliases: ["갱신필요일", "갱신일", "renewaldate", "renewal_date"] },
   { key: "purchaseDate", aliases: ["구매일자", "구매날짜", "purchasedate", "purchase_date"] },
+  { key: "paymentDate",  aliases: ["최근결제일", "결제일", "결제일자", "paymentdate", "payment_date"] },
   { key: "accountType",  aliases: ["계정유형", "accounttype", "계정"] },
   { key: "renewalCycle", aliases: ["갱신주기", "renewalcycle", "주기"] },
   { key: "licenseKey",   aliases: ["인증키/인증계정", "인증키", "인증계정", "licensekey", "key", "license_key"] },
@@ -136,6 +139,7 @@ export async function parseSwExcelFile(file: File): Promise<SwExcelRow[]> {
       usageDate:    excelDateToStr(r[colIdx["usageDate"] ?? -1] as string | number),
       renewalDate:  excelDateToStr(r[colIdx["renewalDate"] ?? -1] as string | number),
       purchaseDate: excelDateToStr(r[colIdx["purchaseDate"] ?? -1] as string | number),
+      paymentDate:  excelDateToStr(r[colIdx["paymentDate"] ?? -1] as string | number),
       accountType:  get("accountType"),
       renewalCycle: get("renewalCycle"),
       licenseKey:   get("licenseKey"),

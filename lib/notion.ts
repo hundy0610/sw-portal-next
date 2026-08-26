@@ -16,6 +16,7 @@ import {
 } from "./mock";
 import { kvGet } from "@/lib/kv-store";
 import { memCached } from "@/lib/mem-cache";
+import { readEntity, upsertEntity } from "@/lib/repo/mirror";
 
 // ────────────────────────────────────────────────────────────
 // Notion 클라이언트 싱글톤
@@ -227,6 +228,14 @@ export async function fetchSwDb(): Promise<SwItem[]> {
 // ────────────────────────────────────────────────────────────
 export async function fetchSwDatabase(): Promise<SwDbRecord[]> {
   if (isMock()) return mockSwDatabase as SwDbRecord[];
+  // 메인 저장소(맥북 Postgres 미러) 우선, 미설정/미스 시 Notion 백업 폴백.
+  const mir = await readEntity<SwDbRecord>("sw");
+  if (mir) return mir;
+  return fetchSwDatabaseFromNotion();
+}
+
+// Notion 직접 조회(초기 seed / 폴백 전용).
+export async function fetchSwDatabaseFromNotion(): Promise<SwDbRecord[]> {
   const dbId = process.env.NOTION_DB_SW_UNIFIED;
   if (!dbId) throw new Error("NOTION_DB_SW_UNIFIED 환경변수가 설정되지 않았습니다.");
 
@@ -401,6 +410,9 @@ export interface HelpDeskTicket {
   requester: string;
   requesterEmail: string;
   assetNo: string;
+  // 근무 위치(문의 접수 폼) — 연구소·센터 단위. Notion "위치"(select) 옵션과 같은 값이고,
+  // 재택 등으로 고르지 않으면 빈 문자열.
+  location?: string;
   content: string;
   urgency: string;
   team: string;
@@ -408,14 +420,28 @@ export interface HelpDeskTicket {
   assigneeId: string;
   submittedAt: string;
   lastEditedAt: string;
+  // 상태 전이 실측 시각(데스크탑 앱 v1.43.0~). 그 이전 접수 건에는 없다.
+  firstRespondedAt?: string;  // "시작 전"에서 처음 벗어난 순간. 한 번만 찍힌다.
+  completedAt?: string;       // 완료·보류(처리 종료)로 바뀐 마지막 순간.
   notionUrl: string;
   actionNote: string;
   actionCategory: string[];
   actionMethod: string;
+  feedbackEmailSent: boolean;
+  satisfaction?: number;      // 문의자 만족도 평가(1~5). 미평가면 undefined.
+  feedbackComment?: string;   // 만족도 코멘트.
 }
 
 export async function fetchHelpDeskTickets(): Promise<HelpDeskTicket[]> {
   if (isMock()) return mockHelpDeskTickets as HelpDeskTicket[];
+  // 메인 저장소(맥북 Postgres 미러) 우선, 미설정/미스 시 Notion 백업 폴백.
+  const mir = await readEntity<HelpDeskTicket>("helpdesk");
+  if (mir) return [...mir].sort((a, b) => (b.submittedAt || "").localeCompare(a.submittedAt || ""));
+  return fetchHelpDeskTicketsFromNotion();
+}
+
+// Notion 직접 조회(초기 seed / 폴백 전용).
+export async function fetchHelpDeskTicketsFromNotion(): Promise<HelpDeskTicket[]> {
   const dbId = process.env.NOTION_DB_HELPDESK || process.env.NOTION_DB_TICKETS;
   if (!dbId) throw new Error("NOTION_DB_HELPDESK 환경변수가 설정되지 않았습니다.");
 
@@ -450,6 +476,7 @@ export async function fetchHelpDeskTickets(): Promise<HelpDeskTicket[]> {
       actionNote: getPropText(p, "조치 내용") || "",
       actionCategory: getPropMultiSelect(p, "조치분류"),
       actionMethod: getPropSelect(p, "조치방법") || "",
+      feedbackEmailSent: getPropCheckbox(p, "평가메일발송"),
     };
   });
 }
@@ -506,6 +533,14 @@ function getPropUniqueId(props: NotionProps, key: string): string {
 
 export async function fetchRepairTickets(): Promise<RepairTicket[]> {
   if (isMock()) return mockRepairTickets as RepairTicket[];
+  // 메인 저장소(맥북 Postgres 미러) 우선, 미설정/미스 시 Notion 백업 폴백.
+  const mir = await readEntity<RepairTicket>("repair");
+  if (mir) return [...mir].sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+  return fetchRepairTicketsFromNotion();
+}
+
+// Notion 직접 조회(초기 seed / 폴백 전용).
+export async function fetchRepairTicketsFromNotion(): Promise<RepairTicket[]> {
   const dbId = process.env.NOTION_DB_REPAIR_TICKETS;
   if (!dbId) throw new Error("NOTION_DB_REPAIR_TICKETS 환경변수가 설정되지 않았습니다.");
 
@@ -552,27 +587,59 @@ export async function createRepairTicket(data: {
   priority?: string;
 }): Promise<string> {
   if (isMock()) { console.log("[MOCK] createRepairTicket", data); return "mock-repair-new"; }
-  const dbId = process.env.NOTION_DB_REPAIR_TICKETS;
-  if (!dbId) throw new Error("NOTION_DB_REPAIR_TICKETS 환경변수가 설정되지 않았습니다.");
-
-  const properties: Record<string, unknown> = {
-    "고장증상":       { title:        [{ text: { content: data.title } }] },
-    "고장 내역":      { multi_select: data.faultTypes.map((name) => ({ name })) },
-    "상태":          { status:       { name: "시작 전" } },
-    "부서":          { rich_text:    [{ text: { content: data.department || "" } }] },
-    "실제 근무 위치":  { rich_text:    [{ text: { content: data.location || "" } }] },
-    "자산번호":       { rich_text:    [{ text: { content: data.assetId || "" } }] },
-    "문의자":        { rich_text:    [{ text: { content: data.requester || "" } }] },
-  };
-  if (data.company) properties["법인"] = { select: { name: data.company } };
-  if (data.priority) properties["긴급도"] = { select: { name: data.priority } };
-
-  const response = await notion.pages.create({
-    parent: { database_id: toNotionId(dbId) },
-    properties: properties as Parameters<typeof notion.pages.create>[0]["properties"],
+  return createRepairTicketRecord({
+    title: data.title,
+    faultTypes: data.faultTypes,
+    company: data.company,
+    department: data.department,
+    location: data.location,
+    assetId: data.assetId,
+    requester: data.requester,
+    priority: data.priority,
   });
+}
 
-  return response.id;
+// 수리 접수 → 미러(메인) 레코드 생성. 공용(모니터 수리/공개 접수 폼) 진입점.
+export async function createRepairTicketRecord(data: {
+  title: string;
+  faultTypes: string[];
+  company?: string;
+  department?: string;
+  location?: string;
+  building?: string;
+  floor?: string;
+  assetId?: string;
+  detail?: string;
+  requester?: string;
+  priority?: string;
+}): Promise<string> {
+  const id = crypto.randomUUID();
+  const record: RepairTicket = {
+    id,
+    ticketNumber: "",
+    title: data.title,
+    faultTypes: data.faultTypes ?? [],
+    status: "시작 전",
+    priority: data.priority || "",
+    company: data.company || "",
+    department: data.department || "",
+    location: data.location || "",
+    building: data.building || "",
+    floor: data.floor || "",
+    assetId: data.assetId || "",
+    detail: data.detail || "",
+    requester: data.requester || "",
+    assignee: "",
+    assigneeId: "",
+    repairDate: "",
+    actionNote: "",
+    consentGiven: false,
+    createdAt: new Date().toISOString().split("T")[0],
+    notionUrl: "",
+  };
+  const ok = await upsertEntity("repair", id, record);
+  if (!ok) throw new Error("수리 접수 저장 실패(Postgres)");
+  return id;
 }
 
 // ────────────────────────────────────────────────────────────
@@ -580,6 +647,14 @@ export async function createRepairTicket(data: {
 // ────────────────────────────────────────────────────────────
 export async function fetchHwRepairs(): Promise<HwRepairRecord[]> {
   if (isMock()) return mockHwRepairs as HwRepairRecord[];
+  // 메인 저장소(맥북 Postgres 미러) 우선, 미설정/미스 시 Notion 백업 폴백.
+  const mir = await readEntity<HwRepairRecord>("hw-repair");
+  if (mir) return mir;
+  return fetchHwRepairsFromNotion();
+}
+
+// Notion 직접 조회(초기 seed / 폴백 전용).
+export async function fetchHwRepairsFromNotion(): Promise<HwRepairRecord[]> {
   const dbId = process.env.NOTION_DB_HW_REPAIR;
   if (!dbId) throw new Error("NOTION_DB_HW_REPAIR 환경변수가 설정되지 않았습니다.");
 
@@ -718,39 +793,40 @@ export async function createHelpDeskTicket(data: {
   urgency: string;
   content: string;
   assetNo?: string;
+  location?: string;
 }): Promise<string> {
   if (isMock()) { console.log("[MOCK] createHelpDeskTicket", data); return "mock-hd-new"; }
-  const dbId = process.env.NOTION_DB_HELPDESK;
-  if (!dbId) throw new Error("NOTION_DB_HELPDESK 환경변수가 설정되지 않았습니다.");
 
-  // 실제 Notion DB 속성명에 맞게 작성
-  // - 제목 type 속성명: "문의내용"
-  // - 상태는 DB 기본값 사용 (생성 시 미설정)
-  const props: Record<string, unknown> = {
-    "문의내용":  { title: [{ text: { content: data.title } }] },
-    "문의유형":  { select: { name: data.inquiryType } },
-    "부서":      { rich_text: [{ text: { content: data.department } }] },
-    "문의자":    { rich_text: [{ text: { content: data.requester } }] },
-    "문의자 이메일": { email: data.requesterEmail },
-    "긴급도":    { select: { name: data.urgency } },
+  // 메인 저장소(맥북 Postgres 미러)에 기록. 5분 백업 러너가 Notion 에 반영한다.
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+  const record: HelpDeskTicket = {
+    id,
+    title: data.title,
+    status: "시작 전",
+    inquiryType: data.inquiryType,
+    company: data.company || "",
+    department: data.department || "",
+    requester: data.requester,
+    requesterEmail: data.requesterEmail,
+    assetNo: data.assetNo || "",
+    location: data.location || "",
+    content: data.content || "",
+    urgency: data.urgency,
+    team: "",
+    assignee: "",
+    assigneeId: "",
+    submittedAt: now,
+    lastEditedAt: now,
+    notionUrl: "",
+    actionNote: "",
+    actionCategory: [],
+    actionMethod: "",
+    feedbackEmailSent: false,
   };
-  if (data.company) props["법인"] = { select: { name: data.company } };
-  if (data.assetNo) props["자산번호"] = { rich_text: [{ text: { content: data.assetNo } }] };
-
-  const response = await notion.pages.create({
-    parent: { database_id: dbId },
-    properties: props as Parameters<typeof notion.pages.create>[0]["properties"],
-    // 문의 상세 내용은 페이지 본문에 기록
-    children: data.content ? [{
-      object: "block" as const,
-      type:   "paragraph" as const,
-      paragraph: {
-        rich_text: [{ type: "text" as const, text: { content: data.content.slice(0, 2000) } }],
-      },
-    }] : undefined,
-  });
-
-  return response.id;
+  const ok = await upsertEntity("helpdesk", id, record);
+  if (!ok) throw new Error("문의 저장 실패(Postgres)");
+  return id;
 }
 
 // ────────────────────────────────────────────────────────────
@@ -1457,7 +1533,7 @@ export async function fetchManualBySlug(slug: string, allowHidden = false): Prom
 
 export async function createManual(
   data: Omit<Manual, "id">,
-  opts?: { fileUploadId?: string }
+  opts?: { fileUploadId?: string; externalFileUrl?: string }
 ): Promise<string> {
   const dbId = process.env.NOTION_DB_MANUALS;
   if (!dbId) throw new Error("NOTION_DB_MANUALS not set");
@@ -1471,6 +1547,8 @@ export async function createManual(
   if (data.category) props["카테고리"] = { select: { name: data.category } };
   if (opts?.fileUploadId) {
     props["파일과 미디어"] = { files: [{ type: "file_upload", file_upload: { id: opts.fileUploadId } }] };
+  } else if (opts?.externalFileUrl) {
+    props["파일과 미디어"] = { files: [{ type: "external", name: data.title, external: { url: opts.externalFileUrl } }] };
   }
   const res = await notion.pages.create({ parent: { database_id: dbId }, properties: props as Parameters<typeof notion.pages.create>[0]["properties"] });
   return res.id;
@@ -1479,7 +1557,7 @@ export async function createManual(
 export async function updateManual(
   id: string,
   data: Partial<Omit<Manual, "id">>,
-  opts?: { fileUploadId?: string }
+  opts?: { fileUploadId?: string; externalFileUrl?: string }
 ): Promise<void> {
   const props: Record<string, unknown> = {};
   if (data.title       !== undefined) props["제목"]     = { title:     [{ text: { content: data.title } }] };
@@ -1490,6 +1568,8 @@ export async function updateManual(
   if (data.order       !== undefined) props["순서"]     = { number:    data.order };
   if (opts?.fileUploadId) {
     props["파일과 미디어"] = { files: [{ type: "file_upload", file_upload: { id: opts.fileUploadId } }] };
+  } else if (opts?.externalFileUrl) {
+    props["파일과 미디어"] = { files: [{ type: "external", name: data.title || "file", external: { url: opts.externalFileUrl } }] };
   }
   await notion.pages.update({ page_id: id, properties: props as Parameters<typeof notion.pages.update>[0]["properties"] });
 }

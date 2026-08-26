@@ -1,30 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { kvGet, kvSet } from "@/lib/kv-store";
 import nodemailer from "nodemailer";
+import { readEntityOne } from "@/lib/repo/mirror";
+import type { HelpDeskTicket } from "@/lib/notion";
 
-const SENT_KEY  = (id: string) => `feedback_email_sent:${id}`;
-const SENT_TTL  = 60 * 60 * 24 * 365; // 1년
+const HD_ENTITY = "helpdesk";
 
-// 이 키는 "이미 보낸 메일을 재발송하지 않는다"는 유일한 안전장치라, 한 번의 읽기/쓰기
-// 실패가 곧바로 고객에게 평가 메일이 반복 발송되는 사고로 이어진다. Redis 무료 티어
-// 한도 초과로 인한 간헐적 실패에 대비해, 기본 kvGet/kvSet의 1회 재시도보다 더 집요하게
-// 재시도한다 — 이 경로는 명령 수가 조금 늘어도 감수할 가치가 있는 곳이다.
-async function alreadySentFeedback(ticketId: string): Promise<boolean> {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (await kvGet<boolean>(SENT_KEY(ticketId))) return true;
-    if (attempt < 2) await new Promise(r => setTimeout(r, 250 * (attempt + 1)));
-  }
-  return false;
-}
-
-async function markFeedbackSent(ticketId: string): Promise<void> {
-  for (let attempt = 0; attempt < 4; attempt++) {
-    if (await kvSet(SENT_KEY(ticketId), true, SENT_TTL)) return;
-    if (attempt < 3) await new Promise(r => setTimeout(r, 300 * (attempt + 1)));
-  }
-  console.error(`[send-feedback] 발송 완료 표시 저장 실패 — 중복 발송 위험: ${ticketId}`);
-}
-
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- 되돌릴 때 재사용, 아래 참고
 function buildEmailHtml(opts: {
   requesterName: string;
   ticketContent: string;
@@ -105,6 +86,7 @@ function buildEmailHtml(opts: {
 </html>`;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- 되돌릴 때 재사용, 아래 참고
 function createTransporter() {
   const user = process.env.GMAIL_USER;
   const pass = process.env.GMAIL_APP_PASSWORD;
@@ -116,52 +98,22 @@ function createTransporter() {
 }
 
 // POST /api/helpdesk/send-feedback
-// Body: { ticketId, requesterEmail, requesterName, ticketContent, assignee }
-export async function POST(req: NextRequest) {
-  const transporter = createTransporter();
-  if (!transporter) {
-    return NextResponse.json({ error: "GMAIL_USER 또는 GMAIL_APP_PASSWORD 미설정" }, { status: 500 });
-  }
-
-  try {
-    const { ticketId, requesterEmail, requesterName, ticketContent, assignee } = await req.json();
-    if (!ticketId || !requesterEmail)
-      return NextResponse.json({ error: "ticketId, requesterEmail 필수" }, { status: 400 });
-
-    // 중복 발송 방지
-    if (await alreadySentFeedback(ticketId)) {
-      return NextResponse.json({ ok: true, skipped: true, reason: "이미 발송됨" });
-    }
-
-    const origin = process.env.NEXT_PUBLIC_APP_URL || "https://assetify-desk-main.vercel.app";
-    const feedbackUrl = `${origin}/inquiry/feedback/${ticketId}`;
-
-    const html = buildEmailHtml({
-      requesterName: requesterName || "고객",
-      ticketContent: ticketContent || "문의 내용",
-      assignee: assignee || "담당자",
-      feedbackUrl,
-    });
-
-    await transporter.sendMail({
-      from: `"IDS 자산관리파트 Help Desk" <${process.env.GMAIL_USER}>`,
-      to: requesterEmail,
-      subject: "[IDS Help Desk] 문의가 처리 완료되었습니다 - 만족도 평가 요청",
-      html,
-    });
-
-    await markFeedbackSent(ticketId);
-    return NextResponse.json({ ok: true });
-  } catch (e) {
-    console.error("[POST /api/helpdesk/send-feedback]", e);
-    return NextResponse.json({ error: "서버 오류", detail: String(e) }, { status: 500 });
-  }
+// 2026-07-28: 만족도 평가 메일 발송 주체가 맥북 폴러로 이전됐다.
+// (Assetify_for_desktop / core/repo/helpdesk-feedback-mail.ts)
+//
+// 여기를 살려두면 문의자에게 메일이 두 통 간다. 또한 이 경로는 과거에 중복 방지
+// 표시의 무음 쓰기 실패로 같은 문의자에게 수십 통을 보낸 이력이 있다.
+// 폴러 쪽은 발송 전 선점 · 쓰기 검증 · TTL 없는 영구 표시 · 회당 상한으로 막아 뒀다.
+//
+// 기존 발송 로직(buildEmailHtml/createTransporter, 위)은 되돌릴 때를 대비해 남겨둔다.
+export async function POST() {
+  return NextResponse.json({ ok: true, skipped: "disabled (moved to macbook poller)" });
 }
 
 // GET /api/helpdesk/send-feedback?id=xxx → 발송 여부 확인
 export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id 필요" }, { status: 400 });
-  const sent = await kvGet<boolean>(SENT_KEY(id));
-  return NextResponse.json({ sent: !!sent });
+  const ticket = await readEntityOne<HelpDeskTicket>(HD_ENTITY, id);
+  return NextResponse.json({ sent: !!ticket?.feedbackEmailSent });
 }

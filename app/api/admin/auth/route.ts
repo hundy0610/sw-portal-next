@@ -10,7 +10,11 @@ const SUPER_ADMIN_PW = process.env.SUPER_ADMIN_PW;
 
 async function lookupAccount(userId: string, password: string): Promise<AdminSession | null> {
   try {
-    if (!process.env.REDIS_URL) return null;
+    // 예전에 "REDIS_URL"이라는, 실제로는 어디에도 설정되지 않는 환경변수명을 확인하고 있었음
+    // (실제 Redis 설정은 UPSTASH_REDIS_REST_URL/KV_REST_API_URL — lib/kv-store.ts 참고).
+    // 이 조건이 항상 참이 되어 환경변수 슈퍼어드민을 제외한 모든 Redis 계정의 로그인이
+    // 무조건 실패하고 있었음 — kvGet()이 Redis 미설정 시 이미 null을 안전하게 반환하므로
+    // 이 사전 체크 자체가 불필요하기도 해서 제거함.
     const accounts = (await kvGet<Account[]>(ACCOUNTS_KEY)) ?? [];
 
     const account = accounts.find(a => a.userId === userId && a.active);

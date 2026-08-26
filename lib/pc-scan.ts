@@ -1,15 +1,26 @@
 import { Client } from "@notionhq/client";
 import * as XLSX from "xlsx";
 import { isMock } from "./mock";
-import { findHwByAssetNo, serialFuzzyMatch, markHwVerifiedByScanMatch, type HwRecord } from "./hw";
-import { uploadFileToNotion } from "./notion";
-import { fetchSaasCatalog, filterKnownDomains, sanitizeForExcelCell, updateSaasUsage, type IncomingDomainVisit } from "./saas-catalog";
+import { findHwByAssetNo, serialFuzzyMatch, markHwVerifiedByScanMatch, fillMissingHwContactInfo, type HwRecord } from "./hw";
+import { readEntity, readEntityOne, upsertEntity, deleteEntity } from "@/lib/repo/mirror";
+import { uploadToBlob } from "@/lib/blob-store";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PC 자산실사 스캔 (4.0verMACBOOK)
+// 메인 저장소: 맥북 Postgres public.entity_store('pc-scan' | 'pc-register').
+//   - NOTION_DB_PC_SCAN     → 'pc-scan'    (온라인 실사)
+//   - NOTION_DB_PC_REGISTER → 'pc-register' (별도 등록 DB)
+// 설치프로그램(xlsx) 첨부는 Vercel Blob 에 저장, 5분 백업 러너가 Notion 으로 재업로드.
+// ─────────────────────────────────────────────────────────────────────────────
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
+function entityFor(dbEnvVar: string): string {
+  return dbEnvVar === "NOTION_DB_PC_REGISTER" ? "pc-register" : "pc-scan";
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-// 설치 프로그램 목록 (자산실사 수집 에이전트가 첨부한 "설치 프로그램" xlsx) 파싱
-// 시트 컬럼: 이름 | 게시자 | 버전 | 설치일
+// 설치 프로그램 목록 xlsx 파싱 (이름 | 게시자 | 버전 | 설치일)
 // ─────────────────────────────────────────────────────────────────────────────
 export interface InstalledProgram {
   name: string;
@@ -27,7 +38,7 @@ export async function parseInstalledPrograms(fileUrl: string): Promise<Installed
   if (!sheet) return [];
   const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1 });
   const programs: InstalledProgram[] = [];
-  for (const row of rows.slice(1)) { // 첫 행(헤더) 제외
+  for (const row of rows.slice(1)) {
     const [name, publisher, version, installDate] = row as unknown[];
     if (!name) continue;
     programs.push({
@@ -58,16 +69,13 @@ export interface PcScanPayload {
   corp?: string;
   isDualOrShared?: boolean;
   originalCorp?: string;
+  isShared?: boolean;
+  sharedName?: string;
   collectedAt?: string;
+  price?: number;
   programsFileBase64?: string;
   programsFileName?: string;
   programsContentType?: string;
-  /**
-   * 자산실사 중 수집한 SaaS 도메인 방문기록 스냅샷 — 이미 SaaS 도메인 카탈로그
-   * (GET /api/saas-domains)로 걸러서 보내야 하지만, 서버가 다시 한번 카탈로그로
-   * 재검증한다(아래 upsertPcScan 참고) — 클라이언트 필터링을 신뢰하지 않는다.
-   */
-  saasDomains?: { host: string; visitCount: number; lastVisitedAt: string }[];
 }
 
 export interface UpsertResult {
@@ -106,48 +114,6 @@ async function queryWithRetry(
   throw new Error("Notion query failed after retries");
 }
 
-function buildProperties(
-  data: PcScanPayload,
-  masterExists: boolean,
-  fileUploadId?: string
-): Record<string, unknown> {
-  const props: Record<string, unknown> = {
-    "PC이름": { title: [{ text: { content: data.pcName } }] },
-    "시리얼 넘버": { rich_text: [{ text: { content: data.serial } }] },
-    "마스터존재": { checkbox: masterExists },
-  };
-
-  const addRt = (key: string, val?: string) => {
-    if (val) props[key] = { rich_text: [{ text: { content: val } }] };
-  };
-
-  addRt("자산번호", data.assetNo);
-  addRt("제조사", data.manufacturer);
-  addRt("모델명", data.model);
-  addRt("부서", data.dept);
-  addRt("사용자", data.userName);
-  if (data.email) props["이메일"] = { email: data.email };
-  if (data.macAddresses?.length) addRt("MAC", data.macAddresses.join(", "));
-  addRt("CPU", data.cpu);
-  addRt("RAM", data.ram);
-  addRt("OS", data.os);
-  addRt("GPU", data.gpu);
-  addRt("저장장치", data.storage);
-  if (data.corp) props["법인명"] = { select: { name: data.corp } };
-  props["겸직/쉐어드"] = { checkbox: !!data.isDualOrShared };
-  props["원소속법인"] = data.originalCorp
-    ? { select: { name: data.originalCorp } }
-    : { select: null };
-  if (data.collectedAt) props["수집일시"] = { date: { start: data.collectedAt } };
-  if (fileUploadId && data.programsFileName) {
-    props["설치프로그램"] = {
-      files: [{ type: "file_upload", name: data.programsFileName, file_upload: { id: fileUploadId } }],
-    };
-  }
-
-  return props;
-}
-
 export interface PcScanRecord {
   id: string;
   pcName: string;
@@ -158,6 +124,19 @@ export interface PcScanRecord {
   corp: string;
   isDualOrShared: boolean;
   originalCorp: string;
+  /**
+   * 공용PC — 여럿이 함께 쓰는 PC(회의실·검사장비 등). `isDualOrShared`(겸직/쉐어드,
+   * 사람이 두 법인 일을 겸함)와 **다른 개념**이다.
+   *
+   * 예전에는 이 구분을 사용자 이름 규칙("용도_담당자이름_공용")으로 대신했다. 사람 칸에
+   * 사람 아닌 값이 들어가 실사 진행률의 조직도 명단 대조가 어긋났다. 이제 에이전트가
+   * 체크박스로 받고 userName 은 담당자 이름을 그대로 담는다.
+   *
+   * 이 필드가 생기기 전 레코드에는 없다(그래서 optional) — 그때는 false 로 본다.
+   */
+  isShared?: boolean;
+  /** 공용 용도/위치. 예: "3층 회의실". 공용이 아니면 빈 값. */
+  sharedName?: string;
   dept: string;
   userName: string;
   email: string;
@@ -168,10 +147,38 @@ export interface PcScanRecord {
   storage: string;
   mac: string;
   collectedAt: string;
+  /**
+   * 이 PC 가 수집된 시각 전부(오래된 것 → 최신). collectedAt 은 늘 마지막 수집
+   * 시각으로 덮이므로, 같은 PC 가 다음 회차에 재스캔되면 이전 회차의 수집 시각이
+   * 사라진다 — 회차별 진행률은 "그 기간에 수집됐는지"로 세기 때문에 지난 회차
+   * 진행률이 소급해서 줄어든다. 그것을 막기 위한 이력이다.
+   *
+   * 이 필드가 생기기 전 레코드에는 없다(그래서 optional) — 그 레코드가 다시
+   * 수집되는 순간 collectedAt 하나로 이력이 시작된다.
+   */
+  collectedHistory?: string[];
+  price: number;
   masterExists: boolean;
+  registered: boolean;
+  registeredAt: string;
+  closed: boolean;
   programFileName: string;
   programFileUrl: string;
   notionUrl: string;
+}
+
+/**
+ * 수집 시각 이력에 이번 수집 시각을 더한다. 같은 시각은 한 번만 담고 오래된 순으로 둔다.
+ * 이력이 없는(필드가 생기기 전) 레코드는 기존 collectedAt 하나로 이력을 시작한다 —
+ * 안 그러면 이 변경 이후 첫 재스캔에서 옛 수집 시각이 그대로 사라진다.
+ */
+function appendCollectedAt(existing: PcScanRecord | undefined, at: string | undefined): string[] {
+  const prev = Array.isArray(existing?.collectedHistory)
+    ? existing!.collectedHistory!.filter(v => typeof v === "string" && v.trim() !== "")
+    : [existing?.collectedAt ?? ""].filter(v => v.trim() !== "");
+  const now = (at ?? "").trim();
+  if (!now || prev.includes(now)) return prev;
+  return [...prev, now].sort();
 }
 
 export interface PcScanMismatch {
@@ -182,18 +189,11 @@ export interface PcScanMismatch {
 
 export interface PcScanRecordWithMatch extends PcScanRecord {
   masterId: string | null;
-  mismatch: PcScanMismatch | null; // masterExists === true일 때만 값이 존재
+  mismatch: PcScanMismatch | null;
   master?: { corp: string; dept: string; userName: string };
-  /** 자산번호는 마스터와 다르지만 시리얼은 일치하는 레코드가 있는 경우 (자산번호 오기입 의심 경고용, 자동 반영 안 함) */
   serialOnlyMatch: { masterId: string; masterAssetNo: string; masterCorp: string; masterDept: string; masterUser: string } | null;
 }
 
-/**
- * PC 스캔 기록을 마스터(HW) DB와 대조: 자산번호로 마스터 레코드를 찾고,
- * 시리얼 넘버가 대조(뒷자리 누락 허용)되면 일치로 보고 법인/부서/사용자를 비교한다.
- * 자산번호로 못 찾거나 시리얼이 안 맞으면, 자산번호 오기입 여부를 알려주기 위해
- * 시리얼만으로 마스터 전체를 보조 검색한다 (경고 표시용, masterExists/mismatch에는 반영하지 않음).
- */
 export function matchPcScansWithHw(
   scans: PcScanRecord[],
   hwRecords: HwRecord[]
@@ -235,16 +235,62 @@ export function matchPcScansWithHw(
   });
 }
 
-export async function fetchPcScans(): Promise<PcScanRecord[]> {
-  if (isMock()) return [];
+// ── Notion 페이지 → PcScanRecord (폴백/시드용) ─────────────────────────────────
+function mapNotionPage(page: { id: string; properties: Record<string, { type: string; [k: string]: unknown }> }): PcScanRecord {
+  const p = page.properties;
+  const rt = (key: string) => {
+    const v = p[key];
+    if (!v || v.type !== "rich_text") return "";
+    return (v.rich_text as { plain_text: string }[]).map(t => t.plain_text).join("");
+  };
+  const title = (key: string) => {
+    const v = p[key];
+    if (!v || v.type !== "title") return "";
+    return (v.title as { plain_text: string }[]).map(t => t.plain_text).join("");
+  };
+  const files = p["설치프로그램"]?.type === "files"
+    ? (p["설치프로그램"].files as { name?: string; type: string; file?: { url: string }; external?: { url: string } }[])
+    : [];
+  const f = files[0];
+  return {
+    id:           page.id,
+    notionUrl:    `https://www.notion.so/${page.id.replace(/-/g, "")}`,
+    pcName:       title("PC이름"),
+    serial:       rt("시리얼 넘버"),
+    assetNo:      rt("자산번호"),
+    manufacturer: rt("제조사"),
+    model:        rt("모델명"),
+    corp:         (p["법인명"]?.type === "select" ? (p["법인명"].select as { name?: string } | null)?.name : "") ?? "",
+    isDualOrShared: p["겸직/쉐어드"]?.type === "checkbox" ? (p["겸직/쉐어드"].checkbox as boolean) : false,
+    originalCorp: (p["원소속법인"]?.type === "select" ? (p["원소속법인"].select as { name?: string } | null)?.name : "") ?? "",
+    isShared:     p["공용"]?.type === "checkbox" ? (p["공용"].checkbox as boolean) : false,
+    sharedName:   rt("공용용도"),
+    dept:         rt("부서"),
+    userName:     rt("사용자"),
+    email:        (p["이메일"]?.type === "email" ? p["이메일"].email as string | null : "") ?? "",
+    cpu:          rt("CPU"),
+    ram:          rt("RAM"),
+    os:           rt("OS"),
+    gpu:          rt("GPU"),
+    storage:      rt("저장장치"),
+    mac:          rt("MAC"),
+    collectedAt:  (p["수집일시"]?.type === "date" ? (p["수집일시"].date as { start?: string } | null)?.start : "") ?? "",
+    price:        p["단가"]?.type === "number" ? ((p["단가"].number as number | null) ?? 0) : 0,
+    masterExists: p["마스터존재"]?.type === "checkbox" ? (p["마스터존재"].checkbox as boolean) : false,
+    registered:   p["등록완료"]?.type === "checkbox" ? (p["등록완료"].checkbox as boolean) : false,
+    registeredAt: (p["등록일시"]?.type === "date" ? (p["등록일시"].date as { start?: string } | null)?.start : "") ?? "",
+    closed:       p["종료"]?.type === "checkbox" ? (p["종료"].checkbox as boolean) : false,
+    programFileName: f?.name ?? "",
+    programFileUrl:  f?.file?.url ?? f?.external?.url ?? "",
+  };
+}
 
-  const rawDbId = process.env.NOTION_DB_PC_SCAN;
-  if (!rawDbId) throw new Error("NOTION_DB_PC_SCAN 환경변수가 설정되지 않았습니다.");
+async function queryAllNotion(dbEnvVar: string): Promise<PcScanRecord[]> {
+  const rawDbId = process.env[dbEnvVar];
+  if (!rawDbId) throw new Error(`${dbEnvVar} 환경변수가 설정되지 않았습니다.`);
   const dbId = toNotionId(rawDbId);
-
   const records: PcScanRecord[] = [];
   let cursor: string | undefined;
-
   do {
     const res = await queryWithRetry({
       database_id: dbId,
@@ -252,60 +298,48 @@ export async function fetchPcScans(): Promise<PcScanRecord[]> {
       sorts: [{ timestamp: "last_edited_time", direction: "descending" }],
       start_cursor: cursor,
     });
-
     for (const page of res.results) {
       if (page.object !== "page" || !("properties" in page)) continue;
-      const p = page.properties as Record<string, { type: string; [k: string]: unknown }>;
-      const rt = (key: string) => {
-        const v = p[key];
-        if (!v || v.type !== "rich_text") return "";
-        return (v.rich_text as { plain_text: string }[]).map(t => t.plain_text).join("");
-      };
-      const title = (key: string) => {
-        const v = p[key];
-        if (!v || v.type !== "title") return "";
-        return (v.title as { plain_text: string }[]).map(t => t.plain_text).join("");
-      };
-      records.push({
-        id:           page.id,
-        notionUrl:    `https://www.notion.so/${page.id.replace(/-/g, "")}`,
-        pcName:       title("PC이름"),
-        serial:       rt("시리얼 넘버"),
-        assetNo:      rt("자산번호"),
-        manufacturer: rt("제조사"),
-        model:        rt("모델명"),
-        corp:         (p["법인명"]?.type === "select" ? (p["법인명"].select as { name?: string } | null)?.name : "") ?? "",
-        isDualOrShared: p["겸직/쉐어드"]?.type === "checkbox" ? (p["겸직/쉐어드"].checkbox as boolean) : false,
-        originalCorp: (p["원소속법인"]?.type === "select" ? (p["원소속법인"].select as { name?: string } | null)?.name : "") ?? "",
-        dept:         rt("부서"),
-        userName:     rt("사용자"),
-        email:        (p["이메일"]?.type === "email" ? p["이메일"].email as string | null : "") ?? "",
-        cpu:          rt("CPU"),
-        ram:          rt("RAM"),
-        os:           rt("OS"),
-        gpu:          rt("GPU"),
-        storage:      rt("저장장치"),
-        mac:          rt("MAC"),
-        collectedAt:  (p["수집일시"]?.type === "date" ? (p["수집일시"].date as { start?: string } | null)?.start : "") ?? "",
-        masterExists: p["마스터존재"]?.type === "checkbox" ? (p["마스터존재"].checkbox as boolean) : false,
-        ...(() => {
-          const files = p["설치프로그램"]?.type === "files"
-            ? (p["설치프로그램"].files as { name?: string; type: string; file?: { url: string } }[])
-            : [];
-          const f = files[0];
-          return { programFileName: f?.name ?? "", programFileUrl: f?.file?.url ?? "" };
-        })(),
-      });
+      records.push(mapNotionPage(page as unknown as { id: string; properties: Record<string, { type: string; [k: string]: unknown }> }));
     }
-
     cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined;
   } while (cursor);
-
   return records;
 }
 
-// 관리자가 수정 가능한 필드 — PC이름/시리얼 넘버는 upsertPcScan의 기기 식별 키라서
-// 여기서 바꾸면 다음 스캔이 별개 레코드로 새로 생성되므로 제외한다.
+export async function fetchPcScans(dbEnvVar: string = "NOTION_DB_PC_SCAN"): Promise<PcScanRecord[]> {
+  if (isMock()) return [];
+  const mir = await readEntity<PcScanRecord>(entityFor(dbEnvVar));
+  if (mir) return [...mir].sort((a, b) => (b.collectedAt || "") < (a.collectedAt || "") ? -1 : 1);
+  return queryAllNotion(dbEnvVar);
+}
+
+/** 초기 이관(seed)용 — Notion 스캔을 읽고 설치프로그램 파일을 Blob 으로 옮겨 미러 data 로 반환. */
+export async function seedPcScansFromNotion(dbEnvVar: string): Promise<{ id: string; notionId: string; data: Record<string, unknown> }[]> {
+  const rows = await queryAllNotion(dbEnvVar);
+  const out: { id: string; notionId: string; data: Record<string, unknown> }[] = [];
+  for (const r of rows) {
+    const data: Record<string, unknown> = { ...r };
+    if (r.programFileUrl && /^https?:\/\//.test(r.programFileUrl)) {
+      try {
+        const dl = await fetch(r.programFileUrl);
+        if (dl.ok) {
+          const buf = Buffer.from(await dl.arrayBuffer());
+          const ct = dl.headers.get("content-type") || "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+          const blobUrl = await uploadToBlob(buf, r.programFileName || "programs.xlsx", ct, entityFor(dbEnvVar));
+          data.programFileUrl = blobUrl;
+          data.__syncedFiles = { "설치프로그램": blobUrl };
+        }
+      } catch (e) {
+        console.warn(`[pc-scan seed] 파일 이관 실패(${r.id}):`, (e as Error).message);
+      }
+    }
+    out.push({ id: r.id, notionId: r.id, data });
+  }
+  return out;
+}
+
+// 관리자가 수정 가능한 필드
 export interface PcScanEditFields {
   assetNo?: string;
   manufacturer?: string;
@@ -313,6 +347,8 @@ export interface PcScanEditFields {
   corp?: string;
   isDualOrShared?: boolean;
   originalCorp?: string;
+  isShared?: boolean;
+  sharedName?: string;
   dept?: string;
   userName?: string;
   email?: string;
@@ -322,64 +358,111 @@ export interface PcScanEditFields {
   gpu?: string;
   storage?: string;
   mac?: string;
+  price?: number;
+  registered?: boolean;
+  registeredAt?: string;
+  closed?: boolean;
 }
 
-function buildEditProperties(fields: PcScanEditFields): Record<string, unknown> {
-  const props: Record<string, unknown> = {};
-  const txt = (name: string, val: string) => { props[name] = { rich_text: [{ text: { content: val } }] }; };
+/**
+ * SaaS 도메인 방문기록을, 같은 serial의 가장 최근 pc-scan 레코드가 이미 갖고 있는
+ * 설치프로그램 엑셀에 "SaaS 도메인" 시트로 얹어 재업로드하고, 그 레코드의 첨부 URL을
+ * 새 파일로 갱신한다. 한 실사 라운드 안에서 HW/설치SW 보고(/api/pc-scan)가 먼저 오고
+ * SaaS 도메인 보고(/api/saas-usage)가 뒤이어 온다는 전제 — 대상 레코드나 첨부가 아직
+ * 없으면 아무것도 하지 않는다(POST /api/saas-usage 쪽에서 non-fatal 로 처리).
+ */
+export async function attachSaasDomainSheet(
+  serial: string,
+  domains: { host: string; visitCount: number; lastVisitedAt: string }[],
+  sanitizeCell: (v: string) => string,
+  dbEnvVar: string = "NOTION_DB_PC_SCAN",
+): Promise<boolean> {
+  if (!serial || domains.length === 0) return false;
+  const entity = entityFor(dbEnvVar);
+  const all = (await readEntity<PcScanRecord>(entity)) ?? [];
+  // 같은 serial로 여러 회차 레코드가 있을 수 있어 collectedAt 최신 것을 대상으로 한다.
+  const target = all
+    .filter(r => r.serial === serial && r.programFileUrl)
+    .sort((a, b) => (b.collectedAt || "").localeCompare(a.collectedAt || ""))[0];
+  if (!target) return false;
 
-  if (fields.assetNo        !== undefined) txt("자산번호", fields.assetNo);
-  if (fields.manufacturer   !== undefined) txt("제조사", fields.manufacturer);
-  if (fields.model          !== undefined) txt("모델명", fields.model);
-  if (fields.dept           !== undefined) txt("부서", fields.dept);
-  if (fields.userName       !== undefined) txt("사용자", fields.userName);
-  if (fields.cpu            !== undefined) txt("CPU", fields.cpu);
-  if (fields.ram            !== undefined) txt("RAM", fields.ram);
-  if (fields.os             !== undefined) txt("OS", fields.os);
-  if (fields.gpu            !== undefined) txt("GPU", fields.gpu);
-  if (fields.storage        !== undefined) txt("저장장치", fields.storage);
-  if (fields.mac            !== undefined) txt("MAC", fields.mac);
-  if (fields.email          !== undefined) props["이메일"] = fields.email ? { email: fields.email } : { email: null };
-  if (fields.corp           !== undefined) props["법인명"] = fields.corp ? { select: { name: fields.corp } } : { select: null };
-  if (fields.originalCorp   !== undefined) props["원소속법인"] = fields.originalCorp ? { select: { name: fields.originalCorp } } : { select: null };
-  if (fields.isDualOrShared !== undefined) props["겸직/쉐어드"] = { checkbox: !!fields.isDualOrShared };
+  const res = await fetch(target.programFileUrl);
+  if (!res.ok) return false;
+  const buf = Buffer.from(await res.arrayBuffer());
+  const wb = XLSX.read(buf, { type: "buffer" });
 
-  return props;
+  const SHEET_NAME = "SaaS 도메인";
+  const existingIdx = wb.SheetNames.indexOf(SHEET_NAME);
+  if (existingIdx !== -1) {
+    // 재실사 등으로 이미 이 시트가 있으면 지우고 새로 채운다(오래된 스냅샷이 남지 않게).
+    delete wb.Sheets[SHEET_NAME];
+    wb.SheetNames.splice(existingIdx, 1);
+  }
+  const rows = [
+    ["도메인", "누적 방문수", "최근 방문일시"],
+    ...domains.map(d => [sanitizeCell(d.host), d.visitCount, d.lastVisitedAt]),
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), SHEET_NAME);
+  const merged = Buffer.from(XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer);
+
+  const newUrl = await uploadToBlob(
+    merged,
+    target.programFileName || "installed_programs.xlsx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    entity,
+  );
+  return upsertEntity(entity, target.id, { ...target, programFileUrl: newUrl });
 }
 
-export async function updatePcScan(id: string, fields: PcScanEditFields): Promise<void> {
-  const properties = buildEditProperties(fields);
-  if (Object.keys(properties).length === 0) return;
-  await notion.pages.update({
-    page_id: id,
-    properties: properties as Parameters<typeof notion.pages.update>[0]["properties"],
-  });
+export async function updatePcScan(id: string, fields: PcScanEditFields, dbEnvVar: string = "NOTION_DB_PC_SCAN"): Promise<void> {
+  const entity = entityFor(dbEnvVar);
+  const base = await readEntityOne<PcScanRecord>(entity, id);
+  if (!base) throw new Error("대상 스캔 레코드를 찾을 수 없습니다.");
+  const next: PcScanRecord = { ...base };
+  if (fields.assetNo        !== undefined) next.assetNo = fields.assetNo;
+  if (fields.manufacturer   !== undefined) next.manufacturer = fields.manufacturer;
+  if (fields.model          !== undefined) next.model = fields.model;
+  if (fields.corp           !== undefined) next.corp = fields.corp;
+  if (fields.isDualOrShared !== undefined) next.isDualOrShared = fields.isDualOrShared;
+  if (fields.isShared       !== undefined) next.isShared = fields.isShared;
+  if (fields.sharedName     !== undefined) next.sharedName = fields.sharedName;
+  if (fields.originalCorp   !== undefined) next.originalCorp = fields.originalCorp;
+  if (fields.dept           !== undefined) next.dept = fields.dept;
+  if (fields.userName       !== undefined) next.userName = fields.userName;
+  if (fields.email          !== undefined) next.email = fields.email;
+  if (fields.cpu            !== undefined) next.cpu = fields.cpu;
+  if (fields.ram            !== undefined) next.ram = fields.ram;
+  if (fields.os             !== undefined) next.os = fields.os;
+  if (fields.gpu            !== undefined) next.gpu = fields.gpu;
+  if (fields.storage        !== undefined) next.storage = fields.storage;
+  if (fields.mac            !== undefined) next.mac = fields.mac;
+  if (fields.price          !== undefined) next.price = fields.price;
+  if (fields.registered     !== undefined) next.registered = fields.registered;
+  if (fields.registeredAt   !== undefined) next.registeredAt = fields.registeredAt;
+  if (fields.closed         !== undefined) next.closed = fields.closed;
+
+  const ok = await upsertEntity(entity, id, next);
+  if (!ok) throw new Error("pc-scan 수정 실패(Postgres)");
 }
 
-export async function deletePcScan(id: string): Promise<void> {
-  await notion.pages.update({ page_id: id, archived: true });
+export async function deletePcScan(id: string, dbEnvVar: string = "NOTION_DB_PC_SCAN"): Promise<void> {
+  const ok = await deleteEntity(entityFor(dbEnvVar), id);
+  if (!ok) throw new Error("pc-scan 삭제 실패(Postgres)");
 }
 
-export async function upsertPcScan(data: PcScanPayload): Promise<UpsertResult> {
+export async function upsertPcScan(data: PcScanPayload, dbEnvVar: string = "NOTION_DB_PC_SCAN"): Promise<UpsertResult> {
   if (isMock()) {
     console.log("[MOCK] upsertPcScan", data.serial);
     return { id: "mock-pc-scan-1", action: "created", masterExists: false };
   }
+  const entity = entityFor(dbEnvVar);
 
-  const rawDbId = process.env.NOTION_DB_PC_SCAN;
-  if (!rawDbId) throw new Error("NOTION_DB_PC_SCAN 환경변수가 설정되지 않았습니다.");
-  const dbId = toNotionId(rawDbId);
-
-  // 마스터 대조: 자산번호로 마스터 레코드를 찾고, 시리얼 넘버가 대조(뒷자리 누락 허용)되면 일치
-  // (실패 시 false 폴백)
-  const hwRecord = data.assetNo
-    ? await findHwByAssetNo(data.assetNo).catch(() => null)
-    : null;
+  // 마스터(HW) 대조 — findHwByAssetNo는 Postgres 전용. 조회 실패 시 마스터 없음으로
+  // 조용히 넘기지 않고 그대로 throw해 스캔 업로드 자체를 실패 처리한다.
+  const hwRecord = data.assetNo ? await findHwByAssetNo(data.assetNo) : null;
   const masterExists = !!hwRecord && serialFuzzyMatch(data.serial, hwRecord.serial);
 
-  // 마스터값과 완전히 일치(법인/부서/사용자 모두 동일)하면 실사 확인된 것으로 보고
-  // 해당 자산을 사용중 + 실사확인으로 자동 반영, MAC/이메일/CPU/RAM도 함께 최신화
-  // (상태·실사확인·MAC·이메일·CPU·RAM이 이미 전부 반영돼 있으면 스킵)
+  // 완전 일치 시 HW 자동 실사확인 / 부분 일치 시 연락정보 보정 (HW 쓰기는 Postgres write-through)
   const scanMac = data.macAddresses?.length ? data.macAddresses.join(", ") : undefined;
   const scanEmail = data.email || undefined;
   const scanCpu = data.cpu || undefined;
@@ -391,105 +474,81 @@ export async function upsertPcScan(data: PcScanPayload): Promise<UpsertResult> {
     && (!scanEmail || hwRecord.email === scanEmail)
     && (!scanCpu   || hwRecord.cpu === scanCpu)
     && (!scanRam   || hwRecord.ram === scanRam);
-
-  if (hwRecord && masterExists
+  const fullOrgMatch = !!hwRecord && masterExists
     && hwRecord.company === (data.corp ?? "")
     && hwRecord.dept    === (data.dept ?? "")
-    && hwRecord.user    === (data.userName ?? "")
-    && !alreadySynced
-  ) {
-    await markHwVerifiedByScanMatch(hwRecord.id, {
-      mac: scanMac, email: scanEmail, cpu: scanCpu, ram: scanRam,
-    }).catch(e =>
-      console.error("[pc-scan → hw 자동 실사확인 실패]", e)
+    && hwRecord.user    === (data.userName ?? "");
+
+  if (hwRecord && fullOrgMatch && !alreadySynced) {
+    await markHwVerifiedByScanMatch(hwRecord.id, { mac: scanMac, email: scanEmail, cpu: scanCpu, ram: scanRam })
+      .catch(e => console.error("[pc-scan → hw 자동 실사확인 실패]", e));
+  } else if (hwRecord && masterExists) {
+    await fillMissingHwContactInfo(hwRecord.id, {
+      mac:   !hwRecord.mac   ? scanMac   : undefined,
+      email: !hwRecord.email ? scanEmail : undefined,
+    }).catch(e => console.error("[pc-scan → hw MAC/이메일 보정 실패]", e));
+  }
+
+  // 설치프로그램 파일 → Blob 업로드
+  let programFileUrl = "";
+  let programFileName = "";
+  if (data.programsFileBase64 && data.programsFileName) {
+    const buffer = Buffer.from(data.programsFileBase64, "base64");
+    programFileUrl = await uploadToBlob(
+      buffer,
+      data.programsFileName,
+      data.programsContentType || "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      entity,
     );
+    programFileName = data.programsFileName;
   }
 
-  // SaaS 도메인 방문기록 — 카탈로그로 재검증(fail-closed) 후에만 저장·기록한다.
-  // 클라이언트(스캐닝 프로그램)가 이미 걸러서 보내도록 스펙에 있지만, 그건 강제할 수
-  // 없는 약속이라 여기서 다시 걸러야 "카탈로그에 없는 도메인은 절대 안 남는다"가 보장된다.
-  const rawVisits = data.saasDomains;
-  let filteredVisits: IncomingDomainVisit[] = [];
-  if (Array.isArray(rawVisits) && rawVisits.length > 0) {
-    const catalog = await fetchSaasCatalog().catch(e => {
-      console.warn("[pc-scan] SaaS 카탈로그 조회 실패 — 이번 요청의 SaaS 도메인은 전부 폐기:", e);
-      return null;
-    });
-    filteredVisits = filterKnownDomains(rawVisits, catalog);
-  }
+  // 기존 레코드: 시리얼 넘버 + PC이름 일치로 같은 기기 판단(BIOS 무의미 시리얼 중복 방지)
+  const all = (await readEntity<PcScanRecord>(entity)) ?? [];
+  const existing = all.find(r =>
+    r.serial === data.serial && (!data.pcName || r.pcName === data.pcName),
+  );
 
-  if (filteredVisits.length > 0) {
-    const usageKey = data.serial;
-    updateSaasUsage(
-      usageKey,
-      { pcName: data.pcName, serial: data.serial, userName: data.userName, email: data.email, corp: data.corp },
-      filteredVisits,
-    ).catch(e => console.error("[pc-scan → saas_usage 기록 실패]", e));
-  }
-
-  // 엑셀 파일 Notion 업로드 — SaaS 도메인이 있으면 "설치 프로그램" 시트 옆에 두 번째
-  // 시트로 얹어 한 파일로 만든다(실사 이력에 같이 남도록).
-  let fileUploadId: string | undefined;
-  if (data.programsFileBase64 && data.programsFileName && data.programsContentType) {
-    let buffer = Buffer.from(data.programsFileBase64, "base64");
-    if (filteredVisits.length > 0) {
-      try {
-        const wb = XLSX.read(buffer, { type: "buffer" });
-        const rows = [
-          ["도메인", "누적 방문수", "최근 방문일시"],
-          ...filteredVisits.map(v => [
-            sanitizeForExcelCell(v.host),
-            v.visitCount,
-            v.lastVisitedAt,
-          ]),
-        ];
-        const sheet = XLSX.utils.aoa_to_sheet(rows);
-        XLSX.utils.book_append_sheet(wb, sheet, "SaaS 도메인");
-        buffer = Buffer.from(XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer);
-      } catch (e) {
-        // 시트 병합에 실패해도 원본 설치프로그램 파일 업로드는 그대로 진행한다 —
-        // 부가 기능 실패로 핵심 자산실사 첨부가 막히면 안 된다.
-        console.error("[pc-scan] SaaS 도메인 시트 병합 실패 — 원본 파일만 업로드:", e);
-      }
-    }
-    fileUploadId = await uploadFileToNotion(buffer, data.programsFileName, data.programsContentType);
-  }
-
-  const properties = buildProperties(
-    data,
+  const id = existing?.id ?? crypto.randomUUID();
+  const record: PcScanRecord = {
+    id,
+    notionUrl:      existing?.notionUrl ?? "",
+    pcName:         data.pcName,
+    serial:         data.serial,
+    assetNo:        data.assetNo ?? "",
+    manufacturer:   data.manufacturer ?? "",
+    model:          data.model ?? "",
+    corp:           data.corp ?? "",
+    isDualOrShared: !!data.isDualOrShared,
+    isShared:       !!data.isShared,
+    // 공용이 아니면 용도는 버린다 — 개인 PC 에 용도가 남으면 화면에서 공용처럼 보인다.
+    sharedName:     data.isShared ? (data.sharedName ?? "") : "",
+    originalCorp:   data.originalCorp ?? "",
+    dept:           data.dept ?? "",
+    userName:       data.userName ?? "",
+    email:          data.email ?? "",
+    cpu:            data.cpu ?? "",
+    ram:            data.ram ?? "",
+    os:             data.os ?? "",
+    gpu:            data.gpu ?? "",
+    storage:        data.storage ?? "",
+    mac:            scanMac ?? "",
+    collectedAt:    data.collectedAt ?? "",
+    // collectedAt 은 의도대로 "마지막 수집 시각"으로 덮는다. 회차별 집계가 잃어버리는
+    // 지난 수집 시각은 이력에 쌓아 남긴다.
+    collectedHistory: appendCollectedAt(existing, data.collectedAt),
+    price:          typeof data.price === "number" ? data.price : 0,
     masterExists,
-    fileUploadId
-  ) as Parameters<typeof notion.pages.create>[0]["properties"];
+    // 관리자 플래그는 스캔 페이로드에 없으므로 기존값 보존
+    registered:     existing?.registered ?? false,
+    registeredAt:   existing?.registeredAt ?? "",
+    closed:         existing?.closed ?? false,
+    // 새 파일이 없으면 기존 첨부 유지
+    programFileName: programFileName || (existing?.programFileName ?? ""),
+    programFileUrl:  programFileUrl  || (existing?.programFileUrl  ?? ""),
+  };
 
-  // 기존 페이지 조회: 시리얼 넘버 + PC이름이 모두 일치해야 같은 기기로 판단.
-  // BIOS가 시리얼을 못 읽어 "Default string" 등 무의미한 값이 여러 기기에서
-  // 동일하게 들어오는 경우, 시리얼만으로 판단하면 서로 다른 기기가 한 레코드로
-  // 덮어써져 가장 최근 것만 남는 문제가 있었음 — PC이름을 추가 조건으로 걸어 방지.
-  const existingFilter = data.pcName
-    ? {
-        and: [
-          { property: "시리얼 넘버", rich_text: { equals: data.serial } },
-          { property: "PC이름", title: { equals: data.pcName } },
-        ],
-      }
-    : { property: "시리얼 넘버", rich_text: { equals: data.serial } };
-
-  const res = await queryWithRetry({
-    database_id: dbId,
-    filter: existingFilter,
-    page_size: 1,
-  });
-
-  const existing = res.results[0];
-
-  if (existing) {
-    await notion.pages.update({ page_id: existing.id, properties });
-    return { id: existing.id, action: "updated", masterExists };
-  }
-
-  const created = await notion.pages.create({
-    parent: { database_id: dbId },
-    properties,
-  });
-  return { id: created.id, action: "created", masterExists };
+  const ok = await upsertEntity(entity, id, record);
+  if (!ok) throw new Error("pc-scan 저장 실패(Postgres)");
+  return { id, action: existing ? "updated" : "created", masterExists };
 }

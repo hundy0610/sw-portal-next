@@ -1,37 +1,21 @@
 import { NextResponse } from "next/server";
 import { fetchMeetingRentalTickets } from "@/lib/meeting-rental";
-import { memGet, memSet, memDel } from "@/lib/mem-cache";
+import { isMirrorEnabled } from "@/lib/repo/mirror";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(req: Request) {
-  if (!process.env.MEETING_RENTAL_DATA_SOURCE_ID) {
+// 4.0verMACBOOK: 맥북 Postgres 미러가 메인. 캐시 없이 즉시 일관성.
+export async function GET() {
+  if (!isMirrorEnabled() && !process.env.NOTION_TOKEN) {
     return NextResponse.json({
       ok: false,
-      missingEnv: "MEETING_RENTAL_DATA_SOURCE_ID",
-      error: "환경변수 MEETING_RENTAL_DATA_SOURCE_ID 가 설정되지 않았습니다.",
+      missingEnv: "SUPABASE_URL",
+      error: "데이터 저장소가 설정되지 않았습니다.",
     }, { status: 503 });
   }
-  if (!process.env.NOTION_TOKEN) {
-    return NextResponse.json({
-      ok: false,
-      missingEnv: "NOTION_TOKEN",
-      error: "환경변수 NOTION_TOKEN 이 설정되지 않았습니다.",
-    }, { status: 503 });
-  }
-
-  const { searchParams } = new URL(req.url);
-  const refresh = searchParams.get("refresh") === "1";
 
   try {
-    if (refresh) memDel("meeting-rental-tickets:all");
-
-    let data = memGet<Awaited<ReturnType<typeof fetchMeetingRentalTickets>>>("meeting-rental-tickets:all");
-    if (!data) {
-      data = await fetchMeetingRentalTickets();
-      memSet("meeting-rental-tickets:all", data, 300);
-    }
-
+    const data = await fetchMeetingRentalTickets();
     return NextResponse.json({ ok: true, data });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message }, { status: 500 });

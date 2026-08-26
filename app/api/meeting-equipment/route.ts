@@ -1,37 +1,21 @@
 import { NextResponse } from "next/server";
-import { fetchMeetingEquipment } from "@/lib/meeting-equipment";
-import { memGet, memSet, memDel } from "@/lib/mem-cache";
+import { fetchMeetingEquipment, isMirrorEnabled } from "@/lib/meeting-equipment";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(req: Request) {
-  if (!process.env.NOTION_DB_MEETING_EQUIPMENT) {
+export async function GET() {
+  // 4.0verMACBOOK: 메인 저장소는 맥북 Postgres(미러). 미러가 꺼져 있을 때만 Notion 필요.
+  if (!isMirrorEnabled() && !process.env.NOTION_TOKEN) {
     return NextResponse.json({
       ok: false,
-      missingEnv: "NOTION_DB_MEETING_EQUIPMENT",
-      error: "환경변수 NOTION_DB_MEETING_EQUIPMENT 가 설정되지 않았습니다.",
+      missingEnv: "SUPABASE_KEY",
+      error: "데이터 저장소(Postgres/Notion)가 설정되지 않았습니다.",
     }, { status: 503 });
   }
-  if (!process.env.NOTION_TOKEN) {
-    return NextResponse.json({
-      ok: false,
-      missingEnv: "NOTION_TOKEN",
-      error: "환경변수 NOTION_TOKEN 이 설정되지 않았습니다.",
-    }, { status: 503 });
-  }
-
-  const { searchParams } = new URL(req.url);
-  const refresh = searchParams.get("refresh") === "1";
 
   try {
-    if (refresh) memDel("meeting-equipment:all");
-
-    let data = memGet<Awaited<ReturnType<typeof fetchMeetingEquipment>>>("meeting-equipment:all");
-    if (!data) {
-      data = await fetchMeetingEquipment();
-      memSet("meeting-equipment:all", data, 300);
-    }
-
+    // 미러(Postgres)에서 매 요청 조회 → 쓰기 즉시 반영. (레코드 수가 적어 부담 없음)
+    const data = await fetchMeetingEquipment();
     return NextResponse.json({ ok: true, data });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message }, { status: 500 });

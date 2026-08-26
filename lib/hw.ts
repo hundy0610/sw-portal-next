@@ -2,6 +2,7 @@ import { Client } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
 import { isMock, mockHwRecords } from "./mock";
 import { kvGet, kvSet, kvSetPermanent } from "./kv-store";
+import { updateHwFields, getHwByIdFromPostgresOrThrow, getHwByAssetNoFromPostgresOrThrow } from "./repo/hw";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
@@ -206,6 +207,7 @@ export function buildHwProperties(fields: FieldMap) {
 
   if (fields.status      !== undefined) sel("사용/재고/폐기/기타",  String(fields.status));
   if (fields.company     !== undefined) sel("법인명",                String(fields.company));
+  if (fields.maker       !== undefined) sel("제조사",                String(fields.maker));
 
   if (fields.user        !== undefined) txt("사용자",       String(fields.user),  true);
   if (fields.assetNo     !== undefined) txt("자산번호",     String(fields.assetNo));
@@ -213,6 +215,10 @@ export function buildHwProperties(fields: FieldMap) {
   if (fields.dept        !== undefined) txt("부서",         String(fields.dept));
   if (fields.location    !== undefined) txt("위치",         String(fields.location));
   if (fields.note        !== undefined) txt("기타",         String(fields.note));
+  if (fields.model       !== undefined) txt("모델명",       String(fields.model));
+  if (fields.cpu         !== undefined) txt("CPU",          String(fields.cpu));
+  if (fields.ram         !== undefined) txt("RAM",          String(fields.ram));
+  if (fields.mac         !== undefined) txt("MAC",          String(fields.mac));
   if (fields.email       !== undefined) {
     const emailVal = String(fields.email ?? "");
     props["이메일"] = emailVal ? { email: emailVal } : { email: null };
@@ -232,77 +238,6 @@ export function buildHwProperties(fields: FieldMap) {
   return props;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// hw:all/hw:stats/hw:deltas KV 캐시 in-place 패치 — Notion 페이지 업데이트 후 호출
-// ─────────────────────────────────────────────────────────────────────────────
-
-// Notion 갱신 직후라 hw:all이 있어야 정상인데, Redis 무료 티어 한도 초과로 인한 일시적
-// 실패로 null이 나오는 경우가 있다. 이때 패치를 그냥 포기하면 방금 반영한 변경사항이
-// 다음 warm-hw 실행(최대 30분)까지 검색 결과에서 안 보이게 되므로, 짧게 한 번 더 확인한다.
-export async function getHwAllForPatch(): Promise<HwRecord[] | null> {
-  const all = await kvGet<HwRecord[]>("hw:all");
-  if (all) return all;
-  await new Promise(r => setTimeout(r, 300));
-  return kvGet<HwRecord[]>("hw:all");
-}
-
-export async function patchHwCache(id: string, fields: Record<string, unknown>): Promise<void> {
-  const kvPatchPromise = (async () => {
-    const all = await getHwAllForPatch();
-    if (!all) { console.warn("[HW] patchHwCache: hw:all KV 미스, 패치 스킵 (warm 시 자연히 반영됨)", id); return; }
-    const updated = all.map(r => r.id === id ? { ...r, ...fields } : r);
-    const stats   = computeHwStats(updated);
-    await Promise.all([
-      kvSetPermanent("hw:all",   updated),
-      kvSetPermanent("hw:stats", stats),
-    ]);
-  })();
-
-  const deltaPromise = (async () => {
-    const existing = await kvGet<Record<string, Record<string, unknown>>>("hw:deltas") ?? {};
-    await kvSet("hw:deltas", { ...existing, [id]: fields }, 3600);
-  })();
-
-  await Promise.all([kvPatchPromise, deltaPromise]);
-}
-
-// 일괄수정용 — 동일한 fields를 여러 id에 적용, KV 읽기/쓰기를 1회로 묶어서 처리
-export async function patchHwCacheBulk(ids: string[], fields: Record<string, unknown>): Promise<void> {
-  const kvPatchPromise = (async () => {
-    const all = await getHwAllForPatch();
-    if (!all) { console.warn("[HW] patchHwCacheBulk: hw:all KV 미스, 패치 스킵 (warm 시 자연히 반영됨)", ids); return; }
-    const idSet = new Set(ids);
-    const updated = all.map(r => idSet.has(r.id) ? { ...r, ...fields } : r);
-    const stats   = computeHwStats(updated);
-    await Promise.all([
-      kvSetPermanent("hw:all",   updated),
-      kvSetPermanent("hw:stats", stats),
-    ]);
-  })();
-
-  const deltaPromise = (async () => {
-    const existing = await kvGet<Record<string, Record<string, unknown>>>("hw:deltas") ?? {};
-    const next = { ...existing };
-    for (const id of ids) next[id] = fields;
-    await kvSet("hw:deltas", next, 3600);
-  })();
-
-  await Promise.all([kvPatchPromise, deltaPromise]);
-}
-
-// 삭제(archive)용 — hw:all 캐시에서 해당 id들을 제거 (Notion 쿼리는 archived 페이지를 자동 제외하므로 동일하게 맞춤)
-export async function removeFromHwCache(ids: string[]): Promise<void> {
-  const idSet = new Set(ids);
-  const all = await getHwAllForPatch();
-  if (!all) { console.warn("[HW] removeFromHwCache: hw:all KV 미스, 제거 스킵 (warm 시 자연히 반영됨)", ids); return; }
-  const updated = all.filter(r => !idSet.has(r.id));
-  const stats   = computeHwStats(updated);
-  await Promise.all([
-    kvSetPermanent("hw:all",   updated),
-    kvSetPermanent("hw:stats", stats),
-  ]);
-}
-
 /**
  * PC 실사 스캔이 마스터값과 완전히 일치할 때 자동 호출 — 해당 자산을
  * 사용중 상태로, 실사확인 체크박스를 true로 표시한다.
@@ -312,34 +247,32 @@ export async function markHwVerifiedByScanMatch(
   id: string,
   extra?: { mac?: string; email?: string; cpu?: string; ram?: string }
 ): Promise<void> {
-  const properties: Record<string, unknown> = {
-    "사용/재고/폐기/기타": { select: { name: "사용중" } },
-    "실사확인": { checkbox: true },
-  };
   const patch: Record<string, unknown> = { status: "사용중", verified: true };
+  if (extra?.mac)   patch.mac   = extra.mac;
+  if (extra?.email) patch.email = extra.email;
+  if (extra?.cpu)   patch.cpu   = extra.cpu;
+  if (extra?.ram)   patch.ram   = extra.ram;
 
-  if (extra?.mac) {
-    properties["MAC"] = { rich_text: [{ text: { content: extra.mac } }] };
-    patch.mac = extra.mac;
-  }
-  if (extra?.email) {
-    properties["이메일"] = { email: extra.email };
-    patch.email = extra.email;
-  }
-  if (extra?.cpu) {
-    properties["CPU"] = { rich_text: [{ text: { content: extra.cpu } }] };
-    patch.cpu = extra.cpu;
-  }
-  if (extra?.ram) {
-    properties["RAM"] = { rich_text: [{ text: { content: extra.ram } }] };
-    patch.ram = extra.ram;
-  }
+  // 메인 저장소(맥북 Postgres)에 write-through + dirty → 5분 뒤 Notion 백업.
+  await updateHwFields(id, patch);
+}
 
-  await notion.pages.update({
-    page_id: id,
-    properties: properties as Parameters<typeof notion.pages.update>[0]["properties"],
-  });
-  await patchHwCache(id, patch);
+/**
+ * 법인/부서/사용자가 스캔값과 완전히 일치하지 않아 실사확인까지는 못 걸어도,
+ * 마스터에 MAC·이메일이 비어있으면 스캔값으로 채워 넣는다 (상태·실사확인은 건드리지 않음,
+ * 이미 값이 있는 필드는 덮어쓰지 않음).
+ */
+export async function fillMissingHwContactInfo(
+  id: string,
+  extra: { mac?: string; email?: string }
+): Promise<void> {
+  const patch: Record<string, unknown> = {};
+  if (extra.mac)   patch.mac   = extra.mac;
+  if (extra.email) patch.email = extra.email;
+  if (Object.keys(patch).length === 0) return;
+
+  // 메인 저장소(맥북 Postgres)에 write-through + dirty → 5분 뒤 Notion 백업.
+  await updateHwFields(id, patch);
 }
 
 async function queryWithRetry(params: Parameters<typeof notion.databases.query>[0], maxRetries = 3) {
@@ -459,27 +392,19 @@ export async function fetchHwFiltered({
 
 // 자산번호는 중복 등록된 경우(HwRecord.duplicated)가 있어 자산번호만으로 조회하면
 // 사용자가 클릭한 것과 다른 레코드가 나올 수 있다 — id가 있으면 이 함수로 정확히 단건 조회한다.
+// HW 는 Postgres 가 메인 소스 — 조회 실패 시 Notion 으로 조용히 폴백하지 않고 그대로 throw 한다.
 export async function findHwById(id: string): Promise<HwRecord | null> {
   if (isMock()) {
     return (mockHwRecords.find(r => r.id === id) as HwRecord) ?? null;
   }
-  const page = await notion.pages.retrieve({ page_id: id });
-  if (page.object !== "page" || !("properties" in page)) return null;
-  return mapPage(page as PageObjectResponse);
+  return getHwByIdFromPostgresOrThrow(id);
 }
 
 export async function findHwByAssetNo(assetNo: string): Promise<HwRecord | null> {
   if (isMock()) {
     return (mockHwRecords.find(r => r.assetNo === assetNo) as HwRecord) ?? null;
   }
-  const res = await queryWithRetry({
-    database_id: DB_ID,
-    filter: { property: "자산번호", rich_text: { equals: assetNo } },
-    page_size: 1,
-  });
-  const page = res.results[0];
-  if (!page || page.object !== "page" || !("properties" in page)) return null;
-  return mapPage(page as PageObjectResponse);
+  return getHwByAssetNoFromPostgresOrThrow(assetNo);
 }
 
 function normalizeSerial(s: string): string {

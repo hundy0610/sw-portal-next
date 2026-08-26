@@ -1,35 +1,12 @@
 import { NextRequest } from "next/server";
-import { Client } from "@notionhq/client";
-import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
 import { errorMessage } from "@/lib/api-error";
+import { fetchSwDatabase } from "@/lib/notion";
+import { readEntityOne, upsertEntity } from "@/lib/repo/mirror";
+import { SW_ENTITY } from "@/lib/sw-notion";
+import type { SwDbRecord } from "@/types";
 
-const notion = new Client({ auth: process.env.NOTION_TOKEN });
-
-// ─── 프로퍼티 파서 (선언 전용, 경량) ─────────────────────────────────────────
-type Props = PageObjectResponse["properties"];
-
-function txt(p: Props, k: string): string {
-  const v = p[k]; if (!v) return "";
-  if (v.type === "title")     return v.title.map(t => t.plain_text).join("");
-  if (v.type === "rich_text") return v.rich_text.map(t => t.plain_text).join("");
-  return "";
-}
-function sel(p: Props, k: string): string {
-  const v = p[k];
-  return (v?.type === "select") ? (v.select?.name ?? "") : "";
-}
-function msel(p: Props, k: string): string[] {
-  const v = p[k];
-  return (v?.type === "multi_select") ? v.multi_select.map(s => s.name) : [];
-}
-function num(p: Props, k: string): number {
-  const v = p[k];
-  return (v?.type === "number") ? (v.number ?? 0) : 0;
-}
-function dt(p: Props, k: string): string {
-  const v = p[k];
-  return (v?.type === "date") ? (v.date?.start ?? "") : "";
-}
+// 4.0verMACBOOK: SW 자가신고 플로우도 맥북 Postgres 미러(메인)를 읽고 쓴다.
+// (생성/수정은 dirty 로 표시 → 5분 백업 러너가 Notion 에 반영)
 
 // ─── GET /api/declaration?name=...&company=... ────────────────────────────────
 // 이름 + 법인명 기준으로 기존 등록 SW 조회
@@ -42,60 +19,38 @@ export async function GET(req: NextRequest) {
     const company     = sp.get("company")?.trim() ?? "";
     const department  = sp.get("department")?.trim() ?? "";
 
-    const dbId = process.env.NOTION_DB_SW_UNIFIED;
-    if (!dbId) throw new Error("NOTION_DB_SW_UNIFIED 환경변수가 없습니다.");
+    const all = await fetchSwDatabase();
 
-    let filter;
+    let matched: SwDbRecord[];
     if (scope === "team") {
       if (!company || !department)
         return Response.json({ ok: false, error: "법인명과 부서를 입력해주세요." }, { status: 400 });
-      filter = {
-        and: [
-          { property: "법인명", select: { equals: company } },
-          { property: "부서",   rich_text: { contains: department } },
-        ],
-      };
+      matched = all.filter(r => r.company === company && (r.department ?? "").includes(department));
     } else {
       if (!name || !company)
         return Response.json({ ok: false, error: "이름과 법인명을 입력해주세요." }, { status: 400 });
-      filter = {
-        and: [
-          { property: "법인명", select: { equals: company } },
-          { property: "사용자", title:  { contains: name  } },
-        ],
-      };
+      matched = all.filter(r => r.company === company && (r.user ?? "").includes(name));
     }
 
-    const res = await notion.databases.query({
-      database_id: dbId,
-      filter,
-      page_size: 100,
-    });
-
-    const records = res.results
-      .filter((p): p is PageObjectResponse => p.object === "page" && "properties" in p)
-      .map(page => {
-        const p = page.properties;
-        return {
-          id:           page.id,
-          notionUrl:    `https://www.notion.so/${page.id.replace(/-/g, "")}`,
-          user:         txt(p, "사용자"),
-          swCategory:   sel(p, "SW대분류"),
-          swDetail:     txt(p, "SW소분류"),
-          version:      msel(p, "version"),
-          status:       sel(p, "사용/재고/만료/갱신필요/신규등록"),
-          licenseType:  sel(p, "영구 / 구독"),
-          workType:     sel(p, "SW사용직군"),
-          billingType:  sel(p, "결재방식"),
-          accountType:  sel(p, "계정유형"),
-          renewalCycle: sel(p, "갱신주기"),
-          monthlyKrw:   num(p, "월 비용 (KRW)"),
-          monthlyUsd:   num(p, "월 비용 (USD)"),
-          licenseKey:   txt(p, "인증키 / 인증계정"),
-          renewalDate:  dt(p,  "갱신필요일"),
-          usageDate:    dt(p,  "사용일자"),
-        };
-      });
+    const records = matched.slice(0, 100).map(r => ({
+      id:           r.id,
+      notionUrl:    r.notionUrl || "",
+      user:         r.user,
+      swCategory:   r.swCategory,
+      swDetail:     r.swDetail,
+      version:      r.version,
+      status:       r.status,
+      licenseType:  r.licenseType,
+      workType:     r.workType,
+      billingType:  r.billingType ?? "",
+      accountType:  r.accountType,
+      renewalCycle: r.renewalCycle,
+      monthlyKrw:   r.monthlyKrw,
+      monthlyUsd:   r.monthlyUsd,
+      licenseKey:   r.licenseKey,
+      renewalDate:  r.renewalDate,
+      usageDate:    r.usageDate,
+    }));
 
     return Response.json({ ok: true, records });
   } catch (e) {
@@ -103,7 +58,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ─── 신규 등록 레코드 → Notion 페이지 생성 ────────────────────────────────────
+// ─── 신규 등록 레코드 → 미러 레코드 생성 ──────────────────────────────────────
 interface DeclarationCreateRecord {
   user: string; company: string; department: string;
   swCategory: string; swDetail?: string;
@@ -117,74 +72,75 @@ interface DeclarationCreateRecord {
   usageDate?: string; renewalDate?: string; purchaseDate?: string;
 }
 
-async function createDeclarationPage(dbId: string, r: DeclarationCreateRecord) {
-  type NotionProps = Parameters<typeof notion.pages.create>[0]["properties"];
-  const props: NotionProps = {
-    "사용자": { title: [{ text: { content: r.user } }] },
-    "법인명": { select: { name: r.company } },
-    "부서":   { rich_text: [{ text: { content: r.department } }] },
-    "사용/재고/만료/갱신필요/신규등록": { select: { name: r.status || "신규등록" } },
+function toRecord(r: DeclarationCreateRecord): SwDbRecord {
+  const monthlyKrw = (r.monthlyKrw ?? 0) > 0 ? r.monthlyKrw! : 0;
+  const monthlyUsd = (r.monthlyUsd ?? 0) > 0 ? r.monthlyUsd! : 0;
+  return {
+    id: crypto.randomUUID(),
+    user: r.user || "",
+    swCategory: r.swCategory || "",
+    swDetail: r.swDetail || "",
+    version: r.version ?? [],
+    status: r.status || "신규등록",
+    company: r.company || "",
+    licenseType: r.licenseType || "",
+    department: r.department || "",
+    usageDate: r.usageDate || "",
+    renewalDate: r.renewalDate || "",
+    purchaseDate: r.purchaseDate || "",
+    returnDate: "",
+    shipStatus: "",
+    accountType: r.accountType || "",
+    renewalCycle: r.renewalCycle || "",
+    licenseKey: r.licenseKey || "",
+    vendor: r.vendor || "",
+    usageCount: 0,
+    certificate: "",
+    draftDocument: "",
+    workType: r.workType || "",
+    billingType: r.billingType || "",
+    lastModifiedBy: "자가신고",
+    lastModifiedAt: new Date().toISOString(),
+    monthlyUsd,
+    monthlyKrw,
+    annualUsd: monthlyUsd * 12,
+    annualKrw: monthlyKrw * 12,
+    notionUrl: "",
   };
-
-  if (r.swCategory)       props["SW대분류"]          = { select: { name: r.swCategory } };
-  if (r.swDetail)         props["SW소분류"]          = { rich_text: [{ text: { content: r.swDetail } }] };
-  if (r.licenseType)      props["영구 / 구독"]       = { select: { name: r.licenseType } };
-  if (r.workType)         props["SW사용직군"]        = { select: { name: r.workType } };
-  if (r.billingType)      props["결재방식"]           = { select: { name: r.billingType } };
-  if (r.accountType)      props["계정유형"]           = { select: { name: r.accountType } };
-  if (r.renewalCycle)     props["갱신주기"]           = { select: { name: r.renewalCycle } };
-  if (r.version?.length)  props["version"]           = { multi_select: r.version.map(v => ({ name: v })) };
-  if ((r.monthlyKrw ?? 0) > 0) props["월 비용 (KRW)"] = { number: r.monthlyKrw! };
-  if ((r.monthlyUsd ?? 0) > 0) props["월 비용 (USD)"] = { number: r.monthlyUsd! };
-  if (r.licenseKey)       props["인증키 / 인증계정"] = { rich_text: [{ text: { content: r.licenseKey } }] };
-  if (r.vendor)           props["구매처"]             = { rich_text: [{ text: { content: r.vendor } }] };
-  if (r.usageDate)        props["사용일자"]           = { date: { start: r.usageDate } };
-  if (r.renewalDate)      props["갱신필요일"]         = { date: { start: r.renewalDate } };
-  if (r.purchaseDate)     props["구매일자"]           = { date: { start: r.purchaseDate } };
-
-  return notion.pages.create({ parent: { database_id: dbId }, properties: props });
 }
 
 // ─── POST /api/declaration ────────────────────────────────────────────────────
 // type:"update"     → 기존 레코드 상태 변경
-// type:"create"     → 신규 SW 신고 (Notion에 신규등록 상태로 생성)
-// type:"createMany" → 신규 SW 일괄 신고 (개인 플로우, 다건 한번에 등록)
+// type:"create"     → 신규 SW 신고
+// type:"createMany" → 신규 SW 일괄 신고
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const dbId = process.env.NOTION_DB_SW_UNIFIED;
-    if (!dbId) throw new Error("NOTION_DB_SW_UNIFIED 환경변수가 없습니다.");
 
-    // ── 상태 업데이트 ──────────────────────────────────────────────────────────
     if (body.type === "update") {
       const { pageId, status } = body as { pageId: string; status: string };
-      await notion.pages.update({
-        page_id: pageId,
-        properties: {
-          "사용/재고/만료/갱신필요/신규등록": { select: { name: status } },
-        },
-      });
-      return Response.json({ ok: true });
+      const base = await readEntityOne<SwDbRecord>(SW_ENTITY, pageId);
+      if (!base) return Response.json({ ok: false, error: "레코드를 찾을 수 없습니다." }, { status: 404 });
+      const ok = await upsertEntity(SW_ENTITY, pageId, { ...base, status, lastModifiedAt: new Date().toISOString() });
+      return Response.json({ ok });
     }
 
-    // ── 신규 등록 ──────────────────────────────────────────────────────────────
     if (body.type === "create") {
-      const page = await createDeclarationPage(dbId, body.record as DeclarationCreateRecord);
-      return Response.json({ ok: true, id: page.id });
+      const rec = toRecord(body.record as DeclarationCreateRecord);
+      const ok = await upsertEntity(SW_ENTITY, rec.id, rec);
+      return Response.json({ ok, id: rec.id });
     }
 
-    // ── 신규 일괄 등록 ──────────────────────────────────────────────────────────
     if (body.type === "createMany") {
       const records = body.records as DeclarationCreateRecord[];
       if (!Array.isArray(records) || records.length === 0)
         return Response.json({ ok: false, error: "등록할 항목이 없습니다." }, { status: 400 });
 
       const ids: string[] = [];
-      for (let i = 0; i < records.length; i++) {
-        const page = await createDeclarationPage(dbId, records[i]);
-        ids.push(page.id);
-        // Notion API rate limit 방지 (3 req/sec)
-        if (i < records.length - 1) await new Promise(res => setTimeout(res, 350));
+      for (const r of records) {
+        const rec = toRecord(r);
+        const ok = await upsertEntity(SW_ENTITY, rec.id, rec);
+        if (ok) ids.push(rec.id);
       }
       return Response.json({ ok: true, ids });
     }

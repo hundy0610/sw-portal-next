@@ -14,7 +14,6 @@ function getSession(req: NextRequest) {
 
 async function getManagers(): Promise<string[]> {
   try {
-    if (!process.env.REDIS_URL) return [];
     return (await kvGet<string[]>(GM_KEY)) ?? [];
   } catch {
     return [];
@@ -23,7 +22,6 @@ async function getManagers(): Promise<string[]> {
 
 async function getGmDetails(): Promise<GmDetail[]> {
   try {
-    if (!process.env.REDIS_URL) return [];
     return (await kvGet<GmDetail[]>(GM_DETAILS_KEY)) ?? [];
   } catch {
     return [];

@@ -1,0 +1,33 @@
+name: KV Cleanup (expired rows)
+
+on:
+  schedule:
+    # 매 15분마다 만료된 kv 행 정리 (맥북 Postgres, TTL 수동 정리)
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Sweep expired kv rows
+        run: |
+          echo "🧹 kv 만료 정리 시작: $(date)"
+
+          BASE_URL="https://swportal.vercel.app"
+
+          RESPONSE=$(curl -s -o response.txt -w "%{http_code}" \
+            -X GET "${BASE_URL}/api/cron/kv-cleanup" \
+            --max-time 45)
+
+          echo "응답 상태: $RESPONSE"
+          cat response.txt 2>/dev/null | head -c 300 || true
+
+          if [ "$RESPONSE" = "200" ]; then
+            echo "✅ kv 만료 정리 완료"
+          else
+            echo "⚠️ 응답 코드: $RESPONSE"
+            exit 0
+          fi

@@ -9,6 +9,7 @@ import { LabelPrintTab, PrintQueueSection } from "@/components/admin/LabelPrintT
 import { safeJson } from "@/lib/fetch-json";
 import { useAdminDarkMode } from "@/lib/use-admin-dark-mode";
 import { exportRowsToExcel } from "@/lib/xlsx-export";
+import { RENTAL_COMPANY } from "@/lib/companies";
 
 // 단계 필터 칩 색상 — 다크모드에서는 옅은 파스텔 배경 대신 중립 다크 서피스 +
 // dot 색상 텍스트로, 0건인 칩은 더 옅은 회색으로 표시한다.
@@ -691,18 +692,10 @@ function ReturnCompleteModal({
     try {
       let assetPageId: string | null = null;
       if (assetId) {
-        if (isRental) {
-          const res = await fetch("/api/rental-hw").then(r => safeJson(r));
-          const list: { id: string; assetNo: string }[] = res.data ?? [];
-          const found = list.find(r => r.assetNo === assetId) ?? (list.length === 1 ? list[0] : null);
-          assetPageId = found?.id ?? null;
-        } else {
-          const res = await fetch(`/api/hw?search=${encodeURIComponent(assetId)}`).then(r => safeJson(r));
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const found = (res.records as any[]).find((r: any) => r.assetNo === assetId) ??
-            (res.records.length === 1 ? res.records[0] : null);
-          assetPageId = found?.id ?? null;
-        }
+        const res = await fetch(`/api/hw?assetNo=${encodeURIComponent(assetId)}`).then(r => safeJson(r));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const found = (res.records as any[]).find((r: any) => r.assetNo === assetId) ?? null;
+        assetPageId = found?.id ?? null;
       }
 
       const updates: Promise<unknown>[] = [
@@ -713,28 +706,16 @@ function ReturnCompleteModal({
         }).then(assertOk),
       ];
       if (assetPageId) updates.push(
-        isRental
-          ? fetch("/api/rental-hw/update", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                id: assetPageId,
-                fields: {
-                  inStock: true,
-                  returnDue: "",
-                  startDate: "",
-                  userAndReason: "",
-                  requester: "",
-                  company: "",
-                  dept: "",
-                },
-              }),
-            }).then(assertOk)
-          : fetch("/api/hw/update", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ id: assetPageId, fields: { status: selectedStatus, returnDate, returnDue: "" } }),
-            }).then(assertOk)
+        fetch("/api/hw/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: assetPageId,
+            fields: isRental
+              ? { status: "재고", returnDate, returnDue: "", user: "", dept: "" }
+              : { status: selectedStatus, returnDate, returnDue: "" },
+          }),
+        }).then(assertOk)
       );
 
       await Promise.all(updates);
@@ -786,7 +767,7 @@ function ReturnCompleteModal({
             <ul className="space-y-1 list-disc list-inside text-xs text-green-700">
               {assetId && (
                 isRental
-                  ? <li>임대 자산 <strong className="font-mono">{assetId}</strong> → 임대노트북현황관리 DB: <strong>재고</strong> 전환, 사용자/법인/부서/사용시작일 초기화 (DLP계정·기존번호는 유지)</li>
+                  ? <li>임대 자산 <strong className="font-mono">{assetId}</strong> → HW DB 상태: <strong>재고</strong> 전환, 사용자/부서 초기화 (법인명 &quot;임대용&quot;은 유지)</li>
                   : <li>기존 자산 <strong className="font-mono">{assetId}</strong> → HW DB 상태: <strong>{selectedStatus}</strong></li>
               )}
               {assetId && <li>반납예정일 → 삭제</li>}
@@ -1547,7 +1528,6 @@ function DetailModal({
   const [useDate, setUseDate] = useState("");
   const [hwId, setHwId] = useState<string | null>(null);
   const [hwOrigUseDate, setHwOrigUseDate] = useState("");
-  const [rentalHwId, setRentalHwId] = useState<string | null>(null);
   const [returnDue, setReturnDue] = useState(record.returnDue ?? "");
   const [address, setAddress] = useState(record.address ?? "");
   const [requesterEmail, setRequesterEmail] = useState(record.requesterEmail ?? "");
@@ -1603,18 +1583,6 @@ function DetailModal({
       .catch(() => {});
   }, [record.assetId, record.newAssetId]);
 
-  // 임대: 연결된 임대노트북현황관리 레코드 id 조회 (법인/부서/사용자/비고 수정 시 동기화용)
-  useEffect(() => {
-    if (record.type !== "임대" || !record.assetId) return;
-    fetch("/api/rental-hw")
-      .then(r => safeJson(r))
-      .then(json => {
-        const found = (json.data as { id: string; assetNo: string }[] ?? []).find(r => r.assetNo === record.assetId);
-        if (found) setRentalHwId(found.id);
-      })
-      .catch(() => {});
-  }, [record.type, record.assetId]);
-
   const save = async (field: string, value: Record<string, unknown>) => {
     setSaving(field);
     setSaveErr(null);
@@ -1630,24 +1598,24 @@ function DetailModal({
         setSaved(p => ({ ...p, [field]: true }));
         setTimeout(() => setSaved(p => ({ ...p, [field]: false })), 2000);
 
-        // 임대: 법인/부서/사용자/비고 수정 시 임대노트북현황관리 DB와 동기화
-        if (record.type === "임대" && rentalHwId) {
-          const rentalFields: Record<string, unknown> = {};
-          if (field === "company")    rentalFields.company = (value.company as string) || "";
-          if (field === "department") rentalFields.dept    = (value.department as string) || "";
-          if (field === "user") {
-            rentalFields.requester     = (value.user as string) || "";
-            rentalFields.userAndReason = [value.user, noteRef.current?.value ?? record.note].filter(Boolean).join(" / ");
-          }
-          if (field === "note") {
-            rentalFields.userAndReason = [userRef.current?.value ?? record.user, value.note].filter(Boolean).join(" / ");
-          }
-          if (Object.keys(rentalFields).length > 0) {
-            fetch("/api/rental-hw/update", {
+        // 임대: 법인/부서/사용자 수정 시 HWDB(자산번호로 연결된 hwId)와 동기화. 지급사유(note)는 보내지 않는다.
+        if (record.type === "임대" && hwId && (field === "company" || field === "department" || field === "user")) {
+          const nextCompany    = field === "company"    ? ((value.company as string) || "")    : company;
+          const nextDepartment = field === "department" ? ((value.department as string) || "") : (departmentRef.current?.value ?? "");
+          const nextUser       = field === "user"       ? ((value.user as string) || "")       : (userRef.current?.value ?? "");
+          try {
+            const hwRes = await fetch("/api/hw/update", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ id: rentalHwId, fields: rentalFields }),
-            }).catch(console.error);
+              body: JSON.stringify({
+                id: hwId,
+                fields: { dept: [nextCompany, nextDepartment].filter(Boolean).join("_"), user: nextUser },
+              }),
+            });
+            const hwJson = await safeJson(hwRes);
+            if (!hwJson.ok) setSaveErr({ field, msg: `HWDB 동기화 실패: ${hwJson.error || "저장 실패"}` });
+          } catch (e) {
+            setSaveErr({ field, msg: `HWDB 동기화 실패: ${String(e)}` });
           }
         }
       } else {
@@ -2232,17 +2200,17 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
   const [exNewPurchasing, setExNewPurchasing] = useState(false);
 
   // ── 임대 state ──
-  const [rnStock, setRnStock] = useState<{ id: string; assetNo: string; assetNoOld: string }[]>([]);
+  const [rnStock, setRnStock] = useState<StockAsset[]>([]);
   const [rnStockLoading, setRnStockLoading] = useState(false);
 
-  // 임대: 재고(반납완료) 상태인 임대노트북현황관리 자산 목록 로드
+  // 임대: HWDB 에서 법인="임대용" & 상태="재고" 인 자산 목록 로드
   useEffect(() => {
     if (phase !== "form" || form.type !== "임대") return;
     setRnStockLoading(true);
-    fetch("/api/rental-hw").then(r => safeJson(r)).then(json => {
+    fetch(`/api/hw?company=${encodeURIComponent(RENTAL_COMPANY)}&status=재고`).then(r => safeJson(r)).then(json => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const list = (json.data as any[] ?? []).filter(r => r.inStock);
-      setRnStock(list.map(r => ({ id: r.id, assetNo: r.assetNo, assetNoOld: r.assetNoOld })));
+      const list = (json.records as any[] ?? []);
+      setRnStock(list.map(r => ({ id: r.id, assetNo: r.assetNo, model: r.model, cpu: r.cpu, ram: r.ram })));
     }).finally(() => setRnStockLoading(false));
   }, [phase, form.type]);
 
@@ -2324,9 +2292,13 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
     setForm(p => ({ ...p, [k]: v }));
   };
 
-  // 교체/퇴사반납 등록
+  // 교체/퇴사반납/임대 등록
   const handleSubmit = async () => {
     if (!form.assetId.trim()) { setErr("자산번호를 입력해주세요."); return; }
+    if (form.type === "임대" && (!form.company.trim() || !form.department.trim() || !form.user.trim())) {
+      setErr("임대 지급은 법인·부서·사용자가 모두 필요합니다.");
+      return;
+    }
     setSaving(true); setErr(null);
     try {
       const res = await fetch("/api/exchange-return/create", {
@@ -2346,23 +2318,29 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
       }
       if (form.type === "임대") {
         const picked = rnStock.find(r => r.assetNo === form.assetId.trim());
-        if (picked) {
-          const userAndReason = [form.user, form.note].filter(Boolean).join(" / ");
-          fetch("/api/rental-hw/update", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              id: picked.id,
-              fields: {
-                inStock: false,
-                startDate: new Date().toISOString().slice(0, 10),
-                returnDue: form.returnDue || "",
-                company: form.company,
-                dept: form.department,
-                requester: form.user,
-                ...(userAndReason ? { userAndReason } : {}),
-              },
-            }),
-          }).catch(console.error);
+        if (!picked) {
+          setErr("케이스는 등록됐지만 HWDB에서 해당 자산을 찾지 못해 지급 처리를 반영하지 못했습니다. 자산 상태를 직접 확인해주세요.");
+          onCreated();
+          return;
+        }
+        const hwRes = await fetch("/api/hw/update", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: picked.id,
+            fields: {
+              status: "사용중",
+              dept: [form.company, form.department].filter(Boolean).join("_"),
+              user: form.user,
+              useDate: new Date().toISOString().slice(0, 10),
+              returnDue: form.returnDue || "",
+            },
+          }),
+        });
+        const hwJson = await safeJson(hwRes);
+        if (!hwJson.ok) {
+          setErr(`케이스는 등록됐지만 HWDB 반영에 실패했습니다: ${hwJson.error || "저장 실패"}. 자산 ${picked.assetNo} 상태를 직접 확인해주세요.`);
+          onCreated();
+          return;
         }
       }
       onCreated(); onClose();
@@ -2694,11 +2672,11 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
                     </option>
                     {rnStock.map(r => (
                       <option key={r.id} value={r.assetNo}>
-                        {r.assetNo}{r.assetNoOld ? ` (구: ${r.assetNoOld})` : ""}
+                        {r.assetNo} — {r.model || "—"} — {[r.cpu, r.ram].filter(Boolean).join(" / ") || "—"}
                       </option>
                     ))}
                   </select>
-                  <p className="text-[11px] text-gray-400 mt-1">임대노트북현황관리 DB에서 재고 상태인 자산만 표시됩니다.</p>
+                  <p className="text-[11px] text-gray-400 mt-1">HW DB에서 법인 &quot;임대용&quot;·상태 &quot;재고&quot;인 자산만 표시됩니다.</p>
                 </div>
               ) : (
                 <div>
@@ -2777,20 +2755,20 @@ function CreateModal({ onClose, onCreated, records }: { onClose: () => void; onC
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelCls}>법인</label>
+                  <label className={labelCls}>법인{form.type === "임대" && <span className="text-red-500"> *</span>}</label>
                   <select className={inputCls} value={form.company} onChange={set("company")}>
-                    <option value="">선택 안 함</option>
+                    <option value="">{form.type === "임대" ? "선택하세요" : "선택 안 함"}</option>
                     {COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className={labelCls}>부서</label>
+                  <label className={labelCls}>부서{form.type === "임대" && <span className="text-red-500"> *</span>}</label>
                   <input className={inputCls} placeholder="부서명" value={form.department} onChange={set("department")} />
                 </div>
               </div>
 
               <div>
-                <label className={labelCls}>사용자</label>
+                <label className={labelCls}>사용자{form.type === "임대" && <span className="text-red-500"> *</span>}</label>
                 <input className={inputCls} placeholder="사용자 이름" value={form.user} onChange={set("user")} />
               </div>
 
@@ -3554,6 +3532,9 @@ export default function ExchangeReturnPanel() {
       });
       const json = await safeJson(res);
       if (json.ok) handleUpdated(id, { isClosed: true });
+      else setError(json.error ?? "종료 처리 실패");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally { setAdvancingId(null); }
   }, [handleUpdated]);
 
@@ -3598,7 +3579,11 @@ export default function ExchangeReturnPanel() {
                 }).catch(console.error);
               }
             }).catch(console.error);
+        } else {
+          setError(json.error ?? "단계 진행 실패");
         }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
       } finally { setAdvancingId(null); }
       return;
     }
@@ -3611,6 +3596,9 @@ export default function ExchangeReturnPanel() {
       });
       const json = await safeJson(res);
       if (json.ok) handleUpdated(r.id, { stage: nextStage });
+      else setError(json.error ?? "단계 진행 실패");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setAdvancingId(null);
     }

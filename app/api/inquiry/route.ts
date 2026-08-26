@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHelpDeskTicket } from "@/lib/notion";
-import { kvDel } from "@/lib/kv-store";
 
 export const dynamic = "force-dynamic";
 
@@ -41,16 +40,15 @@ export async function POST(req: NextRequest) {
       assetNo:        assetNo       || "",
     });
 
-    // 헬프데스크 캐시 무효화 (다음 조회 시 최신 반영)
-    await kvDel("helpdesk:tickets");
-
-    // 담당자 알림 메일 — 실제 문의 접수 경로 확인 필요 (현재 비활성)
-    // const origin = process.env.NEXT_PUBLIC_APP_URL || "https://assetify-desk-main.vercel.app";
-    // fetch(`${origin}/api/helpdesk/notify-new-inquiry`, {
-    //   method: "POST",
-    //   headers: { "Content-Type": "application/json" },
-    //   body: JSON.stringify({ requester, company, department, inquiryType, urgency, content, assetNo }),
-    // }).catch(e => console.error("[inquiry] notify failed:", e));
+    // 4.0verMACBOOK: 문의는 이제 Postgres 미러가 메인이라 Notion 페이지가 즉시 생기지 않는다.
+    // 예전엔 Notion Automation 웹훅(helpdesk-new)이 신규 알림 메일을 보냈지만, 지연/누락을
+    // 없애기 위해 접수 시점에 앱에서 직접 관리자 알림 메일을 발송한다(웹훅은 무력화됨).
+    const origin = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin;
+    fetch(`${origin}/api/helpdesk/notify-new-inquiry`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ requester, company, department, inquiryType, urgency, content, assetNo }),
+    }).catch(e => console.error("[inquiry] notify failed:", e));
 
     return NextResponse.json({ ok: true, pageId }, { status: 201 });
   } catch (e) {

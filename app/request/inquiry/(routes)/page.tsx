@@ -8,6 +8,7 @@ import {
   InquiryForm문의자Atom,
   InquiryForm법인Atom,
   InquiryForm부서Atom,
+  InquiryForm위치Atom,
   InquiryForm자산번호Atom,
   InquiryForm이메일Atom,
 } from "@/app/request/inquiry/(atoms)/useInquiryFormStore";
@@ -15,6 +16,7 @@ import {
   InquiryOptions긴급도Atom,
   InquiryOptions문의유형Atom,
   InquiryOptions법인Atom,
+  InquiryOptions위치Atom,
 } from "@/app/request/inquiry/(atoms)/useInquiryOptionsStore";
 import { useInquiryForm } from "@/app/request/inquiry/(hooks)/useInquiryForm";
 import { useInquiryOptions } from "@/app/request/inquiry/(hooks)/useInquiryOptions";
@@ -39,6 +41,7 @@ export default function Inquiry() {
   const 법인Options = useAtomValue(InquiryOptions법인Atom);
   const 문의유형Options = useAtomValue(InquiryOptions문의유형Atom);
   const 긴급도Options = useAtomValue(InquiryOptions긴급도Atom);
+  const 위치Options = useAtomValue(InquiryOptions위치Atom);
 
   const [법인, set법인] = useAtom(InquiryForm법인Atom);
   const [부서, set부서] = useAtom(InquiryForm부서Atom);
@@ -48,6 +51,7 @@ export default function Inquiry() {
   const [문의내용, set문의내용] = useAtom(InquiryForm문의내용Atom);
   const [긴급도, set긴급도] = useAtom(InquiryForm긴급도Atom);
   const [이메일, set이메일] = useAtom(InquiryForm이메일Atom);
+  const [위치, set위치] = useAtom(InquiryForm위치Atom);
 
   if (isLoading) {
     return <LoadingComponent />;
@@ -73,6 +77,11 @@ export default function Inquiry() {
         <FormField title="이메일" description="그룹웨어 이메일을 적어주세요." required>
           <TextInput placeholder="ex. example@company.com" value={이메일} onChange={set이메일} required />
         </FormField>
+        {위치Options.length > 0 && (
+          <FormField title="위치" description="근무하시는 곳을 골라주세요. 재택 등 해당하지 않으면 비워두셔도 됩니다.">
+            <SelectOption options={위치Options} value={위치} onChange={set위치} />
+          </FormField>
+        )}
         <FormField title="자산 번호" description="사용중인 기기에 붙어있는 자산 번호를 적어주세요.">
           <TextInput placeholder="ex. 2309-N0001" value={자산번호} onChange={set자산번호} />
         </FormField>

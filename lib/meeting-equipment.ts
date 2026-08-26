@@ -1,6 +1,15 @@
 import { Client } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
 import type { MeetingEquipment } from "@/types";
+import { readEntity, readEntityOne, upsertEntity, isMirrorEnabled } from "@/lib/repo/mirror";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 회의실 장비 (4.0verMACBOOK) — 메인 저장소: 맥북 Postgres public.entity_store('meeting-equipment').
+// 읽기는 미러 우선(미설정/실패 시 Notion 폴백), 쓰기는 미러에 write-through + dirty.
+// "상태"는 Notion formula(대여중 여부 기반)라 미러에는 앱에서 계산해 저장한다.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const ME_ENTITY = "meeting-equipment";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 const DB_ID  = process.env.NOTION_DB_MEETING_EQUIPMENT!;
@@ -20,6 +29,11 @@ const dt  = (p: Props, k: string) => { const v = p[k]; return v?.type === "date"
 const fml = (p: Props, k: string) => { const v = p[k]; return v?.type === "formula" && v.formula.type === "string" ? (v.formula.string ?? "") : ""; };
 const eml = (p: Props, k: string) => { const v = p[k]; return v?.type === "email" ? (v.email ?? "") : ""; };
 
+// "대여중" 여부로 상태 문자열을 계산(Notion formula 대체). UI 배지는 "대여중" 포함 여부만 본다.
+export function meStatus(inUse: boolean): string {
+  return inUse ? "대여중" : "대여가능";
+}
+
 function mapPage(page: PageObjectResponse): MeetingEquipment {
   const p = page.properties;
   return {
@@ -38,7 +52,7 @@ function mapPage(page: PageObjectResponse): MeetingEquipment {
   };
 }
 
-async function queryAll(): Promise<MeetingEquipment[]> {
+async function queryAllNotion(): Promise<MeetingEquipment[]> {
   const results: PageObjectResponse[] = [];
   let cursor: string | undefined;
   do {
@@ -54,8 +68,27 @@ async function queryAll(): Promise<MeetingEquipment[]> {
   return results.map(mapPage);
 }
 
+// 미러 미적재 레코드(레거시)를 Notion 에서 읽어와 반환 — 지연 마이그레이션용.
+async function fetchOneFromNotion(id: string): Promise<MeetingEquipment | null> {
+  try {
+    const page = await notion.pages.retrieve({ page_id: id });
+    if (page.object !== "page" || !("properties" in page)) return null;
+    return mapPage(page as PageObjectResponse);
+  } catch {
+    return null;
+  }
+}
+
+/** 초기 이관(seed)용 — 현재 Notion 레코드 전체. */
+export async function fetchMeetingEquipmentFromNotion(): Promise<MeetingEquipment[]> {
+  return queryAllNotion();
+}
+
 export async function fetchMeetingEquipment(): Promise<MeetingEquipment[]> {
-  return queryAll();
+  const mir = await readEntity<MeetingEquipment>(ME_ENTITY);
+  if (mir) return mir;
+  // 미러 미설정/조회실패 → 기존 Notion 경로 폴백(완전 다운 방지)
+  return queryAllNotion();
 }
 
 export async function createMeetingEquipment(fields: {
@@ -68,20 +101,23 @@ export async function createMeetingEquipment(fields: {
   returnDue:   string;
   note:        string;
 }): Promise<MeetingEquipment> {
-  const props: Record<string, unknown> = {
-    "장비명":     { title:     [{ text: { content: fields.name } }] },
-    "부서":       { rich_text: [{ text: { content: fields.department } }] },
-    "현재사용자": { rich_text: [{ text: { content: fields.currentUser } }] },
-    "비고":       { rich_text: [{ text: { content: fields.note } }] },
-    "대여중":     { checkbox: false },
+  const record: MeetingEquipment = {
+    id:          crypto.randomUUID(),
+    notionUrl:   "",
+    name:        fields.name,
+    company:     fields.company,
+    department:  fields.department,
+    inUse:       false,
+    status:      meStatus(false),
+    currentUser: fields.currentUser,
+    userEmail:   fields.userEmail,
+    startDate:   fields.startDate,
+    returnDue:   fields.returnDue,
+    note:        fields.note,
   };
-  if (fields.company)   props["법인"]       = { select: { name: fields.company } };
-  if (fields.userEmail) props["사용자 이메일"] = { email: fields.userEmail };
-  if (fields.startDate) props["대여시작일"]   = { date: { start: fields.startDate } };
-  if (fields.returnDue) props["반납예정일"]   = { date: { start: fields.returnDue } };
-
-  const page = await notion.pages.create({ parent: { database_id: DB_ID }, properties: props as any });
-  return mapPage(page as PageObjectResponse);
+  const ok = await upsertEntity(ME_ENTITY, record.id, record);
+  if (!ok) throw new Error("meeting-equipment 저장 실패(Postgres)");
+  return record;
 }
 
 export async function updateMeetingEquipment(id: string, fields: {
@@ -95,15 +131,27 @@ export async function updateMeetingEquipment(id: string, fields: {
   returnDue?:   string | null;
   note?:        string;
 }): Promise<void> {
-  const props: Record<string, unknown> = {};
-  if (fields.name        !== undefined) props["장비명"]       = { title: [{ text: { content: fields.name } }] };
-  if (fields.company     !== undefined) props["법인"]         = fields.company ? { select: { name: fields.company } } : { select: null };
-  if (fields.department  !== undefined) props["부서"]         = { rich_text: [{ text: { content: fields.department } }] };
-  if (fields.inUse        !== undefined) props["대여중"]       = { checkbox: fields.inUse };
-  if (fields.currentUser !== undefined) props["현재사용자"]   = { rich_text: [{ text: { content: fields.currentUser } }] };
-  if (fields.userEmail   !== undefined) props["사용자 이메일"] = fields.userEmail ? { email: fields.userEmail } : { email: null };
-  if (fields.startDate   !== undefined) props["대여시작일"]    = fields.startDate ? { date: { start: fields.startDate } } : { date: null };
-  if (fields.returnDue   !== undefined) props["반납예정일"]    = fields.returnDue ? { date: { start: fields.returnDue } } : { date: null };
-  if (fields.note        !== undefined) props["비고"]         = { rich_text: [{ text: { content: fields.note } }] };
-  await notion.pages.update({ page_id: id, properties: props as any });
+  // 기존 레코드 확보(미러 우선, 없으면 Notion 에서 지연 마이그레이션)
+  let base = await readEntityOne<MeetingEquipment>(ME_ENTITY, id);
+  if (!base) base = await fetchOneFromNotion(id);
+  if (!base) throw new Error("대상 장비를 찾을 수 없습니다.");
+
+  const next: MeetingEquipment = {
+    ...base,
+    ...(fields.name        !== undefined ? { name: fields.name } : {}),
+    ...(fields.company     !== undefined ? { company: fields.company } : {}),
+    ...(fields.department  !== undefined ? { department: fields.department } : {}),
+    ...(fields.inUse       !== undefined ? { inUse: fields.inUse } : {}),
+    ...(fields.currentUser !== undefined ? { currentUser: fields.currentUser } : {}),
+    ...(fields.userEmail   !== undefined ? { userEmail: fields.userEmail } : {}),
+    ...(fields.startDate   !== undefined ? { startDate: fields.startDate ?? "" } : {}),
+    ...(fields.returnDue   !== undefined ? { returnDue: fields.returnDue ?? "" } : {}),
+    ...(fields.note        !== undefined ? { note: fields.note } : {}),
+  };
+  next.status = meStatus(next.inUse);
+
+  const ok = await upsertEntity(ME_ENTITY, id, next);
+  if (!ok) throw new Error("meeting-equipment 수정 실패(Postgres)");
 }
+
+export { isMirrorEnabled };

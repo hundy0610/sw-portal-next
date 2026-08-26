@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Client } from "@notionhq/client";
-import { kvDel } from "@/lib/kv-store";
-import { memDel } from "@/lib/mem-cache";
+import { deleteEntity } from "@/lib/repo/mirror";
+import { SW_ENTITY } from "@/lib/sw-notion";
 
 export const dynamic = "force-dynamic";
-
-const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,21 +18,13 @@ export async function POST(req: NextRequest) {
     const results: { id: string; ok: boolean; error?: string }[] = [];
 
     for (const id of ids) {
-      try {
-        await notion.pages.update({ page_id: id, archived: true });
-        results.push({ id, ok: true });
-      } catch (e) {
-        results.push({ id, ok: false, error: String(e) });
-      }
+      // 미러(메인) 소프트 삭제 → 5분 백업 러너가 Notion 페이지를 archive.
+      const ok = await deleteEntity(SW_ENTITY, id);
+      results.push(ok ? { id, ok: true } : { id, ok: false, error: "삭제 실패(Postgres)" });
     }
 
     const success = results.filter(r => r.ok).length;
     const failed  = results.filter(r => !r.ok).length;
-
-    if (success > 0) {
-      memDel("sw:all");
-      await kvDel("sw:all");
-    }
 
     return NextResponse.json({ ok: true, success, failed, results });
   } catch (e) {
