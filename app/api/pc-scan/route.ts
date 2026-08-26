@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { upsertPcScan, type PcScanPayload } from "@/lib/pc-scan";
+import { sanitizeIncomingVisits } from "@/lib/saas-catalog";
 import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
@@ -50,9 +51,12 @@ export async function POST(req: NextRequest) {
 
   const isDualOrShared = typeof body.isDualOrShared === "boolean" ? body.isDualOrShared : false;
   const originalCorp = typeof body.originalCorp === "string" ? body.originalCorp.trim() : "";
+  // 형태가 안 맞거나 호스트명이 이상한 항목은 여기서 조용히 걸러낸다 — 뒤 단계
+  // (카탈로그 대조·엑셀 시트·KV 저장)로 신뢰 못할 문자열이 넘어가지 않게 한다.
+  const saasDomains = sanitizeIncomingVisits(body.saasDomains);
 
   try {
-    const result = await upsertPcScan({ ...body, serial, pcName, isDualOrShared, originalCorp });
+    const result = await upsertPcScan({ ...body, serial, pcName, isDualOrShared, originalCorp, saasDomains });
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {
     console.error("[POST /api/pc-scan]", e);

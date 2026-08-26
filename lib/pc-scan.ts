@@ -3,6 +3,7 @@ import * as XLSX from "xlsx";
 import { isMock } from "./mock";
 import { findHwByAssetNo, serialFuzzyMatch, markHwVerifiedByScanMatch, type HwRecord } from "./hw";
 import { uploadFileToNotion } from "./notion";
+import { fetchSaasCatalog, filterKnownDomains, sanitizeForExcelCell, updateSaasUsage, type IncomingDomainVisit } from "./saas-catalog";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
@@ -61,6 +62,12 @@ export interface PcScanPayload {
   programsFileBase64?: string;
   programsFileName?: string;
   programsContentType?: string;
+  /**
+   * 자산실사 중 수집한 SaaS 도메인 방문기록 스냅샷 — 이미 SaaS 도메인 카탈로그
+   * (GET /api/saas-domains)로 걸러서 보내야 하지만, 서버가 다시 한번 카탈로그로
+   * 재검증한다(아래 upsertPcScan 참고) — 클라이언트 필터링을 신뢰하지 않는다.
+   */
+  saasDomains?: { host: string; visitCount: number; lastVisitedAt: string }[];
 }
 
 export interface UpsertResult {
@@ -398,10 +405,53 @@ export async function upsertPcScan(data: PcScanPayload): Promise<UpsertResult> {
     );
   }
 
-  // 엑셀 파일 Notion 업로드
+  // SaaS 도메인 방문기록 — 카탈로그로 재검증(fail-closed) 후에만 저장·기록한다.
+  // 클라이언트(스캐닝 프로그램)가 이미 걸러서 보내도록 스펙에 있지만, 그건 강제할 수
+  // 없는 약속이라 여기서 다시 걸러야 "카탈로그에 없는 도메인은 절대 안 남는다"가 보장된다.
+  const rawVisits = data.saasDomains;
+  let filteredVisits: IncomingDomainVisit[] = [];
+  if (Array.isArray(rawVisits) && rawVisits.length > 0) {
+    const catalog = await fetchSaasCatalog().catch(e => {
+      console.warn("[pc-scan] SaaS 카탈로그 조회 실패 — 이번 요청의 SaaS 도메인은 전부 폐기:", e);
+      return null;
+    });
+    filteredVisits = filterKnownDomains(rawVisits, catalog);
+  }
+
+  if (filteredVisits.length > 0) {
+    const usageKey = data.serial;
+    updateSaasUsage(
+      usageKey,
+      { pcName: data.pcName, serial: data.serial, userName: data.userName, email: data.email, corp: data.corp },
+      filteredVisits,
+    ).catch(e => console.error("[pc-scan → saas_usage 기록 실패]", e));
+  }
+
+  // 엑셀 파일 Notion 업로드 — SaaS 도메인이 있으면 "설치 프로그램" 시트 옆에 두 번째
+  // 시트로 얹어 한 파일로 만든다(실사 이력에 같이 남도록).
   let fileUploadId: string | undefined;
   if (data.programsFileBase64 && data.programsFileName && data.programsContentType) {
-    const buffer = Buffer.from(data.programsFileBase64, "base64");
+    let buffer = Buffer.from(data.programsFileBase64, "base64");
+    if (filteredVisits.length > 0) {
+      try {
+        const wb = XLSX.read(buffer, { type: "buffer" });
+        const rows = [
+          ["도메인", "누적 방문수", "최근 방문일시"],
+          ...filteredVisits.map(v => [
+            sanitizeForExcelCell(v.host),
+            v.visitCount,
+            v.lastVisitedAt,
+          ]),
+        ];
+        const sheet = XLSX.utils.aoa_to_sheet(rows);
+        XLSX.utils.book_append_sheet(wb, sheet, "SaaS 도메인");
+        buffer = Buffer.from(XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer);
+      } catch (e) {
+        // 시트 병합에 실패해도 원본 설치프로그램 파일 업로드는 그대로 진행한다 —
+        // 부가 기능 실패로 핵심 자산실사 첨부가 막히면 안 된다.
+        console.error("[pc-scan] SaaS 도메인 시트 병합 실패 — 원본 파일만 업로드:", e);
+      }
+    }
     fileUploadId = await uploadFileToNotion(buffer, data.programsFileName, data.programsContentType);
   }
 
