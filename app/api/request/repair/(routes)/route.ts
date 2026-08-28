@@ -17,6 +17,9 @@ export async function POST(request: Request) {
     const 모니터번호 = (formData.get("모니터번호") as string) || "";
     const 고장내역 = (formData.get("고장내역") as string) || "";
     const 세부내역 = (formData.get("세부내역") as string) || "";
+    // QR 스캔으로 접수됐을 때만 채워진다(배치도 좌석 ID) — 사람이 타이핑하는
+    // 모니터번호와 달리 오타가 없어, 배치도 상태 자동 연동은 이 값으로만 한다.
+    const itemId = (formData.get("itemId") as string) || "";
 
     const ticketId = await createRepairTicketRecord({
       title: 모니터번호,
@@ -26,6 +29,7 @@ export async function POST(request: Request) {
       building: 건물명,
       floor: 층수,
       assetId: 모니터번호,
+      itemId: itemId || undefined,
       detail: 세부내역,
       requester: 문의자,
     });

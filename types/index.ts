@@ -162,7 +162,14 @@ export interface RepairTicket {
   location: string;        // [deprecated] 실제 근무 위치 (rich_text) — 구 티켓에만 값 존재
   building: string;        // 건물명 (select)
   floor: string;           // 층수 (rich_text)
-  assetId: string;         // 자산번호 (rich_text) — 모니터 번호
+  assetId: string;         // 자산번호 (rich_text) — 모니터 번호(자유 입력, 오타 가능)
+  /**
+   * 배치도 좌석 ID(예: BW-2FW-A01) — QR 스캔으로 접수됐을 때만 채워진다. 사람이
+   * 타이핑하는 assetId와 달리 오타가 없어, 배치도 상태 자동 연동은 반드시 이 값으로만
+   * 한다. 값이 없으면(수동 접수) 배치도 자동 전환 대상에서 제외한다.
+   */
+  itemId?: string;
+
   detail: string;          // 세부내역 (rich_text) — 고장 증상 상세
   requester: string;       // 문의자 (rich_text)
   assignee: string;        // 담당자 이름 (people)

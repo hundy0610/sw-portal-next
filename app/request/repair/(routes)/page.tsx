@@ -2,7 +2,8 @@
 
 import { useAtom, useAtomValue } from "jotai";
 import { TriangleAlert } from "lucide-react";
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import {
   RepairForm건물명Atom,
   RepairForm고장내역Atom,
@@ -12,6 +13,7 @@ import {
   RepairForm부서Atom,
   RepairForm세부내역Atom,
   RepairForm층수Atom,
+  RepairFormItemIdAtom,
 } from "@/app/request/repair/(atoms)/useRepairFormStore";
 import {
   RepairOptions건물명Atom,
@@ -86,8 +88,17 @@ function RepairWarningModal({ onConfirm }: { onConfirm: () => void }) {
 }
 
 export default function Repair() {
+  return (
+    <Suspense>
+      <RepairPageInner />
+    </Suspense>
+  );
+}
+
+function RepairPageInner() {
   const [showWarning, setShowWarning] = useState(true);
   const { isLoading, error } = useRepairOptions();
+  const searchParams = useSearchParams();
 
   const 법인Options = useAtomValue(RepairOptions법인Atom);
   const 건물명Options = useAtomValue(RepairOptions건물명Atom);
@@ -101,8 +112,20 @@ export default function Repair() {
   const [모니터번호, set모니터번호] = useAtom(RepairForm모니터번호Atom);
   const [고장내역, set고장내역] = useAtom(RepairForm고장내역Atom);
   const [세부내역, set세부내역] = useAtom(RepairForm세부내역Atom);
+  const [itemId, setItemId] = useAtom(RepairFormItemIdAtom);
 
   const { isSubmitting, handleSubmit } = useRepairForm();
+
+  // QR 스캔으로 들어온 경우(?itemId=BW-2FW-A01) 배치도 좌석 ID를 모니터 번호에
+  // 그대로 채우고 잠근다 — 사람이 타이핑하면서 생기는 오타를 원천 차단한다.
+  useEffect(() => {
+    const qrItemId = searchParams.get("itemId");
+    if (qrItemId) {
+      setItemId(qrItemId);
+      set모니터번호(qrItemId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   if (isLoading) {
     return <LoadingComponent />;
@@ -133,8 +156,18 @@ export default function Repair() {
           <FormField title="층수" required>
             <TextInput placeholder="ex. 3층" value={층수} onChange={set층수} required />
           </FormField>
-          <FormField title="모니터 번호" required>
-            <TextInput placeholder="ex. 2309-N0001" value={모니터번호} onChange={set모니터번호} required />
+          <FormField
+            title="모니터 번호"
+            description={itemId ? "모니터에 붙은 QR을 스캔해 자동으로 채워졌습니다." : undefined}
+            required
+          >
+            <TextInput
+              placeholder="ex. 2309-N0001"
+              value={모니터번호}
+              onChange={set모니터번호}
+              required
+              disabled={!!itemId}
+            />
           </FormField>
           <FormField title="고장 내역" description="고장 유형을 선택해 주세요." required>
             <RadioOption options={고장내역Options} value={고장내역} onChange={set고장내역} required />

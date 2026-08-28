@@ -10,6 +10,7 @@ import {
   RepairForm부서Atom,
   RepairForm세부내역Atom,
   RepairForm층수Atom,
+  RepairFormItemIdAtom,
 } from "@/app/request/repair/(atoms)/useRepairFormStore";
 import { safeJson } from "@/lib/fetch-json";
 
@@ -29,6 +30,7 @@ export const useRepairForm = (): UseRepairFormReturn => {
   const [모니터번호, set모니터번호] = useAtom(RepairForm모니터번호Atom);
   const [고장내역, set고장내역] = useAtom(RepairForm고장내역Atom);
   const [세부내역, set세부내역] = useAtom(RepairForm세부내역Atom);
+  const [itemId, setItemId] = useAtom(RepairFormItemIdAtom);
 
   const resetForm = () => {
     set법인("");
@@ -39,6 +41,7 @@ export const useRepairForm = (): UseRepairFormReturn => {
     set모니터번호("");
     set고장내역("");
     set세부내역("");
+    setItemId("");
   };
 
   const { mutateAsync, isPending } = useMutation({
@@ -52,6 +55,7 @@ export const useRepairForm = (): UseRepairFormReturn => {
       formData.append("모니터번호", 모니터번호);
       formData.append("고장내역", 고장내역);
       formData.append("세부내역", 세부내역);
+      if (itemId) formData.append("itemId", itemId);
 
       const response = await fetch("/api/request/repair", {
         method: "POST",
