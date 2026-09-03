@@ -113,6 +113,11 @@ function RepairPageInner() {
   const [고장내역, set고장내역] = useAtom(RepairForm고장내역Atom);
   const [세부내역, set세부내역] = useAtom(RepairForm세부내역Atom);
   const [itemId, setItemId] = useAtom(RepairFormItemIdAtom);
+  // QR 확인 화면(/m/[itemId])에서 위치를 이미 눈으로 확인하고 넘어온 경우에만 채워진다
+  // — 건물명·층수까지 잠가서 다시 타이핑하지 않게 한다. itemId만 있고 이 값들이 없으면
+  // (구형 QR, 직접 링크 등) 건물명·층수는 평소처럼 직접 입력받는다 — 이땐 접수 시
+  // 서버가 등록된 위치와 대조해 다르면 표시한다(보완 장치).
+  const [locationLocked, setLocationLocked] = useState(false);
 
   const { isSubmitting, handleSubmit } = useRepairForm();
 
@@ -120,9 +125,16 @@ function RepairPageInner() {
   // 그대로 채우고 잠근다 — 사람이 타이핑하면서 생기는 오타를 원천 차단한다.
   useEffect(() => {
     const qrItemId = searchParams.get("itemId");
+    const qrBuilding = searchParams.get("building");
+    const qrFloor = searchParams.get("floor");
     if (qrItemId) {
       setItemId(qrItemId);
       set모니터번호(qrItemId);
+    }
+    if (qrBuilding && qrFloor) {
+      set건물명(qrBuilding);
+      set층수(qrFloor);
+      setLocationLocked(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
@@ -150,11 +162,15 @@ function RepairPageInner() {
           <FormField title="문의자 성함" required>
             <TextInput placeholder="ex. 김자산" value={문의자} onChange={set문의자} required />
           </FormField>
-          <FormField title="건물명" required>
-            <SelectOption options={건물명Options} value={건물명} onChange={set건물명} required />
+          <FormField
+            title="건물명"
+            description={locationLocked ? "QR 확인 화면에서 위치를 확인해 자동으로 채워졌습니다." : undefined}
+            required
+          >
+            <SelectOption options={건물명Options} value={건물명} onChange={set건물명} required disabled={locationLocked} />
           </FormField>
           <FormField title="층수" required>
-            <TextInput placeholder="ex. 3층" value={층수} onChange={set층수} required />
+            <TextInput placeholder="ex. 3층" value={층수} onChange={set층수} required disabled={locationLocked} />
           </FormField>
           <FormField
             title="모니터 번호"

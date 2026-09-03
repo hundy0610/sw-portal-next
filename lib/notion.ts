@@ -610,6 +610,7 @@ export async function createRepairTicketRecord(data: {
   floor?: string;
   assetId?: string;
   itemId?: string;
+  locationMismatch?: boolean;
   detail?: string;
   requester?: string;
   priority?: string;
@@ -629,6 +630,7 @@ export async function createRepairTicketRecord(data: {
     floor: data.floor || "",
     assetId: data.assetId || "",
     itemId: data.itemId || undefined,
+    locationMismatch: data.locationMismatch || undefined,
     detail: data.detail || "",
     requester: data.requester || "",
     assignee: "",

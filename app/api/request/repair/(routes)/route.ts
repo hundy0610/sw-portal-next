@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createRepairTicketRecord } from "@/lib/notion";
 import { kvGet } from "@/lib/kv-store";
 import { createMailTransporter, buildRepairNewInquiryEmail } from "@/lib/mail";
+import { findItemLocation, isLocationMismatch } from "@/lib/monitor-map";
 
 // 4.0verMACBOOK: 공개 수리 접수 폼 → 맥북 Postgres 미러(entity "repair")에 직접 기록.
 // 신규 알림 메일도 접수 시점에 앱에서 직접 발송한다(예전 Notion Automation 웹훅 대체).
@@ -21,6 +22,20 @@ export async function POST(request: Request) {
     // 모니터번호와 달리 오타가 없어, 배치도 상태 자동 연동은 이 값으로만 한다.
     const itemId = (formData.get("itemId") as string) || "";
 
+    // itemId가 있으면(QR 접수) 배치도에 등록된 위치와 지금 입력된 건물/층을 대조한다.
+    // QR 확인 화면(예정)을 거치지 않고 이 폼으로 바로 온 경우를 위한 보완 장치다 —
+    // 새 입력 항목 없이 이미 있는 건물명/층수 필드만으로 판단한다. 도면 조회가
+    // 실패해도(네트워크 등) 접수 자체는 막지 않는다 — 위치 대조는 부가 기능이다.
+    let locationMismatch = false;
+    if (itemId) {
+      try {
+        const loc = await findItemLocation(itemId);
+        if (loc) locationMismatch = isLocationMismatch(loc.floorMap, 건물명, 층수);
+      } catch (e) {
+        console.warn("[request/repair] 위치 대조 실패(무시):", e);
+      }
+    }
+
     const ticketId = await createRepairTicketRecord({
       title: 모니터번호,
       faultTypes: 고장내역 ? [고장내역] : [],
@@ -30,6 +45,7 @@ export async function POST(request: Request) {
       floor: 층수,
       assetId: 모니터번호,
       itemId: itemId || undefined,
+      locationMismatch,
       detail: 세부내역,
       requester: 문의자,
     });

@@ -169,6 +169,12 @@ export interface RepairTicket {
    * 한다. 값이 없으면(수동 접수) 배치도 자동 전환 대상에서 제외한다.
    */
   itemId?: string;
+  /**
+   * itemId가 배치도에 등록된 위치(건물/층)와, 직원이 이 폼에 입력한 건물명/층수가
+   * 다를 때 true — 접수 시점에 서버가 자동으로 계산한다(사람이 입력하는 값 아님).
+   * 이사 등으로 모니터가 실제로 옮겨졌을 가능성을 관리자에게 알리는 용도.
+   */
+  locationMismatch?: boolean;
 
   detail: string;          // 세부내역 (rich_text) — 고장 증상 상세
   requester: string;       // 문의자 (rich_text)
