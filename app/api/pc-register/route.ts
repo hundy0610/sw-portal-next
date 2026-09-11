@@ -33,9 +33,17 @@ export async function POST(req: NextRequest) {
 
   const serial = typeof body.serial === "string" ? body.serial.trim() : "";
   const pcName = typeof body.pcName === "string" ? body.pcName.trim() : "";
-  if (!serial || !pcName) {
+  // 시리얼은 선택값이다. 조립 PC·VM 처럼 BIOS 가 "Default string" / "To be filled by
+  // O.E.M." 같은 무의미 기본값을 돌려주는 기기가 있고, 에이전트(NormalizeSerial)가 그런
+  // 값을 대조 키 오염 방지를 위해 빈 값으로 바꿔 보낸다. 그 PC 들도 등록은 되어야 하므로
+  // pcName 만 필수로 둔다.
+  //
+  // 대신 시리얼이 없으면 serialFuzzyMatch 가 늘 false 라 masterExists(HW 마스터 대조)가
+  // false 로 남는다 — 관리자 화면에서 "마스터 없음"으로 보이고 자산번호로 수동 확인해야
+  // 한다. 같은 이유로 upsert 의 기존 레코드 판정도 시리얼 대신 pcName 으로만 이뤄진다.
+  if (!pcName) {
     return NextResponse.json(
-      { ok: false, error: "serial, pcName은 필수입니다" },
+      { ok: false, error: "pcName은 필수입니다" },
       { status: 400 }
     );
   }
