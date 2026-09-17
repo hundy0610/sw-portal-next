@@ -6,7 +6,7 @@ import {
   type SaasUsageReport, type VisitedDomain,
 } from "@/lib/saas-audit";
 import { findUnregisteredUsage, type SubscriptionLite, type PcIdentity } from "@/lib/saas-subscription-check";
-import { fetchSwDatabase } from "@/lib/notion";
+import { fetchSwDatabase } from "@/lib/mirror-entities";
 import { fetchPcScans, attachSaasDomainSheet } from "@/lib/pc-scan";
 import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";
 import { errorMessage } from "@/lib/api-error";
