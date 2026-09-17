@@ -359,41 +359,5 @@ export const mockHwRepairs = [
   },
 ];
 
-// ─── Monitor History ──────────────────────────────────────────
-export const mockMonitorHistory = [
-  {
-    id: "mock-mh-1",
-    title: "Zone Move: 3층 회의실 A → 3층 회의실 B",
-    itemId: "mock-item-1",
-    label: "모니터 #001",
-    building: "서울 본사",
-    floor: "3F",
-    eventType: "zone_move" as const,
-    from: "3층 회의실 A",
-    to: "3층 회의실 B",
-    description: "회의실 리모델링으로 이동",
-    status: "done" as const,
-    createdAt: "2026-04-20",
-    createdBy: "담당자A",
-  },
-];
-
-// ─── Monitor Assets ───────────────────────────────────────────
-export const mockMonitorAssets = [
-  {
-    id: "mock-ma-1",
-    itemId: "mock-item-1",
-    title: "서울 본사 3F - 모니터 #001",
-    assetNo: "MN-2024-001",
-    building: "서울 본사",
-    floor: "3F",
-    model: "27인치",
-    status: "사용중",
-    corp: "본사",
-    purchaseDate: "2024-03-15",
-    note: "",
-  },
-];
-
-// ─── Credentials (어드민 전용, 민감 정보 — 빈 배열로 반환) ────
+// ─── Credentials ──────────────────────────────────────────────
 export const mockCredentials: never[] = [];

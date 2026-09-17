@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchFloorMap, saveFloorMap } from "@/lib/notion";
+import { fetchFloorMap, saveFloorMap } from "@/lib/monitor-store";
 import { errorMessage } from "@/lib/api-error";
 
 export async function GET(req: NextRequest) {
