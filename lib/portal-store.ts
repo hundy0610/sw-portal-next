@@ -2,10 +2,6 @@ import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { memGet, memSet } from "@/lib/mem-cache";
 import type { Notice, Course, DeclarationLog } from "@/types/portal";
 import type { SwItem, SaasItem } from "@/types";
-import type { BugStage } from "@/types/bug-report";
-import { DEFAULT_BUG_STAGES } from "@/types/bug-report";
-import type { WorkStage } from "@/types/work-tracker";
-import { DEFAULT_WORK_STAGES } from "@/types/work-tracker";
 import type { SaasUsageStore } from "@/lib/saas-audit";
 
 const KV_NOTICES    = "portal:notices";
@@ -15,8 +11,6 @@ const KV_SAASDB     = "portal:saasdb";
 const KV_SAAS_USAGE = "portal:saas_usage";
 const KV_AUDIT      = "portal:audit_log";
 const KV_ADMIN_AUDIT = "portal:admin_audit_log";
-const KV_BUG_STAGES = "portal:bug_stages";
-const KV_WORK_STAGES = "portal:work_stages";
 const KV_DECLARATION_LOG = "portal:declaration_log";
 
 // ─── Audit Log ──────────────────────────────────────────
@@ -150,38 +144,6 @@ export async function saveCourses(courses: Course[]): Promise<boolean> {
   return ok;
 }
 
-// ─── 버그리포트 칸반 단계 ──────────────────────────────────
-export async function getBugStages(): Promise<BugStage[]> {
-  let data = memGet<BugStage[]>(KV_BUG_STAGES);
-  if (!data) {
-    data = (await kvGet<BugStage[]>(KV_BUG_STAGES)) ?? DEFAULT_BUG_STAGES;
-    memSet(KV_BUG_STAGES, data, MEM_TTL);
-  }
-  return data;
-}
-
-export async function saveBugStages(stages: BugStage[]): Promise<boolean> {
-  const ok = await kvSetPermanent(KV_BUG_STAGES, stages);
-  if (ok) memSet(KV_BUG_STAGES, stages, MEM_TTL);
-  return ok;
-}
-
-// ─── 작업 트래커 칸반 단계 ─────────────────────────────────
-export async function getWorkStages(): Promise<WorkStage[]> {
-  let data = memGet<WorkStage[]>(KV_WORK_STAGES);
-  if (!data) {
-    data = (await kvGet<WorkStage[]>(KV_WORK_STAGES)) ?? DEFAULT_WORK_STAGES;
-    memSet(KV_WORK_STAGES, data, MEM_TTL);
-  }
-  return data;
-}
-
-export async function saveWorkStages(stages: WorkStage[]): Promise<boolean> {
-  const ok = await kvSetPermanent(KV_WORK_STAGES, stages);
-  if (ok) memSet(KV_WORK_STAGES, stages, MEM_TTL);
-  return ok;
-}
-
 // ─── SW DB (화이트/블랙리스트) ───────────────────────────
 export async function getSwItems(): Promise<SwItem[]> {
   let data = memGet<SwItem[]>(KV_SWDB);
@@ -227,25 +189,5 @@ export async function getSaasUsage(): Promise<SaasUsageStore> {
 export async function saveSaasUsage(store: SaasUsageStore): Promise<boolean> {
   const ok = await kvSetPermanent(KV_SAAS_USAGE, store);
   if (ok) memSet(KV_SAAS_USAGE, store, MEM_TTL);
-  return ok;
-}
-
-// ─── Event Status ────────────────────────────────────────
-const KV_EVENT_OPEN = "event:toto:open";
-
-export async function getEventOpen(): Promise<boolean> {
-  const cached = memGet<boolean>(KV_EVENT_OPEN);
-  if (cached !== null) return cached;
-  const kvValue = await kvGet<boolean>(KV_EVENT_OPEN);
-  if (kvValue !== null) {
-    memSet(KV_EVENT_OPEN, kvValue, MEM_TTL);
-    return kvValue;
-  }
-  return true; // default: open
-}
-
-export async function setEventOpen(open: boolean): Promise<boolean> {
-  const ok = await kvSetPermanent(KV_EVENT_OPEN, open);
-  if (ok) memSet(KV_EVENT_OPEN, open, 3600 * 24 * 7);
   return ok;
 }
