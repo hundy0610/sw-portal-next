@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 // 4.0verMACBOOK: 맥북 Postgres 미러가 메인. 캐시 없이 즉시 일관성.
 export async function GET() {
-  if (!isMirrorEnabled() && !process.env.NOTION_TOKEN) {
+  if (!isMirrorEnabled()) {
     return NextResponse.json({
       ok: false,
       missingEnv: "SUPABASE_URL",

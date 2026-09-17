@@ -1,11 +1,11 @@
-# SW-PORTAL 4.0 아키텍처 가이드 (맥북 중앙 Postgres + Notion 백업)
+# SW-PORTAL 아키텍처 가이드 (맥북 중앙 Postgres)
 
 > **TL;DR (English):** The MacBook is the single central data host. It runs self-hosted
 > Supabase (Postgres) in Docker, exposed to Vercel **only** over an HTTPS Tailscale Funnel
-> (port 8000). Postgres is the **main** read/write store for every entity that used to live
-> in Notion; **Notion is now a one-way backup** synced every 5 minutes by a launchd job that
-> runs **only on the MacBook**. Redis/Upstash is **removed** — KV lives in Postgres. Never
-> expose the DB port (5432) to the internet, never commit secrets/`.env`.
+> (port 8000). Postgres is the **only** read/write store — the Notion integration was removed
+> in 2026-09 (code, backup runner, and dependency all gone). Backups are the weekly `pg_dump`
+> job on the MacBook. Redis/Upstash is **removed** — KV lives in Postgres. Never expose the
+> DB port (5432) to the internet, never commit secrets/`.env`.
 
 이 문서는 3.x → **4.0** 대규모 구조 변경의 단일 진실 소스다. 다른 PC(대부분 Claude Code)에서
 작업할 때 반드시 이 구조를 따른다.
@@ -17,7 +17,7 @@
 ```
 [사용자] ──► [Vercel 앱 (Next.js)] ──HTTPS(Tailscale Funnel)──► [맥북]
                                                                  ├─ Supabase/Postgres (Docker, 127.0.0.1:8000)
-                                                                 └─ launchd 5분 백업 잡 ──► [Notion (백업, 읽기전용성격)]
+                                                                 └─ launchd 주간 pg_dump 백업
 ```
 
 - **앱**: Vercel에서 그대로 구동(Next.js).
@@ -29,20 +29,17 @@
 
 ---
 
-## 2. 데이터 모델: Postgres 메인 / Notion 백업
+## 2. 데이터 모델: Postgres 하나
 
-- **Postgres가 메인(읽기+쓰기)** 이다. 예전에 Notion에 직접 읽고 쓰던 모든 엔티티가 이제 Postgres를 1차 소스로 사용한다.
-- **Notion은 단방향 백업**이다. 앱이 Postgres에 쓰면 해당 행이 `dirty=true`로 표시되고, **5분마다** launchd 잡(`scripts/backup-to-notion.ts`)이 dirty 행만 Notion으로 반영한다.
-  - **낙관적 잠금**: 백업은 `updated_at`을 확인해 백업 도중 새 수정이 들어온 행은 다음 주기로 미룬다(덮어쓰기 방지).
-  - **소프트 삭제**: `deleted=true`인 행은 백업 시 Notion 페이지를 **archive** 처리한다.
-  - 백업 성공 시에만 `dirty=false` + `synced_at` 기록.
-- **파일 첨부**는 Vercel Blob이 소스(`lib/blob-store.ts`). 백업 잡이 Blob 파일을 Notion으로 **재업로드**한다(노션 원본 URL은 ~1시간 후 만료되므로 Blob이 내구 저장소).
-
-### 백업 잡은 맥북에서만 돈다
-- launchd 유닛: `deploy/com.swportal.backup-notion.plist` → `~/Library/LaunchAgents/`에 설치, `StartInterval=300`(5분).
-- **다른 PC에는 절대 설치하지 않는다.** 중앙 DB(맥북)에서만 백업이 돌아야 한다.
-
----
+- **Postgres 가 유일한 저장소**다. 예전에는 Notion 이 원본이었고, 4.0 에서 Postgres 를 메인으로
+  올린 뒤에도 5분마다 Notion 으로 단방향 백업하는 launchd 잡이 돌았다.
+- **2026-09 에 Notion 연동을 전부 걷어냈다** — 백업 러너(`scripts/backup-to-notion.ts`),
+  매핑(`lib/backup/notion-map.ts`), 폴백 읽기 경로, `@notionhq/client` 의존성, launchd plist
+  까지 모두 제거했다. 레코드의 `notionUrl` 필드만 과거 잔재로 남아 있고 신규 건은 빈 문자열이다.
+- **백업은 주간 `pg_dump`** 다 — 맥북의 `scripts/backup-weekly.sh` 가 전체 덤프 + Vercel Blob
+  첨부 원본 + 매니페스트를 뜬다(assetify-for-desktop 저장소).
+- `entity_store` 의 `dirty` · `synced_at` · `notion_id` 컬럼은 더 이상 쓰이지 않는다. 되돌릴
+  여지를 남기려고 컬럼 자체는 지우지 않았다.
 
 ## 3. KV / 캐시: Redis/Upstash 제거됨 ⚠️
 
@@ -55,11 +52,11 @@
 
 ## 4. 미러 패턴 (엔티티 저장 방식)
 
-- **제네릭 미러 테이블**: `public.entity_store` — 모든(HW 제외) Notion 연동 엔티티를 담는다.
+- **제네릭 미러 테이블**: `public.entity_store` — HW·모니터를 뺀 모든 엔티티를 담는다.
   - 접근은 `lib/repo/mirror.ts`로만: `readEntity` / `readEntityOne` / `upsertEntity` / `deleteEntity`. 전부 서버 전용 `service_role`.
-  - 컬럼: `entity, id, notion_id, data(jsonb), deleted, dirty, updated_at, synced_at`.
+  - 컬럼: `entity, id, data(jsonb), deleted, updated_at` (+ 안 쓰는 잔재 `notion_id · dirty · synced_at`).
 - **HW는 전용 테이블** `public.hw` (`lib/repo/hw.ts`)를 쓴다(대용량 자산 데이터).
-- **⚠️ 읽기 규칙 (중요)**: `readEntity()`는 미러가 켜져 있으면 데이터가 없어도 **빈 배열 `[]`** 을 돌려준다. 호출부는 `const m = await readEntity(...); if (m) return m; ...Notion폴백` 패턴이라 `[]`도 truthy → **미러가 켜지면 Notion으로 폴백하지 않는다.**
+- **⚠️ 읽기 규칙 (중요)**: `readEntity()`는 미러가 **미설정**일 때만 `null` 을 준다(데이터가 없으면 빈 배열). 호출부는 `null` 이면 폴백하지 않고 오류를 던진다 — 조용히 빈 목록을 보여주지 않기 위해서다.
   - **따라서 전환(cutover) 전에 반드시 미러를 시드해야 한다.** 시드 안 하면 앱에 "빈 목록"이 뜬다(데이터 유실 아님, 표시만 비어 보임).
 
 ### 현재 미러에 올라간 엔티티 (11종) + HW
@@ -69,19 +66,7 @@
 
 `rental-hw`(임대노트북 현황 관리)는 걷어냈다 — 임대 자산의 원본은 HWDB 하나이고, 법인명이
 `임대용`이고 상태가 `재고`인 자산이 임대 재고다(데스크탑 앱 v1.30.0). `entity_store` 의 기존
-31건은 지우지 않고 남겨뒀지만 읽지도 쓰지도 않고, Notion 백업 대상에서도 빠졌다.
-
----
-
-## 5. 새 Notion 연동 엔티티 추가하는 법
-
-1. **`lib/backup/notion-map.ts`에 등록** (두 곳):
-   - `entityRegistry[<key>]`: 백업용 `buildProperties`(앱 data → Notion 프로퍼티 매핑). 파일 첨부가 있으면 `files` 설정. 대상 DB는 `databaseId`(대부분) 또는 `dataSourceId`(신규 API 데이터소스 부모).
-   - `seedRegistry[<key>]`: 초기 이관용 `fetch()`(Notion → 미러 레코드). 반드시 Notion에서 **직접** 읽는 `*FromNotion` 함수를 감쌀 것(미러 우선 래퍼를 쓰면 빈 배열이 돌아온다).
-2. **lib/route에서 미러 사용**: 읽기는 `readEntity/readEntityOne`, 쓰기는 `upsertEntity`(자동으로 `dirty=true`), 삭제는 `deleteEntity`(소프트 삭제).
-3. **파일 첨부**: `lib/blob-store.ts`로 Vercel Blob 업로드 → 저장 데이터엔 Blob URL 보관. 백업 잡이 `files` 설정을 보고 Notion으로 재업로드.
-4. **맥북 `.env`에 그 엔티티의 `NOTION_DB_*`(또는 `*_DATA_SOURCE_ID`) 추가** — 없으면 백업/시드에서 "id 미설정 → 건너뜀".
-5. 초기 데이터 적재: `npm run seed:entities -- <key>` (맥북에서 1회).
+31건은 지우지 않고 남겨뒀지만 읽지도 쓰지도 않는다.
 
 ---
 
@@ -89,7 +74,7 @@
 
 - **신규 접수 알림은 앱이 직접 이메일로 발송**한다(`lib/mail.ts`, nodemailer + Gmail).
   - 대상: 헬프데스크 신규 문의, 수리 신규 접수, 회의실 대여 신규 요청.
-- 이 항목들의 **기존 Notion 웹훅은 무력화(no-op)** 됐다 — 5분 백업 지연 때문에 즉시성이 필요한 알림은 앱에서 바로 보낸다.
+- 기존 Notion Automation 웹훅 라우트는 **전부 삭제**했다. 알림은 앱이 직접 보낸다.
 - 메일 전송에는 `GMAIL_USER`, `GMAIL_APP_PASSWORD`가 필요하다. (참고: `.env.example`의 `RESEND_*`는 레거시이며 현재 전송 경로에서 사용하지 않는다.)
 
 ---
@@ -106,7 +91,6 @@
 | `SUPABASE_KEY` | Supabase **service_role** 키(서버 전용, RLS 우회) |
 | `SWP_DB_SECRET` | (선택) 공유 시크릿, `x-swp-secret` 헤더 검증 |
 | `BLOB_READ_WRITE_TOKEN` | Vercel Blob 파일 저장 (Storage 연결 시 자동 주입) |
-| `NOTION_TOKEN` + `NOTION_DB_*` | 폴백/시드 참조용 |
 | `SESSION_SECRET` | 관리자 세션 서명(미설정 시 로그인 전부 거부) |
 | `SUPER_ADMIN_ID` / `SUPER_ADMIN_PW` | ENV 슈퍼어드민 로그인 |
 | `CREDENTIALS_ENC_KEY` | 계정보관함 암복호화 (⚠️ **모든 환경에서 동일 값**이어야 기존 암호문 복호화 가능) |
@@ -117,8 +101,6 @@
 ### (ii) 맥북 로컬 `.env` (git 제외) — 백업 러너 + 시드 스크립트 전용
 | 변수 | 용도 |
 |---|---|
-| `NOTION_TOKEN` | Notion API |
-| 모든 `NOTION_DB_*` / `*_DATA_SOURCE_ID` | 백업/시드 대상 DB id들 |
 | `PGHOST` / `PGPORT` / `PGUSER` / `PGDATABASE` / `PGPASSWORD` (또는 `DATABASE_URL`) | 로컬 Postgres 직결 |
 | `BLOB_READ_WRITE_TOKEN` | 파일 엔티티 시드 시 Blob 업로드 |
 | `SUPABASE_URL` / `SUPABASE_KEY` | (미러 접근이 필요한 스크립트용) |
@@ -144,24 +126,12 @@ npm run migrate                 # scripts/sql/*.sql 순서대로 적용
 npm run seed:hw                 # HW → public.hw 초기 적재
 npm run seed:entities           # 전체 미러 엔티티 초기 적재
 npm run seed:entities -- sw helpdesk   # 특정 엔티티만
-npm run backup:notion           # 백업 1회 수동 실행(평소엔 launchd가 5분마다)
-```
-
-### launchd 백업 잡 (맥북)
-```bash
-mkdir -p ~/Library/LaunchAgents
-cp deploy/com.swportal.backup-notion.plist ~/Library/LaunchAgents/
-launchctl unload ~/Library/LaunchAgents/com.swportal.backup-notion.plist 2>/dev/null
-launchctl load  ~/Library/LaunchAgents/com.swportal.backup-notion.plist
-launchctl list | grep swportal        # 종료코드 0 확인
-cat /tmp/swportal-backup-notion.out   # 실행 로그
 ```
 
 ### 가용성 / 잠들지 않게 유지 (Availability / keep-awake)
 
 맥북이 잠들면 Funnel(HTTPS 8000)과 로컬 Supabase가 도달 불가가 되어, 배포된 앱이
-미러를 못 읽고 **5분 지연된 Notion 백업으로 조용히 폴백**한다(방금 저장한 최신
-문의 항목이 목록에서 누락되는 증상). 이를 막기 위해:
+미러를 못 읽어 관리자 화면이 오류를 띄운다. 이를 막기 위해:
 
 1. **idle 슬립 방지 (sudo 불필요, 유저 레벨 launchd + `caffeinate -s`)**
 ```bash
@@ -205,15 +175,10 @@ tailscale funnel --bg 8000       # sudo 불필요(tailscaled 떠 있으면)
 |---|---|
 | `lib/repo/mirror.ts` | 제네릭 미러(`entity_store`) 접근 (service_role) |
 | `lib/repo/hw.ts` | HW 전용 테이블(`public.hw`) 접근 + 소스 스위치 |
-| `lib/backup/notion-map.ts` | 백업 매핑(`entityRegistry`) + 초기 시드 소스(`seedRegistry`) |
-| `scripts/backup-to-notion.ts` | dirty 행 → Notion 반영 (launchd 5분) |
-| `scripts/seed-entities.ts` | Notion → `entity_store` 초기 적재 |
-| `scripts/seed-hw.ts` | Notion → `public.hw` 초기 적재 |
 | `scripts/seed-kv.ts` | (1회) Upstash → Postgres KV 이관 |
 | `scripts/migrate.ts` | `scripts/sql/*.sql` 마이그레이션 러너 |
 | `scripts/sql/001_hw.sql` `002_kv.sql` `003_entity_store.sql` | 스키마 정의 |
 | `lib/kv-store.ts` | KV(공지/설정 등) — Postgres `public.kv` |
 | `lib/blob-store.ts` | Vercel Blob 업로드 |
 | `lib/mail.ts` | 이메일(nodemailer + Gmail) |
-| `deploy/com.swportal.backup-notion.plist` | 5분 백업 launchd 유닛 |
 | `deploy/com.swportal.keepawake.plist` | idle 슬립 방지 launchd 유닛(`caffeinate -s`) — Funnel/DB 24/7 도달성 유지 |

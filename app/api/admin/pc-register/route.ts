@@ -7,7 +7,7 @@ import { errorMessage } from "@/lib/api-error";
 export const dynamic = "force-dynamic";
 
 // PC 신규 등록(자산 실사 방식) 수집 데이터 조회/수정/삭제.
-// /api/admin/pc-scan과 동일한 로직이되, 별도 DB(NOTION_DB_PC_REGISTER)를 대상으로 한다.
+// /api/admin/pc-scan과 동일한 로직이되, 별도 저장소(entity_store 'pc-register')를 대상으로 한다.
 
 async function requireSuper(req: NextRequest) {
   const session = getSessionFromCookieHeader(req.headers.get("cookie"));
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     // HW 마스터 대조는 맥북 Postgres에서(항상 최신). 미설정(로컬 dev 등) 시에만 null —
     // 조회 실패 시엔 getHwAllFromPostgres가 throw해 바깥 catch가 처리한다.
     const [scans, hwAll] = await Promise.all([
-      fetchPcScans("NOTION_DB_PC_REGISTER"),
+      fetchPcScans("pc-register"),
       getHwAllFromPostgres(),
     ]);
 
@@ -52,7 +52,7 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "fields 필수" }, { status: 400 });
     }
 
-    await updatePcScan(id, fields, "NOTION_DB_PC_REGISTER");
+    await updatePcScan(id, fields, "pc-register");
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[PATCH /api/admin/pc-register]", e);
@@ -72,7 +72,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "id 필수" }, { status: 400 });
     }
 
-    await deletePcScan(id, "NOTION_DB_PC_REGISTER");
+    await deletePcScan(id, "pc-register");
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[DELETE /api/admin/pc-register]", e);

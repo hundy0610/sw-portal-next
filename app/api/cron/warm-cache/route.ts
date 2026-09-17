@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchSwDatabase } from "@/lib/notion";
+import { fetchSwDatabase } from "@/lib/mirror-entities";
 import { kvSetPermanent } from "@/lib/kv-store";
 import { compactSwRecords } from "@/lib/sw-compact";
 

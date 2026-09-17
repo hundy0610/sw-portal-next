@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Client } from "@notionhq/client";
 import { type HwRecord, type HwChangeLogEvent, buildUpdatedChangeLog } from "@/lib/hw";
 import { getHwByIdFromPostgres, updateHwFields, isPostgresEnabled } from "@/lib/repo/hw";
 import { kvGet } from "@/lib/kv-store";
@@ -10,22 +9,12 @@ import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
 
-const notion = new Client({ auth: process.env.NOTION_TOKEN });
-
-// 대상 레코드 조회 (법인 범위 검증 + 변경이력 before). 4.0verMACBOOK: 맥북 Postgres 우선.
+// 대상 레코드 조회 (법인 범위 검증 + 변경이력 before). 맥북 Postgres 가 유일한 소스이고,
+// 옛 hw:all KV 스냅샷은 과도기 캐시라 아직 남은 것만 읽는다.
 async function getRecord(id: string): Promise<HwRecord | null> {
   const pg = await getHwByIdFromPostgres(id);
   if (pg) return pg;
-  const cached = (await kvGet<HwRecord[]>("hw:all"))?.find(r => r.id === id);
-  if (cached) return cached;
-  if (!process.env.NOTION_TOKEN) return null;
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const page: any = await notion.pages.retrieve({ page_id: id });
-    return { id, company: page.properties?.["법인명"]?.select?.name ?? "", assetNo: page.properties?.["자산번호"]?.rich_text?.[0]?.plain_text ?? "" } as HwRecord;
-  } catch {
-    return null;
-  }
+  return (await kvGet<HwRecord[]>("hw:all"))?.find(r => r.id === id) ?? null;
 }
 
 type FieldMap = Record<string, unknown>;
@@ -115,7 +104,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 상태가 "재고"로 변경되거나 사용일자가 변경된 경우 — 연결된 자산 흐름 레코드에 반영
-    if ((fields.status === "재고" || fields.useDate !== undefined) && process.env.NOTION_DB_EXCHANGE_RETURN) {
+    if (fields.status === "재고" || fields.useDate !== undefined) {
       try {
         const assetNo = before?.assetNo || "";
         if (assetNo) {

@@ -2938,25 +2938,6 @@ export default function HwPanel({ company = "", initialStats, isSuperAdmin = fal
   // shipment/return은 자체 fetch → 공유 records 불필요
   const isRecordsTab = tab === "label" || tab === "stock";
 
-  // ── Notion 증분 동기화 (최근 수정분만 즉시 반영) ────────────────────────────
-  const [syncing,     setSyncing]     = useState(false);
-  const [syncDone,    setSyncDone]    = useState(false);
-  const [syncMsg,     setSyncMsg]     = useState("");
-  const [syncError,   setSyncError]   = useState("");
-  const handleSync = useCallback(async () => {
-    setSyncing(true); setSyncDone(false); setSyncError(""); setSyncMsg("");
-    try {
-      const res  = await fetch("/api/hw/sync", { method: "POST" });
-      const json = await safeJson(res);
-      if (!json.ok) throw new Error(json.error);
-      setSyncDone(true);
-      setSyncMsg(json.updatedCount > 0 ? `${json.updatedCount}건 반영됨` : "변경 사항 없음");
-      setTimeout(() => setSyncDone(false), 5000);
-      loadStats();
-      if (recordsReady) loadAll();
-    } catch (e) { setSyncError(String(e)); setTimeout(() => setSyncError(""), 5000); }
-    finally { setSyncing(false); }
-  }, [loadStats, loadAll, recordsReady]);
 
   if (missingEnv) return <EnvVarMissing varName={missingEnv} />;
 
@@ -2977,40 +2958,6 @@ export default function HwPanel({ company = "", initialStats, isSuperAdmin = fal
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {/* Notion 동기화 버튼 */}
-          <button
-            onClick={handleSync}
-            disabled={syncing}
-            title="Notion에서 직접 수정한 내용을 최근 변경분만 즉시 반영합니다"
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
-              syncDone
-                ? "bg-green-50 border-green-200 text-green-700"
-                : syncError
-                ? "bg-red-50 border-red-200 text-red-600"
-                : "bg-white border-gray-200 text-gray-600 hover:border-amber-300 hover:text-amber-700"
-            } disabled:opacity-50`}
-          >
-            {syncing ? (
-              <>
-                <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/>
-                </svg>
-                동기화 중…
-              </>
-            ) : syncDone ? (
-              <>{syncMsg || "동기화 완료"}</>
-            ) : syncError ? (
-              <>실패</>
-            ) : (
-              <>
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path d="M1 4v6h6M23 20v-6h-6"/>
-                  <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/>
-                </svg>
-                Notion 동기화
-              </>
-            )}
-          </button>
 
           {(statsLoading || (isRecordsTab && recordsLoading)) && (
             <div className="flex items-center gap-1.5 text-xs text-gray-400">
