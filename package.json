@@ -11,6 +11,7 @@
     "seed:hw": "node --env-file=.env --import tsx scripts/seed-hw.ts",
     "seed:kv": "node --env-file=.env --import tsx scripts/seed-kv.ts",
     "seed:entities": "node --env-file=.env --import tsx scripts/seed-entities.ts",
+  "seed:sw-resources": "node --env-file=.env --import tsx scripts/seed-sw-resources.ts",
     "backup:notion": "node --env-file=.env --import tsx scripts/backup-to-notion.ts"
   },
   "dependencies": {
