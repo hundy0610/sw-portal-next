@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createSwRequest } from "@/lib/notion";
+import { createSwRequest } from "@/lib/mirror-entities";
 
 export async function POST(request: Request) {
   try {

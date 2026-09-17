@@ -1,29 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Client } from "@notionhq/client";
-import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
+import { findSwDocFileUrl } from "@/lib/sw-resources-store";
 
-const notion = new Client({ auth: process.env.NOTION_TOKEN });
-
+// 예전에는 요청마다 Notion 페이지를 조회해 1시간짜리 서명 URL 로 리다이렉트했다.
+// 이제 첨부 원본이 Vercel Blob(또는 사내 드라이브 링크)이고 fileUrl 이 영구 주소라
+// 미러에서 읽어 바로 보낸다 — Notion 왕복이 사라진다.
 export async function GET(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const page = await notion.pages.retrieve({ page_id: params.id });
-    if (!("properties" in page)) {
-      return new NextResponse("Not found", { status: 404 });
-    }
-
-    const filesProp = (page as PageObjectResponse).properties["파일과 미디어"];
-    if (!filesProp || filesProp.type !== "files" || filesProp.files.length === 0) {
-      return new NextResponse("No file attached", { status: 404 });
-    }
-
-    const file = filesProp.files[0];
-    const fileUrl = "file" in file ? file.file.url : file.external.url;
-
-    // Vercel 경유 없이 Notion CDN / 외부 URL로 직접 리다이렉트
-    return NextResponse.redirect(fileUrl);
+    const file = await findSwDocFileUrl(params.id);
+    if (!file) return new NextResponse("No file attached", { status: 404 });
+    return NextResponse.redirect(file.url);
   } catch {
     return new NextResponse("Error", { status: 500 });
   }

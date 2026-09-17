@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchManualBySlug } from "@/lib/notion";
+import { fetchManualBySlug } from "@/lib/sw-resources-store";
 import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";
 
 export async function GET(

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createHelpDeskTicket } from "@/lib/notion";
+import { createHelpDeskTicket } from "@/lib/mirror-entities";
 import { kvGet } from "@/lib/kv-store";
 
 const NOTIFY_KEY = "helpdesk:notify-emails";

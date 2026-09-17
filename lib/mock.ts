@@ -253,117 +253,6 @@ export const mockSwDatabase = [
 ];
 
 // ─── Subscriptions ────────────────────────────────────────────
-export const mockSubscriptions = [
-  {
-    id: "mock-sub-1",
-    name: "GitHub Enterprise",
-    logo: "🐙",
-    version: "",
-    status: "구독 중" as const,
-    team: "개발팀",
-    user: "개발팀 전체",
-    userCount: 30,
-    cycle: "월" as const,
-    krw: 6600000,
-    usd: undefined,
-    paymentMethod: "법인카드",
-    startDate: "2023-01-01",
-    notionUrl: "#",
-  },
-  {
-    id: "mock-sub-2",
-    name: "Figma Organization",
-    logo: "🎨",
-    version: "",
-    status: "구독 중" as const,
-    team: "디자인팀",
-    user: "이영희",
-    userCount: 5,
-    cycle: "연" as const,
-    krw: undefined,
-    usd: 900,
-    paymentMethod: "법인카드",
-    startDate: "2024-03-01",
-    notionUrl: "#",
-  },
-];
-
-// ─── Licenses ────────────────────────────────────────────────
-export const mockLicenses = [
-  {
-    id: "mock-lic-1",
-    name: "MS Office",
-    category: "오피스",
-    icon: "📄",
-    usedCount: 150,
-    totalCount: 200,
-    expiryDate: "2026-12-31",
-    status: "정상",
-    notionUrl: "#",
-  },
-  {
-    id: "mock-lic-2",
-    name: "한컴",
-    category: "오피스",
-    icon: "🇰🇷",
-    usedCount: 80,
-    totalCount: 100,
-    expiryDate: "2025-12-31",
-    status: "정상",
-    notionUrl: "#",
-  },
-  {
-    id: "mock-lic-3",
-    name: "Adobe Creative Cloud",
-    category: "디자인",
-    icon: "🎨",
-    usedCount: 12,
-    totalCount: 15,
-    expiryDate: "2025-06-30",
-    status: "정상",
-    notionUrl: "#",
-  },
-];
-
-// ─── License Records ──────────────────────────────────────────
-export const mockLicenseRecords = [
-  {
-    id: "mock-lr-1",
-    userName: "홍길동",
-    software: "MS Office",
-    softwareDetail: "Microsoft Office 2021 Pro",
-    version: "2021",
-    usageStatus: "사용중" as const,
-    company: "대웅제약",
-    department: "IT팀",
-    email: "hong@example.com",
-    licenseStartDate: "2024-01-01",
-    licenseExpiryDate: "2026-12-31",
-    usageStartDate: "2024-01-15",
-    vendor: "MS Korea",
-    serialNumber: "MOCK-SERIAL-001",
-    notionUrl: "#",
-  },
-  {
-    id: "mock-lr-2",
-    userName: "이영희",
-    software: "Adobe Creative Cloud",
-    softwareDetail: "Adobe Creative Cloud All Apps",
-    version: "2024",
-    usageStatus: "사용중" as const,
-    company: "대웅",
-    department: "마케팅팀",
-    email: "lee@example.com",
-    licenseStartDate: "2023-06-01",
-    licenseExpiryDate: "2024-06-01",
-    usageStartDate: "2023-06-10",
-    vendor: "Adobe Korea",
-    serialNumber: "",
-    notionUrl: "#",
-  },
-];
-
-// ─── HelpDesk Tickets ─────────────────────────────────────────
 export const mockHelpDeskTickets = [
   {
     id: "mock-hd-1",
@@ -414,34 +303,6 @@ export const mockHelpDeskTickets = [
 ];
 
 // ─── Tickets ──────────────────────────────────────────────────
-export const mockTickets = [
-  {
-    id: "mock-tk-1",
-    title: "신규 노트북 지급 요청",
-    category: "HW 지급",
-    priority: "중간" as const,
-    status: "접수" as const,
-    requester: "박지성",
-    assignee: "담당자A",
-    createdAt: "2026-05-11",
-    description: "신입사원 입사로 노트북 지급 요청합니다.",
-    notionUrl: "#",
-  },
-  {
-    id: "mock-tk-2",
-    title: "Adobe 라이선스 추가 요청",
-    category: "SW 라이선스",
-    priority: "낮음" as const,
-    status: "처리중" as const,
-    requester: "이영희",
-    assignee: "담당자B",
-    createdAt: "2026-05-09",
-    description: "디자인팀 인원 증가로 Adobe CC 라이선스 2개 추가 필요",
-    notionUrl: "#",
-  },
-];
-
-// ─── Repair Tickets ───────────────────────────────────────────
 export const mockRepairTickets = [
   {
     id: "mock-rt-1",
@@ -498,42 +359,5 @@ export const mockHwRepairs = [
   },
 ];
 
-// ─── Monitor History ──────────────────────────────────────────
-export const mockMonitorHistory = [
-  {
-    id: "mock-mh-1",
-    title: "Zone Move: 3층 회의실 A → 3층 회의실 B",
-    itemId: "mock-item-1",
-    label: "모니터 #001",
-    building: "서울 본사",
-    floor: "3F",
-    eventType: "zone_move" as const,
-    from: "3층 회의실 A",
-    to: "3층 회의실 B",
-    description: "회의실 리모델링으로 이동",
-    status: "done" as const,
-    createdAt: "2026-04-20",
-    createdBy: "담당자A",
-  },
-];
-
-// ─── Monitor Assets ───────────────────────────────────────────
-export const mockMonitorAssets = [
-  {
-    id: "mock-ma-1",
-    itemId: "mock-item-1",
-    title: "서울 본사 3F - 모니터 #001",
-    assetNo: "MN-2024-001",
-    building: "서울 본사",
-    floor: "3F",
-    model: "27인치",
-    status: "사용중",
-    corp: "본사",
-    purchaseDate: "2024-03-15",
-    note: "",
-  },
-];
-
-// ─── Credentials (어드민 전용, 민감 정보 — 빈 배열로 반환) ────
+// ─── Credentials ──────────────────────────────────────────────
 export const mockCredentials: never[] = [];
-

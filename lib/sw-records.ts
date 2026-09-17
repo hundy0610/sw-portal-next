@@ -1,70 +1,13 @@
-import { Client } from "@notionhq/client";
 import type { SwDbRecord } from "@/types";
 import { readEntityOne } from "@/lib/repo/mirror";
 
-const notion = new Client({ auth: process.env.NOTION_TOKEN });
-
 export const SW_ENTITY = "sw";
 
-function fileNameFromUrl(url: string, fallback: string): string {
-  try {
-    const path = new URL(url).pathname;
-    const base = decodeURIComponent(path.split("/").pop() || "");
-    return base || fallback;
-  } catch {
-    return fallback;
-  }
-}
 
-/**
- * 초기 이관(seed)용 — Notion SW 레코드를 읽어 증서/기안문서(1시간 만료 서명 URL)를
- * Vercel Blob(영구)으로 옮기고, 미러 data(certificate/draftDocument = Blob URL)로 반환한다.
- */
-export async function seedSwFromNotion(): Promise<{ id: string; notionId: string; data: Record<string, unknown> }[]> {
-  const [{ fetchSwDatabaseFromNotion }, { uploadToBlob }] = await Promise.all([
-    import("@/lib/notion"),
-    import("@/lib/blob-store"),
-  ]);
-  const rows = await fetchSwDatabaseFromNotion();
-  const out: { id: string; notionId: string; data: Record<string, unknown> }[] = [];
-  const fileFields: [keyof SwDbRecord, string][] = [["certificate", "증서"], ["draftDocument", "기안문서"]];
-  for (const r of rows) {
-    const data: Record<string, unknown> = { ...r };
-    const synced: Record<string, string> = {};
-    for (const [field, prop] of fileFields) {
-      const url = (r[field] as string) || "";
-      if (url && /^https?:\/\//.test(url)) {
-        try {
-          const dl = await fetch(url);
-          if (dl.ok) {
-            const buf = Buffer.from(await dl.arrayBuffer());
-            const ct = dl.headers.get("content-type") || "application/octet-stream";
-            const blobUrl = await uploadToBlob(buf, fileNameFromUrl(url, prop), ct, "sw");
-            data[field as string] = blobUrl;
-            synced[prop] = blobUrl;
-          }
-        } catch (e) {
-          console.warn(`[sw seed] 파일 이관 실패(${r.id}/${prop}):`, (e as Error).message);
-        }
-      }
-    }
-    if (Object.keys(synced).length) data.__syncedFiles = synced;
-    out.push({ id: r.id, notionId: r.id, data });
-  }
-  return out;
-}
-
-// 법인 범위 검증용 — 미러(메인) 우선, 미스 시 Notion 직접 조회(전환 과도기 방어).
+// 법인 범위 검증용. 레코드가 없으면 null — 호출부가 "범위 밖"으로 처리한다.
 export async function getRecordCompany(id: string): Promise<string | null> {
   const rec = await readEntityOne<SwDbRecord>(SW_ENTITY, id);
-  if (rec) return rec.company ?? "";
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const page: any = await notion.pages.retrieve({ page_id: id });
-    return page.properties?.["법인명"]?.select?.name ?? "";
-  } catch {
-    return null;
-  }
+  return rec ? (rec.company ?? "") : null;
 }
 
 export type FieldMap = Record<string, unknown>;
