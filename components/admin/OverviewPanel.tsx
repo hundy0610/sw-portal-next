@@ -5,6 +5,7 @@ import type { SwItem, SwDbRecord } from "@/types";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import { scGet, scSet } from "@/lib/session-cache";
 import { safeJson } from "@/lib/fetch-json";
+import { isBannedPolicy } from "@/lib/sw-audit";
 
 const SC_SWDB  = "sc:overview:swdb";
 const SC_SWREC = (co: string) => `sc:overview:swrec${co ? `:${co}` : ""}`;
@@ -365,7 +366,7 @@ export default function OverviewPanel({ company = "" }: { company?: string }) {
             label: "SW DB 승인 목록",
             val: swDb.filter(s => s.status === "approved").length.toLocaleString(),
             unit: "종",
-            sub: `금지 ${swDb.filter(s => s.status === "banned").length}종 포함 전체 ${swDb.length}종`,
+            sub: `금지 ${swDb.filter(s => isBannedPolicy(s.status)).length}종 포함 전체 ${swDb.length}종`,
             color: "var(--state-neutral)",
           }] : [{
             label: "영구 라이선스",
