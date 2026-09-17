@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createRepairTicketRecord } from "@/lib/notion";
+import { createRepairTicketRecord } from "@/lib/mirror-entities";
 import { kvGet } from "@/lib/kv-store";
 import { createMailTransporter, buildRepairNewInquiryEmail } from "@/lib/mail";
 

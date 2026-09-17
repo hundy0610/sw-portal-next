@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import type { MobileSession } from "@/app/admin/mobile/page";
-import type { HelpDeskTicket } from "@/lib/notion";
+import type { HelpDeskTicket } from "@/lib/mirror-entities";
 import { safeJson } from "@/lib/fetch-json";
 
 interface Props {

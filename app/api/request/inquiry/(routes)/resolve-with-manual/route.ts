@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readEntityOne, upsertEntity } from "@/lib/repo/mirror";
-import type { HelpDeskTicket } from "@/lib/notion";
+import type { HelpDeskTicket } from "@/lib/mirror-entities";
 import { getManual, saveManual } from "@/lib/helpdesk-manuals";
 import { extractKeywords } from "@/lib/helpdesk-manual-match";
 

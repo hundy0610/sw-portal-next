@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import type { HelpDeskTicket } from "@/lib/notion";
+import type { HelpDeskTicket } from "@/lib/mirror-entities";
 import type { FeedbackEntry } from "@/app/api/feedback/route";
 import EnvVarMissing from "@/components/ui/EnvVarMissing";
 import { AssetModalInner, HwRecord, HW_STATUSES } from "@/components/admin/AssetModal";
@@ -2509,8 +2509,8 @@ export default function HelpDeskPanel({ company: companyFilter = "", typeFilter 
       {error && (
         <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
           {error}
-          {error.includes("NOTION_DB_HELPDESK") && (
-            <p className="mt-1 text-xs text-red-500">Vercel 환경변수에 <code className="bg-red-100 px-1 rounded">NOTION_DB_HELPDESK</code>를 추가해주세요.</p>
+          {error.includes("SUPABASE_URL") && (
+            <p className="mt-1 text-xs text-red-500">Vercel 환경변수에 <code className="bg-red-100 px-1 rounded">SUPABASE_URL</code> · <code className="bg-red-100 px-1 rounded">SUPABASE_KEY</code> 를 확인해주세요.</p>
           )}
         </div>
       )}

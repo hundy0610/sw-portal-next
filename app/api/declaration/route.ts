@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
 import { errorMessage } from "@/lib/api-error";
-import { fetchSwDatabase } from "@/lib/notion";
+import { fetchSwDatabase } from "@/lib/mirror-entities";
 import { readEntityOne, upsertEntity } from "@/lib/repo/mirror";
-import { SW_ENTITY } from "@/lib/sw-notion";
+import { SW_ENTITY } from "@/lib/sw-records";
 import type { SwDbRecord } from "@/types";
 
 // 4.0verMACBOOK: SW 자가신고 플로우도 맥북 Postgres 미러(메인)를 읽고 쓴다.

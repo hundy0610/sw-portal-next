@@ -339,10 +339,10 @@ export default function AdminPage() {
         </div>
 
         <div className="ml-auto flex items-center gap-3">
-          {/* Notion 연동 상태 */}
+          {/* 데이터 저장소 상태 */}
           <div className="flex items-center gap-1 text-xs text-gray-400">
             <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-            Notion 연동 중
+            DB 연결됨
           </div>
 
           {/* 갱신 알림 벨 */}

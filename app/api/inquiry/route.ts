@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createHelpDeskTicket } from "@/lib/notion";
+import { createHelpDeskTicket } from "@/lib/mirror-entities";
 
 export const dynamic = "force-dynamic";
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { kvGet, kvSet } from "@/lib/kv-store";
 import { readEntityOne, upsertEntity } from "@/lib/repo/mirror";
-import type { HelpDeskTicket } from "@/lib/notion";
+import type { HelpDeskTicket } from "@/lib/mirror-entities";
 
 export interface FeedbackEntry {
   ticketId: string;

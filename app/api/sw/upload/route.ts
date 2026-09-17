@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromCookieHeader, resolveCurrentName, companyScope } from "@/lib/session";
 import { errorMessage } from "@/lib/api-error";
 import { upsertEntity, isMirrorEnabled } from "@/lib/repo/mirror";
-import { SW_ENTITY } from "@/lib/sw-notion";
+import { SW_ENTITY } from "@/lib/sw-records";
 import type { SwDbRecord } from "@/types";
 
 export const dynamic = "force-dynamic";

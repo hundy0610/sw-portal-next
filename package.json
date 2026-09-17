@@ -8,14 +8,9 @@
     "start": "next start",
     "lint": "next lint",
     "migrate": "node --env-file=.env --import tsx scripts/migrate.ts",
-    "seed:hw": "node --env-file=.env --import tsx scripts/seed-hw.ts",
-    "seed:kv": "node --env-file=.env --import tsx scripts/seed-kv.ts",
-    "seed:entities": "node --env-file=.env --import tsx scripts/seed-entities.ts",
-  "seed:sw-resources": "node --env-file=.env --import tsx scripts/seed-sw-resources.ts",
-    "backup:notion": "node --env-file=.env --import tsx scripts/backup-to-notion.ts"
+    "seed:kv": "node --env-file=.env --import tsx scripts/seed-kv.ts"
   },
   "dependencies": {
-    "@notionhq/client": "^2.2.15",
     "@supabase/supabase-js": "^2.110.8",
     "@tanstack/react-query": "^5.101.0",
     "@tanstack/react-query-devtools": "^5.101.0",
