@@ -1,6 +1,6 @@
 "use client";
 import { useState, useMemo, useEffect, useCallback } from "react";
-import type { MonitorHistoryEntry } from "@/lib/notion";
+import type { MonitorHistoryEntry } from "@/lib/monitor-store";
 import { FLOOR_SKETCHES, SketchCtx, SketchZone } from "./FloorSketches";
 import MonitorAssetSection, { useMonitorAsset, AssetNoBadge } from "./MonitorAssetSection";
 import FloorMapEditor, { type EditorData, migrate } from "./FloorMapEditor";

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { decodeSession, resolveCurrentName } from "@/lib/session";
-import { fetchMonitorHistory, createMonitorHistory } from "@/lib/notion";
+import { fetchMonitorHistory, createMonitorHistory } from "@/lib/monitor-store";
 
 function getSession(req: NextRequest) {
   const token = req.cookies.get("admin_session")?.value;
