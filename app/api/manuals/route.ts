@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchManuals, createManual, updateManual, archiveManual } from "@/lib/notion";
+import { fetchManuals, createManual, updateManual, archiveManual } from "@/lib/sw-resources-store";
 import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";
 import { errorMessage } from "@/lib/api-error";
 
@@ -56,7 +56,6 @@ export async function POST(req: NextRequest) {
       }
 
       await updateManual(body.id, { ...body.data, slug }, {
-        fileUploadId:    body.data.fileUploadId    ?? undefined,
         externalFileUrl: body.data.externalFileUrl ?? undefined,
       });
       return NextResponse.json({ ok: true });
@@ -80,7 +79,6 @@ export async function POST(req: NextRequest) {
       visible:     body.visible     ?? true,
       order:       body.order       ?? 0,
     }, {
-      fileUploadId:    body.fileUploadId    ?? undefined,
       externalFileUrl: body.externalFileUrl ?? undefined,
     });
     return NextResponse.json({ ok: true, id });

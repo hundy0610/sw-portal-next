@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deleteEntity } from "@/lib/repo/mirror";
-import { SW_ENTITY } from "@/lib/sw-notion";
+import { SW_ENTITY } from "@/lib/sw-records";
 
 export const dynamic = "force-dynamic";
 

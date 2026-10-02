@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listManuals, saveManual, deleteManual } from "@/lib/helpdesk-manuals";
 import { extractPerTicketKeywordSets } from "@/lib/helpdesk-manual-match";
-import { fetchHelpDeskTickets, getCachedHelpdeskTicketsRaw, type HelpDeskTicket } from "@/lib/notion";
+import { fetchHelpDeskTickets, getCachedHelpdeskTicketsRaw, type HelpDeskTicket } from "@/lib/mirror-entities";
 
 export const dynamic = "force-dynamic";
 

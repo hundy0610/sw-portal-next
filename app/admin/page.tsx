@@ -24,8 +24,6 @@ const RepairPanel       = dynamic(() => import("@/components/admin/RepairPanel")
 const HwRepairPanel          = dynamic(() => import("@/components/admin/HwRepairPanel"),          { ssr: false });
 const ExchangeReturnPanel    = dynamic(() => import("@/components/admin/ExchangeReturnPanel"),    { ssr: false });
 const WorkFeedbackPanel      = dynamic(() => import("@/components/admin/WorkFeedbackPanel"),      { ssr: false });
-const BugReportPanel         = dynamic(() => import("@/components/admin/BugReportPanel"),         { ssr: false });
-const WorkTrackerPanel        = dynamic(() => import("@/components/admin/WorkTrackerPanel"),       { ssr: false });
 const MeetingRentalPanel      = dynamic(() => import("@/components/admin/MeetingRentalPanel"),      { ssr: false });
 const RenewalAlertModal       = dynamic(() => import("@/components/admin/RenewalAlertModal"),       { ssr: false });
 const SurveyDemandPanel       = dynamic(() => import("@/components/admin/SurveyDemandPanel"),       { ssr: false });
@@ -45,10 +43,10 @@ interface SessionInfo {
   mustChangePassword?: boolean;
 }
 
-type PageId = "home" | "overview" | "license" | "credentials" | "swdb" | "saas-usage" | "report" | "card-import" | "governance" | "vendor-consolidation" | "hw" | "rental-hw" | "accounts" | "assetmap" | "helpdesk" | "contracts" | "repair" | "hw-repair" | "exchange-return" | "work-feedback" | "bugreport" | "worktracker" | "meeting-rental" | "survey-demand" | "pc-scan" | "pc-register" | "asset-audit-settings" | "org-chart" | "asset-audit-dashboard";
+type PageId = "home" | "overview" | "license" | "credentials" | "swdb" | "saas-usage" | "report" | "card-import" | "governance" | "vendor-consolidation" | "hw" | "rental-hw" | "accounts" | "assetmap" | "helpdesk" | "contracts" | "repair" | "hw-repair" | "exchange-return" | "work-feedback" | "meeting-rental" | "survey-demand" | "pc-scan" | "pc-register" | "asset-audit-settings" | "org-chart" | "asset-audit-dashboard";
 
 // 슈퍼어드민 전용 페이지 (company 계정은 접근 불가)
-const SUPER_ONLY_PAGES = new Set<PageId>(["credentials", "swdb", "saas-usage", "accounts", "contracts", "rental-hw", "hw-repair", "exchange-return", "work-feedback", "worktracker", "meeting-rental", "pc-scan", "pc-register", "asset-audit-settings", "org-chart", "asset-audit-dashboard", "card-import", "governance", "vendor-consolidation"]);
+const SUPER_ONLY_PAGES = new Set<PageId>(["credentials", "swdb", "saas-usage", "accounts", "contracts", "rental-hw", "hw-repair", "exchange-return", "work-feedback", "meeting-rental", "pc-scan", "pc-register", "asset-audit-settings", "org-chart", "asset-audit-dashboard", "card-import", "governance", "vendor-consolidation"]);
 
 // ── 메뉴 정의 ──────────────────────────────────────────────────
 type MenuItem = { id: PageId; icon: string; label: string; desc: string; children?: MenuItem[] };
@@ -108,8 +106,6 @@ const SUPER_GROUPS: MenuGroup[] = [
       { id: "accounts",      icon: "",   label: "계정 권한 설정", desc: "담당자 계정 관리"    },
       { id: "contracts",     icon: "",   label: "계약 관리",       desc: "PC/OA 유지보수 계약" },
       { id: "work-feedback", icon: "",   label: "업무 피드백",     desc: "연/월/주간 목표 관리" },
-      { id: "bugreport",     icon: "",   label: "버그리포트",      desc: "버그 및 개선요청 관리" },
-      { id: "worktracker",   icon: "",   label: "작업 트래커",     desc: "개인 작업 칸반 관리"   },
     ],
   },
 ];
@@ -266,8 +262,6 @@ export default function AdminPage() {
       case "contracts":     return canAccess("contracts")   ? <ContractPanel />   : <AccessDenied />;
       case "survey-demand": return <SurveyDemandPanel />;
       case "work-feedback": return canAccess("work-feedback") ? <WorkFeedbackPanel session={{ role: session.role, userId: session.userId, name: session.name }} /> : <AccessDenied />;
-      case "bugreport":     return <BugReportPanel />;
-      case "worktracker":   return canAccess("worktracker") ? <WorkTrackerPanel session={{ userId: session.userId, name: session.name }} /> : <AccessDenied />;
       case "pc-scan":       return canAccess("pc-scan") ? <PcScanPanel /> : <AccessDenied />;
       case "pc-register":   return canAccess("pc-register") ? <PcRegisterPanel /> : <AccessDenied />;
       case "asset-audit-settings": return canAccess("asset-audit-settings") ? <AssetAuditSettingsPanel /> : <AccessDenied />;
@@ -345,10 +339,10 @@ export default function AdminPage() {
         </div>
 
         <div className="ml-auto flex items-center gap-3">
-          {/* Notion 연동 상태 */}
+          {/* 데이터 저장소 상태 */}
           <div className="flex items-center gap-1 text-xs text-gray-400">
             <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-            Notion 연동 중
+            DB 연결됨
           </div>
 
           {/* 갱신 알림 벨 */}

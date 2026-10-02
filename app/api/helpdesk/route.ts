@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
-import { fetchHelpDeskTickets } from "@/lib/notion";
+import { fetchHelpDeskTickets } from "@/lib/mirror-entities";
 import { isMirrorEnabled } from "@/lib/repo/mirror";
-import type { HelpDeskTicket } from "@/lib/notion";
+import type { HelpDeskTicket } from "@/lib/mirror-entities";
 import { getSessionFromCookieHeader, companyScope } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 // 4.0verMACBOOK: 맥북 Postgres 미러가 메인. 캐시 없이 매 요청 직접 조회해 즉시 반영.
 export async function GET(req: Request) {
-  if (!isMirrorEnabled() && !process.env.NOTION_TOKEN) {
+  if (!isMirrorEnabled()) {
     return NextResponse.json({ missingEnv: "SUPABASE_URL", error: "데이터 저장소가 설정되지 않았습니다." }, { status: 503 });
   }
   const session = getSessionFromCookieHeader(req.headers.get("cookie"));

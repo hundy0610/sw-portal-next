@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import type { SwItem } from "@/types";
 import type { Notice, Course } from "@/types/portal";
 import { safeJson } from "@/lib/fetch-json";
+import { policyGroup, type SwPolicyGroup } from "@/lib/sw-audit";
 
 type Tab = "home" | "education" | "search";
 
@@ -509,7 +510,7 @@ function SearchTab() {
   const [items,    setItems]    = useState<SwItem[]>([]);
   const [query,    setQuery]    = useState("");
   const [loading,  setLoading]  = useState(true);
-  const [filter,   setFilter]   = useState<"all" | "approved" | "banned" | "conditional">("all");
+  const [filter,   setFilter]   = useState<"all" | SwPolicyGroup>("all");
   const [selected, setSelected] = useState<SwItem | null>(null);
   const [catFilter, setCatFilter] = useState<string>("all");
 
@@ -533,28 +534,32 @@ function SearchTab() {
   const hasInput = query.trim().length >= 1 || filter !== "all" || catFilter !== "all";
 
   const filtered = hasInput ? items.filter(s => {
-    if (filter !== "all" && s.status !== filter) return false;
+    if (filter !== "all" && policyGroup(s.status) !== filter) return false;
     if (catFilter !== "all" && s.category !== catFilter) return false;
     if (!query.trim()) return true;
     const q = query.toLowerCase();
     return [s.name, s.vendor, s.category, ...s.alternatives].some(v => v.toLowerCase().includes(q));
   }) : [];
 
+  // 금지는 banned·blocked 두 표기를 합쳐 센다 — 예전엔 "banned" 만 세서 blocked 로
+  // 등록된 금지 SW 가 전부 0 으로 빠졌다.
   const counts = {
     all:         items.length,
-    approved:    items.filter(s => s.status === "approved").length,
-    conditional: items.filter(s => s.status === "conditional").length,
-    banned:      items.filter(s => s.status === "banned").length,
+    approved:    items.filter(s => policyGroup(s.status) === "approved").length,
+    conditional: items.filter(s => policyGroup(s.status) === "conditional").length,
+    banned:      items.filter(s => policyGroup(s.status) === "banned").length,
+    excluded:    items.filter(s => policyGroup(s.status) === "excluded").length,
   };
 
-  const STATUS_STYLE: Record<string, { color: string; bg: string; border: string; label: string }> = {
+  const STATUS_STYLE: Record<SwPolicyGroup, { color: string; bg: string; border: string; label: string }> = {
     approved:    { color: "var(--state-positive)", bg: "var(--state-positive-soft)", border: "var(--state-positive)", label: "승인됨"  },
     conditional: { color: "var(--state-caution)",  bg: "var(--state-caution-soft)",  border: "var(--state-caution)",  label: "조건부"  },
     banned:      { color: "var(--state-risk)",     bg: "var(--state-risk-soft)",     border: "var(--state-risk)",     label: "금지됨"  },
+    excluded:    { color: "var(--state-progress)", bg: "var(--state-progress-soft)", border: "var(--state-progress)", label: "예외"    },
   };
 
   const FILTER_LABELS: Record<string, string> = {
-    all: "전체", approved: "승인됨", conditional: "조건부", banned: "금지됨",
+    all: "전체", approved: "승인됨", conditional: "조건부", banned: "금지됨", excluded: "예외",
   };
 
   return (
@@ -609,7 +614,10 @@ function SearchTab() {
 
       {/* 상태 필터 칩 */}
       <div className="flex flex-wrap gap-2 mb-3">
-        {(["all", "approved", "conditional", "banned"] as const).map(key => (
+        {/* 예외 칩은 항목이 있을 때만 — 없는 동안 전 직원에게 "예외 0" 만 보일 이유가 없다. */}
+        {(["all", "approved", "conditional", "banned", "excluded"] as const)
+          .filter(key => key !== "excluded" || counts.excluded > 0)
+          .map(key => (
           <button key={key} onClick={() => { setFilter(key); setSelected(null); }}
             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all"
             style={{
@@ -708,7 +716,7 @@ function SearchTab() {
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {filtered.map(s => {
-                  const ss = STATUS_STYLE[s.status];
+                  const ss = STATUS_STYLE[policyGroup(s.status)];
                   const cs = catStyle();
                   const isOpen = selected?.id === s.id;
                   return (
@@ -759,9 +767,10 @@ function SearchTab() {
                             </div>
                           )}
                           <div className="text-xs p-3" style={{ borderRadius: 10, background: ss.bg, color: ss.color }}>
-                            {s.status === "approved"    && "사내 공식 승인된 소프트웨어입니다. 자유롭게 사용할 수 있습니다."}
-                            {s.status === "banned"      && "사용이 금지된 소프트웨어입니다. 즉시 삭제하고 IT팀에 신고해주세요."}
-                            {s.status === "conditional" && (
+                            {policyGroup(s.status) === "approved"    && "사내 공식 승인된 소프트웨어입니다. 자유롭게 사용할 수 있습니다."}
+                            {policyGroup(s.status) === "banned"      && "사용이 금지된 소프트웨어입니다. 즉시 삭제하고 IT팀에 신고해주세요."}
+                            {policyGroup(s.status) === "excluded"    && "은행·공공기관 접속이나 하드웨어 구동을 위해 자동으로 설치되는 프로그램입니다. 승인/금지 판정 대상이 아니며, 임의로 삭제하면 해당 서비스가 동작하지 않을 수 있습니다."}
+                            {policyGroup(s.status) === "conditional" && (
                               <span className="flex items-start justify-between gap-3">
                                 <span>IT팀 사전 승인 후 사용 가능합니다.</span>
                                 <a href={INQUIRY_URL} target="_blank" rel="noopener noreferrer"

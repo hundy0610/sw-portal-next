@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchSwDocs, createSwDoc, updateSwDoc, archiveSwDoc } from "@/lib/notion";
+import { fetchSwDocs, createSwDoc, updateSwDoc, archiveSwDoc } from "@/lib/sw-resources-store";
 import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";
 import { errorMessage } from "@/lib/api-error";
 
@@ -37,7 +37,6 @@ export async function POST(req: NextRequest) {
     }
     if (body._action === "update") {
       await updateSwDoc(body.id, body.data, {
-        fileUploadId:    body.data.fileUploadId    ?? undefined,
         externalFileUrl: body.data.externalFileUrl ?? undefined,
         externalFileName: body.data.externalFileName ?? undefined,
         clearFile:       body.data.clearFile       ?? undefined,
@@ -53,7 +52,6 @@ export async function POST(req: NextRequest) {
       visible:     body.visible     ?? true,
       order:       body.order       ?? 0,
     }, {
-      fileUploadId:     body.fileUploadId     ?? undefined,
       externalFileUrl:  body.externalFileUrl  ?? undefined,
       externalFileName: body.externalFileName ?? undefined,
     });

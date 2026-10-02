@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchContracts, createContract } from "@/lib/contract-notion";
+import { fetchContracts, createContract } from "@/lib/contracts";
 import { isMirrorEnabled } from "@/lib/repo/mirror";
 import type { ContractStage } from "@/types/contract";
 import { errorMessage } from "@/lib/api-error";
@@ -11,11 +11,8 @@ export async function DELETE() {
 
 // GET /api/contracts
 export async function GET() {
-  // 4.0verMACBOOK: 메인 저장소는 맥북 Postgres(미러). 미러가 꺼져 있을 때만 Notion 필요.
   if (!isMirrorEnabled()) {
-    for (const v of ["NOTION_TOKEN", "NOTION_DB_CONTRACTS"]) {
-      if (!process.env[v]) return NextResponse.json({ missingEnv: v, error: `환경변수 ${v} 가 설정되지 않았습니다.` }, { status: 503 });
-    }
+    return NextResponse.json({ missingEnv: "SUPABASE_URL", error: "데이터 저장소가 설정되지 않았습니다." }, { status: 503 });
   }
   try {
     const contracts = await fetchContracts();

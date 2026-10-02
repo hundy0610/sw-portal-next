@@ -10,7 +10,7 @@ const MAX_FILE_BASE64_BYTES = 5 * 1024 * 1024;
 const MAX_BODY_BYTES = 8 * 1024 * 1024;
 
 // PC 신규 등록(자산 실사 방식) 전용 수집 엔드포인트.
-// 온라인 자산 실사(/api/pc-scan)와 별개 DB(NOTION_DB_PC_REGISTER)에 적재한다.
+// 온라인 자산 실사(/api/pc-scan)와 별도 저장소(entity_store 'pc-register')에 적재한다.
 export async function POST(req: NextRequest) {
   const scanKey = process.env.PC_REGISTER_INGEST_KEY;
   if (!scanKey || req.headers.get("x-scan-key") !== scanKey) {
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
   try {
     const result = await upsertPcScan(
       { ...body, serial, pcName, isDualOrShared, originalCorp },
-      "NOTION_DB_PC_REGISTER"
+      "pc-register"
     );
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {

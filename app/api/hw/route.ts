@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { type HwRecord, fetchHwFiltered, parseChangeLog } from "@/lib/hw";
+import { type HwRecord, parseChangeLog } from "@/lib/hw";
 import { getHwAllFromPostgres, isPostgresEnabled } from "@/lib/repo/hw";
 import { errorMessage } from "@/lib/api-error";
 import { getSessionFromCookieHeader, companyScope } from "@/lib/session";
@@ -18,8 +18,9 @@ function matchesPastUserOrDept(changeLogRaw: string, q: string): boolean {
 }
 
 export async function GET(req: NextRequest) {
-  // Postgres(맥북) 경로가 켜져 있으면 NOTION_TOKEN 이 없어도 진행(폴백용으로만 사용).
-  if (!process.env.NOTION_TOKEN && !isPostgresEnabled()) return NextResponse.json({ missingEnv: "NOTION_TOKEN", error: "환경변수 NOTION_TOKEN 이 설정되지 않았습니다." }, { status: 503 });
+  if (!isPostgresEnabled()) {
+    return NextResponse.json({ missingEnv: "SUPABASE_URL", error: "데이터 저장소(Postgres)가 설정되지 않았습니다." }, { status: 503 });
+  }
 
   const session = getSessionFromCookieHeader(req.headers.get("cookie"));
   if (!session) {
@@ -35,24 +36,15 @@ export async function GET(req: NextRequest) {
   const assetNo   = searchParams.get("assetNo")?.trim()   || "";
   const returnDue = searchParams.get("returnDue") === "1";
   const refresh   = searchParams.get("refresh") === "1";
-  // 탭별 필터 직접 조회용 (KV cold miss 시 Notion 직접 쿼리)
   const statuses  = searchParams.get("statuses")?.split(",").map(s => s.trim()).filter(Boolean) ?? [];
 
   try {
-    // 1차 소스: 맥북 Postgres(자체 Supabase, Tailscale Funnel 경유).
-    // Postgres 미설정(로컬 dev 등) 시에만 null → Notion 직접 필터 조회로 폴백.
-    // 설정됐는데 조회가 실패하면 getHwAllFromPostgres가 throw하고, 아래 catch가
-    // 처리한다(옛 hw:all KV 스냅샷 폴백은 4.0에서 제거 — 갱신 주체가 없어 영구히 얼어붙어 있었음).
+    // 유일한 소스: 맥북 Postgres(자체 Supabase, Tailscale Funnel 경유).
+    // 조회가 실패하면 getHwAllFromPostgres 가 throw 하고 아래 catch 가 처리한다
+    // (옛 hw:all KV 스냅샷 폴백은 4.0에서 제거 — 갱신 주체가 없어 영구히 얼어붙어 있었음).
     const records = await getHwAllFromPostgres();
 
     if (!records) {
-      if (statuses.length > 0 || returnDue || assetNo || search) {
-        // 필터가 있으면 Notion 직접 조회 (결과 수십~백 건 → 1~3 호출, 타임아웃 안전)
-        // search는 자산번호 정확 일치가 아니라 사용자/자산번호/모델/시리얼/부서 부분 일치
-        // OR 검색이므로 assetNo와 분리해서 넘긴다 (fetchHwFiltered 참고)
-        const filtered = await fetchHwFiltered({ statuses, returnDue, company, assetNo, search });
-        return NextResponse.json({ ok: true, records: filtered });
-      }
       return NextResponse.json({
         ok: false,
         records: [],

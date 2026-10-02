@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchSwDatabase } from "@/lib/notion";
+import { fetchSwDatabase } from "@/lib/mirror-entities";
 import { mapCategory } from "@/lib/reportTypes";
 import { errorMessage } from "@/lib/api-error";
 import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";

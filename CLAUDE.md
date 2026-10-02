@@ -1,5 +1,9 @@
 # CLAUDE.md
 
+> ⚠️ **2026-09: Notion 연동은 전부 제거됐습니다.** 아래 문서에 남아 있는 Notion·백업 러너·
+> `NOTION_*` 환경변수 서술은 **옛 구조**입니다. 현재 저장소는 맥북 Postgres 하나이고 백업은
+> 주간 `pg_dump` 입니다 — `docs/ARCHITECTURE-4.0.md` 를 먼저 보세요.
+
 > 이 프로젝트의 개발 가이드는 **[AGENTS.md](AGENTS.md)** 에 있다. 작업 전 반드시 먼저 읽을 것.
 > 전체 상세 아키텍처는 **[docs/ARCHITECTURE-4.0.md](docs/ARCHITECTURE-4.0.md)**.
 

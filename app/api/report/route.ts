@@ -1,4 +1,4 @@
-import { fetchSwDatabase } from "@/lib/notion";
+import { fetchSwDatabase } from "@/lib/mirror-entities";
 import { mapCategory } from "@/lib/reportTypes";
 import type { SubRow, DeptSummary, ReportData } from "@/lib/reportTypes";
 import { errorMessage } from "@/lib/api-error";
@@ -10,9 +10,6 @@ const FALLBACK_RATE = 1380; // 환율 API 자체가 완전히 실패했을 때�
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
-  for (const v of ["NOTION_TOKEN", "NOTION_DB_SW_UNIFIED"]) {
-    if (!process.env[v]) return Response.json({ missingEnv: v, error: `환경변수 ${v} 가 설정되지 않았습니다.` }, { status: 503 });
-  }
   const session = getSessionFromCookieHeader(req.headers.get("cookie"));
   if (!session) {
     return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });

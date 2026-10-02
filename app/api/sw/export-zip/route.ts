@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import JSZip from "jszip";
 import { getSessionFromCookieHeader, companyScope } from "@/lib/session";
-import { fetchSwDatabase } from "@/lib/notion";
+import { fetchSwDatabase } from "@/lib/mirror-entities";
 import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";

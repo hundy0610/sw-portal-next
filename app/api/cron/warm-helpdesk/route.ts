@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchHelpDeskTickets } from "@/lib/notion";
+import { fetchHelpDeskTickets } from "@/lib/mirror-entities";
 import { kvSet } from "@/lib/kv-store";
 import { memDel } from "@/lib/mem-cache";
 

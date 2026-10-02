@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { readEntityOne } from "@/lib/repo/mirror";
-import type { HelpDeskTicket } from "@/lib/notion";
+import type { HelpDeskTicket } from "@/lib/mirror-entities";
 
 const HD_ENTITY = "helpdesk";
 

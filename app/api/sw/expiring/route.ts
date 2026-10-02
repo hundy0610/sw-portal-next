@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchSwDatabase } from "@/lib/notion";
+import { fetchSwDatabase } from "@/lib/mirror-entities";
 import { getSessionFromCookieHeader, companyScope } from "@/lib/session";
 
 export const dynamic = "force-dynamic";

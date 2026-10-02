@@ -5,16 +5,8 @@ import { isMirrorEnabled } from "@/lib/repo/mirror";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  // 4.0verMACBOOK: 메인 저장소는 맥북 Postgres(미러). 미러가 꺼져 있을 때만 Notion 필요.
   if (!isMirrorEnabled()) {
-    for (const v of ["NOTION_TOKEN", "NOTION_DB_EXCHANGE_RETURN"]) {
-      if (!process.env[v]) {
-        return NextResponse.json(
-          { missingEnv: v, error: `환경변수 ${v} 가 설정되지 않았습니다.` },
-          { status: 503 }
-        );
-      }
-    }
+    return NextResponse.json({ missingEnv: "SUPABASE_URL", error: "데이터 저장소가 설정되지 않았습니다." }, { status: 503 });
   }
 
   const { searchParams } = new URL(req.url);

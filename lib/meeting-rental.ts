@@ -1,54 +1,13 @@
-import { notionRequest } from "@/shared/lib/notion";
 import { readEntity, readEntityOne, upsertEntity } from "@/lib/repo/mirror";
 import type { MeetingRentalTicket } from "@/types";
 
 const MR_ENTITY = "meeting-rental";
 
-function mapPage(page: any): MeetingRentalTicket {
-  const p = page.properties;
-  return {
-    id: page.id,
-    requester: p.신청자?.title?.[0]?.plain_text ?? "",
-    company: p.법인명?.select?.name ?? "",
-    department: p.부서?.rich_text?.[0]?.plain_text ?? "",
-    email: p["신청자 이메일"]?.email ?? "",
-    startAt: p.신청기간?.date?.start ?? "",
-    endAt: p.신청기간?.date?.end ?? "",
-    status: (p.상태?.status?.name ?? "시작 전") as MeetingRentalTicket["status"],
-    assignee: p.담당자?.people?.[0]?.name ?? "",
-    assigneeId: p.담당자?.people?.[0]?.id ?? "",
-    createdAt: page.created_time,
-    notionUrl: page.url,
-  };
-}
 
-// 4.0verMACBOOK: 메인 저장소(맥북 Postgres 미러) 우선, 미설정/미스 시 Notion 백업 폴백.
 export async function fetchMeetingRentalTickets(): Promise<MeetingRentalTicket[]> {
   const mir = await readEntity<MeetingRentalTicket>(MR_ENTITY);
-  if (mir) return [...mir].sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
-  return fetchMeetingRentalTicketsFromNotion();
-}
-
-// Notion 직접 조회(초기 seed / 폴백 전용).
-export async function fetchMeetingRentalTicketsFromNotion(): Promise<MeetingRentalTicket[]> {
-  const dataSourceId = process.env.MEETING_RENTAL_DATA_SOURCE_ID;
-  if (!dataSourceId) throw new Error("MEETING_RENTAL_DATA_SOURCE_ID 환경변수가 설정되지 않았습니다.");
-
-  const results: any[] = [];
-  let cursor: string | undefined;
-  do {
-    const res = await notionRequest<any>(`/data_sources/${dataSourceId}/query`, {
-      method: "POST",
-      body: {
-        start_cursor: cursor,
-        sorts: [{ timestamp: "created_time", direction: "descending" }],
-      },
-    });
-    results.push(...res.results);
-    cursor = res.has_more ? res.next_cursor ?? undefined : undefined;
-  } while (cursor);
-
-  return results.map(mapPage);
+  if (!mir) throw new Error("미러(맥북 Postgres) 미설정 — SUPABASE_URL/SUPABASE_KEY 를 확인하세요.");
+  return [...mir].sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
 }
 
 // 신규 대여신청 접수 → 맥북 Postgres 미러에 직접 기록.

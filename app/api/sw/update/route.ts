@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromCookieHeader, resolveCurrentName, companyScope } from "@/lib/session";
 import { errorMessage } from "@/lib/api-error";
-import { getRecordCompany, applyFields, SW_ENTITY, type FieldMap } from "@/lib/sw-notion";
+import { getRecordCompany, applyFields, SW_ENTITY, type FieldMap } from "@/lib/sw-records";
 import { readEntityOne, upsertEntity } from "@/lib/repo/mirror";
 import type { SwDbRecord } from "@/types";
 

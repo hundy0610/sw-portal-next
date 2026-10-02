@@ -76,78 +76,6 @@ export interface SaasItem {
 }
 
 // ────────────────────────────────────────────────────────────
-// 구독 관리
-// ────────────────────────────────────────────────────────────
-export interface Subscription {
-  id: string;
-  name: string;
-  logo: string;           // 이모지 또는 아이콘
-  version: string;
-  status: "구독 중" | "구독 해지";
-  team: string;
-  user: string;
-  userCount: number;
-  cycle: "월" | "연";
-  krw?: number;
-  usd?: number;
-  paymentMethod: string;
-  startDate: string;      // YYYY-MM-DD
-  notionUrl?: string;
-}
-
-// ────────────────────────────────────────────────────────────
-// 라이선스 트래커 (카테고리 요약용 - 기존 호환)
-// ────────────────────────────────────────────────────────────
-export interface LicenseItem {
-  id: string;
-  name: string;
-  category: string;
-  icon: string;
-  usedCount?: number;
-  totalCount?: number;
-  expiryDate?: string;    // YYYY-MM-DD
-  status?: string;
-  notionUrl?: string;
-}
-
-// ────────────────────────────────────────────────────────────
-// 라이선스 개별 레코드 (라이선스 트래커 DB의 각 row)
-// ────────────────────────────────────────────────────────────
-export interface LicenseRecord {
-  id: string;
-  userName: string;       // 사용자명 (title)
-  software: string;       // 소프트웨어명 (DB 카테고리)
-  softwareDetail: string; // 소프트웨어 (세부명칭)
-  version: string;        // 버전
-  usageStatus: "사용중" | "재고" | "지급대기" | "만료" | string; // 사용현황
-  company: string;        // 법인명
-  department: string;     // 부서
-  email: string;          // 이메일
-  licenseStartDate: string;  // 라이센스 시작일 YYYY-MM-DD
-  licenseExpiryDate: string; // 라이센스 만료일 YYYY-MM-DD
-  usageStartDate: string;    // 사용시작일 / 반납일자
-  vendor: string;         // 구매처
-  serialNumber: string;   // 시리얼넘버 (MS Office만)
-  notionUrl: string;
-}
-
-// ────────────────────────────────────────────────────────────
-// 티켓
-// ────────────────────────────────────────────────────────────
-export interface Ticket {
-  id: string;
-  title: string;
-  category: string;
-  priority: "높음" | "중간" | "낮음";
-  status: "접수" | "처리중" | "완료";
-  requester: string;
-  assignee?: string;
-  createdAt: string;      // YYYY-MM-DD
-  description: string;
-  notionUrl?: string;
-}
-
-// ────────────────────────────────────────────────────────────
 // 수리 접수
 // ────────────────────────────────────────────────────────────
 export interface RepairTicket {
@@ -162,7 +90,20 @@ export interface RepairTicket {
   location: string;        // [deprecated] 실제 근무 위치 (rich_text) — 구 티켓에만 값 존재
   building: string;        // 건물명 (select)
   floor: string;           // 층수 (rich_text)
-  assetId: string;         // 자산번호 (rich_text) — 모니터 번호
+  assetId: string;         // 자산번호 (rich_text) — 모니터 번호(자유 입력, 오타 가능)
+  /**
+   * 배치도 좌석 ID(예: BW-2FW-A01) — QR 스캔으로 접수됐을 때만 채워진다. 사람이
+   * 타이핑하는 assetId와 달리 오타가 없어, 배치도 상태 자동 연동은 반드시 이 값으로만
+   * 한다. 값이 없으면(수동 접수) 배치도 자동 전환 대상에서 제외한다.
+   */
+  itemId?: string;
+  /**
+   * itemId가 배치도에 등록된 위치(건물/층)와, 직원이 이 폼에 입력한 건물명/층수가
+   * 다를 때 true — 접수 시점에 서버가 자동으로 계산한다(사람이 입력하는 값 아님).
+   * 이사 등으로 모니터가 실제로 옮겨졌을 가능성을 관리자에게 알리는 용도.
+   */
+  locationMismatch?: boolean;
+
   detail: string;          // 세부내역 (rich_text) — 고장 증상 상세
   requester: string;       // 문의자 (rich_text)
   assignee: string;        // 담당자 이름 (people)
@@ -172,6 +113,7 @@ export interface RepairTicket {
   consentGiven: boolean;   // [deprecated] 수리 진행 동의서 (checkbox) — 구 티켓에만 값 존재
   createdAt: string;       // 문의 제출 시간 (created_time)
   notionUrl: string;
+  notifyBy?: "server";     // 신규 접수 알림 메일을 맥북 잡이 보낸다 — HelpDeskTicket.notifyBy 참고
 }
 
 // ────────────────────────────────────────────────────────────

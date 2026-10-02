@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorMessage } from "@/lib/api-error";
 import { readEntityOne, upsertEntity } from "@/lib/repo/mirror";
-import type { HelpDeskTicket } from "@/lib/notion";
+import type { HelpDeskTicket } from "@/lib/mirror-entities";
 
 export const dynamic = "force-dynamic";
 

@@ -1,5 +1,9 @@
 # SW 자산관리 포털 — 설치 및 배포 가이드
 
+> ⚠️ **2026-09: Notion 연동은 전부 제거됐습니다.** 아래 문서에 남아 있는 Notion·백업 러너·
+> `NOTION_*` 환경변수 서술은 **옛 구조**입니다. 현재 저장소는 맥북 Postgres 하나이고 백업은
+> 주간 `pg_dump` 입니다 — `docs/ARCHITECTURE-4.0.md` 를 먼저 보세요.
+
 ## 1단계: Notion Integration 생성
 
 1. https://www.notion.so/my-integrations 접속

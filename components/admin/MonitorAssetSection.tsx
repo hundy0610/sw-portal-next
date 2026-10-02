@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import type { MonitorAsset } from "@/lib/notion";
+import type { MonitorAsset } from "@/lib/monitor-store";
 import { safeJson } from "@/lib/fetch-json";
 
 const STATUS_OPTIONS = ["사용중", "수리중", "예비", "미설치", "폐기"];

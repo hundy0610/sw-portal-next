@@ -23,6 +23,21 @@ export function isBannedPolicy(status: SwItem["status"] | string): boolean {
   return status === "banned" || status === "blocked";
 }
 
+/**
+ * 화면에서 쓰는 표시 그룹. 상태값을 직접 맵 키로 쓰면 "blocked" 처럼 맵에 없는
+ * 값이 조용히 undefined 가 되고, 그 자리의 배지·경고문이 **아무 표시 없이 사라진다**
+ * (직원 조회 화면에서 금지 SW 가 경고 없는 평범한 카드로 보이던 원인).
+ * 항상 이 함수를 거쳐 4개 그룹 중 하나로 좁힌 뒤 맵을 조회한다.
+ */
+export type SwPolicyGroup = "approved" | "conditional" | "banned" | "excluded";
+
+export function policyGroup(status: SwItem["status"] | string): SwPolicyGroup {
+  if (isBannedPolicy(status)) return "banned";
+  if (status === "excluded") return "excluded";
+  if (status === "conditional") return "conditional";
+  return "approved";
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 자동 예외 판정 — SW DB에 등록돼 있지 않아도, 이름·게시자로 봤을 때 "사용자가
 // 능동적으로 선택한 게 아닌" SW로 추정되면 "unknown"이 아니라 "excluded"로

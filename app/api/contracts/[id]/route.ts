@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { updateContract, updateContractStage, deleteContract } from "@/lib/contract-notion";
+import { updateContract, updateContractStage, deleteContract } from "@/lib/contracts";
 import type { ContractStage } from "@/types/contract";
 import { errorMessage } from "@/lib/api-error";
 

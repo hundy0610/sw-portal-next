@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createHelpDeskTicket } from "@/lib/notion";
+import { createHelpDeskTicket } from "@/lib/mirror-entities";
 
 export const dynamic = "force-dynamic";
 
@@ -38,17 +38,9 @@ export async function POST(req: NextRequest) {
       urgency:        urgency       || "기다릴 수 있어요",
       content,
       assetNo:        assetNo       || "",
+      // 담당자 알림 메일은 맥북 잡이 이 표시를 보고 보낸다(수신자는 kv helpdesk:notify-emails).
+      notifyBy:       "server",
     });
-
-    // 4.0verMACBOOK: 문의는 이제 Postgres 미러가 메인이라 Notion 페이지가 즉시 생기지 않는다.
-    // 예전엔 Notion Automation 웹훅(helpdesk-new)이 신규 알림 메일을 보냈지만, 지연/누락을
-    // 없애기 위해 접수 시점에 앱에서 직접 관리자 알림 메일을 발송한다(웹훅은 무력화됨).
-    const origin = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin;
-    fetch(`${origin}/api/helpdesk/notify-new-inquiry`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ requester, company, department, inquiryType, urgency, content, assetNo }),
-    }).catch(e => console.error("[inquiry] notify failed:", e));
 
     return NextResponse.json({ ok: true, pageId }, { status: 201 });
   } catch (e) {

@@ -1,22 +1,12 @@
 import { NextResponse } from "next/server";
-import { notionRequest } from "@/shared/lib/notion";
+import { REPAIR_OPTIONS } from "@/lib/request-form-options";
 
+// 예전에는 Notion data source 스키마를 매 요청마다 읽었다. 지금은 스냅샷 상수다
+// (lib/request-form-options.ts). 응답 모양은 그대로라 폼은 손대지 않는다.
 export async function GET() {
-  try {
-    const notionResponse = await notionRequest<any>(`/data_sources/${process.env.REPAIR_TICKETS_DATA_SOURCE_ID}`);
-
-    const response = {
-      법인: (notionResponse.properties.법인.select?.options || []).map((option: { name: string }) => option.name),
-      건물명: (notionResponse.properties.건물명?.select?.options || []).map((option: { name: string }) => option.name),
-      고장내역: (notionResponse.properties["고장 내역"].multi_select?.options || []).map(
-        (option: { name: string }) => option.name,
-      ),
-    };
-
-    return NextResponse.json(response);
-  } catch (error: any) {
-    return NextResponse.json(error.data || { message: error.message }, {
-      status: (error.status as number) || 500,
-    });
-  }
+  return NextResponse.json({
+    법인: REPAIR_OPTIONS["법인"],
+    건물명: REPAIR_OPTIONS["건물명"],
+    고장내역: REPAIR_OPTIONS["고장 내역"],
+  });
 }

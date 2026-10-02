@@ -1,5 +1,9 @@
 # AGENTS.md — SW-PORTAL 4.0 개발/에이전트 가이드
 
+> ⚠️ **2026-09: Notion 연동은 전부 제거됐습니다.** 아래 문서에 남아 있는 Notion·백업 러너·
+> `NOTION_*` 환경변수 서술은 **옛 구조**입니다. 현재 저장소는 맥북 Postgres 하나이고 백업은
+> 주간 `pg_dump` 입니다 — `docs/ARCHITECTURE-4.0.md` 를 먼저 보세요.
+
 이 저장소는 **4.0 대규모 구조 변경** 상태다. 작업 전 이 문서를 반드시 읽는다.
 전체 상세는 **[docs/ARCHITECTURE-4.0.md](docs/ARCHITECTURE-4.0.md)** 참고.
 

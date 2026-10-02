@@ -1,4 +1,4 @@
-import type { HelpDeskTicket } from "@/lib/notion";
+import type { HelpDeskTicket } from "@/lib/mirror-entities";
 import type { HelpDeskManual } from "@/lib/helpdesk-manuals";
 
 // 조치내용/문의내용 텍스트에서 의미있는 키워드를 뽑아내는 공용 유틸.

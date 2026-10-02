@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromCookieHeader, companyScope } from "@/lib/session";
 import { readEntityOne } from "@/lib/repo/mirror";
-import { SW_ENTITY } from "@/lib/sw-notion";
+import { SW_ENTITY } from "@/lib/sw-records";
 import type { SwDbRecord } from "@/types";
 
 // 4.0verMACBOOK: 파일은 Vercel Blob(공개·영구 URL)에 저장된다. 미러 레코드의

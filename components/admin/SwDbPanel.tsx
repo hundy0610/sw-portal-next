@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import type { SwItem } from "@/types";
 import { safeJson } from "@/lib/fetch-json";
+import { isBannedPolicy } from "@/lib/sw-audit";
 
 const INQUIRY_URL = "https://assetify-desk.vercel.app/inquiry";
 
@@ -128,7 +129,7 @@ export default function SwDbPanel() {
   }, [apiItems]);
 
   const blacklist = useMemo<BlackItem[]>(() => {
-    const banned = apiItems.filter(s => s.status === "banned");
+    const banned = apiItems.filter(s => isBannedPolicy(s.status));
     if (banned.length > 0) {
       return banned.map(s => ({
         id: s.id, name: s.name, riskLevel: "high" as const,
@@ -139,7 +140,7 @@ export default function SwDbPanel() {
     return DEMO_BLACKLIST;
   }, [apiItems]);
 
-  const isDemo = apiItems.filter(s => s.status === "approved" || s.status === "banned").length === 0;
+  const isDemo = apiItems.filter(s => s.status === "approved" || isBannedPolicy(s.status)).length === 0;
 
   // 카테고리 목록
   const categories = useMemo(

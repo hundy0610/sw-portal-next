@@ -31,7 +31,7 @@ function toClient(r: CredentialRecord) {
 // 4.0verMACBOOK: 맥북 Postgres 미러(entity "credentials")에서 조회. 비밀번호는 미러에
 // 암호화 저장되며 응답 시 복호화한다.
 export async function GET() {
-  if (!isMirrorEnabled() && !process.env.NOTION_TOKEN) {
+  if (!isMirrorEnabled()) {
     return NextResponse.json({ missingEnv: "SUPABASE_URL", error: "데이터 저장소가 설정되지 않았습니다." }, { status: 503 });
   }
   try {

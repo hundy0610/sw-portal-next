@@ -83,6 +83,10 @@ spacing:
 
 ## Overview
 
+> ⚠️ **2026-09: Notion 연동은 전부 제거됐습니다.** 아래 문서에 남아 있는 Notion·백업 러너·
+> `NOTION_*` 환경변수 서술은 **옛 구조**입니다. 현재 저장소는 맥북 Postgres 하나이고 백업은
+> 주간 `pg_dump` 입니다 — `docs/ARCHITECTURE-4.0.md` 를 먼저 보세요.
+
 SW-PORTAL은 사내 SW 자산/라이선스 관리 포털로, 서로 다른 시기에 만들어진 세 개의 서브시스템이 한 저장소 안에 공존한다. **2026-07 디자인 체계 통일**로 Portal과 Admin은 색 토큰을 하나로 합쳤다 — 인터랙션 액센트는 `brand`(앰버) 하나만 쓰고, 현황·상태 표시는 `state-*` 5토큰(positive/progress/caution/risk/neutral)만 쓴다. 타이포그래피·spacing·rounded 스케일은 세 서브시스템이 계속 각자 유지한다(구조 변경 비용 대비 실익이 낮아 이번 통일 범위에서 제외).
 
 1. **Portal** (`app/page.tsx`, `app/resources` 등 일반 사용자 페이지) — Notion 문서를 닮은 따뜻한 앰버 톤. 친근하고 문서 중심적인 톤앤매너. `brand` 토큰이 곧 이 앰버.

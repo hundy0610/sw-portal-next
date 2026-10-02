@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchRepairTickets, createRepairTicket } from "@/lib/notion";
+import { fetchRepairTickets, createRepairTicket } from "@/lib/mirror-entities";
 import { isMirrorEnabled } from "@/lib/repo/mirror";
 import { getSessionFromCookieHeader, resolveCurrentName, companyScope } from "@/lib/session";
 import { createMailTransporter, buildMonitorRepairEmail } from "@/lib/mail";
@@ -8,7 +8,7 @@ import type { RepairTicket } from "@/types";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  if (!isMirrorEnabled() && !process.env.NOTION_TOKEN) {
+  if (!isMirrorEnabled()) {
     return NextResponse.json({ missingEnv: "SUPABASE_URL", error: "데이터 저장소가 설정되지 않았습니다." }, { status: 503 });
   }
   const session = getSessionFromCookieHeader(req.headers.get("cookie"));

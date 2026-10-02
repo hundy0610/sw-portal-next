@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import { createRepairTicketRecord } from "@/lib/notion";
-import { kvGet } from "@/lib/kv-store";
-import { createMailTransporter, buildRepairNewInquiryEmail } from "@/lib/mail";
+import { createRepairTicketRecord } from "@/lib/mirror-entities";
+import { findItemLocation, isLocationMismatch } from "@/lib/monitor-map";
 
 // 4.0verMACBOOK: 공개 수리 접수 폼 → 맥북 Postgres 미러(entity "repair")에 직접 기록.
-// 신규 알림 메일도 접수 시점에 앱에서 직접 발송한다(예전 Notion Automation 웹훅 대체).
+// 담당자 알림 메일은 맥북 잡이 notifyBy 표시를 보고 보낸다(수신자는 kv helpdesk:notify-emails).
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
@@ -17,6 +16,23 @@ export async function POST(request: Request) {
     const 모니터번호 = (formData.get("모니터번호") as string) || "";
     const 고장내역 = (formData.get("고장내역") as string) || "";
     const 세부내역 = (formData.get("세부내역") as string) || "";
+    // QR 스캔으로 접수됐을 때만 채워진다(배치도 좌석 ID) — 사람이 타이핑하는
+    // 모니터번호와 달리 오타가 없어, 배치도 상태 자동 연동은 이 값으로만 한다.
+    const itemId = (formData.get("itemId") as string) || "";
+
+    // itemId가 있으면(QR 접수) 배치도에 등록된 위치와 지금 입력된 건물/층을 대조한다.
+    // QR 확인 화면(예정)을 거치지 않고 이 폼으로 바로 온 경우를 위한 보완 장치다 —
+    // 새 입력 항목 없이 이미 있는 건물명/층수 필드만으로 판단한다. 도면 조회가
+    // 실패해도(네트워크 등) 접수 자체는 막지 않는다 — 위치 대조는 부가 기능이다.
+    let locationMismatch = false;
+    if (itemId) {
+      try {
+        const loc = await findItemLocation(itemId);
+        if (loc) locationMismatch = isLocationMismatch(loc.floorMap, 건물명, 층수);
+      } catch (e) {
+        console.warn("[request/repair] 위치 대조 실패(무시):", e);
+      }
+    }
 
     const ticketId = await createRepairTicketRecord({
       title: 모니터번호,
@@ -26,38 +42,12 @@ export async function POST(request: Request) {
       building: 건물명,
       floor: 층수,
       assetId: 모니터번호,
+      itemId: itemId || undefined,
+      locationMismatch,
       detail: 세부내역,
       requester: 문의자,
+      notifyBy: "server",
     });
-
-    // 관리자 신규 접수 알림 메일 (fire-and-forget)
-    void (async () => {
-      try {
-        const notifyEmails = (await kvGet<string[]>("helpdesk:notify-emails")) ?? [];
-        if (notifyEmails.length === 0) return;
-        const transporter = createMailTransporter();
-        if (!transporter) return;
-        const adminUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://swportal.vercel.app"}/admin`;
-        const html = buildRepairNewInquiryEmail({
-          assetId: 모니터번호 || "미상",
-          company: 법인,
-          department: 부서,
-          requester: 문의자,
-          workLocation: `${건물명} ${층수}`.trim(),
-          faultDesc: 세부내역,
-          faultTypes: 고장내역,
-          adminUrl,
-        });
-        await transporter.sendMail({
-          from: `"IDS 자산관리파트" <${process.env.GMAIL_USER}>`,
-          to: notifyEmails.join(", "),
-          subject: `[Repair] 신규 수리문의가 접수되었습니다.`,
-          html,
-        });
-      } catch (e) {
-        console.error("[request/repair] notify failed:", e);
-      }
-    })();
 
     return NextResponse.json({ ticketId });
   } catch (error) {

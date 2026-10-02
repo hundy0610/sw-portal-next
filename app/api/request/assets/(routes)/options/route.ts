@@ -1,40 +1,18 @@
 import { NextResponse } from "next/server";
-import { notionRequest } from "@/shared/lib/notion";
+import { ASSET_OPTIONS } from "@/lib/request-form-options";
 
+// 예전에는 Notion data source 스키마를 매 요청마다 읽었다. 지금은 스냅샷 상수다
+// (lib/request-form-options.ts). 응답 모양은 그대로라 폼은 손대지 않는다.
 export async function GET() {
-  try {
-    const notionResponse = await notionRequest<any>(`/data_sources/${process.env.ASSETS_DATA_SOURCE_ID}`);
-
-    const response = {
-      "사용/재고/폐기/기타": (notionResponse.properties["사용/재고/폐기/기타"].select?.options || []).map(
-        (option: { name: string }) => option.name,
-      ),
-      법인명: (notionResponse.properties.법인명.select?.options || []).map((option: { name: string }) => option.name),
-      제조사: (notionResponse.properties.제조사.select?.options || []).map((option: { name: string }) => option.name),
-      출고진행상황: (notionResponse.properties.출고진행상황.status?.options || []).map(
-        (option: { name: string }) => option.name,
-      ),
-      "수리 작업 유형": (notionResponse.properties["수리 작업 유형"].multi_select?.options || []).map(
-        (option: { name: string }) => option.name,
-      ),
-      수리진행상황: (notionResponse.properties.수리진행상황.status?.options || []).map(
-        (option: { name: string }) => option.name,
-      ),
-      "반납 진행 상황": (notionResponse.properties["반납 진행 상황"].status?.options || []).map(
-        (option: { name: string }) => option.name,
-      ),
-      반납사유: (notionResponse.properties.반납사유.select?.options || []).map(
-        (option: { name: string }) => option.name,
-      ),
-      "누락 사항": (notionResponse.properties["누락 사항"].multi_select?.options || []).map(
-        (option: { name: string }) => option.name,
-      ),
-    };
-
-    return NextResponse.json(response);
-  } catch (error: any) {
-    return NextResponse.json(error.data || { message: error.message }, {
-      status: (error.status as number) || 500,
-    });
-  }
+  return NextResponse.json({
+    "사용/재고/폐기/기타": ASSET_OPTIONS["사용/재고/폐기/기타"],
+    법인명: ASSET_OPTIONS["법인명"],
+    제조사: ASSET_OPTIONS["제조사"],
+    출고진행상황: ASSET_OPTIONS["출고진행상황"],
+    "수리 작업 유형": ASSET_OPTIONS["수리 작업 유형"],
+    수리진행상황: ASSET_OPTIONS["수리진행상황"],
+    "반납 진행 상황": ASSET_OPTIONS["반납 진행 상황"],
+    반납사유: ASSET_OPTIONS["반납사유"],
+    "누락 사항": ASSET_OPTIONS["누락 사항"],
+  });
 }

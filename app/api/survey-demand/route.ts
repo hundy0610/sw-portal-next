@@ -23,7 +23,7 @@ export interface SurveyDemandRecord {
 // ── POST: 설문 응답 제출 (인증 불필요) ───────────────────────────────
 // 4.0verMACBOOK: 맥북 Postgres 미러(entity "survey-demand")에 직접 기록.
 export async function POST(req: NextRequest) {
-  if (!isMirrorEnabled() && !process.env.NOTION_TOKEN) {
+  if (!isMirrorEnabled()) {
     return NextResponse.json({ ok: false, error: "설문 저장소가 설정되지 않았습니다." }, { status: 503 });
   }
 

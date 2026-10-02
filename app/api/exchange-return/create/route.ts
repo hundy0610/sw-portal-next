@@ -8,11 +8,6 @@ import { errorMessage } from "@/lib/api-error";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  for (const v of ["NOTION_TOKEN", "NOTION_DB_EXCHANGE_RETURN"]) {
-    if (!process.env[v]) {
-      return NextResponse.json({ ok: false, missingEnv: v, error: `환경변수 ${v} 가 설정되지 않았습니다.` }, { status: 503 });
-    }
-  }
 
   try {
     const body = await req.json() as CreateFields;
