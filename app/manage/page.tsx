@@ -246,7 +246,7 @@ function NoticesPanel() {
           <Field label="내용"><textarea style={{ ...iStyle, minHeight: 90, resize: "vertical" }} value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} placeholder="공지 내용" /></Field>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <Field label="날짜"><div style={{ display: "flex", alignItems: "center", gap: 4 }}><input type="date" style={{ ...iStyle, flex: 1, width: "auto" }} value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />{form.date && <button type="button" onClick={() => setForm(f => ({ ...f, date: "" }))} style={{ color: "var(--portal-text-4)", fontSize: 18, lineHeight: 1, padding: "0 2px", background: "none", border: "none", cursor: "pointer", flexShrink: 0 }}>×</button>}</div></Field>
-            <Field label="이미지 URL (Notion 첨부파일 URL)"><input style={iStyle} value={form.imageUrl} onChange={e => setForm(f => ({ ...f, imageUrl: e.target.value }))} placeholder="https://..." /></Field>
+            <Field label="이미지 URL"><input style={iStyle} value={form.imageUrl} onChange={e => setForm(f => ({ ...f, imageUrl: e.target.value }))} placeholder="https://..." /></Field>
           </div>
           <div style={{ display: "flex", gap: 24 }}>
             <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.text2, cursor: "pointer" }}><input type="checkbox" checked={form.urgent} onChange={e => setForm(f => ({ ...f, urgent: e.target.checked }))} /> 긴급 공지</label>
@@ -326,7 +326,7 @@ function CoursesPanel() {
             <Field label="순서"><input type="number" style={iStyle} value={form.order} onChange={e => setForm(f => ({ ...f, order: Number(e.target.value) }))} /></Field>
           </div>
           <Field label="교육 URL"><input style={iStyle} value={form.courseUrl} onChange={e => setForm(f => ({ ...f, courseUrl: e.target.value }))} placeholder="https://..." /></Field>
-          <Field label="썸네일 URL (Notion 첨부파일 URL)"><input style={iStyle} value={form.thumbnailUrl} onChange={e => setForm(f => ({ ...f, thumbnailUrl: e.target.value }))} placeholder="https://..." /></Field>
+          <Field label="썸네일 URL"><input style={iStyle} value={form.thumbnailUrl} onChange={e => setForm(f => ({ ...f, thumbnailUrl: e.target.value }))} placeholder="https://..." /></Field>
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.text2, cursor: "pointer" }}><input type="checkbox" checked={form.visible} onChange={e => setForm(f => ({ ...f, visible: e.target.checked }))} /> 즉시 공개</label>
         </FormCard>
       )}
@@ -799,7 +799,7 @@ function ItemRow({ visible, badge, title, sub, onToggle, onDelete }: {
 }
 
 /* ══════════════════════════════════════════════════════
-   SW 자료실 패널 (Notion 기반)
+   SW 자료실 패널
 ══════════════════════════════════════════════════════ */
 function SwResourcesPanel() {
   const [versions,   setVersions]   = useState<SwVersion[]>([]);
@@ -814,7 +814,6 @@ function SwResourcesPanel() {
   const [editDoc,    setEditDoc]    = useState<SwDoc | null>(null);
   const [uploadFile,     setUploadFile]     = useState<File | null>(null);
   const [uploading,      setUploading]      = useState(false);
-  const [lastCreatedDocId, setLastCreatedDocId] = useState<string | null>(null);
 
   const [verSearch,    setVerSearch]    = useState("");
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
@@ -887,19 +886,12 @@ function SwResourcesPanel() {
         setUploading(false);
       }
 
-      let createdId: string | undefined;
       if (editDoc) {
         await fetch("/api/sw-docs", { method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ _action: "update", id: editDoc.id, data: { ...docForm, externalFileUrl } }) });
       } else {
-        const createRes = await fetch("/api/sw-docs", { method: "POST", headers: { "Content-Type": "application/json" },
+        await fetch("/api/sw-docs", { method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ...docForm, versionId: selVersion.id, externalFileUrl }) });
-        const createData = await createRes.json();
-        createdId = createData.id;
-      }
-
-      if (createdId && !externalFileUrl) {
-        setLastCreatedDocId(createdId);
       }
     } catch (e) {
       alert(`저장 실패: ${e instanceof Error ? e.message : String(e)}`);
@@ -924,7 +916,6 @@ function SwResourcesPanel() {
   }
 
   const grid2: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 };
-  const notionUrl = (id: string) => `https://notion.so/${id.replace(/-/g, "")}`;
 
   const verQuery = verSearch.trim().toLowerCase();
   const filteredVersions = verQuery
@@ -1061,7 +1052,7 @@ function SwResourcesPanel() {
                   {selVersion.name} v{selVersion.version} — 파일/문서
                 </h2>
                 <p style={{ fontSize: 12, color: C.text3, margin: 0 }}>
-                  총 {docs.length}개 · 대용량 파일은 각 문서의 Notion 페이지에서 직접 첨부
+                  총 {docs.length}개 · 4MB 초과·설치파일은 외부 URL 로 등록
                 </p>
               </div>
               <button onClick={() => { setAddingDoc(true); setEditDoc(null); setDocForm(BLANK_DOC); }}
@@ -1110,11 +1101,11 @@ function SwResourcesPanel() {
                         const ext = f.name.split(".").pop()?.toLowerCase() ?? "";
                         const BLOCKED = ["exe", "pkg", "dmg", "msi", "bat", "sh", "app", "cmd", "com", "scr"];
                         if (BLOCKED.includes(ext)) {
-                          alert(`실행파일(.${ext})은 직접 업로드할 수 없습니다.\n\nZIP으로 압축 후 업로드하거나, Notion에서 직접 첨부하세요.`);
+                          alert(`실행파일(.${ext})은 직접 업로드할 수 없습니다.\n\nZIP으로 압축 후 업로드하거나, 아래 "외부 URL"을 사용하세요.`);
                           e.target.value = ""; return;
                         }
                         if (f.size > 4 * 1024 * 1024) {
-                          alert(`4MB를 초과하는 파일은 직접 업로드할 수 없습니다. (${(f.size / 1024 / 1024).toFixed(1)}MB)\n\n아래 "Notion에서 직접 첨부" 또는 "외부 URL"을 사용하세요.`);
+                          alert(`4MB를 초과하는 파일은 직접 업로드할 수 없습니다. (${(f.size / 1024 / 1024).toFixed(1)}MB)\n\n아래 "외부 URL"을 사용하세요.`);
                           e.target.value = ""; return;
                         }
                         setUploadFile(f);
@@ -1135,27 +1126,9 @@ function SwResourcesPanel() {
                     )}
                   </div>
 
-                  {/* B. Notion에서 직접 첨부 (대용량 권장) */}
-                  <div style={{ padding: "10px 14px", borderRadius: 10, background: "var(--state-progress-soft)", border: `1px solid var(--state-progress)` }}>
-                    <p style={{ fontSize: 11, color: C.brand, margin: "0 0 4px", fontWeight: 700 }}>B. 대용량 파일 — Notion에서 직접 첨부 (권장)</p>
-                    <p style={{ fontSize: 11, color: C.text3, margin: 0 }}>
-                      먼저 이 폼을 저장하면, 목록에서 해당 문서의 Notion 페이지 링크가 표시됩니다.
-                      {editDoc && (
-                        <>
-                          {" "}→{" "}
-                          <a href={notionUrl(editDoc.id)} target="_blank" rel="noopener noreferrer"
-                            style={{ color: C.primary, fontWeight: 700 }}>이 문서의 Notion 페이지 열기 ↗</a>
-                        </>
-                      )}
-                    </p>
-                    <p style={{ fontSize: 10, color: C.text4, margin: "4px 0 0" }}>
-                      설치파일(.exe, .msi 등), 4MB 초과 파일은 Notion 페이지에서 "파일과 미디어" 속성에 직접 첨부하세요.
-                    </p>
-                  </div>
-
-                  {/* C. 외부 URL */}
+                  {/* B. 외부 URL */}
                   <div>
-                    <p style={{ fontSize: 11, color: C.text4, margin: "0 0 6px" }}>C. 외부 URL (사내 파일 서버, 대용량 다운로드 링크 등)</p>
+                    <p style={{ fontSize: 11, color: C.text4, margin: "0 0 6px" }}>B. 외부 URL (사내 파일 서버, 대용량 다운로드 링크 등)</p>
                     <input
                       style={{ ...iStyle, background: uploadFile ? "var(--portal-bg)" : "var(--portal-surface)" }}
                       value={docForm.externalFileUrl}
@@ -1178,23 +1151,6 @@ function SwResourcesPanel() {
               </FormCard>
             )}
 
-            {/* 방금 파일 없이 생성된 문서 → Notion 첨부 안내 */}
-            {lastCreatedDocId && (
-              <div style={{ padding: "10px 16px", borderRadius: 12, background: "var(--state-progress-soft)", border: `1px solid var(--state-progress)`, marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ fontSize: 12, color: C.brand }}>
-                  문서가 생성되었습니다. 파일을 첨부하려면 →
-                </span>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <a href={notionUrl(lastCreatedDocId)} target="_blank" rel="noopener noreferrer"
-                    style={{ padding: "5px 12px", borderRadius: 8, background: C.primary, color: "#fff", fontSize: 11, fontWeight: 700, textDecoration: "none" }}>
-                    Notion에서 파일 첨부 ↗
-                  </a>
-                  <button onClick={() => setLastCreatedDocId(null)}
-                    style={{ padding: "5px 8px", borderRadius: 8, background: "transparent", border: "none", color: C.text4, fontSize: 14, cursor: "pointer" }}>×</button>
-                </div>
-              </div>
-            )}
-
             {docs.length === 0 ? (
               <div style={{ textAlign: "center", padding: 48, color: C.text4, fontSize: 13, background: "var(--portal-bg)", borderRadius: 12 }}>
                 등록된 파일이 없습니다.
@@ -1215,10 +1171,9 @@ function SwResourcesPanel() {
                             파일 ↗
                           </a>
                         ) : (
-                          <a href={notionUrl(doc.id)} target="_blank" rel="noopener noreferrer"
-                            style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "var(--state-caution-soft)", color: "var(--state-caution)", fontWeight: 700, textDecoration: "none" }}>
-                            미첨부 — Notion에서 첨부 ↗
-                          </a>
+                          <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "var(--state-caution-soft)", color: "var(--state-caution)", fontWeight: 700 }}>
+                            미첨부
+                          </span>
                         )}
                       </div>
                       {doc.description && <div style={{ fontSize: 11, color: C.text3, marginTop: 2 }}>{doc.description}</div>}
