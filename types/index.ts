@@ -113,6 +113,7 @@ export interface RepairTicket {
   consentGiven: boolean;   // [deprecated] 수리 진행 동의서 (checkbox) — 구 티켓에만 값 존재
   createdAt: string;       // 문의 제출 시간 (created_time)
   notionUrl: string;
+  notifyBy?: "server";     // 신규 접수 알림 메일을 맥북 잡이 보낸다 — HelpDeskTicket.notifyBy 참고
 }
 
 // ────────────────────────────────────────────────────────────

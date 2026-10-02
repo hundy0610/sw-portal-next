@@ -54,6 +54,9 @@ export interface HelpDeskTicket {
   feedbackEmailSent: boolean;
   satisfaction?: number;      // 문의자 만족도 평가(1~5). 미평가면 undefined.
   feedbackComment?: string;   // 만족도 코멘트.
+  // "server" 면 신규 접수 알림 메일을 맥북 잡이 보낸다(데스크탑 저장소
+  // core/repo/new-request-mail.ts). 포털은 이 표시만 남기고 메일은 보내지 않는다.
+  notifyBy?: "server";
 }
 
 export async function fetchHelpDeskTickets(): Promise<HelpDeskTicket[]> {
@@ -126,6 +129,7 @@ export async function createRepairTicketRecord(data: {
   detail?: string;
   requester?: string;
   priority?: string;
+  notifyBy?: "server";
 }): Promise<string> {
   const id = crypto.randomUUID();
   const record: RepairTicket = {
@@ -152,6 +156,7 @@ export async function createRepairTicketRecord(data: {
     consentGiven: false,
     createdAt: new Date().toISOString().split("T")[0],
     notionUrl: "",
+    notifyBy: data.notifyBy,
   };
   const ok = await upsertEntity("repair", id, record);
   if (!ok) throw new Error("수리 접수 저장 실패(Postgres)");
@@ -180,6 +185,7 @@ export async function createHelpDeskTicket(data: {
   content: string;
   assetNo?: string;
   location?: string;
+  notifyBy?: "server";
 }): Promise<string> {
   if (isMock()) { console.log("[MOCK] createHelpDeskTicket", data); return "mock-hd-new"; }
 
@@ -209,6 +215,7 @@ export async function createHelpDeskTicket(data: {
     actionCategory: [],
     actionMethod: "",
     feedbackEmailSent: false,
+    notifyBy: data.notifyBy,
   };
   const ok = await upsertEntity("helpdesk", id, record);
   if (!ok) throw new Error("문의 저장 실패(Postgres)");

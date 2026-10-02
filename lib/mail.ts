@@ -69,61 +69,6 @@ export function buildHelpdeskNewInquiryEmail(opts: {
 </html>`;
 }
 
-export function buildRepairNewInquiryEmail(opts: {
-  assetId: string;
-  company: string;
-  department: string;
-  requester: string;
-  workLocation: string;
-  faultDesc: string;
-  faultTypes: string;
-  adminUrl: string;
-}): string {
-  const { assetId, company, department, requester, workLocation, faultDesc, faultTypes, adminUrl } = opts;
-  const row = (label: string, value: string) =>
-    value ? `<tr>
-      <td style="padding:8px 12px;background:#F8FAFC;border:1px solid #E2E8F0;font-weight:600;color:#64748B;width:90px;">${label}</td>
-      <td style="padding:8px 12px;border:1px solid #E2E8F0;color:#1E293B;">${value}</td>
-    </tr>` : "";
-
-  return `<!DOCTYPE html>
-<html lang="ko">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#F8FAFC;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;">
-<div style="max-width:560px;margin:40px auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
-  <div style="background:#DC2626;padding:28px 32px;">
-    <div style="color:white;font-size:18px;font-weight:800;">IdsTrust 자산관리파트 수리 접수</div>
-    <div style="color:rgba(255,255,255,0.75);font-size:13px;margin-top:4px;">신규 수리 접수가 등록되었습니다</div>
-  </div>
-  <div style="padding:28px 32px;">
-    <table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:13px;">
-      ${row("모니터 번호", assetId)}
-      ${row("법인", company)}
-      ${row("부서", department)}
-      ${row("문의자", requester)}
-      ${row("근무 위치", workLocation)}
-      ${row("고장 내역", faultTypes)}
-    </table>
-    ${faultDesc ? `<div style="background:#FFF7F7;border:1px solid #FECACA;border-radius:10px;padding:14px 16px;margin-bottom:24px;">
-      <div style="font-size:11px;color:#94A3B8;margin-bottom:6px;font-weight:600;letter-spacing:0.5px;">고장 증상</div>
-      <p style="font-size:13px;color:#334155;margin:0;line-height:1.6;white-space:pre-wrap;">${faultDesc}</p>
-    </div>` : ""}
-    <div style="text-align:center;margin-bottom:20px;">
-      <a href="${adminUrl}" target="_blank"
-        style="display:inline-block;background:#DC2626;color:white;font-size:14px;font-weight:700;padding:12px 28px;border-radius:10px;text-decoration:none;">
-        어드민 패널에서 확인하기
-      </a>
-    </div>
-    <p style="font-size:12px;color:#94A3B8;text-align:center;margin:0;">본 메일은 발신 전용입니다.</p>
-  </div>
-  <div style="background:#F8FAFC;border-top:1px solid #E2E8F0;padding:16px 32px;text-align:center;">
-    <p style="font-size:11px;color:#CBD5E1;margin:0;">IdsTrust 자산관리파트</p>
-  </div>
-</div>
-</body>
-</html>`;
-}
-
 export function buildMeetingRentalNewRequestEmail(opts: {
   requester: string;
   company: string;
