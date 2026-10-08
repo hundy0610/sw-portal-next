@@ -62,9 +62,15 @@ export async function POST(req: NextRequest) {
 
   const serial = typeof body.serial === "string" ? body.serial.trim() : "";
   const pcName = typeof body.pcName === "string" ? body.pcName.trim() : "";
-  if (!serial || !pcName) {
+  // 시리얼은 선택값이다 — pc-register(9ac1c9b)와 같은 이유. 조립 PC·VM 은 BIOS 가
+  // "Default string" 같은 무의미 기본값을 돌려주고, 에이전트(NormalizeSerial)가 그 값을
+  // 빈 값으로 바꿔 보낸다. 그 PC 들도 실사에 참여해야 하므로 pcName 만 필수로 둔다.
+  //
+  // 시리얼이 없으면 serialFuzzyMatch 가 늘 false 라 HW 자동 실사확인·연락처 보정은 일어나지
+  // 않는다(대시보드에서 자산번호로 수동 확인). 기존 레코드 판정은 pcName 으로만 이뤄진다.
+  if (!pcName) {
     return NextResponse.json(
-      { ok: false, error: "serial, pcName은 필수입니다" },
+      { ok: false, error: "pcName은 필수입니다" },
       { status: 400 }
     );
   }
