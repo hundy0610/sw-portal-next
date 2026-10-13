@@ -1,10 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";
-import { fetchOrgUnits, buildOrgTree, buildScanMatcher, type OrgTreeNode } from "@/lib/org-chart";
-import { getHwAllFromPostgres } from "@/lib/repo/hw";
-import { fetchPcScans, matchPcScansWithHw } from "@/lib/pc-scan";
-import { COMPANIES, normalizeCompany, EXCLUDED_FROM_AUDIT_DASHBOARD, AUDIT_CONTRACT_QTY } from "@/lib/companies";
-import { errorMessage } from "@/lib/api-error";
+import { NextResponse } from "next/server";
+import type { OrgTreeNode } from "@/lib/org-chart";
 
 export const dynamic = "force-dynamic";
 
@@ -25,72 +20,12 @@ export interface AssetAuditDashboardData {
   masterCacheWarming: boolean; // true면 HW 자산 캐시가 아직 준비 중 — 잠시 후 새로고침 안내
 }
 
-// GET /api/asset-audit/dashboard — 슈퍼어드민 전용, 실사 진행률 + 계약 달성률 집계
-export async function GET(req: NextRequest) {
-  const session = getSessionFromCookieHeader(req.headers.get("cookie"));
-  if (!session || (await resolveCurrentRole(session)) !== "super") {
-    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-  }
-
-  try {
-    // PC 실사 제출 기록(scans)은 이메일 집합 계산과 HW 매칭 양쪽에 필요하지만,
-    // 같은 데이터를 두 번 조회하면 불필요한 호출이 늘어나므로 한 번만 가져온다.
-    // HW 자산은 맥북 Postgres에서 조회(/api/hw 등과 동일). 미설정(로컬 dev 등) 시에만
-    // null — 조회 실패 시엔 getHwAllFromPostgres가 throw해 바깥 catch가 처리한다.
-    const [units, hwAll, scans] = await Promise.all([
-      fetchOrgUnits(), getHwAllFromPostgres(), fetchPcScans(),
-    ]);
-    const hwRecords = hwAll ?? [];
-    // 동명이인(법인+이름) 판정은 대시보드에서 가려진 법인까지 봐야 안전하므로,
-    // 매처는 필터링 전 units 전체로 만든다.
-    const matcher = buildScanMatcher(scans, units);
-
-    // 조직별 실사 진행률(트리)은 실제 소속 인원 명단 vs PC 실사 제출 기록으로 계산한다.
-    // 대시보드에서 제외하기로 한 법인 소속 조직은 트리에서도 함께 제외한다.
-    const visibleUnits = units.filter(u => {
-      const normalized = normalizeCompany(u.company);
-      return !normalized || !EXCLUDED_FROM_AUDIT_DASHBOARD.includes(normalized);
-    });
-    const tree = buildOrgTree(visibleUnits, matcher);
-
-    // 계약 수량 대비 달성률의 "확인됨" 기준 — HW 마스터의 실사확인 체크박스는 구매 등록
-    // 시 일괄 체크되거나 관리자가 수동으로 토글할 수 있어 실제 실사 여부와 무관하게 켜져
-    // 있는 경우가 많다. "자산 실사 현황"(PC 실사 제출 기록)에 실제로 넘어온 데이터만
-    // 반영되도록, 자산번호+시리얼로 매칭된 스캔이 있는 자산만 확인된 것으로 집계한다.
-    const matches = matchPcScansWithHw(scans, hwRecords);
-    const verifiedAssetIds = new Set(matches.filter(m => m.masterExists && m.masterId).map(m => m.masterId as string));
-
-    // 계약 수량은 관리 기능의 "계약 관리"(실제 계약 레코드)와는 별개로, 관리자가
-    // 직접 전달한 고정 수치(AUDIT_CONTRACT_QTY)를 사용한다 — 계약 관리 쪽 수량이
-    // 바뀌어도 이 대시보드의 달성률에는 영향을 주지 않는다.
-    const contractQtyTotal = Object.values(AUDIT_CONTRACT_QTY).reduce((sum, q) => sum + q, 0);
-    const hwTotal = hwRecords.length;
-    const hwVerified = verifiedAssetIds.size;
-    const achievementRate = contractQtyTotal > 0 ? Math.round((hwVerified / contractQtyTotal) * 100) : 0;
-
-    // 법인명은 HW 자산관리 화면의 표준 목록(COMPANIES)을 그대로 사용한다 — 원본
-    // 레코드의 문자열을 그대로 라벨로 쓰면 표기 흔들림(영문/국문, 대소문자 등)으로
-    // 같은 법인이 여러 줄로 나뉘어 보일 수 있어, 표준 표기로 정규화해 매칭한다.
-    //
-    // 법인별 "자산 수량"은 HW 마스터에 등록된 전체 자산 대수가 아니라, "자산 실사
-    // 현황"(PC 실사 제출 기록)에 실제로 넘어온 건수로 집계한다 — 전체 보유 자산 대수
-    // 대비 비율을 보여주면 이번 실사 캠페인과 무관한 분모가 되어 의미가 없어진다.
-    const byCompany: CompanyAchievement[] = COMPANIES
-      .filter(company => !EXCLUDED_FROM_AUDIT_DASHBOARD.includes(company))
-      .map(company => {
-        const contractQty = AUDIT_CONTRACT_QTY[company] ?? 0;
-        const companyScans = matches.filter(m => normalizeCompany(m.corp ?? "") === company);
-        const hwTotal = companyScans.length;
-        const hwVerified = companyScans.filter(m => m.masterExists).length;
-        return { company, contractQty, hwTotal, hwVerified };
-      })
-      .filter(c => c.contractQty > 0 || c.hwTotal > 0)
-      .sort((a, b) => b.hwTotal - a.hwTotal);
-
-    const data: AssetAuditDashboardData = { tree, contractQtyTotal, hwTotal, hwVerified, achievementRate, byCompany, masterCacheWarming: !hwAll };
-    return NextResponse.json({ ok: true, data });
-  } catch (e) {
-    console.error("[asset-audit dashboard GET]", e);
-    return NextResponse.json({ ok: false, error: errorMessage(e) }, { status: 500 });
-  }
+// 조직도는 Assetify 데스크탑 앱이 암호화해 관리한다(Assetify v1.54.0, KV orgChart:secure).
+// 이 라우트는 옛 평문 키(orgChart:units)를 읽었다 — 2026-10-12 조직도 개인정보 처리 기준에 따라
+// 웹에서는 조직도를 읽지도 쓰지도 않는다. 웹 관리자 화면은 철거 대상이다.
+function movedToDesktop() {
+  return NextResponse.json(
+    { ok: false, error: "조직도·실사 진행률은 Assetify 데스크탑 앱에서 관리합니다." }, { status: 410 });
 }
+
+export async function GET() { return movedToDesktop(); }
