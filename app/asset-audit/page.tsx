@@ -53,14 +53,8 @@ function formatBytes(bytes: number | null): string {
 // 기술적 안내이므로 관리자 편집 항목이 아닌 코드에 고정한다.
 const INSTALL_STEPS: Record<"windows" | "mac", React.ReactNode[]> = {
   windows: [
-    <>
-      프로그램 실행에는 <strong>.NET 8 Desktop Runtime</strong>이 필요합니다. 아직 설치하지 않았다면{" "}
-      <a href="https://dotnet.microsoft.com/download/dotnet/8.0/runtime" target="_blank" rel="noreferrer" className="underline" style={{ color: C.brand }}>
-        이 링크
-      </a>
-      에서 "Desktop Runtime"을 받아 설치해주세요 (이미 설치되어 있다면 건너뛰어도 됩니다).
-    </>,
-    "위 버튼을 누르면 새 탭에서 다운로드 페이지가 열립니다. 그 페이지에서 다운로드 버튼을 눌러 설치 파일(.exe)을 받습니다.",
+    "위 버튼을 누르면 새 탭에서 다운로드 페이지가 열립니다. 그 페이지에서 다운로드 버튼을 눌러 압축 파일(.zip)을 받습니다.",
+    "받은 압축 파일의 압축을 풀어주세요. 압축 파일 안에서 바로 실행하지 말고, 반드시 압축을 푼 뒤 실행해야 합니다.",
     "다운로드한 파일을 더블클릭해서 실행합니다.",
     "\"Windows에서 PC를 보호했습니다\" 화면이 뜨면 \"추가 정보\"를 누른 뒤 \"실행\" 버튼을 눌러주세요.",
     "프로그램 좌측의 \"자산실사\" 탭으로 들어가 등록 정보를 입력한 후, 하단의 \"자산실사\" 버튼을 클릭해주세요.",
