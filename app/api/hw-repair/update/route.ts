@@ -3,10 +3,13 @@ import { errorMessage } from "@/lib/api-error";
 import { readEntityOne, upsertEntity } from "@/lib/repo/mirror";
 import { HR_ENTITY } from "@/lib/hw-repair";
 import type { HwRepairRecord } from "@/types";
+import { rejectWithoutSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   try {
     const { id, fields } = await req.json() as {
       id: string;

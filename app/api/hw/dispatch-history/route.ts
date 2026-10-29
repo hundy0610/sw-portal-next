@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { errorMessage } from "@/lib/api-error";
+import { rejectWithoutSession } from "@/lib/session";
 
 const KV_KEY = "hw-dispatch-history";
 const MAX_RECORDS = 5000;
@@ -19,7 +20,9 @@ export interface DispatchRecord {
 }
 
 // GET /api/hw/dispatch-history
-export async function GET() {
+export async function GET(req: Request) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   try {
     const history = (await kvGet<DispatchRecord[]>(KV_KEY)) ?? [];
     return NextResponse.json({ ok: true, history });
@@ -31,6 +34,8 @@ export async function GET() {
 
 // POST /api/hw/dispatch-history — prepend one or more records
 export async function POST(req: NextRequest) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   try {
     const body = await req.json();
     const incoming: DispatchRecord[] = Array.isArray(body) ? body : [body];
@@ -53,6 +58,8 @@ export async function POST(req: NextRequest) {
 // DELETE /api/hw/dispatch-history?id=xxx  — 단건 삭제
 // DELETE /api/hw/dispatch-history          — 전체 삭제
 export async function DELETE(req: NextRequest) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   try {
     const id = new URL(req.url).searchParams.get("id");
     const existing = (await kvGet<DispatchRecord[]>(KV_KEY)) ?? [];

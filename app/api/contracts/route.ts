@@ -3,14 +3,19 @@ import { fetchContracts, createContract } from "@/lib/contracts";
 import { isMirrorEnabled } from "@/lib/repo/mirror";
 import type { ContractStage } from "@/types/contract";
 import { errorMessage } from "@/lib/api-error";
+import { rejectWithoutSession } from "@/lib/session";
 
 // DELETE /api/contracts  — (구) KV 캐시 무효화 엔드포인트, 미러 구조에선 no-op
-export async function DELETE() {
+export async function DELETE(req: Request) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   return NextResponse.json({ ok: true });
 }
 
 // GET /api/contracts
-export async function GET() {
+export async function GET(req: Request) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   if (!isMirrorEnabled()) {
     return NextResponse.json({ missingEnv: "SUPABASE_URL", error: "데이터 저장소가 설정되지 않았습니다." }, { status: 503 });
   }
@@ -25,6 +30,8 @@ export async function GET() {
 
 // POST /api/contracts  (multipart/form-data)
 export async function POST(req: NextRequest) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   try {
     const formData = await req.formData();
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { readEntityOne } from "@/lib/repo/mirror";
 import type { HelpDeskTicket } from "@/lib/mirror-entities";
+import { rejectWithoutSession } from "@/lib/session";
 
 const HD_ENTITY = "helpdesk";
 
@@ -112,6 +113,8 @@ export async function POST() {
 
 // GET /api/helpdesk/send-feedback?id=xxx → 발송 여부 확인
 export async function GET(req: NextRequest) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   const id = req.nextUrl.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id 필요" }, { status: 400 });
   const ticket = await readEntityOne<HelpDeskTicket>(HD_ENTITY, id);

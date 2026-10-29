@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { kvGet, kvSetPermanent, kvDel } from "@/lib/kv-store";
 import { errorMessage } from "@/lib/api-error";
+import { rejectWithoutSession } from "@/lib/session";
 
 const KV_KEY = "buildings:custom";
 
@@ -22,7 +23,9 @@ export interface BuildingsConfig {
 const EMPTY: BuildingsConfig = { customBuildings: [], extraFloors: {}, floorOverrides: {}, groups: [] };
 
 // GET /api/buildings
-export async function GET() {
+export async function GET(req: Request) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   try {
     const cfg = (await kvGet<BuildingsConfig>(KV_KEY)) ?? EMPTY;
     if (!cfg.groups) cfg.groups = [];
@@ -35,6 +38,8 @@ export async function GET() {
 
 // POST /api/buildings — 전체 config 저장
 export async function POST(req: NextRequest) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   try {
     const body = (await req.json()) as BuildingsConfig;
     const saved = await kvSetPermanent(KV_KEY, body);
@@ -48,7 +53,9 @@ export async function POST(req: NextRequest) {
 }
 
 // DELETE /api/buildings — 전체 초기화
-export async function DELETE() {
+export async function DELETE(req: Request) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   try {
     await kvDel(KV_KEY);
     return NextResponse.json({ ok: true });

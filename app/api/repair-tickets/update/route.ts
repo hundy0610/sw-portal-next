@@ -2,12 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { errorMessage } from "@/lib/api-error";
 import { readEntityOne, upsertEntity } from "@/lib/repo/mirror";
 import type { RepairTicket } from "@/types";
+import { rejectWithoutSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 const REPAIR_ENTITY = "repair";
 
 export async function POST(req: NextRequest) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   try {
     const { id, fields } = await req.json() as {
       id: string;

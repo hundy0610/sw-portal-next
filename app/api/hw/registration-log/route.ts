@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { errorMessage } from "@/lib/api-error";
+import { rejectWithoutSession } from "@/lib/session";
 
 const KV_KEY = "hw-registration-log";
 
@@ -21,7 +22,9 @@ export interface RegistrationRecord {
 }
 
 // GET /api/hw/registration-log
-export async function GET() {
+export async function GET(req: Request) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   try {
     const log = (await kvGet<RegistrationRecord[]>(KV_KEY)) ?? [];
     return NextResponse.json({ ok: true, log });
@@ -34,6 +37,8 @@ export async function GET() {
 // DELETE /api/hw/registration-log?id=xxx  — 단건 삭제
 // DELETE /api/hw/registration-log          — 전체 삭제
 export async function DELETE(req: NextRequest) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   try {
     const id = new URL(req.url).searchParams.get("id");
     const existing = (await kvGet<RegistrationRecord[]>(KV_KEY)) ?? [];

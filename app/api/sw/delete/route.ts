@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deleteEntity } from "@/lib/repo/mirror";
 import { SW_ENTITY } from "@/lib/sw-records";
+import { rejectWithoutSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   try {
     const { ids } = await req.json() as { ids: string[] };
 

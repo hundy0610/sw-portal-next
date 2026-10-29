@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { kvMGet } from "@/lib/kv-store";
 import type { FeedbackEntry } from "@/app/api/feedback/route";
+import { rejectWithoutSession } from "@/lib/session";
 
 /**
  * GET /api/helpdesk/ticket-status?ids=id1,id2,...
@@ -11,6 +12,8 @@ import type { FeedbackEntry } from "@/app/api/feedback/route";
  * feedbackEmailSent 필드가 Notion 체크박스를 직접 반영해 항상 정확함)
  */
 export async function GET(req: NextRequest) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   const raw = req.nextUrl.searchParams.get("ids") ?? "";
   const ids = raw.split(",").map(s => s.trim()).filter(Boolean);
 

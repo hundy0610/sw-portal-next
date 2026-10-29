@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { fetchMeetingEquipment, isMirrorEnabled } from "@/lib/meeting-equipment";
+import { rejectWithoutSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: Request) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   // 4.0verMACBOOK: 메인 저장소는 맥북 Postgres(미러). 미러가 꺼져 있을 때만 Notion 필요.
   if (!isMirrorEnabled()) {
     return NextResponse.json({

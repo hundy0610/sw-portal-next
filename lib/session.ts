@@ -96,3 +96,12 @@ export function getSessionFromCookieHeader(cookieHeader: string | null): AdminSe
   return null;
 }
 
+/**
+ * 관리 화면 전용 API 의 첫 줄 — 관리자 세션이 없으면 401 응답을, 있으면 null 을 돌려준다.
+ * 미들웨어(matcher)는 /admin·/manage 페이지만 막는다. /api 는 라우트마다 직접 막아야 한다.
+ */
+export function rejectWithoutSession(req: Request): Response | null {
+  if (getSessionFromCookieHeader(req.headers.get("cookie"))) return null;
+  return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+}
+

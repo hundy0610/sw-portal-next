@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorMessage } from "@/lib/api-error";
 import { uploadToBlob, isBlobEnabled } from "@/lib/blob-store";
+import { rejectWithoutSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -10,6 +11,8 @@ export const maxDuration = 60;
 // draftDocument)에 담고, 5분 백업 러너가 Blob→Notion 으로 재업로드한다.
 // 반환 키(fileUploadId)는 기존 클라이언트 호환을 위해 그대로 두되, 값은 Blob URL 이다.
 export async function POST(req: NextRequest) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   if (!isBlobEnabled()) {
     return NextResponse.json({ ok: false, error: "BLOB_READ_WRITE_TOKEN 없음" }, { status: 503 });
   }

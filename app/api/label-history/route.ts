@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { errorMessage } from "@/lib/api-error";
+import { rejectWithoutSession } from "@/lib/session";
 
 const KV_KEY = "label-print-history";
 const MAX_RECORDS = 200;
@@ -22,7 +23,9 @@ export interface PrintHistoryRecord {
 }
 
 // GET /api/label-history
-export async function GET() {
+export async function GET(req: Request) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   try {
     const history = (await kvGet<PrintHistoryRecord[]>(KV_KEY)) ?? [];
     return NextResponse.json({ ok: true, history });
@@ -34,6 +37,8 @@ export async function GET() {
 
 // POST /api/label-history  — prepend new record
 export async function POST(req: NextRequest) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   try {
     const body = (await req.json()) as PrintHistoryRecord;
     if (!body.printedAt || !Array.isArray(body.labels)) {
@@ -54,6 +59,8 @@ export async function POST(req: NextRequest) {
 // DELETE /api/label-history?keepLast=N   — 최근 N건만 남기고 나머지 삭제
 // DELETE /api/label-history              — 전체 삭제
 export async function DELETE(req: NextRequest) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   try {
     const params   = new URL(req.url).searchParams;
     const id       = params.get("id");

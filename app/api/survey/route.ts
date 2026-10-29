@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
+import { rejectWithoutSession } from "@/lib/session";
 
 const KV_SURVEY = "portal:survey_responses";
 
@@ -19,7 +20,9 @@ export interface SurveyResponse {
   submittedAt: string;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   try {
     const data = (await kvGet<SurveyResponse[]>(KV_SURVEY)) ?? [];
     return NextResponse.json({ data });

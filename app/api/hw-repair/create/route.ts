@@ -3,10 +3,13 @@ import { errorMessage } from "@/lib/api-error";
 import { upsertEntity, isMirrorEnabled } from "@/lib/repo/mirror";
 import { HR_ENTITY } from "@/lib/hw-repair";
 import type { HwRepairRecord } from "@/types";
+import { rejectWithoutSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   if (!isMirrorEnabled()) {
     return NextResponse.json({ ok: false, error: "데이터 저장소(Postgres)가 설정되지 않았습니다." }, { status: 503 });
   }
