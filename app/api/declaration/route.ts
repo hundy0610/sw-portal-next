@@ -1,62 +1,11 @@
-import { NextRequest } from "next/server";
 import { errorMessage } from "@/lib/api-error";
-import { fetchSwDatabase } from "@/lib/mirror-entities";
-import { readEntityOne, upsertEntity } from "@/lib/repo/mirror";
-import { SW_ENTITY } from "@/lib/sw-records";
+import { insertEntity } from "@/lib/repo/mirror";
 import type { SwDbRecord } from "@/types";
 
-// 4.0verMACBOOK: SW 자가신고 플로우도 맥북 Postgres 미러(메인)를 읽고 쓴다.
-// (생성/수정은 dirty 로 표시 → 5분 백업 러너가 Notion 에 반영)
-
-// ─── GET /api/declaration?name=...&company=... ────────────────────────────────
-// 이름 + 법인명 기준으로 기존 등록 SW 조회
-// scope=team인 경우 법인명 + 부서 기준으로 전체 조회
-export async function GET(req: NextRequest) {
-  try {
-    const sp         = new URL(req.url).searchParams;
-    const scope       = sp.get("scope")?.trim() ?? "";
-    const name        = sp.get("name")?.trim()    ?? "";
-    const company     = sp.get("company")?.trim() ?? "";
-    const department  = sp.get("department")?.trim() ?? "";
-
-    const all = await fetchSwDatabase();
-
-    let matched: SwDbRecord[];
-    if (scope === "team") {
-      if (!company || !department)
-        return Response.json({ ok: false, error: "법인명과 부서를 입력해주세요." }, { status: 400 });
-      matched = all.filter(r => r.company === company && (r.department ?? "").includes(department));
-    } else {
-      if (!name || !company)
-        return Response.json({ ok: false, error: "이름과 법인명을 입력해주세요." }, { status: 400 });
-      matched = all.filter(r => r.company === company && (r.user ?? "").includes(name));
-    }
-
-    const records = matched.slice(0, 100).map(r => ({
-      id:           r.id,
-      notionUrl:    r.notionUrl || "",
-      user:         r.user,
-      swCategory:   r.swCategory,
-      swDetail:     r.swDetail,
-      version:      r.version,
-      status:       r.status,
-      licenseType:  r.licenseType,
-      workType:     r.workType,
-      billingType:  r.billingType ?? "",
-      accountType:  r.accountType,
-      renewalCycle: r.renewalCycle,
-      monthlyKrw:   r.monthlyKrw,
-      monthlyUsd:   r.monthlyUsd,
-      licenseKey:   r.licenseKey,
-      renewalDate:  r.renewalDate,
-      usageDate:    r.usageDate,
-    }));
-
-    return Response.json({ ok: true, records });
-  } catch (e) {
-    return Response.json({ ok: false, error: errorMessage(e) }, { status: 500 });
-  }
-}
+// v2 전환 뒤 SW 신고 — **조회 없이 신고만**(10-29 결정). 직원이 적은 SW 를 신고 행으로 잠가 추가만 하고,
+// 관리자가 데스크탑 앱에서 SW 자산과 맞춰 반영한다. 예전의 이름으로 SW 조회(라이선스 키 포함)·상태 수정·
+// 팀(부서) 신고·제출 이력은 없앴다 — 전환 뒤 포털은 SW 행을 읽거나 고칠 수 없다(암호문).
+const SW_DECLARATION_ENTITY = "sw-declaration";
 
 // ─── 신규 등록 레코드 → 미러 레코드 생성 ──────────────────────────────────────
 interface DeclarationCreateRecord {
@@ -110,42 +59,47 @@ function toRecord(r: DeclarationCreateRecord): SwDbRecord {
 }
 
 // ─── POST /api/declaration ────────────────────────────────────────────────────
-// type:"update"     → 기존 레코드 상태 변경
-// type:"create"     → 신규 SW 신고
-// type:"createMany" → 신규 SW 일괄 신고
+// Body: { reporter: { company, department, name }, records: [{ ...SW 추가 양식, usage: "사용중" | "반납예정" }] }
+// 신고 한 건 = 신고 행 하나: { reporter, usage, record(SW 자산 모양 — 앱이 그대로 등록할 수 있게), submittedAt }
+const MAX_RECORDS = 50;
+
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-
-    if (body.type === "update") {
-      const { pageId, status } = body as { pageId: string; status: string };
-      const base = await readEntityOne<SwDbRecord>(SW_ENTITY, pageId);
-      if (!base) return Response.json({ ok: false, error: "레코드를 찾을 수 없습니다." }, { status: 404 });
-      const ok = await upsertEntity(SW_ENTITY, pageId, { ...base, status, lastModifiedAt: new Date().toISOString() });
-      return Response.json({ ok });
+    const body = await req.json() as {
+      reporter?: { company?: string; department?: string; name?: string };
+      records?: (DeclarationCreateRecord & { usage?: string })[];
+    };
+    const reporter = {
+      company: String(body.reporter?.company ?? "").trim(),
+      department: String(body.reporter?.department ?? "").trim(),
+      name: String(body.reporter?.name ?? "").trim(),
+    };
+    if (!reporter.company || !reporter.department || !reporter.name) {
+      return Response.json({ ok: false, error: "법인명·부서·이름을 입력해주세요." }, { status: 400 });
+    }
+    const records = body.records;
+    if (!Array.isArray(records) || records.length === 0) {
+      return Response.json({ ok: false, error: "신고할 SW 가 없습니다." }, { status: 400 });
+    }
+    if (records.length > MAX_RECORDS) {
+      return Response.json({ ok: false, error: `한 번에 ${MAX_RECORDS}건까지 신고할 수 있습니다.` }, { status: 400 });
     }
 
-    if (body.type === "create") {
-      const rec = toRecord(body.record as DeclarationCreateRecord);
-      const ok = await upsertEntity(SW_ENTITY, rec.id, rec);
-      return Response.json({ ok, id: rec.id });
+    const submittedAt = new Date().toISOString();
+    let count = 0;
+    for (const r of records) {
+      const usage = r.usage === "반납예정" ? "반납예정" : "사용중";
+      const record = toRecord({
+        ...r,
+        user: reporter.name, company: reporter.company, department: reporter.department,
+        status: usage === "반납예정" ? "반납예정" : "신규등록",
+      });
+      if (await insertEntity(SW_DECLARATION_ENTITY, crypto.randomUUID(), { reporter, usage, record, submittedAt })) count++;
     }
-
-    if (body.type === "createMany") {
-      const records = body.records as DeclarationCreateRecord[];
-      if (!Array.isArray(records) || records.length === 0)
-        return Response.json({ ok: false, error: "등록할 항목이 없습니다." }, { status: 400 });
-
-      const ids: string[] = [];
-      for (const r of records) {
-        const rec = toRecord(r);
-        const ok = await upsertEntity(SW_ENTITY, rec.id, rec);
-        if (ok) ids.push(rec.id);
-      }
-      return Response.json({ ok: true, ids });
+    if (count < records.length) {
+      return Response.json({ ok: false, error: `${records.length}건 중 ${count}건만 저장됐습니다. 다시 시도해주세요.`, count }, { status: 500 });
     }
-
-    return Response.json({ ok: false, error: "Invalid type" }, { status: 400 });
+    return Response.json({ ok: true, count });
   } catch (e) {
     return Response.json({ ok: false, error: errorMessage(e) }, { status: 500 });
   }
