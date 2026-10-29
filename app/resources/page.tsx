@@ -184,7 +184,7 @@ export default function ResourcesPage() {
             <Icon n="msg" s={14} /> IT 지원 문의
           </a>
           <div className="mt-3 flex items-center justify-center gap-3">
-            <a href="/admin"
+            <a href="/manage"
               className="text-center text-xs hover:underline transition-colors"
               style={{ color: C.text4, textDecoration: "none" }}>관리자</a>
             <span style={{ color: C.border }}>·</span>

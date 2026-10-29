@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSessionFromCookieHeader } from "@/lib/session";
-import { readEntity, insertEntity, deleteEntity, isMirrorEnabled } from "@/lib/repo/mirror";
+import { insertEntity, isMirrorEnabled } from "@/lib/repo/mirror";
 
 export const dynamic = "force-dynamic";
 
@@ -60,50 +59,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (e: any) {
     console.error("[survey-demand POST]", e);
-    return NextResponse.json({ ok: false, error: e?.message }, { status: 500 });
-  }
-}
-
-// ── GET: 설문 응답 목록 조회 (관리자 인증 필요) ──────────────────────
-export async function GET(req: NextRequest) {
-  const session = getSessionFromCookieHeader(req.headers.get("cookie"));
-  if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-
-  try {
-    const rows = (await readEntity<SurveyDemandRecord>(SD_ENTITY)) ?? [];
-    const data = [...rows]
-      .sort((a, b) => (b.submittedAt || "").localeCompare(a.submittedAt || ""))
-      .map((r) => ({
-        id: r.id,
-        name: r.name,
-        company: r.company,
-        department: r.department,
-        email: r.email,
-        purpose: (r.purpose ?? []).join(", "),
-        language: (r.language ?? []).join(", "),
-        frequency: r.frequency,
-        note: r.note,
-        submittedAt: r.submittedAt,
-        notionUrl: r.notionUrl,
-      }));
-
-    return NextResponse.json({ ok: true, data });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message }, { status: 500 });
-  }
-}
-
-// ── DELETE: 응답 삭제 (관리자) ────────────────────────────────────────
-export async function DELETE(req: NextRequest) {
-  const session = getSessionFromCookieHeader(req.headers.get("cookie"));
-  if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-
-  try {
-    const { id } = await req.json();
-    if (!id) return NextResponse.json({ ok: false, error: "id 필수" }, { status: 400 });
-    await deleteEntity(SD_ENTITY, id);
-    return NextResponse.json({ ok: true });
-  } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message }, { status: 500 });
   }
 }

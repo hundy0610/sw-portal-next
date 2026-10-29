@@ -1,44 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { encodeSession, decodeSession, resolveCurrentName, resolveCurrentRole, type AdminSession } from "@/lib/session";
-import { verifyPassword } from "@/lib/crypto";
-import { kvGet } from "@/lib/kv-store";
-import type { Account } from "@/app/api/admin/accounts/route";
 
-const ACCOUNTS_KEY   = "sw:accounts";
 const SUPER_ADMIN_ID = process.env.SUPER_ADMIN_ID ?? "admin";
 const SUPER_ADMIN_PW = process.env.SUPER_ADMIN_PW;
 
-async function lookupAccount(userId: string, password: string): Promise<AdminSession | null> {
-  try {
-    // 예전에 "REDIS_URL"이라는, 실제로는 어디에도 설정되지 않는 환경변수명을 확인하고 있었음
-    // (실제 Redis 설정은 UPSTASH_REDIS_REST_URL/KV_REST_API_URL — lib/kv-store.ts 참고).
-    // 이 조건이 항상 참이 되어 환경변수 슈퍼어드민을 제외한 모든 Redis 계정의 로그인이
-    // 무조건 실패하고 있었음 — kvGet()이 Redis 미설정 시 이미 null을 안전하게 반환하므로
-    // 이 사전 체크 자체가 불필요하기도 해서 제거함.
-    const accounts = (await kvGet<Account[]>(ACCOUNTS_KEY)) ?? [];
-
-    const account = accounts.find(a => a.userId === userId && a.active);
-    if (!account) return null;
-
-    // 비밀번호 미설정 계정 — 로그인 불가, 비밀번호 초기화 필요
-    if (!account.password) return null;
-    if (!verifyPassword(password, account.password)) return null;
-
-    return {
-      notionPageId: account.id,   // account.id 를 세션 식별자로 재사용
-      userId:       account.userId,
-      name:         account.name,
-      email:        account.email,
-      company:      account.company,
-      department:   account.department,
-      role:         account.role,
-      mustChangePassword: account.mustChangePassword,
-    };
-  } catch (e) {
-    console.error("[auth] Redis lookup error:", e);
-    return null;
-  }
-}
+// v2 전환 뒤: 환경변수 슈퍼어드민 하나만 로그인한다(포털 공개 자료 관리 /manage 전용, 10-29 결정).
+// 관리자 계정 목록(sw:accounts)은 암호문이라 포털이 읽을 수 없다 — 계정 관리는 데스크탑 앱에서 한다.
 
 // ── POST /api/admin/auth — 로그인 ────────────────────────────
 export async function POST(request: Request) {
@@ -64,11 +31,6 @@ export async function POST(request: Request) {
         department:   "",
         role:         "super",
       };
-    }
-
-    // 2. Redis 계정 DB 조회
-    if (!session) {
-      session = await lookupAccount(userId, password);
     }
 
     if (!session) {
