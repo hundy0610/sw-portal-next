@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { useAtom } from "jotai";
+import { useAtom, useSetAtom } from "jotai";
 import { useRouter } from "next/navigation";
 import {
   InquiryForm긴급도Atom,
@@ -12,6 +12,17 @@ import {
   InquiryForm자산번호Atom,
   InquiryForm이메일Atom,
 } from "@/app/request/inquiry/(atoms)/useInquiryFormStore";
+import {
+  InquiryTicketCreatedTimeAtom,
+  InquiryTicketResolveTokenAtom,
+  InquiryTicket긴급도Atom,
+  InquiryTicket문의내용Atom,
+  InquiryTicket문의유형Atom,
+  InquiryTicket문의자Atom,
+  InquiryTicket법인Atom,
+  InquiryTicket부서Atom,
+  InquiryTicket자산번호Atom,
+} from "@/app/request/inquiry/(atoms)/useInquiryTicketStore";
 import { safeJson } from "@/lib/fetch-json";
 
 interface UseInquiryFormReturn {
@@ -32,6 +43,16 @@ export const useInquiryForm = (): UseInquiryFormReturn => {
   const [긴급도, set긴급도] = useAtom(InquiryForm긴급도Atom);
   const [이메일, set이메일] = useAtom(InquiryForm이메일Atom);
   const [위치, set위치] = useAtom(InquiryForm위치Atom);
+
+  const setTicket법인 = useSetAtom(InquiryTicket법인Atom);
+  const setTicket부서 = useSetAtom(InquiryTicket부서Atom);
+  const setTicket문의자 = useSetAtom(InquiryTicket문의자Atom);
+  const setTicket자산번호 = useSetAtom(InquiryTicket자산번호Atom);
+  const setTicket문의유형 = useSetAtom(InquiryTicket문의유형Atom);
+  const setTicket문의내용 = useSetAtom(InquiryTicket문의내용Atom);
+  const setTicket긴급도 = useSetAtom(InquiryTicket긴급도Atom);
+  const setTicketCreatedTime = useSetAtom(InquiryTicketCreatedTimeAtom);
+  const setTicketResolveToken = useSetAtom(InquiryTicketResolveTokenAtom);
 
   const resetForm = () => {
     set법인("");
@@ -72,6 +93,16 @@ export const useInquiryForm = (): UseInquiryFormReturn => {
       return data;
     },
     onSuccess: (data) => {
+      // 접수 완료 화면은 방금 적은 값으로 보여 준다 — v2 전환 뒤 포털은 접수 행을 다시 읽을 수 없다(암호문).
+      setTicket법인(법인);
+      setTicket부서(부서);
+      setTicket문의자(문의자);
+      setTicket자산번호(자산번호);
+      setTicket문의유형(문의유형);
+      setTicket문의내용(문의내용);
+      setTicket긴급도(긴급도);
+      setTicketCreatedTime(new Date().toISOString());
+      setTicketResolveToken(data.resolveToken ?? "");
       resetForm();
       router.push(`/request/inquiry/ticket/${data.ticketId}`);
     },

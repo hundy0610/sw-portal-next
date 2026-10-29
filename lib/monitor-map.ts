@@ -5,7 +5,7 @@
 // 딱 하나만 한다: 공개 접수 폼이 좌석(itemId)의 등록된 위치를 찾아 "직원이 입력한
 // 위치와 다른가"를 대조하고, QR 확인 화면이 그 좌석 주변을 그릴 수 있게 데이터를
 // 내려준다. 등록·수정 API는 옮기지 않는다 — 그건 데스크탑 앱의 몫이다.
-import { readEntity, upsertEntity } from "@/lib/repo/mirror";
+import { insertEntity, readEntity } from "@/lib/repo/mirror";
 
 export const FLOOR_MAP_ENTITY = "floor-map";
 export const MONITOR_HISTORY_ENTITY = "monitor-history";
@@ -209,7 +209,7 @@ export interface MonitorHistoryEntry {
 async function appendMonitorHistory(entry: Omit<MonitorHistoryEntry, "id" | "createdAt">): Promise<boolean> {
   const id = crypto.randomUUID();
   const record: MonitorHistoryEntry = { ...entry, id, createdAt: new Date().toISOString() };
-  return upsertEntity(MONITOR_HISTORY_ENTITY, id, record);
+  return insertEntity(MONITOR_HISTORY_ENTITY, id, record);
 }
 
 /** QR "정상이에요" 탭 — 실사 확인 한 건을 이력에 남긴다. 폼도, 관리자 검토도 필요 없다. */

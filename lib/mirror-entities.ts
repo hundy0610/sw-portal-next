@@ -8,7 +8,7 @@ import type { SwDbRecord, RepairTicket, HwRepairRecord } from "@/types";
 import { isMock, mockSwDatabase, mockHelpDeskTickets, mockRepairTickets, mockHwRepairs } from "./mock";
 import { kvGet } from "@/lib/kv-store";
 import { memCached } from "@/lib/mem-cache";
-import { readEntity, upsertEntity } from "@/lib/repo/mirror";
+import { insertEntity, readEntity } from "@/lib/repo/mirror";
 
 const MIRROR_OFF = "미러(맥북 Postgres) 미설정 — SUPABASE_URL/SUPABASE_KEY 를 확인하세요.";
 
@@ -158,7 +158,7 @@ export async function createRepairTicketRecord(data: {
     notionUrl: "",
     notifyBy: data.notifyBy,
   };
-  const ok = await upsertEntity("repair", id, record);
+  const ok = await insertEntity("repair", id, record);
   if (!ok) throw new Error("수리 접수 저장 실패(Postgres)");
   return id;
 }
@@ -217,7 +217,7 @@ export async function createHelpDeskTicket(data: {
     feedbackEmailSent: false,
     notifyBy: data.notifyBy,
   };
-  const ok = await upsertEntity("helpdesk", id, record);
+  const ok = await insertEntity("helpdesk", id, record);
   if (!ok) throw new Error("문의 저장 실패(Postgres)");
   return id;
 }

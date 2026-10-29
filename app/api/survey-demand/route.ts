@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromCookieHeader } from "@/lib/session";
-import { readEntity, upsertEntity, deleteEntity, isMirrorEnabled } from "@/lib/repo/mirror";
+import { readEntity, insertEntity, deleteEntity, isMirrorEnabled } from "@/lib/repo/mirror";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
       submittedAt: new Date().toISOString(),
       notionUrl: "",
     };
-    const ok = await upsertEntity(SD_ENTITY, id, record);
+    const ok = await insertEntity(SD_ENTITY, id, record);
     if (!ok) return NextResponse.json({ ok: false, error: "설문 저장 실패(Postgres)" }, { status: 500 });
 
     return NextResponse.json({ ok: true });

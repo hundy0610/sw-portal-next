@@ -13,6 +13,8 @@ interface ManualMatch {
 interface ManualSuggestionProps {
   ticketId: string;
   content: string;
+  /** 접수 때 받은 서명 — 해결 요청이 이 문의에서 온 것임을 서버가 확인한다(lib/resolve-token.ts) */
+  resolveToken: string;
 }
 
 type Choice = "pending" | "manual" | "assignee";
@@ -22,7 +24,7 @@ type Choice = "pending" | "manual" | "assignee";
 // 매뉴얼로 해결을 고르면 그 자리에서 담당자 미배정으로 케이스가 종료되고, 담당자 지원을 고르면
 // 일반 문의와 동일하게 접수 시점에 이미 나간 담당자 알림 메일로 처리된다.
 // 매칭이 안 되거나 요청이 실패해도 조용히 아무것도 렌더링하지 않는다 — 부가 기능이라 확인 화면 자체를 막으면 안 됨.
-export default function ManualSuggestion({ ticketId, content }: ManualSuggestionProps) {
+export default function ManualSuggestion({ ticketId, content, resolveToken }: ManualSuggestionProps) {
   const queryClient = useQueryClient();
   const [match, setMatch] = useState<ManualMatch | null>(null);
   const [choice, setChoice] = useState<Choice>("pending");
@@ -53,7 +55,7 @@ export default function ManualSuggestion({ ticketId, content }: ManualSuggestion
       const res = await fetch("/api/request/inquiry/resolve-with-manual", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ticketId, manualId: match.id, content }),
+        body: JSON.stringify({ ticketId, manualId: match.id, content, resolveToken }),
       });
       const json = await safeJson(res);
       if (json.ok) {
