@@ -252,18 +252,3 @@ export async function getHwByIdFromPostgresOrThrow(id: string): Promise<HwRecord
   if (error) throw error;
   return (data as unknown as HwRecord) ?? null;
 }
-
-/** 자산번호 버전 — 규약은 getHwByIdFromPostgresOrThrow 와 동일. */
-export async function getHwByAssetNoFromPostgresOrThrow(assetNo: string): Promise<HwRecord | null> {
-  if (!sb) throw new Error("데이터 저장소(Postgres)가 설정되지 않았습니다.");
-  const { data, error } = await sb
-    .from("hw")
-    .select("*")
-    .eq("assetNo", assetNo)
-    .eq("deleted", false)
-    .order("purchaseDate", { ascending: false })
-    .limit(1);
-  if (error) throw error;
-  const row = (data ?? [])[0];
-  return (row as unknown as HwRecord) ?? null;
-}

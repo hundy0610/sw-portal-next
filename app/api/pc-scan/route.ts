@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { upsertPcScan, type PcScanPayload } from "@/lib/pc-scan";
+import { insertPcScanSubmission, type PcScanPayload } from "@/lib/pc-scan";
 import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
@@ -66,8 +66,8 @@ export async function POST(req: NextRequest) {
   // "Default string" 같은 무의미 기본값을 돌려주고, 에이전트(NormalizeSerial)가 그 값을
   // 빈 값으로 바꿔 보낸다. 그 PC 들도 실사에 참여해야 하므로 pcName 만 필수로 둔다.
   //
-  // 시리얼이 없으면 serialFuzzyMatch 가 늘 false 라 HW 자동 실사확인·연락처 보정은 일어나지
-  // 않는다(대시보드에서 자산번호로 수동 확인). 기존 레코드 판정은 pcName 으로만 이뤄진다.
+  // HW 마스터 대조·수정은 데스크탑 앱이 한다(v2 전환 뒤 포털은 받은 그대로 새 행만 남긴다 — lib/pc-scan.ts).
+  // 시리얼이 없으면 앱에서도 자산번호로 수동 확인해야 한다.
   if (!pcName) {
     return NextResponse.json(
       { ok: false, error: "pcName은 필수입니다" },
@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
   const sharedName = typeof body.sharedName === "string" ? body.sharedName.trim() : "";
 
   try {
-    const result = await upsertPcScan({
+    const result = await insertPcScanSubmission({
       ...body, serial, pcName, isDualOrShared, originalCorp, isShared, sharedName,
       // 검증을 통과한 값으로 덮어쓴다 — body 의 원본 값이 그대로 흘러가지 않게 한다.
       programsFileBase64, programsFileName, programsContentType,

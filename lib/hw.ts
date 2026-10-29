@@ -1,6 +1,6 @@
 import { isMock, mockHwRecords } from "./mock";
 import { kvGet, kvSet, kvSetPermanent } from "./kv-store";
-import { updateHwFields, getHwByIdFromPostgresOrThrow, getHwByAssetNoFromPostgresOrThrow } from "./repo/hw";
+import { getHwByIdFromPostgresOrThrow } from "./repo/hw";
 
 // NT/DT/MOT 트래커 데이터베이스
 
@@ -147,38 +147,6 @@ export function computeHwStats(records: HwRecord[]): HwStats {
 // HwRecord 필드 → Notion 프로퍼티 매핑 (hw/update, hw/bulk-update 공용)
 export type FieldMap = Record<string, unknown>;
 
-export async function markHwVerifiedByScanMatch(
-  id: string,
-  extra?: { mac?: string; email?: string; cpu?: string; ram?: string }
-): Promise<void> {
-  const patch: Record<string, unknown> = { status: "사용중", verified: true };
-  if (extra?.mac)   patch.mac   = extra.mac;
-  if (extra?.email) patch.email = extra.email;
-  if (extra?.cpu)   patch.cpu   = extra.cpu;
-  if (extra?.ram)   patch.ram   = extra.ram;
-
-  // 메인 저장소(맥북 Postgres)에 write-through + dirty → 5분 뒤 Notion 백업.
-  await updateHwFields(id, patch);
-}
-
-/**
- * 법인/부서/사용자가 스캔값과 완전히 일치하지 않아 실사확인까지는 못 걸어도,
- * 마스터에 MAC·이메일이 비어있으면 스캔값으로 채워 넣는다 (상태·실사확인은 건드리지 않음,
- * 이미 값이 있는 필드는 덮어쓰지 않음).
- */
-export async function fillMissingHwContactInfo(
-  id: string,
-  extra: { mac?: string; email?: string }
-): Promise<void> {
-  const patch: Record<string, unknown> = {};
-  if (extra.mac)   patch.mac   = extra.mac;
-  if (extra.email) patch.email = extra.email;
-  if (Object.keys(patch).length === 0) return;
-
-  // 메인 저장소(맥북 Postgres)에 write-through + dirty → 5분 뒤 Notion 백업.
-  await updateHwFields(id, patch);
-}
-
 // 자산번호는 중복 등록된 경우(HwRecord.duplicated)가 있어 자산번호만으로 조회하면
 // 사용자가 클릭한 것과 다른 레코드가 나올 수 있다 — id가 있으면 이 함수로 정확히 단건 조회한다.
 // HW 는 Postgres 가 메인 소스 — 조회 실패 시 Notion 으로 조용히 폴백하지 않고 그대로 throw 한다.
@@ -187,13 +155,6 @@ export async function findHwById(id: string): Promise<HwRecord | null> {
     return (mockHwRecords.find(r => r.id === id) as HwRecord) ?? null;
   }
   return getHwByIdFromPostgresOrThrow(id);
-}
-
-export async function findHwByAssetNo(assetNo: string): Promise<HwRecord | null> {
-  if (isMock()) {
-    return (mockHwRecords.find(r => r.assetNo === assetNo) as HwRecord) ?? null;
-  }
-  return getHwByAssetNoFromPostgresOrThrow(assetNo);
 }
 
 function normalizeSerial(s: string): string {

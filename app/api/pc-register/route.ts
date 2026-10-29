@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { upsertPcScan, type PcScanPayload } from "@/lib/pc-scan";
+import { insertPcScanSubmission, type PcScanPayload } from "@/lib/pc-scan";
 import { errorMessage } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
@@ -38,9 +38,8 @@ export async function POST(req: NextRequest) {
   // 값을 대조 키 오염 방지를 위해 빈 값으로 바꿔 보낸다. 그 PC 들도 등록은 되어야 하므로
   // pcName 만 필수로 둔다.
   //
-  // 대신 시리얼이 없으면 serialFuzzyMatch 가 늘 false 라 masterExists(HW 마스터 대조)가
-  // false 로 남는다 — 관리자 화면에서 "마스터 없음"으로 보이고 자산번호로 수동 확인해야
-  // 한다. 같은 이유로 upsert 의 기존 레코드 판정도 시리얼 대신 pcName 으로만 이뤄진다.
+  // HW 마스터 대조는 데스크탑 앱이 한다(v2 전환 뒤 포털은 받은 그대로 새 행만 남긴다 — lib/pc-scan.ts).
+  // 시리얼이 없으면 앱에서도 자산번호로 수동 확인해야 한다.
   if (!pcName) {
     return NextResponse.json(
       { ok: false, error: "pcName은 필수입니다" },
@@ -62,7 +61,7 @@ export async function POST(req: NextRequest) {
   const originalCorp = typeof body.originalCorp === "string" ? body.originalCorp.trim() : "";
 
   try {
-    const result = await upsertPcScan(
+    const result = await insertPcScanSubmission(
       { ...body, serial, pcName, isDualOrShared, originalCorp },
       "pc-register"
     );

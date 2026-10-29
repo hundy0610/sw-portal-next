@@ -1,7 +1,7 @@
 import * as XLSX from "xlsx";
 import { isMock } from "./mock";
-import { findHwByAssetNo, serialFuzzyMatch, markHwVerifiedByScanMatch, fillMissingHwContactInfo, type HwRecord } from "./hw";
-import { readEntity, readEntityOne, upsertEntity, deleteEntity } from "@/lib/repo/mirror";
+import { serialFuzzyMatch, type HwRecord } from "./hw";
+import { insertEntity, readEntity, readEntityOne, upsertEntity, deleteEntity } from "@/lib/repo/mirror";
 import { uploadToBlob } from "@/lib/blob-store";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -132,20 +132,6 @@ export interface PcScanRecord {
   programFileName: string;
   programFileUrl: string;
   notionUrl: string;
-}
-
-/**
- * 수집 시각 이력에 이번 수집 시각을 더한다. 같은 시각은 한 번만 담고 오래된 순으로 둔다.
- * 이력이 없는(필드가 생기기 전) 레코드는 기존 collectedAt 하나로 이력을 시작한다 —
- * 안 그러면 이 변경 이후 첫 재스캔에서 옛 수집 시각이 그대로 사라진다.
- */
-function appendCollectedAt(existing: PcScanRecord | undefined, at: string | undefined): string[] {
-  const prev = Array.isArray(existing?.collectedHistory)
-    ? existing!.collectedHistory!.filter(v => typeof v === "string" && v.trim() !== "")
-    : [existing?.collectedAt ?? ""].filter(v => v.trim() !== "");
-  const now = (at ?? "").trim();
-  if (!now || prev.includes(now)) return prev;
-  return [...prev, now].sort();
 }
 
 export interface PcScanMismatch {
@@ -317,42 +303,18 @@ export async function deletePcScan(id: string, entity: PcScanEntity = "pc-scan")
   if (!ok) throw new Error("pc-scan 삭제 실패(Postgres)");
 }
 
-export async function upsertPcScan(data: PcScanPayload, entity: PcScanEntity = "pc-scan"): Promise<UpsertResult> {
+/**
+ * 실사·PC 등록 제출을 **받은 그대로 새 행**으로 남긴다(v2 전환 뒤 — 10-29 결정).
+ *
+ * 예전에는 여기서 HW 마스터를 읽어 대조하고(자동 실사확인·연락처 보정), 같은 PC 의 기존 제출 행을 찾아 합쳤다.
+ * 전환 뒤 포털은 HW·제출 행을 읽을 수 없고(암호문) 고칠 수도 없다. 대조는 원래 데스크탑 앱이 하고
+ * (matchPcScansWithHw), HW 수정은 관리자가 앱의 [동기화 확인]으로 한다. 같은 PC 의 여러 제출은 앱이 목록을
+ * 보일 때 합친다. 그래서 여기서는 첨부를 올리고 잠가서 추가만 한다.
+ */
+export async function insertPcScanSubmission(data: PcScanPayload, entity: PcScanEntity = "pc-scan"): Promise<UpsertResult> {
   if (isMock()) {
-    console.log("[MOCK] upsertPcScan", data.serial);
+    console.log("[MOCK] insertPcScanSubmission", data.serial);
     return { id: "mock-pc-scan-1", action: "created", masterExists: false };
-  }
-  
-  // 마스터(HW) 대조 — findHwByAssetNo는 Postgres 전용. 조회 실패 시 마스터 없음으로
-  // 조용히 넘기지 않고 그대로 throw해 스캔 업로드 자체를 실패 처리한다.
-  const hwRecord = data.assetNo ? await findHwByAssetNo(data.assetNo) : null;
-  const masterExists = !!hwRecord && serialFuzzyMatch(data.serial, hwRecord.serial);
-
-  // 완전 일치 시 HW 자동 실사확인 / 부분 일치 시 연락정보 보정 (HW 쓰기는 Postgres write-through)
-  const scanMac = data.macAddresses?.length ? data.macAddresses.join(", ") : undefined;
-  const scanEmail = data.email || undefined;
-  const scanCpu = data.cpu || undefined;
-  const scanRam = data.ram || undefined;
-  const alreadySynced = !!hwRecord
-    && hwRecord.status === "사용중"
-    && hwRecord.verified
-    && (!scanMac   || hwRecord.mac === scanMac)
-    && (!scanEmail || hwRecord.email === scanEmail)
-    && (!scanCpu   || hwRecord.cpu === scanCpu)
-    && (!scanRam   || hwRecord.ram === scanRam);
-  const fullOrgMatch = !!hwRecord && masterExists
-    && hwRecord.company === (data.corp ?? "")
-    && hwRecord.dept    === (data.dept ?? "")
-    && hwRecord.user    === (data.userName ?? "");
-
-  if (hwRecord && fullOrgMatch && !alreadySynced) {
-    await markHwVerifiedByScanMatch(hwRecord.id, { mac: scanMac, email: scanEmail, cpu: scanCpu, ram: scanRam })
-      .catch(e => console.error("[pc-scan → hw 자동 실사확인 실패]", e));
-  } else if (hwRecord && masterExists) {
-    await fillMissingHwContactInfo(hwRecord.id, {
-      mac:   !hwRecord.mac   ? scanMac   : undefined,
-      email: !hwRecord.email ? scanEmail : undefined,
-    }).catch(e => console.error("[pc-scan → hw MAC/이메일 보정 실패]", e));
   }
 
   // 설치프로그램 파일 → Blob 업로드
@@ -369,16 +331,11 @@ export async function upsertPcScan(data: PcScanPayload, entity: PcScanEntity = "
     programFileName = data.programsFileName;
   }
 
-  // 기존 레코드: 시리얼 넘버 + PC이름 일치로 같은 기기 판단(BIOS 무의미 시리얼 중복 방지)
-  const all = (await readEntity<PcScanRecord>(entity)) ?? [];
-  const existing = all.find(r =>
-    r.serial === data.serial && (!data.pcName || r.pcName === data.pcName),
-  );
-
-  const id = existing?.id ?? crypto.randomUUID();
+  const id = crypto.randomUUID();
+  const collectedAt = (data.collectedAt ?? "").trim();
   const record: PcScanRecord = {
     id,
-    notionUrl:      existing?.notionUrl ?? "",
+    notionUrl:      "",
     pcName:         data.pcName,
     serial:         data.serial,
     assetNo:        data.assetNo ?? "",
@@ -398,23 +355,20 @@ export async function upsertPcScan(data: PcScanPayload, entity: PcScanEntity = "
     os:             data.os ?? "",
     gpu:            data.gpu ?? "",
     storage:        data.storage ?? "",
-    mac:            scanMac ?? "",
-    collectedAt:    data.collectedAt ?? "",
-    // collectedAt 은 의도대로 "마지막 수집 시각"으로 덮는다. 회차별 집계가 잃어버리는
-    // 지난 수집 시각은 이력에 쌓아 남긴다.
-    collectedHistory: appendCollectedAt(existing, data.collectedAt),
+    mac:            data.macAddresses?.length ? data.macAddresses.join(", ") : "",
+    collectedAt,
+    collectedHistory: collectedAt ? [collectedAt] : [],
     price:          typeof data.price === "number" ? data.price : 0,
-    masterExists,
-    // 관리자 플래그는 스캔 페이로드에 없으므로 기존값 보존
-    registered:     existing?.registered ?? false,
-    registeredAt:   existing?.registeredAt ?? "",
-    closed:         existing?.closed ?? false,
-    // 새 파일이 없으면 기존 첨부 유지
-    programFileName: programFileName || (existing?.programFileName ?? ""),
-    programFileUrl:  programFileUrl  || (existing?.programFileUrl  ?? ""),
+    // 대조는 앱이 한다 — 여기 값은 쓰지 않는다.
+    masterExists:   false,
+    registered:     false,
+    registeredAt:   "",
+    closed:         false,
+    programFileName,
+    programFileUrl,
   };
 
-  const ok = await upsertEntity(entity, id, record);
+  const ok = await insertEntity(entity, id, record);
   if (!ok) throw new Error("pc-scan 저장 실패(Postgres)");
-  return { id, action: existing ? "updated" : "created", masterExists };
+  return { id, action: "created", masterExists: false };
 }
