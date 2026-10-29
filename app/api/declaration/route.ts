@@ -60,7 +60,7 @@ function toRecord(r: DeclarationCreateRecord): SwDbRecord {
 
 // ─── POST /api/declaration ────────────────────────────────────────────────────
 // Body: { reporter: { company, department, name }, records: [{ ...SW 추가 양식, usage: "사용중" | "반납예정" }] }
-// 신고 한 건 = 신고 행 하나: { reporter, usage, record(SW 자산 모양 — 앱이 그대로 등록할 수 있게), submittedAt }
+// 신고 한 건 = 신고 행 하나: { id, reporter, usage, record(SW 자산 모양 — 앱이 그대로 등록할 수 있게), submittedAt }
 const MAX_RECORDS = 50;
 
 export async function POST(req: Request) {
@@ -94,7 +94,9 @@ export async function POST(req: Request) {
         user: reporter.name, company: reporter.company, department: reporter.department,
         status: usage === "반납예정" ? "반납예정" : "신규등록",
       });
-      if (await insertEntity(SW_DECLARATION_ENTITY, crypto.randomUUID(), { reporter, usage, record, submittedAt })) count++;
+      // id 를 본문에도 둔다 — 앱의 로컬 캐시는 본문만 돌려줘 행 id 를 따로 알 수 없다(처리·삭제에 필요).
+      const id = crypto.randomUUID();
+      if (await insertEntity(SW_DECLARATION_ENTITY, id, { id, reporter, usage, record, submittedAt })) count++;
     }
     if (count < records.length) {
       return Response.json({ ok: false, error: `${records.length}건 중 ${count}건만 저장됐습니다. 다시 시도해주세요.`, count }, { status: 500 });
