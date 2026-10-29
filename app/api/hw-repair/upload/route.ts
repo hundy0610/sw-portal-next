@@ -4,6 +4,7 @@ import { uploadToBlob, isBlobEnabled } from "@/lib/blob-store";
 import { readEntityOne, upsertEntity } from "@/lib/repo/mirror";
 import { HR_ENTITY, HR_FILE_FIELDS } from "@/lib/hw-repair";
 import type { HwRepairRecord } from "@/types";
+import { rejectWithoutSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -11,6 +12,8 @@ export const maxDuration = 60;
 // 파일을 Vercel Blob 에 올리고 미러 레코드의 해당 필드(string[])에 append 한다.
 // (5분 백업 러너가 Blob→Notion 재업로드)
 export async function POST(req: NextRequest) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   if (!isBlobEnabled()) return NextResponse.json({ ok: false, error: "BLOB_READ_WRITE_TOKEN 없음" }, { status: 503 });
 
   let formData: FormData;

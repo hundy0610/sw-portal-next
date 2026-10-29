@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { fetchMeetingRentalTickets } from "@/lib/meeting-rental";
 import { isMirrorEnabled } from "@/lib/repo/mirror";
+import { rejectWithoutSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 // 4.0verMACBOOK: 맥북 Postgres 미러가 메인. 캐시 없이 즉시 일관성.
-export async function GET() {
+export async function GET(req: Request) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   if (!isMirrorEnabled()) {
     return NextResponse.json({
       ok: false,

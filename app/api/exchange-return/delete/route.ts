@@ -2,10 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { deleteExchangeReturn } from "@/lib/exchange-return";
 import { memDel } from "@/lib/mem-cache";
 import { errorMessage } from "@/lib/api-error";
+import { rejectWithoutSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   try {
     const { id } = await req.json() as { id: string };
     if (!id) return NextResponse.json({ ok: false, error: "id 필수" }, { status: 400 });

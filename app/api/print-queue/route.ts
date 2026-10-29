@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { kvGet, kvSetPermanent } from "@/lib/kv-store";
 import { errorMessage } from "@/lib/api-error";
+import { rejectWithoutSession } from "@/lib/session";
 
 const KV_KEY = "label-print-queue";
 
@@ -16,7 +17,9 @@ export interface PrintQueueItem {
   addedAt: string;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   try {
     const items = (await kvGet<PrintQueueItem[]>(KV_KEY)) ?? [];
     return NextResponse.json({ ok: true, items });
@@ -26,6 +29,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   try {
     const item = (await req.json()) as PrintQueueItem;
     if (!item.id) return NextResponse.json({ ok: false, error: "id 누락" }, { status: 400 });
@@ -42,6 +47,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   try {
     const id = new URL(req.url).searchParams.get("id");
     const existing = (await kvGet<PrintQueueItem[]>(KV_KEY)) ?? [];

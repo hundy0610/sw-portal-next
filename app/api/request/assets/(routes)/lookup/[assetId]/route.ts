@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { getHwByAssetNoFromPostgres } from "@/lib/repo/hw";
+import { rejectWithoutSession } from "@/lib/session";
 
 type RouteContext = {
   params: { assetId: string };
@@ -12,7 +13,9 @@ export const dynamic = "force-dynamic";
 // 4.0verMACBOOK: 자산 자가서비스 DB == HWDB(hw 테이블). 공개 자산 자가조회(QR)는 hw 테이블
 // 단일 소스에서 자산번호로 조회한다. 응답 JSON 한글 키 형태는 기존 Notion 버전과 100% 동일.
 // HWDB 에 없는 워크플로 표시필드는 기존처럼 "-"/0/[] 로 반환.
-export async function GET(_: NextRequest, context: RouteContext) {
+export async function GET(req: NextRequest, context: RouteContext) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   try {
     const { assetId } = context.params;
 

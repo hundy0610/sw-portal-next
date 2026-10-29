@@ -2,12 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { updateContract, updateContractStage, deleteContract } from "@/lib/contracts";
 import type { ContractStage } from "@/types/contract";
 import { errorMessage } from "@/lib/api-error";
+import { rejectWithoutSession } from "@/lib/session";
 
 // PUT /api/contracts/[id]  (multipart/form-data)
 export async function PUT(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   try {
     const formData = await req.formData();
 
@@ -47,6 +50,8 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   try {
     const { stage } = (await req.json()) as { stage: ContractStage };
     if (!stage) return NextResponse.json({ ok: false, error: "stage 필드 필요" }, { status: 400 });
@@ -63,6 +68,8 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   try {
     await deleteContract(params.id);
     return NextResponse.json({ ok: true });

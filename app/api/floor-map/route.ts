@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchFloorMap, saveFloorMap } from "@/lib/monitor-store";
 import { errorMessage } from "@/lib/api-error";
+import { rejectWithoutSession } from "@/lib/session";
 
 export async function GET(req: NextRequest) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   const { searchParams } = new URL(req.url);
   const building = searchParams.get("building");
   const floor    = searchParams.get("floor");
@@ -18,6 +21,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   try {
     const body = await req.json();
     const { building, floor, data } = body;

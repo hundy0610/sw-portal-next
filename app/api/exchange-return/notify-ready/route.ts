@@ -10,6 +10,7 @@ import {
   buildReturnRequestCourierEmail,
 } from "@/lib/mail";
 import { errorMessage } from "@/lib/api-error";
+import { rejectWithoutSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +70,8 @@ function buildMailContent(payload: MailPayload) {
 }
 
 export async function POST(req: NextRequest) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   try {
     const url = new URL(req.url);
     const preview = url.searchParams.get("preview") === "1";

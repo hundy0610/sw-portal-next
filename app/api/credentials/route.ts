@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readEntity, readEntityOne, upsertEntity, deleteEntity, isMirrorEnabled } from "@/lib/repo/mirror";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
+import { rejectWithoutSession } from "@/lib/session";
 
 const CRED_ENTITY = "credentials";
 
@@ -30,7 +31,9 @@ function toClient(r: CredentialRecord) {
 // ── GET: 전체 조회 ────────────────────────────────────────
 // 4.0verMACBOOK: 맥북 Postgres 미러(entity "credentials")에서 조회. 비밀번호는 미러에
 // 암호화 저장되며 응답 시 복호화한다.
-export async function GET() {
+export async function GET(req: Request) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   if (!isMirrorEnabled()) {
     return NextResponse.json({ missingEnv: "SUPABASE_URL", error: "데이터 저장소가 설정되지 않았습니다." }, { status: 503 });
   }
@@ -48,6 +51,8 @@ export async function GET() {
 
 // ── POST: 추가 ────────────────────────────────────────────
 export async function POST(req: NextRequest) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   try {
     const { swName, siteUrl = "", accountId, password = "", memo = "" } = await req.json();
     if (!swName || !accountId) {
@@ -76,6 +81,8 @@ export async function POST(req: NextRequest) {
 
 // ── PUT: 수정 ─────────────────────────────────────────────
 export async function PUT(req: NextRequest) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   try {
     const { id, swName, siteUrl, accountId, password, memo } = await req.json();
     if (!id) return NextResponse.json({ error: "id가 필요합니다." }, { status: 400 });
@@ -102,6 +109,8 @@ export async function PUT(req: NextRequest) {
 
 // ── DELETE: 삭제 (소프트 삭제) ───────────────────────────────
 export async function DELETE(req: NextRequest) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   try {
     const { id } = await req.json();
     if (!id) return NextResponse.json({ error: "id가 필요합니다." }, { status: 400 });

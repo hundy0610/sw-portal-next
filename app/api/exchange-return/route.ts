@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchExchangeReturns } from "@/lib/exchange-return";
 import { isMirrorEnabled } from "@/lib/repo/mirror";
+import { rejectWithoutSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   if (!isMirrorEnabled()) {
     return NextResponse.json({ missingEnv: "SUPABASE_URL", error: "데이터 저장소가 설정되지 않았습니다." }, { status: 503 });
   }

@@ -3,11 +3,14 @@ import { errorMessage } from "@/lib/api-error";
 import { readEntityOne, upsertEntity } from "@/lib/repo/mirror";
 import { HR_ENTITY, HR_FILE_FIELDS } from "@/lib/hw-repair";
 import type { HwRepairRecord } from "@/types";
+import { rejectWithoutSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 // 미러 레코드의 파일 필드(string[])를 remainingUrls 로 교체한다(삭제 반영).
 export async function POST(req: NextRequest) {
+  const denied = rejectWithoutSession(req);
+  if (denied) return denied;
   let body: { pageId: string; fieldName: string; remainingUrls: string[] };
   try {
     body = await req.json();
