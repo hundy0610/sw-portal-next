@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { assertPlainEntity, sealEntityData } from "@/lib/db-seal";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 제네릭 엔티티 미러 접근 (4.0verMACBOOK)
@@ -13,14 +14,16 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 
-let _client: SupabaseClient | null = null;
+let _client: SupabaseClient<any, string> | null = null;
 
-function getClient(): SupabaseClient | null {
+function getClient(): SupabaseClient<any, string> | null {
   if (!SUPABASE_URL || !SUPABASE_KEY) return null;
   if (_client) return _client;
   try {
     _client = createClient(SUPABASE_URL, SUPABASE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
+      // v2 전환 뒤: 맥북 DB 의 사본 스키마 v2(암호문)만 쓴다 — 운영 스키마 public 은 닫힌다(lib/db-seal.ts).
+      db: { schema: "v2" },
       // Funnel 경로 중간에 페이지네이션(Range 헤더) 응답을 캐싱하는 프록시가 있을 가능성이
       // 있어 명시적으로 캐시 금지를 요청한다 (lib/repo/hw.ts와 동일한 대응).
       global: {
@@ -55,6 +58,7 @@ const PAGE = 1000; // PostgREST 기본 최대 반환 행수
  *    앱엔 안 보임" 증상). Postgres 가 메인 소스인 이상 읽기 실패는 숨기지 않고 드러낸다.
  */
 export async function readEntity<T>(entity: string): Promise<T[] | null> {
+  assertPlainEntity(entity, "읽기");
   const client = getClient();
   if (!client) return null;
   try {
@@ -85,6 +89,7 @@ export async function readEntity<T>(entity: string): Promise<T[] | null> {
  * 규약은 readEntity 와 동일: 미설정→null, 없음/삭제됨→null, 설정됨+조회실패→throw.
  */
 export async function readEntityOne<T>(entity: string, id: string): Promise<T | null> {
+  assertPlainEntity(entity, "읽기");
   const client = getClient();
   if (!client) return null;
   try {
@@ -109,6 +114,7 @@ export async function readEntityOne<T>(entity: string, id: string): Promise<T | 
  * 반환: 성공 여부.
  */
 export async function upsertEntity(entity: string, id: string, data: unknown): Promise<boolean> {
+  assertPlainEntity(entity, "고치기");
   const client = getClient();
   if (!client) return false;
   try {
@@ -133,8 +139,31 @@ export async function upsertEntity(entity: string, id: string, data: unknown): P
   }
 }
 
+/**
+ * 새 행 추가만(v2 전환 뒤 직원 접수 전용). 평문 예외가 아니면 공개키로 잠근다(lib/db-seal.ts).
+ * upsert 가 아니라 insert 다 — 같은 id 가 이미 있으면 덮어쓰지 않고 실패한다(포털은 기존 행을 고칠 수 없다).
+ * 반환: 성공 여부.
+ */
+export async function insertEntity(entity: string, id: string, data: unknown): Promise<boolean> {
+  const client = getClient();
+  if (!client) return false;
+  const sealed = sealEntityData(entity, data); // 공개키가 없으면 여기서 throw — 평문으로 쓰지 않는다
+  try {
+    const { data: rows, error } = await client
+      .from(TABLE)
+      .insert({ entity, id, data: sealed, deleted: false, dirty: true, updated_at: new Date().toISOString() })
+      .select("id");
+    if (error) throw error;
+    return !!rows && rows.length > 0;
+  } catch (e) {
+    console.warn(`[mirror] insertEntity(${entity},${id}) 실패`, e);
+    return false;
+  }
+}
+
 /** 소프트 삭제. 백업 잡이 Notion 페이지를 archive 한다. 반환: 성공 여부. */
 export async function deleteEntity(entity: string, id: string): Promise<boolean> {
+  assertPlainEntity(entity, "지우기");
   const client = getClient();
   if (!client) return false;
   try {
