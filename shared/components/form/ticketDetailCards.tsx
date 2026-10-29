@@ -12,20 +12,6 @@ export function TicketDetailCard({ children, className }: TicketDetailCardProps)
   return <div className={`${baseClasses} ${className}`}>{children}</div>;
 }
 
-interface TicketDetailStatusProps {
-  label: string;
-  value: string;
-}
-
-export function TicketDetailStatus({ label, value }: TicketDetailStatusProps) {
-  return (
-    <TicketDetailCard className="flex flex-col gap-spacing-100">
-      <span className="text-content-standard-tertiary text-label">{label}</span>
-      <span className="font-semibold text-heading">{value}</span>
-    </TicketDetailCard>
-  );
-}
-
 interface TicketDetailInfoProps {
   label: string;
   value: string;

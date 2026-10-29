@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { assertPlainKvKey } from "@/lib/db-seal";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // KV 저장소 백엔드 (4.0verMACBOOK)
@@ -19,14 +20,16 @@ const TABLE = "kv";
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 
-let _client: SupabaseClient | null = null;
+let _client: SupabaseClient<any, string> | null = null;
 
-function getClient(): SupabaseClient | null {
+function getClient(): SupabaseClient<any, string> | null {
   if (!SUPABASE_URL || !SUPABASE_KEY) return null;
   if (_client) return _client;
   try {
     _client = createClient(SUPABASE_URL, SUPABASE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
+      // v2 전환 뒤: 맥북 DB 의 사본 스키마 v2(암호문)만 쓴다 — 운영 스키마 public 은 닫힌다(lib/db-seal.ts).
+      db: { schema: "v2" },
       // Funnel 경로 중간에 캐싱하는 프록시가 있을 가능성이 있어 명시적으로 캐시 금지 요청
       // (lib/repo/hw.ts, lib/repo/mirror.ts와 동일한 대응).
       global: {
@@ -52,6 +55,7 @@ function notExpired(): string {
  * Postgres 조회가 간헐적으로 실패할 수 있어(네트워크/터널) 한 번 더 재시도한 뒤에만 null 처리한다.
  */
 export async function kvGet<T>(key: string): Promise<T | null> {
+  assertPlainKvKey(key, "읽기");
   const client = getClient();
   if (!client) return null;
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -79,6 +83,7 @@ export async function kvGet<T>(key: string): Promise<T | null> {
  * 착각하면 안 되는 저장(중복발송 방지 키 등)은 이 값을 반드시 확인해야 한다.
  */
 export async function kvSet<T>(key: string, value: T, ttl = KV_TTL): Promise<boolean> {
+  assertPlainKvKey(key, "쓰기");
   const client = getClient();
   if (!client) return false;
   const nowIso = new Date().toISOString();
@@ -105,6 +110,7 @@ export async function kvSet<T>(key: string, value: T, ttl = KV_TTL): Promise<boo
  * 성공 여부를 boolean으로 반환한다(사용자가 결과를 기다리는 저장은 이 값을 확인).
  */
 export async function kvSetPermanent<T>(key: string, value: T): Promise<boolean> {
+  assertPlainKvKey(key, "쓰기");
   const client = getClient();
   if (!client) return false;
   const nowIso = new Date().toISOString();
@@ -129,6 +135,7 @@ export async function kvSetPermanent<T>(key: string, value: T): Promise<boolean>
  * KV 다중 키 한 번에 읽기 (요청 1회). 입력 keys 순서 그대로, 없는/만료된 키는 null 로 채워 반환한다.
  */
 export async function kvMGet<T>(keys: string[]): Promise<(T | null)[]> {
+  for (const k of keys) assertPlainKvKey(k, "읽기");
   const client = getClient();
   if (!client || keys.length === 0) return keys.map(() => null);
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -158,6 +165,7 @@ export async function kvMGet<T>(keys: string[]): Promise<(T | null)[]> {
  * 재시도한다.
  */
 export async function kvDel(...keys: string[]): Promise<void> {
+  for (const k of keys) assertPlainKvKey(k, "지우기");
   const client = getClient();
   if (!client || keys.length === 0) return;
   for (let attempt = 0; attempt < 2; attempt++) {

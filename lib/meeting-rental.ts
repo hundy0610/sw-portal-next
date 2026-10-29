@@ -1,4 +1,4 @@
-import { readEntity, readEntityOne, upsertEntity } from "@/lib/repo/mirror";
+import { insertEntity, readEntity, readEntityOne, upsertEntity } from "@/lib/repo/mirror";
 import type { MeetingRentalTicket } from "@/types";
 
 const MR_ENTITY = "meeting-rental";
@@ -33,8 +33,9 @@ export async function createMeetingRentalTicketRecord(data: {
     assigneeId: "",
     createdAt: new Date().toISOString(),
     notionUrl: "",
+    notifyBy: "server",
   };
-  const ok = await upsertEntity(MR_ENTITY, id, record);
+  const ok = await insertEntity(MR_ENTITY, id, record);
   if (!ok) throw new Error("대여신청 저장 실패(Postgres)");
   return id;
 }

@@ -193,6 +193,7 @@ export interface MeetingRentalTicket {
   assigneeId: string;      // 담당자 Notion user ID
   createdAt: string;       // 제출 시간 (created_time)
   notionUrl: string;
+  notifyBy?: "server";     // 신규 접수 알림 메일을 맥북 잡이 보낸다(v2 전환 뒤 — 포털은 수신자 KV 를 못 읽는다)
 }
 
 // ────────────────────────────────────────────────────────────
