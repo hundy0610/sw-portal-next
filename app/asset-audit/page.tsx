@@ -54,6 +54,7 @@ function formatBytes(bytes: number | null): string {
 const INSTALL_STEPS: Record<"windows" | "mac", React.ReactNode[]> = {
   windows: [
     "위 버튼을 누르면 새 탭에서 다운로드 페이지가 열립니다. 그 페이지에서 다운로드 버튼을 눌러 실행 파일(.exe)을 받습니다.",
+    "Edge·Chrome에서 \"일반적으로 다운로드되지 않는 파일\"이라며 다운로드가 막힐 때가 있습니다. 그럴 때는 다운로드 목록의 \"…\" 메뉴에서 \"유지\"를 눌러야 받아집니다.",
     "다운로드한 파일을 더블클릭해서 실행합니다.",
     "\"Windows에서 PC를 보호했습니다\" 화면이 뜨면 \"추가 정보\"를 누른 뒤 \"실행\" 버튼을 눌러주세요.",
     "프로그램 실행 시 표시되는 안내를 읽고 진행해주세요.",
