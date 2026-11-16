@@ -9,8 +9,10 @@
 
 ## 반드시 지킬 핵심 (4.0)
 
-1. **맥북 한 대가 중앙 DB다.** 자체 호스팅 Supabase(Postgres)를 Tailscale Funnel(HTTPS)로 노출:
-   `https://userui-macbookpro.tailc11f42.ts.net` → `127.0.0.1:8000`. **DB 포트 5432를 인터넷에 노출하지 말 것.**
+1. **맥북 한 대가 중앙 DB다.** 자체 호스팅 Supabase(Postgres)를 Cloudflare Tunnel(HTTPS)로 노출:
+   `https://api.idstrust-asset.app` → `127.0.0.1:8000`. **DB 포트 5432를 인터넷에 노출하지 말 것.**
+   - 2026-11-16 Funnel → Cloudflare Tunnel (api.idstrust-asset.app); Funnel 은 옛 클라이언트용으로 병행
+     (옛 주소 `https://userui-macbookpro.tailc11f42.ts.net` 도 같은 Kong·같은 키로 계속 열려 있다).
 2. **Postgres = 메인(읽기+쓰기). Notion = 단방향 백업**(맥북 launchd 잡이 5분마다 dirty 행만 반영). 앱 코드에서 Notion에 직접 쓰지 말고 미러를 통해 쓴다.
 3. **Redis/Upstash는 제거됐다.** KV는 Postgres `public.kv`(`lib/kv-store.ts`). `kvGet/kvSet/memGet/memSet`를 되살리거나 `REDIS_URL`/Upstash를 다시 도입하지 말 것. (TEST/master의 과거 Redis 수정 패턴을 4.0에서 부활시키지 말 것.)
 4. **데이터 접근**: 엔티티는 `lib/repo/mirror.ts`(`entity_store`), HW는 `lib/repo/hw.ts`(`public.hw`). 쓰기는 `upsertEntity`(자동 `dirty=true`), 삭제는 `deleteEntity`(소프트).

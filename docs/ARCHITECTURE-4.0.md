@@ -1,8 +1,9 @@
 # SW-PORTAL 아키텍처 가이드 (맥북 중앙 Postgres)
 
 > **TL;DR (English):** The MacBook is the single central data host. It runs self-hosted
-> Supabase (Postgres) in Docker, exposed to Vercel **only** over an HTTPS Tailscale Funnel
-> (port 8000). Postgres is the **only** read/write store — the Notion integration was removed
+> Supabase (Postgres) in Docker, exposed to Vercel **only** over HTTPS (port 8000) — a Cloudflare
+> Tunnel at `https://api.idstrust-asset.app` since 2026-11-16 (the old Tailscale Funnel host stays
+> up in parallel for old clients). Postgres is the **only** read/write store — the Notion integration was removed
 > in 2026-09 (code, backup runner, and dependency all gone). Backups are the weekly `pg_dump`
 > job on the MacBook. Redis/Upstash is **removed** — KV lives in Postgres. Never expose the
 > DB port (5432) to the internet, never commit secrets/`.env`.
@@ -15,17 +16,19 @@
 ## 1. 큰 그림 (Big picture)
 
 ```
-[사용자] ──► [Vercel 앱 (Next.js)] ──HTTPS(Tailscale Funnel)──► [맥북]
+[사용자] ──► [Vercel 앱 (Next.js)] ──HTTPS(Cloudflare Tunnel)─► [맥북]
                                                                  ├─ Supabase/Postgres (Docker, 127.0.0.1:8000)
                                                                  └─ launchd 주간 pg_dump 백업
 ```
 
 - **앱**: Vercel에서 그대로 구동(Next.js).
 - **데이터 호스트**: 이 **맥북 한 대**가 중앙 DB. 자체 호스팅 Supabase(Postgres)를 Docker로 구동.
-- **연결**: Vercel → 맥북은 **Tailscale Funnel(HTTPS)** 로만 접근한다.
-  - 공개 주소: `https://userui-macbookpro.tailc11f42.ts.net` → 내부 `http://127.0.0.1:8000`(Kong/PostgREST).
-  - **DB 포트 5432는 절대 인터넷에 노출하지 않는다.** 오직 HTTPS 8000만 Funnel로 나간다.
-- **보안**: PostgREST + RLS + `service_role` 키. 키가 없으면 데이터 접근이 거부된다(401). Funnel은 공개 경로이므로 `SUPABASE_KEY`(service_role) 보관이 곧 보안이다. 선택적으로 `SWP_DB_SECRET`(→ `x-swp-secret` 헤더)로 한 겹 더 보강.
+- **연결**: Vercel → 맥북은 **Cloudflare Tunnel(HTTPS)** 로만 접근한다.
+  - 공개 주소: `https://api.idstrust-asset.app` → 내부 `http://127.0.0.1:8000`(Kong/PostgREST).
+  - 2026-11-16 Funnel → Cloudflare Tunnel (api.idstrust-asset.app); Funnel 은 옛 클라이언트용으로 병행
+    — 옛 주소 `https://userui-macbookpro.tailc11f42.ts.net` 도 같은 Kong(같은 키·같은 데이터)으로 계속 열려 있다.
+  - **DB 포트 5432는 절대 인터넷에 노출하지 않는다.** 오직 HTTPS 8000만 Tunnel·Funnel로 나간다.
+- **보안**: PostgREST + RLS + `service_role` 키. 키가 없으면 데이터 접근이 거부된다(401). Tunnel·Funnel 모두 공개 경로이므로 `SUPABASE_KEY`(service_role) 보관이 곧 보안이다. 선택적으로 `SWP_DB_SECRET`(→ `x-swp-secret` 헤더)로 한 겹 더 보강.
 
 ---
 
@@ -87,7 +90,7 @@
 | 변수 | 용도 |
 |---|---|
 | `DATA_SOURCE=postgres` | Postgres를 1차 소스로 사용 |
-| `SUPABASE_URL` | 맥북 Funnel 주소 (`https://userui-macbookpro.tailc11f42.ts.net`) |
+| `SUPABASE_URL` | 맥북 공개 주소 — Cloudflare Tunnel `https://api.idstrust-asset.app` (2026-11-16 전: Funnel `https://userui-macbookpro.tailc11f42.ts.net`) |
 | `SUPABASE_KEY` | Supabase **service_role** 키(서버 전용, RLS 우회) |
 | `SWP_DB_SECRET` | (선택) 공유 시크릿, `x-swp-secret` 헤더 검증 |
 | `BLOB_READ_WRITE_TOKEN` | Vercel Blob 파일 저장 (Storage 연결 시 자동 주입) |
@@ -112,10 +115,10 @@
 - 중앙 Postgres는 **맥북에만** 있다. 다른 PC는 **코드 작업만** 한다 — 로컬 DB를 새로 띄우지 말 것.
 - 앱을 로컬에서 중앙 데이터로 돌려보려면 로컬 `.env`에:
   - `DATA_SOURCE=postgres`
-  - `SUPABASE_URL=https://userui-macbookpro.tailc11f42.ts.net`
+  - `SUPABASE_URL=https://api.idstrust-asset.app`
   - `SUPABASE_KEY=<service_role 키>`
   - (쓰기 알림 테스트가 필요하면 `GMAIL_*`, 파일 테스트면 `BLOB_READ_WRITE_TOKEN`)
-  - 맥북의 Supabase/Funnel이 켜져 있어야 접근된다.
+  - 맥북의 Supabase/Cloudflare Tunnel 이 켜져 있어야 접근된다.
 - **5분 백업 launchd 잡은 맥북에서만** 돈다. 다른 PC에 설치 금지.
 - **마이그레이션**: 스키마 변경은 `scripts/sql/NNN_*.sql`에 추가하고 `npm run migrate`를 **중앙 DB 대상**으로 실행(공유 상태 변경이므로 사전 합의 필요).
 - **시드**: `npm run seed:entities` / `npm run seed:hw`는 **중앙 DB 1회성** 작업(맥북에서).
@@ -130,7 +133,7 @@ npm run seed:entities -- sw helpdesk   # 특정 엔티티만
 
 ### 가용성 / 잠들지 않게 유지 (Availability / keep-awake)
 
-맥북이 잠들면 Funnel(HTTPS 8000)과 로컬 Supabase가 도달 불가가 되어, 배포된 앱이
+맥북이 잠들면 Tunnel·Funnel(HTTPS 8000)과 로컬 Supabase가 도달 불가가 되어, 배포된 앱이
 미러를 못 읽어 관리자 화면이 오류를 띄운다. 이를 막기 위해:
 
 1. **idle 슬립 방지 (sudo 불필요, 유저 레벨 launchd + `caffeinate -s`)**
@@ -148,7 +151,7 @@ sudo pmset -c disablesleep 1     # AC 전원에서 슬립 완전 비활성(클�
 sudo pmset -c womp 1 powernap 0  # (선택) 네트워크 웨이크 유지, powernap 끄기
 ```
    되돌리기: `sudo pmset -c disablesleep 0`
-3. **Tailscale Funnel 재기동** — tailscaled가 시스템 데몬(`/Library/LaunchDaemons/com.tailscale.tailscaled.plist`)으로
+3. **Tailscale Funnel 재기동** (2026-11-16 부터 옛 클라이언트용 병행 경로) — tailscaled가 시스템 데몬(`/Library/LaunchDaemons/com.tailscale.tailscaled.plist`)으로
    돌면 재부팅 후 serve/funnel 설정이 복원된다. 매핑이 없으면(확인: `tailscale funnel status`):
 ```bash
 tailscale funnel --bg 8000       # sudo 불필요(tailscaled 떠 있으면)
@@ -163,7 +166,7 @@ tailscale funnel --bg 8000       # sudo 불필요(tailscaled 떠 있으면)
 
 - 브랜치: 기능작업 → 해당 브랜치, **`TEST` → `sw-portal-next-test.vercel.app`**, **`master` → 프로덕션**.
 - **커밋 / 푸시 / 머지 / 프로덕션 배포는 명시적 승인 필요.**
-- **DB 포트를 인터넷에 노출 금지.** 오직 Funnel(HTTPS 8000)만.
+- **DB 포트를 인터넷에 노출 금지.** 오직 HTTPS 8000(Cloudflare Tunnel·Funnel)만.
 - **비밀값 커밋 금지.** `.env`는 git 제외. 문서/로그/코드에 실제 키를 남기지 말 것.
 - 불확실하면 **묻는다.**
 
@@ -181,4 +184,4 @@ tailscale funnel --bg 8000       # sudo 불필요(tailscaled 떠 있으면)
 | `lib/kv-store.ts` | KV(공지/설정 등) — Postgres `public.kv` |
 | `lib/blob-store.ts` | Vercel Blob 업로드 |
 | `lib/mail.ts` | 이메일(nodemailer + Gmail) |
-| `deploy/com.swportal.keepawake.plist` | idle 슬립 방지 launchd 유닛(`caffeinate -s`) — Funnel/DB 24/7 도달성 유지 |
+| `deploy/com.swportal.keepawake.plist` | idle 슬립 방지 launchd 유닛(`caffeinate -s`) — Tunnel·Funnel/DB 24/7 도달성 유지 |

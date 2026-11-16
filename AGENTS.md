@@ -8,10 +8,11 @@
 전체 상세는 **[docs/ARCHITECTURE-4.0.md](docs/ARCHITECTURE-4.0.md)** 참고.
 
 ## 30초 요약
-- **맥북 한 대가 중앙 DB.** 자체 호스팅 Supabase(Postgres, Docker)를 **Tailscale Funnel(HTTPS)** 로 노출: `https://userui-macbookpro.tailc11f42.ts.net` → `127.0.0.1:8000`.
+- **맥북 한 대가 중앙 DB.** 자체 호스팅 Supabase(Postgres, Docker)를 **Cloudflare Tunnel(HTTPS)** 로 노출: `https://api.idstrust-asset.app` → `127.0.0.1:8000`.
+  - 2026-11-16 Funnel → Cloudflare Tunnel (api.idstrust-asset.app); Funnel 은 옛 클라이언트용으로 병행 (옛 주소 `https://userui-macbookpro.tailc11f42.ts.net`, 같은 Kong·같은 키).
 - **Postgres가 메인(읽기+쓰기).** Notion은 **단방향 백업**(맥북 launchd 잡이 5분마다 dirty 행만 반영).
 - **Redis/Upstash 제거됨.** KV는 Postgres `public.kv`(`lib/kv-store.ts`). 다시 도입 금지.
-- **DB 포트(5432) 인터넷 노출 금지.** 오직 Funnel(8000)만.
+- **DB 포트(5432) 인터넷 노출 금지.** 오직 HTTPS 8000(Cloudflare Tunnel·Funnel)만.
 
 ## 데이터 접근 규칙
 - 엔티티(HW 제외) 저장소: `public.entity_store` ← **`lib/repo/mirror.ts`** (`readEntity`/`readEntityOne`/`upsertEntity`/`deleteEntity`, 전부 `service_role`).
@@ -36,7 +37,7 @@ launchd 백업 잡(`deploy/com.swportal.backup-notion.plist`)은 **맥북에서�
 
 ## 다른 PC(주로 Claude Code)에서
 - 로컬 DB 띄우지 말 것. 중앙(맥북) Postgres를 쓴다.
-- 로컬 `.env`: `DATA_SOURCE=postgres`, `SUPABASE_URL=<Funnel 주소>`, `SUPABASE_KEY=<service_role>` (+ 필요 시 `GMAIL_*`, `BLOB_READ_WRITE_TOKEN`). 맥북 Supabase/Funnel이 켜져 있어야 한다.
+- 로컬 `.env`: `DATA_SOURCE=postgres`, `SUPABASE_URL=https://api.idstrust-asset.app`, `SUPABASE_KEY=<service_role>` (+ 필요 시 `GMAIL_*`, `BLOB_READ_WRITE_TOKEN`). 맥북 Supabase/Cloudflare Tunnel 이 켜져 있어야 한다.
 - 스키마 변경은 `scripts/sql/NNN_*.sql` + `npm run migrate`(중앙 DB, 사전 합의).
 
 ## 안전 규칙 (엄수)
