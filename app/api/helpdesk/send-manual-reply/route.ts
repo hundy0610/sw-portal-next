@@ -3,8 +3,16 @@ import { kvGet, kvSet } from "@/lib/kv-store";
 import { createMailTransporter, buildHelpdeskManualReplyEmail } from "@/lib/mail";
 import { getManual, saveManual } from "@/lib/helpdesk-manuals";
 import { extractKeywords } from "@/lib/helpdesk-manual-match";
+import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
+
+// 회사 Gmail 로 임의 주소에 메일을 보내는 경로라 슈퍼어드민만(app/api/manuals 와 같은 검사).
+async function getSuperSession(req: NextRequest) {
+  const s = getSessionFromCookieHeader(req.headers.get("cookie"));
+  if (!s) return null;
+  return (await resolveCurrentRole(s)) === "super" ? s : null;
+}
 
 const SENT_KEY = (id: string) => `helpdesk:manual-reply-sent:${id}`;
 const SENT_TTL = 60 * 60 * 24 * 365; // 1년
@@ -12,6 +20,9 @@ const SENT_TTL = 60 * 60 * 24 * 365; // 1년
 // POST /api/helpdesk/send-manual-reply
 // Body: { ticketId, requesterEmail, requesterName, ticketContent, manualId, manualTitle, extraNote, assignee }
 export async function POST(req: NextRequest) {
+  if (!(await getSuperSession(req))) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
   const transporter = createMailTransporter();
   if (!transporter) {
     console.error("[POST /api/helpdesk/send-manual-reply] MANUAL_MAIL_ENV_MISSING");
