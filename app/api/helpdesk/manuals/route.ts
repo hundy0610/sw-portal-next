@@ -2,8 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { listManuals, saveManual, deleteManual } from "@/lib/helpdesk-manuals";
 import { extractPerTicketKeywordSets } from "@/lib/helpdesk-manual-match";
 import { fetchHelpDeskTickets, getCachedHelpdeskTicketsRaw, type HelpDeskTicket } from "@/lib/mirror-entities";
+import { getSessionFromCookieHeader, resolveCurrentRole } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
+
+// 등록·덮어쓰기·삭제는 슈퍼어드민만(app/api/manuals 와 같은 검사). 조회(GET)는 공개 그대로.
+// 저장된 HTML 은 /api/helpdesk/manuals/view 가 포털 도메인에서 그대로 내보내므로 열어 두면 안 된다.
+async function getSuperSession(req: NextRequest) {
+  const s = getSessionFromCookieHeader(req.headers.get("cookie"));
+  if (!s) return null;
+  return (await resolveCurrentRole(s)) === "super" ? s : null;
+}
 
 // 관리자 목록 화면(/api/helpdesk)과 같은 캐시를 재사용 — 없으면 Notion에서 직접(회사 범위 제한 없이) 가져옴.
 // 매뉴얼에 연결된 티켓은 관리자 세션의 회사 범위와 무관하게 항상 전체 데이터 기준으로 계산해야 하므로,
@@ -25,6 +34,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  if (!(await getSuperSession(req))) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const { id, title, contentType, body, linkedTicketIds, updatedBy } = await req.json() as {
       id?: string; title?: string; contentType?: "html" | "url"; body?: string;
@@ -67,6 +79,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  if (!(await getSuperSession(req))) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const { id } = await req.json() as { id?: string };
     if (!id) return NextResponse.json({ ok: false, error: "id 필수", code: "MANUAL_DELETE_INVALID_INPUT" }, { status: 400 });
